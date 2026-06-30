@@ -1,0 +1,80 @@
+import React from 'react';
+
+export default function GuestPreview({ onRentClick }) {
+    const rooms = [
+        { id: 'C', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
+        { id: 'F', type: 'Studio', floor: '2F', price: '₱4,000/mo' },
+        { id: 'D', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
+        { id: 'M', type: 'Studio', floor: '3F', price: '₱3,500/mo' },
+    ];
+
+    return (
+        <div className="w-full h-auto lg:h-[calc(100vh-76px)] bg-slate-50 p-4 md:p-8 lg:overflow-hidden box-border">
+            <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-6 text-left items-stretch">
+
+                {/*Left Column*/}
+                <div className="lg:col-span-7 flex flex-col min-h-0 space-y-6">
+
+                    {/*Modern Dynamic Glass-gradient Hero Banner Layout*/}
+                    <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gradient-to-r from-[#3b4276] via-[#4f46e5] to-[#6366f1] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent)] pointer-events-none"></div>
+                        <div className="w-full sm:w-64 overflow-hidden relative min-h-[160px] sm:min-h-0">
+                            <img
+                                src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80"
+                                alt="Apartment"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-black/20 via-transparent to-transparent"></div>
+                        </div>
+                        <div className="p-8 text-white flex flex-col justify-center flex-grow relative z-10 space-y-3">
+                            <div>
+                                <span className="text-[10px] tracking-widest uppercase font-bold px-2.5 py-1 rounded-md bg-white/20 backdrop-blur-sm inline-block mb-2">Featured Listing</span>
+                                <h2 className="text-3xl font-bold text-white m-0 tracking-tight">Apartment in Silang</h2>
+                                <p className="text-white/80 text-base m-0 font-medium mt-1">Maguyam Silang, Cavite</p>
+                            </div>
+                            <div className="pt-2 flex flex-wrap gap-2 text-xs">
+                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• Motorcycle Parking</span>
+                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• Bathroom per Room</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/*Available Rooms List*/}
+                    <div className="flex flex-col flex-grow min-h-0">
+                        <h2 className="text-xl font-bold text-[#3b4276] mb-3 flex-shrink-0">Available Rooms</h2>
+                        <div className="w-full flex-grow overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] lg:max-h-none">
+                            {rooms.map((room) => (
+                                <div key={room.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800 m-0">Room {room.id}</h3>
+                                        <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
+                                        <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
+                                    </div>
+                                    <button
+                                        onClick={onRentClick}
+                                        className="mt-4 w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm hover:shadow-emerald-500/20 border-0 cursor-pointer"
+                                    >
+                                        Rent Now
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/*Right Column: Maps Embed*/}
+                <div className="lg:col-span-5 h-[400px] lg:h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex">
+                    <iframe
+                        src="https://www.google.com/maps/embed?pb=!1m21!1m12!1m3!1d430.615256915358!2d121.00681478260148!3d14.265260607935625!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!4m6!3e6!4m0!4m3!3m2!1d14.265225869464803!2d121.00695815720717!5e0!3m2!1sen!2sph!4v1782833213473!5m2!1sen!2sph"
+                        className="w-full h-full border-0 flex-grow min-h-0"
+                        allowFullScreen=""
+                        loading="lazy"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        title="Apartment Location Map"
+                    ></iframe>
+                </div>
+
+            </div>
+        </div>
+    );
+}

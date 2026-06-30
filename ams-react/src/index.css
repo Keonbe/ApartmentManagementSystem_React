@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  /* System Tokens */
   --text: #6b6375;
   --text-h: #08060d;
   --bg: #fff;
@@ -54,15 +55,22 @@
 
 body {
   margin: 0;
+  padding: 0;
+  min-width: 100vw;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
+/* FIXED CONTAINER:
+   We updated this from a rigid 1126px width block to safely scale across 100% 
+   of the viewer screen real estate.
+*/
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  width: 100vw !important;
+  max-width: 100% !important;
   min-height: 100svh;
+  margin: 0 !important;
+  padding: 0 !important;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -84,6 +92,7 @@ h1 {
     margin: 20px 0;
   }
 }
+
 h2 {
   font-size: 24px;
   line-height: 118%;
@@ -93,6 +102,7 @@ h2 {
     font-size: 20px;
   }
 }
+
 p {
   margin: 0;
 }
