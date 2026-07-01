@@ -13,6 +13,7 @@ import Login from './UserPages/Login';
 import Registration from './UserPages/Registration';
 import UserHome from './UserPages/UserHome';
 import UserPreview from './UserPages/UserPreview';
+import Services from './UserPages/Services';
 
 //Layout Formats:
 function GuestLayout({children, onLoginClick}) {
@@ -29,7 +30,6 @@ function GuestLayout({children, onLoginClick}) {
 function UserLayout({children, hasRentedRoom}) {
   return (
     <div className="w-full min-h-screen bg-slate-50 flex flex-col text-slate-600 selection:bg-indigo-500 selection:text-white">
-      {/*Pass state down dynamically to the unified header*/}
       <UserTopBar hasRentedRoom={hasRentedRoom} username="Username" />
       <main className="w-full flex-grow flex flex-col">
         {children}
@@ -43,14 +43,14 @@ function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   {/*Change this toggle to true/false manually to verify navigation visibility changes before attaching backend databases*/}
-  const [hasRentedRoom, setHasRentedRoom] = useState(false);
+  const [hasRentedRoom, setHasRentedRoom] = useState(true);
 
   //Route Controls
   const handleRentClick = () => setIsModalOpen(true);
   
   const handleUserRentAction = (roomId) => {
     alert(`Processing apartment room ${roomId} system assignment workflow...`);
-    setHasRentedRoom(true); {/*Dynamically unlocks topbar links upon click mock action*/}
+    setHasRentedRoom(true);
   };
 
   return (
@@ -63,6 +63,7 @@ function AppContent() {
         {/*USER PAGES*/}
         <Route path="/home" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserHome onCardClick={() => navigate('/user-preview')} /></UserLayout>} />
         <Route path="/user-preview" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserPreview onRentClick={handleUserRentAction} /></UserLayout>} />
+        <Route path="/services" element={<UserLayout hasRentedRoom={hasRentedRoom}><Services /></UserLayout>} />
 
         {/*AUTH PAGES*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} />} />
@@ -88,4 +89,4 @@ export default function App() {
       <AppContent />
     </Router>
   );
-}
+} 

@@ -39,14 +39,18 @@ export default function GuestPreview({ onRentClick }) {
                         </div>
                     </div>
 
-                    {/*Available Rooms List*/}
-                    <div className="flex flex-col flex-grow min-h-0">
-                        <h2 className="text-xl font-bold text-[#3b4276] mb-3 flex-shrink-0">Available Rooms</h2>
-                        <div className="w-full flex-grow overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] lg:max-h-none">
+                    {/*Scrollable Layout Block Container*/}
+                    <div className="w-full flex-grow overflow-y-auto pr-1 max-h-[450px] lg:max-h-none">
+                        {/*Heading is now inside the scroll track layout and bolded heavily*/}
+                        <h2 className="text-2xl font-extrabold tracking-tight mb-4 select-none" style={{ color: '#1e293b', fontWeight: '800' }}>
+                            Available Rooms
+                        </h2>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {rooms.map((room) => (
                                 <div key={room.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
                                     <div>
-                                        <h3 className="text-lg font-bold text-slate-800 m-0">Room {room.id}</h3>
+                                        <h3 className="text-lg font-bold text-slate-800 m-0" style={{ color: '#1e293b' }}>Room {room.id}</h3>
                                         <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
                                         <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
                                     </div>
@@ -60,6 +64,7 @@ export default function GuestPreview({ onRentClick }) {
                             ))}
                         </div>
                     </div>
+
                 </div>
 
                 {/*Right Column: Maps Embed*/}
@@ -71,8 +76,8 @@ export default function GuestPreview({ onRentClick }) {
                         loading="lazy"
                         referrerPolicy="strict-origin-when-cross-origin"
                         title="Apartment Location Map"
-                    ></iframe>
-                </div>
+                        ></iframe>
+                    </div>
 
             </div>
         </div>

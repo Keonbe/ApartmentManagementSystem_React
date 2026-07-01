@@ -4,8 +4,12 @@ export default function UserHome({ onCardClick, username = "Username" }) {
     return (
         <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 flex flex-col items-center py-10 px-6">
             <div className="w-full max-w-4xl text-left space-y-6">
-                {/*Welcome Message*/}
-                <h1 className="text-5xl font-sans font-medium text-[#636bf1] m-0">
+
+                {/*Welcome Message - Explicit style override added to guarantee high visibility*/}
+                <h1
+                    className="text-5xl font-sans font-medium m-0 tracking-tight select-none"
+                    style={{ color: '#636bf1', fontWeight: '600' }}
+                >
                     Welcome, {username}
                 </h1>
 
@@ -23,11 +27,12 @@ export default function UserHome({ onCardClick, username = "Username" }) {
                     </div>
 
                     <div className="p-8 text-white space-y-2">
-                        <h2 className="text-3xl font-bold text-white m-0">Apartment in Silang</h2>
+                        <h2 className="text-3xl font-bold text-white m-0 tracking-tight">Apartment in Silang</h2>
                         <p className="text-white/80 text-base m-0">Maguyam Silang, Cavite</p>
-                        <p className="text-white/90 text-sm pt-4 m-0">Available Rooms: 4/14</p>
+                        <p className="text-white/90 text-sm pt-4 m-0 font-medium">Available Rooms: 4/14</p>
                     </div>
                 </div>
+
             </div>
         </div>
     );
