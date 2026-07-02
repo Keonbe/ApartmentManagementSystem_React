@@ -3,8 +3,8 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faSearch, faCheckCircle, faPrinter, faPaperPlane, faUser, faCalendarAlt, 
-  faDollarSign, faFileText, faExclamationTriangle, faTimes, faHistory 
+  faSearch, faCheckCircle, faPrint, faPaperPlane, faUser, faCalendarAlt, 
+  faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory 
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialTenants = [
@@ -71,7 +71,6 @@ const AdminPayments = () => {
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* Balance Summary Metrics Bar */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faDollarSign} /></div>
@@ -88,7 +87,6 @@ const AdminPayments = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Selector Sidebar */}
               <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden h-[calc(100vh-16rem)] min-h-[500px]">
                 <div className="p-4 border-b border-slate-200 bg-slate-50">
                   <h3 className="text-sm font-semibold text-slate-800 mb-3 m-0">Select Tenant</h3>
@@ -107,11 +105,10 @@ const AdminPayments = () => {
                 </div>
               </div>
 
-              {/* Main Workspace Frame */}
               <div className="lg:col-span-8 flex flex-col gap-6">
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
                   <div className="flex justify-between items-start mb-6">
-                    <div><h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faFileText} className="text-indigo-600" /> Billing Details</h3><p className="text-sm text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p></div>
+                    <div><h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faFileAlt} className="text-indigo-600" /> Billing Details</h3><p className="text-sm text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p></div>
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -122,6 +119,11 @@ const AdminPayments = () => {
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100"><p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Term</p><p className="text-sm font-medium text-slate-700 m-0 mt-0.5">{activeTenant.termOfPayment}</p></div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100"><p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Deposit</p><p className="text-sm font-medium text-emerald-600 m-0 mt-0.5">{activeTenant.depositStatus}</p></div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100"><p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Advance</p><p className="text-sm font-medium text-emerald-600 m-0 mt-0.5">{activeTenant.advanceStatus}</p></div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-4">
+                    <input type="checkbox" id="extendedRent" checked={isExtendedRent} onChange={e => setIsExtendedRent(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                    <label htmlFor="extendedRent" className="text-sm font-medium text-slate-700 cursor-pointer">Use Extended/Prorated Rent</label>
                   </div>
 
                   <div className="flex items-end justify-between border-t border-slate-100 pt-4">
@@ -137,11 +139,10 @@ const AdminPayments = () => {
 
                   <div className="flex gap-3 mt-6">
                     <button onClick={handleMarkAsPaid} disabled={totalDue <= 0} className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors border-0 cursor-pointer disabled:opacity-45"><FontAwesomeIcon icon={faCheckCircle} /> Mark as Paid</button>
-                    <button onClick={() => handleGenerateReceipt()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer"><FontAwesomeIcon icon={faPrinter} /> View Current Receipt</button>
+                    <button onClick={() => handleGenerateReceipt()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer"><FontAwesomeIcon icon={faPrint} /> View Current Receipt</button>
                   </div>
                 </div>
 
-                {/* Log Track List */}
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex-1 min-h-[300px]">
                   <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-400" /> Payment History</h3>
                   <table className="w-full text-left text-sm">
@@ -156,7 +157,7 @@ const AdminPayments = () => {
                           <td className="py-3 font-medium text-slate-800">{record.period}</td>
                           <td className="py-3 text-slate-700">{formatCurrency(record.amount)}</td>
                           <td className="py-3 text-slate-500">{record.datePaid}</td>
-                          <td className="py-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-transparent cursor-pointer hover:text-indigo-800 text-xs"><FontAwesomeIcon icon={faPrinter} /></button></td>
+                          <td className="py-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-transparent cursor-pointer hover:text-indigo-800 text-xs"><FontAwesomeIcon icon={faPrint} /></button></td>
                         </tr>
                       ))}
                     </tbody>
@@ -169,7 +170,6 @@ const AdminPayments = () => {
         </div>
       </main>
 
-      {/* Official Receipt Modal Popup */}
       {showReceipt && receiptData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowReceipt(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -183,12 +183,12 @@ const AdminPayments = () => {
                 <div className="text-right"><p className="text-slate-500 text-xs m-0">Status</p><p className="font-bold text-emerald-600 m-0 mt-0.5">{receiptData.status}</p></div>
               </div>
               <div><p className="text-slate-500 text-xs m-0">Received From</p><p className="font-bold text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600">Unit {receiptData.unit}</p></div>
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-slate-600">{receiptData.breakdown}</div>
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed text-xs">{receiptData.breakdown}</div>
               <div className="flex justify-between items-center pt-4 border-t border-slate-200"><p className="font-bold text-slate-500 m-0">TOTAL</p><p className="text-xl font-bold text-slate-800 m-0">{formatCurrency(receiptData.amount)}</p></div>
             </div>
             <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200">
-              <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold border-0 cursor-pointer"><FontAwesomeIcon icon={faPrinter} /> Print Receipt</button>
-              <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold border-solid cursor-pointer">Close</button>
+              <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
+              <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer">Close</button>
             </div>
           </div>
         </div>

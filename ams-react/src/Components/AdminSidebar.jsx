@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faHome, faBuilding, faUsers, faCreditCard, 
-  faWrench, faBullhorn, faFileText 
+  faWrench, faBullhorn, faFileAlt 
 } from '@fortawesome/free-solid-svg-icons';
 
 const navSections = [
@@ -26,14 +26,14 @@ const navSections = [
   {
     title: 'Reports',
     items: [
-      { to: '/admin-reports', icon: faFileText, label: 'Reports' },
+      { to: '/admin-reports', icon: faFileAlt, label: 'Reports' },
     ],
   },
 ];
 
 const Sidebar = () => {
   return (
-    <aside className="w-64 bg-slate-900 text-slate-300 flex-col hidden md:flex h-full text-left">
+    <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex h-full text-left shrink-0 select-none">
       {/* Logo Area */}
       <div className="h-20 flex flex-col justify-center px-6 border-b border-slate-800">
         <h1 className="text-3xl font-bold text-white tracking-wider italic font-serif m-0 uppercase">AMS</h1>
@@ -53,12 +53,14 @@ const Sidebar = () => {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
                         isActive
-                          ? 'bg-indigo-600 text-white font-semibold'
+                          ? 'bg-indigo-600 text-white font-semibold shadow-sm'
                           : 'text-slate-300 hover:bg-slate-800'
                       }`
                     }
                   >
-                    <FontAwesomeIcon icon={item.icon} className="w-4 text-center" />
+                    <div className="w-5 text-center flex items-center justify-center">
+                      <FontAwesomeIcon icon={item.icon} className="text-sm" />
+                    </div>
                     <span>{item.label}</span>
                   </NavLink>
                 </li>

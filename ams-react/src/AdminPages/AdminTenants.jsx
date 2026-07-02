@@ -3,27 +3,114 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faSearch, faPlus, faTimes, faUser, faFileText, faBuilding, faUpload,
+  faSearch, faPlus, faTimes, faUser, faFileAlt, faBuilding, faUpload,
   faCalendarAlt, faPhone, faEnvelope, faExclamationTriangle, faCheckCircle,
-  faLogOut, faEye, faChevronRight, faClock, faShieldAlt
+  faSignOutAlt, faEye, faChevronRight, faClock, faShieldAlt
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialTenants = [
-  { id: 1, name: 'Maria Santos', email: 'maria.santos@email.com', phone: '0917-123-4567', emergencyContact: 'Juan Santos — 0918-111-2222', unit: '1A', rent: '₱6,500', moveIn: '2024-06-01', leaseEnd: '2025-06-01', status: 'active', balance: '₱0', paymentStatus: 'paid', documents: [{ name: 'Valid_ID.jpg', type: 'Valid ID', date: '2024-06-01' }, { name: 'Lease_Contract.pdf', type: 'Lease Contract', date: '2024-06-01' }] },
-  { id: 2, name: 'Jose Reyes', email: 'jose.reyes@email.com', phone: '0918-234-5678', emergencyContact: 'Ana Reyes — 0917-222-3333', unit: '1B', rent: '₱6,500', moveIn: '2024-07-15', leaseEnd: '2025-07-15', status: 'active', balance: '₱0', paymentStatus: 'paid', documents: [{ name: 'Gov_ID.jpg', type: 'Valid ID', date: '2024-07-15' }] },
-  { id: 3, name: 'Pedro Cruz', email: 'pedro.cruz@email.com', phone: '0919-345-6789', emergencyContact: 'Rosa Cruz — 0916-333-4444', unit: '2B', rent: '₱6,500', moveIn: '2024-03-01', leaseEnd: '2025-03-01', status: 'active', balance: '₱6,500', paymentStatus: 'overdue', documents: [{ name: 'ID_Front.jpg', type: 'Valid ID', date: '2024-03-01' }, { name: 'Contract_Signed.pdf', type: 'Lease Contract', date: '2024-03-01' }, { name: 'Barangay_Clearance.pdf', type: 'Barangay Clearance', date: '2024-03-05' }] },
-  { id: 4, name: 'Rosa Dela Cruz', email: 'rosa.dc@email.com', phone: '0920-456-7890', emergencyContact: 'Marco Dela Cruz — 0915-444-5555', unit: '2C', rent: '₱7,500', moveIn: '2024-08-01', leaseEnd: '2025-08-01', status: 'active', balance: '₱7,500', paymentStatus: 'pending', documents: [{ name: 'PhilID.jpg', type: 'Valid ID', date: '2024-08-01' }] },
-  { id: 5, name: 'Ben Flores', email: 'ben.flores@email.com', phone: '0921-567-8901', emergencyContact: 'Lisa Flores — 0914-555-6666', unit: '3A', rent: '₱6,500', moveIn: '2024-04-15', leaseEnd: '2025-04-15', status: 'active', balance: '₱6,500', paymentStatus: 'overdue', documents: [] },
-  { id: 6, name: 'Lita Ramos', email: 'lita.ramos@email.com', phone: '0922-678-9012', emergencyContact: 'Edgar Ramos — 0913-666-7777', unit: '3B', rent: '₱6,500', moveIn: '2024-01-01', leaseEnd: '2025-01-01', status: 'pending-move-out', balance: '₱0', paymentStatus: 'paid', documents: [{ name: 'NBI_Clearance.pdf', type: 'NBI Clearance', date: '2024-01-01' }] },
-  { id: 7, name: 'Dante Abad', email: 'dante.abad@email.com', phone: '0923-789-0123', emergencyContact: 'Nora Abad — 0912-777-8888', unit: '3C', rent: '₱7,500', moveIn: '2024-05-01', leaseEnd: '2025-05-01', status: 'active', balance: '₱0', paymentStatus: 'paid', documents: [] },
-  { id: 8, name: 'Gloria Tan', email: 'gloria.tan@email.com', phone: '0924-890-1234', emergencyContact: 'Roberto Tan — 0911-888-9999', unit: '4A', rent: '₱6,500', moveIn: '2024-09-01', leaseEnd: '2025-09-01', status: 'active', balance: '₱500', paymentStatus: 'overdue', documents: [{ name: 'Passport_Copy.jpg', type: 'Valid ID', date: '2024-09-01' }, { name: 'Contract.pdf', type: 'Lease Contract', date: '2024-09-01' }] },
-  { id: 9, name: 'Ramon Lim', email: 'ramon.lim@email.com', phone: '0925-901-2345', emergencyContact: 'Carmen Lim — 0910-999-0000', unit: '4B', rent: '₱6,500', moveIn: '2024-02-01', leaseEnd: '2025-02-01', status: 'active', balance: '₱0', paymentStatus: 'paid', documents: [] },
-  { id: 10, name: 'Cora Santos', email: 'cora.santos@email.com', phone: '0926-012-3456', emergencyContact: 'Manny Santos — 0909-000-1111', unit: '4C', rent: '₱7,500', moveIn: '2024-10-01', leaseEnd: '2025-10-01', status: 'active', balance: '₱7,500', paymentStatus: 'pending', documents: [{ name: 'SSS_ID.jpg', type: 'Valid ID', date: '2024-10-01' }] },
-  { id: 11, name: 'Carlos Mendoza', email: 'carlos.m@email.com', phone: '0927-111-2222', emergencyContact: 'Elena Mendoza — 0908-111-2222', unit: '—', rent: '₱0', moveIn: '2023-06-01', leaseEnd: '2024-06-01', status: 'moved-out', balance: '₱0', paymentStatus: 'paid', documents: [{ name: 'ID_Carlos.jpg', type: 'Valid ID', date: '2023-06-01' }] }
+  {
+    id: 1, name: 'Maria Santos', email: 'maria.santos@email.com', phone: '0917-123-4567',
+    emergencyContact: 'Juan Santos — 0918-111-2222',
+    unit: '1A', rent: '₱6,500', moveIn: '2024-06-01', leaseEnd: '2025-06-01',
+    status: 'active', balance: '₱0', paymentStatus: 'paid',
+    documents: [
+      { name: 'Valid_ID.jpg', type: 'Valid ID', date: '2024-06-01' },
+      { name: 'Lease_Contract.pdf', type: 'Lease Contract', date: '2024-06-01' },
+    ],
+  },
+  {
+    id: 2, name: 'Jose Reyes', email: 'jose.reyes@email.com', phone: '0918-234-5678',
+    emergencyContact: 'Ana Reyes — 0917-222-3333',
+    unit: '1B', rent: '₱6,500', moveIn: '2024-07-15', leaseEnd: '2025-07-15',
+    status: 'active', balance: '₱0', paymentStatus: 'paid',
+    documents: [
+      { name: 'Gov_ID.jpg', type: 'Valid ID', date: '2024-07-15' },
+    ],
+  },
+  {
+    id: 3, name: 'Pedro Cruz', email: 'pedro.cruz@email.com', phone: '0919-345-6789',
+    emergencyContact: 'Rosa Cruz — 0916-333-4444',
+    unit: '2B', rent: '₱6,500', moveIn: '2024-03-01', leaseEnd: '2025-03-01',
+    status: 'active', balance: '₱6,500', paymentStatus: 'overdue',
+    documents: [
+      { name: 'ID_Front.jpg', type: 'Valid ID', date: '2024-03-01' },
+      { name: 'Contract_Signed.pdf', type: 'Lease Contract', date: '2024-03-01' },
+      { name: 'Barangay_Clearance.pdf', type: 'Barangay Clearance', date: '2024-03-05' },
+    ],
+  },
+  {
+    id: 4, name: 'Rosa Dela Cruz', email: 'rosa.dc@email.com', phone: '0920-456-7890',
+    emergencyContact: 'Marco Dela Cruz — 0915-444-5555',
+    unit: '2C', rent: '₱7,500', moveIn: '2024-08-01', leaseEnd: '2025-08-01',
+    status: 'active', balance: '₱7,500', paymentStatus: 'pending',
+    documents: [
+      { name: 'PhilID.jpg', type: 'Valid ID', date: '2024-08-01' },
+    ],
+  },
+  {
+    id: 5, name: 'Ben Flores', email: 'ben.flores@email.com', phone: '0921-567-8901',
+    emergencyContact: 'Lisa Flores — 0914-555-6666',
+    unit: '3A', rent: '₱6,500', moveIn: '2024-04-15', leaseEnd: '2025-04-15',
+    status: 'active', balance: '₱6,500', paymentStatus: 'overdue',
+    documents: [],
+  },
+  {
+    id: 6, name: 'Lita Ramos', email: 'lita.ramos@email.com', phone: '0922-678-9012',
+    emergencyContact: 'Edgar Ramos — 0913-666-7777',
+    unit: '3B', rent: '₱6,500', moveIn: '2024-01-01', leaseEnd: '2025-01-01',
+    status: 'pending-move-out', balance: '₱0', paymentStatus: 'paid',
+    documents: [
+      { name: 'NBI_Clearance.pdf', type: 'NBI Clearance', date: '2024-01-01' },
+    ],
+  },
+  {
+    id: 7, name: 'Dante Abad', email: 'dante.abad@email.com', phone: '0923-789-0123',
+    emergencyContact: 'Nora Abad — 0912-777-8888',
+    unit: '3C', rent: '₱7,500', moveIn: '2024-05-01', leaseEnd: '2025-05-01',
+    status: 'active', balance: '₱0', paymentStatus: 'paid',
+    documents: [],
+  },
+  {
+    id: 8, name: 'Gloria Tan', email: 'gloria.tan@email.com', phone: '0924-890-1234',
+    emergencyContact: 'Roberto Tan — 0911-888-9999',
+    unit: '4A', rent: '₱6,500', moveIn: '2024-09-01', leaseEnd: '2025-09-01',
+    status: 'active', balance: '₱500', paymentStatus: 'overdue',
+    documents: [
+      { name: 'Passport_Copy.jpg', type: 'Valid ID', date: '2024-09-01' },
+      { name: 'Contract.pdf', type: 'Lease Contract', date: '2024-09-01' },
+    ],
+  },
+  {
+    id: 9, name: 'Ramon Lim', email: 'ramon.lim@email.com', phone: '0925-901-2345',
+    emergencyContact: 'Carmen Lim — 0910-999-0000',
+    unit: '4B', rent: '₱6,500', moveIn: '2024-02-01', leaseEnd: '2025-02-01',
+    status: 'active', balance: '₱0', paymentStatus: 'paid',
+    documents: [],
+  },
+  {
+    id: 10, name: 'Cora Santos', email: 'cora.santos@email.com', phone: '0926-012-3456',
+    emergencyContact: 'Manny Santos — 0909-000-1111',
+    unit: '4C', rent: '₱7,500', moveIn: '2024-10-01', leaseEnd: '2025-10-01',
+    status: 'active', balance: '₱7,500', paymentStatus: 'pending',
+    documents: [
+      { name: 'SSS_ID.jpg', type: 'Valid ID', date: '2024-10-01' },
+    ],
+  },
+  {
+    id: 11, name: 'Carlos Mendoza', email: 'carlos.m@email.com', phone: '0927-111-2222',
+    emergencyContact: 'Elena Mendoza — 0908-111-2222',
+    unit: '—', rent: '₱0', moveIn: '2023-06-01', leaseEnd: '2024-06-01',
+    status: 'moved-out', balance: '₱0', paymentStatus: 'paid',
+    documents: [
+      { name: 'ID_Carlos.jpg', type: 'Valid ID', date: '2023-06-01' },
+    ],
+  },
 ];
 
 const daysRemaining = (leaseEnd) => {
-  return Math.ceil((new Date(leaseEnd) - new Date()) / (1000 * 60 * 60 * 24));
+  const diff = Math.ceil((new Date(leaseEnd) - new Date()) / (1000 * 60 * 60 * 24));
+  return diff;
 };
 
 const AdminTenants = () => {
@@ -37,7 +124,10 @@ const AdminTenants = () => {
   const [showMoveOutConfirm, setShowMoveOutConfirm] = useState(false);
   const [moveOutTarget, setMoveOutTarget] = useState(null);
 
-  const emptyForm = { name: '', email: '', phone: '', emergencyContact: '', unit: '', rent: '', moveIn: '', leaseEnd: '' };
+  const emptyForm = {
+    name: '', email: '', phone: '', emergencyContact: '',
+    unit: '', rent: '', moveIn: '', leaseEnd: '',
+  };
   const [regForm, setRegForm] = useState(emptyForm);
 
   const counts = {
@@ -57,7 +147,9 @@ const AdminTenants = () => {
   let displayed = activeFilter === 'all' ? tenants : tenants.filter(t => t.status === activeFilter);
   if (searchTerm.trim()) {
     const q = searchTerm.toLowerCase();
-    displayed = displayed.filter(t => t.name.toLowerCase().includes(q) || t.unit.toLowerCase().includes(q) || t.email.toLowerCase().includes(q));
+    displayed = displayed.filter(t =>
+      t.name.toLowerCase().includes(q) || t.unit.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)
+    );
   }
 
   const getOccupancyBadge = (status) => {
@@ -86,6 +178,11 @@ const AdminTenants = () => {
     setTenants(prev => [newTenant, ...prev]);
     setRegForm(emptyForm);
     setShowRegModal(false);
+  };
+
+  const handleInitiateMoveOut = (tenant) => {
+    setMoveOutTarget(tenant);
+    setShowMoveOutConfirm(true);
   };
 
   const handleConfirmMoveOut = () => {
@@ -117,7 +214,7 @@ const AdminTenants = () => {
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* ─── Top Bar ─── */}
+            {/* Top Bar */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-all">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
@@ -135,13 +232,15 @@ const AdminTenants = () => {
               </button>
             </div>
 
-            {/* ─── Filter Pills ─── */}
+            {/* Filter Pills */}
             <div className="flex items-center gap-3 flex-wrap">
               {filters.map(f => (
                 <button
                   key={f.key} onClick={() => setActiveFilter(f.key)}
                   className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
-                    activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400'
+                    activeFilter === f.key
+                      ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600')
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'
                   }`}
                 >
                   {f.label}
@@ -149,7 +248,7 @@ const AdminTenants = () => {
               ))}
             </div>
 
-            {/* ─── Table ─── */}
+            {/* Table */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -189,9 +288,14 @@ const AdminTenants = () => {
                           <td className="px-4 py-3">{getOccupancyBadge(t.status)}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <button onClick={() => { setSelectedTenant(t); setShowProfileModal(true); }} className="flex items-center gap-1 text-[11px] text-indigo-600 font-semibold hover:underline border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faEye} /> Profile</button>
+                              <button
+                                onClick={() => { setSelectedTenant(t); setShowProfileModal(true); }}
+                                className="flex items-center gap-1 text-[11px] text-indigo-600 font-semibold hover:underline bg-transparent border-0 cursor-pointer"
+                              >
+                                <FontAwesomeIcon icon={faEye} /> Profile
+                              </button>
                               {t.status === 'active' && <button onClick={() => handleSetPendingMoveOut(t)} className="flex items-center gap-1 text-[11px] text-amber-600 font-semibold hover:underline border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faClock} /> Move-Out</button>}
-                              {t.status === 'pending-move-out' && <button onClick={() => { setMoveOutTarget(t); setShowMoveOutConfirm(true); }} className="flex items-center gap-1 text-[11px] text-red-600 font-semibold hover:underline border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faLogOut} /> Confirm</button>}
+                              {t.status === 'pending-move-out' && <button onClick={() => handleInitiateMoveOut(t)} className="flex items-center gap-1 text-[11px] text-red-600 font-semibold hover:underline border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faSignOutAlt} /> Confirm</button>}
                             </div>
                           </td>
                         </tr>
@@ -206,7 +310,7 @@ const AdminTenants = () => {
         </div>
       </main>
 
-      {/* ─── Tenant Registration Modal ─── */}
+      {/* Register Tenant Modal */}
       {showRegModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowRegModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -264,15 +368,15 @@ const AdminTenants = () => {
         </div>
       )}
 
-      {/* ─── Profile Details tabbed modal area ─── */}
+      {/* Profile details tabbed modal */}
       {showProfileModal && selectedTenant && (
         <TenantProfileModal
           tenant={selectedTenant} onClose={() => { setShowProfileModal(false); setSelectedTenant(null); }}
-          onAddDocument={handleAddDocument} onSetPendingMoveOut={handleSetPendingMoveOut} onConfirmMoveOut={(t) => { setMoveOutTarget(t); setShowMoveOutConfirm(true); }}
+          onAddDocument={handleAddDocument} onSetPendingMoveOut={handleSetPendingMoveOut} onConfirmMoveOut={handleInitiateMoveOut}
         />
       )}
 
-      {/* ─── Move Out Confirmation Modal ─── */}
+      {/* Move Out Confirmation */}
       {showMoveOutConfirm && moveOutTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowMoveOutConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
@@ -289,12 +393,12 @@ const AdminTenants = () => {
   );
 };
 
-/* ─── Profile Sub-Modal ─── */
+/* ── Profile Sub-Modal ── */
 const TenantProfileModal = ({ tenant, onClose, onAddDocument, onSetPendingMoveOut, onConfirmMoveOut }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const tabs = [
     { key: 'profile', label: 'Profile', icon: faUser },
-    { key: 'documents', label: 'Documents', icon: faFileText },
+    { key: 'documents', label: 'Documents', icon: faFileAlt },
     { key: 'occupancy', label: 'Occupancy', icon: faBuilding },
   ];
 
@@ -306,7 +410,7 @@ const TenantProfileModal = ({ tenant, onClose, onAddDocument, onSetPendingMoveOu
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-slate-50">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-bold text-lg shadow-md">{tenant.name.split(' ').map(n => n[0]).join('')}</div>
             <div><h3 className="text-lg font-bold text-slate-800 m-0">{tenant.name}</h3><p className="text-xs text-slate-400 m-0 mt-0.5">Unit {tenant.unit} · {tenant.status.toUpperCase()}</p></div>
@@ -339,7 +443,7 @@ const TenantProfileModal = ({ tenant, onClose, onAddDocument, onSetPendingMoveOu
                 <p className="text-sm text-slate-700 m-0">{tenant.emergencyContact || 'Not provided'}</p>
               </div>
               {tenant.status === 'active' && <button onClick={() => onSetPendingMoveOut(tenant)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm font-semibold hover:bg-amber-100 border-dashed cursor-pointer"><FontAwesomeIcon icon={faClock} /> Set Pending Move-Out</button>}
-              {tenant.status === 'pending-move-out' && <button onClick={() => onConfirmMoveOut(tenant)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-100 border-dashed cursor-pointer"><FontAwesomeIcon icon={faLogOut} /> Process Move-Out</button>}
+              {tenant.status === 'pending-move-out' && <button onClick={() => onConfirmMoveOut(tenant)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-100 border-dashed cursor-pointer"><FontAwesomeIcon icon={faSignOutAlt} /> Process Move-Out</button>}
             </div>
           )}
 
@@ -349,7 +453,7 @@ const TenantProfileModal = ({ tenant, onClose, onAddDocument, onSetPendingMoveOu
               <div className="space-y-2">
                 {tenant.documents.map((doc, idx) => (
                   <div key={idx} className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-lg px-4 py-3">
-                    <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 text-xs"><FontAwesomeIcon icon={faFileText} /></div>
+                    <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 text-xs"><FontAwesomeIcon icon={faFileAlt} /></div>
                     <div className="flex-1 min-w-0"><p className="text-sm font-medium text-slate-700 truncate m-0">{doc.name}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">{doc.type} · Uploaded {doc.date}</p></div>
                     <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 text-xs" />
                   </div>

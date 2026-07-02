@@ -5,14 +5,32 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDownload } from '@fortawesome/free-solid-svg-icons';
 
 const revenueMonths = [
-  { label: 'Nov', height: 55 }, { label: 'Dec', height: 62 }, { label: 'Jan', height: 68 },
-  { label: 'Feb', height: 63 }, { label: 'Mar', height: 72 }, { label: 'Apr', height: 80, active: true }
+  { label: 'Nov', height: 55 },
+  { label: 'Dec', height: 62 },
+  { label: 'Jan', height: 68 },
+  { label: 'Feb', height: 63 },
+  { label: 'Mar', height: 72 },
+  { label: 'Apr', height: 80, active: true },
 ];
 
 const outstandingBalances = [
   { label: 'Pedro Cruz 2B', width: 85, value: '₱6,500', color: 'bg-red-500', textColor: 'text-red-500' },
   { label: 'Rosa D.C. 2C', width: 97, value: '₱7,500', color: 'bg-amber-500', textColor: 'text-amber-500' },
-  { label: 'Ben Flores 3A', width: 85, value: '₱6,500', color: 'bg-red-500', textColor: 'text-red-500' }
+  { label: 'Ben Flores 3A', width: 85, value: '₱6,500', color: 'bg-red-500', textColor: 'text-red-500' },
+];
+
+const utilityData = [
+  { label: 'Water', width: 45, value: '₱320/mo', color: 'bg-blue-400' },
+  { label: 'Electricity', width: 70, value: '₱760/mo', color: 'bg-amber-400' },
+];
+
+const occupancyTrend = [
+  { label: '80%', height: 50, color: 'bg-emerald-100' },
+  { label: '82%', height: 55, color: 'bg-emerald-100' },
+  { label: '82%', height: 55, color: 'bg-emerald-100' },
+  { label: '85%', height: 60, color: 'bg-emerald-100' },
+  { label: '85%', height: 60, color: 'bg-emerald-100' },
+  { label: '86%', height: 62, color: 'bg-emerald-500', active: true },
 ];
 
 const AdminReports = () => {
@@ -26,10 +44,15 @@ const AdminReports = () => {
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
+            {/* Top Action */}
             <div className="flex items-center justify-end">
-              <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer"><FontAwesomeIcon icon={faDownload} /> Export PDF</button>
+              <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-sm border-0 cursor-pointer">
+                <FontAwesomeIcon icon={faDownload} />
+                Export PDF
+              </button>
             </div>
 
+            {/* KPI Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Total collected</div>
@@ -48,33 +71,44 @@ const AdminReports = () => {
               </div>
             </div>
 
+            {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+              {/* Revenue Chart */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <h3 className="text-sm font-semibold text-slate-800 mb-4 m-0">Revenue — last 6 months</h3>
-                <div className="h-24 flex items-end gap-2 mt-4">
+                <div className="h-24 flex items-end gap-2 mt-6">
                   {revenueMonths.map((m, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <div className={`w-full rounded-t transition-all ${m.active ? 'bg-indigo-600' : 'bg-blue-100'}`} style={{ height: `${m.height}px` }} />
+                      <div
+                        className={`w-full rounded-t transition-all cursor-pointer ${
+                          m.active ? 'bg-indigo-600' : 'bg-blue-100 hover:bg-blue-200'
+                        }`}
+                        style={{ height: `${m.height}px` }}
+                      />
                       <span className="text-[9px] text-slate-400 font-medium">{m.label}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* Outstanding Balances */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <h3 className="text-sm font-semibold text-slate-800 mb-4 m-0">Outstanding balances</h3>
-                <div className="space-y-4 mt-4">
+                <div className="space-y-4 mt-6">
                   {outstandingBalances.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-3">
                       <div className="text-xs text-slate-500 min-w-[90px] font-medium">{item.label}</div>
-                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner"><div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.width}%` }} /></div>
+                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                        <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.width}%` }} />
+                      </div>
                       <div className={`text-xs font-bold min-w-[60px] text-right ${item.textColor}`}>{item.value}</div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
 
+            </div>
           </div>
         </div>
       </main>

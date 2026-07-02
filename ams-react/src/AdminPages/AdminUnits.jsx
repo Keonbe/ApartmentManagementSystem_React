@@ -5,10 +5,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faCalendarAlt, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus, faArrowRight,
-  faHistory, faLayers, faSync
+  faHistory, faLayerGroup, faSync
 } from '@fortawesome/free-solid-svg-icons';
 
-// Seed data definitions remain identical
 const initialUnits = [
   { id: '1A', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Maria Santos', rent: 6500, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Maria Santos', date: '2024-06-01' }] },
   { id: '1B', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Jose Reyes', rent: 6500, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Jose Reyes', date: '2024-07-15' }] },
@@ -317,7 +316,7 @@ const AdminUnits = () => {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Tenant Name *</label>
-                <input value={assignForm.tenantName} onChange={e => setAssignForm({ ...assignForm, tenantName: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="Full name of tenant" />
+                <input value={assignForm.tenantName} onChange={e => setAssignForm({ ...assignForm, textName: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="Full name of tenant" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -386,7 +385,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-400 border-b-transparent hover:text-slate-600'}`}
             >
-              <FontAwesomeIcon icon={tab.icon} className="text-xs" /> {tab.label}
+              <FontAwesomeIcon icon={tab.icon === faLayers ? faLayerGroup : tab.icon} className="text-xs" /> {tab.label}
             </button>
           ))}
         </div>
