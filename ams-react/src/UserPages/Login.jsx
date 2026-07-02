@@ -11,27 +11,24 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setMessage('');
+
         try {
-            const res = await api.post("/login.php", { email_address: email, password });
-
-            console.log("response", res.data);
-
+            const res = await api.post("/login.php", {
+                email_address: email.trim(),
+                password
+            });
 
             if (res.data.valid) {
                 sessionStorage.setItem("loggedInUser", JSON.stringify(res.data.user));
                 onHomeRedirect();
+            } else {
+                setMessage(res.data.message || "Incorrect email or password");
             }
-
-            else {
-                setMessage("Incorrect email or password");
-                return;
-            }
+        } catch (error) {
+            setMessage("Unable to log in. Please try again.");
         }
-        catch (error) {
-            console.error("Error:", error);
-            setMessage("Error, please try again later.");
-        }
-    }
+    };
 
 
     return (
@@ -122,6 +119,9 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             <button type="submit" className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium py-3.5 rounded-xl shadow-lg shadow-indigo-100 transition-all mt-2 border-0 cursor-pointer text-base">
                                 Login
                             </button>
+                            <p className="h-5 text-center text-sm text-red-500">
+                                {message}
+                            </p>
                         </form>
 
                         <div className="text-center pt-4">
