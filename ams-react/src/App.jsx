@@ -14,6 +14,13 @@ import Registration from './UserPages/Registration';
 import UserHome from './UserPages/UserHome';
 import UserPreview from './UserPages/UserPreview';
 import Services from './UserPages/Services';
+import AdminDashboard from './AdminPages/AdminDashboard';
+import AdminUnits from './AdminPages/AdminUnits';
+import AdminTenants from './AdminPages/AdminTenants';
+import AdminPayments from './AdminPages/AdminPayments';
+import AdminMaintainance from './AdminPages/AdminMaintainance';
+import AdminAnnouncements from './AdminPages/AdminAnnouncements';
+import AdminReports from './AdminPages/AdminReports';
 
 //Layout Formats:
 function GuestLayout({children, onLoginClick}) {
@@ -66,8 +73,17 @@ function AppContent() {
         <Route path="/services" element={<UserLayout hasRentedRoom={hasRentedRoom}><Services /></UserLayout>} />
 
         {/*AUTH PAGES*/}
-        <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} />} />
+        <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} />} />
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} />} />
+
+        {/*ADMIN PAGES*/}
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
+        <Route path="/admin-units" element={<AdminUnits />} />
+        <Route path="/admin-tenants" element={<AdminTenants />} />
+        <Route path="/admin-payments" element={<AdminPayments />} />
+        <Route path="/admin-maintenance" element={<AdminMaintainance />} />
+        <Route path="/admin-announcements" element={<AdminAnnouncements />} />
+        <Route path="/admin-reports" element={<AdminReports />} />
       </Routes>
 
       {/*Global Components*/}

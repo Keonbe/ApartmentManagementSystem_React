@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 
-export default function Login({ onRegisterRedirect }) {
+export default function Login({ onRegisterRedirect, onAdminRedirect }) {
     const [showPassword, setShowPassword] = useState(false);
 
     return (
@@ -94,6 +94,15 @@ export default function Login({ onRegisterRedirect }) {
                                 Don't have an Account?{' '}
                                 <button onClick={onRegisterRedirect} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
                                     Register
+                                </button>
+                            </p>
+                        </div>
+
+                        <div className="text-center pt-4">
+                            <p className="text-sm text-slate-500 m-0">
+                                Are you an Administrator?{' '}
+                                <button onClick={onAdminRedirect} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
+                                    Admin Login
                                 </button>
                             </p>
                         </div>
