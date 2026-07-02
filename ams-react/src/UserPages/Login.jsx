@@ -1,9 +1,38 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import api from "../api/axiosConfig";
 
-export default function Login({ onRegisterRedirect, onAdminRedirect }) {
+export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedirect }) {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [message, setMessage] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const res = await api.post("/login.php", { email_address: email, password });
+
+            console.log("response", res.data);
+
+
+            if (res.data.valid) {
+                sessionStorage.setItem("loggedInUser", JSON.stringify(res.data.user));
+                onHomeRedirect();
+            }
+
+            else {
+                setMessage("Incorrect email or password");
+                return;
+            }
+        }
+        catch (error) {
+            console.error("Error:", error);
+            setMessage("Error, please try again later.");
+        }
+    }
+
 
     return (
         <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
@@ -54,13 +83,16 @@ export default function Login({ onRegisterRedirect, onAdminRedirect }) {
                             Login
                         </h2>
 
-                        <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+                        <form className="space-y-5" onSubmit={handleSubmit}>
                             <div>
                                 <input
                                     type="email"
                                     placeholder="Email Address"
                                     className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                     style={{ color: '#1e293b' }}
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                 />
                             </div>
 
@@ -70,6 +102,9 @@ export default function Login({ onRegisterRedirect, onAdminRedirect }) {
                                     placeholder="Password"
                                     className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                     style={{ color: '#1e293b' }}
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                 />
                                 <button
                                     type="button"

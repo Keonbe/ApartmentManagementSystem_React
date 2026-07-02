@@ -1,19 +1,43 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import api from "../api/axiosConfig";
 
 export default function Registration({ onLoginRedirect }) {
+    const [firstname, setFirstName] = useState('');
+    const [lastname, setLastName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [showPass, setShowPass] = useState(false);
     const [showConfirmPass, setShowConfirmPass] = useState(false);
 
+    const handleRegister = async (e) => {
+        e.preventDefault();
+
+        const payload = {
+            first_name: firstname.trim(),
+            last_name: lastname.trim(),
+            email_address: email.trim(),
+            password: password
+        };
+
+        try{
+            const res = await api.post("/registration.php", payload);
+            onLoginRedirect();
+        }
+        catch(e){
+            console.error("Error:", e);
+        }
+    }
+    
     return (
         <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
             <style>
                 {`
-          @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
-          .custom-ams-logo {
+            @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
+            .custom-ams-logo {
             font-family: 'Playfair Display', Georgia, serif !important;
-          }
+            }
         `}
             </style>
 
@@ -55,69 +79,77 @@ export default function Registration({ onLoginRedirect }) {
                             Register
                         </h2>
 
-                        <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
-                            <input
-                                type="text"
-                                placeholder="First Name"
+                    <form className="space-y-3" onSubmit={handleRegister}>
+                        <input
+                            value={firstname}
+                            type="text"
+                            placeholder="First Name"
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                 style={{ color: '#1e293b' }}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Last Name"
+                                onChange={(e) => setFirstName(e.target.value)}
+                        />
+                        <input
+                            value={lastname}
+                            type="text"
+                            placeholder="Last Name"
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                 style={{ color: '#1e293b' }}
-                            />
-                            <input
-                                type="email"
-                                placeholder="Email Address"
+                                onChange={(e) => setLastName(e.target.value)}
+                        />
+                        <input
+                        value={email}
+                            type="email"
+                            placeholder="Email Address"
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                 style={{ color: '#1e293b' }}
-                            />
+                                onChange={(e) => setEmail(e.target.value)}
+                        />
 
-                            <div className="relative">
-                                <input
-                                    type={showPass ? "text" : "password"}
-                                    placeholder="Password"
+                        <div className="relative">
+                            <input
+                                value={password}
+                                type={showPass ? "text" : "password"}
+                                placeholder="Password"
                                     className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                     style={{ color: '#1e293b' }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPass(!showPass)}
-                                    className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
-                                >
-                                    <FontAwesomeIcon icon={showPass ? faEyeSlash : faEye} />
-                                </button>
-                            </div>
-
-                            <div className="relative">
-                                <input
-                                    type={showConfirmPass ? "text" : "password"}
-                                    placeholder="Confirm Password"
-                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
-                                    style={{ color: '#1e293b' }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowConfirmPass(!showConfirmPass)}
-                                    className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
-                                >
-                                    <FontAwesomeIcon icon={showConfirmPass ? faEyeSlash : faEye} />
-                                </button>
-                            </div>
-
-                            <button type="submit" className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium py-3 rounded-xl shadow-md transition-all mt-4 border-0 cursor-pointer">
-                                Register
-                            </button>
-                        </form>
-
-                        <div className="text-center pt-2">
-                            <button onClick={onLoginRedirect} className="text-xs text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
-                                Already have an Account?
+                                    onChange={(e) => setPassword(e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPass(!showPass)}
+                                className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
+                            >
+                                <FontAwesomeIcon icon={showPass ? faEyeSlash : faEye} />
                             </button>
                         </div>
+
+                        <div className="relative">
+                            <input
+                                type={showConfirmPass ? "text" : "password"}
+                                placeholder="Confirm Password"
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                                    style={{ color: '#1e293b' }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
+                            >
+                                <FontAwesomeIcon icon={showConfirmPass ? faEyeSlash : faEye} />
+                            </button>
+                        </div>
+
+                        <button type="submit" className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-medium py-3 rounded-xl shadow-md transition-all mt-4 border-0 cursor-pointer">
+                            Register
+                        </button>
+                    </form>
+
+                    <div className="text-center pt-2">
+                        <button onClick={onLoginRedirect} className="text-xs text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
+                            Already have an Account?
+                        </button>
                     </div>
+                </div>
 
                 </div>
             </div>
