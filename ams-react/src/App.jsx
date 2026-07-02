@@ -6,7 +6,7 @@ import GuestTopBar from './Components/GuestTopBar';
 import UserTopBar from './Components/UserTopBar';
 import GuestLogInModal from './Components/GuestLogInModal';
 
-//Pages
+//User Pages
 import GuestHome from './GuestPages/GuestHome';
 import GuestPreview from './GuestPages/GuestPreview';
 import Login from './UserPages/Login';
@@ -14,6 +14,9 @@ import Registration from './UserPages/Registration';
 import UserHome from './UserPages/UserHome';
 import UserPreview from './UserPages/UserPreview';
 import Services from './UserPages/Services';
+import ParkingReservation from './UserPages/ParkingReservation';
+
+//Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
 import AdminUnits from './AdminPages/AdminUnits';
 import AdminTenants from './AdminPages/AdminTenants';
@@ -71,6 +74,7 @@ function AppContent() {
         <Route path="/home" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserHome onCardClick={() => navigate('/user-preview')} /></UserLayout>} />
         <Route path="/user-preview" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserPreview onRentClick={handleUserRentAction} /></UserLayout>} />
         <Route path="/services" element={<UserLayout hasRentedRoom={hasRentedRoom}><Services /></UserLayout>} />
+        <Route path="/parking-reservation" element={<UserLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></UserLayout>} />
 
         {/*AUTH PAGES*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} />} />
@@ -105,4 +109,4 @@ export default function App() {
       <AppContent />
     </Router>
   );
-} 
+}
