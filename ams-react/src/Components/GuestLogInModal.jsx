@@ -4,8 +4,10 @@ export default function GuestLogInModal({ isOpen, onClose, onLoginRedirect }) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-            {/*Font Loader Override*/}
+        <div 
+            onClick={onClose} // Closes modal when clicking the dark background overlay
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+        >
             <style>
                 {`
           @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
@@ -15,8 +17,10 @@ export default function GuestLogInModal({ isOpen, onClose, onLoginRedirect }) {
         `}
             </style>
 
-            <div className="bg-slate-100 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl border border-white/20 relative">
-
+            <div 
+                onClick={(e) => e.stopPropagation()} // Prevents closing when clicking inside the modal box
+                className="bg-slate-100 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl border border-white/20 relative"
+            >
                 {/*Close Button*/}
                 <button
                     onClick={onClose}
@@ -25,7 +29,7 @@ export default function GuestLogInModal({ isOpen, onClose, onLoginRedirect }) {
                     ✕
                 </button>
 
-                {/*Brand Header - Fixed to match the exact font and dark blue shade (#3b4276)*/}
+                {/*Brand Header*/}
                 <div
                     className="modal-ams-logo text-5xl italic font-bold tracking-wider mb-6 select-none uppercase"
                     style={{ color: '#3b4276' }}
@@ -46,4 +50,4 @@ export default function GuestLogInModal({ isOpen, onClose, onLoginRedirect }) {
             </div>
         </div>
     );
-}   
+}

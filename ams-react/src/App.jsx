@@ -15,6 +15,8 @@ import UserHome from './UserPages/UserHome';
 import UserPreview from './UserPages/UserPreview';
 import Services from './UserPages/Services';
 import ParkingReservation from './UserPages/ParkingReservation';
+import CctvRequest from './UserPages/CctvRequest'; 
+import MaintenanceRequest from './UserPages/MaintenanceRequest'; // Import 3rd service
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -77,6 +79,8 @@ function AppContent() {
         <Route path="/user-preview" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserPreview onRentClick={handleUserRentAction} /></UserLayout>} />
         <Route path="/services" element={<UserLayout hasRentedRoom={hasRentedRoom}><Services /></UserLayout>} />
         <Route path="/parking-reservation" element={<UserLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></UserLayout>} />
+        <Route path="/cctv-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></UserLayout>} />
+        <Route path="/maintenance-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></UserLayout>} /> {/* Added 3rd service route */}
 
         {/*AUTH PAGES*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />

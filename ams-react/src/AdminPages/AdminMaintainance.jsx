@@ -3,7 +3,7 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faPlus, faSearch, faThLarge, faList, faClock, faWrench, 
+  faPlus, faSearch, faTableCells, faList, faClock, faWrench, 
   faCheckCircle, faExclamationTriangle, faTimes, faMapPin, 
   faCalendarAlt, faImage, faArrowRight, faHistory
 } from '@fortawesome/free-solid-svg-icons';
@@ -72,7 +72,7 @@ const AdminMaintainance = () => {
 
             <div className="flex items-center justify-between">
               <div className="flex bg-white rounded-lg border border-slate-200 p-1">
-                <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent'}`}><FontAwesomeIcon icon={faThLarge} /> Kanban</button>
+                <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent'}`}><FontAwesomeIcon icon={faTableCells} /> Kanban</button>
                 <button onClick={() => setViewMode('list')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'list' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent'}`}><FontAwesomeIcon icon={faList} /> List</button>
               </div>
               <button onClick={() => setShowNewModal(true)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer"><FontAwesomeIcon icon={faPlus} /> New Request</button>

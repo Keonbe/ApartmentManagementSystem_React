@@ -1,8 +1,11 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileInvoiceDollar, faParking, faWrench, faVideo } from '@fortawesome/free-solid-svg-icons';
 
 export default function Services() {
+    const navigate = useNavigate();
+
     const serviceList = [
         {
             id: 1,
@@ -10,6 +13,7 @@ export default function Services() {
             description: 'View outstanding apartment utility statement accounts and settle monthly balances securely.',
             icon: faFileInvoiceDollar,
             buttonText: 'Pay Now',
+            path: '/payments', // Ready for when you build the user payment page
         },
         {
             id: 2,
@@ -17,6 +21,7 @@ export default function Services() {
             description: 'Check slot availability charts and reserve motorcycle or vehicle parking spaces.',
             icon: faParking,
             buttonText: 'Reserve Now',
+            path: '/parking-reservation', // Fully active route
         },
         {
             id: 3,
@@ -24,6 +29,7 @@ export default function Services() {
             description: 'Submit technical service tickets for unit repairs, electrical fixtures, or plumbing issues.',
             icon: faWrench,
             buttonText: 'Request Now',
+            path: '/maintenance-request', // Ready for when you build the user maintenance page
         },
         {
             id: 4,
@@ -31,6 +37,7 @@ export default function Services() {
             description: 'File formal security review logs to request administrative access to corridor camera recording archives.',
             icon: faVideo,
             buttonText: 'File Request',
+            path: '/cctv-request', // Ready for when you build the user cctv page
         },
     ];
 
@@ -83,6 +90,7 @@ export default function Services() {
                                 {/*Action Trigger Button Layout*/}
                                 <div className="w-full sm:w-auto self-center sm:self-start">
                                     <button
+                                        onClick={() => navigate(service.path)}
                                         className="w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97] text-white font-semibold px-6 py-2 rounded-xl text-xs transition-all duration-200 shadow-sm hover:shadow-indigo-500/20 border-0 cursor-pointer"
                                     >
                                         {service.buttonText}

@@ -137,7 +137,6 @@ export default function UserTopBar({ hasRentedRoom, username = "Username" }) {
 
                     {/*Bottom Section: User Options & Logout*/}
                     <div className="pt-4 border-t border-white/10 flex flex-col space-y-4 w-full">
-                        {/*Displaying Username Profile Meta Information*/}
                         <div className="flex items-center space-x-2 text-white/70 px-1 select-none">
                             <FontAwesomeIcon icon={faUserCircle} className="text-xl" />
                             <span className="font-medium text-sm">{username}</span>

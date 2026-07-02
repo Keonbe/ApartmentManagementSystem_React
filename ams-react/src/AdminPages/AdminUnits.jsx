@@ -130,7 +130,7 @@ const AdminUnits = () => {
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* ─── Top Bar ─── */}
+            {/* Top Bar */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
@@ -148,7 +148,7 @@ const AdminUnits = () => {
               </button>
             </div>
 
-            {/* ─── Stats Summary ─── */}
+            {/* Stats Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Units</p>
@@ -170,7 +170,7 @@ const AdminUnits = () => {
               </div>
             </div>
 
-            {/* ─── Filter Pills ─── */}
+            {/* Filter Pills */}
             <div className="flex items-center gap-3 flex-wrap">
               {filters.map(f => (
                 <button
@@ -186,7 +186,7 @@ const AdminUnits = () => {
               ))}
             </div>
 
-            {/* ─── Units Grid ─── */}
+            {/* Units Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {displayed.map(unit => {
                 const remaining = daysRemaining(unit.leaseEnd);
@@ -251,7 +251,7 @@ const AdminUnits = () => {
         </div>
       </main>
 
-      {/* ─── Add New Unit Modal ─── */}
+      {/* Add New Unit Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
@@ -299,7 +299,7 @@ const AdminUnits = () => {
         </div>
       )}
 
-      {/* ─── Assign Tenant Modal ─── */}
+      {/* Assign Tenant Modal */}
       {showAssignModal && selectedUnit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowAssignModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
@@ -316,7 +316,7 @@ const AdminUnits = () => {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Tenant Name *</label>
-                <input value={assignForm.tenantName} onChange={e => setAssignForm({ ...assignForm, textName: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="Full name of tenant" />
+                <input value={assignForm.tenantName} onChange={e => setAssignForm({ ...assignForm, tenantName: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="Full name of tenant" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -337,7 +337,7 @@ const AdminUnits = () => {
         </div>
       )}
 
-      {/* ─── Unit Detail Modal ─── */}
+      {/* Unit Detail Modal */}
       {showDetailModal && selectedUnit && (
         <UnitDetailModal
           unit={selectedUnit} onClose={() => { setShowDetailModal(false); setSelectedUnit(null); setShowExtendForm(false); }}
@@ -352,8 +352,8 @@ const AdminUnits = () => {
 /* ─── Unit Detail Tabbed Modal Sub-Component ─── */
 const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  const tabs = [
-    { key: 'overview', label: 'Overview', icon: faLayers },
+  const odds = [
+    { key: 'overview', label: 'Overview', icon: faLayerGroup },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
     { key: 'history', label: 'History', icon: faHistory },
   ];
@@ -380,12 +380,12 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
         </div>
 
         <div className="flex border-b border-slate-200 px-6 shrink-0 bg-white">
-          {tabs.map(tab => (
+          {odds.map(tab => (
             <button
               key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-400 border-b-transparent hover:text-slate-600'}`}
             >
-              <FontAwesomeIcon icon={tab.icon === faLayers ? faLayerGroup : tab.icon} className="text-xs" /> {tab.label}
+              <FontAwesomeIcon icon={tab.icon} className="text-xs" /> {tab.label}
             </button>
           ))}
         </div>

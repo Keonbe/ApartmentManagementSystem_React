@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCar, faCloudUploadAlt, faCheckCircle, faCircle } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
+import SuccessModal from '../Components/SuccessModal';
 
 export default function ParkingReservation() {
-    const [vehicleType, setVehicleType] = useState('');
+    const [vehicleType, setVehicleType] = useState('motorcycle');
     const [vehicleModel, setVehicleModel] = useState('');
     const [plateNumber, setPlateNumber] = useState('');
     const [transmission, setTransmission] = useState('');
     const [durationMonths, setDurationMonths] = useState('');
     const [uploadedFile, setUploadedFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     //Mocked price calculation metrics
     const BASE_PRICE = 300;
@@ -49,6 +51,11 @@ export default function ParkingReservation() {
         }
     };
 
+    const handleFormSubmit = (e) => {
+        e.preventDefault();
+        setIsModalOpen(true);
+    };
+
     return (
         <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
@@ -72,13 +79,13 @@ export default function ParkingReservation() {
                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
                         <div>
                             <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">Available Spaces</span>
-                            <span className="text-xl font-black text-slate-800 tracking-tight">8 / 15 Slots Free</span>
+                            <span className="text-xl font-black text-slate-800 tracking-tight">2 / 3 Slots Free</span>
                         </div>
                     </div>
                 </div>
 
                 {/*Form Inputs Panel Layout*/}
-                <form className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={(e) => e.preventDefault()}>
+                <form className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
 
                     {/*Vehicle Type Select Component Dropdown Menu*/}
                     <div className="flex flex-col space-y-2">
@@ -91,10 +98,10 @@ export default function ParkingReservation() {
                         >
                             <option value="" disabled hidden>Vehicle Type...</option>
                             <option value="motorcycle">Motorcycle</option>
-                            <option value="sedan">Sedan</option>
-                            <option value="suv">SUV</option>
-                            <option value="pickup">Pickup Truck</option>
-                            <option value="van">Van</option>
+                            <option value="sedan" disabled>Sedan (Only motorcycles are allowed)</option>
+                            <option value="suv" disabled>SUV (Only motorcycles are allowed)</option>
+                            <option value="pickup" disabled>Pickup Truck (Only motorcycles are allowed)</option>
+                            <option value="van" disabled>Van (Only motorcycles are allowed)</option>
                         </select>
                     </div>
 
@@ -211,6 +218,13 @@ export default function ParkingReservation() {
 
                 </form>
             </div>
+
+            {/*Standalone Modular Success Display Layer Component*/}
+            <SuccessModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                message="Reservation Successfully" 
+            />
         </div>
     );
 }
