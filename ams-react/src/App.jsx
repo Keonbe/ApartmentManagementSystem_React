@@ -38,9 +38,11 @@ function GuestLayout({children, onLoginClick}) {
 }
 
 function UserLayout({children, hasRentedRoom}) {
+  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+  const username = `${loggedInUser.first_name || ""} ${loggedInUser.last_name || ""}`.trim() || "Username";
   return (
     <div className="w-full min-h-screen bg-slate-50 flex flex-col text-slate-600 selection:bg-indigo-500 selection:text-white">
-      <UserTopBar hasRentedRoom={hasRentedRoom} username="Username" />
+      <UserTopBar hasRentedRoom={hasRentedRoom} username={username} />
       <main className="w-full flex-grow flex flex-col">
         {children}
       </main>
@@ -71,7 +73,7 @@ function AppContent() {
         <Route path="/preview" element={<GuestLayout onLoginClick={() => navigate('/login')}><GuestPreview onRentClick={handleRentClick} /></GuestLayout>} />
 
         {/*USER PAGES*/}
-        <Route path="/home" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserHome onCardClick={() => navigate('/user-preview')} /></UserLayout>} />
+        <Route path="/home" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserHome onCardClick={() => navigate('/user-preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || "{}").first_name || "Username"}/></UserLayout>} />
         <Route path="/user-preview" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserPreview onRentClick={handleUserRentAction} /></UserLayout>} />
         <Route path="/services" element={<UserLayout hasRentedRoom={hasRentedRoom}><Services /></UserLayout>} />
         <Route path="/parking-reservation" element={<UserLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></UserLayout>} />

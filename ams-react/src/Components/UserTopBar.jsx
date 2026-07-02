@@ -75,6 +75,7 @@ export default function UserTopBar({ hasRentedRoom, username = "Username" }) {
                         <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-50 overflow-hidden">
                             <button
                                 onClick={() => {
+                                    sessionStorage.removeItem("loggedInUser");
                                     setIsDropdownOpen(false);
                                     navigate('/');
                                 }}
@@ -144,6 +145,7 @@ export default function UserTopBar({ hasRentedRoom, username = "Username" }) {
 
                         <button
                             onClick={() => {
+                                sessionStorage.removeItem("loggedInUser");
                                 setIsMobileMenuOpen(false);
                                 navigate('/');
                             }}
