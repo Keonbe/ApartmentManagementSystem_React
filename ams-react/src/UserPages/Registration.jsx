@@ -86,6 +86,7 @@ export default function Registration({ onLoginRedirect }) {
                             placeholder="First Name"
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                 style={{ color: '#1e293b' }}
+                                required
                                 onChange={(e) => setFirstName(e.target.value)}
                         />
                         <input
@@ -94,6 +95,7 @@ export default function Registration({ onLoginRedirect }) {
                             placeholder="Last Name"
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                 style={{ color: '#1e293b' }}
+                                required
                                 onChange={(e) => setLastName(e.target.value)}
                         />
                         <input
@@ -102,6 +104,7 @@ export default function Registration({ onLoginRedirect }) {
                             placeholder="Email Address"
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
                                 style={{ color: '#1e293b' }}
+                                required
                                 onChange={(e) => setEmail(e.target.value)}
                         />
 
@@ -110,9 +113,10 @@ export default function Registration({ onLoginRedirect }) {
                                 value={password}
                                 type={showPass ? "text" : "password"}
                                 placeholder="Password"
-                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
-                                    style={{ color: '#1e293b' }}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                                style={{ color: '#1e293b' }}
+                                required
+                                onChange={(e) => setPassword(e.target.value)}
                             />
                             <button
                                 type="button"

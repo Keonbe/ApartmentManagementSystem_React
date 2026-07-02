@@ -77,7 +77,7 @@ function AppContent() {
         <Route path="/parking-reservation" element={<UserLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></UserLayout>} />
 
         {/*AUTH PAGES*/}
-        <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} />} />
+        <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} />} />
 
         {/*ADMIN PAGES*/}
