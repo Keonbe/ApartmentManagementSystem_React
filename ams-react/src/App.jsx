@@ -16,7 +16,8 @@ import UserPreview from './UserPages/UserPreview';
 import Services from './UserPages/Services';
 import ParkingReservation from './UserPages/ParkingReservation';
 import CctvRequest from './UserPages/CctvRequest'; 
-import MaintenanceRequest from './UserPages/MaintenanceRequest'; // Import 3rd service
+import MaintenanceRequest from './UserPages/MaintenanceRequest'; 
+import RentApplication from './UserPages/RentApplication';
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -63,8 +64,8 @@ function AppContent() {
   const handleRentClick = () => setIsModalOpen(true);
   
   const handleUserRentAction = (roomId) => {
-    alert(`Processing apartment room ${roomId} system assignment workflow...`);
-    setHasRentedRoom(true);
+    //Captures the room configuration ID selected from the available listings card deck grid
+    navigate('/rent-application', { state: { selectedRoomId: roomId } });
   };
 
   return (
@@ -80,7 +81,8 @@ function AppContent() {
         <Route path="/services" element={<UserLayout hasRentedRoom={hasRentedRoom}><Services /></UserLayout>} />
         <Route path="/parking-reservation" element={<UserLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></UserLayout>} />
         <Route path="/cctv-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></UserLayout>} />
-        <Route path="/maintenance-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></UserLayout>} /> {/* Added 3rd service route */}
+        <Route path="/maintenance-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></UserLayout>} />
+        <Route path="/rent-application" element={<UserLayout hasRentedRoom={hasRentedRoom}><RentApplication /></UserLayout>} />
 
         {/*AUTH PAGES*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />

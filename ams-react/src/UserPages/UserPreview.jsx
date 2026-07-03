@@ -55,7 +55,7 @@ export default function UserPreview({ onRentClick }) {
                                         <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
                                     </div>
                                     <button
-                                        onClick={() => onRentClick(room.id)}
+                                        onClick={() => onRentClick(room.id)}//Passes the chosen room id key back up to AppContent for smooth onboarding redirect
                                         className="mt-4 w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm hover:shadow-emerald-500/20 border-0 cursor-pointer"
                                     >
                                         Rent Now
