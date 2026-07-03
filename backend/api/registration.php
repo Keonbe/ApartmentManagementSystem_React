@@ -18,6 +18,7 @@ $last_name = $input["last_name"];
 $email_address = $input["email_address"];
 $password = $input["password"];
 $confirmPass = $input["conPassword"];
+$isAdmin = false;
 
 if(strlen($password) < 8){
     echo json_encode([

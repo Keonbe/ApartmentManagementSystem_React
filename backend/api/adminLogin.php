@@ -1,0 +1,46 @@
+<?php
+    header('Content-Type: application/json');
+    header('Access-Control-Allow-Origin: *');
+    header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+    require_once "../config.php";
+
+    $input = json_decode(file_get_contents("php://input"), true);
+
+    if (!$input) {
+    echo json_encode(["message" => "No data received"]);
+    exit;
+    }
+
+    $email = $input["email_address"];
+    $password = $input["password"];
+
+    $stmt = $conn->prepare("SELECT email_address, first_name, last_name, password FROM users WHERE isAdmin = true");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+
+    $user = $result->fetch_assoc();
+
+
+    if (password_verify($password, $user["password"])) {
+        $_SESSION['user'] = [
+            "first_name" => $user["first_name"],
+            "last_name" => $user["last_name"],
+            "email_address" => $user["email_address"]
+        ];
+        echo json_encode([
+            "message" => "Login successful",
+            "email" => $user["email_address"],
+            "user" => $_SESSION['user'],
+            "valid" => true,
+        ]);
+    } else {
+        echo json_encode(["message" => "Invalid password", "valid" => false]);
+    }
+
+    $stmt->close();
+    $conn->close();
+?>
