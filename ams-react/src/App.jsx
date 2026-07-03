@@ -18,6 +18,7 @@ import ParkingReservation from './UserPages/ParkingReservation';
 import CctvRequest from './UserPages/CctvRequest'; 
 import MaintenanceRequest from './UserPages/MaintenanceRequest'; 
 import RentApplication from './UserPages/RentApplication';
+import ProfileSettings from './UserPages/ProfileSettings';//Imported matching layout profile context
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -83,6 +84,7 @@ function AppContent() {
         <Route path="/cctv-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></UserLayout>} />
         <Route path="/maintenance-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></UserLayout>} />
         <Route path="/rent-application" element={<UserLayout hasRentedRoom={hasRentedRoom}><RentApplication /></UserLayout>} />
+        <Route path="/profile-settings" element={<UserLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></UserLayout>} />{/*Registered settings layout pathway option*/}
 
         {/*AUTH PAGES*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
