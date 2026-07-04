@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCloudUploadAlt, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
+import { useNavigate } from 'react-router-dom';
+import api from "../api/axiosConfig";
 
 export default function ParkingReservation() {
     const [vehicleType, setVehicleType] = useState('motorcycle');
@@ -12,6 +14,7 @@ export default function ParkingReservation() {
     const [uploadedFile, setUploadedFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const navigate = useNavigate();
 
     //Mocked price calculation metrics
     const BASE_PRICE = 300;
@@ -51,9 +54,44 @@ export default function ParkingReservation() {
         }
     };
 
-    const handleFormSubmit = (e) => {
+    const handleFormSubmit = async (e) => {
         e.preventDefault();
-        setIsModalOpen(true);
+
+        // Prevent submission if a file hasn't been uploaded
+        if (!uploadedFile) {
+            alert("Please upload your Vehicle Registration Form (OR/CR) before proceeding.");
+            return;
+        }
+
+        // Use FormData to handle the text fields alongside the file
+        const formData = new FormData();
+        formData.append('vehicleType', vehicleType);
+        formData.append('vehicleModel', vehicleModel.trim());
+        formData.append('plateNumber', plateNumber.trim());
+        formData.append('transmission', transmission);
+        formData.append('durationMonths', durationMonths);
+        formData.append('uploadedFile', uploadedFile);
+
+        try {
+            // Send the request using your axios config
+            const res = await api.post("/parking_reservation.php", formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (res.data.success) {
+                // Trigger the success modal only if the backend returns success
+                setIsModalOpen(true);
+
+                // Optional: Reset form fields here if desired
+            } else {
+                console.error("Server Error:", res.data.message);
+                alert(res.data.message); // Or use a proper error state/UI to display this
+            }
+        } catch (error) {
+            console.error("Error submitting reservation:", error);
+        }
     };
 
     return (
@@ -220,10 +258,12 @@ export default function ParkingReservation() {
             </div>
 
             {/*Standalone Modular Success Display Layer Component*/}
-            <SuccessModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                message="Reservation Successfully" 
+            <SuccessModal
+                isOpen={isModalOpen}
+                onClose={() => {
+                    setIsModalOpen(false); 
+                    navigate('/home');}}
+                message="Reservation Successfully"
             />
         </div>
     );

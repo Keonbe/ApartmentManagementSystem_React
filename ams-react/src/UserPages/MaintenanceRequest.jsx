@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCloudUploadAlt, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
+import { useNavigate } from 'react-router-dom';
+import api from "../api/axiosConfig";
 
 export default function MaintenanceRequest() {
     const [issueType, setIssueType] = useState('');
@@ -13,6 +15,7 @@ export default function MaintenanceRequest() {
     const [uploadedFile, setUploadedFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const navigate = useNavigate();
 
     //Enforces Philippines Standard Time (PST - UTC+8) for today's boundary tracking
     const targetTimezoneOffset = 8 * 60;//PST is UTC+8 in minutes
@@ -59,9 +62,43 @@ export default function MaintenanceRequest() {
         }
     };
 
-    const handleFormSubmit = (e) => {
+    const handleFormSubmit = async (e) => {
         e.preventDefault();
-        setIsModalOpen(true);
+
+        // 1. Pack the data into FormData (required for file uploads)
+        const formData = new FormData();
+        formData.append('issueType', issueType);
+        formData.append('urgency', urgency);
+        formData.append('preferredDate', preferredDate);
+        formData.append('preferredTime', preferredTime);
+        formData.append('description', description.trim());
+
+        // Convert boolean to 1 or 0 for the PHP/MySQL backend
+        formData.append('permissionToEnter', permissionToEnter ? 1 : 0);
+
+        // Append file only if one was uploaded
+        if (uploadedFile) {
+            formData.append('uploadedFile', uploadedFile);
+        }
+
+        try {
+            // 2. Send POST request
+            const res = await api.post("/maintenance_request.php", formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (res.data.success) {
+                // 3. Open the success modal
+                setIsModalOpen(true);
+            } else {
+                console.error("Server Error:", res.data.message);
+                alert(res.data.message);
+            }
+        } catch (error) {
+            console.error("Error submitting request:", error);
+        }
     };
 
     return (
@@ -207,8 +244,8 @@ export default function MaintenanceRequest() {
                             onChange={(e) => setPermissionToEnter(e.target.checked)}
                             className="w-4 h-4 rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer transition-colors"
                         />
-                        <label 
-                            htmlFor="permission-enter-checkbox" 
+                        <label
+                            htmlFor="permission-enter-checkbox"
                             className="text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-800"
                         >
                             Permission to enter if I am not at home
@@ -229,10 +266,13 @@ export default function MaintenanceRequest() {
             </div>
 
             {/*Standalone Modular Success Display Layer Component*/}
-            <SuccessModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                message="Request Submitted Successfully" 
+            <SuccessModal
+                isOpen={isModalOpen}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    navigate('/home');
+                }}
+                message="Request Submitted Successfully"
             />
         </div>
     );

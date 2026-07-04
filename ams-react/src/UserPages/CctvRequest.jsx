@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import SuccessModal from '../Components/SuccessModal';
+import { useNavigate } from 'react-router-dom';
+import api from '../api/axiosConfig';
 
 export default function CctvRequest() {
     const [incidentDate, setIncidentDate] = useState('');
@@ -7,6 +9,7 @@ export default function CctvRequest() {
     const [locationDetails, setLocationDetails] = useState('');
     const [reasonRequest, setReasonRequest] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const navigate = useNavigate();
 
     const today = new Date();
     const twoMonthsAgo = new Date();
@@ -15,9 +18,28 @@ export default function CctvRequest() {
     const maxDateString = today.toISOString().split('T')[0];
     const minDateString = twoMonthsAgo.toISOString().split('T')[0];
 
-    const handleFormSubmit = (e) => {
+    const handleFormSubmit = async (e) => {
         e.preventDefault();
-        setIsModalOpen(true);
+
+        const payload = {
+            incidentDate: incidentDate,
+            incidentTime: incidentTime,
+            locationDetails: locationDetails,
+            reasonRequest: reasonRequest.trim()
+        };
+
+        try {
+            const res = await api.post("/cctv_request.php", payload);
+
+            if (res.data.success) {
+                setIsModalOpen(true);
+            } else {
+                console.error("Server Error:", res.data.message);
+                alert(res.data.message);
+            }
+        } catch (error) {
+            console.error("Error submitting CCTV request:", error);
+        }
     };
 
     return (
@@ -131,10 +153,13 @@ export default function CctvRequest() {
                 </form>
             </div>
 
-            <SuccessModal 
-                isOpen={isModalOpen} 
-                onClose={() => setIsModalOpen(false)} 
-                message="Request Submitted Successfully" 
+            <SuccessModal
+                isOpen={isModalOpen}
+                onClose={() => {
+                    setIsModalOpen(false);
+                    navigate('/home');
+                }}
+                message="Request Submitted Successfully"
             />
         </div>
     );
