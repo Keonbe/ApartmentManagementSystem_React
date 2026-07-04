@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserCircle, faChevronDown, faSignOutAlt, faBars, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faUserCircle, faChevronDown, faSignOutAlt, faBars, faTimes, faCog } from '@fortawesome/free-solid-svg-icons';
 
 export default function UserTopBar({ hasRentedRoom, username = "Username" }) {
     const navigate = useNavigate();
@@ -76,6 +76,18 @@ export default function UserTopBar({ hasRentedRoom, username = "Username" }) {
                             <button
                                 onClick={() => {
                                     setIsDropdownOpen(false);
+                                    navigate('/profile-settings');
+                                }}
+                                className="w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2 transition-colors border-0 bg-transparent text-left cursor-pointer font-medium"
+                            >
+                                <FontAwesomeIcon icon={faCog} className="text-xs text-slate-400" />
+                                <span>Profile Settings</span>
+                            </button>
+                            <div className="border-t border-slate-100 my-0.5"></div>
+                            <button
+                                onClick={() => {
+                                    sessionStorage.removeItem("loggedInUser");
+                                    setIsDropdownOpen(false);
                                     navigate('/');
                                 }}
                                 className="w-full px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2 transition-colors border-0 bg-transparent text-left cursor-pointer font-medium"
@@ -98,7 +110,7 @@ export default function UserTopBar({ hasRentedRoom, username = "Username" }) {
 
             {/*Mobile Dropdown Panel*/}
             {isMobileMenuOpen && (
-                <div className="md:hidden absolute top-full left-0 w-full bg-[#3b4276] border-t border-white/10 shadow-xl flex flex-col min-h-[280px] justify-between p-6 box-border transition-all animate-fade-in">
+                <div className="md:hidden absolute top-full left-0 w-full bg-[#3b4276] border-t border-white/10 shadow-xl flex flex-col min-h-[320px] justify-between p-6 box-border transition-all animate-fade-in">
                     {/*Top Section: Navigation Links*/}
                     <div className="flex flex-col space-y-4">
                         <button
@@ -136,14 +148,25 @@ export default function UserTopBar({ hasRentedRoom, username = "Username" }) {
 
                     {/*Bottom Section: User Options & Logout*/}
                     <div className="pt-4 border-t border-white/10 flex flex-col space-y-4 w-full">
-                        {/*Displaying Username Profile Meta Information*/}
-                        <div className="flex items-center space-x-2 text-white/70 px-1 select-none">
+                        <button
+                            onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                navigate('/profile-settings');
+                            }}
+                            className="flex items-center space-x-2 text-white/90 hover:text-white text-left font-medium text-base py-2 border-0 bg-transparent cursor-pointer"
+                        >
+                            <FontAwesomeIcon icon={faCog} className="text-sm" />
+                            <span>Profile Settings</span>
+                        </button>
+
+                        <div className="flex items-center space-x-2 text-white/70 px-1 select-none pt-2">
                             <FontAwesomeIcon icon={faUserCircle} className="text-xl" />
                             <span className="font-medium text-sm">{username}</span>
                         </div>
 
                         <button
                             onClick={() => {
+                                sessionStorage.removeItem("loggedInUser");
                                 setIsMobileMenuOpen(false);
                                 navigate('/');
                             }}
