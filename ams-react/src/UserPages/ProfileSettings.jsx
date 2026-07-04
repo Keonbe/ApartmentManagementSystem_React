@@ -8,30 +8,65 @@ export default function ProfileSettings() {
     const [firstName, setFirstName] = useState('Juan');
     const [lastName, setLastName] = useState('Dela Cruz');
     const [suffix, setSuffix] = useState('Jr');
-    const [contactNo, setContactNo] = useState('0999 676 6967');
+    
+    {/* Philippine Mobile Phone Input Parameters */}
+    const [phoneRawNumber, setPhoneRawNumber] = useState('9996766967');
+    const [phoneError, setPhoneError] = useState('');
+    
     const [email, setEmail] = useState('JDelaCruz12@gmail.com');
     const [gender, setGender] = useState('Male');
 
-    //Modal layout state controls
     const [showDocsModal, setShowDocsModal] = useState(false);
     const [showPassModal, setShowPassModal] = useState(false);
 
+    {/* Filters and restricts typing inputs to 10 digits exclusively */}
+    const handlePhoneRawInput = (e) => {
+        const val = e.target.value.replace(/\D/g, '');
+        if (val.length <= 10) {
+            setPhoneRawNumber(val);
+            setPhoneError('');
+        }
+    };
+
+    {/* Validation algorithm ensuring a real Philippine mobile configuration */}
+    const validatePhilippineNumber = (number) => {
+        if (number.length !== 10) {
+            return "Mobile number must be exactly 10 digits (e.g., 9171234567).";
+        }
+        if (!/^[89]/.test(number)) {
+            return "Invalid prefix. Real Philippine mobile numbers must start with 9 or 8.";
+        }
+        if (/^(\d)\1+$/.test(number)) {
+            return "Repetitive number pattern flagged. Please input a authentic active line.";
+        }
+        if ("012345678901".includes(number) || "09876543210".includes(number)) {
+            return "Sequential tracking digits are rejected as valid phone formats.";
+        }
+        return "";
+    };
+
     const handleFormSubmit = (e) => {
         e.preventDefault();
-        alert("Personal profile changes saved successfully inside local mockup states.");
+        
+        const validationError = validatePhilippineNumber(phoneRawNumber);
+        if (validationError) {
+            setPhoneError(validationError);
+            alert(validationError);
+            return;
+        }
+
+        const fullContactNumber = `+63 ${phoneRawNumber}`;
+        alert(`Personal profile changes saved successfully inside local mockup states. Contact entry: ${fullContactNumber}`);
     };
 
     return (
         <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
 
-                {/*Top Header Row containing sized up Avatar placement*/}
+                {/*Top Header Row Layout*/}
                 <div className="border-b border-slate-200 pb-4 flex items-center justify-between">
                     <div>
-                        <h1
-                            className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
-                            style={{ color: '#3b4276' }}
-                        >
+                        <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
                             Profile Settings
                         </h1>
                         <p className="text-slate-500 text-sm mt-1 m-0">
@@ -39,7 +74,6 @@ export default function ProfileSettings() {
                         </p>
                     </div>
                     
-                    {/*Sized Up Profile Avatar Container*/}
                     <div className="w-24 h-24 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500 shrink-0 select-none pointer-events-none">
                         <FontAwesomeIcon icon={faUserCircle} className="text-6xl" />
                     </div>
@@ -85,16 +119,31 @@ export default function ProfileSettings() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            
+                            {/*Philippine Protected Contact Number Row Module Setup*/}
                             <div className="flex flex-col space-y-1.5">
                                 <label className="text-sm font-bold text-slate-700">Contact No.</label>
-                                <input
-                                    type="text"
-                                    value={contactNo}
-                                    onChange={(e) => setContactNo(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                                    required
-                                />
+                                <div className="w-full flex relative">
+                                    <div className="flex items-center space-x-1 px-3 bg-slate-100 border border-slate-200 rounded-l-xl text-slate-800 text-sm font-bold select-none border-r-0 pointer-events-none opacity-80 box-border">
+                                        <span>🇵🇭</span>
+                                        <span className="text-slate-600 text-xs font-semibold">+63</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="917 123 4567"
+                                        value={phoneRawNumber}
+                                        onChange={handlePhoneRawInput}
+                                        onBlur={() => setPhoneError(validatePhilippineNumber(phoneRawNumber))}
+                                        className={`w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm box-border ${phoneError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
+                                        required
+                                    />
+                                </div>
+                                {phoneError && (
+                                    <span className="text-[11px] text-red-500 font-medium leading-none mt-1">{phoneError}</span>
+                                )}
                             </div>
+
                             <div className="flex flex-col space-y-1.5">
                                 <label className="text-sm font-bold text-slate-700">Email Address</label>
                                 <input

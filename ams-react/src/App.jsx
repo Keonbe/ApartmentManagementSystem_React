@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'r
 //Components
 import TopBar from './Components/TopBar';
 import LogInModal from './Components/LogInModal';
+import Footer from './Components/Footer';
 
 //User Pages
 import Home from './UserPages/Home';
@@ -11,6 +12,7 @@ import Preview from './UserPages/Preview';
 import Login from './UserPages/Login';
 import Registration from './UserPages/Registration';
 import Services from './UserPages/Services';
+import PayBills from './UserPages/PayBills';
 import ParkingReservation from './UserPages/ParkingReservation';
 import CctvRequest from './UserPages/CctvRequest'; 
 import MaintenanceRequest from './UserPages/MaintenanceRequest'; 
@@ -28,7 +30,7 @@ import AdminReports from './AdminPages/AdminReports';
 import AdminNotifications from './AdminPages/AdminNotifications';
 import AdminContracts from './AdminPages/AdminContracts';
 
-//Conditional Layout Wrapper Framework Component
+//Conditional Layout Wrapper Framework Component containing universal global Footer injection
 function BaseAppLayout({ children, hasRentedRoom }) {
   const navigate = useNavigate();
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
@@ -43,9 +45,11 @@ function BaseAppLayout({ children, hasRentedRoom }) {
         username={username || "Guest"} 
         onLoginClick={() => navigate('/login')} 
       />
-      <main className="w-full flex-grow flex flex-col">
+      {/*Flex container expands to push footer to bottom flawlessly on shorter page view nodes*/}
+      <main className="w-full flex-grow flex flex-col justify-start">
         {children}
       </main>
+      <Footer /> {/*Enforces structural blue uniform layout footer area block tracking element rules universally*/}
     </div>
   );
 }
@@ -62,10 +66,8 @@ function AppContent() {
     const loggedInUser = sessionStorage.getItem("loggedInUser");
     
     if (!loggedInUser) {
-      //Intercept guests and prompt login popup
       setIsModalOpen(true);
     } else {
-      //Forward authenticated tenants directly to the application workspace
       navigate('/rent-application', { state: { selectedRoomId: roomId } });
     }
   };
@@ -80,6 +82,7 @@ function AppContent() {
         
         {/*SECURED TENANT DASHBOARDS SERVICES*/}
         <Route path="/services" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout>} />
+        <Route path="/pay-bills" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout>} />
         <Route path="/parking-reservation" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout>} />
         <Route path="/cctv-request" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout>} />
         <Route path="/maintenance-request" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout>} />
@@ -102,7 +105,6 @@ function AppContent() {
         <Route path="/admin-contracts" element={<AdminContracts />} />
       </Routes>
 
-      {/*Global Authenticate Prompt Intercept Popup*/}
       <LogInModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

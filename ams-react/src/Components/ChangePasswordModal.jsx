@@ -1,21 +1,68 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import api from '../api/axiosConfig';
 
 export default function ChangePasswordModal({ isOpen, onClose }) {
+    const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    
+    const [showCurrentPass, setShowCurrentPass] = useState(false);
     const [showNewPass, setShowNewPass] = useState(false);
     const [showConfirmPass, setShowConfirmPass] = useState(false);
+    
+    const [message, setMessage] = useState('');
+    const [isSuccess, setIsSuccess] = useState(false);
 
     if (!isOpen) return null;
 
-    const handlePasswordSave = (e) => {
+    const handlePasswordSave = async (e) => {
         e.preventDefault();
-        alert("Password updated locally inside mockup state variables.");
-        setNewPassword('');
-        setConfirmPassword('');
-        onClose();
+        setMessage('');
+        setIsSuccess(false);
+
+        if (newPassword.length < 8) {
+            setMessage("New password length must be atleast 8 characters");
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            setMessage("Confirmed password does not match");
+            return;
+        }
+
+        const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
+        if (!loggedInUser || !loggedInUser.email_address) {
+            setMessage("User session expired. Please log in again.");
+            return;
+        }
+
+        try {
+            const res = await api.post("/change_password.php", {
+                email_address: loggedInUser.email_address,
+                current_password: currentPassword,
+                new_password: newPassword,
+                confirm_password: confirmPassword
+            });
+
+            if (res.data.success) {
+                setIsSuccess(true);
+                setMessage(res.data.message);
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+                setTimeout(() => {
+                    setMessage('');
+                    onClose();
+                }, 2000);
+            } else {
+                setMessage(res.data.message || "Failed to update password.");
+            }
+        } catch (error) {
+            console.error("Error updating password:", error);
+            setMessage("Unable to save password change. Please try again.");
+        }
     };
 
     return (
@@ -36,6 +83,30 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                 </div>
 
                 <form onSubmit={handlePasswordSave} className="p-6 space-y-4 m-0">
+                    
+                    {/*Current Password Form Row Field Input Layout*/}
+                    <div className="flex flex-col space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700">Current Password</label>
+                        <div className="relative">
+                            <input
+                                type={showCurrentPass ? "text" : "password"}
+                                placeholder="••••••••••••"
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm pr-12"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowCurrentPass(!showCurrentPass)}
+                                className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
+                            >
+                                <FontAwesomeIcon icon={showCurrentPass ? faEyeSlash : faEye} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/*New Password Input Layout*/}
                     <div className="flex flex-col space-y-1.5">
                         <label className="text-xs font-bold text-slate-700">New Password</label>
                         <div className="relative">
@@ -56,8 +127,10 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                             </button>
                         </div>
                     </div>
+
+                    {/*Confirm Password Input Layout*/}
                     <div className="flex flex-col space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">Confirm Password</label>
+                        <label className="text-xs font-bold text-slate-700">Confirm New Password</label>
                         <div className="relative">
                             <input
                                 type={showConfirmPass ? "text" : "password"}
@@ -76,6 +149,14 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                             </button>
                         </div>
                     </div>
+
+                    {/*Feedback Message Status Alert Row Container*/}
+                    {message && (
+                        <p className={`text-sm text-center font-medium m-0 pt-1 ${isSuccess ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {message}
+                        </p>
+                    )}
+
                     <div className="pt-2 flex justify-end">
                         <button
                             type="submit"

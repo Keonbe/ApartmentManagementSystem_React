@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
+import ApartmentPic from "../assets/Apartment_Pic.png";
 
 export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedirect }) {
     const [email, setEmail] = useState('');
@@ -30,7 +31,6 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
         }
     };
 
-
     return (
         <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
             <style>
@@ -42,15 +42,25 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
         `}
             </style>
 
-            {/*Left Splash Panel*/}
-            <div className="hidden md:flex md:col-span-6 bg-[#3b4276] flex-col items-center justify-center p-12 text-center text-white select-none">
-                <h1 className="custom-ams-logo text-8xl italic font-bold tracking-wider mb-2 text-white border-0 bg-transparent uppercase">
-                    AMS
-                </h1>
-                <div className="w-48 border-t border-white/20 my-2"></div>
-                <p className="text-xs font-light uppercase tracking-widest text-white/60 m-0">
-                    Apartment Management System
-                </p>
+            {/*Left Splash Panel with Image Background and Deepened Blue Overlay Layer*/}
+            <div className="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
+                <img 
+                    src={ApartmentPic} 
+                    alt="Apartment Splash" 
+                    className="absolute inset-0 w-full h-full object-cover object-center z-0"
+                />
+                {/*Opacity increased to 90% for a stronger blue tint*/}
+                <div className="absolute inset-0 bg-[#3b4276]/90 z-10"></div>
+                
+                <div className="relative z-20 flex flex-col items-center justify-center">
+                    <h1 className="custom-ams-logo text-8xl italic font-bold tracking-wider mb-2 text-white border-0 bg-transparent uppercase">
+                        AMS
+                    </h1>
+                    <div className="w-48 border-t border-white/20 my-2"></div>
+                    <p className="text-xs font-light uppercase tracking-widest text-white/60 m-0">
+                        Apartment Management System
+                    </p>
+                </div>
             </div>
 
             {/*Right Form Panel*/}
@@ -59,7 +69,6 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
                     {/*Mobile View Branding Logo*/}
                     <div className="md:hidden flex flex-col items-center mb-8 select-none">
-                        {/*Explicit inline colors forced to fix contrast on mobile devices*/}
                         <h1
                             className="custom-ams-logo text-6xl italic font-bold tracking-wider border-0 bg-transparent uppercase m-0"
                             style={{ color: '#3b4276' }}

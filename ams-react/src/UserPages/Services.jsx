@@ -13,7 +13,7 @@ export default function Services() {
             description: 'View outstanding apartment utility statement accounts and settle monthly balances securely.',
             icon: faFileInvoiceDollar,
             buttonText: 'Pay Now',
-            path: '/payments', // Ready for when you build the user payment page
+            path: '/pay-bills',
         },
         {
             id: 2,
@@ -21,7 +21,7 @@ export default function Services() {
             description: 'Check slot availability charts and reserve motorcycle or vehicle parking spaces.',
             icon: faParking,
             buttonText: 'Reserve Now',
-            path: '/parking-reservation', // Fully active route
+            path: '/parking-reservation',
         },
         {
             id: 3,
@@ -29,7 +29,7 @@ export default function Services() {
             description: 'Submit technical service tickets for unit repairs, electrical fixtures, or plumbing issues.',
             icon: faWrench,
             buttonText: 'Request Now',
-            path: '/maintenance-request', // Ready for when you build the user maintenance page
+            path: '/maintenance-request',
         },
         {
             id: 4,
@@ -37,7 +37,7 @@ export default function Services() {
             description: 'File formal security review logs to request administrative access to corridor camera recording archives.',
             icon: faVideo,
             buttonText: 'File Request',
-            path: '/cctv-request', // Ready for when you build the user cctv page
+            path: '/cctv-request',
         },
     ];
 
