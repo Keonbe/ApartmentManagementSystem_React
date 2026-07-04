@@ -1,11 +1,11 @@
 import React from 'react';
 
-export default function GuestLogInModal({ isOpen, onClose, onLoginRedirect }) {
+export default function LogInModal({ isOpen, onClose, onLoginRedirect }) {
     if (!isOpen) return null;
 
     return (
-        <div 
-            onClick={onClose} // Closes modal when clicking the dark background overlay
+        <div
+            onClick={onClose} //Closes modal when clicking the dark background overlay[cite: 19]
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
         >
             <style>
@@ -17,8 +17,8 @@ export default function GuestLogInModal({ isOpen, onClose, onLoginRedirect }) {
         `}
             </style>
 
-            <div 
-                onClick={(e) => e.stopPropagation()} // Prevents closing when clicking inside the modal box
+            <div
+                onClick={(e) => e.stopPropagation()} //Prevents closing when clicking inside the modal box[cite: 19]
                 className="bg-slate-100 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl border border-white/20 relative"
             >
                 {/*Close Button*/}

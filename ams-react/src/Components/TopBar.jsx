@@ -1,0 +1,202 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUserCircle, faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt } from '@fortawesome/free-solid-svg-icons';
+
+export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginClick }) {
+    const navigate = useNavigate();
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <nav className="w-full bg-[#3b4276] px-6 md:px-8 py-4 shadow-md sticky top-0 z-50">
+            <div className="w-full flex justify-between items-center">
+                <div className="flex items-center space-x-6">
+                    {/*AMS Logo*/}
+                    <div
+                        onClick={() => navigate('/home')}
+                        className="text-white font-serif text-3xl italic font-bold tracking-wider cursor-pointer select-none transition-transform duration-200 hover:scale-105"
+                    >
+                        AMS
+                    </div>
+                    {/*Desktop Links*/}
+                    <div className="hidden md:flex items-center space-x-6">
+                        <button
+                            onClick={() => navigate('/home')}
+                            className="text-white/90 hover:text-white font-medium text-sm transition-all duration-200 border-0 bg-transparent cursor-pointer hover:-translate-y-0.5 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-white after:transition-all hover:after:w-full"
+                        >
+                            Home
+                        </button>
+                        {isLoggedIn && hasRentedRoom && (
+                            <>
+                                <button
+                                    onClick={() => navigate('/services')}
+                                    className="text-white/90 hover:text-white font-medium text-sm transition-all duration-200 border-0 bg-transparent cursor-pointer hover:-translate-y-0.5 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-white after:transition-all hover:after:w-full"
+                                >
+                                    Services
+                                </button>
+                                <button
+                                    onClick={() => navigate('/current-room')}
+                                    className="text-white/90 hover:text-white font-medium text-sm transition-all duration-200 border-0 bg-transparent cursor-pointer hover:-translate-y-0.5 relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-white after:transition-all hover:after:w-full"
+                                >
+                                    Current Room
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {/*Desktop Auth View Conditional Panel*/}
+                <div className="hidden md:block">
+                    {isLoggedIn ? (
+                        <div className="relative" ref={dropdownRef}>
+                            <button
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                className="flex items-center space-x-2 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border-0 bg-transparent cursor-pointer transition-all duration-200 select-none outline-none"
+                            >
+                                <FontAwesomeIcon
+                                    icon={faChevronDown}
+                                    className={`text-xs transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}
+                                />
+                                <FontAwesomeIcon icon={faUserCircle} className="text-lg" />
+                                <span className="font-medium text-sm">{username}</span>
+                            </button>
+
+                            {isDropdownOpen && (
+                                <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-50 overflow-hidden">
+                                    <button
+                                        onClick={() => {
+                                            setIsDropdownOpen(false);
+                                            navigate('/profile-settings');
+                                        }}
+                                        className="w-full px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2 transition-colors border-0 bg-transparent text-left cursor-pointer font-medium"
+                                    >
+                                        <FontAwesomeIcon icon={faCog} className="text-xs text-slate-400" />
+                                        <span>Profile Settings</span>
+                                    </button>
+                                    <div className="border-t border-slate-100 my-0.5"></div>
+                                    <button
+                                        onClick={() => {
+                                            sessionStorage.removeItem("loggedInUser");
+                                            setIsDropdownOpen(false);
+                                            navigate('/login');
+                                        }}
+                                        className="w-full px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2 transition-colors border-0 bg-transparent text-left cursor-pointer font-medium"
+                                    >
+                                        <FontAwesomeIcon icon={faSignOutAlt} className="text-xs" />
+                                        <span>Logout</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <button
+                            onClick={onLoginClick}
+                            className="bg-white/10 hover:bg-white/20 text-white font-semibold px-5 py-2 rounded-xl text-xs border-0 cursor-pointer transition-all duration-150 flex items-center space-x-1.5"
+                        >
+                            <FontAwesomeIcon icon={faSignInAlt} />
+                            <span>Login</span>
+                        </button>
+                    )}
+                </div>
+
+                {/*Mobile Hamburger Toggle*/}
+                <button
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="md:hidden text-white hover:text-white/80 transition-colors bg-transparent border-0 cursor-pointer text-xl outline-none"
+                >
+                    <FontAwesomeIcon icon={isMobileMenuOpen ? faTimes : faBars} />
+                </button>
+            </div>
+
+            {/*Mobile Dropdown Panel*/}
+            {isMobileMenuOpen && (
+                <div className="md:hidden absolute top-full left-0 w-full bg-[#3b4276] border-t border-white/10 shadow-xl flex flex-col min-h-[260px] justify-between p-6 box-border transition-all animate-fade-in">
+                    <div className="flex flex-col space-y-4">
+                        <button
+                            onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                navigate('/home');
+                            }}
+                            className="text-white/90 hover:text-white text-left font-medium text-base py-2 border-0 bg-transparent cursor-pointer"
+                        >
+                            Home
+                        </button>
+                        {isLoggedIn && hasRentedRoom && (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        setIsMobileMenuOpen(false);
+                                        navigate('/services');
+                                    }}
+                                    className="text-white/90 hover:text-white text-left font-medium text-base py-2 border-0 bg-transparent cursor-pointer"
+                                >
+                                    Services
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsMobileMenuOpen(false);
+                                        navigate('/current-room');
+                                    }}
+                                    className="text-white/90 hover:text-white text-left font-medium text-base py-2 border-0 bg-transparent cursor-pointer"
+                                >
+                                    Current Room
+                                </button>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="pt-4 border-t border-white/10 flex flex-col space-y-4 w-full">
+                        {isLoggedIn ? (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        setIsMobileMenuOpen(false);
+                                        navigate('/profile-settings');
+                                    }}
+                                    className="flex items-center space-x-2 text-white/90 hover:text-white text-left font-medium text-base py-2 border-0 bg-transparent cursor-pointer"
+                                >
+                                    <FontAwesomeIcon icon={faCog} className="text-sm" />
+                                    <span>Profile Settings</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        sessionStorage.removeItem("loggedInUser");
+                                        setIsMobileMenuOpen(false);
+                                        navigate('/login');
+                                    }}
+                                    className="w-full bg-rose-600 hover:bg-rose-700 text-white py-3 rounded-xl font-medium text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-base"
+                                >
+                                    <FontAwesomeIcon icon={faSignOutAlt} />
+                                    <span>Logout</span>
+                                </button>
+                            </>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    setIsMobileMenuOpen(false);
+                                    onLoginClick();
+                                }}
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-medium text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-base"
+                            >
+                                <FontAwesomeIcon icon={faSignInAlt} />
+                                <span>Sign In</span>
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </nav>
+    );
+}

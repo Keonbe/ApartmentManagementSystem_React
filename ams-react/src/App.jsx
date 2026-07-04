@@ -1,24 +1,21 @@
-import React, {useState} from 'react';
-import {BrowserRouter as Router, Routes, Route, useNavigate} from 'react-router-dom';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 
 //Components
-import GuestTopBar from './Components/GuestTopBar';
-import UserTopBar from './Components/UserTopBar';
-import GuestLogInModal from './Components/GuestLogInModal';
+import TopBar from './Components/TopBar';
+import LogInModal from './Components/LogInModal';
 
 //User Pages
-import GuestHome from './GuestPages/GuestHome';
-import GuestPreview from './GuestPages/GuestPreview';
+import Home from './UserPages/Home';
+import Preview from './UserPages/Preview';
 import Login from './UserPages/Login';
 import Registration from './UserPages/Registration';
-import UserHome from './UserPages/UserHome';
-import UserPreview from './UserPages/UserPreview';
 import Services from './UserPages/Services';
 import ParkingReservation from './UserPages/ParkingReservation';
 import CctvRequest from './UserPages/CctvRequest'; 
 import MaintenanceRequest from './UserPages/MaintenanceRequest'; 
 import RentApplication from './UserPages/RentApplication';
-import ProfileSettings from './UserPages/ProfileSettings';//Imported matching layout profile context
+import ProfileSettings from './UserPages/ProfileSettings';
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -31,24 +28,21 @@ import AdminReports from './AdminPages/AdminReports';
 import AdminNotifications from './AdminPages/AdminNotifications';
 import AdminContracts from './AdminPages/AdminContracts';
 
-//Layout Formats:
-function GuestLayout({children, onLoginClick}) {
-  return (
-    <div className="w-full min-h-screen bg-slate-50 flex flex-col text-slate-600 selection:bg-indigo-500 selection:text-white">
-      <GuestTopBar onLoginClick={onLoginClick} />
-      <main className="w-full flex-grow flex flex-col">
-        {children}
-      </main>
-    </div>
-  );
-}
+//Conditional Layout Wrapper Framework Component
+function BaseAppLayout({ children, hasRentedRoom }) {
+  const navigate = useNavigate();
+  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
+  const isLoggedIn = loggedInUser !== null;
+  const username = isLoggedIn ? `${loggedInUser.first_name || ""} ${loggedInUser.last_name || ""}`.trim() : null;
 
-function UserLayout({children, hasRentedRoom}) {
-  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
-  const username = `${loggedInUser.first_name || ""} ${loggedInUser.last_name || ""}`.trim() || "Username";
   return (
     <div className="w-full min-h-screen bg-slate-50 flex flex-col text-slate-600 selection:bg-indigo-500 selection:text-white">
-      <UserTopBar hasRentedRoom={hasRentedRoom} username={username} />
+      <TopBar 
+        hasRentedRoom={hasRentedRoom} 
+        isLoggedIn={isLoggedIn} 
+        username={username || "Guest"} 
+        onLoginClick={() => navigate('/login')} 
+      />
       <main className="w-full flex-grow flex flex-col">
         {children}
       </main>
@@ -60,39 +54,43 @@ function AppContent() {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  {/*Change this toggle to true/false manually to verify navigation visibility changes before attaching backend databases*/}
+  //Toggle true/false manually to verify navigation element states visibility changes
   const [hasRentedRoom, setHasRentedRoom] = useState(true);
 
-  //Route Controls
-  const handleRentClick = () => setIsModalOpen(true);
-  
-  const handleUserRentAction = (roomId) => {
-    //Captures the room configuration ID selected from the available listings card deck grid
-    navigate('/rent-application', { state: { selectedRoomId: roomId } });
+  //Global Route Action Protection Layer
+  const handleRentActionTrigger = (roomId) => {
+    const loggedInUser = sessionStorage.getItem("loggedInUser");
+    
+    if (!loggedInUser) {
+      //Intercept guests and prompt login popup
+      setIsModalOpen(true);
+    } else {
+      //Forward authenticated tenants directly to the application workspace
+      navigate('/rent-application', { state: { selectedRoomId: roomId } });
+    }
   };
 
   return (
     <>
       <Routes>
-        {/*GUEST PAGES*/}
-        <Route path="/" element={<GuestLayout onLoginClick={() => navigate('/login')}><GuestHome onCardClick={() => navigate('/preview')} /></GuestLayout>} />
-        <Route path="/preview" element={<GuestLayout onLoginClick={() => navigate('/login')}><GuestPreview onRentClick={handleRentClick} /></GuestLayout>} />
+        {/*UNIFIED PUBLIC PATHWAYS*/}
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
+        <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} /></BaseAppLayout>} />
+        
+        {/*SECURED TENANT DASHBOARDS SERVICES*/}
+        <Route path="/services" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout>} />
+        <Route path="/parking-reservation" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout>} />
+        <Route path="/cctv-request" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout>} />
+        <Route path="/maintenance-request" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout>} />
+        <Route path="/rent-application" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout>} />
+        <Route path="/profile-settings" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout>} />
 
-        {/*USER PAGES*/}
-        <Route path="/home" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserHome onCardClick={() => navigate('/user-preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || "{}").first_name || "Username"}/></UserLayout>} />
-        <Route path="/user-preview" element={<UserLayout hasRentedRoom={hasRentedRoom}><UserPreview onRentClick={handleUserRentAction} /></UserLayout>} />
-        <Route path="/services" element={<UserLayout hasRentedRoom={hasRentedRoom}><Services /></UserLayout>} />
-        <Route path="/parking-reservation" element={<UserLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></UserLayout>} />
-        <Route path="/cctv-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></UserLayout>} />
-        <Route path="/maintenance-request" element={<UserLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></UserLayout>} />
-        <Route path="/rent-application" element={<UserLayout hasRentedRoom={hasRentedRoom}><RentApplication /></UserLayout>} />
-        <Route path="/profile-settings" element={<UserLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></UserLayout>} />{/*Registered settings layout pathway option*/}
-
-        {/*AUTH PAGES*/}
+        {/*SECURITY AUTH TARGET SCHEMAS*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} />} />
 
-        {/*ADMIN PAGES*/}
+        {/*ADMIN OPERATION PANEL WORKSPACES*/}
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
         <Route path="/admin-units" element={<AdminUnits />} />
         <Route path="/admin-tenants" element={<AdminTenants />} />
@@ -104,8 +102,8 @@ function AppContent() {
         <Route path="/admin-contracts" element={<AdminContracts />} />
       </Routes>
 
-      {/*Global Components*/}
-      <GuestLogInModal 
+      {/*Global Authenticate Prompt Intercept Popup*/}
+      <LogInModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onLoginRedirect={() => {

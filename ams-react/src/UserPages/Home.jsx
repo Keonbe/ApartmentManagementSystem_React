@@ -1,19 +1,19 @@
 import React from 'react';
 
-export default function UserHome({ onCardClick, username = "Username" }) {
+export default function Home({ onCardClick, username }) {
     return (
         <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 flex flex-col items-center py-10 px-6">
             <div className="w-full max-w-4xl text-left space-y-6">
 
-                {/*Welcome Message - Explicit style override added to guarantee high visibility*/}
+                {/* Conditional Header Greeting */}
                 <h1
                     className="text-5xl font-sans font-medium m-0 tracking-tight select-none"
                     style={{ color: '#636bf1', fontWeight: '600' }}
                 >
-                    Welcome, {username}
+                    {username ? `Welcome, ${username}` : "Find Your Next Home"}
                 </h1>
 
-                {/*Featured Apartment Card*/}
+                {/* Featured Main Listing Card */}
                 <div
                     onClick={onCardClick}
                     className="w-full bg-[#636bf1] rounded-3xl overflow-hidden shadow-2xl cursor-pointer transform hover:scale-[1.01] transition-all duration-300 mt-6"
@@ -26,10 +26,18 @@ export default function UserHome({ onCardClick, username = "Username" }) {
                         />
                     </div>
 
-                    <div className="p-8 text-white space-y-2">
+                    <div className="p-8 text-white space-y-2 text-left">
                         <h2 className="text-3xl font-bold text-white m-0 tracking-tight">Apartment in Silang</h2>
                         <p className="text-white/80 text-base m-0">Maguyam Silang, Cavite</p>
-                        <p className="text-white/90 text-sm pt-4 m-0 font-medium">Available Rooms: 4/14</p>
+                        
+                        <div className="pt-4 flex justify-between items-center border-t border-white/20 mt-4">
+                            <span className="text-sm font-medium bg-white/10 px-4 py-1.5 rounded-full">
+                                14 Total Units
+                            </span>
+                            <span className="text-sm font-semibold bg-emerald-500 text-white px-4 py-1.5 rounded-full shadow-sm">
+                                Available Rooms: 4/14
+                            </span>
+                        </div>
                     </div>
                 </div>
 

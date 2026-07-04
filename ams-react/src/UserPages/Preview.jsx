@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function UserPreview({ onRentClick }) {
+export default function Preview({ onRentClick }) {
     const rooms = [
         { id: 'C', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
         { id: 'F', type: 'Studio', floor: '2F', price: '₱4,000/mo' },
@@ -12,10 +12,10 @@ export default function UserPreview({ onRentClick }) {
         <div className="w-full h-auto lg:h-[calc(100vh-76px)] bg-slate-50 p-4 md:p-8 lg:overflow-hidden box-border">
             <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-6 text-left items-stretch">
 
-                {/*Left Column*/}
+                {/* Left Column Layout */}
                 <div className="lg:col-span-7 flex flex-col min-h-0 space-y-6">
 
-                    {/*Modern Dynamic Glass-gradient Hero Banner Layout*/}
+                    {/* Modern Dynamic Hero Banner */}
                     <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gradient-to-r from-[#3b4276] via-[#4f46e5] to-[#6366f1] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent)] pointer-events-none"></div>
                         <div className="w-full sm:w-64 overflow-hidden relative min-h-[160px] sm:min-h-0">
@@ -39,9 +39,8 @@ export default function UserPreview({ onRentClick }) {
                         </div>
                     </div>
 
-                    {/*Scrollable Layout Block Container*/}
+                    {/* Scrollable Room Cards Track Container */}
                     <div className="w-full flex-grow overflow-y-auto pr-1 max-h-[450px] lg:max-h-none">
-                        {/*Heading is now inside the scroll track layout and bolded heavily*/}
                         <h2 className="text-2xl font-extrabold tracking-tight mb-4 select-none" style={{ color: '#1e293b', fontWeight: '800' }}>
                             Available Rooms
                         </h2>
@@ -55,7 +54,7 @@ export default function UserPreview({ onRentClick }) {
                                         <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
                                     </div>
                                     <button
-                                        onClick={() => onRentClick(room.id)}//Passes the chosen room id key back up to AppContent for smooth onboarding redirect
+                                        onClick={() => onRentClick(room.id)}
                                         className="mt-4 w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm hover:shadow-emerald-500/20 border-0 cursor-pointer"
                                     >
                                         Rent Now
@@ -67,7 +66,7 @@ export default function UserPreview({ onRentClick }) {
 
                 </div>
 
-                {/*Right Column: Maps Embed*/}
+                {/* Right Column: Maps Embed */}
                 <div className="lg:col-span-5 h-[400px] lg:h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex">
                     <iframe
                         src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
