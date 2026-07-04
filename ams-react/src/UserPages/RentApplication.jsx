@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { useNavigate } from 'react-router-dom';
 import { faCloudUploadAlt, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
+import api from '../api/axiosConfig';
 
 export default function RentApplication() {
     const [firstName, setFirstName] = useState('');
@@ -14,6 +16,7 @@ export default function RentApplication() {
     const [monthsOfRent, setMonthsOfRent] = useState('');
     const [roomName] = useState('Room C');//mock value matching image_be25d0.png
     const [monthlyRent] = useState(4000);//mock value matching image_be25d0.png
+    const navigate = useNavigate();
     
     //File drops state tracking
     const [validIdFile, setValidIdFile] = useState(null);
@@ -47,13 +50,51 @@ export default function RentApplication() {
         }
     };
 
-    const handleFormSubmit = (e) => {
+    const handleFormSubmit = async (e) => {
         e.preventDefault();
+        
         if (!agreePrivacy) {
             alert("Please read and agree to the terms and privacy policy before submitting.");
             return;
         }
-        setShowSuccessModal(true);
+
+        if (!validIdFile || !nbiFile) {
+            alert("Please upload both your Valid ID and NBI Clearance.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('firstName', firstName.trim());
+        formData.append('lastName', lastName.trim());
+        formData.append('suffix', suffix.trim());
+        formData.append('contactNo', contactNo.trim());
+        formData.append('email', email.trim());
+        formData.append('gender', gender);
+        formData.append('occupants', occupants);
+        formData.append('monthsOfRent', monthsOfRent);
+        formData.append('roomName', roomName);
+        formData.append('monthlyRent', monthlyRent);
+        
+        formData.append('validIdFile', validIdFile);
+        formData.append('nbiFile', nbiFile);
+
+        try {
+            const res = await api.post("/rent_application.php", formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            if (res.data.success) {
+                setShowSuccessModal(true);
+            } else {
+                console.error("Server Error:", res.data.message);
+                alert(res.data.message);
+            }
+        } catch (error) {
+            console.error("Error submitting application:", error);
+            alert("A network error occurred.");
+        }
     };
 
     return (
@@ -369,7 +410,11 @@ export default function RentApplication() {
             {/*MODAL 2: SUCCESSFUL POP-UP STANDALONE RESPONSE ELEMENT CONTAINER*/}
             <SuccessModal 
                 isOpen={showSuccessModal} 
-                onClose={() => setShowSuccessModal(false)} 
+                onClose={() => {
+                    setShowSuccessModal(false);
+                    navigate('/home');
+
+                }} 
                 message="Application Submitted Successfully" 
             />
         </div>
