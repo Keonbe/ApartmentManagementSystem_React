@@ -28,6 +28,8 @@ import AdminPayments from './AdminPages/AdminPayments';
 import AdminMaintainance from './AdminPages/AdminMaintainance';
 import AdminAnnouncements from './AdminPages/AdminAnnouncements';
 import AdminReports from './AdminPages/AdminReports';
+import AdminNotifications from './AdminPages/AdminNotifications';
+import AdminContracts from './AdminPages/AdminContracts';
 
 //Layout Formats:
 function GuestLayout({children, onLoginClick}) {
@@ -98,6 +100,8 @@ function AppContent() {
         <Route path="/admin-maintenance" element={<AdminMaintainance />} />
         <Route path="/admin-announcements" element={<AdminAnnouncements />} />
         <Route path="/admin-reports" element={<AdminReports />} />
+        <Route path="/admin-notifications" element={<AdminNotifications />} />
+        <Route path="/admin-contracts" element={<AdminContracts />} />
       </Routes>
 
       {/*Global Components*/}
