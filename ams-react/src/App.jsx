@@ -18,18 +18,29 @@ import CctvRequest from './UserPages/CctvRequest';
 import MaintenanceRequest from './UserPages/MaintenanceRequest'; 
 import RentApplication from './UserPages/RentApplication';
 import ProfileSettings from './UserPages/ProfileSettings';
+import MyRoom from './UserPages/MyRoom';
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
 import AdminUnits from './AdminPages/AdminUnits';
 import AdminTenants from './AdminPages/AdminTenants';
 import AdminPayments from './AdminPages/AdminPayments';
-import AdminMaintainance from './AdminPages/AdminMaintainance';
+import AdminMaintenance from './AdminPages/AdminMaintainance';
 import AdminAnnouncements from './AdminPages/AdminAnnouncements';
 import AdminReports from './AdminPages/AdminReports';
 import AdminNotifications from './AdminPages/AdminNotifications';
 import AdminContracts from './AdminPages/AdminContracts';
-import AdminServicePage from './AdminPages/AdminServicePage';
+
+//Client-side access controller middleware component block
+function ProtectedRoute({ children }) {
+  const loggedInUser = sessionStorage.getItem("loggedInUser");
+  
+  if (!loggedInUser) {
+    {/*Redirect unauthenticated users immediately back to login window path*/}
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
 
 //Conditional Layout Wrapper Framework Component containing universal global Footer injection
 function BaseAppLayout({ children, hasRentedRoom }) {
@@ -81,14 +92,15 @@ function AppContent() {
         <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
         <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} /></BaseAppLayout>} />
         
-        {/*SECURED TENANT DASHBOARDS SERVICES*/}
-        <Route path="/services" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout>} />
-        <Route path="/pay-bills" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout>} />
-        <Route path="/parking-reservation" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout>} />
-        <Route path="/cctv-request" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout>} />
-        <Route path="/maintenance-request" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout>} />
-        <Route path="/rent-application" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout>} />
-        <Route path="/profile-settings" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout>} />
+        {/*SECURED TENANT DASHBOARDS SERVICES (WRAPPED IN PROTECTED ROUTE CONTROLLERS)*/}
+        <Route path="/services" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/pay-bills" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/parking-reservation" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/cctv-request" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/maintenance-request" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/my-room" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></ProtectedRoute>} />
 
         {/*SECURITY AUTH TARGET SCHEMAS*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
@@ -99,12 +111,11 @@ function AppContent() {
         <Route path="/admin-units" element={<AdminUnits />} />
         <Route path="/admin-tenants" element={<AdminTenants />} />
         <Route path="/admin-payments" element={<AdminPayments />} />
-        <Route path="/admin-maintenance" element={<AdminMaintainance />} />
+        <Route path="/admin-maintenance" element={<AdminMaintenance />} />
         <Route path="/admin-announcements" element={<AdminAnnouncements />} />
         <Route path="/admin-reports" element={<AdminReports />} />
         <Route path="/admin-notifications" element={<AdminNotifications />} />
         <Route path="/admin-contracts" element={<AdminContracts />} />
-        <Route path="/admin-services" element={<AdminServicePage />} />
       </Routes>
 
       <LogInModal 

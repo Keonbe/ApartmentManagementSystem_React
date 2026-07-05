@@ -10,7 +10,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const dropdownRef = useRef(null);
 
-    {/* Close dropdown menus dynamically when clicking outside active areas */}
+    {/*Close dropdown menus dynamically when clicking outside active areas*/}
     useEffect(() => {
         function handleClickOutside(event) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -21,7 +21,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    {/* Dynamic extraction framework to compute initials from username string parameters */}
+    {/*Dynamic extraction framework to compute initials from username string parameters*/}
     const getInitials = () => {
         if (!username || username === 'Guest') return 'U';
         const nameParts = username.split(' ');
@@ -30,7 +30,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         return `${firstInitial}${lastInitial}`.toUpperCase();
     };
 
-    {/* Helper utilities to parse active routing styling highlights dynamically */}
+    {/*Helper utilities to parse active routing styling highlights dynamically*/}
     const isActive = (path) => location.pathname === path;
     const navItemClass = (path) => `text-sm font-medium transition-all duration-200 border-0 bg-transparent cursor-pointer hover:-translate-y-0.5 relative after:absolute after:bottom-0 after:left-0 after:h-0.5 after:bg-white after:transition-all hover:after:w-full ${isActive(path) ? 'text-white font-extrabold after:w-full' : 'text-white/90 hover:text-white after:w-0'}`;
 
@@ -38,7 +38,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         <nav className="w-full bg-[#3b4276] px-6 md:px-12 py-4 shadow-md sticky top-0 z-50 select-none box-border">
             <div className="w-full flex justify-between items-center h-[44px]">
                 
-                {/* Brand Branding Identity Node Layout */}
+                {/*Brand Branding Identity Node Layout*/}
                 <div className="flex items-center space-x-8">
                     <style>
                         {`
@@ -55,7 +55,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         AMS
                     </div>
 
-                    {/* Central Links Menu Blocks Layer Context Grid */}
+                    {/*Central Links Menu Blocks Layer Context Grid*/}
                     <div className="hidden md:flex items-center space-x-6">
                         <button onClick={() => navigate('/home')} className={navItemClass('/home')}>
                             Home
@@ -66,14 +66,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             </button>
                         )}
                         {isLoggedIn && hasRentedRoom && (
-                            <button onClick={() => navigate('/profile-settings')} className={navItemClass('/profile-settings')}>
-                                Current Room
+                            <button onClick={() => navigate('/my-room')} className={navItemClass('/my-room')}>
+                                My Room
                             </button>
                         )}
                     </div>
                 </div>
 
-                {/* Desktop Account Session Interaction Block Workspace */}
+                {/*Desktop Account Session Interaction Block Workspace*/}
                 <div className="hidden md:block">
                     {isLoggedIn ? (
                         <div className="relative" ref={dropdownRef}>
@@ -83,7 +83,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             >
                                 <span className="font-bold text-sm tracking-wide">{username}</span>
                                 
-                                {/* Dynamic Google-Style Avatar Widget */}
+                                {/*Dynamic Google-Style Avatar Widget*/}
                                 <div className="w-9 h-9 rounded-full bg-indigo-600 border border-white/20 text-white flex items-center justify-center text-xs font-black tracking-wider shadow-inner transition-transform group-hover:scale-105">
                                     {getInitials()}
                                 </div>
@@ -94,7 +94,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 />
                             </button>
 
-                            {/* Floating Submenu Accounts Selection List Node Options */}
+                            {/*Floating Submenu Accounts Selection List Node Options*/}
                             {isDropdownOpen && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 z-50 overflow-hidden animate-fade-in text-left">
                                     <button
@@ -133,7 +133,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     )}
                 </div>
 
-                {/* Mobile Hamburger Layout Button Trigger Node */}
+                {/*Mobile Hamburger Layout Button Trigger Node*/}
                 <button
                     onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                     className="md:hidden text-white hover:text-white/80 transition-colors bg-transparent border-0 cursor-pointer text-xl outline-none"
@@ -142,7 +142,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                 </button>
             </div>
 
-            {/* Mobile Adaptive Full View Overlay Drawer Panel Layout */}
+            {/*Mobile Adaptive Full View Overlay Drawer Panel Layout*/}
             {isMobileMenuOpen && (
                 <div className="md:hidden absolute top-full left-0 w-full bg-[#3b4276] border-t border-white/10 shadow-2xl flex flex-col min-h-[280px] justify-between p-6 box-border transition-all z-50 text-left animate-fade-in">
                     <div className="flex flex-col space-y-3">
@@ -170,11 +170,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             <button
                                 onClick={() => {
                                     setIsMobileMenuOpen(false);
-                                    navigate('/profile-settings');
+                                    navigate('/my-room');
                                 }}
-                                className={`text-left text-base py-2.5 font-bold border-0 bg-transparent cursor-pointer ${isActive('/profile-settings') ? 'text-white' : 'text-white/70'}`}
+                                className={`text-left text-base py-2.5 font-bold border-0 bg-transparent cursor-pointer ${isActive('/my-room') ? 'text-white' : 'text-white/70'}`}
                             >
-                                Current Room
+                                My Room
                             </button>
                         )}
                     </div>
