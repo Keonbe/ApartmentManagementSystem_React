@@ -29,6 +29,7 @@ import AdminAnnouncements from './AdminPages/AdminAnnouncements';
 import AdminReports from './AdminPages/AdminReports';
 import AdminNotifications from './AdminPages/AdminNotifications';
 import AdminContracts from './AdminPages/AdminContracts';
+import AdminServicePage from './AdminPages/AdminServicePage';
 
 //Conditional Layout Wrapper Framework Component containing universal global Footer injection
 function BaseAppLayout({ children, hasRentedRoom }) {
@@ -103,6 +104,7 @@ function AppContent() {
         <Route path="/admin-reports" element={<AdminReports />} />
         <Route path="/admin-notifications" element={<AdminNotifications />} />
         <Route path="/admin-contracts" element={<AdminContracts />} />
+        <Route path="/admin-services" element={<AdminServicePage />} />
       </Routes>
 
       <LogInModal 

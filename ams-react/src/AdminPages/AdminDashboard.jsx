@@ -49,8 +49,14 @@ const AdminDashboard = () => {
     const y = 100 - (d.value / maxValue) * 100;
     return `${x},${y}`;
   });
+  const expensesPoints = incomeData.map((d, i) => {
+    const x = (i / (incomeData.length - 1)) * 100;
+    const y = 100 - (d.expenses / maxValue) * 100;
+    return `${x},${y}`;
+  });
   const pathD = `M ${linePoints.join(' L ')}`;
   const areaD = `M ${linePoints.join(' L ')} L 100,100 L 0,100 Z`;
+  const expensesPathD = `M ${expensesPoints.join(' L ')}`;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
@@ -128,6 +134,7 @@ const AdminDashboard = () => {
                         </defs>
                         <path d={areaD} fill="url(#indigo-grad)" className="opacity-20" />
                         <path d={pathD} fill="none" stroke="#6366f1" strokeWidth="3" vectorEffect="non-scaling-stroke" className="drop-shadow-md opacity-70" />
+                        <path d={expensesPathD} fill="none" stroke="#ef4444" strokeWidth="3" strokeDasharray="5,5" vectorEffect="non-scaling-stroke" className="drop-shadow-md opacity-70" />
                       </svg>
                       
                       {/* Properly Calculated Data Dots */}
@@ -135,28 +142,43 @@ const AdminDashboard = () => {
                         {incomeData.map((d, i) => {
                           const x = (i / (incomeData.length - 1)) * 100;
                           const y = 100 - (d.value / maxValue) * 100;
+                          const ey = 100 - (d.expenses / maxValue) * 100;
                           return (
-                            <div 
-                              key={d.month} 
-                              className={`absolute w-3 h-3 rounded-full bg-white border-2 border-indigo-500 shadow-sm cursor-pointer hover:scale-150 transition-transform pointer-events-auto z-10 ${selectedMonth === d.month ? 'scale-150 bg-indigo-100' : ''}`}
-                              style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
-                              onClick={() => setSelectedMonth(selectedMonth === d.month ? null : d.month)}
-                            >
-                               {/* Re-using tooltip for line chart context */}
-                              <div className={`absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg opacity-0 transition-all z-20 w-28 pointer-events-none ${selectedMonth === d.month ? 'opacity-100' : 'group-hover:opacity-100'}`}>
-                                <div className="flex justify-between mb-1"><span className="text-slate-400">Income</span><span className="font-bold text-emerald-400">{formatCurrency(d.value)}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-400">Expense</span><span className="font-bold text-red-400">{formatCurrency(d.expenses)}</span></div>
+                            <React.Fragment key={d.month}>
+                              <div 
+                                className={`absolute w-3 h-3 rounded-full bg-white border-2 border-indigo-500 shadow-sm cursor-pointer hover:scale-150 transition-transform pointer-events-auto z-10 group ${selectedMonth === d.month ? 'scale-150 bg-indigo-100' : ''}`}
+                                style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
+                                onClick={() => setSelectedMonth(selectedMonth === d.month ? null : d.month)}
+                              >
+                                 {/* Re-using tooltip for line chart context */}
+                                <div className={`absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg opacity-0 transition-all z-20 w-28 pointer-events-none ${selectedMonth === d.month ? 'opacity-100' : 'group-hover:opacity-100'}`}>
+                                  <div className="flex justify-between mb-1"><span className="text-slate-400">Income</span><span className="font-bold text-emerald-400">{formatCurrency(d.value)}</span></div>
+                                  <div className="flex justify-between"><span className="text-slate-400">Expense</span><span className="font-bold text-red-400">{formatCurrency(d.expenses)}</span></div>
+                                </div>
                               </div>
-                            </div>
+                              <div 
+                                className={`absolute w-3 h-3 rounded-full bg-white border-2 border-red-500 shadow-sm cursor-pointer hover:scale-150 transition-transform pointer-events-auto z-10 group ${selectedMonth === d.month ? 'scale-150 bg-red-100' : ''}`}
+                                style={{ left: `${x}%`, top: `${ey}%`, transform: 'translate(-50%, -50%)' }}
+                                onClick={() => setSelectedMonth(selectedMonth === d.month ? null : d.month)}
+                              >
+                                 <div className={`absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg opacity-0 transition-all z-20 w-28 pointer-events-none ${selectedMonth === d.month ? 'opacity-100' : 'group-hover:opacity-100'}`}>
+                                  <div className="flex justify-between mb-1"><span className="text-slate-400">Income</span><span className="font-bold text-emerald-400">{formatCurrency(d.value)}</span></div>
+                                  <div className="flex justify-between"><span className="text-slate-400">Expense</span><span className="font-bold text-red-400">{formatCurrency(d.expenses)}</span></div>
+                                </div>
+                              </div>
+                            </React.Fragment>
                           );
                         })}
                       </div>
 
                       {/* X Axis Labels aligned properly beneath points */}
-                      <div className="absolute bottom-0 left-0 w-full px-4 flex justify-between transform translate-y-full mt-2">
-                        {incomeData.map(d => (
-                          <span key={`label-${d.month}`} className={`text-xs font-semibold ${selectedMonth === d.month ? 'text-indigo-600' : 'text-slate-500'}`}>{d.month}</span>
-                        ))}
+                      <div className="absolute bottom-0 left-0 w-full h-0 px-4 mt-2">
+                        {incomeData.map((d, i) => {
+                          const x = (i / (incomeData.length - 1)) * 100;
+                          return (
+                            <span key={`label-${d.month}`} className={`absolute text-xs font-semibold transform -translate-x-1/2 ${selectedMonth === d.month ? 'text-indigo-600' : 'text-slate-500'}`} style={{ left: `${x}%`, top: '100%' }}>{d.month}</span>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
