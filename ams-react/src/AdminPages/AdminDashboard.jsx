@@ -74,7 +74,7 @@ const AdminDashboard = () => {
               <StatCard icon={faExclamationTriangle} title="Pending Dues" value="₱15,000" trend="-5%" color="red" isBadTrend tooltip="Total outstanding balance across all tenants" />
               <StatCard icon={faUsers} title="Total Tenants" value="24" trend="+2" color="indigo" tooltip="Number of active tenants" />
               <StatCard icon={faChartPie} title="Occupancy" value="85%" subtext="24 / 28 Units" color="blue" showProgress progress="85" />
-              <StatCard icon={faWrench} title="Maintenance" value="3" subtext="Open Requests" color="amber" onClick={() => navigate('/admin/maintenance')} hoverable />
+              <StatCard icon={faWrench} title="Maintenance" value="3" subtext="Open Requests" color="amber" onClick={() => navigate('/admin-maintenance')} hoverable />
               <StatCard icon={faKey} title="Vacant" value="4" subtext="Units Available" color="slate" />
             </div>
 
