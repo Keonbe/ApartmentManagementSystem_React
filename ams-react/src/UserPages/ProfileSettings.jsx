@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserCircle, faFileAlt, faKey, faSave } from '@fortawesome/free-solid-svg-icons';
+import { faFileAlt, faKey, faSave } from '@fortawesome/free-solid-svg-icons';
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 
@@ -9,7 +9,7 @@ export default function ProfileSettings() {
     const [lastName, setLastName] = useState('Dela Cruz');
     const [suffix, setSuffix] = useState('Jr');
     
-    {/* Philippine Mobile Phone Input Parameters */}
+    {/*Philippine Mobile Phone Input Parameters*/}
     const [phoneRawNumber, setPhoneRawNumber] = useState('9996766967');
     const [phoneError, setPhoneError] = useState('');
     
@@ -19,7 +19,7 @@ export default function ProfileSettings() {
     const [showDocsModal, setShowDocsModal] = useState(false);
     const [showPassModal, setShowPassModal] = useState(false);
 
-    {/* Filters and restricts typing inputs to 10 digits exclusively */}
+    {/*Filters and restricts typing inputs to 10 digits exclusively*/}
     const handlePhoneRawInput = (e) => {
         const val = e.target.value.replace(/\D/g, '');
         if (val.length <= 10) {
@@ -28,7 +28,7 @@ export default function ProfileSettings() {
         }
     };
 
-    {/* Validation algorithm ensuring a real Philippine mobile configuration */}
+    {/*Validation algorithm ensuring a real Philippine mobile configuration*/}
     const validatePhilippineNumber = (number) => {
         if (number.length !== 10) {
             return "Mobile number must be exactly 10 digits (e.g., 9171234567).";
@@ -59,11 +59,18 @@ export default function ProfileSettings() {
         alert(`Personal profile changes saved successfully inside local mockup states. Contact entry: ${fullContactNumber}`);
     };
 
+    {/*Extract first initials safely and format to uppercase strings internally*/}
+    const getInitials = () => {
+        const firstLetter = firstName ? firstName.charAt(0) : '';
+        const lastLetter = lastName ? lastName.charAt(0) : '';
+        return `${firstLetter}${lastLetter}`.toUpperCase();
+    };
+
     return (
         <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
 
-                {/*Top Header Row Layout*/}
+                {/*Top Header Row Layout with Initials Avatar Display*/}
                 <div className="border-b border-slate-200 pb-4 flex items-center justify-between">
                     <div>
                         <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
@@ -74,8 +81,12 @@ export default function ProfileSettings() {
                         </p>
                     </div>
                     
-                    <div className="w-24 h-24 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-500 shrink-0 select-none pointer-events-none">
-                        <FontAwesomeIcon icon={faUserCircle} className="text-6xl" />
+                    {/*Dynamic Google-Style Initials Profile Avatar Container*/}
+                    <div 
+                        className="w-20 h-24 sm:w-24 rounded-full flex items-center justify-center text-white text-3xl font-black shrink-0 select-none pointer-events-none tracking-wider shadow-md border-2 border-white"
+                        style={{ backgroundColor: '#3b4276' }}
+                    >
+                        {getInitials()}
                     </div>
                 </div>
 
