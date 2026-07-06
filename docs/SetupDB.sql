@@ -6,11 +6,16 @@ USE ams_db
 
 CREATE TABLE users (
   id int(11) NOT NULL AUTO_INCREMENT,
-  first_name varchar(30) COLLATE utf8mb4_general_ci NOT NULL,
-  last_name varchar(30) COLLATE utf8mb4_general_ci NOT NULL,
-  email_address varchar(30) COLLATE utf8mb4_general_ci NOT NULL,
-  password varchar(200) COLLATE utf8mb4_general_ci NOT NULL,
-  PRIMARY KEY (id)
+  first_name varchar(30) NOT NULL,
+  last_name varchar(30) NOT NULL,
+  'suffix' varchar(20) DEFAULT NULL,
+  `contact_no` varchar(30) DEFAULT NULL,
+  `gender` varchar(20) DEFAULT NULL,
+  email_address varchar(30) NOT NULL,
+  password varchar(200) NOT NULL,
+  `role` varchar(20) DEFAULT 'user',
+  PRIMARY KEY (id),
+  UNIQUE KEY `email_address` (`email_address`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE rent_applications (
@@ -25,7 +30,8 @@ CREATE TABLE rent_applications (
   months_of_rent int(11) NOT NULL,
   room_name varchar(50) NOT NULL,
   monthly_rent decimal(10,2) NOT NULL,
-  valid_id_path varchar(255) NOT NULL,
+  valid_id_front_path varchar(255) NOT NULL,
+  valid_id_back_path varchar(255) NOT NULL,
   nbi_clearance_path varchar(255) NOT NULL,
   status varchar(20) NOT NULL DEFAULT 'Pending Review',
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
