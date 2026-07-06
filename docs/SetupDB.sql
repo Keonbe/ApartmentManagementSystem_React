@@ -8,7 +8,7 @@ CREATE TABLE users (
   id int(11) NOT NULL AUTO_INCREMENT,
   first_name varchar(30) NOT NULL,
   last_name varchar(30) NOT NULL,
-  'suffix' varchar(20) DEFAULT NULL,
+  `suffix` varchar(20) DEFAULT NULL,
   `contact_no` varchar(30) DEFAULT NULL,
   `gender` varchar(20) DEFAULT NULL,
   email_address varchar(30) NOT NULL,
