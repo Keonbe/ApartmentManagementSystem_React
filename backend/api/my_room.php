@@ -18,7 +18,7 @@ if (empty($email)) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT room_name, monthly_rent, months_of_rent, status, created_at FROM rent_applications WHERE email = ? ORDER BY created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT room_name, monthly_rent, months_of_rent, status, created_at, occupants FROM rent_applications WHERE email = ? ORDER BY created_at DESC LIMIT 1");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $result = $stmt->get_result();

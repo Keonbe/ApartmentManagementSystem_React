@@ -7,7 +7,7 @@ import api from "../api/axiosConfig";
 
 export default function MyRoom() {
     const navigate = useNavigate();
-    
+
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
     const activeFirstName = loggedInUser ? loggedInUser.first_name : "";
     const activeEmail = loggedInUser ? loggedInUser.email_address : "";
@@ -22,7 +22,7 @@ export default function MyRoom() {
         paymentDue: "Pending",
         status: "N/A"
     });
-    
+
     const [occupants, setOccupants] = useState(2);
     const [expectedEnd, setExpectedEnd] = useState('');
 
@@ -36,20 +36,20 @@ export default function MyRoom() {
 
             try {
                 const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
-                
+
                 if (res.data.success && res.data.data) {
                     const data = res.data.data;
-                    
+
                     const creationDate = new Date(data.created_at);
                     const startDateString = creationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-                    
+
                     const nextMonth = new Date(creationDate);
                     nextMonth.setMonth(nextMonth.getMonth() + 1);
                     const dueDateString = nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
                     const endDate = new Date(creationDate);
                     endDate.setMonth(endDate.getMonth() + parseInt(data.months_of_rent));
-                    
+
                     setRoomDetails({
                         name: data.room_name,
                         type: "Studio Apartment",
@@ -58,9 +58,13 @@ export default function MyRoom() {
                         paymentDue: dueDateString,
                         status: data.status
                     });
-                    
+
                     setExpectedEnd(endDate.toISOString().split('T')[0]);
-                    
+
+                    if (data.occupants) {
+                        setOccupants(parseInt(data.occupants));
+                    }
+
                 } else {
                     setError("No active room assignments found.");
                 }
@@ -88,7 +92,7 @@ export default function MyRoom() {
 
     const handleUpdateOccupants = async (e) => {
         e.preventDefault();
-        
+
         if (!occupants || occupants < 1 || occupants > 4) {
             alert("Please enter a valid number of occupants between 1 and 4.");
             return;
@@ -115,9 +119,25 @@ export default function MyRoom() {
         alert("Opening contract view...");
     };
 
-    const handleExtendRent = (e) => {
+    const [additionalMonths, setAdditionalMonths] = useState(1);
+
+    const handleExtendRent = async (e) => {
         e.preventDefault();
-        alert(`Extension requested up to: ${expectedEnd}`);
+        try {
+            const res = await api.post('/extend_lease.php', {
+                email: activeEmail,
+                additionalMonths: additionalMonths
+            });
+
+            if (res.data.success) {
+                alert("Lease extended successfully.");
+                window.location.reload();
+            } else {
+                alert(res.data.message);
+            }
+        } catch (err) {
+            alert("Failed to connect to server.");
+        }
     };
 
     const handleEndRent = () => {
@@ -141,11 +161,11 @@ export default function MyRoom() {
     if (error) {
         return (
             <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-900 text-white">
-                 <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 text-center max-w-md space-y-4 shadow-2xl">
+                <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 text-center max-w-md space-y-4 shadow-2xl">
                     <FontAwesomeIcon icon={faFileContract} className="text-5xl text-rose-500 mb-2" />
                     <h2 className="text-2xl font-bold">No Room Found</h2>
                     <p className="text-slate-400 text-sm">{error}</p>
-                    <button 
+                    <button
                         onClick={() => navigate('/rent-application')}
                         className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all"
                     >
@@ -158,7 +178,7 @@ export default function MyRoom() {
 
     return (
         <div className="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12">
-            
+
             <div className="absolute inset-0 z-0">
                 <img
                     src={ApartmentPic}
@@ -169,7 +189,7 @@ export default function MyRoom() {
             </div>
 
             <div className="w-full max-w-6xl z-10 space-y-8 flex flex-col justify-start text-left">
-                
+
                 <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="space-y-1">
                         <div className="flex flex-wrap gap-2 items-center">
@@ -181,15 +201,15 @@ export default function MyRoom() {
                                 <span>Maguyam Silang, Cavite</span>
                             </span>
                         </div>
-                        
+
                         <h1 className="text-3xl md:text-4xl font-sans font-extrabold m-0 text-white tracking-tight leading-tight">
                             {activeFirstName ? `Welcome Back, ${activeFirstName}` : "Welcome Back"}
                         </h1>
-                        
+
                         <h2 className="text-xl font-sans font-bold m-0 text-indigo-200 tracking-tight pt-0.5">
                             Current Assigned Unit: {roomDetails.name}
                         </h2>
-                        
+
                         <p className="text-slate-300 text-xs sm:text-sm m-0 font-medium pt-1">
                             {roomDetails.type} — Manage your ongoing tenancy parameters, dates, and contracts.
                         </p>
@@ -197,7 +217,7 @@ export default function MyRoom() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    
+
                     <div className="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
@@ -285,7 +305,7 @@ export default function MyRoom() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
-                    
+
                     <div className="md:col-span-8 bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 md:p-8">
                         <form onSubmit={handleExtendRent} className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-end m-0 text-left">
                             <div className="sm:col-span-2 space-y-3">
@@ -301,14 +321,14 @@ export default function MyRoom() {
                             </div>
                             <div className="space-y-3 w-full box-border">
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Expected Rent End</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Additional Months</label>
                                     <input
-                                        type="date"
-                                        value={expectedEnd}
-                                        onChange={(e) => setExpectedEnd(e.target.value)}
-                                        className="w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold color-scheme-dark"
-                                        style={{ colorScheme: 'dark' }}
-                                        required
+                                        type="number"
+                                        min="1"
+                                        max="12"
+                                        value={additionalMonths}
+                                        onChange={(e) => setAdditionalMonths(parseInt(e.target.value) || 1)}
+                                        className="w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold"
                                     />
                                 </div>
                                 <button
