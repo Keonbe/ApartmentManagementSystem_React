@@ -1,32 +1,42 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 
 export default function RentApplication() {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+    const defaultFirstName = loggedInUser.first_name || '';
+    const defaultLastName = loggedInUser.last_name || '';
+    const defaultEmail = loggedInUser.email_address || '';
+
+    const passedRoomId = location.state?.selectedRoomId || 'C';
+
+    const getRoomPrice = (id) => {
+        if (id === 'M') return 3500;
+        return 4000;                
+    };
     
-    {/*MOCK STATUS CONFIGURATOR: Reset to none so users submit fresh forms by default*/}
     const [applicationStatus, setApplicationStatus] = useState('none');
 
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
+    const [firstName, setFirstName] = useState(defaultFirstName);
+    const [lastName, setLastName] = useState(defaultLastName);
     const [suffix, setSuffix] = useState('');
     
-    {/*Philippine Mobile Number States*/}
     const [phoneRawNumber, setPhoneRawNumber] = useState('');
     const [phoneError, setPhoneError] = useState('');
 
-    const [email, setEmail] = useState('');
+    const [email, setEmail] = useState(defaultEmail);
     const [gender, setGender] = useState('');
     const [occupants, setOccupants] = useState('');
     const [monthsOfRent, setMonthsOfRent] = useState('');
-    const [roomName] = useState('Room C');
-    const [monthlyRent] = useState(4000);
+    const [roomName] = useState(`Room ${passedRoomId}`);
+    const [monthlyRent] = useState(getRoomPrice(passedRoomId));
     
-    {/*File drops state tracking for separated front and back ID files*/}
     const [validIdFrontFile, setValidIdFrontFile] = useState(null);
     const [validIdBackFile, setValidIdBackFile] = useState(null);
     const [nbiFile, setNbiFile] = useState(null);
@@ -40,37 +50,30 @@ export default function RentApplication() {
 
     const isReadOnly = applicationStatus === 'pending' || applicationStatus === 'accepted';
 
-    {/*Filters and restricts real-time typing to a strict 10-digit Philippine mobile format*/}
     const handlePhoneRawInput = (e) => {
         if (isReadOnly) return;
         
-        {/*Strip any non-numeric characters*/}
         const val = e.target.value.replace(/\D/g, '');
         
-        {/*Enforce the absolute 10-digit maximum cutoff count*/}
         if (val.length <= 10) {
             setPhoneRawNumber(val);
             setPhoneError('');
         }
     };
 
-    {/*Checks for realistic phone arrangements and prefixes on blur or submit*/}
     const validatePhilippineNumber = (number) => {
         if (number.length !== 10) {
             return "Mobile number must be exactly 10 digits (e.g., 9171234567).";
         }
         
-        {/*Philippine mobile numbers start with 9 or 8 after the +63 code*/}
         if (!/^[89]/.test(number)) {
             return "Invalid prefix. Real Philippine mobile numbers must start with 9 or 8.";
         }
 
-        {/*Anti-fraud check: Block obviously repetitive fake patterns (e.g., 9999999999)*/}
         if (/^(\d)\1+$/.test(number)) {
             return "Fake number pattern detected. Please enter a valid number.";
         }
 
-        {/*Anti-fraud check: Block sequential fake entries (e.g., 1234567890)*/}
         if ("012345678901".includes(number) || "09876543210".includes(number)) {
             return "Sequential numbers are not accepted as valid contact records.";
         }
@@ -100,7 +103,6 @@ export default function RentApplication() {
             return;
         }
 
-        {/*Run final strict phone validation algorithms check*/}
         const validationError = validatePhilippineNumber(phoneRawNumber);
         if (validationError) {
             setPhoneError(validationError);
@@ -155,7 +157,6 @@ export default function RentApplication() {
         <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
 
-                {/*Top Header Row Layout with Status Badges*/}
                 <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
@@ -166,7 +167,6 @@ export default function RentApplication() {
                         </p>
                     </div>
 
-                    {/*Status Badge UI Engine*/}
                     {applicationStatus !== 'none' && (
                         <div className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border border-current self-start sm:self-center transition-all duration-300 ${applicationStatus === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
                             <FontAwesomeIcon icon={applicationStatus === 'pending' ? faHourglassHalf : faCheck} className={applicationStatus === 'pending' ? 'animate-spin' : ''} />
@@ -178,10 +178,8 @@ export default function RentApplication() {
                     )}
                 </div>
 
-                {/*Form Container Panel Grid*/}
                 <form className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8" onSubmit={handleFormSubmit}>
                     
-                    {/*SECTION 1: PERSONAL DETAILS PROFILE DATA GRID*/}
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Personal Details</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -189,24 +187,18 @@ export default function RentApplication() {
                                 <label className="text-sm font-bold text-slate-700">First Name</label>
                                 <input
                                     type="text"
-                                    placeholder="Juan"
                                     value={firstName}
-                                    disabled={isReadOnly}
-                                    onChange={(e) => setFirstName(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
-                                    required
+                                    disabled
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                 />
                             </div>
                             <div className="flex flex-col space-y-1.5">
                                 <label className="text-sm font-bold text-slate-700">Last Name</label>
                                 <input
                                     type="text"
-                                    placeholder="Dela Cruz"
                                     value={lastName}
-                                    disabled={isReadOnly}
-                                    onChange={(e) => setLastName(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
-                                    required
+                                    disabled
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                 />
                             </div>
                             <div className="flex flex-col space-y-1.5">
@@ -224,7 +216,6 @@ export default function RentApplication() {
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             
-                            {/*Philippine Mobile Input Container with structural country indicators*/}
                             <div className="flex flex-col space-y-1.5">
                                 <label className="text-sm font-bold text-slate-700">Contact No.</label>
                                 <div className="w-full flex relative">
@@ -253,12 +244,9 @@ export default function RentApplication() {
                                 <label className="text-sm font-bold text-slate-700">Email Address</label>
                                 <input
                                     type="email"
-                                    placeholder="JDelaCruz12@gmail.com"
                                     value={email}
-                                    disabled={isReadOnly}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
-                                    required
+                                    disabled
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                 />
                             </div>
                             <div className="flex flex-col space-y-1.5">
@@ -310,7 +298,6 @@ export default function RentApplication() {
                         </div>
                     </div>
 
-                    {/*SECTION 2: ROOM DETAILS WITH CORRECTED FONT COLORS AND SLATE BG*/}
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Room Details</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -344,7 +331,6 @@ export default function RentApplication() {
                         </div>
                     </div>
 
-                    {/*SECTION 3: VERIFICATION DOCUMENTS FOR SEPARATED FRONT/BACK IDS*/}
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Verification Documents</h3>
                         
@@ -356,7 +342,6 @@ export default function RentApplication() {
                         ) : (
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/*Valid ID Front Side Upload Drop Box*/}
                                     <div className="flex flex-col space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Valid ID Card (Front Side)</label>
                                         <div
@@ -389,7 +374,6 @@ export default function RentApplication() {
                                         </div>
                                     </div>
 
-                                    {/*Valid ID Back Side Upload Drop Box*/}
                                     <div className="flex flex-col space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Valid ID Card (Back Side)</label>
                                         <div
@@ -423,7 +407,6 @@ export default function RentApplication() {
                                     </div>
                                 </div>
 
-                                {/*NBI Clearance Upload Drop Box*/}
                                 <div className="flex flex-col space-y-2">
                                     <label className="text-sm font-bold text-slate-700">NBI Clearance Form Document Attachment</label>
                                     <div
@@ -459,10 +442,8 @@ export default function RentApplication() {
                         )}
                     </div>
 
-                    {/*DYNAMIC ACTION CONTROLS ENGINE HOOK LAYOUT ROW*/}
                     <div className="flex flex-col items-center space-y-4 pt-4 border-t border-slate-100 select-none">
                         
-                        {/*Custom Transparent Checked Box Layout Element*/}
                         {applicationStatus === 'none' && (
                             <div className="flex items-center space-x-3">
                                 <label className="relative flex items-center justify-center w-5 h-5 rounded-md border-2 border-indigo-500 bg-transparent cursor-pointer transition-all">
@@ -506,7 +487,6 @@ export default function RentApplication() {
                 </form>
             </div>
 
-            {/*MODAL 1: TERMS AND SERVICES*/}
             {showTermsModal && (
                 <div 
                     onClick={() => setShowTermsModal(false)}
@@ -548,7 +528,6 @@ export default function RentApplication() {
                 </div>
             )}
 
-            {/*MODAL 2: SUCCESS DIALOG POPUP*/}
             <SuccessModal 
                 isOpen={showSuccessModal} 
                 onClose={() => {

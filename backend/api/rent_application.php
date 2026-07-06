@@ -49,17 +49,18 @@ function uploadFile($fileInputName, $upload_dir) {
     return null;
 }
 
-$valid_id_path = uploadFile('validIdFile', $upload_dir);
+$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir);
+$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir);
 $nbi_clearance_path = uploadFile('nbiFile', $upload_dir);
 
-if (!$valid_id_path || !$nbi_clearance_path) {
-    echo json_encode(["success" => false, "message" => "Both Valid ID and NBI Clearance documents are required."]);
+if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
+    echo json_encode(["success" => false, "message" => "Valid ID (Front & Back) and NBI Clearance documents are all required."]);
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO rent_applications (first_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO rent_applications (first_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-$stmt->bind_param("ssssssiissss", $first_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_path, $nbi_clearance_path);
+$stmt->bind_param("ssssssiisssss", $first_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
 
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
