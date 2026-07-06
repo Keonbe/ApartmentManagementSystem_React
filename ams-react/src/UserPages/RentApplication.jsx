@@ -26,9 +26,12 @@ export default function RentApplication() {
     const [roomName] = useState('Room C');
     const [monthlyRent] = useState(4000);
     
-    const [validIdFile, setValidIdFile] = useState(null);
+    {/*File drops state tracking for separated front and back ID files*/}
+    const [validIdFrontFile, setValidIdFrontFile] = useState(null);
+    const [validIdBackFile, setValidIdBackFile] = useState(null);
     const [nbiFile, setNbiFile] = useState(null);
-    const [isDraggingId, setIsDraggingId] = useState(false);
+    const [isDraggingIdFront, setIsDraggingIdFront] = useState(false);
+    const [isDraggingIdBack, setIsDraggingIdBack] = useState(false);
     const [isDraggingNbi, setIsDraggingNbi] = useState(false);
 
     const [agreePrivacy, setAgreePrivacy] = useState(false);
@@ -110,8 +113,8 @@ export default function RentApplication() {
             return;
         }
 
-        if (!validIdFile || !nbiFile) {
-            alert("Please upload both your Valid ID and NBI Clearance.");
+        if (!validIdFrontFile || !validIdBackFile || !nbiFile) {
+            alert("Please upload your Valid ID Front, Valid ID Back, and NBI Clearance.");
             return;
         }
 
@@ -128,7 +131,8 @@ export default function RentApplication() {
         formData.append('monthsOfRent', monthsOfRent);
         formData.append('roomName', roomName);
         formData.append('monthlyRent', monthlyRent);
-        formData.append('validIdFile', validIdFile);
+        formData.append('validIdFrontFile', validIdFrontFile);
+        formData.append('validIdBackFile', validIdBackFile);
         formData.append('nbiFile', nbiFile);
 
         try {
@@ -340,7 +344,7 @@ export default function RentApplication() {
                         </div>
                     </div>
 
-                    {/*SECTION 3: VERIFICATION DOCUMENTS*/}
+                    {/*SECTION 3: VERIFICATION DOCUMENTS FOR SEPARATED FRONT/BACK IDS*/}
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Verification Documents</h3>
                         
@@ -350,37 +354,72 @@ export default function RentApplication() {
                                 <span>Your verification file assets have been uploaded securely and are locked while undergoing review.</span>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/*Valid ID Upload Drop Box*/}
-                                <div className="flex flex-col space-y-2">
-                                    <label className="text-sm font-bold text-slate-700">Valid ID Card Document Attachment</label>
-                                    <div
-                                        onDragOver={(e) => { e.preventDefault(); setIsDraggingId(true); }}
-                                        onDragLeave={() => setIsDraggingId(false)}
-                                        onDrop={(e) => {
-                                            e.preventDefault();
-                                            setIsDraggingId(false);
-                                            if (e.dataTransfer.files && e.dataTransfer.files[0]) setValidIdFile(e.dataTransfer.files[0]);
-                                        }}
-                                        className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingId ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
-                                    >
-                                        <input
-                                            type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdFile(e.target.files[0]); }}
-                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                        />
-                                        {!validIdFile ? (
-                                            <div className="space-y-1 pointer-events-none">
-                                                <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
-                                                <p className="text-xs font-medium text-slate-700 m-0">Drop your valid identification ID card here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-1 flex flex-col items-center pointer-events-none">
-                                                <FontAwesomeIcon icon={faCheckCircle} className="text-2xl text-emerald-500" />
-                                                <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdFile.name}</p>
-                                            </div>
-                                        )}
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/*Valid ID Front Side Upload Drop Box*/}
+                                    <div className="flex flex-col space-y-2">
+                                        <label className="text-sm font-bold text-slate-700">Valid ID Card (Front Side)</label>
+                                        <div
+                                            onDragOver={(e) => { e.preventDefault(); setIsDraggingIdFront(true); }}
+                                            onDragLeave={() => setIsDraggingIdFront(false)}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                setIsDraggingIdFront(false);
+                                                if (e.dataTransfer.files && e.dataTransfer.files[0]) setValidIdFrontFile(e.dataTransfer.files[0]);
+                                            }}
+                                            className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdFront ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                        >
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdFrontFile(e.target.files[0]); }}
+                                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                            />
+                                            {!validIdFrontFile ? (
+                                                <div className="space-y-1 pointer-events-none">
+                                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                    <p className="text-xs font-medium text-slate-700 m-0">Drop ID card front view here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-1 flex flex-col items-center pointer-events-none">
+                                                    <FontAwesomeIcon icon={faCheckCircle} className="text-2xl text-emerald-500" />
+                                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdFrontFile.name}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/*Valid ID Back Side Upload Drop Box*/}
+                                    <div className="flex flex-col space-y-2">
+                                        <label className="text-sm font-bold text-slate-700">Valid ID Card (Back Side)</label>
+                                        <div
+                                            onDragOver={(e) => { e.preventDefault(); setIsDraggingIdBack(true); }}
+                                            onDragLeave={() => setIsDraggingIdBack(false)}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                setIsDraggingIdBack(false);
+                                                if (e.dataTransfer.files && e.dataTransfer.files[0]) setValidIdBackFile(e.dataTransfer.files[0]);
+                                            }}
+                                            className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdBack ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                        >
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdBackFile(e.target.files[0]); }}
+                                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                            />
+                                            {!validIdBackFile ? (
+                                                <div className="space-y-1 pointer-events-none">
+                                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                    <p className="text-xs font-medium text-slate-700 m-0">Drop ID card back view here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-1 flex flex-col items-center pointer-events-none">
+                                                    <FontAwesomeIcon icon={faCheckCircle} className="text-2xl text-emerald-500" />
+                                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdBackFile.name}</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 

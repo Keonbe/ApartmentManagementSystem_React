@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 
 export default function DocumentsModal({ isOpen, onClose }) {
-    const [activeView, setActiveView] = useState(null);//Tracks which file format layout is shown
+    const [activeView, setActiveView] = useState(null);{/*Tracks which file format layout is shown*/}
 
     if (!isOpen) return null;
 
+    {/*Refactored document tracking array split into separate front and back rows*/}
     const documentList = [
-        { key: 'valid_id', name: 'Valid Government Issued ID', fileName: 'Dela_Cruz_VALID_ID.png' },
+        { key: 'valid_id_front', name: 'Valid Government Issued ID (Front Side)', fileName: 'Dela_Cruz_VALID_ID_FRONT.png' },
+        { key: 'valid_id_back', name: 'Valid Government Issued ID (Back Side)', fileName: 'Dela_Cruz_VALID_ID_BACK.png' },
         { key: 'nbi', name: 'National Bureau of Investigation (NBI) Clearance', fileName: 'Dela_Cruz_NBI_CLEARANCE.pdf' }
     ];
 
