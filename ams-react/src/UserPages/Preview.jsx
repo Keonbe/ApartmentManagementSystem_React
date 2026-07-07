@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEye } from '@fortawesome/free-solid-svg-icons';
+import ApartmentPic from '../assets/Apartment_Pic.png';
+import RoomPreviewModal from '../Components/RoomPreviewModal';
 
 export default function Preview({ onRentClick }) {
+    const [selectedRoomId, setSelectedRoomId] = useState(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
     const rooms = [
         { id: 'C', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
         { id: 'F', type: 'Studio', floor: '2F', price: '₱4,000/mo' },
@@ -8,24 +15,32 @@ export default function Preview({ onRentClick }) {
         { id: 'M', type: 'Studio', floor: '3F', price: '₱3,500/mo' },
     ];
 
+    const handleOpenPreview = (roomId) => {
+        setSelectedRoomId(roomId);
+        setIsPreviewOpen(true);
+    };
+
     return (
         <div className="w-full h-auto lg:h-[calc(100vh-76px)] bg-slate-50 p-4 md:p-8 lg:overflow-hidden box-border">
             <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-6 text-left items-stretch">
 
-                {/* Left Column Layout */}
+                {/*Left Column Layout*/}
                 <div className="lg:col-span-7 flex flex-col min-h-0 space-y-6">
 
-                    {/* Modern Dynamic Hero Banner */}
+                    {/*Modern Dynamic Hero Banner*/}
                     <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gradient-to-r from-[#3b4276] via-[#4f46e5] to-[#6366f1] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent)] pointer-events-none"></div>
-                        <div className="w-full sm:w-64 overflow-hidden relative min-h-[160px] sm:min-h-0">
+                        
+                        {/*Increased image wrapper dimensions to accurately reproduce the old landscape placeholder style heights*/}
+                        <div className="w-full sm:w-72 overflow-hidden relative min-h-[200px] sm:min-h-[240px]">
                             <img
-                                src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=600&q=80"
+                                src={ApartmentPic}
                                 alt="Apartment"
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-500 group-hover:scale-105"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-black/20 via-transparent to-transparent"></div>
                         </div>
+                        
                         <div className="p-8 text-white flex flex-col justify-center flex-grow relative z-10 space-y-3">
                             <div>
                                 <span className="text-[10px] tracking-widest uppercase font-bold px-2.5 py-1 rounded-md bg-white/20 backdrop-blur-sm inline-block mb-2">Featured Listing</span>
@@ -39,7 +54,7 @@ export default function Preview({ onRentClick }) {
                         </div>
                     </div>
 
-                    {/* Scrollable Room Cards Track Container */}
+                    {/*Scrollable Room Cards Track Container*/}
                     <div className="w-full flex-grow overflow-y-auto pr-1 max-h-[450px] lg:max-h-none">
                         <h2 className="text-2xl font-extrabold tracking-tight mb-4 select-none" style={{ color: '#1e293b', fontWeight: '800' }}>
                             Available Rooms
@@ -53,12 +68,22 @@ export default function Preview({ onRentClick }) {
                                         <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
                                         <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
                                     </div>
-                                    <button
-                                        onClick={() => onRentClick(room.id)}
-                                        className="mt-4 w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm hover:shadow-emerald-500/20 border-0 cursor-pointer"
-                                    >
-                                        Rent Now
-                                    </button>
+                                    <div className="grid grid-cols-2 gap-2 mt-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenPreview(room.id)}
+                                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm"
+                                        >
+                                            <FontAwesomeIcon icon={faEye} />
+                                            <span>View Layout</span>
+                                        </button>
+                                        <button
+                                            onClick={() => onRentClick(room.id)}
+                                            className="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center"
+                                        >
+                                            Rent Now
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -66,7 +91,7 @@ export default function Preview({ onRentClick }) {
 
                 </div>
 
-                {/* Right Column: Maps Embed */}
+                {/*Right Column: Maps Embed*/}
                 <div className="lg:col-span-5 h-[400px] lg:h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex">
                     <iframe
                         src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
@@ -79,6 +104,13 @@ export default function Preview({ onRentClick }) {
                 </div>
                                     
             </div>
+
+            {/*Injected Room Visual Layout Overlays*/}
+            <RoomPreviewModal 
+                isOpen={isPreviewOpen}
+                onClose={() => setIsPreviewOpen(false)}
+                roomId={selectedRoomId}
+            />
         </div>
     );
 }
