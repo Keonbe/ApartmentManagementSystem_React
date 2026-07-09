@@ -11,25 +11,30 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [message, setMessage] = useState('');
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        setMessage('');
+    e.preventDefault();
+    setMessage('');
 
-        try {
-            const res = await api.post("/login.php", {
-                email_address: email.trim(),
-                password
-            });
+    try {
+        const res = await api.post("/login.php", {
+            email_address: email.trim(),
+            password
+        });
 
-            if (res.data.valid) {
-                sessionStorage.setItem("loggedInUser", JSON.stringify(res.data.user));
-                onHomeRedirect();
+        if (res.data.valid) {
+            sessionStorage.setItem("loggedInUser", JSON.stringify(res.data.user));
+            
+            if (res.data.role === 'admin') {
+                onAdminRedirect();
             } else {
-                setMessage(res.data.message || "Incorrect email or password");
+                onHomeRedirect();
             }
-        } catch (error) {
-            setMessage("Unable to log in. Please try again.");
+        } else {
+            setMessage(res.data.message || "Incorrect email or password");
         }
-    };
+    } catch (error) {
+        setMessage("Unable to log in. Please try again.");
+    }
+};
 
     return (
         <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
@@ -138,15 +143,6 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 Don't have an Account?{' '}
                                 <button onClick={onRegisterRedirect} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
                                     Register
-                                </button>
-                            </p>
-                        </div>
-
-                        <div className="text-center pt-4">
-                            <p className="text-sm text-slate-500 m-0">
-                                Are you an Administrator?{' '}
-                                <button onClick={onAdminRedirect} className="text-indigo-600 font-semibold hover:underline bg-transparent border-0 p-0 cursor-pointer">
-                                    Admin Login
                                 </button>
                             </p>
                         </div>
