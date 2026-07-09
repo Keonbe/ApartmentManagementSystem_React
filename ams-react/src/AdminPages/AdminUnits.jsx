@@ -5,24 +5,24 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faCalendarAlt, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus, faArrowRight,
-  faHistory, faLayerGroup, faSync
+  faHistory, faLayerGroup, faSync, faWrench
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialUnits = [
-  { id: 'A', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Maria Santos', rent: 6500, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Maria Santos', date: '2024-06-01' }] },
-  { id: 'B', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Jose Reyes', rent: 6500, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Jose Reyes', date: '2024-07-15' }] },
-  { id: 'C', type: '1BR', floor: '1F', status: 'occupied', tenant: 'Ana Garcia', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ana Garcia', date: '2024-05-01' }] },
-  { id: 'D', type: 'Studio', floor: '2F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: 'Carlos Mendoza', maintenanceFlag: false, history: [{ event: 'Tenant moved out', detail: 'Carlos Mendoza', date: '2024-06-01' }, { event: 'Unit marked vacant', detail: 'Available for new tenants', date: '2024-06-02' }] },
-  { id: 'E', type: 'Studio', floor: '2F', status: 'occupied', tenant: 'Pedro Cruz', rent: 6500, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Pedro Cruz', date: '2024-03-01' }] },
-  { id: 'F', type: '1BR', floor: '2F', status: 'occupied', tenant: 'Rosa Dela Cruz', rent: 7500, leaseStart: '2024-08-01', leaseEnd: '2025-08-01', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Rosa Dela Cruz', date: '2024-08-01' }, { event: 'Maintenance request', detail: 'Clogged drain in kitchen', date: '2025-04-10' }] },
-  { id: 'G', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Ben Flores', rent: 6500, leaseStart: '2024-04-15', leaseEnd: '2025-04-15', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Ben Flores', date: '2024-04-15' }, { event: 'Maintenance request', detail: 'Busted ceiling light', date: '2025-04-20' }] },
-  { id: 'H', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Lita Ramos', rent: 6500, leaseStart: '2024-01-01', leaseEnd: '2025-01-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Lita Ramos', date: '2024-01-01' }] },
-  { id: 'I', type: '1BR', floor: '3F', status: 'occupied', tenant: 'Dante Abad', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Dante Abad', date: '2024-05-01' }] },
-  { id: 'J', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Gloria Tan', rent: 6500, leaseStart: '2024-09-01', leaseEnd: '2025-09-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Gloria Tan', date: '2024-09-01' }] },
-  { id: 'K', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Ramon Lim', rent: 6500, leaseStart: '2024-02-01', leaseEnd: '2025-02-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ramon Lim', date: '2024-02-01' }] },
-  { id: 'L', type: '1BR', floor: '4F', status: 'occupied', tenant: 'Cora Santos', rent: 7500, leaseStart: '2024-10-01', leaseEnd: '2025-10-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Cora Santos', date: '2024-10-01' }] },
-  { id: 'M', type: 'Studio', floor: '5F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false, history: [{ event: 'Unit created', detail: 'Vacant since building opened', date: '2023-01-01' }] },
-  { id: 'N', type: '1BR', floor: '5F', status: 'occupied', tenant: 'Nilo Ocampo', rent: 7500, leaseStart: '2024-11-01', leaseEnd: '2025-11-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Nilo Ocampo', date: '2024-11-01' }] }
+  { id: 'A', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Maria Santos', rent: 6500, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Maria Santos', date: '2024-06-01' }], maintenanceHistory: [] },
+  { id: 'B', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Jose Reyes', rent: 6500, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Jose Reyes', date: '2024-07-15' }], maintenanceHistory: [] },
+  { id: 'C', type: '1BR', floor: '1F', status: 'occupied', tenant: 'Ana Garcia', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ana Garcia', date: '2024-05-01' }], maintenanceHistory: [{ id: 'REQ-004', issue: 'Electrical short in outlet', status: 'Completed', date: '2024-04-20', cost: 1200 }] },
+  { id: 'D', type: 'Studio', floor: '2F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: 'Carlos Mendoza', maintenanceFlag: false, history: [{ event: 'Tenant moved out', detail: 'Carlos Mendoza', date: '2024-06-01' }, { event: 'Unit marked vacant', detail: 'Available for new tenants', date: '2024-06-02' }], maintenanceHistory: [] },
+  { id: 'E', type: 'Studio', floor: '2F', status: 'occupied', tenant: 'Pedro Cruz', rent: 6500, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Pedro Cruz', date: '2024-03-01' }], maintenanceHistory: [{ id: 'REQ-001', issue: 'Leaking faucet in bathroom', status: 'Pending', date: '2024-05-15', cost: null }] },
+  { id: 'F', type: '1BR', floor: '2F', status: 'occupied', tenant: 'Rosa Dela Cruz', rent: 7500, leaseStart: '2024-08-01', leaseEnd: '2025-08-01', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Rosa Dela Cruz', date: '2024-08-01' }], maintenanceHistory: [{ id: 'REQ-003', issue: 'Clogged kitchen drain', status: 'In Progress', date: '2024-05-14', cost: null }] },
+  { id: 'G', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Ben Flores', rent: 6500, leaseStart: '2024-04-15', leaseEnd: '2025-04-15', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Ben Flores', date: '2024-04-15' }], maintenanceHistory: [{ id: 'REQ-002', issue: 'Busted ceiling light', status: 'Pending', date: '2024-05-16', cost: null }] },
+  { id: 'H', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Lita Ramos', rent: 6500, leaseStart: '2024-01-01', leaseEnd: '2025-01-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Lita Ramos', date: '2024-01-01' }], maintenanceHistory: [] },
+  { id: 'I', type: '1BR', floor: '3F', status: 'occupied', tenant: 'Dante Abad', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Dante Abad', date: '2024-05-01' }], maintenanceHistory: [] },
+  { id: 'J', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Gloria Tan', rent: 6500, leaseStart: '2024-09-01', leaseEnd: '2025-09-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Gloria Tan', date: '2024-09-01' }], maintenanceHistory: [] },
+  { id: 'K', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Ramon Lim', rent: 6500, leaseStart: '2024-02-01', leaseEnd: '2025-02-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ramon Lim', date: '2024-02-01' }], maintenanceHistory: [] },
+  { id: 'L', type: '1BR', floor: '4F', status: 'occupied', tenant: 'Cora Santos', rent: 7500, leaseStart: '2024-10-01', leaseEnd: '2025-10-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Cora Santos', date: '2024-10-01' }], maintenanceHistory: [] },
+  { id: 'M', type: 'Studio', floor: '5F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false, history: [{ event: 'Unit created', detail: 'Vacant since building opened', date: '2023-01-01' }], maintenanceHistory: [] },
+  { id: 'N', type: '1BR', floor: '5F', status: 'occupied', tenant: 'Nilo Ocampo', rent: 7500, leaseStart: '2024-11-01', leaseEnd: '2025-11-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Nilo Ocampo', date: '2024-11-01' }], maintenanceHistory: [] }
 ];
 
 const daysRemaining = (leaseEnd) => {
@@ -87,6 +87,7 @@ const AdminUnits = () => {
     const newUnit = {
       id: unitForm.id, type: unitForm.type, floor: unitForm.floor, status: 'vacant', tenant: null, rent: Number(unitForm.rent), leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false,
       history: [{ event: 'Unit created', detail: `${unitForm.type} on ${unitForm.floor}`, date: new Date().toISOString().slice(0, 10) }],
+      maintenanceHistory: []
     };
     setUnits(prev => [...prev, newUnit]);
     setUnitForm(emptyUnitForm);
@@ -356,6 +357,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
     { key: 'overview', label: 'Overview', icon: faLayerGroup },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
     { key: 'history', label: 'History', icon: faHistory },
+    { key: 'maintenance', label: 'Maintenance', icon: faWrench },
   ];
 
   const remaining = daysRemaining(unit.leaseEnd);
@@ -475,6 +477,23 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   <span className="text-[11px] text-slate-400 shrink-0">{entry.date}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'maintenance' && (
+            <div className="space-y-3">
+              {unit.maintenanceHistory && unit.maintenanceHistory.length > 0 ? [...unit.maintenanceHistory].reverse().map((entry, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className={`w-8 h-8 rounded-full ${entry.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faWrench} /></div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-800 m-0">{entry.issue}</p>
+                    <p className="text-[11px] text-slate-400 m-0 mt-0.5">Status: {entry.status} {entry.cost ? `· Cost: ₱${entry.cost.toLocaleString()}` : ''}</p>
+                  </div>
+                  <span className="text-[11px] text-slate-400 shrink-0">{entry.date}</span>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-slate-400 text-sm">No maintenance history for this unit.</div>
+              )}
             </div>
           )}
         </div>

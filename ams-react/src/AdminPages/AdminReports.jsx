@@ -251,6 +251,8 @@ const generateReportData = (timeframe, selectedMonth, selectedYear) => {
       Others: 'Clogged ventilation filter in kitchen hood.'
     };
 
+    const cost = status === 'Completed' ? getDeterministicValue(`maint_cost_${i}`, selectedYear, m, 500, 5000) : null;
+
     maintenanceLogs.push({
       id: `REQ-${selectedYear}${String(m).padStart(2, '0')}${String(i + 100).substring(1)}`,
       unit: units[uIdx],
@@ -259,7 +261,8 @@ const generateReportData = (timeframe, selectedMonth, selectedYear) => {
       urgency: ['Emergency', 'Routine'][urgIdx],
       description: descriptions[issueCategories[catIdx]],
       dateSubmitted: `${selectedYear}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      status
+      status,
+      cost
     });
   }
   maintenanceLogs.sort((a, b) => b.dateSubmitted.localeCompare(a.dateSubmitted));
@@ -308,6 +311,9 @@ const generateReportData = (timeframe, selectedMonth, selectedYear) => {
   }
   parkingReservationsList.sort((a, b) => b.dateSubmitted.localeCompare(a.dateSubmitted));
 
+  const totalMaintenanceCost = maintenanceLogs.reduce((sum, log) => sum + (log.cost || 0), 0);
+  const maintenanceBudget = timeframe === 'yearly' ? 50000 * 12 : 50000;
+
   return {
     occupancy: {
       totalUnits,
@@ -333,6 +339,8 @@ const generateReportData = (timeframe, selectedMonth, selectedYear) => {
     },
     maintenance: {
       total: totalMaintenance,
+      totalCost: totalMaintenanceCost,
+      budget: maintenanceBudget,
       completed: maintCompleted,
       inProgress: maintInProgress,
       pending: maintPending,
@@ -762,6 +770,18 @@ const AdminReports = () => {
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Avg Resolution Time</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.maintenance.avgResolutionTime} Days</p>
                     <span className="text-[9px] text-slate-500 mt-2 block">First response to completion</span>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Maintenance Cost</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{formatCurrency(data.maintenance.totalCost)}</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Total expense for completed requests</span>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Budget Comparison</p>
+                    <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{Math.round((data.maintenance.totalCost / data.maintenance.budget) * 100)}% Used</p>
+                    <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
+                      Budget: {formatCurrency(data.maintenance.budget)}
+                    </span>
                   </div>
                 </>
               )}

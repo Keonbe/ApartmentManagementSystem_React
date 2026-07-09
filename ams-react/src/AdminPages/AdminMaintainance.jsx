@@ -9,10 +9,10 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialRequests = [
-  { id: 'REQ-001', title: 'Leaking faucet in bathroom', issueType: 'Plumbing', unit: 'Unit E', tenant: 'Pedro Cruz', priority: 'High', status: 'Pending', description: 'The sink faucet is dripping continuously, creating a puddle.', dateReported: '2024-05-15', timeReported: '09:30 AM', dateResolved: null, timeResolved: null, assignee: null, photos: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-15 09:30 AM' }], notes: [] },
-  { id: 'REQ-002', title: 'Busted ceiling light', issueType: 'Electrical', unit: 'Unit G', tenant: 'Ben Flores', priority: 'Medium', status: 'Pending', description: 'Living room light flickered and died.', dateReported: '2024-05-16', timeReported: '14:20 PM', dateResolved: null, timeResolved: null, assignee: null, photos: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-16 14:20 PM' }], notes: [] },
-  { id: 'REQ-003', title: 'Clogged kitchen drain', issueType: 'Plumbing', unit: 'Unit F', tenant: 'Rosa Dela Cruz', priority: 'High', status: 'In Progress', description: 'Water not going down the kitchen sink.', dateReported: '2024-05-14', timeReported: '08:15 AM', dateResolved: null, timeResolved: null, assignee: 'Mang Totoy', photos: [{ url: 'clogged-sink.jpg', name: 'sink_photo.jpg' }], statusHistory: [{ status: 'Pending', timestamp: '2024-05-14 08:15 AM' }, { status: 'In Progress', timestamp: '2024-05-14 10:00 AM', assignee: 'Mang Totoy' }], notes: [{ text: 'Checked the pipes, need to buy a new p-trap.', author: 'Admin', timestamp: '2024-05-14 11:30 AM' }] },
-  { id: 'REQ-004', title: 'Electrical short in outlet', issueType: 'Electrical', unit: 'Unit C', tenant: 'Ana Garcia', priority: 'Urgent', status: 'Completed', description: 'Sparks flew when I plugged in the microwave.', dateReported: '2024-04-20', timeReported: '18:45 PM', dateResolved: '2024-04-21', timeResolved: '10:00 AM', assignee: 'Mang Totoy', photos: [], statusHistory: [{ status: 'Pending', timestamp: '2024-04-20 18:45 PM' }, { status: 'In Progress', timestamp: '2024-04-20 19:30 PM', assignee: 'Mang Totoy' }, { status: 'Completed', timestamp: '2024-04-21 10:00 AM' }], notes: [] }
+  { id: 'REQ-001', title: 'Leaking faucet in bathroom', issueType: 'Plumbing', unit: 'Unit E', tenant: 'Pedro Cruz', priority: 'High', status: 'Pending', description: 'The sink faucet is dripping continuously, creating a puddle.', dateReported: '2024-05-15', timeReported: '09:30 AM', dateResolved: null, timeResolved: null, assignee: null, photos: [], cost: null, statusHistory: [{ status: 'Pending', timestamp: '2024-05-15 09:30 AM' }], notes: [] },
+  { id: 'REQ-002', title: 'Busted ceiling light', issueType: 'Electrical', unit: 'Unit G', tenant: 'Ben Flores', priority: 'Medium', status: 'Pending', description: 'Living room light flickered and died.', dateReported: '2024-05-16', timeReported: '14:20 PM', dateResolved: null, timeResolved: null, assignee: null, photos: [], cost: null, statusHistory: [{ status: 'Pending', timestamp: '2024-05-16 14:20 PM' }], notes: [] },
+  { id: 'REQ-003', title: 'Clogged kitchen drain', issueType: 'Plumbing', unit: 'Unit F', tenant: 'Rosa Dela Cruz', priority: 'High', status: 'In Progress', description: 'Water not going down the kitchen sink.', dateReported: '2024-05-14', timeReported: '08:15 AM', dateResolved: null, timeResolved: null, assignee: 'Mang Totoy', photos: [{ url: 'clogged-sink.jpg', name: 'sink_photo.jpg' }], cost: null, statusHistory: [{ status: 'Pending', timestamp: '2024-05-14 08:15 AM' }, { status: 'In Progress', timestamp: '2024-05-14 10:00 AM', assignee: 'Mang Totoy' }], notes: [{ text: 'Checked the pipes, need to buy a new p-trap.', author: 'Admin', timestamp: '2024-05-14 11:30 AM' }] },
+  { id: 'REQ-004', title: 'Electrical short in outlet', issueType: 'Electrical', unit: 'Unit C', tenant: 'Ana Garcia', priority: 'Urgent', status: 'Completed', description: 'Sparks flew when I plugged in the microwave.', dateReported: '2024-04-20', timeReported: '18:45 PM', dateResolved: '2024-04-21', timeResolved: '10:00 AM', assignee: 'Mang Totoy', photos: [], cost: 1200, statusHistory: [{ status: 'Pending', timestamp: '2024-04-20 18:45 PM' }, { status: 'In Progress', timestamp: '2024-04-20 19:30 PM', assignee: 'Mang Totoy' }, { status: 'Completed', timestamp: '2024-04-21 10:00 AM' }], notes: [] }
 ];
 
 const priorityConfig = {
@@ -39,6 +39,7 @@ const AdminMaintainance = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedReq, setSelectedReq] = useState(null);
   const [reassignName, setReassignName] = useState('');
+  const [completionCost, setCompletionCost] = useState('');
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState('All');
@@ -87,7 +88,7 @@ const AdminMaintainance = () => {
     const timestamp = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const req = {
       id: `REQ-00${requests.length + 1}`, title: newReq.title, issueType: newReq.issueType, unit: newReq.unit, tenant: newReq.tenant, priority: newReq.priority, status: 'Pending', description: newReq.description,
-      dateReported: new Date().toISOString().slice(0, 10), timeReported: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), dateResolved: null, timeResolved: null, assignee: null, photos: newReq.photos,
+      dateReported: new Date().toISOString().slice(0, 10), timeReported: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), dateResolved: null, timeResolved: null, assignee: null, photos: newReq.photos, cost: null,
       statusHistory: [{ status: 'Pending', timestamp }], notes: []
     };
     setRequests([req, ...requests]);
@@ -99,6 +100,7 @@ const AdminMaintainance = () => {
   const triggerStatusAdvance = (req) => {
     setSelectedReq(req);
     setReassignName(req.assignee || '');
+    setCompletionCost('');
     setShowConfirmModal(true);
   };
 
@@ -107,23 +109,26 @@ const AdminMaintainance = () => {
     const nextStatus = currentStatus === 'Pending' ? 'In Progress' : 'Completed';
     const timestampStr = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const finalAssignee = nextStatus === 'In Progress' ? (reassignName || 'Admin Assigned') : selectedReq.assignee;
+    const finalCost = nextStatus === 'Completed' ? Number(completionCost) || 0 : selectedReq.cost;
 
     setRequests(prev => prev.map(r => r.id === selectedReq.id ? {
       ...r, status: nextStatus,
       dateResolved: nextStatus === 'Completed' ? new Date().toISOString().slice(0, 10) : null,
       timeResolved: nextStatus === 'Completed' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
       assignee: finalAssignee,
+      cost: finalCost,
       statusHistory: [...r.statusHistory, { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
     } : r));
     
     if (showDetailModal) {
       setSelectedReq(prev => ({
-        ...prev, status: nextStatus, assignee: finalAssignee, 
+        ...prev, status: nextStatus, assignee: finalAssignee, cost: finalCost,
         statusHistory: [...prev.statusHistory, { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
       }));
     }
     
     setShowConfirmModal(false);
+    setCompletionCost('');
   };
 
   const handleAddNote = () => {
@@ -350,6 +355,9 @@ const AdminMaintainance = () => {
                   </div>
                   <h2 className="text-xl font-bold text-slate-800 m-0 leading-tight">{selectedReq.title}</h2>
                   <p className="text-sm text-slate-500 m-0 mt-1 flex items-center gap-2"><FontAwesomeIcon icon={faMapPin} /> {selectedReq.tenant} · {selectedReq.unit}</p>
+                  {selectedReq.cost !== null && selectedReq.status === 'Completed' && (
+                    <p className="text-sm font-bold text-emerald-600 m-0 mt-2 flex items-center gap-2">Final Cost: ₱{selectedReq.cost.toLocaleString()}</p>
+                  )}
                 </div>
                 <button onClick={() => setShowDetailModal(false)} className="p-1 md:hidden text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
               </div>
@@ -457,6 +465,13 @@ const AdminMaintainance = () => {
               <div className="mb-6">
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assign To</label>
                 <input type="text" value={reassignName} onChange={e => setReassignName(e.target.value)} placeholder="Personnel Name" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+              </div>
+            )}
+            
+            {selectedReq.status === 'In Progress' && (
+              <div className="mb-6">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Final Cost (₱)</label>
+                <input type="number" value={completionCost} onChange={e => setCompletionCost(e.target.value)} placeholder="e.g. 1500" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
               </div>
             )}
 
