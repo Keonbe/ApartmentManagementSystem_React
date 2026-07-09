@@ -50,7 +50,7 @@ const tenantNames = [
   'Carlos Diaz', 'Roberto Tan', 'Lisa Flores', 'Juan Santos', 'Rosa Santos'
 ];
 
-const units = ['1A', '1B', '1C', '2A', '2B', '2C', '3A', '3B', '3C', '4A', '4B', '4C', '5A', '5B', '5C'];
+const units = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
 const vehicleModels = ['Honda Click', 'Yamaha Nmax', 'Toyota Vios', 'Mitsubishi Mirage', 'Suzuki Swift', 'Honda Civic'];
 const issueCategories = ['Plumbing', 'Electrical', 'Structural', 'Appliance', 'Pest Control', 'Others'];
 

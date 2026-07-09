@@ -9,19 +9,19 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialContracts = [
-  { id: 'CTR-001', tenant: 'Maria Santos', unit: '1A', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', status: 'active', generatedDate: '2024-05-28' },
-  { id: 'CTR-002', tenant: 'Jose Reyes', unit: '1B', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', status: 'active', generatedDate: '2024-07-10' },
-  { id: 'CTR-003', tenant: 'Ana Garcia', unit: '1C', type: '1BR', rent: 7500, deposit: 15000, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', status: 'active', generatedDate: '2024-04-25' },
-  { id: 'CTR-004', tenant: 'Pedro Cruz', unit: '2B', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', status: 'active', generatedDate: '2024-02-25' },
-  { id: 'CTR-005', tenant: 'Carlos Mendoza', unit: '2A', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2023-06-01', leaseEnd: '2024-06-01', status: 'expired', generatedDate: '2023-05-28' },
+  { id: 'CTR-001', tenant: 'Maria Santos', unit: 'A', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', status: 'active', generatedDate: '2024-05-28' },
+  { id: 'CTR-002', tenant: 'Jose Reyes', unit: 'B', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', status: 'active', generatedDate: '2024-07-10' },
+  { id: 'CTR-003', tenant: 'Ana Garcia', unit: 'C', type: '1BR', rent: 7500, deposit: 15000, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', status: 'active', generatedDate: '2024-04-25' },
+  { id: 'CTR-004', tenant: 'Pedro Cruz', unit: 'E', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', status: 'active', generatedDate: '2024-02-25' },
+  { id: 'CTR-005', tenant: 'Carlos Mendoza', unit: 'D', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2023-06-01', leaseEnd: '2024-06-01', status: 'expired', generatedDate: '2023-05-28' },
 ];
 
 const tenantOptions = [
-  { name: 'Maria Santos', unit: '1A', type: 'Studio', rent: 6500 },
-  { name: 'Jose Reyes', unit: '1B', type: 'Studio', rent: 6500 },
-  { name: 'Pedro Cruz', unit: '2B', type: 'Studio', rent: 6500 },
-  { name: 'Rosa Dela Cruz', unit: '2C', type: '1BR', rent: 7500 },
-  { name: 'Ben Flores', unit: '3A', type: 'Studio', rent: 6500 },
+  { name: 'Maria Santos', unit: 'A', type: 'Studio', rent: 6500 },
+  { name: 'Jose Reyes', unit: 'B', type: 'Studio', rent: 6500 },
+  { name: 'Pedro Cruz', unit: 'E', type: 'Studio', rent: 6500 },
+  { name: 'Rosa Dela Cruz', unit: 'F', type: '1BR', rent: 7500 },
+  { name: 'Ben Flores', unit: 'G', type: 'Studio', rent: 6500 },
 ];
 
 const statusConfig = {

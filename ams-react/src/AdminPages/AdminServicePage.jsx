@@ -17,13 +17,13 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialCctvRequests = [
-  { id: 1, tenant: 'Miguel Santos', unit: '3B', incidentDate: '2024-05-12', time: '08:00 AM - 12:00 PM', location: '2nd Floor', reason: 'Missing package delivery at the doorstep.', status: 'Pending' },
-  { id: 2, tenant: 'Elena Gomez', unit: '4A', incidentDate: '2024-05-10', time: '12:00 PM - 04:00 PM', location: 'Lobby', reason: 'Car scratched in driveway area near the lobby entrance.', status: 'Approved' },
+  { id: 1, tenant: 'Miguel Santos', unit: 'H', incidentDate: '2024-05-12', time: '08:00 AM - 12:00 PM', location: '2nd Floor', reason: 'Missing package delivery at the doorstep.', status: 'Pending' },
+  { id: 2, tenant: 'Elena Gomez', unit: 'J', incidentDate: '2024-05-10', time: '12:00 PM - 04:00 PM', location: 'Lobby', reason: 'Car scratched in driveway area near the lobby entrance.', status: 'Approved' },
 ];
 
 const initialParkingReservations = [
-  { id: 1, tenant: 'Carlos Diaz', unit: '1D', vehicleType: 'Motorcycle', model: 'Yamaha Nmax', plate: 'FAJ-8231', transmission: 'Automatic', duration: 6, totalCost: 1800, status: 'Pending' },
-  { id: 2, tenant: 'Miguel Santos', unit: '3B', vehicleType: 'Motorcycle', model: 'Honda Click', plate: 'ABC-1234', transmission: 'Automatic', duration: 12, totalCost: 3600, status: 'Assigned' },
+  { id: 1, tenant: 'Carlos Diaz', unit: 'D', vehicleType: 'Motorcycle', model: 'Yamaha Nmax', plate: 'FAJ-8231', transmission: 'Automatic', duration: 6, totalCost: 1800, status: 'Pending' },
+  { id: 2, tenant: 'Miguel Santos', unit: 'H', vehicleType: 'Motorcycle', model: 'Honda Click', plate: 'ABC-1234', transmission: 'Automatic', duration: 12, totalCost: 3600, status: 'Assigned' },
 ];
 
 const initialServices = [
