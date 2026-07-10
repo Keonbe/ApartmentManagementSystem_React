@@ -4,7 +4,8 @@ import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faPaperPlane, faUser, faCalendarAlt, 
-  faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle
+  faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
+  faEdit, faTrash, faPlus
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialTenants = [
@@ -37,6 +38,9 @@ const AdminPayments = () => {
 
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
+
+  const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
+  const [historyForm, setHistoryForm] = useState(null);
 
   const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0];
   const filteredTenants = tenants.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.unit.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -99,6 +103,48 @@ const AdminPayments = () => {
       setReceiptData({ rctId: 'RCT-DRAFT', date: today, tenant: activeTenant.name, unit: activeTenant.unit, period: billingPeriod, amount: totalDue, breakdown: `Rent: ${activeTenant.billing.baseRent}`, status: 'UNPAID', method: paymentMethod });
     }
     setShowReceipt(true);
+  };
+
+  const handleDeleteHistory = (recordId) => {
+    if (window.confirm('Are you sure you want to delete this payment record?')) {
+      setTenants(prev => prev.map(t => t.id === selectedTenantId ? {
+        ...t,
+        history: t.history.filter(h => h.id !== recordId)
+      } : t));
+    }
+  };
+
+  const handleEditHistoryClick = (record) => {
+    setHistoryForm({ ...record });
+    setShowEditHistoryModal(true);
+  };
+
+  const handleAddAdHocClick = () => {
+    setHistoryForm({ 
+      id: `RCT-${Math.floor(1000 + Math.random() * 9000)}`, 
+      period: '', 
+      amount: '', 
+      method: 'Cash', 
+      breakdown: '', 
+      datePaid: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), 
+      status: 'paid' 
+    });
+    setShowEditHistoryModal(true);
+  };
+
+  const handleSaveHistory = () => {
+    setTenants(prev => prev.map(t => {
+      if (t.id === selectedTenantId) {
+        const existing = t.history.find(h => h.id === historyForm.id);
+        if (existing) {
+          return { ...t, history: t.history.map(h => h.id === historyForm.id ? { ...h, ...historyForm, amount: Number(historyForm.amount) } : h) };
+        } else {
+          return { ...t, history: [{ ...historyForm, amount: Number(historyForm.amount) }, ...t.history] };
+        }
+      }
+      return t;
+    }));
+    setShowEditHistoryModal(false);
   };
 
   // Pagination and Filtering for History
@@ -310,7 +356,10 @@ const AdminPayments = () => {
 
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex-1">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-400" /> Payment History</h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-400" /> Payment History</h3>
+                      <button onClick={handleAddAdHocClick} className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-xs font-semibold border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPlus} /> Add Past Payment</button>
+                    </div>
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus-within:border-indigo-400 transition-colors">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
                       <input type="text" placeholder="Filter period..." value={historySearchPeriod} onChange={e => {setHistorySearchPeriod(e.target.value); setHistoryPage(1);}} className="bg-transparent text-xs outline-none border-0 p-0 text-slate-700 w-24" />
@@ -327,6 +376,7 @@ const AdminPayments = () => {
                           <th className="py-2 px-3">Breakdown</th>
                           <th className="py-2 px-3">Date Paid</th>
                           <th className="py-2 px-3 text-right">Receipt</th>
+                          <th className="py-2 px-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -338,6 +388,12 @@ const AdminPayments = () => {
                             <td className="py-3 px-3 text-slate-500 text-xs truncate max-w-[150px]" title={record.breakdown}>{record.breakdown}</td>
                             <td className="py-3 px-3 text-slate-500">{record.datePaid}</td>
                             <td className="py-3 px-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
+                            <td className="py-3 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button onClick={() => handleEditHistoryClick(record)} className="text-slate-500 hover:text-indigo-600 border-0 bg-transparent cursor-pointer p-1 transition-colors"><FontAwesomeIcon icon={faEdit} /></button>
+                                <button onClick={() => handleDeleteHistory(record.id)} className="text-slate-500 hover:text-red-600 border-0 bg-transparent cursor-pointer p-1 transition-colors"><FontAwesomeIcon icon={faTrash} /></button>
+                              </div>
+                            </td>
                           </tr>
                         )) : (
                           <tr><td colSpan="6" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
@@ -381,6 +437,49 @@ const AdminPayments = () => {
                 <button onClick={handleMarkAsPaid} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">Confirm</button>
                 <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit/Add History Modal */}
+      {showEditHistoryModal && historyForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowEditHistoryModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-800 mb-4 mt-0">
+              {activeTenant.history.find(h => h.id === historyForm.id) ? 'Edit Payment Record' : 'Add Past Payment'}
+            </h3>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Period (e.g. Apr 2025)</label>
+                <input type="text" value={historyForm.period} onChange={e => setHistoryForm({...historyForm, period: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Amount</label>
+                  <input type="number" value={historyForm.amount} onChange={e => setHistoryForm({...historyForm, amount: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Method</label>
+                  <select value={historyForm.method} onChange={e => setHistoryForm({...historyForm, method: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500">
+                    <option value="Cash">Cash</option>
+                    <option value="GCash">GCash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Breakdown (optional)</label>
+                <input type="text" value={historyForm.breakdown} onChange={e => setHistoryForm({...historyForm, breakdown: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500" placeholder="Rent: 6500, Water: 300" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Date Paid</label>
+                <input type="text" value={historyForm.datePaid} onChange={e => setHistoryForm({...historyForm, datePaid: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500" placeholder="e.g. May 1, 2025" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleSaveHistory} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">Save Record</button>
+              <button onClick={() => setShowEditHistoryModal(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
             </div>
           </div>
         </div>

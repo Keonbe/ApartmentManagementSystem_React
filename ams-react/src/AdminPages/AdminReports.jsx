@@ -335,7 +335,11 @@ const generateReportData = (timeframe, selectedMonth, selectedYear) => {
       outstandingBalances: outstandingBalancesList,
       totalOutstanding: outstandingBalancesList.reduce((sum, b) => sum + b.balance, 0),
       collectionEfficiency: getDeterministicValue('coll_eff', selectedYear, selectedMonth, 89, 97),
-      records: paymentRecordsList
+      records: paymentRecordsList,
+      methodsBreakdown: paymentRecordsList.reduce((acc, r) => {
+        acc[r.method] = (acc[r.method] || 0) + 1;
+        return acc;
+      }, { Cash: 0, GCash: 0, 'Bank Transfer': 0 })
     },
     maintenance: {
       total: totalMaintenance,
@@ -742,6 +746,14 @@ const AdminReports = () => {
                     <span className="text-[9px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
                       Outstanding: {formatCurrency(data.payments.totalOutstanding)}
                     </span>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Payment Methods</p>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-[11px]"><span className="text-slate-600">Cash</span><span className="font-semibold text-slate-800">{data.payments.methodsBreakdown['Cash']}</span></div>
+                      <div className="flex justify-between text-[11px]"><span className="text-slate-600">GCash</span><span className="font-semibold text-slate-800">{data.payments.methodsBreakdown['GCash']}</span></div>
+                      <div className="flex justify-between text-[11px]"><span className="text-slate-600">Bank Transfer</span><span className="font-semibold text-slate-800">{data.payments.methodsBreakdown['Bank Transfer']}</span></div>
+                    </div>
                   </div>
                 </>
               )}
