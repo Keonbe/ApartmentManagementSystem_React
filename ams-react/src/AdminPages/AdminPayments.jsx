@@ -5,13 +5,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faPaperPlane, faUser, faCalendarAlt, 
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
-  faEdit, faTrash, faPlus
+  faEdit, faTrash, faPlus, faChartBar, faHandshake, faClipboardList, faArrowRight, faBalanceScale
 } from '@fortawesome/free-solid-svg-icons';
+import { getSystemSettings } from '../config/systemSettings';
 
 const initialTenants = [
-  { id: 1, name: 'Pedro Cruz', unit: 'E', status: 'overdue', depositStatus: 'Paid', advanceStatus: 'Paid', termOfPayment: 'Monthly', dueDate: '2025-05-05', dueDateDay: 5, billing: { baseRent: 6500, water: 350, electricity: 820, parking: 0, addOns: 0 }, history: [{ id: 'RCT-1001', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 320, Elec: 750', amount: 7570, datePaid: 'Apr 3, 2025', status: 'paid', method: 'Cash' }, { id: 'RCT-1002', period: 'Mar 2025', breakdown: 'Rent: 6500, Water: 340, Elec: 700', amount: 7540, datePaid: 'Mar 5, 2025', status: 'paid', method: 'GCash' }] },
-  { id: 2, name: 'Rosa Dela Cruz', unit: 'F', status: 'pending', depositStatus: 'Paid', advanceStatus: 'Pending', termOfPayment: 'Semi-monthly', dueDate: '2025-05-15', dueDateDay: 15, billing: { baseRent: 7500, water: 400, electricity: 900, parking: 500, addOns: 0 }, history: [{ id: 'RCT-1003', period: 'Apr 2025', breakdown: 'Rent: 7500, Water: 400, Elec: 850', amount: 8750, datePaid: 'Apr 1, 2025', status: 'paid', method: 'Bank Transfer' }] },
-  { id: 3, name: 'Maria Santos', unit: 'A', status: 'paid', depositStatus: 'Paid', advanceStatus: 'Paid', termOfPayment: 'Monthly', dueDate: '2025-05-01', dueDateDay: 1, billing: { baseRent: 6500, water: 300, electricity: 700, parking: 0, addOns: 0 }, history: [{ id: 'RCT-1004', period: 'May 2025', breakdown: 'Rent: 6500, Water: 300, Elec: 700', amount: 7500, datePaid: 'May 1, 2025', status: 'paid', method: 'GCash' }, { id: 'RCT-1005', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 310, Elec: 720', amount: 7530, datePaid: 'Apr 2, 2025', status: 'paid', method: 'Cash' }] }
+  { id: 1, name: 'Pedro Cruz', unit: 'E', status: 'overdue', depositStatus: 'Paid', advanceStatus: 'Paid', termOfPayment: 'Monthly', dueDate: '2025-05-05', dueDateDay: 5, billing: { baseRent: 6500, water: 350, electricity: 820, parking: 0, addOns: 0 }, history: [{ id: 'RCT-1001', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 320, Elec: 750', amount: 7570, datePaid: 'Apr 3, 2025', status: 'paid', method: 'Cash' }, { id: 'RCT-1002', period: 'Mar 2025', breakdown: 'Rent: 6500, Water: 340, Elec: 700', amount: 7540, datePaid: 'Mar 5, 2025', status: 'paid', method: 'GCash' }], settlements: [{ id: 'STL-001', date: '2025-05-10', type: 'Partial Payment', amount: 3000, remaining: 4670, note: 'Paid partial due to cash shortage', status: 'partial' }], outstandingBalance: 4670 },
+  { id: 2, name: 'Rosa Dela Cruz', unit: 'F', status: 'pending', depositStatus: 'Paid', advanceStatus: 'Pending', termOfPayment: 'Semi-monthly', dueDate: '2025-05-15', dueDateDay: 15, billing: { baseRent: 7500, water: 400, electricity: 900, parking: 500, addOns: 0 }, history: [{ id: 'RCT-1003', period: 'Apr 2025', breakdown: 'Rent: 7500, Water: 400, Elec: 850', amount: 8750, datePaid: 'Apr 1, 2025', status: 'paid', method: 'Bank Transfer' }], settlements: [], outstandingBalance: 9300 },
+  { id: 3, name: 'Maria Santos', unit: 'A', status: 'paid', depositStatus: 'Paid', advanceStatus: 'Paid', termOfPayment: 'Monthly', dueDate: '2025-05-01', dueDateDay: 1, billing: { baseRent: 6500, water: 300, electricity: 700, parking: 0, addOns: 0 }, history: [{ id: 'RCT-1004', period: 'May 2025', breakdown: 'Rent: 6500, Water: 300, Elec: 700', amount: 7500, datePaid: 'May 1, 2025', status: 'paid', method: 'GCash' }, { id: 'RCT-1005', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 310, Elec: 720', amount: 7530, datePaid: 'Apr 2, 2025', status: 'paid', method: 'Cash' }], settlements: [], outstandingBalance: 0 }
 ];
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
@@ -42,6 +43,15 @@ const AdminPayments = () => {
   const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
   const [historyForm, setHistoryForm] = useState(null);
 
+  // Payment Tracking Dashboard tab
+  const [dashboardView, setDashboardView] = useState('billing'); // billing | tracking | settlements
+
+  // Settlement form
+  const [showSettlementForm, setShowSettlementForm] = useState(false);
+  const [settlementForm, setSettlementForm] = useState({ amount: '', note: '', type: 'Partial Payment' });
+
+  const settings = getSystemSettings();
+
   const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0];
   const filteredTenants = tenants.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.unit.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -57,7 +67,52 @@ const AdminPayments = () => {
   const totalCollected = tenants.reduce((sum, t) => sum + t.history.filter(h => h.status === 'paid').reduce((s, h) => s + h.amount, 0), 0);
   const overdueCount = tenants.filter(t => t.status === 'overdue').length;
   const pendingCount = tenants.filter(t => t.status === 'pending').length;
-  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking), 0);
+  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking)), 0);
+
+  // Outstanding Balance Aging
+  const agingData = useMemo(() => {
+    const now = new Date();
+    const result = { current: 0, days15: 0, days30: 0, days60plus: 0 };
+    tenants.forEach(t => {
+      if (t.status === 'paid') return;
+      const daysOverdue = t.dueDate ? Math.max(0, Math.ceil((now - new Date(t.dueDate)) / (1000 * 60 * 60 * 24))) : 0;
+      const balance = t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking);
+      if (daysOverdue <= 0) result.current += balance;
+      else if (daysOverdue <= 15) result.days15 += balance;
+      else if (daysOverdue <= 30) result.days30 += balance;
+      else result.days60plus += balance;
+    });
+    return result;
+  }, [tenants]);
+
+  // Monthly collection progress
+  const monthlyTarget = tenants.reduce((sum, t) => sum + (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking), 0);
+  const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking), 0);
+  const collectionPct = monthlyTarget > 0 ? Math.round((monthlyCollected / monthlyTarget) * 100) : 0;
+
+  // Settlement handlers
+  const handleAddSettlement = () => {
+    if (!settlementForm.amount || Number(settlementForm.amount) <= 0) return;
+    const amt = Number(settlementForm.amount);
+    const newBalance = Math.max(0, (activeTenant.outstandingBalance || totalDue) - amt);
+    const settlement = {
+      id: `STL-${String(Math.floor(100 + Math.random() * 900))}`,
+      date: new Date().toISOString().slice(0, 10),
+      type: settlementForm.type,
+      amount: amt,
+      remaining: newBalance,
+      note: settlementForm.note,
+      status: newBalance === 0 ? 'settled' : 'partial'
+    };
+    setTenants(prev => prev.map(t => t.id === selectedTenantId ? {
+      ...t,
+      settlements: [settlement, ...(t.settlements || [])],
+      outstandingBalance: newBalance,
+      status: newBalance === 0 ? 'paid' : t.status
+    } : t));
+    setSettlementForm({ amount: '', note: '', type: 'Partial Payment' });
+    setShowSettlementForm(false);
+  };
 
   // Due Date Helpers
   const getDaysUntilDue = (dueDateStr) => {
@@ -413,6 +468,200 @@ const AdminPayments = () => {
                   )}
 
                 </div>
+              </div>
+            </div>
+
+            {/* ─── PAYMENT TRACKING DASHBOARD ─── */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                  <FontAwesomeIcon icon={faChartBar} className="text-indigo-600" />
+                  Payment Tracking Dashboard
+                </h3>
+              </div>
+              <div className="p-6 space-y-6">
+
+                {/* Monthly Collection Progress */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Monthly Collection Progress</span>
+                    <span className="text-xs font-bold text-indigo-600">{collectionPct}%</span>
+                  </div>
+                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${collectionPct >= 80 ? 'bg-emerald-500' : collectionPct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${collectionPct}%` }}></div>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                    <span>Collected: {formatCurrency(monthlyCollected)}</span>
+                    <span>Target: {formatCurrency(monthlyTarget)}</span>
+                  </div>
+                </div>
+
+                {/* Outstanding Balance Aging */}
+                <div>
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3 m-0">Outstanding Balance Aging</h4>
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-emerald-700 m-0">{formatCurrency(agingData.current)}</p>
+                      <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Current</p>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-amber-700 m-0">{formatCurrency(agingData.days15)}</p>
+                      <p className="text-[10px] text-amber-600 font-semibold m-0 mt-0.5">1–15 Days</p>
+                    </div>
+                    <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-orange-700 m-0">{formatCurrency(agingData.days30)}</p>
+                      <p className="text-[10px] text-orange-600 font-semibold m-0 mt-0.5">16–30 Days</p>
+                    </div>
+                    <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-red-700 m-0">{formatCurrency(agingData.days60plus)}</p>
+                      <p className="text-[10px] text-red-600 font-semibold m-0 mt-0.5">60+ Days</p>
+                    </div>
+                  </div>
+                  {/* Aging visual bar */}
+                  {totalOutstanding > 0 && (
+                    <div className="flex h-2 rounded-full overflow-hidden mt-3">
+                      <div className="bg-emerald-400" style={{ width: `${(agingData.current / totalOutstanding) * 100}%` }}></div>
+                      <div className="bg-amber-400" style={{ width: `${(agingData.days15 / totalOutstanding) * 100}%` }}></div>
+                      <div className="bg-orange-400" style={{ width: `${(agingData.days30 / totalOutstanding) * 100}%` }}></div>
+                      <div className="bg-red-400" style={{ width: `${(agingData.days60plus / totalOutstanding) * 100}%` }}></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Per-Tenant Payment Status */}
+                <div>
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3 m-0">Per-Tenant Payment Status</h4>
+                  <div className="space-y-2">
+                    {tenants.map(t => {
+                      const paidCount = t.history.filter(h => h.status === 'paid').length;
+                      return (
+                        <div key={t.id} className="flex items-center gap-3 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold shrink-0">{t.name.charAt(0)}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-slate-700 truncate">{t.name} · Unit {t.unit}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : t.status === 'overdue' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{t.status.toUpperCase()}</span>
+                            </div>
+                            <div className="flex gap-0.5">
+                              {['Jan','Feb','Mar','Apr','May','Jun'].map((m, idx) => {
+                                const hasPaid = t.history.some(h => h.period.includes(m));
+                                return <div key={m} className={`h-1.5 flex-1 rounded-sm ${hasPaid ? 'bg-emerald-400' : idx < 5 && idx >= 5 - paidCount ? 'bg-emerald-200' : 'bg-slate-200'}`} title={`${m}: ${hasPaid ? 'Paid' : 'Unpaid'}`}></div>;
+                              })}
+                            </div>
+                            <div className="flex justify-between mt-0.5">
+                              <span className="text-[9px] text-slate-400">{paidCount} payments recorded</span>
+                              {(t.outstandingBalance || 0) > 0 && <span className="text-[9px] text-red-500 font-semibold">Balance: {formatCurrency(t.outstandingBalance)}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── PAYMENT SETTLEMENT TRACKING ─── */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                  <FontAwesomeIcon icon={faHandshake} className="text-violet-600" />
+                  Settlement Tracking — {activeTenant.name}
+                </h3>
+                <button onClick={() => setShowSettlementForm(!showSettlementForm)} className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors">
+                  <FontAwesomeIcon icon={faPlus} /> Record Settlement
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Outstanding Balance Monitor */}
+                <div className={`rounded-xl p-4 border flex items-center justify-between ${(activeTenant.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <div className="flex items-center gap-3">
+                    <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-500 text-xl' : 'text-emerald-500 text-xl'} />
+                    <div>
+                      <p className="text-sm font-bold text-slate-800 m-0">Outstanding Balance</p>
+                      <p className="text-[11px] text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
+                    </div>
+                  </div>
+                  <p className={`text-2xl font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {formatCurrency(activeTenant.outstandingBalance || 0)}
+                  </p>
+                </div>
+
+                {/* Eviction threshold warning */}
+                {activeTenant.status === 'overdue' && getDaysUntilDue(activeTenant.dueDate) !== null && Math.abs(getDaysUntilDue(activeTenant.dueDate)) >= settings.overdueThresholdDays && (
+                  <div className="bg-red-100 border border-red-300 rounded-lg p-3 flex items-start gap-2 text-xs text-red-800">
+                    <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                    <div>
+                      <strong>Eviction Threshold Exceeded!</strong>
+                      <p className="m-0 mt-0.5">This tenant has been overdue for {Math.abs(getDaysUntilDue(activeTenant.dueDate))} days, exceeding the {settings.overdueThresholdDays}-day policy threshold. Review on the Contracts page.</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Settlement Form */}
+                {showSettlementForm && (
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-slate-800 m-0">Record New Settlement</h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Type</label>
+                        <select value={settlementForm.type} onChange={e => setSettlementForm({...settlementForm, type: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-violet-500 bg-white text-slate-800">
+                          <option>Partial Payment</option>
+                          <option>Payment Plan</option>
+                          <option>Advance Deduction</option>
+                          <option>Deposit Application</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Amount (₱)</label>
+                        <input type="number" value={settlementForm.amount} onChange={e => setSettlementForm({...settlementForm, amount: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-violet-500 bg-white text-slate-800" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Note</label>
+                        <input type="text" value={settlementForm.note} onChange={e => setSettlementForm({...settlementForm, note: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-violet-500 bg-white text-slate-800" placeholder="Optional note" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={handleAddSettlement} disabled={!settlementForm.amount} className="px-4 py-2 bg-violet-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700 border-0 cursor-pointer disabled:opacity-40 transition-colors">Record Settlement</button>
+                      <button onClick={() => setShowSettlementForm(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Settlement History */}
+                {(activeTenant.settlements || []).length > 0 ? (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide m-0">Settlement History</h4>
+                    <div className="relative pl-5">
+                      <div className="absolute left-1.5 top-2 bottom-2 w-0.5 bg-violet-200"></div>
+                      {activeTenant.settlements.map((s, idx) => (
+                        <div key={idx} className="relative mb-3 last:mb-0">
+                          <div className={`absolute -left-3 top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${s.status === 'settled' ? 'bg-emerald-500' : 'bg-violet-500'}`}></div>
+                          <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 ml-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-800">{s.type}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${s.status === 'settled' ? 'bg-emerald-100 text-emerald-800' : 'bg-violet-100 text-violet-800'}`}>{s.status.toUpperCase()}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-semibold">{s.date}</span>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs">
+                              <span className="text-emerald-600 font-semibold">Paid: {formatCurrency(s.amount)}</span>
+                              <FontAwesomeIcon icon={faArrowRight} className="text-slate-300 text-[8px]" />
+                              <span className="text-slate-500">Remaining: {formatCurrency(s.remaining)}</span>
+                            </div>
+                            {s.note && <p className="text-[11px] text-slate-400 m-0 mt-1">{s.note}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-slate-400 text-sm">
+                    <FontAwesomeIcon icon={faHandshake} className="text-slate-300 text-2xl mb-2 block mx-auto" />
+                    No settlement records for this tenant.
+                  </div>
+                )}
               </div>
             </div>
 

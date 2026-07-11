@@ -7,8 +7,10 @@ import {
   faDollarSign, faExclamationTriangle, faTimes, faUser, faCalendarAlt,
   faBolt, faTint, faCheckCircle, faClock, faPrint, faArrowUp, faArrowDown,
   faWrench, faSquareParking, faChevronRight, faUserFriends, faClipboardList,
-  faFilePdf, faCalendarCheck, faCheck, faTools, faTools as faCogs, faSlidersH, faInfoCircle
+  faFilePdf, faCalendarCheck, faCheck, faTools, faTools as faCogs, faSlidersH, faInfoCircle,
+  faShieldAlt, faGavel, faHandshake, faFileUpload
 } from '@fortawesome/free-solid-svg-icons';
+import { getSystemSettings } from '../config/systemSettings';
 
 // ==========================================
 // DETERMINISTIC MOCK DATA ENGINE
@@ -616,7 +618,8 @@ const AdminReports = () => {
                   { id: 'occupancy', label: 'Occupancy', icon: faBuilding },
                   { id: 'payments', label: 'Payments & Bills', icon: faDollarSign },
                   { id: 'maintenance', label: 'Maintenance', icon: faWrench },
-                  { id: 'reservations', label: 'Reservations', icon: faSquareParking }
+                  { id: 'reservations', label: 'Reservations', icon: faSquareParking },
+                  { id: 'gaps', label: 'Management Gaps', icon: faShieldAlt }
                 ].map(tab => (
                   <button
                     key={tab.id}
@@ -1540,6 +1543,262 @@ const AdminReports = () => {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ==================================================== */}
+            {/* MANAGEMENT GAPS DETECTION PANEL */}
+            {/* ==================================================== */}
+            {activeModule === 'gaps' && (
+              <div className="space-y-6">
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-red-50 to-amber-50 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                      <FontAwesomeIcon icon={faShieldAlt} className="text-lg" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 m-0">Management Gaps Detection</h3>
+                      <p className="text-[11px] text-slate-500 m-0 mt-0.5">Automated identification of reporting gaps and management attention areas</p>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-5">
+
+                    {/* Gap: Payment Collection */}
+                    <div className="rounded-xl border border-red-200 overflow-hidden">
+                      <div className="bg-red-50 px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FontAwesomeIcon icon={faDollarSign} className="text-red-500" />
+                          <span className="text-sm font-bold text-red-800">Payment Collection Gaps</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.payments.totalOutstanding > 0 ? 'bg-red-200 text-red-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {data.payments.totalOutstanding > 0 ? `${data.payments.outstandingBalances.length} Overdue` : 'No Issues'}
+                        </span>
+                      </div>
+                      {data.payments.outstandingBalances.length > 0 ? (
+                        <div className="p-4 space-y-2">
+                          {data.payments.outstandingBalances.map((b, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-red-50/40 rounded-lg p-2 border border-red-100">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-bold">{b.name.charAt(0)}</div>
+                                <div>
+                                  <span className="text-xs font-semibold text-slate-700">{b.name}</span>
+                                  <span className="text-[10px] text-slate-400 ml-2">Unit {b.unit}</span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-bold text-red-600">{formatCurrency(b.balance)}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between bg-red-100 rounded-lg p-2 mt-1 text-xs">
+                            <span className="font-bold text-red-800">Total Outstanding</span>
+                            <span className="font-bold text-red-900">{formatCurrency(data.payments.totalOutstanding)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center text-sm text-emerald-600">
+                          <FontAwesomeIcon icon={faCheckCircle} className="mr-2" /> All payments collected — no outstanding balances.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Gap: Maintenance Budget */}
+                    {(() => {
+                      const isOverBudget = data.maintenance.totalCost > data.maintenance.budget;
+                      const usedPct = data.maintenance.budget > 0 ? Math.round((data.maintenance.totalCost / data.maintenance.budget) * 100) : 0;
+                      return (
+                        <div className={`rounded-xl border overflow-hidden ${isOverBudget ? 'border-red-200' : 'border-slate-200'}`}>
+                          <div className={`px-4 py-3 flex items-center justify-between ${isOverBudget ? 'bg-red-50' : 'bg-slate-50'}`}>
+                            <div className="flex items-center gap-2">
+                              <FontAwesomeIcon icon={faWrench} className={isOverBudget ? 'text-red-500' : 'text-slate-500'} />
+                              <span className="text-sm font-bold text-slate-800">Maintenance Budget vs Actual</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isOverBudget ? 'bg-red-200 text-red-900' : usedPct >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                              {usedPct}% Used
+                            </span>
+                          </div>
+                          <div className="p-4 space-y-3">
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
+                                <p className="text-sm font-bold text-slate-700 m-0">{formatCurrency(data.maintenance.budget)}</p>
+                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Budget</p>
+                              </div>
+                              <div className={`rounded-lg p-2.5 text-center border ${isOverBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-100'}`}>
+                                <p className={`text-sm font-bold m-0 ${isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(data.maintenance.totalCost)}</p>
+                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Actual Spent</p>
+                              </div>
+                              <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
+                                <p className={`text-sm font-bold m-0 ${isOverBudget ? 'text-red-600' : 'text-slate-700'}`}>{formatCurrency(data.maintenance.budget - data.maintenance.totalCost)}</p>
+                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">{isOverBudget ? 'Over Budget' : 'Remaining'}</p>
+                              </div>
+                            </div>
+                            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${isOverBudget ? 'bg-red-500' : usedPct >= 80 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, usedPct)}%` }}></div>
+                            </div>
+                            {isOverBudget && (
+                              <div className="flex items-center gap-2 text-xs text-red-600 font-semibold">
+                                <FontAwesomeIcon icon={faExclamationTriangle} /> Budget exceeded by {formatCurrency(Math.abs(data.maintenance.budget - data.maintenance.totalCost))}!
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Gap: Pending Maintenance */}
+                    <div className={`rounded-xl border overflow-hidden ${data.maintenance.pending > 0 ? 'border-amber-200' : 'border-slate-200'}`}>
+                      <div className={`px-4 py-3 flex items-center justify-between ${data.maintenance.pending > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                        <div className="flex items-center gap-2">
+                          <FontAwesomeIcon icon={faClock} className={data.maintenance.pending > 0 ? 'text-amber-500' : 'text-slate-500'} />
+                          <span className="text-sm font-bold text-slate-800">Unresolved Maintenance Requests</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.maintenance.pending > 0 ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {data.maintenance.pending + data.maintenance.inProgress} Open
+                        </span>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-amber-50 rounded-lg p-2.5 text-center border border-amber-100">
+                            <p className="text-lg font-bold text-amber-700 m-0">{data.maintenance.pending}</p>
+                            <p className="text-[10px] text-amber-600 font-semibold m-0 mt-0.5">Pending</p>
+                          </div>
+                          <div className="bg-indigo-50 rounded-lg p-2.5 text-center border border-indigo-100">
+                            <p className="text-lg font-bold text-indigo-700 m-0">{data.maintenance.inProgress}</p>
+                            <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">In Progress</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-lg p-2.5 text-center border border-emerald-100">
+                            <p className="text-lg font-bold text-emerald-700 m-0">{data.maintenance.completed}</p>
+                            <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Completed</p>
+                          </div>
+                        </div>
+                        {data.maintenance.pending > 0 && (
+                          <div className="mt-3 space-y-1.5">
+                            {data.maintenance.records.filter(r => r.status === 'Pending').slice(0, 5).map((r, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-amber-50/40 rounded-lg p-2 border border-amber-100 text-xs">
+                                <div>
+                                  <span className="font-mono text-amber-600 mr-2">{r.id}</span>
+                                  <span className="text-slate-700">{r.description?.substring(0, 40)}...</span>
+                                </div>
+                                <span className="text-slate-400">{r.dateSubmitted}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Gap: Occupancy */}
+                    <div className={`rounded-xl border overflow-hidden ${data.occupancy.vacantUnits > 0 ? 'border-amber-200' : 'border-emerald-200'}`}>
+                      <div className={`px-4 py-3 flex items-center justify-between ${data.occupancy.vacantUnits > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                        <div className="flex items-center gap-2">
+                          <FontAwesomeIcon icon={faBuilding} className={data.occupancy.vacantUnits > 0 ? 'text-amber-500' : 'text-emerald-500'} />
+                          <span className="text-sm font-bold text-slate-800">Occupancy & Vacancy</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.occupancy.vacantUnits > 0 ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {data.occupancy.occupancyRate}% Occupied
+                        </span>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-4 gap-3">
+                          <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
+                            <p className="text-lg font-bold text-slate-700 m-0">{data.occupancy.totalUnits}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold m-0">Total</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-lg p-2.5 text-center border border-emerald-100">
+                            <p className="text-lg font-bold text-emerald-700 m-0">{data.occupancy.occupiedUnits}</p>
+                            <p className="text-[10px] text-emerald-600 font-semibold m-0">Occupied</p>
+                          </div>
+                          <div className={`rounded-lg p-2.5 text-center border ${data.occupancy.vacantUnits > 0 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
+                            <p className={`text-lg font-bold m-0 ${data.occupancy.vacantUnits > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{data.occupancy.vacantUnits}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold m-0">Vacant</p>
+                          </div>
+                          <div className="bg-indigo-50 rounded-lg p-2.5 text-center border border-indigo-100">
+                            <p className="text-lg font-bold text-indigo-700 m-0">{formatCurrency(data.occupancy.vacantUnits * 6500)}</p>
+                            <p className="text-[10px] text-indigo-600 font-semibold m-0">Lost Revenue/mo</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Gap: Collection Efficiency */}
+                    <div className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="bg-slate-50 px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FontAwesomeIcon icon={faChartLine} className="text-indigo-500" />
+                          <span className="text-sm font-bold text-slate-800">Collection Efficiency & Revenue Summary</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.payments.collectionEfficiency >= 95 ? 'bg-emerald-100 text-emerald-800' : data.payments.collectionEfficiency >= 85 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
+                          {data.payments.collectionEfficiency}% Efficiency
+                        </span>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-4 gap-3 mb-3">
+                          <div className="bg-emerald-50 rounded-lg p-2.5 text-center border border-emerald-100">
+                            <p className="text-sm font-bold text-emerald-700 m-0">{formatCurrency(data.payments.totalCollected)}</p>
+                            <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Total Collected</p>
+                          </div>
+                          <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
+                            <p className="text-sm font-bold text-slate-700 m-0">{formatCurrency(data.payments.expenses)}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Expenses</p>
+                          </div>
+                          <div className={`rounded-lg p-2.5 text-center border ${data.payments.netIncome >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                            <p className={`text-sm font-bold m-0 ${data.payments.netIncome >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatCurrency(data.payments.netIncome)}</p>
+                            <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Net Income</p>
+                          </div>
+                          <div className="bg-indigo-50 rounded-lg p-2.5 text-center border border-indigo-100">
+                            <p className="text-sm font-bold text-indigo-700 m-0">{data.payments.collectionEfficiency}%</p>
+                            <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">Efficiency</p>
+                          </div>
+                        </div>
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${data.payments.collectionEfficiency >= 95 ? 'bg-emerald-500' : data.payments.collectionEfficiency >= 85 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${data.payments.collectionEfficiency}%` }}></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Gap Summary */}
+                    <div className="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-xl border border-indigo-100 p-5">
+                      <h4 className="text-sm font-bold text-slate-800 m-0 mb-3">Gap Summary & Recommendations</h4>
+                      <div className="space-y-2">
+                        {data.payments.totalOutstanding > 0 && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                            <p className="m-0 text-slate-700"><strong className="text-red-700">Payment Gap:</strong> {data.payments.outstandingBalances.length} tenant(s) with outstanding balances totaling {formatCurrency(data.payments.totalOutstanding)}. Send reminders and follow up.</p>
+                          </div>
+                        )}
+                        {data.maintenance.totalCost > data.maintenance.budget && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                            <p className="m-0 text-slate-700"><strong className="text-red-700">Budget Gap:</strong> Maintenance spending exceeded budget by {formatCurrency(data.maintenance.totalCost - data.maintenance.budget)}. Review approval policies and negotiate vendor rates.</p>
+                          </div>
+                        )}
+                        {data.maintenance.pending > 0 && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <FontAwesomeIcon icon={faClock} className="text-amber-500 mt-0.5" />
+                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Maintenance Gap:</strong> {data.maintenance.pending} unresolved request(s). Prioritize urgent items and assign personnel.</p>
+                          </div>
+                        )}
+                        {data.occupancy.vacantUnits > 0 && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <FontAwesomeIcon icon={faBuilding} className="text-amber-500 mt-0.5" />
+                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Occupancy Gap:</strong> {data.occupancy.vacantUnits} vacant unit(s) representing {formatCurrency(data.occupancy.vacantUnits * 6500)}/mo in potential lost revenue. Increase marketing efforts.</p>
+                          </div>
+                        )}
+                        {data.payments.collectionEfficiency < 90 && (
+                          <div className="flex items-start gap-2 text-xs">
+                            <FontAwesomeIcon icon={faChartLine} className="text-amber-500 mt-0.5" />
+                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Efficiency Gap:</strong> Collection efficiency at {data.payments.collectionEfficiency}%. Below 90% threshold — implement stricter follow-up procedures.</p>
+                          </div>
+                        )}
+                        {data.payments.totalOutstanding === 0 && data.maintenance.pending === 0 && data.maintenance.totalCost <= data.maintenance.budget && data.occupancy.vacantUnits === 0 && (
+                          <div className="flex items-center gap-2 text-xs text-emerald-700 font-semibold">
+                            <FontAwesomeIcon icon={faCheckCircle} className="text-emerald-500" />
+                            All management metrics within acceptable ranges. No critical gaps detected.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               </div>
