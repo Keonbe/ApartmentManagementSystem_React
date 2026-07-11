@@ -6,7 +6,9 @@ import ApartmentPic from "../assets/Apartment_Pic.png";
 
 export default function Registration({ onLoginRedirect }) {
     const [firstname, setFirstName] = useState('');
+    const [middlename, setMiddleName] = useState('');
     const [lastname, setLastName] = useState('');
+    const [suffix, setSuffix] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [conPassword, setConPassword] = useState('');
@@ -19,7 +21,9 @@ export default function Registration({ onLoginRedirect }) {
 
         const payload = {
             first_name: firstname.trim(),
+            middle_name: middlename.trim(),
             last_name: lastname.trim(),
+            suffix: suffix.trim(),
             email_address: email.trim(),
             password: password,
             conPassword: conPassword
@@ -99,24 +103,50 @@ export default function Registration({ onLoginRedirect }) {
                         </h2>
 
                         <form className="space-y-3" onSubmit={handleRegister}>
-                            <input
-                                value={firstname}
-                                type="text"
-                                placeholder="First Name"
-                                className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
-                                style={{ color: '#1e293b' }}
-                                required
-                                onChange={(e) => setFirstName(e.target.value)}
-                            />
-                            <input
-                                value={lastname}
-                                type="text"
-                                placeholder="Last Name"
-                                className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
-                                style={{ color: '#1e293b' }}
-                                required
-                                onChange={(e) => setLastName(e.target.value)}
-                            />
+                            <div className="grid grid-cols-2 gap-3">
+                                <input
+                                    value={firstname}
+                                    type="text"
+                                    placeholder="First Name"
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                                    style={{ color: '#1e293b' }}
+                                    required
+                                    onChange={(e) => setFirstName(e.target.value)}
+                                />
+                                <input
+                                    value={middlename}
+                                    type="text"
+                                    placeholder="Middle Name (Opt)"
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                                    style={{ color: '#1e293b' }}
+                                    onChange={(e) => setMiddleName(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="col-span-2">
+                                    <input
+                                        value={lastname}
+                                        type="text"
+                                        placeholder="Last Name"
+                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                                        style={{ color: '#1e293b' }}
+                                        required
+                                        onChange={(e) => setLastName(e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <input
+                                        value={suffix}
+                                        type="text"
+                                        placeholder="Suffix (Opt)"
+                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                                        style={{ color: '#1e293b' }}
+                                        onChange={(e) => setSuffix(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
                             <input
                                 value={email}
                                 type="email"
@@ -148,7 +178,7 @@ export default function Registration({ onLoginRedirect }) {
 
                             <div className="relative">
                                 <input
-                                value={conPassword}
+                                    value={conPassword}
                                     type={showConfirmPass ? "text" : "password"}
                                     placeholder="Confirm Password"
                                     className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"

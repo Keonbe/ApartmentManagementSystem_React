@@ -354,21 +354,40 @@ export default function RentApplication() {
                                             }}
                                             className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdFront ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                         >
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdFrontFile(e.target.files[0]); }}
-                                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                            />
                                             {!validIdFrontFile ? (
-                                                <div className="space-y-1 pointer-events-none">
-                                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
-                                                    <p className="text-xs font-medium text-slate-700 m-0">Drop ID card front view here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                                </div>
+                                                <>
+                                                    <input
+                                                        type="file"
+                                                        accept=".pdf,.jpg,.jpeg,.png"
+                                                        onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdFrontFile(e.target.files[0]); }}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                                    />
+                                                    <div className="space-y-1 pointer-events-none">
+                                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                        <p className="text-xs font-medium text-slate-700 m-0">Drop ID card front view here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                    </div>
+                                                </>
                                             ) : (
-                                                <div className="space-y-1 flex flex-col items-center pointer-events-none">
-                                                    <FontAwesomeIcon icon={faCheckCircle} className="text-2xl text-emerald-500" />
-                                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdFrontFile.name}</p>
+                                                <div className="space-y-2 flex flex-col items-center w-full z-10">
+                                                    {validIdFrontFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(validIdFrontFile.name) ? (
+                                                        <img 
+                                                            src={URL.createObjectURL(validIdFrontFile)} 
+                                                            alt="Valid ID Front Preview" 
+                                                            className="w-24 h-16 object-cover rounded border border-slate-200"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
+                                                            PDF
+                                                        </div>
+                                                    )}
+                                                    <p className="text-[11px] font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdFrontFile.name}</p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setValidIdFrontFile(null)}
+                                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow-sm"
+                                                    >
+                                                        Remove / Retake
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -386,21 +405,40 @@ export default function RentApplication() {
                                             }}
                                             className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdBack ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                         >
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdBackFile(e.target.files[0]); }}
-                                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                            />
                                             {!validIdBackFile ? (
-                                                <div className="space-y-1 pointer-events-none">
-                                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
-                                                    <p className="text-xs font-medium text-slate-700 m-0">Drop ID card back view here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                                </div>
+                                                <>
+                                                    <input
+                                                        type="file"
+                                                        accept=".pdf,.jpg,.jpeg,.png"
+                                                        onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdBackFile(e.target.files[0]); }}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                                    />
+                                                    <div className="space-y-1 pointer-events-none">
+                                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                        <p className="text-xs font-medium text-slate-700 m-0">Drop ID card back view here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                    </div>
+                                                </>
                                             ) : (
-                                                <div className="space-y-1 flex flex-col items-center pointer-events-none">
-                                                    <FontAwesomeIcon icon={faCheckCircle} className="text-2xl text-emerald-500" />
-                                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdBackFile.name}</p>
+                                                <div className="space-y-2 flex flex-col items-center w-full z-10">
+                                                    {validIdBackFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(validIdBackFile.name) ? (
+                                                        <img 
+                                                            src={URL.createObjectURL(validIdBackFile)} 
+                                                            alt="Valid ID Back Preview" 
+                                                            className="w-24 h-16 object-cover rounded border border-slate-200"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
+                                                            PDF
+                                                        </div>
+                                                    )}
+                                                    <p className="text-[11px] font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdBackFile.name}</p>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setValidIdBackFile(null)}
+                                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow-sm"
+                                                    >
+                                                        Remove / Retake
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -419,21 +457,40 @@ export default function RentApplication() {
                                         }}
                                         className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingNbi ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                     >
-                                        <input
-                                            type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            onChange={(e) => { if (e.target.files && e.target.files[0]) setNbiFile(e.target.files[0]); }}
-                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                        />
                                         {!nbiFile ? (
-                                            <div className="space-y-1 pointer-events-none">
-                                                <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
-                                                <p className="text-xs font-medium text-slate-700 m-0">Drop your valid NBI clearance form here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                            </div>
+                                            <>
+                                                <input
+                                                    type="file"
+                                                    accept=".pdf,.jpg,.jpeg,.png"
+                                                    onChange={(e) => { if (e.target.files && e.target.files[0]) setNbiFile(e.target.files[0]); }}
+                                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                                />
+                                                <div className="space-y-1 pointer-events-none">
+                                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                    <p className="text-xs font-medium text-slate-700 m-0">Drop your valid NBI clearance form here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                </div>
+                                            </>
                                         ) : (
-                                            <div className="space-y-1 flex flex-col items-center pointer-events-none">
-                                                <FontAwesomeIcon icon={faCheckCircle} className="text-2xl text-emerald-500" />
-                                                <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[200px]">{nbiFile.name}</p>
+                                            <div className="space-y-2 flex flex-col items-center w-full z-10">
+                                                {nbiFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(nbiFile.name) ? (
+                                                    <img 
+                                                        src={URL.createObjectURL(nbiFile)} 
+                                                        alt="NBI Clearance Preview" 
+                                                        className="w-24 h-16 object-cover rounded border border-slate-200"
+                                                    />
+                                                ) : (
+                                                    <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
+                                                        PDF
+                                                    </div>
+                                                )}
+                                                <p className="text-[11px] font-bold text-slate-800 m-0 truncate max-w-[200px]">{nbiFile.name}</p>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNbiFile(null)}
+                                                    className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow-sm"
+                                                >
+                                                    Remove / Retake
+                                                </button>
                                             </div>
                                         )}
                                     </div>
