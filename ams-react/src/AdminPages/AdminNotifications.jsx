@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -30,19 +30,61 @@ const typeConfig = {
 };
 
 const AdminNotifications = () => {
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+  const emailKey = loggedInUser.email_address || "default_admin";
+
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
+    return saved ? JSON.parse(saved) : initialNotifications;
+  });
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
 
   // Settings state
-  const [settings, setSettings] = useState({
-    rentDueEnabled: true, rentDueDays: '3',
-    overdueEnabled: true, overdueDays: '1',
-    maintenanceEnabled: true,
-    smsEnabled: true, smsPhone: '0917-123-4567',
-    emailEnabled: true, emailAddress: 'admin@grandvillas.com',
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem(`admin_notif_settings_${emailKey}`);
+    return saved ? JSON.parse(saved) : {
+      rentDueEnabled: true, rentDueDays: '3',
+      overdueEnabled: true, overdueDays: '1',
+      maintenanceEnabled: true,
+      smsEnabled: true, smsPhone: '0917-123-4567',
+      emailEnabled: true, emailAddress: 'admin@grandvillas.com',
+    };
   });
+
+  // Sync state with localStorage updates (from header or other pages)
+  useEffect(() => {
+    const handleSync = () => {
+      const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setNotifications(prev => {
+          if (JSON.stringify(prev) !== saved) {
+            return parsed;
+          }
+          return prev;
+        });
+      }
+    };
+    window.addEventListener('admin_notifications_updated', handleSync);
+    return () => window.removeEventListener('admin_notifications_updated', handleSync);
+  }, [emailKey]);
+
+  // Persist state to localStorage and emit sync event
+  useEffect(() => {
+    const currentStr = JSON.stringify(notifications);
+    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
+    if (saved !== currentStr) {
+      localStorage.setItem(`admin_notifications_${emailKey}`, currentStr);
+      window.dispatchEvent(new Event('admin_notifications_updated'));
+    }
+  }, [notifications, emailKey]);
+
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem(`admin_notif_settings_${emailKey}`, JSON.stringify(settings));
+  }, [settings, emailKey]);
 
   const filters = [
     { key: 'all', label: 'All' },
@@ -263,7 +305,7 @@ const AdminNotifications = () => {
                     )}
                   </div>
 
-                  <button className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm">
+                  <button onClick={() => alert('Settings saved successfully!')} className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm">
                     Save Settings
                   </button>
                 </div>

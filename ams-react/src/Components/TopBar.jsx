@@ -33,9 +33,34 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         return saved ? JSON.parse(saved) : defaultNotifications;
     });
 
+    // Listen for updates from other parts of the app
+    useEffect(() => {
+        if (!loggedInUser.email_address) return;
+        const handleSync = () => {
+            const saved = localStorage.getItem(`user_notifications_${loggedInUser.email_address}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                setNotifications(prev => {
+                    if (JSON.stringify(prev) !== saved) {
+                        return parsed;
+                    }
+                    return prev;
+                });
+            }
+        };
+        window.addEventListener('user_notifications_updated', handleSync);
+        return () => window.removeEventListener('user_notifications_updated', handleSync);
+    }, [loggedInUser.email_address]);
+
+    // Save and emit sync event on changes
     useEffect(() => {
         if (loggedInUser.email_address) {
-            localStorage.setItem(`user_notifications_${loggedInUser.email_address}`, JSON.stringify(notifications));
+            const currentStr = JSON.stringify(notifications);
+            const saved = localStorage.getItem(`user_notifications_${loggedInUser.email_address}`);
+            if (saved !== currentStr) {
+                localStorage.setItem(`user_notifications_${loggedInUser.email_address}`, currentStr);
+                window.dispatchEvent(new Event('user_notifications_updated'));
+            }
         }
     }, [notifications, loggedInUser.email_address]);
 
@@ -195,16 +220,21 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         )}
                                     </div>
 
-                                    {notifications.length > 0 && (
-                                        <div className="px-4 pt-2 border-t border-slate-100 flex justify-end">
-                                            <button 
-                                                onClick={clearAll}
-                                                className="text-[10px] font-semibold text-rose-500 hover:underline flex items-center gap-1.5 border-0 bg-transparent cursor-pointer"
-                                            >
-                                                <FontAwesomeIcon icon={faTrash} className="text-[9px]" /> Clear all
-                                            </button>
-                                        </div>
-                                    )}
+                                                                    <div className="px-4 pt-2.5 mt-1 border-t border-slate-100 flex justify-between items-center shrink-0">
+                                        <button 
+                                            onClick={clearAll}
+                                            disabled={notifications.length === 0}
+                                            className="text-[10px] font-semibold text-rose-500 hover:underline flex items-center gap-1.5 border-0 bg-transparent cursor-pointer disabled:opacity-40 disabled:no-underline"
+                                        >
+                                            <FontAwesomeIcon icon={faTrash} className="text-[9px]" /> Clear all
+                                        </button>
+                                        <button 
+                                            onClick={() => { setIsNotificationOpen(false); navigate('/notifications'); }}
+                                            className="text-[10px] font-bold text-[#3b4276] hover:underline border-0 bg-transparent cursor-pointer"
+                                        >
+                                            View all
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -324,7 +354,15 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         {/* Mobile Notifications Center */}
                         {isLoggedIn && (
                             <div className="border-t border-white/10 pt-4 mt-2">
-                                <p className="text-white/40 text-xs font-bold uppercase tracking-wider mb-3">Notifications ({unreadCount})</p>
+                                <div className="flex justify-between items-center mb-3 select-none">
+                                    <p className="text-white/40 text-xs font-bold uppercase tracking-wider m-0">Notifications ({unreadCount})</p>
+                                    <button 
+                                        onClick={() => { setIsMobileMenuOpen(false); navigate('/notifications'); }}
+                                        className="text-white/80 hover:text-white text-xs font-bold bg-transparent border-0 cursor-pointer p-0"
+                                    >
+                                        View All
+                                    </button>
+                                </div>
                                 <div className="space-y-3 max-h-40 overflow-y-auto pr-1">
                                     {notifications.length > 0 ? (
                                         notifications.map((notif) => (

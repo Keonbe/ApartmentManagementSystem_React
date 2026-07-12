@@ -19,6 +19,7 @@ import MaintenanceRequest from './UserPages/MaintenanceRequest';
 import RentApplication from './UserPages/RentApplication';
 import ProfileSettings from './UserPages/ProfileSettings';
 import MyRoom from './UserPages/MyRoom';
+import UserNotifications from './UserPages/UserNotifications';
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -103,6 +104,7 @@ function AppContent() {
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-room" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
 
         {/*SECURITY AUTH TARGET SCHEMAS*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
