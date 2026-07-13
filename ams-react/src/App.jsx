@@ -20,6 +20,7 @@ import RentApplication from './UserPages/RentApplication';
 import ProfileSettings from './UserPages/ProfileSettings';
 import MyRoom from './UserPages/MyRoom';
 import UserNotifications from './UserPages/UserNotifications';
+import ViewContract from './UserPages/ViewContract';
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -105,6 +106,7 @@ function AppContent() {
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-room" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
 
         {/*SECURITY AUTH TARGET SCHEMAS*/}
