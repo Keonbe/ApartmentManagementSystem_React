@@ -290,7 +290,7 @@ const AdminDashboard = () => {
                   <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0">
                     <FontAwesomeIcon icon={faHistory} className="text-slate-500" /> System Activity Log
                   </h3>
-                  <button className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">View All</button>
+                  <button onClick={() => navigate('/admin-activity-logs')} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">View All</button>
                 </div>
                 <div className="p-0 flex-1 overflow-y-auto">
                   <div className="divide-y divide-slate-100">

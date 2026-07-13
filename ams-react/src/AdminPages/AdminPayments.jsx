@@ -739,7 +739,7 @@ const AdminPayments = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowReceipt(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500">
-              <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Grand Villas AMS</h2>
+              <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
               <p className="text-xs text-slate-400 m-0">123 Balete Drive, Quezon City, Metro Manila</p>
               <div className="mt-4 pt-4 border-t border-slate-700/50">
                 <p className="text-sm font-semibold text-slate-300 uppercase tracking-widest m-0">Official Receipt</p>

@@ -353,7 +353,7 @@ const AdminContracts = () => {
               {createStep === 3 && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
                   <div className="text-center border-b border-slate-200 pb-4">
-                    <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">GRAND VILLAS AMS</h3>
+                    <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
                     <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Lease Agreement</p>
                   </div>
                   <div className="space-y-2 text-xs text-slate-700">
@@ -365,7 +365,7 @@ const AdminContracts = () => {
                   </div>
                   <div className="border-t border-slate-200 pt-3">
                     <p className="text-[10px] text-slate-400 leading-relaxed m-0">
-                      This Lease Agreement is entered into between Grand Villas AMS ("Landlord") and the Tenant named above. 
+                      This Lease Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                       The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
                       will be charged for payments made after the due date. The security deposit shall be refunded upon 
                       lease termination, subject to property inspection. Both parties agree to the terms herein.
@@ -418,7 +418,7 @@ const AdminContracts = () => {
               {/* Contract Details */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
                 <div className="text-center border-b border-slate-200 pb-4">
-                  <h3 className="text-xl font-bold text-slate-800 italic font-serif m-0">GRAND VILLAS AMS</h3>
+                  <h3 className="text-xl font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
                   <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Lease Agreement</p>
                   <p className="text-[10px] text-slate-400 m-0 mt-1">Generated: {selectedContract.generatedDate}</p>
                 </div>
@@ -432,7 +432,7 @@ const AdminContracts = () => {
                 <div className="border-t border-slate-200 pt-4 mt-4">
                   <h4 className="text-xs font-bold text-slate-600 mb-2 m-0">Terms & Conditions</h4>
                   <p className="text-[10px] text-slate-400 leading-relaxed m-0">
-                    This Lease Agreement is entered into between Grand Villas AMS ("Landlord") and the Tenant named above. 
+                    This Lease Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                     The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
                     will be charged for payments made after the due date. The security deposit shall be refunded upon 
                     lease termination, subject to property inspection. Both parties agree to the terms herein.

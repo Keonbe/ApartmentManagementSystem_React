@@ -10,7 +10,7 @@ const defaultNotifications = [
   { id: 1, title: "Rent Overdue Alert", message: "Your Rent payment is due in 3 days. Please settle outstanding balances.", type: "warning", time: "1 hour ago", read: false },
   { id: 2, title: "Maintenance Resolved", message: "Maintenance Request REQ-003 has been marked as Completed.", type: "success", time: "5 hours ago", read: false },
   { id: 3, title: "Lease Document Required", message: "Your signed lease agreement has not been uploaded yet. Please submit the document.", type: "action", time: "1 day ago", read: false },
-  { id: 4, title: "Welcome to AMS", message: "Welcome to the Grand Villas Apartment Management System. You can manage rooms, request services, and pay bills here.", type: "info", time: "3 days ago", read: true }
+  { id: 4, title: "Welcome to AMS", message: "Welcome to the Apartment Management System. You can manage rooms, request services, and pay bills here.", type: "info", time: "3 days ago", read: true }
 ];
 
 const typeConfig = {

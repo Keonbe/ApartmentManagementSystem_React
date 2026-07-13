@@ -33,6 +33,7 @@ import AdminNotifications from './AdminPages/AdminNotifications';
 import AdminContracts from './AdminPages/AdminContracts';
 import AdminServicePage from './AdminPages/AdminServicePage';
 import AdminAccountSettings from './AdminPages/AdminAccountSettings';
+import AdminActivityLogs from './AdminPages/AdminActivityLogs';
 
 //Client-side access controller middleware component block
 function ProtectedRoute({ children }) {
@@ -122,6 +123,7 @@ function AppContent() {
         <Route path="/admin-contracts" element={<AdminContracts />} />
         <Route path="/admin-services" element={<AdminServicePage />} />
         <Route path="/admin-settings" element={<AdminAccountSettings />} />
+        <Route path="/admin-activity-logs" element={<AdminActivityLogs />} />
       </Routes>
 
       <LogInModal 

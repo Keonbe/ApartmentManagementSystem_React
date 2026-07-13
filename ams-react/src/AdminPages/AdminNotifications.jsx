@@ -49,7 +49,7 @@ const AdminNotifications = () => {
       overdueEnabled: true, overdueDays: '1',
       maintenanceEnabled: true,
       smsEnabled: true, smsPhone: '0917-123-4567',
-      emailEnabled: true, emailAddress: 'admin@grandvillas.com',
+      emailEnabled: true, emailAddress: 'admin@apartment.com',
     };
   });
 

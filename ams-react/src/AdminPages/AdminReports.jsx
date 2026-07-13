@@ -195,6 +195,7 @@ const generateReportData = (timeframe, selectedMonth, selectedYear) => {
     const balance = getDeterministicValue(`out_balance_${i}`, selectedYear, selectedMonth, 1, 2) * 6500;
     outstandingBalancesList.push({
       tenant: tenantNames[tIdx],
+      name: tenantNames[tIdx],
       unit: units[uIdx],
       balance,
       daysOverdue: getDeterministicValue(`out_days_${i}`, selectedYear, selectedMonth, 4, 18),
@@ -509,7 +510,7 @@ const AdminReports = () => {
             
             {/* PRINT-ONLY BUSINESS REPORT HEADER */}
             <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6 text-center">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">Grand Villas Apartment Complex</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">Apartment Complex</h1>
               <p className="text-sm text-slate-500 uppercase tracking-widest mt-1">Management Performance & Performance Review Report</p>
               <div className="grid grid-cols-2 mt-4 text-xs text-left text-slate-700 bg-slate-100 p-3 rounded">
                 <div>
@@ -1581,9 +1582,9 @@ const AdminReports = () => {
                           {data.payments.outstandingBalances.map((b, idx) => (
                             <div key={idx} className="flex items-center justify-between bg-red-50/40 rounded-lg p-2 border border-red-100">
                               <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-bold">{b.name.charAt(0)}</div>
+                                <div className="w-7 h-7 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[10px] font-bold">{b.tenant.charAt(0)}</div>
                                 <div>
-                                  <span className="text-xs font-semibold text-slate-700">{b.name}</span>
+                                  <span className="text-xs font-semibold text-slate-700">{b.tenant}</span>
                                   <span className="text-[10px] text-slate-400 ml-2">Unit {b.unit}</span>
                                 </div>
                               </div>
@@ -1819,7 +1820,7 @@ const AdminReports = () => {
                 </div>
               </div>
               <p className="text-[8px] text-slate-400 mt-10 text-center uppercase tracking-widest">
-                Grand Villas AMS Performance Index Registry • Strict Confidential Business Document
+                Apartment AMS Performance Index Registry • Strict Confidential Business Document
               </p>
             </div>
 
@@ -1868,7 +1869,7 @@ const AdminReports = () => {
               <div className="p-6">
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
                   <div className="text-center border-b border-slate-200 pb-4">
-                    <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">GRAND VILLAS AMS</h3>
+                    <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
                     <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Monthly Invoice</p>
                   </div>
                   <div className="space-y-2 text-xs text-slate-700">
