@@ -104,30 +104,23 @@ const AdminTenants = () => {
     }
   };
 
-  const handleArchiveTenant = () => {
+  const handleArchiveTenant = async () => {
     if (!archiveTarget) return;
-    const archived = {
-      ...archiveTarget,
-      id: `ARC-${String(archivedTenants.length + 4).padStart(3, '0')}`,
-      movedOutDate: new Date().toISOString().slice(0, 10),
-      archiveDate: new Date().toISOString().slice(0, 10),
-      archiveReason: archiveReason,
-      archiveNotes: archiveNotes,
-      status: 'archived',
-      leaseHistory: [
-        { event: 'Lease Started', date: archiveTarget.moveIn || 'N/A', detail: `Unit ${archiveTarget.unit} · ${archiveTarget.rent}/mo` },
-        { event: 'Moved Out', date: new Date().toISOString().slice(0, 10), detail: `Reason: ${archiveReason}${archiveNotes ? ' — ' + archiveNotes : ''}` },
-      ],
-      paymentSummary: { totalPaid: 0, monthsPaid: 0, overdueCount: 0, lastPayment: 'N/A' },
-      maintenanceRequests: []
-    };
-    setArchivedTenants(prev => [archived, ...prev]);
-    // Update original tenant status to moved-out
-    updateStatus(archiveTarget.id, 'moved-out');
-    setShowArchiveModal(false);
-    setArchiveTarget(null);
-    setArchiveReason('End of Lease');
-    setArchiveNotes('');
+    try {
+      const payload = {
+        id: archiveTarget.id,
+        archiveReason,
+        archiveNotes,
+      };
+      await api.post('/archive_tenant.php', payload);
+      fetchTenants();
+      setShowArchiveModal(false);
+      setArchiveTarget(null);
+      setArchiveReason('End of Lease');
+      setArchiveNotes('');
+    } catch (err) {
+      console.error("Error archiving tenant:", err);
+    }
   };
 
   const openArchiveModal = (tenant) => {
@@ -138,12 +131,14 @@ const AdminTenants = () => {
   };
 
   // Count logic
+  const pendingReviewCount = tenants.filter(t => t.status === 'Pending Review').length;
   const activeTenantCount = tenants.filter(t => t.status === 'active').length;
   const pendingMoveOutCount = tenants.filter(t => t.status === 'pending-move-out').length;
   const movedOutCount = tenants.filter(t => t.status === 'moved-out').length;
 
   const counts = {
     all: tenants.length + archivedTenants.length,
+    'pending-review': pendingReviewCount,
     active: activeTenantCount,
     'pending-move-out': pendingMoveOutCount,
     'moved-out': movedOutCount,
@@ -152,6 +147,7 @@ const AdminTenants = () => {
 
   const filters = [
     { key: 'all', label: `All (${counts.all})` },
+    { key: 'Pending Review', label: `Pending (${counts['pending-review']})`, activeStyle: 'bg-blue-100 text-blue-800 border-blue-300' },
     { key: 'active', label: `Active (${counts.active})`, activeStyle: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
     { key: 'pending-move-out', label: `Pending Move-Out (${counts['pending-move-out']})`, activeStyle: 'bg-amber-100 text-amber-800 border-amber-300' },
     { key: 'moved-out', label: `Moved Out (${counts['moved-out']})`, activeStyle: 'bg-slate-200 text-slate-600 border-slate-300' },
@@ -178,6 +174,7 @@ const AdminTenants = () => {
 
   const getOccupancyBadge = (status) => {
     const map = {
+      'Pending Review': { style: 'bg-blue-100 text-blue-800', label: '○ Pending' },
       active: { style: 'bg-emerald-100 text-emerald-800', label: '● Active' },
       'pending-move-out': { style: 'bg-amber-100 text-amber-800', label: '◔ Pending Move-Out' },
       'moved-out': { style: 'bg-slate-100 text-slate-500', label: '○ Moved Out' },
@@ -283,6 +280,8 @@ const AdminTenants = () => {
                             <div>Archived: {t.archiveDate}</div>
                             <div className="text-[10px] text-violet-500 font-semibold">{t.archiveReason}</div>
                           </div>
+                        ) : t.status === 'Pending Review' ? (
+                          <span className="text-slate-400">Move-in date pending</span>
                         ) : t.leaseEnd ? (
                           <div>
                             <div>Lease ends: {t.leaseEnd}</div>
@@ -409,11 +408,25 @@ const AdminTenants = () => {
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Monthly Rent</p>
                       <p className="text-sm font-bold text-emerald-600 m-0">{selectedTenant.rent || '—'}</p>
                     </div>
+                    {selectedTenant.status !== 'Pending Review' && (
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Move-in Date</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.moveIn || '—'}</p>
                     </div>
+                    )}
                   </div>
+
+                  {/* Verification Documents */}
+                  {selectedTenant.valid_id_front_path && (
+                    <div className="mt-4 border-t border-slate-100 pt-4">
+                       <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Verification Documents</p>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                         <a href={`http://localhost/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.valid_id_front_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Front)</a>
+                         <a href={`http://localhost/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.valid_id_back_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Back)</a>
+                         <a href={`http://localhost/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.nbi_clearance_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> NBI Clearance</a>
+                       </div>
+                    </div>
+                  )}
 
                   {/* Archived Tenant Info */}
                   {selectedTenant.status === 'archived' && (
@@ -434,10 +447,26 @@ const AdminTenants = () => {
                   )}
 
                   {/* Actions for non-archived tenants */}
+                  {selectedTenant.status === 'Pending Review' && (
+                    <div className="flex gap-3 mt-4">
+                      <button 
+                        onClick={() => { updateStatus(selectedTenant.id, 'active'); setShowProfileModal(false); }} 
+                        className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-emerald-600 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faCheckCircle} /> Approve Application
+                      </button>
+                      <button 
+                        onClick={() => { updateStatus(selectedTenant.id, 'rejected'); setShowProfileModal(false); }} 
+                        className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-red-600 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faTimes} /> Reject
+                      </button>
+                    </div>
+                  )}
                   {selectedTenant.status !== 'archived' && selectedTenant.status === 'active' && (
                     <button 
                       onClick={() => { updateStatus(selectedTenant.id, 'pending-move-out'); setShowProfileModal(false); }} 
-                      className="w-full flex items-center justify-center gap-2 bg-amber-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-amber-600 transition-colors"
+                      className="w-full mt-4 flex items-center justify-center gap-2 bg-amber-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-amber-600 transition-colors"
                     >
                       <FontAwesomeIcon icon={faSignOutAlt} /> Initiate Move Out
                     </button>
@@ -445,7 +474,7 @@ const AdminTenants = () => {
                   {selectedTenant.status === 'moved-out' && (
                     <button
                       onClick={() => { setShowProfileModal(false); openArchiveModal(selectedTenant); }}
-                      className="w-full flex items-center justify-center gap-2 bg-violet-600 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-violet-700 transition-colors"
+                      className="w-full mt-4 flex items-center justify-center gap-2 bg-violet-600 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-violet-700 transition-colors"
                     >
                       <FontAwesomeIcon icon={faArchive} /> Archive This Tenant
                     </button>

@@ -18,11 +18,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'phone' => $row['contact_no'],
             'unit' => $row['room_name'],
             'rent' => '₱' . number_format($row['monthly_rent']),
-            'moveIn' => $row['created_at'], 
+            'moveIn' => $row['status'] === 'Pending Review' ? null : $row['created_at'], 
             'leaseEnd' => date('Y-m-d', strtotime($row['created_at'] . ' + ' . $row['months_of_rent'] . ' months')),
             'status' => $row['status'] ?? 'active',
             'paymentStatus' => 'paid',
-            'documents' => [] 
+            'documents' => [],
+            'valid_id_front_path' => $row['valid_id_front_path'] ?? null,
+            'valid_id_back_path' => $row['valid_id_back_path'] ?? null,
+            'nbi_clearance_path' => $row['nbi_clearance_path'] ?? null,
+            'archiveDate' => $row['archive_date'] ?? null,
+            'archiveReason' => $row['archive_reason'] ?? null,
+            'archiveNotes' => $row['archive_notes'] ?? null,
         ];
     }
     echo json_encode(["success" => true, "data" => $tenants]);
