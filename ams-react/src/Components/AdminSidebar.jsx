@@ -3,7 +3,8 @@ import { NavLink } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faHome, faBuilding, faUsers, faCreditCard, 
-  faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell
+  faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
+  faHistory
 } from '@fortawesome/free-solid-svg-icons';
 
 const navSections = [
@@ -23,6 +24,7 @@ const navSections = [
       { to: '/admin-services', icon: faConciergeBell, label: 'Services' },
       { to: '/admin-announcements', icon: faBullhorn, label: 'Announcements' },
       { to: '/admin-notifications', icon: faBell, label: 'Notifications' },
+      { to: '/admin-activity-logs', icon: faHistory, label: 'Activity Log' },
     ],
   },
   {

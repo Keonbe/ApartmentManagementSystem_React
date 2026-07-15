@@ -20,16 +20,16 @@ const incomeData = [
 ];
 
 const newTenants = [
-  { name: 'Miguel Santos', unit: '3B', date: 'May 12, 2024' },
-  { name: 'Elena Gomez', unit: '4A', date: 'May 05, 2024' },
-  { name: 'Carlos Diaz', unit: '1D', date: 'Apr 28, 2024' },
+  { name: 'Miguel Santos', unit: 'H', date: 'May 12, 2024' },
+  { name: 'Elena Gomez', unit: 'J', date: 'May 05, 2024' },
+  { name: 'Carlos Diaz', unit: 'D', date: 'Apr 28, 2024' },
 ];
 
 const activityLogs = [
-  { id: 1, action: 'Payment Received', details: '₱12,500 from Unit 3B', time: '10 mins ago', type: 'payment' },
+  { id: 1, action: 'Payment Received', details: '₱12,500 from Unit H', time: '10 mins ago', type: 'payment' },
   { id: 2, action: 'Maintenance Updated', details: 'REQ-003 marked as In Progress', time: '1 hour ago', type: 'maintenance' },
-  { id: 3, action: 'New Tenant Onboarded', details: 'Miguel Santos added to Unit 3B', time: '2 hours ago', type: 'tenant' },
-  { id: 4, action: 'Contract Generated', details: 'Lease Agreement for Unit 4A', time: 'Yesterday', type: 'document' },
+  { id: 3, action: 'New Tenant Onboarded', details: 'Miguel Santos added to Unit H', time: '2 hours ago', type: 'tenant' },
+  { id: 4, action: 'Contract Generated', details: 'Lease Agreement for Unit J', time: 'Yesterday', type: 'document' },
   { id: 5, action: 'System Login', details: 'Admin logged in', time: 'Yesterday', type: 'system' },
 ];
 
@@ -290,7 +290,7 @@ const AdminDashboard = () => {
                   <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0">
                     <FontAwesomeIcon icon={faHistory} className="text-slate-500" /> System Activity Log
                   </h3>
-                  <button className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">View All</button>
+                  <button onClick={() => navigate('/admin-activity-logs')} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">View All</button>
                 </div>
                 <div className="p-0 flex-1 overflow-y-auto">
                   <div className="divide-y divide-slate-100">

@@ -5,14 +5,18 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faPlus, faSearch, faTableCells, faList, faClock, faWrench, 
   faCheckCircle, faExclamationTriangle, faTimes, faMapPin, 
-  faCalendarAlt, faImage, faArrowRight, faHistory, faUser, faFilter, faUpload, faPaperPlane
+  faCalendarAlt, faImage, faArrowRight, faHistory, faUser, faFilter, faUpload, faPaperPlane,
+  faShieldAlt, faDollarSign, faChartBar, faGavel, faUserShield, faInfoCircle, faFileContract
 } from '@fortawesome/free-solid-svg-icons';
+import { getSystemSettings } from '../config/systemSettings';
 
 const initialRequests = [
-  { id: 'REQ-001', title: 'Leaking faucet in bathroom', issueType: 'Plumbing', unit: 'Unit 7B', tenant: 'Pedro Cruz', priority: 'High', status: 'Pending', description: 'The sink faucet is dripping continuously, creating a puddle.', dateReported: '2024-05-15', timeReported: '09:30 AM', dateResolved: null, timeResolved: null, assignee: null, photos: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-15 09:30 AM' }], notes: [] },
-  { id: 'REQ-002', title: 'Busted ceiling light', issueType: 'Electrical', unit: 'Unit 3A', tenant: 'Ben Flores', priority: 'Medium', status: 'Pending', description: 'Living room light flickered and died.', dateReported: '2024-05-16', timeReported: '14:20 PM', dateResolved: null, timeResolved: null, assignee: null, photos: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-16 14:20 PM' }], notes: [] },
-  { id: 'REQ-003', title: 'Clogged kitchen drain', issueType: 'Plumbing', unit: 'Unit 2C', tenant: 'Rosa Dela Cruz', priority: 'High', status: 'In Progress', description: 'Water not going down the kitchen sink.', dateReported: '2024-05-14', timeReported: '08:15 AM', dateResolved: null, timeResolved: null, assignee: 'Mang Totoy', photos: [{ url: 'clogged-sink.jpg', name: 'sink_photo.jpg' }], statusHistory: [{ status: 'Pending', timestamp: '2024-05-14 08:15 AM' }, { status: 'In Progress', timestamp: '2024-05-14 10:00 AM', assignee: 'Mang Totoy' }], notes: [{ text: 'Checked the pipes, need to buy a new p-trap.', author: 'Admin', timestamp: '2024-05-14 11:30 AM' }] },
-  { id: 'REQ-004', title: 'Electrical short in outlet', issueType: 'Electrical', unit: 'Unit 1C', tenant: 'Ana Garcia', priority: 'Urgent', status: 'Completed', description: 'Sparks flew when I plugged in the microwave.', dateReported: '2024-04-20', timeReported: '18:45 PM', dateResolved: '2024-04-21', timeResolved: '10:00 AM', assignee: 'Mang Totoy', photos: [], statusHistory: [{ status: 'Pending', timestamp: '2024-04-20 18:45 PM' }, { status: 'In Progress', timestamp: '2024-04-20 19:30 PM', assignee: 'Mang Totoy' }, { status: 'Completed', timestamp: '2024-04-21 10:00 AM' }], notes: [] }
+  { id: 'REQ-001', title: 'Leaking faucet in bathroom', issueType: 'Plumbing', unit: 'Unit E', tenant: 'Pedro Cruz', priority: 'High', status: 'Pending', description: 'The sink faucet is dripping continuously, creating a puddle.', dateReported: '2024-05-15', timeReported: '09:30 AM', dateResolved: null, timeResolved: null, assignee: null, photos: [], cost: null, tenantResponsible: false, budgetCategory: 'Plumbing', approvalStatus: null, approvalHistory: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-15 09:30 AM' }], notes: [] },
+  { id: 'REQ-002', title: 'Busted ceiling light', issueType: 'Electrical', unit: 'Unit G', tenant: 'Ben Flores', priority: 'Medium', status: 'Pending', description: 'Living room light flickered and died.', dateReported: '2024-05-16', timeReported: '14:20 PM', dateResolved: null, timeResolved: null, assignee: null, photos: [], cost: null, tenantResponsible: false, budgetCategory: 'Electrical', approvalStatus: null, approvalHistory: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-16 14:20 PM' }], notes: [] },
+  { id: 'REQ-003', title: 'Clogged kitchen drain', issueType: 'Plumbing', unit: 'Unit F', tenant: 'Rosa Dela Cruz', priority: 'High', status: 'In Progress', description: 'Water not going down the kitchen sink.', dateReported: '2024-05-14', timeReported: '08:15 AM', dateResolved: null, timeResolved: null, assignee: 'Mang Totoy', photos: [{ url: 'clogged-sink.jpg', name: 'sink_photo.jpg' }], cost: null, tenantResponsible: false, budgetCategory: 'Plumbing', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-05-14 10:00 AM', estimatedCost: 1500, note: 'Approve for p-trap replacement' }], statusHistory: [{ status: 'Pending', timestamp: '2024-05-14 08:15 AM' }, { status: 'Awaiting Approval', timestamp: '2024-05-14 09:00 AM' }, { status: 'Approved', timestamp: '2024-05-14 10:00 AM' }, { status: 'In Progress', timestamp: '2024-05-14 10:00 AM', assignee: 'Mang Totoy' }], notes: [{ text: 'Checked the pipes, need to buy a new p-trap.', author: 'Admin', timestamp: '2024-05-14 11:30 AM' }] },
+  { id: 'REQ-004', title: 'Electrical short in outlet', issueType: 'Electrical', unit: 'Unit C', tenant: 'Ana Garcia', priority: 'Urgent', status: 'Completed', description: 'Sparks flew when I plugged in the microwave.', dateReported: '2024-04-20', timeReported: '18:45 PM', dateResolved: '2024-04-21', timeResolved: '10:00 AM', assignee: 'Mang Totoy', photos: [], cost: 1200, tenantResponsible: false, budgetCategory: 'Electrical', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-04-20 19:00 PM', estimatedCost: 1500, note: 'Urgent — safety hazard' }], statusHistory: [{ status: 'Pending', timestamp: '2024-04-20 18:45 PM' }, { status: 'Approved', timestamp: '2024-04-20 19:00 PM' }, { status: 'In Progress', timestamp: '2024-04-20 19:30 PM', assignee: 'Mang Totoy' }, { status: 'Completed', timestamp: '2024-04-21 10:00 AM' }], notes: [] },
+  { id: 'REQ-005', title: 'Broken cabinet hinge', issueType: 'Carpentry', unit: 'Unit A', tenant: 'Maria Santos', priority: 'Low', status: 'Completed', description: 'Kitchen cabinet door hinge broke off.', dateReported: '2024-03-10', timeReported: '11:00 AM', dateResolved: '2024-03-12', timeResolved: '15:00 PM', assignee: 'Mang Totoy', photos: [], cost: 450, tenantResponsible: true, budgetCategory: 'Carpentry', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-03-10 14:00 PM', estimatedCost: 500, note: 'Tenant responsible — negligence per T&C' }], statusHistory: [{ status: 'Pending', timestamp: '2024-03-10 11:00 AM' }, { status: 'Approved', timestamp: '2024-03-10 14:00 PM' }, { status: 'In Progress', timestamp: '2024-03-11 08:00 AM', assignee: 'Mang Totoy' }, { status: 'Completed', timestamp: '2024-03-12 15:00 PM' }], notes: [] },
+  { id: 'REQ-006', title: 'Water heater not working', issueType: 'Appliance', unit: 'Unit B', tenant: 'Jose Reyes', priority: 'Medium', status: 'Completed', description: 'No hot water from the shower heater.', dateReported: '2024-02-15', timeReported: '07:00 AM', dateResolved: '2024-02-17', timeResolved: '14:30 PM', assignee: 'Electrician Juan', photos: [], cost: 3800, tenantResponsible: false, budgetCategory: 'Appliance', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-02-15 09:00 AM', estimatedCost: 4000, note: 'Heater element replacement' }], statusHistory: [{ status: 'Pending', timestamp: '2024-02-15 07:00 AM' }, { status: 'Approved', timestamp: '2024-02-15 09:00 AM' }, { status: 'In Progress', timestamp: '2024-02-16 08:00 AM', assignee: 'Electrician Juan' }, { status: 'Completed', timestamp: '2024-02-17 14:30 PM' }], notes: [] }
 ];
 
 const priorityConfig = {
@@ -30,6 +34,8 @@ const getRelativeTime = (dateStr) => {
   return `${diffInDays}d ago`;
 };
 
+const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+
 const AdminMaintainance = () => {
   const [requests, setRequests] = useState(initialRequests);
   const [viewMode, setViewMode] = useState('kanban');
@@ -37,8 +43,10 @@ const AdminMaintainance = () => {
   const [showNewModal, setShowNewModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [selectedReq, setSelectedReq] = useState(null);
   const [reassignName, setReassignName] = useState('');
+  const [completionCost, setCompletionCost] = useState('');
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState('All');
@@ -47,6 +55,12 @@ const AdminMaintainance = () => {
   const [newReq, setNewReq] = useState({ title: '', issueType: 'Plumbing', unit: '', tenant: '', priority: 'Medium', description: '', photos: [] });
   const [validationErrors, setValidationErrors] = useState({});
   const [newNote, setNewNote] = useState('');
+
+  // Approval form state
+  const [approvalForm, setApprovalForm] = useState({ estimatedCost: '', note: '', action: 'Approved' });
+
+  const settings = getSystemSettings();
+  const monthlyBudget = settings.maintenanceMonthlyBudget || 50000;
 
   // Filtering
   const filteredRequests = useMemo(() => {
@@ -61,10 +75,38 @@ const AdminMaintainance = () => {
   }, [requests, searchQuery, filterPriority, filterType]);
 
   const columns = {
-    'Pending': filteredRequests.filter(r => r.status === 'Pending'),
-    'In Progress': filteredRequests.filter(r => r.status === 'In Progress'),
+    'Pending': filteredRequests.filter(r => r.status === 'Pending' || r.status === 'Awaiting Approval'),
+    'In Progress': filteredRequests.filter(r => r.status === 'In Progress' || r.status === 'Approved'),
     'Completed': filteredRequests.filter(r => r.status === 'Completed'),
   };
+
+  // ─── Budget Comparison Data ───
+  const budgetData = useMemo(() => {
+    const completedRequests = requests.filter(r => r.status === 'Completed');
+    const buildingCosts = completedRequests.filter(r => !r.tenantResponsible);
+    const tenantCosts = completedRequests.filter(r => r.tenantResponsible);
+    
+    const totalSpent = buildingCosts.reduce((sum, r) => sum + (r.cost || 0), 0);
+    const tenantCharged = tenantCosts.reduce((sum, r) => sum + (r.cost || 0), 0);
+    const remaining = monthlyBudget - totalSpent;
+    const usedPct = monthlyBudget > 0 ? Math.round((totalSpent / monthlyBudget) * 100) : 0;
+    const isOverBudget = totalSpent > monthlyBudget;
+
+    // By category
+    const categories = {};
+    buildingCosts.forEach(r => {
+      const cat = r.budgetCategory || r.issueType;
+      categories[cat] = (categories[cat] || 0) + (r.cost || 0);
+    });
+
+    // Per unit totals
+    const perUnit = {};
+    completedRequests.forEach(r => {
+      perUnit[r.unit] = (perUnit[r.unit] || 0) + (r.cost || 0);
+    });
+
+    return { totalSpent, tenantCharged, remaining, usedPct, isOverBudget, categories, perUnit, totalRequests: completedRequests.length };
+  }, [requests, monthlyBudget]);
 
   const handleSimulatePhotoUpload = () => {
     setNewReq(prev => ({
@@ -87,7 +129,8 @@ const AdminMaintainance = () => {
     const timestamp = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const req = {
       id: `REQ-00${requests.length + 1}`, title: newReq.title, issueType: newReq.issueType, unit: newReq.unit, tenant: newReq.tenant, priority: newReq.priority, status: 'Pending', description: newReq.description,
-      dateReported: new Date().toISOString().slice(0, 10), timeReported: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), dateResolved: null, timeResolved: null, assignee: null, photos: newReq.photos,
+      dateReported: new Date().toISOString().slice(0, 10), timeReported: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), dateResolved: null, timeResolved: null, assignee: null, photos: newReq.photos, cost: null,
+      tenantResponsible: false, budgetCategory: newReq.issueType, approvalStatus: null, approvalHistory: [],
       statusHistory: [{ status: 'Pending', timestamp }], notes: []
     };
     setRequests([req, ...requests]);
@@ -96,34 +139,95 @@ const AdminMaintainance = () => {
     setShowNewModal(false);
   };
 
+  // Submit for approval
+  const handleSubmitForApproval = (req) => {
+    setSelectedReq(req);
+    setApprovalForm({ estimatedCost: '', note: '', action: 'Approved' });
+    setShowApprovalModal(true);
+  };
+
+  const handleApprovalDecision = () => {
+    const timestampStr = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const isApproved = approvalForm.action === 'Approved';
+    const newStatus = isApproved ? 'Approved' : 'Pending';
+    const approvalEntry = {
+      action: approvalForm.action,
+      by: 'Admin',
+      date: timestampStr,
+      estimatedCost: Number(approvalForm.estimatedCost) || 0,
+      note: approvalForm.note
+    };
+
+    setRequests(prev => prev.map(r => r.id === selectedReq.id ? {
+      ...r,
+      status: newStatus,
+      approvalStatus: approvalForm.action,
+      approvalHistory: [...(r.approvalHistory || []), approvalEntry],
+      statusHistory: [...r.statusHistory,
+        { status: 'Awaiting Approval', timestamp: timestampStr },
+        { status: isApproved ? 'Approved' : 'Rejected', timestamp: timestampStr, note: approvalForm.note }
+      ]
+    } : r));
+
+    if (showDetailModal && selectedReq) {
+      setSelectedReq(prev => ({
+        ...prev,
+        status: newStatus,
+        approvalStatus: approvalForm.action,
+        approvalHistory: [...(prev.approvalHistory || []), approvalEntry],
+        statusHistory: [...prev.statusHistory,
+          { status: 'Awaiting Approval', timestamp: timestampStr },
+          { status: isApproved ? 'Approved' : 'Rejected', timestamp: timestampStr, note: approvalForm.note }
+        ]
+      }));
+    }
+
+    setShowApprovalModal(false);
+  };
+
   const triggerStatusAdvance = (req) => {
     setSelectedReq(req);
     setReassignName(req.assignee || '');
+    setCompletionCost('');
     setShowConfirmModal(true);
   };
 
   const handleConfirmAdvance = () => {
     const currentStatus = selectedReq.status;
-    const nextStatus = currentStatus === 'Pending' ? 'In Progress' : 'Completed';
+    let nextStatus;
+    if (currentStatus === 'Approved') nextStatus = 'In Progress';
+    else if (currentStatus === 'In Progress') nextStatus = 'Completed';
+    else nextStatus = 'In Progress';
+
     const timestampStr = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const finalAssignee = nextStatus === 'In Progress' ? (reassignName || 'Admin Assigned') : selectedReq.assignee;
+    const finalCost = nextStatus === 'Completed' ? Number(completionCost) || 0 : selectedReq.cost;
 
     setRequests(prev => prev.map(r => r.id === selectedReq.id ? {
       ...r, status: nextStatus,
       dateResolved: nextStatus === 'Completed' ? new Date().toISOString().slice(0, 10) : null,
       timeResolved: nextStatus === 'Completed' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
       assignee: finalAssignee,
+      cost: finalCost,
       statusHistory: [...r.statusHistory, { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
     } : r));
     
     if (showDetailModal) {
       setSelectedReq(prev => ({
-        ...prev, status: nextStatus, assignee: finalAssignee, 
+        ...prev, status: nextStatus, assignee: finalAssignee, cost: finalCost,
         statusHistory: [...prev.statusHistory, { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
       }));
     }
     
     setShowConfirmModal(false);
+    setCompletionCost('');
+  };
+
+  const handleToggleTenantResponsible = (reqId) => {
+    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, tenantResponsible: !r.tenantResponsible } : r));
+    if (selectedReq && selectedReq.id === reqId) {
+      setSelectedReq(prev => ({ ...prev, tenantResponsible: !prev.tenantResponsible }));
+    }
   };
 
   const handleAddNote = () => {
@@ -141,6 +245,9 @@ const AdminMaintainance = () => {
     setSelectedReq(prev => ({ ...prev, assignee: newAssignee }));
   };
 
+  // Max category spend for chart scaling
+  const maxCategorySpend = Math.max(...Object.values(budgetData.categories), 1);
+
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
@@ -151,6 +258,96 @@ const AdminMaintainance = () => {
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
+            {/* ─── BUDGET COMPARISON PANEL ─── */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                  <FontAwesomeIcon icon={faChartBar} className="text-amber-600" />
+                  Maintenance Budget Overview
+                </h3>
+                <span className="text-[11px] text-slate-400">Monthly Budget: <strong className="text-slate-700">{formatCurrency(monthlyBudget)}</strong></span>
+              </div>
+              <div className="p-6">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
+                    <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(monthlyBudget)}</p>
+                    <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Monthly Budget</p>
+                  </div>
+                  <div className={`rounded-lg p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-100'}`}>
+                    <p className={`text-lg font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(budgetData.totalSpent)}</p>
+                    <p className={`text-[10px] font-semibold m-0 mt-0.5 ${budgetData.isOverBudget ? 'text-red-500' : 'text-emerald-600'}`}>Spent (Building)</p>
+                  </div>
+                  <div className="bg-violet-50 rounded-lg p-3 border border-violet-100 text-center">
+                    <p className="text-lg font-bold text-violet-700 m-0">{formatCurrency(budgetData.tenantCharged)}</p>
+                    <p className="text-[10px] text-violet-600 font-semibold m-0 mt-0.5">Tenant Charged</p>
+                  </div>
+                  <div className={`rounded-lg p-3 border text-center ${budgetData.isOverBudget ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'}`}>
+                    <p className={`text-lg font-bold m-0 ${budgetData.isOverBudget ? 'text-red-600' : 'text-slate-700'}`}>{formatCurrency(budgetData.remaining)}</p>
+                    <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Remaining</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
+                    <p className="text-lg font-bold text-indigo-600 m-0">{budgetData.usedPct}%</p>
+                    <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Budget Used</p>
+                  </div>
+                </div>
+
+                {/* Budget Progress Bar */}
+                <div className="mb-6">
+                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <span>₱0</span>
+                    <span>{formatCurrency(monthlyBudget)}</span>
+                  </div>
+                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${budgetData.isOverBudget ? 'bg-red-500' : budgetData.usedPct >= 80 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, budgetData.usedPct)}%` }}></div>
+                  </div>
+                  {budgetData.isOverBudget && (
+                    <div className="flex items-center gap-2 mt-2 text-xs text-red-600 font-semibold">
+                      <FontAwesomeIcon icon={faExclamationTriangle} /> Budget exceeded by {formatCurrency(Math.abs(budgetData.remaining))}!
+                    </div>
+                  )}
+                </div>
+
+                {/* Category Breakdown Chart */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-3 m-0">Spend by Category</h4>
+                    <div className="space-y-2.5">
+                      {Object.entries(budgetData.categories).map(([cat, amount]) => (
+                        <div key={cat}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-semibold text-slate-700">{cat}</span>
+                            <span className="text-slate-500">{formatCurrency(amount)}</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${(amount / maxCategorySpend) * 100}%` }}></div>
+                          </div>
+                        </div>
+                      ))}
+                      {Object.keys(budgetData.categories).length === 0 && (
+                        <p className="text-xs text-slate-400 m-0">No completed maintenance costs recorded yet.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-3 m-0">Spend by Unit</h4>
+                    <div className="space-y-2">
+                      {Object.entries(budgetData.perUnit).sort((a, b) => b[1] - a[1]).map(([unit, amount]) => (
+                        <div key={unit} className="flex items-center justify-between bg-slate-50 rounded-lg p-2 border border-slate-100">
+                          <span className="text-xs font-semibold text-slate-700">{unit}</span>
+                          <span className="text-xs font-bold text-indigo-600">{formatCurrency(amount)}</span>
+                        </div>
+                      ))}
+                      {Object.keys(budgetData.perUnit).length === 0 && (
+                        <p className="text-xs text-slate-400 m-0">No unit-level costs recorded.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── VIEW CONTROLS ─── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex bg-white rounded-lg border border-slate-200 p-1 shrink-0">
                 <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent hover:bg-slate-50'}`}><FontAwesomeIcon icon={faTableCells} /> Kanban</button>
@@ -178,10 +375,11 @@ const AdminMaintainance = () => {
               </div>
             </div>
 
+            {/* ─── KANBAN / LIST VIEW ─── */}
             {viewMode === 'kanban' ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {Object.entries(columns).map(([status, reqs]) => (
-                  <div key={status} className="flex flex-col h-[calc(100vh-16rem)] min-h-[500px] bg-slate-100 rounded-xl border border-slate-200 p-4">
+                  <div key={status} className="flex flex-col h-[calc(100vh-24rem)] min-h-[400px] bg-slate-100 rounded-xl border border-slate-200 p-4">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <FontAwesomeIcon icon={status === 'Pending' ? faClock : status === 'In Progress' ? faWrench : faCheckCircle} className={status === 'Pending' ? 'text-amber-500' : status === 'In Progress' ? 'text-indigo-500' : 'text-emerald-500'} />
@@ -196,6 +394,12 @@ const AdminMaintainance = () => {
                             <div className="flex gap-1.5 flex-wrap">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[req.priority].color}`}>{req.priority}</span>
                               <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-slate-50 text-slate-600">{req.issueType}</span>
+                              {req.tenantResponsible && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Bill</span>
+                              )}
+                              {req.approvalStatus === 'Approved' && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">✓ Approved</span>
+                              )}
                             </div>
                             <span className="text-[10px] text-slate-400 font-mono group-hover:text-indigo-500 transition-colors">{req.id}</span>
                           </div>
@@ -211,10 +415,19 @@ const AdminMaintainance = () => {
                               ) : (
                                 <span className="text-[10px] font-medium text-slate-400 italic">Unassigned</span>
                               )}
-                              {req.photos.length > 0 && (
-                                <span className="text-[10px] text-slate-400 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> {req.photos.length}</span>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {req.cost !== null && req.cost > 0 && <span className="text-[10px] font-bold text-emerald-600">{formatCurrency(req.cost)}</span>}
+                                {req.photos.length > 0 && (
+                                  <span className="text-[10px] text-slate-400 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> {req.photos.length}</span>
+                                )}
+                              </div>
                             </div>
+                            {/* Approval action for pending items */}
+                            {req.status === 'Pending' && !req.approvalStatus && (
+                              <button onClick={e => { e.stopPropagation(); handleSubmitForApproval(req); }} className="w-full mt-1 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-[11px] font-semibold hover:bg-amber-100 cursor-pointer transition-colors">
+                                <FontAwesomeIcon icon={faGavel} className="mr-1" /> Submit for Approval
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -231,6 +444,7 @@ const AdminMaintainance = () => {
                       <th className="py-3 px-4">Issue</th>
                       <th className="py-3 px-4">Tenant / Unit</th>
                       <th className="py-3 px-4">Priority / Type</th>
+                      <th className="py-3 px-4">Cost</th>
                       <th className="py-3 px-4">Assignee</th>
                       <th className="py-3 px-4">Status</th>
                     </tr>
@@ -239,7 +453,12 @@ const AdminMaintainance = () => {
                     {filteredRequests.map(req => (
                       <tr key={req.id} onClick={() => { setSelectedReq(req); setShowDetailModal(true); }} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
                         <td className="py-3 px-4 font-mono text-xs text-slate-500">{req.id}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-800">{req.title}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-800">{req.title}</span>
+                            {req.tenantResponsible && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-violet-100 text-violet-700 rounded">T</span>}
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-slate-700">{req.tenant} <span className="text-slate-400 text-xs ml-1">({req.unit})</span></td>
                         <td className="py-3 px-4">
                           <div className="flex gap-1.5">
@@ -247,12 +466,13 @@ const AdminMaintainance = () => {
                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-white text-slate-600">{req.issueType}</span>
                           </div>
                         </td>
+                        <td className="py-3 px-4 text-xs font-semibold text-slate-600">{req.cost ? formatCurrency(req.cost) : '—'}</td>
                         <td className="py-3 px-4 text-xs font-medium text-slate-600">{req.assignee || '-'}</td>
-                        <td className="py-3 px-4"><span className={`text-xs font-semibold ${req.status === 'Completed' ? 'text-emerald-600' : req.status === 'In Progress' ? 'text-indigo-600' : 'text-amber-600'}`}>{req.status}</span></td>
+                        <td className="py-3 px-4"><span className={`text-xs font-semibold ${req.status === 'Completed' ? 'text-emerald-600' : req.status === 'In Progress' ? 'text-indigo-600' : req.status === 'Approved' ? 'text-emerald-600' : 'text-amber-600'}`}>{req.status}</span></td>
                       </tr>
                     ))}
                     {filteredRequests.length === 0 && (
-                      <tr><td colSpan="6" className="py-8 text-center text-slate-500 text-sm">No maintenance requests found matching criteria.</td></tr>
+                      <tr><td colSpan="7" className="py-8 text-center text-slate-500 text-sm">No maintenance requests found matching criteria.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -284,7 +504,7 @@ const AdminMaintainance = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Unit *</label>
-                  <input type="text" value={newReq.unit} onChange={e => setNewReq({...newReq, unit: e.target.value})} className={`w-full px-3 py-2 text-sm border ${validationErrors.unit ? 'border-red-500' : 'border-slate-200'} rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500`} placeholder="e.g. 1A" />
+                  <input type="text" value={newReq.unit} onChange={e => setNewReq({...newReq, unit: e.target.value})} className={`w-full px-3 py-2 text-sm border ${validationErrors.unit ? 'border-red-500' : 'border-slate-200'} rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500`} placeholder="e.g. A" />
                 </div>
               </div>
 
@@ -343,13 +563,19 @@ const AdminMaintainance = () => {
             <div className="flex-1 flex flex-col border-r border-slate-200 max-h-[90vh]">
               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-start bg-slate-50 shrink-0">
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{selectedReq.id}</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[selectedReq.priority].color}`}>{selectedReq.priority}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${selectedReq.status === 'Completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : selectedReq.status === 'In Progress' ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>{selectedReq.status}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${selectedReq.status === 'Completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : selectedReq.status === 'In Progress' ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : selectedReq.status === 'Approved' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>{selectedReq.status}</span>
+                    {selectedReq.tenantResponsible && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Responsible</span>
+                    )}
                   </div>
                   <h2 className="text-xl font-bold text-slate-800 m-0 leading-tight">{selectedReq.title}</h2>
                   <p className="text-sm text-slate-500 m-0 mt-1 flex items-center gap-2"><FontAwesomeIcon icon={faMapPin} /> {selectedReq.tenant} · {selectedReq.unit}</p>
+                  {selectedReq.cost !== null && selectedReq.status === 'Completed' && (
+                    <p className="text-sm font-bold text-emerald-600 m-0 mt-2 flex items-center gap-2">Final Cost: {formatCurrency(selectedReq.cost)}</p>
+                  )}
                 </div>
                 <button onClick={() => setShowDetailModal(false)} className="p-1 md:hidden text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
               </div>
@@ -358,6 +584,34 @@ const AdminMaintainance = () => {
                 <div>
                   <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 m-0">Description</h4>
                   <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 text-sm text-slate-700 leading-relaxed">{selectedReq.description}</div>
+                </div>
+
+                {/* Tenant Responsibility Toggle */}
+                <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FontAwesomeIcon icon={faShieldAlt} className="text-violet-600" />
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 m-0">Tenant Responsible</p>
+                        <p className="text-[11px] text-slate-500 m-0 mt-0.5">If enabled, this cost is billed to the tenant (per Terms & Conditions)</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleTenantResponsible(selectedReq.id)}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 border-0 cursor-pointer ${
+                        selectedReq.tenantResponsible ? 'bg-violet-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${selectedReq.tenantResponsible ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  {selectedReq.tenantResponsible && settings.tenantResponsibilityClause && (
+                    <div className="mt-3 bg-white border border-violet-100 rounded-lg p-3 text-[11px] text-violet-700 leading-relaxed">
+                      <FontAwesomeIcon icon={faFileContract} className="mr-1.5 text-violet-400" />
+                      {settings.tenantResponsibilityClause.substring(0, 200)}...
+                    </div>
+                  )}
                 </div>
                 
                 {selectedReq.photos.length > 0 && (
@@ -373,13 +627,32 @@ const AdminMaintainance = () => {
                   </div>
                 )}
 
+                {/* Approval History */}
+                {(selectedReq.approvalHistory || []).length > 0 && (
+                  <div>
+                    <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 m-0">Approval History</h4>
+                    <div className="space-y-2">
+                      {selectedReq.approvalHistory.map((a, idx) => (
+                        <div key={idx} className={`p-3 rounded-lg border text-xs ${a.action === 'Approved' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`font-bold ${a.action === 'Approved' ? 'text-emerald-800' : 'text-red-800'}`}>{a.action} by {a.by}</span>
+                            <span className="text-slate-400 text-[10px]">{a.date}</span>
+                          </div>
+                          {a.estimatedCost > 0 && <p className="m-0 text-slate-600">Estimated Cost: <strong>{formatCurrency(a.estimatedCost)}</strong></p>}
+                          {a.note && <p className="m-0 text-slate-500 mt-0.5">{a.note}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3 m-0">Status Timeline</h4>
                   <div className="space-y-4 relative before:absolute before:inset-0 before:ml-3 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                     {selectedReq.statusHistory.map((sh, i) => (
                       <div key={i} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                         <div className="flex items-center justify-center w-6 h-6 rounded-full border border-white bg-slate-200 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          <FontAwesomeIcon icon={sh.status === 'Completed' ? faCheckCircle : sh.status === 'In Progress' ? faWrench : faClock} className={`text-[10px] ${sh.status === 'Completed' ? 'text-emerald-500' : sh.status === 'In Progress' ? 'text-indigo-500' : 'text-amber-500'}`} />
+                          <FontAwesomeIcon icon={sh.status === 'Completed' ? faCheckCircle : sh.status === 'In Progress' ? faWrench : sh.status === 'Approved' ? faGavel : sh.status === 'Rejected' ? faTimes : faClock} className={`text-[10px] ${sh.status === 'Completed' ? 'text-emerald-500' : sh.status === 'In Progress' ? 'text-indigo-500' : sh.status === 'Approved' ? 'text-emerald-500' : sh.status === 'Rejected' ? 'text-red-500' : 'text-amber-500'}`} />
                         </div>
                         <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-lg border border-slate-100 bg-white shadow-sm">
                           <div className="flex items-center justify-between mb-1">
@@ -387,6 +660,7 @@ const AdminMaintainance = () => {
                             <time className="font-mono text-[10px] text-slate-400">{sh.timestamp}</time>
                           </div>
                           {sh.assignee && <p className="text-[10px] text-slate-500 m-0 mt-1">Assigned to: <span className="font-semibold text-indigo-600">{sh.assignee}</span></p>}
+                          {sh.note && <p className="text-[10px] text-slate-500 m-0 mt-1">{sh.note}</p>}
                         </div>
                       </div>
                     ))}
@@ -394,11 +668,19 @@ const AdminMaintainance = () => {
                 </div>
               </div>
               
+              {/* Bottom Actions */}
               {selectedReq.status !== 'Completed' && (
-                <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0">
-                  <button onClick={() => triggerStatusAdvance(selectedReq)} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
-                    Mark as {selectedReq.status === 'Pending' ? 'In Progress' : 'Completed'} <FontAwesomeIcon icon={faArrowRight} />
-                  </button>
+                <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center shrink-0 gap-2 flex-wrap">
+                  {selectedReq.status === 'Pending' && !selectedReq.approvalStatus && (
+                    <button onClick={() => handleSubmitForApproval(selectedReq)} className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 text-sm font-semibold rounded-lg hover:bg-amber-100 cursor-pointer transition-colors">
+                      <FontAwesomeIcon icon={faGavel} /> Submit for Approval
+                    </button>
+                  )}
+                  {(selectedReq.status === 'Approved' || selectedReq.status === 'In Progress') && (
+                    <button onClick={() => triggerStatusAdvance(selectedReq)} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors ml-auto">
+                      Mark as {selectedReq.status === 'Approved' ? 'In Progress' : 'Completed'} <FontAwesomeIcon icon={faArrowRight} />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -444,24 +726,104 @@ const AdminMaintainance = () => {
         </div>
       )}
 
+      {/* Approval Modal */}
+      {showApprovalModal && selectedReq && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowApprovalModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                <FontAwesomeIcon icon={faGavel} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 m-0">Maintenance Approval</h3>
+                <p className="text-xs text-slate-400 m-0 mt-0.5">{selectedReq.id} · {selectedReq.title}</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-xs space-y-1">
+                <div className="flex justify-between"><span className="text-slate-500">Reported by:</span><span className="font-semibold text-slate-800">{selectedReq.tenant} ({selectedReq.unit})</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Category:</span><span className="font-semibold text-slate-800">{selectedReq.issueType}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Priority:</span><span className="font-semibold text-slate-800">{selectedReq.priority}</span></div>
+              </div>
+
+              {/* Budget impact preview */}
+              {approvalForm.estimatedCost && (
+                <div className={`rounded-lg p-3 border text-xs ${(budgetData.totalSpent + Number(approvalForm.estimatedCost)) > monthlyBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <p className="font-semibold m-0 text-slate-700">Budget Impact Preview</p>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-slate-500">Current spent:</span>
+                    <span className="font-semibold">{formatCurrency(budgetData.totalSpent)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">+ This estimate:</span>
+                    <span className="font-semibold">{formatCurrency(Number(approvalForm.estimatedCost))}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-1 mt-1">
+                    <span className="font-bold text-slate-700">New total:</span>
+                    <span className={`font-bold ${(budgetData.totalSpent + Number(approvalForm.estimatedCost)) > monthlyBudget ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(budgetData.totalSpent + Number(approvalForm.estimatedCost))} / {formatCurrency(monthlyBudget)}</span>
+                  </div>
+                  {(budgetData.totalSpent + Number(approvalForm.estimatedCost)) > monthlyBudget && (
+                    <div className="flex items-center gap-1 mt-1.5 text-red-600 font-semibold">
+                      <FontAwesomeIcon icon={faExclamationTriangle} className="text-[10px]" /> This will exceed the monthly budget!
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱) *</label>
+                <input type="number" value={approvalForm.estimatedCost} onChange={e => setApprovalForm({...approvalForm, estimatedCost: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" placeholder="e.g. 1500" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Decision</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setApprovalForm({...approvalForm, action: 'Approved'})} className={`flex-1 py-2 rounded-lg text-sm font-semibold border cursor-pointer transition-colors ${approvalForm.action === 'Approved' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-emerald-50'}`}>
+                    <FontAwesomeIcon icon={faCheckCircle} className="mr-1" /> Approve
+                  </button>
+                  <button onClick={() => setApprovalForm({...approvalForm, action: 'Rejected'})} className={`flex-1 py-2 rounded-lg text-sm font-semibold border cursor-pointer transition-colors ${approvalForm.action === 'Rejected' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-red-50'}`}>
+                    <FontAwesomeIcon icon={faTimes} className="mr-1" /> Reject
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Note</label>
+                <textarea rows={2} value={approvalForm.note} onChange={e => setApprovalForm({...approvalForm, note: e.target.value})} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-none" placeholder="Add approval/rejection reason..." />
+              </div>
+            </div>
+            <div className="flex gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50">
+              <button onClick={() => setShowApprovalModal(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors">Cancel</button>
+              <button onClick={handleApprovalDecision} disabled={!approvalForm.estimatedCost} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-40">Confirm Decision</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Modal for Status Advance */}
       {showConfirmModal && selectedReq && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden p-6" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-slate-800 mb-2 mt-0">Confirm Status Update</h3>
             <p className="text-sm text-slate-600 mb-4">
-              You are about to change the status of <strong>{selectedReq.id}</strong> to <strong className={selectedReq.status === 'Pending' ? 'text-indigo-600' : 'text-emerald-600'}>{selectedReq.status === 'Pending' ? 'In Progress' : 'Completed'}</strong>.
+              You are about to change the status of <strong>{selectedReq.id}</strong> to <strong className={selectedReq.status === 'Approved' ? 'text-indigo-600' : 'text-emerald-600'}>{selectedReq.status === 'Approved' ? 'In Progress' : 'Completed'}</strong>.
             </p>
             
-            {selectedReq.status === 'Pending' && (
+            {selectedReq.status === 'Approved' && (
               <div className="mb-6">
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assign To</label>
                 <input type="text" value={reassignName} onChange={e => setReassignName(e.target.value)} placeholder="Personnel Name" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
               </div>
             )}
+            
+            {selectedReq.status === 'In Progress' && (
+              <div className="mb-6">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Final Cost (₱) *</label>
+                <input type="number" value={completionCost} onChange={e => setCompletionCost(e.target.value)} placeholder="e.g. 1500" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+                <p className="text-[11px] text-slate-400 m-0 mt-1">Cost is required when marking as Completed.</p>
+              </div>
+            )}
 
             <div className="flex gap-2 mt-2">
-              <button onClick={handleConfirmAdvance} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">Confirm</button>
+              <button onClick={handleConfirmAdvance} disabled={selectedReq.status === 'In Progress' && !completionCost} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-40">Confirm</button>
               <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
             </div>
           </div>

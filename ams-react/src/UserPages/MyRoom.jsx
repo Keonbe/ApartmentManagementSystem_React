@@ -116,7 +116,7 @@ export default function MyRoom() {
     };
 
     const handleSeeContract = () => {
-        alert("Opening contract view...");
+        navigate('/view-contract');
     };
 
     const [additionalMonths, setAdditionalMonths] = useState(1);

@@ -212,24 +212,45 @@ export default function MaintenanceRequest() {
                             className={`w-full border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[140px] ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'
                                 }`}
                         >
-                            <input
-                                type="file"
-                                id="file-upload-input"
-                                accept="image/*,.pdf"
-                                onChange={handleFileChange}
-                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                            />
                             {!uploadedFile ? (
-                                <div className="space-y-2 pointer-events-none">
-                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
-                                    <p className="text-sm font-medium text-slate-700 m-0">Drag and drop file paperwork assets here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                    <p className="text-slate-400 text-xs m-0">Supports PNGs, JPGs, and image logs</p>
-                                </div>
+                                <>
+                                    <input
+                                        type="file"
+                                        id="file-upload-input"
+                                        accept="image/*,.pdf"
+                                        onChange={handleFileChange}
+                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                    />
+                                    <div className="space-y-2 pointer-events-none">
+                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
+                                        <p className="text-sm font-medium text-slate-700 m-0">Drag and drop file paperwork assets here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                        <p className="text-slate-400 text-xs m-0">Supports PNGs, JPGs, and image logs</p>
+                                    </div>
+                                </>
                             ) : (
-                                <div className="space-y-2 flex flex-col items-center pointer-events-none">
-                                    <FontAwesomeIcon icon={faCheckCircle} className="text-3xl text-emerald-500" />
-                                    <p className="text-sm font-bold text-slate-800 m-0">{uploadedFile.name}</p>
-                                    <p className="text-slate-400 text-xs m-0">({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</p>
+                                <div className="space-y-3 flex flex-col items-center w-full z-10">
+                                    {uploadedFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(uploadedFile.name) ? (
+                                        <img 
+                                            src={URL.createObjectURL(uploadedFile)} 
+                                            alt="Maintenance Issue Preview" 
+                                            className="w-32 h-20 object-cover rounded border border-slate-200"
+                                        />
+                                    ) : (
+                                        <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
+                                            PDF
+                                        </div>
+                                    )}
+                                    <div className="text-center">
+                                        <p className="text-sm font-bold text-slate-800 m-0 truncate max-w-[240px]">{uploadedFile.name}</p>
+                                        <p className="text-slate-400 text-xs m-0 mt-0.5">({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setUploadedFile(null)}
+                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer transition-colors shadow-sm flex items-center gap-1.5"
+                                    >
+                                        <FontAwesomeIcon icon={faUndo} /> Remove / Retake
+                                    </button>
                                 </div>
                             )}
                         </div>

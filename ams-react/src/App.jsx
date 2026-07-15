@@ -19,6 +19,8 @@ import MaintenanceRequest from './UserPages/MaintenanceRequest';
 import RentApplication from './UserPages/RentApplication';
 import ProfileSettings from './UserPages/ProfileSettings';
 import MyRoom from './UserPages/MyRoom';
+import UserNotifications from './UserPages/UserNotifications';
+import ViewContract from './UserPages/ViewContract';
 
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -32,6 +34,7 @@ import AdminNotifications from './AdminPages/AdminNotifications';
 import AdminContracts from './AdminPages/AdminContracts';
 import AdminServicePage from './AdminPages/AdminServicePage';
 import AdminAccountSettings from './AdminPages/AdminAccountSettings';
+import AdminActivityLogs from './AdminPages/AdminActivityLogs';
 
 //Client-side access controller middleware component block
 function ProtectedRoute({ children }) {
@@ -103,6 +106,8 @@ function AppContent() {
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-room" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
 
         {/*SECURITY AUTH TARGET SCHEMAS*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
@@ -120,6 +125,7 @@ function AppContent() {
         <Route path="/admin-contracts" element={<AdminContracts />} />
         <Route path="/admin-services" element={<AdminServicePage />} />
         <Route path="/admin-settings" element={<AdminAccountSettings />} />
+        <Route path="/admin-activity-logs" element={<AdminActivityLogs />} />
       </Routes>
 
       <LogInModal 

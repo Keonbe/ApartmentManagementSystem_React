@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,15 +9,15 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 const initialNotifications = [
-  { id: 1, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit 2B — Pedro Cruz rent of ₱6,500 is due in 3 days (July 5).', time: '2 hours ago', timestamp: '2024-07-02 10:00', read: false },
-  { id: 2, type: 'overdue', title: 'Overdue Alert', message: 'Unit 3A — Ben Flores has an overdue balance of ₱6,500 (7 days past due).', time: '3 hours ago', timestamp: '2024-07-02 09:00', read: false },
+  { id: 1, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit E — Pedro Cruz rent of ₱6,500 is due in 3 days (July 5).', time: '2 hours ago', timestamp: '2024-07-02 10:00', read: false },
+  { id: 2, type: 'overdue', title: 'Overdue Alert', message: 'Unit G — Ben Flores has an overdue balance of ₱6,500 (7 days past due).', time: '3 hours ago', timestamp: '2024-07-02 09:00', read: false },
   { id: 3, type: 'maintenance', title: 'Maintenance Update', message: 'REQ-003 (Clogged kitchen drain) has been marked as In Progress. Assigned to Mang Totoy.', time: '5 hours ago', timestamp: '2024-07-02 07:00', read: false },
-  { id: 4, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit 2C — Rosa Dela Cruz rent of ₱7,500 is due in 5 days (July 7).', time: 'Yesterday', timestamp: '2024-07-01 14:00', read: true },
+  { id: 4, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit F — Rosa Dela Cruz rent of ₱7,500 is due in 5 days (July 7).', time: 'Yesterday', timestamp: '2024-07-01 14:00', read: true },
   { id: 5, type: 'sms', title: 'SMS Sent', message: 'Rent reminder SMS sent to Pedro Cruz (0919-345-6789).', time: 'Yesterday', timestamp: '2024-07-01 10:00', read: true },
-  { id: 6, type: 'email', title: 'Email Sent', message: 'Monthly invoice email sent to maria.santos@email.com for Unit 1A.', time: '2 days ago', timestamp: '2024-06-30 09:00', read: true },
-  { id: 7, type: 'overdue', title: 'Overdue Alert', message: 'Unit 3A — Ben Flores has an overdue balance of ₱6,500 (5 days past due).', time: '2 days ago', timestamp: '2024-06-30 08:00', read: true },
+  { id: 6, type: 'email', title: 'Email Sent', message: 'Monthly invoice email sent to maria.santos@email.com for Unit A.', time: '2 days ago', timestamp: '2024-06-30 09:00', read: true },
+  { id: 7, type: 'overdue', title: 'Overdue Alert', message: 'Unit G — Ben Flores has an overdue balance of ₱6,500 (5 days past due).', time: '2 days ago', timestamp: '2024-06-30 08:00', read: true },
   { id: 8, type: 'maintenance', title: 'Maintenance Completed', message: 'REQ-004 (Electrical short in outlet) has been resolved.', time: '3 days ago', timestamp: '2024-06-29 16:00', read: true },
-  { id: 9, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit 4A — Gloria Tan rent of ₱6,500 is due tomorrow.', time: '4 days ago', timestamp: '2024-06-28 10:00', read: true },
+  { id: 9, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit J — Gloria Tan rent of ₱6,500 is due tomorrow.', time: '4 days ago', timestamp: '2024-06-28 10:00', read: true },
   { id: 10, type: 'sms', title: 'SMS Sent', message: 'Overdue notice SMS sent to Ben Flores (0921-567-8901).', time: '5 days ago', timestamp: '2024-06-27 09:00', read: true },
 ];
 
@@ -30,19 +30,61 @@ const typeConfig = {
 };
 
 const AdminNotifications = () => {
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+  const emailKey = loggedInUser.email_address || "default_admin";
+
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
+    return saved ? JSON.parse(saved) : initialNotifications;
+  });
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
 
   // Settings state
-  const [settings, setSettings] = useState({
-    rentDueEnabled: true, rentDueDays: '3',
-    overdueEnabled: true, overdueDays: '1',
-    maintenanceEnabled: true,
-    smsEnabled: true, smsPhone: '0917-123-4567',
-    emailEnabled: true, emailAddress: 'admin@grandvillas.com',
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem(`admin_notif_settings_${emailKey}`);
+    return saved ? JSON.parse(saved) : {
+      rentDueEnabled: true, rentDueDays: '3',
+      overdueEnabled: true, overdueDays: '1',
+      maintenanceEnabled: true,
+      smsEnabled: true, smsPhone: '0917-123-4567',
+      emailEnabled: true, emailAddress: 'admin@apartment.com',
+    };
   });
+
+  // Sync state with localStorage updates (from header or other pages)
+  useEffect(() => {
+    const handleSync = () => {
+      const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setNotifications(prev => {
+          if (JSON.stringify(prev) !== saved) {
+            return parsed;
+          }
+          return prev;
+        });
+      }
+    };
+    window.addEventListener('admin_notifications_updated', handleSync);
+    return () => window.removeEventListener('admin_notifications_updated', handleSync);
+  }, [emailKey]);
+
+  // Persist state to localStorage and emit sync event
+  useEffect(() => {
+    const currentStr = JSON.stringify(notifications);
+    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
+    if (saved !== currentStr) {
+      localStorage.setItem(`admin_notifications_${emailKey}`, currentStr);
+      window.dispatchEvent(new Event('admin_notifications_updated'));
+    }
+  }, [notifications, emailKey]);
+
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem(`admin_notif_settings_${emailKey}`, JSON.stringify(settings));
+  }, [settings, emailKey]);
 
   const filters = [
     { key: 'all', label: 'All' },
@@ -263,7 +305,7 @@ const AdminNotifications = () => {
                     )}
                   </div>
 
-                  <button className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm">
+                  <button onClick={() => alert('Settings saved successfully!')} className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm">
                     Save Settings
                   </button>
                 </div>

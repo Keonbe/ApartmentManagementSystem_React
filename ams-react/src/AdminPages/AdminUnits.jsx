@@ -5,24 +5,26 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faCalendarAlt, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus, faArrowRight,
-  faHistory, faLayerGroup, faSync
+  faHistory, faLayerGroup, faSync, faWrench, faMoneyBillWave, faFileContract,
+  faInfoCircle, faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
+import { getSystemSettings } from '../config/systemSettings';
 
 const initialUnits = [
-  { id: '1A', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Maria Santos', rent: 6500, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Maria Santos', date: '2024-06-01' }] },
-  { id: '1B', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Jose Reyes', rent: 6500, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Jose Reyes', date: '2024-07-15' }] },
-  { id: '1C', type: '1BR', floor: '1F', status: 'occupied', tenant: 'Ana Garcia', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ana Garcia', date: '2024-05-01' }] },
-  { id: '2A', type: 'Studio', floor: '2F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: 'Carlos Mendoza', maintenanceFlag: false, history: [{ event: 'Tenant moved out', detail: 'Carlos Mendoza', date: '2024-06-01' }, { event: 'Unit marked vacant', detail: 'Available for new tenants', date: '2024-06-02' }] },
-  { id: '2B', type: 'Studio', floor: '2F', status: 'occupied', tenant: 'Pedro Cruz', rent: 6500, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Pedro Cruz', date: '2024-03-01' }] },
-  { id: '2C', type: '1BR', floor: '2F', status: 'occupied', tenant: 'Rosa Dela Cruz', rent: 7500, leaseStart: '2024-08-01', leaseEnd: '2025-08-01', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Rosa Dela Cruz', date: '2024-08-01' }, { event: 'Maintenance request', detail: 'Clogged drain in kitchen', date: '2025-04-10' }] },
-  { id: '3A', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Ben Flores', rent: 6500, leaseStart: '2024-04-15', leaseEnd: '2025-04-15', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Ben Flores', date: '2024-04-15' }, { event: 'Maintenance request', detail: 'Busted ceiling light', date: '2025-04-20' }] },
-  { id: '3B', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Lita Ramos', rent: 6500, leaseStart: '2024-01-01', leaseEnd: '2025-01-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Lita Ramos', date: '2024-01-01' }] },
-  { id: '3C', type: '1BR', floor: '3F', status: 'occupied', tenant: 'Dante Abad', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Dante Abad', date: '2024-05-01' }] },
-  { id: '4A', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Gloria Tan', rent: 6500, leaseStart: '2024-09-01', leaseEnd: '2025-09-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Gloria Tan', date: '2024-09-01' }] },
-  { id: '4B', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Ramon Lim', rent: 6500, leaseStart: '2024-02-01', leaseEnd: '2025-02-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ramon Lim', date: '2024-02-01' }] },
-  { id: '4C', type: '1BR', floor: '4F', status: 'occupied', tenant: 'Cora Santos', rent: 7500, leaseStart: '2024-10-01', leaseEnd: '2025-10-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Cora Santos', date: '2024-10-01' }] },
-  { id: '5A', type: 'Studio', floor: '5F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false, history: [{ event: 'Unit created', detail: 'Vacant since building opened', date: '2023-01-01' }] },
-  { id: '5B', type: '1BR', floor: '5F', status: 'occupied', tenant: 'Nilo Ocampo', rent: 7500, leaseStart: '2024-11-01', leaseEnd: '2025-11-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Nilo Ocampo', date: '2024-11-01' }] }
+  { id: 'A', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Maria Santos', rent: 6500, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Unit created', detail: 'Studio on 1F', date: '2023-01-01' }, { event: 'Tenant assigned', detail: 'Maria Santos', date: '2024-06-01' }], occupancyHistory: [{ tenant: 'Maria Santos', leaseStart: '2024-06-01', leaseEnd: '2025-06-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-06-01', oldRent: null, newRent: 6500, date: '2024-06-01', detail: 'Maria Santos · 12 months' }], maintenanceHistory: [], paymentHistory: [{ id: 'RCT-1004', period: 'May 2025', breakdown: 'Rent: 6500, Water: 300, Elec: 700', amount: 7500, datePaid: 'May 1, 2025', status: 'paid', method: 'GCash' }, { id: 'RCT-1005', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 310, Elec: 720', amount: 7530, datePaid: 'Apr 2, 2025', status: 'paid', method: 'Cash' }] },
+  { id: 'B', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Jose Reyes', rent: 6500, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Jose Reyes', date: '2024-07-15' }], occupancyHistory: [{ tenant: 'Jose Reyes', leaseStart: '2024-07-15', leaseEnd: '2025-07-15', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-07-15', oldRent: null, newRent: 6500, date: '2024-07-15', detail: 'Jose Reyes · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'C', type: '1BR', floor: '1F', status: 'occupied', tenant: 'Ana Garcia', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ana Garcia', date: '2024-05-01' }], occupancyHistory: [{ tenant: 'Ana Garcia', leaseStart: '2024-05-01', leaseEnd: '2025-05-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-05-01', oldRent: null, newRent: 7500, date: '2024-05-01', detail: 'Ana Garcia · 12 months' }], maintenanceHistory: [{ id: 'REQ-004', issue: 'Electrical short in outlet', status: 'Completed', date: '2024-04-20', cost: 1200 }], paymentHistory: [] },
+  { id: 'D', type: 'Studio', floor: '2F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: 'Carlos Mendoza', maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Carlos Mendoza', date: '2023-06-01' }, { event: 'Tenant moved out', detail: 'Carlos Mendoza — End of Lease', date: '2024-06-01' }, { event: 'Unit marked vacant', detail: 'Available for new tenants', date: '2024-06-02' }], occupancyHistory: [{ tenant: 'Carlos Mendoza', leaseStart: '2023-06-01', leaseEnd: '2024-06-01', rent: 6500, status: 'ended', moveOutReason: 'End of Lease' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2024-06-01', oldRent: null, newRent: 6500, date: '2023-06-01', detail: 'Carlos Mendoza · 12 months' }, { event: 'Lease Terminated', oldEnd: '2024-06-01', newEnd: null, oldRent: 6500, newRent: null, date: '2024-06-01', detail: 'Tenant moved out — End of Lease' }], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'E', type: 'Studio', floor: '2F', status: 'occupied', tenant: 'Pedro Cruz', rent: 6500, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Pedro Cruz', date: '2024-03-01' }], occupancyHistory: [{ tenant: 'Pedro Cruz', leaseStart: '2024-03-01', leaseEnd: '2025-03-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-03-01', oldRent: null, newRent: 6500, date: '2024-03-01', detail: 'Pedro Cruz · 12 months' }], maintenanceHistory: [{ id: 'REQ-001', issue: 'Leaking faucet in bathroom', status: 'Pending', date: '2024-05-15', cost: null }], paymentHistory: [{ id: 'RCT-1001', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 320, Elec: 750', amount: 7570, datePaid: 'Apr 3, 2025', status: 'paid', method: 'Cash' }, { id: 'RCT-1002', period: 'Mar 2025', breakdown: 'Rent: 6500, Water: 340, Elec: 700', amount: 7540, datePaid: 'Mar 5, 2025', status: 'paid', method: 'GCash' }] },
+  { id: 'F', type: '1BR', floor: '2F', status: 'occupied', tenant: 'Rosa Dela Cruz', rent: 7500, leaseStart: '2024-08-01', leaseEnd: '2025-08-01', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Rosa Dela Cruz', date: '2024-08-01' }], occupancyHistory: [{ tenant: 'Rosa Dela Cruz', leaseStart: '2024-08-01', leaseEnd: '2025-08-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-08-01', oldRent: null, newRent: 7500, date: '2024-08-01', detail: 'Rosa Dela Cruz · 12 months' }], maintenanceHistory: [{ id: 'REQ-003', issue: 'Clogged kitchen drain', status: 'In Progress', date: '2024-05-14', cost: null }], paymentHistory: [{ id: 'RCT-1003', period: 'Apr 2025', breakdown: 'Rent: 7500, Water: 400, Elec: 850', amount: 8750, datePaid: 'Apr 1, 2025', status: 'paid', method: 'Bank Transfer' }] },
+  { id: 'G', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Ben Flores', rent: 6500, leaseStart: '2024-04-15', leaseEnd: '2025-04-15', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Ben Flores', date: '2024-04-15' }], occupancyHistory: [{ tenant: 'Ben Flores', leaseStart: '2024-04-15', leaseEnd: '2025-04-15', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-04-15', oldRent: null, newRent: 6500, date: '2024-04-15', detail: 'Ben Flores · 12 months' }], maintenanceHistory: [{ id: 'REQ-002', issue: 'Busted ceiling light', status: 'Pending', date: '2024-05-16', cost: null }], paymentHistory: [] },
+  { id: 'H', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Lita Ramos', rent: 6500, leaseStart: '2024-01-01', leaseEnd: '2025-01-01', lastTenant: 'Roberto Tan', maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Roberto Tan', date: '2022-08-01' }, { event: 'Lease extended', detail: 'Roberto Tan extended 6 months', date: '2023-02-01' }, { event: 'Tenant moved out', detail: 'Roberto Tan — Relocated', date: '2023-08-15' }, { event: 'Tenant assigned', detail: 'Lita Ramos', date: '2024-01-01' }], occupancyHistory: [{ tenant: 'Roberto Tan', leaseStart: '2022-08-01', leaseEnd: '2023-08-01', rent: 6500, status: 'ended', moveOutReason: 'Relocated' }, { tenant: 'Lita Ramos', leaseStart: '2024-01-01', leaseEnd: '2025-01-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2023-02-01', oldRent: null, newRent: 6500, date: '2022-08-01', detail: 'Roberto Tan · 6 months' }, { event: 'Lease Extended', oldEnd: '2023-02-01', newEnd: '2023-08-01', oldRent: 6500, newRent: 6500, date: '2023-02-01', detail: 'Extended by 6 months' }, { event: 'Lease Terminated', oldEnd: '2023-08-01', newEnd: null, oldRent: 6500, newRent: null, date: '2023-08-15', detail: 'Roberto Tan moved out — Relocated' }, { event: 'Initial Lease', oldEnd: null, newEnd: '2025-01-01', oldRent: null, newRent: 6500, date: '2024-01-01', detail: 'Lita Ramos · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'I', type: '1BR', floor: '3F', status: 'occupied', tenant: 'Dante Abad', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Dante Abad', date: '2024-05-01' }], occupancyHistory: [{ tenant: 'Dante Abad', leaseStart: '2024-05-01', leaseEnd: '2025-05-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-05-01', oldRent: null, newRent: 7500, date: '2024-05-01', detail: 'Dante Abad · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'J', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Gloria Tan', rent: 6500, leaseStart: '2024-09-01', leaseEnd: '2025-09-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Gloria Tan', date: '2024-09-01' }], occupancyHistory: [{ tenant: 'Gloria Tan', leaseStart: '2024-09-01', leaseEnd: '2025-09-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-09-01', oldRent: null, newRent: 6500, date: '2024-09-01', detail: 'Gloria Tan · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'K', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Ramon Lim', rent: 6500, leaseStart: '2024-02-01', leaseEnd: '2025-02-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ramon Lim', date: '2024-02-01' }], occupancyHistory: [{ tenant: 'Ramon Lim', leaseStart: '2024-02-01', leaseEnd: '2025-02-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-02-01', oldRent: null, newRent: 6500, date: '2024-02-01', detail: 'Ramon Lim · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'L', type: '1BR', floor: '4F', status: 'occupied', tenant: 'Cora Santos', rent: 7500, leaseStart: '2024-10-01', leaseEnd: '2025-10-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Cora Santos', date: '2024-10-01' }], occupancyHistory: [{ tenant: 'Cora Santos', leaseStart: '2024-10-01', leaseEnd: '2025-10-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-10-01', oldRent: null, newRent: 7500, date: '2024-10-01', detail: 'Cora Santos · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'M', type: 'Studio', floor: '5F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false, history: [{ event: 'Unit created', detail: 'Vacant since building opened', date: '2023-01-01' }], occupancyHistory: [], leaseHistory: [], maintenanceHistory: [], paymentHistory: [] },
+  { id: 'N', type: '1BR', floor: '5F', status: 'occupied', tenant: 'Nilo Ocampo', rent: 7500, leaseStart: '2024-11-01', leaseEnd: '2025-11-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Nilo Ocampo', date: '2024-11-01' }], occupancyHistory: [{ tenant: 'Nilo Ocampo', leaseStart: '2024-11-01', leaseEnd: '2025-11-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-11-01', oldRent: null, newRent: 7500, date: '2024-11-01', detail: 'Nilo Ocampo · 12 months' }], maintenanceHistory: [], paymentHistory: [] }
 ];
 
 const daysRemaining = (leaseEnd) => {
@@ -31,6 +33,19 @@ const daysRemaining = (leaseEnd) => {
 };
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+
+const monthsBetween = (start, end) => {
+  if (!start || !end) return 0;
+  const s = new Date(start);
+  const e = new Date(end);
+  return Math.round((e - s) / (1000 * 60 * 60 * 24 * 30.44));
+};
+
+const openAssignTenant = (unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal) => {
+  setSelectedUnit(unit);
+  setAssignForm({ ...emptyAssignForm, rent: String(unit.rent) });
+  setShowAssignModal(true);
+};
 
 const AdminUnits = () => {
   const [units, setUnits] = useState(initialUnits);
@@ -49,6 +64,10 @@ const AdminUnits = () => {
   const [assignForm, setAssignForm] = useState(emptyAssignForm);
   const [showExtendForm, setShowExtendForm] = useState(false);
   const [extendForm, setExtendForm] = useState({ newLeaseEnd: '', newRent: '' });
+  const [leaseError, setLeaseError] = useState('');
+
+  const settings = getSystemSettings();
+  const minLeaseDuration = settings.minLeaseDuration || 3;
 
   const counts = {
     all: units.length,
@@ -82,11 +101,24 @@ const AdminUnits = () => {
     return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${style}`}>{label}</span>;
   };
 
+  const validateLeaseDuration = (startDate, endDate) => {
+    if (!startDate || !endDate) return '';
+    const months = monthsBetween(startDate, endDate);
+    if (months < minLeaseDuration) {
+      return `Lease duration must be at least ${minLeaseDuration} months. Current: ${months} month(s).`;
+    }
+    return '';
+  };
+
   const handleAddUnit = () => {
     if (!unitForm.id || !unitForm.floor || !unitForm.rent) return;
     const newUnit = {
       id: unitForm.id, type: unitForm.type, floor: unitForm.floor, status: 'vacant', tenant: null, rent: Number(unitForm.rent), leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false,
       history: [{ event: 'Unit created', detail: `${unitForm.type} on ${unitForm.floor}`, date: new Date().toISOString().slice(0, 10) }],
+      occupancyHistory: [],
+      leaseHistory: [],
+      maintenanceHistory: [],
+      paymentHistory: []
     };
     setUnits(prev => [...prev, newUnit]);
     setUnitForm(emptyUnitForm);
@@ -95,10 +127,17 @@ const AdminUnits = () => {
 
   const handleAssignTenant = () => {
     if (!assignForm.tenantName || !assignForm.moveIn || !assignForm.leaseEnd || !selectedUnit) return;
+    const error = validateLeaseDuration(assignForm.moveIn, assignForm.leaseEnd);
+    if (error) { setLeaseError(error); return; }
+    setLeaseError('');
+
+    const months = monthsBetween(assignForm.moveIn, assignForm.leaseEnd);
     setUnits(prev =>
       prev.map(u => u.id === selectedUnit.id ? {
         ...u, status: 'occupied', tenant: assignForm.tenantName, rent: Number(assignForm.rent) || u.rent, leaseStart: assignForm.moveIn, leaseEnd: assignForm.leaseEnd,
         history: [...u.history, { event: 'Tenant assigned', detail: assignForm.tenantName, date: assignForm.moveIn }],
+        occupancyHistory: [...(u.occupancyHistory || []), { tenant: assignForm.tenantName, leaseStart: assignForm.moveIn, leaseEnd: assignForm.leaseEnd, rent: Number(assignForm.rent) || u.rent, status: 'current' }],
+        leaseHistory: [...(u.leaseHistory || []), { event: 'Initial Lease', oldEnd: null, newEnd: assignForm.leaseEnd, oldRent: null, newRent: Number(assignForm.rent) || u.rent, date: assignForm.moveIn, detail: `${assignForm.tenantName} · ${months} months` }],
       } : u)
     );
     setSelectedUnit(prev => ({ ...prev, status: 'occupied', tenant: assignForm.tenantName, rent: Number(assignForm.rent) || prev.rent, leaseStart: assignForm.moveIn, leaseEnd: assignForm.leaseEnd }));
@@ -108,11 +147,17 @@ const AdminUnits = () => {
 
   const handleExtendLease = () => {
     if (!extendForm.newLeaseEnd || !selectedUnit) return;
+    const error = validateLeaseDuration(selectedUnit.leaseEnd, extendForm.newLeaseEnd);
+    if (error) { setLeaseError(error); return; }
+    setLeaseError('');
+
     const newRent = Number(extendForm.newRent) || selectedUnit.rent;
+    const extensionMonths = monthsBetween(selectedUnit.leaseEnd, extendForm.newLeaseEnd);
     setUnits(prev =>
       prev.map(u => u.id === selectedUnit.id ? {
         ...u, leaseEnd: extendForm.newLeaseEnd, rent: newRent,
         history: [...u.history, { event: 'Lease extended', detail: `New end: ${extendForm.newLeaseEnd} · Rent: ${formatCurrency(newRent)}`, date: new Date().toISOString().slice(0, 10) }],
+        leaseHistory: [...(u.leaseHistory || []), { event: 'Lease Extended', oldEnd: u.leaseEnd, newEnd: extendForm.newLeaseEnd, oldRent: u.rent, newRent: newRent, date: new Date().toISOString().slice(0, 10), detail: `Extended by ${extensionMonths} months` }],
       } : u)
     );
     setSelectedUnit(prev => ({ ...prev, leaseEnd: extendForm.newLeaseEnd, rent: newRent }));
@@ -168,6 +213,12 @@ const AdminUnits = () => {
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Under Repair</p>
                 <p className="text-2xl font-bold text-red-500 mt-1 m-0">{counts.repair}</p>
               </div>
+            </div>
+
+            {/* Min Lease Duration Notice */}
+            <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
+              <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
+              <span>Minimum lease duration policy: <strong>{minLeaseDuration} months</strong>. Configure in Settings → System Configuration.</span>
             </div>
 
             {/* Filter Pills */}
@@ -228,14 +279,14 @@ const AdminUnits = () => {
 
                     <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
                       <button
-                        onClick={() => { setSelectedUnit(unit); setShowDetailModal(true); }}
+                        onClick={() => { setSelectedUnit(unit); setShowDetailModal(true); setLeaseError(''); }}
                         className="flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
                       >
                         <FontAwesomeIcon icon={faEye} className="text-[9px]" /> Details
                       </button>
                       {unit.status === 'vacant' && (
                         <button
-                          onClick={() => openAssignTenant(unit)}
+                          onClick={() => openAssignTenant(unit, setSelectedUnit, setAssignForm, emptyAssignForm, setShowAssignModal)}
                           className="flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
                         >
                           <FontAwesomeIcon icon={faUserPlus} className="text-[9px]" /> Assign
@@ -301,7 +352,7 @@ const AdminUnits = () => {
 
       {/* Assign Tenant Modal */}
       {showAssignModal && selectedUnit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowAssignModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAssignModal(false); setLeaseError(''); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
@@ -311,7 +362,7 @@ const AdminUnits = () => {
                   <p className="text-xs text-slate-400 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
                 </div>
               </div>
-              <button onClick={() => setShowAssignModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -321,16 +372,27 @@ const AdminUnits = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Move-in Date *</label>
-                  <input type="date" value={assignForm.moveIn} onChange={e => setAssignForm({ ...assignForm, moveIn: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
+                  <input type="date" value={assignForm.moveIn} onChange={e => { setAssignForm({ ...assignForm, moveIn: e.target.value }); setLeaseError(''); }} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
-                  <input type="date" value={assignForm.leaseEnd} onChange={e => setAssignForm({ ...assignForm, leaseEnd: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
+                  <input type="date" value={assignForm.leaseEnd} onChange={e => { setAssignForm({ ...assignForm, leaseEnd: e.target.value }); setLeaseError(''); }} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
                 </div>
               </div>
+              {assignForm.moveIn && assignForm.leaseEnd && (
+                <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                  Duration: <strong>{monthsBetween(assignForm.moveIn, assignForm.leaseEnd)} months</strong> · Min required: <strong>{minLeaseDuration} months</strong>
+                </div>
+              )}
+              {leaseError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                  {leaseError}
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-              <button onClick={() => setShowAssignModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+              <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
               <button onClick={handleAssignTenant} disabled={!assignForm.tenantName || !assignForm.moveIn || !assignForm.leaseEnd} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">Assign Tenant</button>
             </div>
           </div>
@@ -340,9 +402,10 @@ const AdminUnits = () => {
       {/* Unit Detail Modal */}
       {showDetailModal && selectedUnit && (
         <UnitDetailModal
-          unit={selectedUnit} onClose={() => { setShowDetailModal(false); setSelectedUnit(null); setShowExtendForm(false); }}
+          unit={selectedUnit} onClose={() => { setShowDetailModal(false); setSelectedUnit(null); setShowExtendForm(false); setLeaseError(''); }}
           onAssign={() => { setShowDetailModal(false); setAssignForm({ ...emptyAssignForm, rent: String(selectedUnit.rent) }); setShowAssignModal(true); }}
           showExtendForm={showExtendForm} setShowExtendForm={setShowExtendForm} extendForm={extendForm} setExtendForm={setExtendForm} onExtendLease={handleExtendLease}
+          minLeaseDuration={minLeaseDuration} leaseError={leaseError} setLeaseError={setLeaseError}
         />
       )}
     </div>
@@ -350,12 +413,15 @@ const AdminUnits = () => {
 };
 
 /* ─── Unit Detail Tabbed Modal Sub-Component ─── */
-const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease }) => {
+const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  const odds = [
+  const tabs = [
     { key: 'overview', label: 'Overview', icon: faLayerGroup },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
-    { key: 'history', label: 'History', icon: faHistory },
+    { key: 'occupancyHistory', label: 'Occupancy History', icon: faHistory },
+    { key: 'leaseHistory', label: 'Lease History', icon: faFileContract },
+    { key: 'maintenance', label: 'Maintenance', icon: faWrench },
+    { key: 'payments', label: 'Payments', icon: faMoneyBillWave },
   ];
 
   const remaining = daysRemaining(unit.leaseEnd);
@@ -379,13 +445,13 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
         </div>
 
-        <div className="flex border-b border-slate-200 px-6 shrink-0 bg-white">
-          {odds.map(tab => (
+        <div className="flex border-b border-slate-200 px-3 shrink-0 bg-white overflow-x-auto">
+          {tabs.map(tab => (
             <button
               key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-400 border-b-transparent hover:text-slate-600'}`}
+              className={`flex items-center gap-1.5 px-3 py-3 text-xs font-medium border-b-2 transition-all -mb-px border-t-0 border-x-0 bg-transparent cursor-pointer whitespace-nowrap ${activeTab === tab.key ? 'text-indigo-600 border-b-indigo-600 font-bold' : 'text-slate-400 border-b-transparent hover:text-slate-600'}`}
             >
-              <FontAwesomeIcon icon={tab.icon} className="text-xs" /> {tab.label}
+              <FontAwesomeIcon icon={tab.icon} className="text-[10px]" /> {tab.label}
             </button>
           ))}
         </div>
@@ -433,24 +499,53 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                     </div>
                   </div>
                   {!showExtendForm ? (
-                    <button onClick={() => setShowExtendForm(true)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Lease / Adjust Rent</button>
+                    <button onClick={() => { setShowExtendForm(true); setLeaseError(''); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Lease / Adjust Rent</button>
                   ) : (
                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
                       <h4 className="text-sm font-semibold text-slate-800 m-0">Extend Lease</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Lease End *</label>
-                          <input type="date" value={extendForm.newLeaseEnd} onChange={e => setExtendForm({ ...extendForm, newLeaseEnd: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
+                          <input type="date" value={extendForm.newLeaseEnd} onChange={e => { setExtendForm({ ...extendForm, newLeaseEnd: e.target.value }); setLeaseError(''); }} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent (optional)</label>
                           <input type="number" value={extendForm.newRent} onChange={e => setExtendForm({ ...extendForm, newRent: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder={String(unit.rent)} />
                         </div>
                       </div>
+                      {extendForm.newLeaseEnd && (
+                        <div className="text-xs text-slate-500 bg-white rounded-lg p-2 border border-slate-100">
+                          Extension: <strong>{monthsBetween(unit.leaseEnd, extendForm.newLeaseEnd)} months</strong> · Min required: <strong>{minLeaseDuration} months</strong>
+                        </div>
+                      )}
+                      {leaseError && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                          {leaseError}
+                        </div>
+                      )}
                       <div className="flex gap-3">
                         <button onClick={onExtendLease} disabled={!extendForm.newLeaseEnd} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 border-0 cursor-pointer disabled:opacity-40">Confirm Extension</button>
-                        <button onClick={() => setShowExtendForm(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+                        <button onClick={() => { setShowExtendForm(false); setLeaseError(''); }} className="px-4 py-2 text-sm text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
                       </div>
+
+                      {/* Previous Extensions Table */}
+                      {unit.leaseHistory && unit.leaseHistory.filter(l => l.event === 'Lease Extended').length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-indigo-100">
+                          <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2 m-0">Previous Extensions</h5>
+                          <div className="space-y-1.5">
+                            {unit.leaseHistory.filter(l => l.event === 'Lease Extended').map((ext, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-2 border border-slate-100 text-xs">
+                                <div>
+                                  <span className="text-slate-600 font-semibold">{ext.oldEnd} → {ext.newEnd}</span>
+                                  <span className="text-slate-400 ml-2">({ext.detail})</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400">{ext.date}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -458,6 +553,108 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faBuilding} className="text-slate-300 text-4xl mb-3 mx-auto block" />
                   <p className="text-sm text-slate-400 m-0">This unit is currently vacant.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Occupancy History Tab */}
+          {activeTab === 'occupancyHistory' && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-slate-700 m-0 flex items-center gap-2">
+                <FontAwesomeIcon icon={faHistory} className="text-indigo-500" />
+                All Tenants Who Occupied This Unit
+              </h4>
+              {unit.occupancyHistory && unit.occupancyHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {[...unit.occupancyHistory].reverse().map((occ, idx) => {
+                    const duration = monthsBetween(occ.leaseStart, occ.leaseEnd);
+                    return (
+                      <div key={idx} className={`rounded-xl p-4 border ${occ.status === 'current' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                              {occ.tenant.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800 m-0">{occ.tenant}</p>
+                              <p className="text-[10px] text-slate-400 m-0">{occ.status === 'current' ? 'Current Tenant' : 'Past Tenant'}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
+                            {occ.status === 'current' ? 'Active' : 'Ended'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div><span className="text-slate-400">Period:</span> <span className="font-semibold text-slate-700">{occ.leaseStart} → {occ.leaseEnd}</span></div>
+                          <div><span className="text-slate-400">Duration:</span> <span className="font-semibold text-slate-700">{duration} months</span></div>
+                          <div><span className="text-slate-400">Rent:</span> <span className="font-bold text-indigo-600">{formatCurrency(occ.rent)}</span></div>
+                        </div>
+                        {occ.moveOutReason && (
+                          <div className="mt-2 text-[11px] text-slate-500 bg-white rounded-lg px-2.5 py-1.5 border border-slate-100">
+                            Move-out reason: <strong>{occ.moveOutReason}</strong>
+                          </div>
+                        )}
+                        {/* Visual duration bar */}
+                        <div className="mt-2 w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${occ.status === 'current' ? 'bg-emerald-500' : 'bg-indigo-400'}`} style={{ width: `${Math.min(100, (duration / 12) * 100)}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FontAwesomeIcon icon={faUser} className="text-slate-300 text-3xl mb-3 block mx-auto" />
+                  <p className="text-sm text-slate-400 m-0">No occupancy history. This unit has never been rented.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Lease History Tab */}
+          {activeTab === 'leaseHistory' && (
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-slate-700 m-0 flex items-center gap-2">
+                <FontAwesomeIcon icon={faFileContract} className="text-indigo-500" />
+                Lease Event Log
+              </h4>
+              {unit.leaseHistory && unit.leaseHistory.length > 0 ? (
+                <div className="relative pl-6">
+                  <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-indigo-200"></div>
+                  {[...unit.leaseHistory].reverse().map((entry, idx) => (
+                    <div key={idx} className="relative mb-4 last:mb-0">
+                      <div className={`absolute -left-4 top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${
+                        entry.event.includes('Terminated') ? 'bg-red-500' :
+                        entry.event.includes('Extended') ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}></div>
+                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 ml-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs font-bold ${
+                            entry.event.includes('Terminated') ? 'text-red-700' :
+                            entry.event.includes('Extended') ? 'text-amber-700' : 'text-emerald-700'
+                          }`}>{entry.event}</span>
+                          <span className="text-[10px] text-slate-400 font-semibold">{entry.date}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 m-0">{entry.detail}</p>
+                        {entry.oldEnd && entry.newEnd && (
+                          <div className="flex items-center gap-2 mt-1.5 text-[10px]">
+                            <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{entry.oldEnd}</span>
+                            <FontAwesomeIcon icon={faChevronRight} className="text-slate-400 text-[8px]" />
+                            <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">{entry.newEnd}</span>
+                            {entry.oldRent !== entry.newRent && entry.oldRent && entry.newRent && (
+                              <span className="ml-2 text-slate-400">Rent: {formatCurrency(entry.oldRent)} → {formatCurrency(entry.newRent)}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FontAwesomeIcon icon={faFileContract} className="text-slate-300 text-3xl mb-3 block mx-auto" />
+                  <p className="text-sm text-slate-400 m-0">No lease history recorded for this unit.</p>
                 </div>
               )}
             </div>
@@ -475,6 +672,55 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   <span className="text-[11px] text-slate-400 shrink-0">{entry.date}</span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'maintenance' && (
+            <div className="space-y-3">
+              {unit.maintenanceHistory && unit.maintenanceHistory.length > 0 ? (
+                <>
+                  {/* Cost summary */}
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-amber-800">Total Maintenance Cost for This Unit</span>
+                    <span className="text-sm font-bold text-amber-700">{formatCurrency(unit.maintenanceHistory.reduce((sum, m) => sum + (m.cost || 0), 0))}</span>
+                  </div>
+                  {[...unit.maintenanceHistory].reverse().map((entry, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                      <div className={`w-8 h-8 rounded-full ${entry.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faWrench} /></div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-slate-800 m-0">{entry.issue}</p>
+                        <p className="text-[11px] text-slate-400 m-0 mt-0.5">Status: {entry.status} {entry.cost ? `· Cost: ${formatCurrency(entry.cost)}` : ''}</p>
+                      </div>
+                      <span className="text-[11px] text-slate-400 shrink-0">{entry.date}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="text-center py-8 text-slate-400 text-sm">No maintenance history for this unit.</div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'payments' && (
+            <div className="space-y-3">
+              {unit.paymentHistory && unit.paymentHistory.length > 0 ? [...unit.paymentHistory].map((entry, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className={`w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faCheckCircle} /></div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-slate-800 m-0">{formatCurrency(entry.amount)}</p>
+                      <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-semibold">{entry.method}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">{entry.period} · {entry.breakdown}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[10px] font-mono text-indigo-600 m-0">{entry.id}</p>
+                    <p className="text-[11px] text-slate-400 m-0 mt-0.5">{entry.datePaid}</p>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-slate-400 text-sm">No payment history for this unit.</div>
+              )}
             </div>
           )}
         </div>
