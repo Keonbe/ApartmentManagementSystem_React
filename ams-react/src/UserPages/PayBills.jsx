@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck } from '@fortawesome/free-solid-svg-icons';
+import api from '../api/axiosConfig';
 
 export default function PayBills() {
     const [selectedMethod, setSelectedMethod] = useState('gcash');
@@ -12,12 +13,40 @@ export default function PayBills() {
     const currentMonthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     {/*Billing breakdown parameters mirroring system metrics*/}
-    const billDetails = {
-        baseRent: 4000.00,
-        water: 112.50,
-        electricity: 1200.00,
-        parking: 300.00
-    };
+    const [billDetails, setBillDetails] = useState({
+        baseRent: 0,
+        water: 0,
+        electricity: 0,
+        parking: 0,
+        invoiceId: null
+    });
+
+    useEffect(() => {
+        const fetchInvoice = async () => {
+            const loggedInUserStr = sessionStorage.getItem('loggedInUser');
+            if (loggedInUserStr) {
+                const user = JSON.parse(loggedInUserStr);
+                try {
+                    const res = await api.get(`/get_invoices.php?userId=${user.id}`);
+                    if (res.data.success && res.data.invoices && res.data.invoices.length > 0) {
+                        const pending = res.data.invoices.find(i => i.status === 'pending');
+                        if (pending) {
+                            setBillDetails({
+                                baseRent: parseFloat(pending.base_rent) || 0,
+                                water: parseFloat(pending.water) || 0,
+                                electricity: parseFloat(pending.electricity) || 0,
+                                parking: parseFloat(pending.parking) || 0,
+                                invoiceId: pending.id
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch invoice:", error);
+                }
+            }
+        };
+        fetchInvoice();
+    }, []);
 
     const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking;
 
@@ -39,9 +68,30 @@ export default function PayBills() {
         }
     };
 
-    const handlePaymentExecution = (e) => {
+    const handlePaymentExecution = async (e) => {
         e.preventDefault();
-        alert(`Processing allocation of ₱${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} via ${currentMethodObj.label}. Auto-Pay state: ${isAutoPayEnabled ? "ENABLED" : "DISABLED"}`);
+        if (!billDetails.invoiceId) {
+            alert("No pending invoice found.");
+            return;
+        }
+
+        try {
+            const res = await api.post("/pay_bill.php", {
+                invoiceId: billDetails.invoiceId,
+                paymentMethod: currentMethodObj.label
+            });
+
+            if (res.data.success) {
+                alert(`Payment successful via ${currentMethodObj.label}. Auto-Pay state: ${isAutoPayEnabled ? "ENABLED" : "DISABLED"}`);
+                window.location.reload();
+            } else {
+                console.error("Server Error:", res.data.message);
+                alert(res.data.message);
+            }
+        } catch (error) {
+            console.error("Error submitting payment:", error);
+            alert("Payment failed.");
+        }
     };
 
     return (

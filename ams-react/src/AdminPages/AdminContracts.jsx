@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,22 +9,7 @@ import {
   faGavel, faFileUpload, faFile, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
-
-const initialContracts = [
-  { id: 'CTR-001', tenant: 'Maria Santos', unit: 'A', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', status: 'active', generatedDate: '2024-05-28', signedLease: { uploaded: true, fileName: 'lease_maria_santos.pdf', uploadDate: '2024-05-30' }, notarizedLease: { uploaded: true, fileName: 'notarized_maria_santos.pdf', uploadDate: '2024-06-01' }, evictionStatus: null, overdueInfo: null },
-  { id: 'CTR-002', tenant: 'Jose Reyes', unit: 'B', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', status: 'active', generatedDate: '2024-07-10', signedLease: { uploaded: true, fileName: 'lease_jose_reyes.pdf', uploadDate: '2024-07-12' }, notarizedLease: { uploaded: false, fileName: null, uploadDate: null }, evictionStatus: null, overdueInfo: null },
-  { id: 'CTR-003', tenant: 'Ana Garcia', unit: 'C', type: '1BR', rent: 7500, deposit: 15000, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', status: 'active', generatedDate: '2024-04-25', signedLease: { uploaded: true, fileName: 'lease_ana_garcia.pdf', uploadDate: '2024-04-28' }, notarizedLease: { uploaded: true, fileName: 'notarized_ana_garcia.pdf', uploadDate: '2024-05-01' }, evictionStatus: null, overdueInfo: null },
-  { id: 'CTR-004', tenant: 'Pedro Cruz', unit: 'E', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', status: 'active', generatedDate: '2024-02-25', signedLease: { uploaded: true, fileName: 'lease_pedro_cruz.pdf', uploadDate: '2024-02-27' }, notarizedLease: { uploaded: false, fileName: null, uploadDate: null }, evictionStatus: 'warning', overdueInfo: { daysOverdue: 20, lastPaymentDate: '2025-04-03', outstandingAmount: 7670 } },
-  { id: 'CTR-005', tenant: 'Carlos Mendoza', unit: 'D', type: 'Studio', rent: 6500, deposit: 13000, leaseStart: '2023-06-01', leaseEnd: '2024-06-01', status: 'expired', generatedDate: '2023-05-28', signedLease: { uploaded: true, fileName: 'lease_carlos_mendoza.pdf', uploadDate: '2023-05-30' }, notarizedLease: { uploaded: true, fileName: 'notarized_carlos_mendoza.pdf', uploadDate: '2023-06-01' }, evictionStatus: null, overdueInfo: null },
-];
-
-const tenantOptions = [
-  { name: 'Maria Santos', unit: 'A', type: 'Studio', rent: 6500 },
-  { name: 'Jose Reyes', unit: 'B', type: 'Studio', rent: 6500 },
-  { name: 'Pedro Cruz', unit: 'E', type: 'Studio', rent: 6500 },
-  { name: 'Rosa Dela Cruz', unit: 'F', type: '1BR', rent: 7500 },
-  { name: 'Ben Flores', unit: 'G', type: 'Studio', rent: 6500 },
-];
+import api from '../api/axiosConfig';
 
 const statusConfig = {
   active: { label: 'Active', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
@@ -36,7 +21,8 @@ const statusConfig = {
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
 const AdminContracts = () => {
-  const [contracts, setContracts] = useState(initialContracts);
+  const [contracts, setContracts] = useState([]);
+  const [tenantOptions, setTenantOptions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -45,7 +31,57 @@ const AdminContracts = () => {
   const [selectedContract, setSelectedContract] = useState(null);
   const [createStep, setCreateStep] = useState(1);
 
-  const [form, setForm] = useState({ tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
+  const [form, setForm] = useState({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
+
+  useEffect(() => {
+    fetchContracts();
+    fetchTenants();
+  }, []);
+
+  const fetchContracts = async () => {
+    try {
+      const res = await api.get('/get_contracts.php');
+      if (res.data.success) {
+        const fetched = res.data.contracts.map(c => ({
+          id: c.id,
+          tenant: `${c.first_name} ${c.last_name}`,
+          unit: c.room_name,
+          type: c.type || 'Unit',
+          rent: c.monthly_rent,
+          deposit: c.deposit_amount,
+          leaseStart: c.lease_start,
+          leaseEnd: c.lease_end,
+          status: c.status,
+          generatedDate: c.generated_at ? c.generated_at.split(' ')[0] : '',
+          signedLease: { uploaded: !!c.signed_lease_path, fileName: c.signed_lease_path ? c.signed_lease_path.split('/').pop() : null, uploadDate: null },
+          notarizedLease: { uploaded: !!c.notarized_lease_path, fileName: c.notarized_lease_path ? c.notarized_lease_path.split('/').pop() : null, uploadDate: null },
+          evictionStatus: c.eviction_status,
+          overdueInfo: null
+        }));
+        setContracts(fetched);
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  const fetchTenants = async () => {
+    try {
+      const res = await api.get('/get_tenants.php');
+      if (res.data.success) {
+        const active = res.data.tenants.filter(t => t.status === 'active' || t.status === 'Pending Review');
+        setTenantOptions(active.map(t => ({
+          id: t.id, 
+          name: `${t.first_name} ${t.last_name}`, 
+          unit: t.room_name, 
+          type: 'Unit', 
+          rent: t.monthly_rent
+        })));
+      }
+    } catch(err) {
+      console.error(err);
+    }
+  };
 
   const settings = getSystemSettings();
   const overdueThresholdDays = settings.overdueThresholdDays || 15;
@@ -66,29 +102,32 @@ const AdminContracts = () => {
   }, [contracts, searchQuery, filterStatus]);
 
   const handleTenantSelect = (e) => {
-    const selected = tenantOptions.find(t => t.name === e.target.value);
+    const selected = tenantOptions.find(t => t.id == e.target.value);
     if (selected) {
-      setForm(prev => ({ ...prev, tenant: selected.name, unit: selected.unit, type: selected.type, rent: selected.rent, deposit: selected.rent * 2 }));
-    } else {
-      setForm(prev => ({ ...prev, tenant: e.target.value }));
+      setForm(prev => ({ ...prev, tenantId: selected.id, tenant: selected.name, unit: selected.unit, type: selected.type, rent: selected.rent, deposit: selected.rent * 2 }));
     }
   };
 
-  const handleGenerate = () => {
-    const newContract = {
-      id: `CTR-${String(contracts.length + 1).padStart(3, '0')}`,
-      tenant: form.tenant, unit: form.unit, type: form.type,
-      rent: Number(form.rent), deposit: Number(form.deposit),
-      leaseStart: form.leaseStart, leaseEnd: form.leaseEnd,
-      status: 'active', generatedDate: new Date().toISOString().slice(0, 10),
-      signedLease: { uploaded: false, fileName: null, uploadDate: null },
-      notarizedLease: { uploaded: false, fileName: null, uploadDate: null },
-      evictionStatus: null, overdueInfo: null,
-    };
-    setContracts([newContract, ...contracts]);
-    setShowCreateModal(false);
-    setCreateStep(1);
-    setForm({ tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
+  const handleGenerate = async () => {
+    try {
+      const payload = {
+        rentApplicationId: form.tenantId,
+        depositAmount: form.deposit,
+        leaseStart: form.leaseStart,
+        leaseEnd: form.leaseEnd
+      };
+      const res = await api.post('/create_contract.php', payload);
+      if (res.data.success) {
+        fetchContracts();
+        setShowCreateModal(false);
+        setCreateStep(1);
+        setForm({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
+      } else {
+        alert(res.data.message);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const openPreview = (contract) => {
@@ -96,48 +135,81 @@ const AdminContracts = () => {
     setShowPreviewModal(true);
   };
 
-  // File upload simulation
-  const handleUploadFile = (contractId, docType) => {
-    const today = new Date().toISOString().slice(0, 10);
-    setContracts(prev => prev.map(c => c.id === contractId ? {
-      ...c,
-      [docType]: { uploaded: true, fileName: `${docType}_${c.tenant.toLowerCase().replace(/\s/g, '_')}.pdf`, uploadDate: today }
-    } : c));
-    if (selectedContract && selectedContract.id === contractId) {
-      setSelectedContract(prev => ({
-        ...prev,
-        [docType]: { uploaded: true, fileName: `${docType}_${prev.tenant.toLowerCase().replace(/\s/g, '_')}.pdf`, uploadDate: today }
+  const handleUploadFile = async (contractId, docType) => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.pdf,.jpg,.jpeg,.png';
+    fileInput.onchange = async (e) => {
+      if (e.target.files && e.target.files[0]) {
+        const formData = new FormData();
+        formData.append('contractId', contractId);
+        formData.append('docType', docType);
+        formData.append('action', 'upload');
+        formData.append('file', e.target.files[0]);
+
+        try {
+          const res = await api.post('/upload_lease_document.php', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          if (res.data.success) {
+            fetchContracts();
+            if (selectedContract && selectedContract.id === contractId) {
+               setSelectedContract(prev => ({
+                 ...prev,
+                 [docType]: { uploaded: true, fileName: e.target.files[0].name, uploadDate: new Date().toISOString().slice(0, 10) }
+               }));
+            }
+          } else {
+            alert(res.data.message);
+          }
+        } catch(err) {
+          console.error(err);
+        }
+      }
+    };
+    fileInput.click();
+  };
+
+  const handleRemoveFile = async (contractId, docType) => {
+    try {
+      const res = await api.post('/upload_lease_document.php', new URLSearchParams({
+        contractId: contractId,
+        docType: docType,
+        action: 'remove'
       }));
+      if (res.data.success) {
+        fetchContracts();
+        if (selectedContract && selectedContract.id === contractId) {
+           setSelectedContract(prev => ({ ...prev, [docType]: { uploaded: false, fileName: null, uploadDate: null } }));
+        }
+      }
+    } catch(err) {
+      console.error(err);
     }
   };
 
-  const handleRemoveFile = (contractId, docType) => {
-    setContracts(prev => prev.map(c => c.id === contractId ? {
-      ...c,
-      [docType]: { uploaded: false, fileName: null, uploadDate: null }
-    } : c));
-    if (selectedContract && selectedContract.id === contractId) {
-      setSelectedContract(prev => ({ ...prev, [docType]: { uploaded: false, fileName: null, uploadDate: null } }));
-    }
+  const handleFlagEviction = async (contractId) => {
+    try {
+      const res = await api.post('/update_contract_status.php', { contractId, action: 'flag' });
+      if (res.data.success) {
+        fetchContracts();
+        if (selectedContract && selectedContract.id === contractId) {
+           setSelectedContract(prev => ({ ...prev, status: 'eviction-pending', evictionStatus: 'flagged' }));
+        }
+      }
+    } catch(err) { console.error(err); }
   };
 
-  // Flag for eviction
-  const handleFlagEviction = (contractId) => {
-    setContracts(prev => prev.map(c => c.id === contractId ? {
-      ...c, status: 'eviction-pending', evictionStatus: 'flagged'
-    } : c));
-    if (selectedContract && selectedContract.id === contractId) {
-      setSelectedContract(prev => ({ ...prev, status: 'eviction-pending', evictionStatus: 'flagged' }));
-    }
-  };
-
-  const handleClearEviction = (contractId) => {
-    setContracts(prev => prev.map(c => c.id === contractId ? {
-      ...c, status: 'active', evictionStatus: null
-    } : c));
-    if (selectedContract && selectedContract.id === contractId) {
-      setSelectedContract(prev => ({ ...prev, status: 'active', evictionStatus: null }));
-    }
+  const handleClearEviction = async (contractId) => {
+    try {
+      const res = await api.post('/update_contract_status.php', { contractId, action: 'clear' });
+      if (res.data.success) {
+        fetchContracts();
+        if (selectedContract && selectedContract.id === contractId) {
+           setSelectedContract(prev => ({ ...prev, status: 'active', evictionStatus: null }));
+        }
+      }
+    } catch(err) { console.error(err); }
   };
 
   // Lease completeness checker
@@ -312,9 +384,9 @@ const AdminContracts = () => {
                 <>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant *</label>
-                    <select value={form.tenant} onChange={handleTenantSelect} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
+                    <select value={form.tenantId} onChange={handleTenantSelect} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
                       <option value="">Choose a tenant...</option>
-                      {tenantOptions.map(t => <option key={t.name} value={t.name}>{t.name} — Unit {t.unit}</option>)}
+                      {tenantOptions.map(t => <option key={t.id} value={t.id}>{t.name} — Unit {t.unit}</option>)}
                     </select>
                   </div>
                   {form.tenant && (

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,18 +9,65 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 
-const initialTenants = [
-  { id: 1, name: 'Pedro Cruz', unit: 'E', status: 'overdue', depositStatus: 'Paid', advanceStatus: 'Paid', termOfPayment: 'Monthly', dueDate: '2025-05-05', dueDateDay: 5, billing: { baseRent: 6500, water: 350, electricity: 820, parking: 0, addOns: 0 }, history: [{ id: 'RCT-1001', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 320, Elec: 750', amount: 7570, datePaid: 'Apr 3, 2025', status: 'paid', method: 'Cash' }, { id: 'RCT-1002', period: 'Mar 2025', breakdown: 'Rent: 6500, Water: 340, Elec: 700', amount: 7540, datePaid: 'Mar 5, 2025', status: 'paid', method: 'GCash' }], settlements: [{ id: 'STL-001', date: '2025-05-10', type: 'Partial Payment', amount: 3000, remaining: 4670, note: 'Paid partial due to cash shortage', status: 'partial' }], outstandingBalance: 4670 },
-  { id: 2, name: 'Rosa Dela Cruz', unit: 'F', status: 'pending', depositStatus: 'Paid', advanceStatus: 'Pending', termOfPayment: 'Semi-monthly', dueDate: '2025-05-15', dueDateDay: 15, billing: { baseRent: 7500, water: 400, electricity: 900, parking: 500, addOns: 0 }, history: [{ id: 'RCT-1003', period: 'Apr 2025', breakdown: 'Rent: 7500, Water: 400, Elec: 850', amount: 8750, datePaid: 'Apr 1, 2025', status: 'paid', method: 'Bank Transfer' }], settlements: [], outstandingBalance: 9300 },
-  { id: 3, name: 'Maria Santos', unit: 'A', status: 'paid', depositStatus: 'Paid', advanceStatus: 'Paid', termOfPayment: 'Monthly', dueDate: '2025-05-01', dueDateDay: 1, billing: { baseRent: 6500, water: 300, electricity: 700, parking: 0, addOns: 0 }, history: [{ id: 'RCT-1004', period: 'May 2025', breakdown: 'Rent: 6500, Water: 300, Elec: 700', amount: 7500, datePaid: 'May 1, 2025', status: 'paid', method: 'GCash' }, { id: 'RCT-1005', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 310, Elec: 720', amount: 7530, datePaid: 'Apr 2, 2025', status: 'paid', method: 'Cash' }], settlements: [], outstandingBalance: 0 }
-];
+import api from '../api/axiosConfig';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
 const AdminPayments = () => {
-  const [tenants, setTenants] = useState(initialTenants);
-  const [selectedTenantId, setSelectedTenantId] = useState(initialTenants[0].id);
+  const [tenants, setTenants] = useState([]);
+  const [selectedTenantId, setSelectedTenantId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
+
+  const fetchInvoices = async () => {
+    try {
+      const res = await api.get('/get_invoices.php');
+      if (res.data.success) {
+        // Group invoices by user
+        const grouped = {};
+        res.data.invoices.forEach(inv => {
+          if (!grouped[inv.user_id]) {
+            grouped[inv.user_id] = {
+              id: inv.user_id,
+              name: `${inv.first_name} ${inv.last_name}`,
+              unit: inv.room_name,
+              status: inv.status === 'pending' ? 'pending' : (inv.status === 'overdue' ? 'overdue' : 'paid'),
+              depositStatus: 'Paid', advanceStatus: 'Paid', termOfPayment: 'Monthly',
+              dueDate: inv.due_date,
+              dueDateDay: 5,
+              billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, addOns: 0 },
+              history: [],
+              settlements: [],
+              outstandingBalance: 0,
+              pendingInvoiceId: null
+            };
+          }
+          const t = grouped[inv.user_id];
+          if (inv.status === 'pending' || inv.status === 'overdue') {
+            t.status = inv.status;
+            t.dueDate = inv.due_date;
+            t.billing.baseRent = parseFloat(inv.base_rent);
+            t.billing.water = parseFloat(inv.water);
+            t.billing.electricity = parseFloat(inv.electricity);
+            t.billing.parking = parseFloat(inv.parking);
+            t.outstandingBalance += parseFloat(inv.total_amount);
+            t.pendingInvoiceId = inv.id;
+          } else if (inv.status === 'paid') {
+            t.history.push({
+              id: inv.id, period: inv.billing_period, breakdown: `Total: ${inv.total_amount}`,
+              amount: parseFloat(inv.total_amount), datePaid: inv.paid_at, status: 'paid', method: inv.payment_method
+            });
+          }
+        });
+        const tenantArray = Object.values(grouped);
+        setTenants(tenantArray);
+        if (tenantArray.length > 0) setSelectedTenantId(tenantArray[0].id);
+      }
+    } catch(err) { console.error(err); }
+  };
   
   const [billingPeriod, setBillingPeriod] = useState('May 2025');
   const [isExtendedRent, setIsExtendedRent] = useState(false);
@@ -52,10 +99,11 @@ const AdminPayments = () => {
 
   const settings = getSystemSettings();
 
-  const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0];
-  const filteredTenants = tenants.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.unit.toLowerCase().includes(searchTerm.toLowerCase()));
+  const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0] || null;
+  const filteredTenants = tenants.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.unit?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const calculateTotal = () => {
+    if (!activeTenant) return 0;
     return isExtendedRent 
       ? Number(extendedAmount) + Number(customAddOns)
       : activeTenant.billing.baseRent + activeTenant.billing.water + activeTenant.billing.electricity + activeTenant.billing.parking + Number(customAddOns);
@@ -137,20 +185,28 @@ const AdminPayments = () => {
     setShowConfirmModal(true);
   };
 
-  const handleMarkAsPaid = () => {
-    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const breakdown = isExtendedRent ? `Extended Rent: ${extendedAmount}, Add-ons: ${customAddOns}` : `Rent: ${activeTenant.billing.baseRent}, Water: ${activeTenant.billing.water}, Elec: ${activeTenant.billing.electricity}`;
-    const newRecordId = `RCT-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newRecord = { id: newRecordId, period: billingPeriod, breakdown, amount: totalDue, datePaid: today, status: 'paid', method: paymentMethod };
-
-    setTenants(prev => prev.map(t => t.id === selectedTenantId ? { ...t, status: 'paid', history: [newRecord, ...t.history] } : t));
+  const handleMarkAsPaid = async () => {
+    if (!activeTenant || !activeTenant.pendingInvoiceId) return;
     
-    setIsExtendedRent(false); setExtendedAmount(0); setCustomAddOns(0); setAmountTendered('');
-    setShowConfirmModal(false);
-    handleGenerateReceipt(newRecord);
+    try {
+      const res = await api.post('/record_payment_admin.php', {
+        invoiceId: activeTenant.pendingInvoiceId,
+        paymentMethod: paymentMethod
+      });
+      if (res.data.success) {
+        fetchInvoices();
+        setIsExtendedRent(false); setExtendedAmount(0); setCustomAddOns(0); setAmountTendered('');
+        setShowConfirmModal(false);
+      } else {
+        alert(res.data.message);
+      }
+    } catch(err) {
+      console.error(err);
+    }
   };
 
   const handleGenerateReceipt = (record = null) => {
+    if (!activeTenant) return;
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     if (record) {
       setReceiptData({ rctId: record.id, date: record.datePaid, tenant: activeTenant.name, unit: activeTenant.unit, period: record.period, amount: record.amount, breakdown: record.breakdown, status: record.status.toUpperCase(), method: record.method });
@@ -204,14 +260,29 @@ const AdminPayments = () => {
 
   // Pagination and Filtering for History
   const filteredHistory = useMemo(() => {
-    return activeTenant.history.filter(h => h.period.toLowerCase().includes(historySearchPeriod.toLowerCase()));
-  }, [activeTenant.history, historySearchPeriod]);
+    if (!activeTenant) return [];
+    return activeTenant.history.filter(h => h.period?.toLowerCase().includes(historySearchPeriod.toLowerCase()));
+  }, [activeTenant, historySearchPeriod]);
 
   const historyPageCount = Math.ceil(filteredHistory.length / recordsPerPage);
   const paginatedHistory = filteredHistory.slice((historyPage - 1) * recordsPerPage, historyPage * recordsPerPage);
 
-  const activeDaysDue = getDaysUntilDue(activeTenant.dueDate);
-  const showBanner = activeTenant.status === 'overdue' || (activeTenant.status === 'pending' && activeDaysDue !== null && activeDaysDue <= 5);
+  const activeDaysDue = activeTenant ? getDaysUntilDue(activeTenant.dueDate) : null;
+  const showBanner = activeTenant ? (activeTenant.status === 'overdue' || (activeTenant.status === 'pending' && activeDaysDue !== null && activeDaysDue <= 5)) : false;
+
+  if (!activeTenant && tenants.length === 0) {
+    return (
+      <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+        <Sidebar />
+        <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
+          <Header title="Payment Management" />
+          <div className="flex-1 flex items-center justify-center p-6 md:p-8">
+             <p className="text-slate-500">No invoices or tenants found.</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
