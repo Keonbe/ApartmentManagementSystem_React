@@ -61,6 +61,7 @@ const AdminUnits = () => {
     try {
       const response = await api.get('get_rooms.php');
       if (response.data.success) {
+        console.log("Fetched rooms from DB:", response.data.rooms);
         // Hydrate empty arrays for UI elements that expect them but aren't in DB yet
         const hydratedRooms = response.data.rooms.map(room => ({
           ...room,
