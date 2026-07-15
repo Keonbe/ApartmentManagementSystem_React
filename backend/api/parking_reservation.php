@@ -21,8 +21,9 @@ $vehicle_model = $_POST['vehicleModel'] ?? '';
 $plate_number = $_POST['plateNumber'] ?? '';
 $transmission = $_POST['transmission'] ?? '';
 $duration_months = $_POST['durationMonths'] ?? '';
+$user_id = $_POST['userId'] ?? null;
 
-if (empty($vehicle_type) || empty($vehicle_model) || empty($plate_number) || empty($transmission) || empty($duration_months)) {
+if (empty($vehicle_type) || empty($vehicle_model) || empty($plate_number) || empty($transmission) || empty($duration_months) || empty($user_id)) {
     echo json_encode(["success" => false, "message" => "All fields are required."]);
     exit;
 }
@@ -57,9 +58,9 @@ if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] === UPLOA
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO parking_reservations (vehicle_type, vehicle_model, plate_number, transmission, duration_months, total_cost, document_path) VALUES (?, ?, ?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO parking_reservations (user_id, vehicle_type, vehicle_model, plate_number, transmission, duration_months, total_cost, document_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
-$stmt->bind_param("ssssids", $vehicle_type, $vehicle_model, $plate_number, $transmission, $duration_months, $total_cost, $document_path);
+$stmt->bind_param("issssids", $user_id, $vehicle_type, $vehicle_model, $plate_number, $transmission, $duration_months, $total_cost, $document_path);
 
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "Reservation created successfully"]);

@@ -21,10 +21,11 @@ $urgency = $_POST['urgency'] ?? '';
 $preferred_date = $_POST['preferredDate'] ?? '';
 $preferred_time = $_POST['preferredTime'] ?? '';
 $description = $_POST['description'] ?? '';
+$user_id = $_POST['userId'] ?? null;
 // Convert the string "1" or "0" back to an integer for the database
 $permission_to_enter = isset($_POST['permissionToEnter']) ? (int)$_POST['permissionToEnter'] : 0;
 
-if (empty($issue_category) || empty($urgency) || empty($preferred_date) || empty($preferred_time) || empty($description)) {
+if (empty($issue_category) || empty($urgency) || empty($preferred_date) || empty($preferred_time) || empty($description) || empty($user_id)) {
     echo json_encode(["success" => false, "message" => "Please fill in all required fields."]);
     exit;
 }
@@ -52,9 +53,9 @@ if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] === UPLOA
     }
 }
 
-$stmt = $conn->prepare("INSERT INTO maintenance_requests (issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path) VALUES (?, ?, ?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO maintenance_requests (user_id, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
-$stmt->bind_param("sssssis", $issue_category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path);
+$stmt->bind_param("isssssis", $user_id, $issue_category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path);
 
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "Maintenance request submitted successfully"]);

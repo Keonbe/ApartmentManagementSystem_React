@@ -57,6 +57,10 @@ export default function ParkingReservation() {
     const handleFormSubmit = async (e) => {
         e.preventDefault();
 
+        const loggedInUserStr = sessionStorage.getItem('loggedInUser');
+        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
+        const userId = loggedInUser?.id || '';
+
         // Prevent submission if a file hasn't been uploaded
         if (!uploadedFile) {
             alert("Please upload your Vehicle Registration Form (OR/CR) before proceeding.");
@@ -65,6 +69,7 @@ export default function ParkingReservation() {
 
         // Use FormData to handle the text fields alongside the file
         const formData = new FormData();
+        formData.append('userId', userId);
         formData.append('vehicleType', vehicleType);
         formData.append('vehicleModel', vehicleModel.trim());
         formData.append('plateNumber', plateNumber.trim());

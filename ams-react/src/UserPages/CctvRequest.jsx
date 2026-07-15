@@ -21,7 +21,12 @@ export default function CctvRequest() {
     const handleFormSubmit = async (e) => {
         e.preventDefault();
 
+        const loggedInUserStr = sessionStorage.getItem('loggedInUser');
+        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
+        const userId = loggedInUser?.id || '';
+
         const payload = {
+            userId: userId,
             incidentDate: incidentDate,
             incidentTime: incidentTime,
             locationDetails: locationDetails,

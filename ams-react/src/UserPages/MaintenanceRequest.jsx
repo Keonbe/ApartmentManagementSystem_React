@@ -65,8 +65,13 @@ export default function MaintenanceRequest() {
     const handleFormSubmit = async (e) => {
         e.preventDefault();
 
+        const loggedInUserStr = sessionStorage.getItem('loggedInUser');
+        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
+        const userId = loggedInUser?.id || '';
+
         // 1. Pack the data into FormData (required for file uploads)
         const formData = new FormData();
+        formData.append('userId', userId);
         formData.append('issueType', issueType);
         formData.append('urgency', urgency);
         formData.append('preferredDate', preferredDate);

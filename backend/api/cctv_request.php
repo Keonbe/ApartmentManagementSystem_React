@@ -21,15 +21,16 @@ $incident_date = $input['incidentDate'] ?? '';
 $incident_time = $input['incidentTime'] ?? '';
 $location_details = $input['locationDetails'] ?? '';
 $reason_request = $input['reasonRequest'] ?? '';
+$user_id = $input['userId'] ?? null;
 
-if (empty($incident_date) || empty($incident_time) || empty($location_details) || empty($reason_request)) {
+if (empty($incident_date) || empty($incident_time) || empty($location_details) || empty($reason_request) || empty($user_id)) {
     echo json_encode(["success" => false, "message" => "All fields are required."]);
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO cctv_requests (incident_date, incident_time, location_details, reason_request) VALUES (?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO cctv_requests (user_id, incident_date, incident_time, location_details, reason_request) VALUES (?, ?, ?, ?, ?)");
 
-$stmt->bind_param("ssss", $incident_date, $incident_time, $location_details, $reason_request);
+$stmt->bind_param("issss", $user_id, $incident_date, $incident_time, $location_details, $reason_request);
 
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "CCTV request submitted successfully"]);
