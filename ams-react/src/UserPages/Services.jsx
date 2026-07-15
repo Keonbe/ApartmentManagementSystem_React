@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faParking, faWrench, faVideo } from '@fortawesome/free-solid-svg-icons';
+import { faFileInvoiceDollar, faParking, faWrench, faVideo, faListAlt, faBullhorn, faHistory } from '@fortawesome/free-solid-svg-icons';
 
 export default function Services() {
     const navigate = useNavigate();
@@ -38,6 +38,30 @@ export default function Services() {
             icon: faVideo,
             buttonText: 'File Request',
             path: '/cctv-request',
+        },
+        {
+            id: 5,
+            title: 'My Requests',
+            description: 'Track the status and timeline of all your submitted service, parking, and CCTV requests.',
+            icon: faListAlt,
+            buttonText: 'View Requests',
+            path: '/my-requests',
+        },
+        {
+            id: 6,
+            title: 'Announcements',
+            description: 'Read important memos, scheduled maintenance notices, and general building updates.',
+            icon: faBullhorn,
+            buttonText: 'Read Memos',
+            path: '/announcements',
+        },
+        {
+            id: 7,
+            title: 'Payment History',
+            description: 'Review your past monthly billing invoices and download official payment receipts.',
+            icon: faHistory,
+            buttonText: 'View History',
+            path: '/payment-history',
         },
     ];
 

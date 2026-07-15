@@ -21,7 +21,9 @@ import ProfileSettings from './UserPages/ProfileSettings';
 import MyRoom from './UserPages/MyRoom';
 import UserNotifications from './UserPages/UserNotifications';
 import ViewContract from './UserPages/ViewContract';
-
+import UserMyRequests from './UserPages/UserMyRequests';
+import UserAnnouncements from './UserPages/UserAnnouncements';
+import UserPaymentHistory from './UserPages/UserPaymentHistory';
 //Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
 import AdminUnits from './AdminPages/AdminUnits';
@@ -124,7 +126,9 @@ function AppContent() {
         <Route path="/my-room" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
-
+        <Route path="/my-requests" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/announcements" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/payment-history" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></ProtectedRoute>} />
         {/*SECURITY AUTH TARGET SCHEMAS*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} />} />
