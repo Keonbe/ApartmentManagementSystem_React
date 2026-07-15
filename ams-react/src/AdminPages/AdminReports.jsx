@@ -11,6 +11,8 @@ import {
   faShieldAlt, faGavel, faHandshake, faFileUpload
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
+import api from '../api/axiosConfig';
+import { useEffect } from 'react';
 
 // ==========================================
 // DETERMINISTIC MOCK DATA ENGINE
@@ -382,62 +384,99 @@ const AdminReports = () => {
   const [invoiceForm, setInvoiceForm] = useState({ tenant: '', unit: '', rent: '', water: '', electric: '', dueDate: '' });
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
 
-  // Generate Report Data dynamically based on timeframe, month, and year
-  const data = useMemo(() => {
-    return generateReportData(timeframe, selectedMonth, selectedYear);
+  
+  const [data, setData] = useState(null);
+  const [trendPoints, setTrendPoints] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchReportData();
   }, [timeframe, selectedMonth, selectedYear]);
 
-  // Generate trend points for charts
-  const trendPoints = useMemo(() => {
-    if (timeframe === 'yearly') {
-      // 12 months trend
-      return monthsList.map(m => {
-        const d = generateReportData('monthly', m.value, selectedYear);
-        return {
-          label: m.label.substring(0, 3),
-          revenue: d.payments.totalCollected,
-          expenses: d.payments.expenses,
-          net: d.payments.netIncome,
-          occupancyRate: d.occupancy.occupancyRate
-        };
-      });
-    } else {
-      // Monthly: split into 4 weeks
-      return [1, 2, 3, 4].map(w => {
-        const seed = getDeterministicValue(`week_trend_${w}`, selectedYear, selectedMonth, 1, 100);
-        const revenue = Math.round(data.payments.totalCollected * (0.2 + (seed % 10) / 100));
-        const expenses = Math.round(data.payments.expenses * 0.25);
-        const net = revenue - expenses;
-        const occupancyRate = data.occupancy.occupancyRate;
-        return {
-          label: `Wk ${w}`,
-          revenue,
-          expenses,
-          net,
-          occupancyRate
-        };
-      });
+  const fetchReportData = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get(`get_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&year=${selectedYear}`);
+      if (response.data.success) {
+        const bd = response.data.data;
+        const totalCollected = bd.rentCollected + bd.waterCollected + bd.electricCollected + bd.parkingCollected;
+        const netIncome = totalCollected - bd.expenses;
+        
+        setData({
+          occupancy: {
+            totalUnits: 28,
+            occupiedUnits: bd.totalOccupied,
+            vacantUnits: 28 - bd.totalOccupied,
+            occupancyRate: Math.round((bd.totalOccupied / 28) * 100) || 0,
+            moveIns: bd.moveIns,
+            moveOuts: bd.moveOuts,
+            tenantList: [] // Mock empty for UI
+          },
+          payments: {
+            rentCollected: bd.rentCollected,
+            waterCollected: bd.waterCollected,
+            electricCollected: bd.electricCollected,
+            parkingCollected: bd.parkingCollected,
+            totalCollected,
+            expenses: bd.expenses,
+            netIncome,
+            outstandingBalances: [],
+            totalOutstanding: 0,
+            collectionEfficiency: 92,
+            records: [],
+            methodsBreakdown: { Cash: 0, GCash: 0, 'Bank Transfer': 0 }
+          },
+          maintenance: {
+            total: bd.totalMaintenance,
+            totalCost: bd.totalMaintenance * 2500, // mock cost
+            budget: 50000,
+            completed: bd.maintCompleted,
+            inProgress: bd.maintInProgress,
+            pending: bd.maintPending,
+            categoryCounts: bd.maintCategoryCounts,
+            urgencyCounts: bd.maintUrgencyCounts,
+            avgResolutionTime: 24.5,
+            records: []
+          },
+          reservations: {
+            roomApps: bd.roomApplications,
+            roomApproved: bd.roomApproved,
+            roomRejected: bd.roomRejected,
+            roomPending: bd.roomPending,
+            parkingCount: bd.parkingReservationsCount,
+            parkingRevenue: bd.parkingReservationsCount * 1200,
+            parkingList: [],
+            roomList: []
+          }
+        });
+        
+        // Mock trend points for now to prevent breaking charts
+        setTrendPoints([
+          { label: 'Jan', revenue: 40000, expenses: 12000, net: 28000, occupancyRate: 85 },
+          { label: 'Feb', revenue: 41000, expenses: 12500, net: 28500, occupancyRate: 85 },
+          { label: 'Mar', revenue: 39000, expenses: 11000, net: 28000, occupancyRate: 85 },
+          { label: 'Apr', revenue: 42000, expenses: 13000, net: 29000, occupancyRate: 85 },
+        ]);
+      }
+    } catch (e) {
+      console.error(e);
     }
-  }, [timeframe, selectedMonth, selectedYear, data]);
+    setLoading(false);
+  };
+
 
   // Max value for revenue scaling in chart
   const maxRevenueTrend = useMemo(() => {
     return Math.max(...trendPoints.map(p => Math.max(p.revenue, p.expenses))) * 1.15 || 10000;
   }, [trendPoints]);
 
-  const tenantInvoiceOptions = useMemo(() => {
-    return data.occupancy.tenantList.map(t => ({
-      name: t.name,
-      unit: t.unit,
-      rent: t.rent
-    }));
-  }, [data]);
+  const tenantInvoiceOptions = data?.occupancy?.tenantList?.map(t => ({ name: t.name, unit: t.unit, rent: t.rent })) || [];
 
   const handleTenantSelect = (e) => {
     const selected = tenantInvoiceOptions.find(t => t.name === e.target.value);
     if (selected) {
-      const waterSeed = getDeterministicValue('invoice_water', selectedYear, selectedMonth, 280, 350);
-      const elecSeed = getDeterministicValue('invoice_elec', selectedYear, selectedMonth, 650, 850);
+      const waterSeed = 300;
+      const elecSeed = 800;
       setInvoiceForm({
         tenant: selected.name,
         unit: selected.unit,
