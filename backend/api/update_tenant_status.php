@@ -23,15 +23,46 @@ $id = $input['id'] ?? 0;
 $status = $input['status'] ?? '';
 
 if ($id > 0 && !empty($status)) {
-    $stmt = $conn->prepare("UPDATE rent_applications SET status = ? WHERE id = ?");
-    $stmt->bind_param("si", $status, $id);
-    if ($stmt->execute()) {
+    // Start transaction to ensure data integrity
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare("UPDATE rent_applications SET status = ? WHERE id = ?");
+        $stmt->bind_param("si", $status, $id);
+        $stmt->execute();
+        
+        if ($status === 'Approved') {
+            // Get application details to update the room
+            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent FROM rent_applications WHERE id = ?");
+            $app_stmt->bind_param("i", $id);
+            $app_stmt->execute();
+            $app_res = $app_stmt->get_result();
+            if ($app_res->num_rows > 0) {
+                $app = $app_res->fetch_assoc();
+                $tenant_name = $app['first_name'] . ' ' . $app['last_name'];
+                $room_name = $app['room_name'];
+                $months = (int)$app['months_of_rent'];
+                
+                $lease_start = date('Y-m-d');
+                $lease_end = date('Y-m-d', strtotime("+$months months"));
+                $room_status = 'occupied';
+                
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = ?, tenant_name = ?, lease_start = ?, lease_end = ? WHERE id = ?");
+                $room_stmt->bind_param("sssss", $room_status, $tenant_name, $lease_start, $lease_end, $room_name);
+                $room_stmt->execute();
+                $room_stmt->close();
+            }
+            $app_stmt->close();
+        }
+
+        $conn->commit();
+        
         log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         echo json_encode(["success" => true]);
-    } else {
-        echo json_encode(["success" => false, "message" => $stmt->error]);
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        echo json_encode(["success" => false, "message" => $e->getMessage()]);
     }
-    $stmt->close();
 }
 $conn->close();
 ?>

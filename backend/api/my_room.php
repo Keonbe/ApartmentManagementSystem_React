@@ -11,15 +11,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$email = $_GET['email'] ?? '';
+$user_id = $_GET['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
 
-if (empty($email)) {
-    echo json_encode(["success" => false, "message" => "User email is required."]);
+if (empty($user_id)) {
+    echo json_encode(["success" => false, "message" => "User ID is required."]);
     exit;
 }
 
-$stmt = $conn->prepare("SELECT room_name, monthly_rent, months_of_rent, status, created_at, occupants FROM rent_applications WHERE email = ? ORDER BY created_at DESC LIMIT 1");
-$stmt->bind_param("s", $email);
+$stmt = $conn->prepare("SELECT room_name, monthly_rent, months_of_rent, status, created_at, occupants FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
+$stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 

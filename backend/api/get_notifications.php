@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_GET['userId'] ?? null;
+$user_id = $_GET['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!$user_id) {
     echo json_encode(["success" => false, "message" => "User ID is required"]);
     exit;

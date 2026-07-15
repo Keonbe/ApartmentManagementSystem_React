@@ -12,6 +12,9 @@ api.interceptors.request.use((config) => {
     if (loggedInUserStr) {
         try {
             const loggedInUser = JSON.parse(loggedInUserStr);
+            if (loggedInUser.id) {
+                config.headers['X-User-Id'] = loggedInUser.id;
+            }
             if (loggedInUser.role === 'admin' && loggedInUser.id) {
                 config.headers['X-Admin-Id'] = loggedInUser.id;
             }

@@ -25,6 +25,7 @@ $occupants = $_POST['occupants'] ?? '';
 $months_of_rent = $_POST['monthsOfRent'] ?? '';
 $room_name = $_POST['roomName'] ?? '';
 $monthly_rent = $_POST['monthlyRent'] ?? '';
+$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
 
 if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($email) || empty($gender) || empty($occupants) || empty($months_of_rent)) {
     echo json_encode(["success" => false, "message" => "Please fill in all required personal details."]);
@@ -58,9 +59,9 @@ if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO rent_applications (first_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-$stmt->bind_param("ssssssiisssss", $first_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
+$stmt->bind_param("issssssiisssss", $user_id, $first_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
 
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,23 +9,8 @@ import {
   faInfoCircle, faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
-
-const initialUnits = [
-  { id: 'A', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Maria Santos', rent: 6500, leaseStart: '2024-06-01', leaseEnd: '2025-06-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Unit created', detail: 'Studio on 1F', date: '2023-01-01' }, { event: 'Tenant assigned', detail: 'Maria Santos', date: '2024-06-01' }], occupancyHistory: [{ tenant: 'Maria Santos', leaseStart: '2024-06-01', leaseEnd: '2025-06-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-06-01', oldRent: null, newRent: 6500, date: '2024-06-01', detail: 'Maria Santos · 12 months' }], maintenanceHistory: [], paymentHistory: [{ id: 'RCT-1004', period: 'May 2025', breakdown: 'Rent: 6500, Water: 300, Elec: 700', amount: 7500, datePaid: 'May 1, 2025', status: 'paid', method: 'GCash' }, { id: 'RCT-1005', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 310, Elec: 720', amount: 7530, datePaid: 'Apr 2, 2025', status: 'paid', method: 'Cash' }] },
-  { id: 'B', type: 'Studio', floor: '1F', status: 'occupied', tenant: 'Jose Reyes', rent: 6500, leaseStart: '2024-07-15', leaseEnd: '2025-07-15', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Jose Reyes', date: '2024-07-15' }], occupancyHistory: [{ tenant: 'Jose Reyes', leaseStart: '2024-07-15', leaseEnd: '2025-07-15', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-07-15', oldRent: null, newRent: 6500, date: '2024-07-15', detail: 'Jose Reyes · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'C', type: '1BR', floor: '1F', status: 'occupied', tenant: 'Ana Garcia', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ana Garcia', date: '2024-05-01' }], occupancyHistory: [{ tenant: 'Ana Garcia', leaseStart: '2024-05-01', leaseEnd: '2025-05-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-05-01', oldRent: null, newRent: 7500, date: '2024-05-01', detail: 'Ana Garcia · 12 months' }], maintenanceHistory: [{ id: 'REQ-004', issue: 'Electrical short in outlet', status: 'Completed', date: '2024-04-20', cost: 1200 }], paymentHistory: [] },
-  { id: 'D', type: 'Studio', floor: '2F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: 'Carlos Mendoza', maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Carlos Mendoza', date: '2023-06-01' }, { event: 'Tenant moved out', detail: 'Carlos Mendoza — End of Lease', date: '2024-06-01' }, { event: 'Unit marked vacant', detail: 'Available for new tenants', date: '2024-06-02' }], occupancyHistory: [{ tenant: 'Carlos Mendoza', leaseStart: '2023-06-01', leaseEnd: '2024-06-01', rent: 6500, status: 'ended', moveOutReason: 'End of Lease' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2024-06-01', oldRent: null, newRent: 6500, date: '2023-06-01', detail: 'Carlos Mendoza · 12 months' }, { event: 'Lease Terminated', oldEnd: '2024-06-01', newEnd: null, oldRent: 6500, newRent: null, date: '2024-06-01', detail: 'Tenant moved out — End of Lease' }], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'E', type: 'Studio', floor: '2F', status: 'occupied', tenant: 'Pedro Cruz', rent: 6500, leaseStart: '2024-03-01', leaseEnd: '2025-03-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Pedro Cruz', date: '2024-03-01' }], occupancyHistory: [{ tenant: 'Pedro Cruz', leaseStart: '2024-03-01', leaseEnd: '2025-03-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-03-01', oldRent: null, newRent: 6500, date: '2024-03-01', detail: 'Pedro Cruz · 12 months' }], maintenanceHistory: [{ id: 'REQ-001', issue: 'Leaking faucet in bathroom', status: 'Pending', date: '2024-05-15', cost: null }], paymentHistory: [{ id: 'RCT-1001', period: 'Apr 2025', breakdown: 'Rent: 6500, Water: 320, Elec: 750', amount: 7570, datePaid: 'Apr 3, 2025', status: 'paid', method: 'Cash' }, { id: 'RCT-1002', period: 'Mar 2025', breakdown: 'Rent: 6500, Water: 340, Elec: 700', amount: 7540, datePaid: 'Mar 5, 2025', status: 'paid', method: 'GCash' }] },
-  { id: 'F', type: '1BR', floor: '2F', status: 'occupied', tenant: 'Rosa Dela Cruz', rent: 7500, leaseStart: '2024-08-01', leaseEnd: '2025-08-01', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Rosa Dela Cruz', date: '2024-08-01' }], occupancyHistory: [{ tenant: 'Rosa Dela Cruz', leaseStart: '2024-08-01', leaseEnd: '2025-08-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-08-01', oldRent: null, newRent: 7500, date: '2024-08-01', detail: 'Rosa Dela Cruz · 12 months' }], maintenanceHistory: [{ id: 'REQ-003', issue: 'Clogged kitchen drain', status: 'In Progress', date: '2024-05-14', cost: null }], paymentHistory: [{ id: 'RCT-1003', period: 'Apr 2025', breakdown: 'Rent: 7500, Water: 400, Elec: 850', amount: 8750, datePaid: 'Apr 1, 2025', status: 'paid', method: 'Bank Transfer' }] },
-  { id: 'G', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Ben Flores', rent: 6500, leaseStart: '2024-04-15', leaseEnd: '2025-04-15', lastTenant: null, maintenanceFlag: true, history: [{ event: 'Tenant assigned', detail: 'Ben Flores', date: '2024-04-15' }], occupancyHistory: [{ tenant: 'Ben Flores', leaseStart: '2024-04-15', leaseEnd: '2025-04-15', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-04-15', oldRent: null, newRent: 6500, date: '2024-04-15', detail: 'Ben Flores · 12 months' }], maintenanceHistory: [{ id: 'REQ-002', issue: 'Busted ceiling light', status: 'Pending', date: '2024-05-16', cost: null }], paymentHistory: [] },
-  { id: 'H', type: 'Studio', floor: '3F', status: 'occupied', tenant: 'Lita Ramos', rent: 6500, leaseStart: '2024-01-01', leaseEnd: '2025-01-01', lastTenant: 'Roberto Tan', maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Roberto Tan', date: '2022-08-01' }, { event: 'Lease extended', detail: 'Roberto Tan extended 6 months', date: '2023-02-01' }, { event: 'Tenant moved out', detail: 'Roberto Tan — Relocated', date: '2023-08-15' }, { event: 'Tenant assigned', detail: 'Lita Ramos', date: '2024-01-01' }], occupancyHistory: [{ tenant: 'Roberto Tan', leaseStart: '2022-08-01', leaseEnd: '2023-08-01', rent: 6500, status: 'ended', moveOutReason: 'Relocated' }, { tenant: 'Lita Ramos', leaseStart: '2024-01-01', leaseEnd: '2025-01-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2023-02-01', oldRent: null, newRent: 6500, date: '2022-08-01', detail: 'Roberto Tan · 6 months' }, { event: 'Lease Extended', oldEnd: '2023-02-01', newEnd: '2023-08-01', oldRent: 6500, newRent: 6500, date: '2023-02-01', detail: 'Extended by 6 months' }, { event: 'Lease Terminated', oldEnd: '2023-08-01', newEnd: null, oldRent: 6500, newRent: null, date: '2023-08-15', detail: 'Roberto Tan moved out — Relocated' }, { event: 'Initial Lease', oldEnd: null, newEnd: '2025-01-01', oldRent: null, newRent: 6500, date: '2024-01-01', detail: 'Lita Ramos · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'I', type: '1BR', floor: '3F', status: 'occupied', tenant: 'Dante Abad', rent: 7500, leaseStart: '2024-05-01', leaseEnd: '2025-05-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Dante Abad', date: '2024-05-01' }], occupancyHistory: [{ tenant: 'Dante Abad', leaseStart: '2024-05-01', leaseEnd: '2025-05-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-05-01', oldRent: null, newRent: 7500, date: '2024-05-01', detail: 'Dante Abad · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'J', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Gloria Tan', rent: 6500, leaseStart: '2024-09-01', leaseEnd: '2025-09-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Gloria Tan', date: '2024-09-01' }], occupancyHistory: [{ tenant: 'Gloria Tan', leaseStart: '2024-09-01', leaseEnd: '2025-09-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-09-01', oldRent: null, newRent: 6500, date: '2024-09-01', detail: 'Gloria Tan · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'K', type: 'Studio', floor: '4F', status: 'occupied', tenant: 'Ramon Lim', rent: 6500, leaseStart: '2024-02-01', leaseEnd: '2025-02-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Ramon Lim', date: '2024-02-01' }], occupancyHistory: [{ tenant: 'Ramon Lim', leaseStart: '2024-02-01', leaseEnd: '2025-02-01', rent: 6500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-02-01', oldRent: null, newRent: 6500, date: '2024-02-01', detail: 'Ramon Lim · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'L', type: '1BR', floor: '4F', status: 'occupied', tenant: 'Cora Santos', rent: 7500, leaseStart: '2024-10-01', leaseEnd: '2025-10-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Cora Santos', date: '2024-10-01' }], occupancyHistory: [{ tenant: 'Cora Santos', leaseStart: '2024-10-01', leaseEnd: '2025-10-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-10-01', oldRent: null, newRent: 7500, date: '2024-10-01', detail: 'Cora Santos · 12 months' }], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'M', type: 'Studio', floor: '5F', status: 'vacant', tenant: null, rent: 6500, leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false, history: [{ event: 'Unit created', detail: 'Vacant since building opened', date: '2023-01-01' }], occupancyHistory: [], leaseHistory: [], maintenanceHistory: [], paymentHistory: [] },
-  { id: 'N', type: '1BR', floor: '5F', status: 'occupied', tenant: 'Nilo Ocampo', rent: 7500, leaseStart: '2024-11-01', leaseEnd: '2025-11-01', lastTenant: null, maintenanceFlag: false, history: [{ event: 'Tenant assigned', detail: 'Nilo Ocampo', date: '2024-11-01' }], occupancyHistory: [{ tenant: 'Nilo Ocampo', leaseStart: '2024-11-01', leaseEnd: '2025-11-01', rent: 7500, status: 'current' }], leaseHistory: [{ event: 'Initial Lease', oldEnd: null, newEnd: '2025-11-01', oldRent: null, newRent: 7500, date: '2024-11-01', detail: 'Nilo Ocampo · 12 months' }], maintenanceHistory: [], paymentHistory: [] }
-];
+import api from '../api/axiosConfig';
+const initialUnits = [];
 
 const daysRemaining = (leaseEnd) => {
   if (!leaseEnd) return null;
@@ -47,27 +32,55 @@ const openAssignTenant = (unit, setSelectedUnit, setAssignForm, emptyAssignForm,
   setShowAssignModal(true);
 };
 
+const emptyUnitForm = { id: '', type: 'Studio', floor: '1F', rent: '' };
+const emptyAssignForm = { tenantName: '', moveIn: '', leaseEnd: '', rent: '' };
+
 const AdminUnits = () => {
-  const [units, setUnits] = useState(initialUnits);
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [units, setUnits] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState(null);
-
-  const emptyUnitForm = { id: '', type: 'Studio', floor: '', rent: '' };
-  const [unitForm, setUnitForm] = useState(emptyUnitForm);
-
-  const emptyAssignForm = { tenantName: '', moveIn: '', leaseEnd: '', rent: '' };
-  const [assignForm, setAssignForm] = useState(emptyAssignForm);
+  
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [showExtendForm, setShowExtendForm] = useState(false);
+  
+  const [unitForm, setUnitForm] = useState(emptyUnitForm);
+  const [assignForm, setAssignForm] = useState(emptyAssignForm);
   const [extendForm, setExtendForm] = useState({ newLeaseEnd: '', newRent: '' });
   const [leaseError, setLeaseError] = useState('');
+  
+  const minLeaseDuration = 6;
 
-  const settings = getSystemSettings();
-  const minLeaseDuration = settings.minLeaseDuration || 3;
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = async () => {
+    try {
+      const response = await api.get('get_rooms.php');
+      if (response.data.success) {
+        // Hydrate empty arrays for UI elements that expect them but aren't in DB yet
+        const hydratedRooms = response.data.rooms.map(room => ({
+          ...room,
+          history: [],
+          occupancyHistory: [],
+          leaseHistory: [],
+          maintenanceHistory: [],
+          paymentHistory: []
+        }));
+        setUnits(hydratedRooms);
+        // Refresh selected unit if open
+        if (selectedUnit) {
+           const updated = hydratedRooms.find(u => u.id === selectedUnit.id);
+           if (updated) setSelectedUnit(updated);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch rooms:', error);
+    }
+  };
 
   const counts = {
     all: units.length,
@@ -125,44 +138,59 @@ const AdminUnits = () => {
     setShowAddModal(false);
   };
 
-  const handleAssignTenant = () => {
+  const handleAssignTenant = async () => {
     if (!assignForm.tenantName || !assignForm.moveIn || !assignForm.leaseEnd || !selectedUnit) return;
     const error = validateLeaseDuration(assignForm.moveIn, assignForm.leaseEnd);
     if (error) { setLeaseError(error); return; }
     setLeaseError('');
 
-    const months = monthsBetween(assignForm.moveIn, assignForm.leaseEnd);
-    setUnits(prev =>
-      prev.map(u => u.id === selectedUnit.id ? {
-        ...u, status: 'occupied', tenant: assignForm.tenantName, rent: Number(assignForm.rent) || u.rent, leaseStart: assignForm.moveIn, leaseEnd: assignForm.leaseEnd,
-        history: [...u.history, { event: 'Tenant assigned', detail: assignForm.tenantName, date: assignForm.moveIn }],
-        occupancyHistory: [...(u.occupancyHistory || []), { tenant: assignForm.tenantName, leaseStart: assignForm.moveIn, leaseEnd: assignForm.leaseEnd, rent: Number(assignForm.rent) || u.rent, status: 'current' }],
-        leaseHistory: [...(u.leaseHistory || []), { event: 'Initial Lease', oldEnd: null, newEnd: assignForm.leaseEnd, oldRent: null, newRent: Number(assignForm.rent) || u.rent, date: assignForm.moveIn, detail: `${assignForm.tenantName} · ${months} months` }],
-      } : u)
-    );
-    setSelectedUnit(prev => ({ ...prev, status: 'occupied', tenant: assignForm.tenantName, rent: Number(assignForm.rent) || prev.rent, leaseStart: assignForm.moveIn, leaseEnd: assignForm.leaseEnd }));
-    setAssignForm(emptyAssignForm);
-    setShowAssignModal(false);
+    try {
+      const payload = {
+        id: selectedUnit.id,
+        status: 'occupied',
+        tenant_name: assignForm.tenantName,
+        lease_start: assignForm.moveIn,
+        lease_end: assignForm.leaseEnd,
+        monthly_rent: Number(assignForm.rent) || selectedUnit.rent
+      };
+      
+      const response = await api.post('update_room.php', payload);
+      if (response.data.success) {
+        fetchRooms();
+        setShowAssignModal(false);
+        setAssignForm(emptyAssignForm);
+      }
+    } catch (error) {
+      console.error('Failed to assign tenant:', error);
+      alert('Failed to assign tenant. Check console for details.');
+    }
   };
 
-  const handleExtendLease = () => {
+  const handleExtendLease = async () => {
     if (!extendForm.newLeaseEnd || !selectedUnit) return;
     const error = validateLeaseDuration(selectedUnit.leaseEnd, extendForm.newLeaseEnd);
     if (error) { setLeaseError(error); return; }
     setLeaseError('');
 
     const newRent = Number(extendForm.newRent) || selectedUnit.rent;
-    const extensionMonths = monthsBetween(selectedUnit.leaseEnd, extendForm.newLeaseEnd);
-    setUnits(prev =>
-      prev.map(u => u.id === selectedUnit.id ? {
-        ...u, leaseEnd: extendForm.newLeaseEnd, rent: newRent,
-        history: [...u.history, { event: 'Lease extended', detail: `New end: ${extendForm.newLeaseEnd} · Rent: ${formatCurrency(newRent)}`, date: new Date().toISOString().slice(0, 10) }],
-        leaseHistory: [...(u.leaseHistory || []), { event: 'Lease Extended', oldEnd: u.leaseEnd, newEnd: extendForm.newLeaseEnd, oldRent: u.rent, newRent: newRent, date: new Date().toISOString().slice(0, 10), detail: `Extended by ${extensionMonths} months` }],
-      } : u)
-    );
-    setSelectedUnit(prev => ({ ...prev, leaseEnd: extendForm.newLeaseEnd, rent: newRent }));
-    setExtendForm({ newLeaseEnd: '', newRent: '' });
-    setShowExtendForm(false);
+    
+    try {
+      const payload = {
+        id: selectedUnit.id,
+        lease_end: extendForm.newLeaseEnd,
+        monthly_rent: newRent
+      };
+      
+      const response = await api.post('update_room.php', payload);
+      if (response.data.success) {
+        fetchRooms();
+        setExtendForm({ newLeaseEnd: '', newRent: '' });
+        setShowExtendForm(false);
+      }
+    } catch (error) {
+      console.error('Failed to extend lease:', error);
+      alert('Failed to extend lease. Check console for details.');
+    }
   };
 
   return (

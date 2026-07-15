@@ -21,7 +21,7 @@ $incident_date = $input['incidentDate'] ?? '';
 $incident_time = $input['incidentTime'] ?? '';
 $location_details = $input['locationDetails'] ?? '';
 $reason_request = $input['reasonRequest'] ?? '';
-$user_id = $input['userId'] ?? null;
+$user_id = $input['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
 
 if (empty($incident_date) || empty($incident_time) || empty($location_details) || empty($reason_request) || empty($user_id)) {
     echo json_encode(["success" => false, "message" => "All fields are required."]);

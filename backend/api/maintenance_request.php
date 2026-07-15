@@ -21,7 +21,7 @@ $urgency = $_POST['urgency'] ?? '';
 $preferred_date = $_POST['preferredDate'] ?? '';
 $preferred_time = $_POST['preferredTime'] ?? '';
 $description = $_POST['description'] ?? '';
-$user_id = $_POST['userId'] ?? null;
+$user_id = $_POST['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
 // Convert the string "1" or "0" back to an integer for the database
 $permission_to_enter = isset($_POST['permissionToEnter']) ? (int)$_POST['permissionToEnter'] : 0;
 

@@ -23,6 +23,19 @@ const AdminNotifications = () => {
   const emailKey = loggedInUser.email_address || "default_admin";
 
   const [notifications, setNotifications] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem(`admin_notif_settings_${emailKey}`);
+    return saved ? JSON.parse(saved) : {
+      rentDueEnabled: true, rentDueDays: '3',
+      overdueEnabled: true, overdueDays: '3',
+      maintenanceEnabled: true,
+      smsEnabled: false, smsPhone: '',
+      emailEnabled: true, emailAddress: emailKey
+    };
+  });
 
   useEffect(() => {
     fetchNotifications();

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBell, faSignOutAlt, faUserCog } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axiosConfig';
 
 const defaultAdminNotifications = [
   { id: 1, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit E — Pedro Cruz rent of ₱6,500 is due in 3 days (July 5).', time: '2 hours ago', timestamp: '2024-07-02 10:00', read: false },
@@ -18,55 +19,50 @@ const Header = ({ title = "Dashboard" }) => {
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
   const emailKey = loggedInUser.email_address || "default_admin";
 
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
-    return saved ? JSON.parse(saved) : defaultAdminNotifications;
-  });
+  const [notifications, setNotifications] = useState([]);
 
-  // Sync state with localStorage updates
   useEffect(() => {
-    const handleSync = () => {
-      const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setNotifications(prev => {
-          if (JSON.stringify(prev) !== saved) {
-            return parsed;
-          }
-          return prev;
-        });
+    fetchNotifications();
+  }, [loggedInUser.id]);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await api.get('get_notifications.php');
+      if (response.data.success) {
+        setNotifications(response.data.notifications);
       }
-    };
-    window.addEventListener('admin_notifications_updated', handleSync);
-    return () => window.removeEventListener('admin_notifications_updated', handleSync);
-  }, [emailKey]);
-
-  // Persist local state edits to localStorage and emit sync event
-  useEffect(() => {
-    const currentStr = JSON.stringify(notifications);
-    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
-    if (saved !== currentStr) {
-      localStorage.setItem(`admin_notifications_${emailKey}`, currentStr);
-      window.dispatchEvent(new Event('admin_notifications_updated'));
+    } catch (err) {
+      console.error(err);
     }
-  }, [notifications, emailKey]);
+  };
 
   const handleLogout = () => {
     sessionStorage.removeItem("loggedInUser");
     navigate('/login');
   };
 
-  const handleMarkAllRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
+  const handleMarkAllRead = async () => {
+    try {
+      const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
+      for (const id of unreadIds) {
+        await api.post('mark_notification_read.php', { id });
+      }
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const handleMarkRead = (id) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
-    setNotifications(updated);
+  const handleMarkRead = async (id) => {
+    try {
+      await api.post('mark_notification_read.php', { id });
+      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
     <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 select-none relative z-50">
@@ -110,12 +106,12 @@ const Header = ({ title = "Dashboard" }) => {
                     <div 
                       key={notif.id} 
                       onClick={() => handleMarkRead(notif.id)}
-                      className={`px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 ${!notif.read ? 'bg-indigo-50/20' : ''}`}
+                      className={`px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 ${!notif.is_read ? 'bg-indigo-50/20' : ''}`}
                     >
-                      {!notif.read && (
+                      {!notif.is_read && (
                         <span className="absolute left-1.5 top-[18px] w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
                       )}
-                      <p className={`text-xs font-bold m-0 leading-snug ${!notif.read ? 'text-slate-800' : 'text-slate-600'}`}>{notif.title}</p>
+                      <p className={`text-xs font-bold m-0 leading-snug ${!notif.is_read ? 'text-slate-800' : 'text-slate-600'}`}>{notif.title}</p>
                       <p className="text-[11px] text-slate-500 m-0 leading-normal">{notif.message}</p>
                       <p className="text-[9px] text-slate-400 font-medium m-0 mt-1">{notif.time}</p>
                     </div>
