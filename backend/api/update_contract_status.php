@@ -2,13 +2,20 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Id");
 
 require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
+}
+
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+if (!verify_admin($conn, $admin_id)) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    exit;
 }
 
 $input = json_decode(file_get_contents("php://input"), true);
@@ -33,6 +40,7 @@ $stmt = $conn->prepare("UPDATE lease_contracts SET status = ?, eviction_status =
 $stmt->bind_param("sss", $status, $eviction_status, $contract_id);
 
 if ($stmt->execute()) {
+    log_activity($conn, $admin_id, 'tenant', "Updated Contract Eviction Status", "Contract: $contract_id, Action: $action");
     echo json_encode(["success" => true, "message" => "Eviction status updated successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to update eviction status", "error" => $stmt->error]);

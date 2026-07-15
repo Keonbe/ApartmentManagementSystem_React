@@ -34,6 +34,7 @@ $stmt->bind_param("ssss", $payment_method, $status, $paid_at, $invoice_id);
 
 if ($stmt->execute()) {
     if ($stmt->affected_rows > 0) {
+        log_activity($conn, null, 'payment', "Tenant paid bill", "Invoice ID: $invoice_id, Method: $payment_method");
         echo json_encode(["success" => true, "message" => "Payment processed successfully"]);
     } else {
         echo json_encode(["success" => false, "message" => "Invoice not found or already paid"]);

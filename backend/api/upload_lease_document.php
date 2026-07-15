@@ -2,13 +2,20 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Id");
 
 require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
+}
+
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+if (!verify_admin($conn, $admin_id)) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -36,6 +43,7 @@ if ($action === 'remove') {
     $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = NULL WHERE id = ?");
     $stmt->bind_param("s", $contract_id);
     if ($stmt->execute()) {
+        log_activity($conn, $admin_id, 'tenant', "Removed Lease Document", "Document: $doc_type from Contract: $contract_id");
         echo json_encode(["success" => true, "message" => "Document removed successfully"]);
     } else {
         echo json_encode(["success" => false, "message" => "Failed to remove document"]);
@@ -60,6 +68,7 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
         $stmt->bind_param("ss", $destination, $contract_id);
         
         if ($stmt->execute()) {
+            log_activity($conn, $admin_id, 'tenant', "Uploaded Lease Document", "Document: $doc_type to Contract: $contract_id");
             echo json_encode(["success" => true, "message" => "Document uploaded successfully", "filePath" => $destination]);
         } else {
             echo json_encode(["success" => false, "message" => "Database update failed"]);

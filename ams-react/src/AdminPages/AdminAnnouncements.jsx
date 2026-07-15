@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -7,12 +7,7 @@ import {
   faDesktop, faCalendarAlt, faUsers, faClock, faCheckCircle, faPaperPlane
 } from '@fortawesome/free-solid-svg-icons';
 
-const initialAnnouncements = [
-  { id: 1, tag: 'Urgent', tagStyle: 'bg-red-100 text-red-800', title: 'Water interruption — May 1–2', date: 'Apr 28, 2025', body: 'Water service will be interrupted on May 1–2 from 8 AM to 5 PM for maintenance. Please store enough water. Sorry for the inconvenience.', sendTo: 'All tenants', channels: ['in-app', 'sms'], status: 'sent', recipients: 24 },
-  { id: 2, tag: 'Reminder', tagStyle: 'bg-blue-100 text-blue-800', title: 'May rent due — 5th of the month', date: 'Apr 25, 2025', body: 'This is a friendly reminder that rent for May is due on the 5th. Please settle on time to avoid penalties. Thank you!', sendTo: 'All tenants', channels: ['in-app', 'email'], status: 'sent', recipients: 24 },
-  { id: 3, tag: 'General', tagStyle: 'bg-slate-100 text-slate-600', title: 'No loud noise after 10 PM', date: 'Apr 20, 2025', body: 'Please be reminded to observe quiet hours after 10 PM. Kindly be considerate of your neighbors. Thank you for your cooperation.', sendTo: 'All tenants', channels: ['in-app'], status: 'sent', recipients: 24 },
-  { id: 4, tag: 'Reminder', tagStyle: 'bg-blue-100 text-blue-800', title: 'June rent due — 5th of the month', date: 'May 28, 2025', body: 'Rent for June is due on the 5th. Please settle on time.', sendTo: 'All tenants', channels: ['in-app', 'sms', 'email'], status: 'scheduled', scheduledDate: '2025-06-01', recipients: 24 },
-];
+import api from '../api/axiosConfig';
 
 const channelIcons = { 'in-app': faDesktop, 'sms': faMobileAlt, 'email': faEnvelope };
 const statusConfig = {
@@ -22,24 +17,54 @@ const statusConfig = {
 };
 
 const AdminAnnouncements = () => {
-  const [announcements, setAnnouncements] = useState(initialAnnouncements);
+  const [announcements, setAnnouncements] = useState([]);
   const [editingId, setEditingId] = useState(null);
   
   // Compose form
   const [form, setForm] = useState({ sendTo: 'All tenants', type: 'General', title: '', body: '', channels: ['in-app'], scheduleEnabled: false, scheduleDate: '' });
 
-  const handleSend = (asDraft = false) => {
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
+
+  const fetchAnnouncements = async () => {
+    try {
+      const response = await api.get('get_announcements.php');
+      if (response.data.success) {
+        const tagStyleMap = { Urgent: 'bg-red-100 text-red-800', Reminder: 'bg-blue-100 text-blue-800', General: 'bg-slate-100 text-slate-600' };
+        setAnnouncements(response.data.announcements.map(ann => ({
+          ...ann,
+          tagStyle: tagStyleMap[ann.tag] || tagStyleMap['General'],
+          date: new Date(ann.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          recipients: ann.recipient_count || 0
+        })));
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleSend = async (asDraft = false) => {
     if (!form.title || !form.body) return;
-    const tagStyleMap = { Urgent: 'bg-red-100 text-red-800', Reminder: 'bg-blue-100 text-blue-800', General: 'bg-slate-100 text-slate-600' };
-    const newAnn = {
-      id: Date.now(), tag: form.type, tagStyle: tagStyleMap[form.type], title: form.title, 
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      body: form.body, sendTo: form.sendTo, channels: [...form.channels],
-      status: asDraft ? 'draft' : form.scheduleEnabled ? 'scheduled' : 'sent',
-      scheduledDate: form.scheduleEnabled ? form.scheduleDate : null, recipients: 24
-    };
-    setAnnouncements([newAnn, ...announcements]);
-    setForm({ sendTo: 'All tenants', type: 'General', title: '', body: '', channels: ['in-app'], scheduleEnabled: false, scheduleDate: '' });
+    try {
+      const payload = {
+        tag: form.type,
+        title: form.title,
+        body: form.body,
+        sendTo: form.sendTo,
+        channels: form.channels
+      };
+      const response = await api.post('create_announcement.php', payload);
+      if (response.data.success) {
+        fetchAnnouncements();
+        setForm({ sendTo: 'All tenants', type: 'General', title: '', body: '', channels: ['in-app'], scheduleEnabled: false, scheduleDate: '' });
+      } else {
+        alert("Failed to create announcement: " + response.data.message);
+      }
+    } catch(e) {
+      console.error(e);
+      alert("An error occurred");
+    }
   };
 
   const toggleChannel = (ch) => {

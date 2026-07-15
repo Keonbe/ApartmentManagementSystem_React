@@ -6,12 +6,7 @@ import {
   faCog, faToggleOn, faToggleOff, faCheck, faCircle
 } from '@fortawesome/free-solid-svg-icons';
 
-const defaultNotifications = [
-  { id: 1, title: "Rent Overdue Alert", message: "Your Rent payment is due in 3 days. Please settle outstanding balances.", type: "warning", time: "1 hour ago", read: false },
-  { id: 2, title: "Maintenance Resolved", message: "Maintenance Request REQ-003 has been marked as Completed.", type: "success", time: "5 hours ago", read: false },
-  { id: 3, title: "Lease Document Required", message: "Your signed lease agreement has not been uploaded yet. Please submit the document.", type: "action", time: "1 day ago", read: false },
-  { id: 4, title: "Welcome to AMS", message: "Welcome to the Apartment Management System. You can manage rooms, request services, and pay bills here.", type: "info", time: "3 days ago", read: true }
-];
+import api from '../api/axiosConfig';
 
 const typeConfig = {
   warning: { label: 'Alert', icon: faExclamationTriangle, color: 'bg-red-50 text-red-500 border-red-100', badge: 'bg-red-100 text-red-700' },
@@ -25,63 +20,61 @@ export default function UserNotifications() {
   const emailKey = loggedInUser.email_address || "default";
 
   // State to hold notifications
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem(`user_notifications_${emailKey}`);
-    return saved ? JSON.parse(saved) : defaultNotifications;
-  });
+  const [notifications, setNotifications] = useState([]);
 
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSettings, setShowSettings] = useState(false);
-
-  // User notifications preference state (mock state for premium look)
-  const [preferences, setPreferences] = useState(() => {
-    const saved = localStorage.getItem(`user_notif_pref_${emailKey}`);
-    return saved ? JSON.parse(saved) : {
-      rentReminders: true,
-      maintenanceUpdates: true,
-      leaseAlerts: true,
-      emailChannel: true,
-      smsChannel: false
-    };
-  });
-
-  // Keep state in sync with localStorage updates (from dropdown or other parts)
   useEffect(() => {
-    const handleSync = () => {
-      const saved = localStorage.getItem(`user_notifications_${emailKey}`);
-      if (saved) {
-        setNotifications(JSON.parse(saved));
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    if (!loggedInUser.id) return;
+    try {
+      const response = await api.get(`get_notifications.php?userId=${loggedInUser.id}`);
+      if (response.data.success) {
+        setNotifications(response.data.notifications.map(n => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type,
+          time: new Date(n.created_at).toLocaleString(),
+          read: n.is_read
+        })));
       }
-    };
-    window.addEventListener('user_notifications_updated', handleSync);
-    return () => window.removeEventListener('user_notifications_updated', handleSync);
-  }, [emailKey]);
-
-  // Persist to localStorage and dispatch custom event when notifications change in this page
-  const updateNotificationsState = (newNotifs) => {
-    setNotifications(newNotifs);
-    localStorage.setItem(`user_notifications_${emailKey}`, JSON.stringify(newNotifs));
-    window.dispatchEvent(new Event('user_notifications_updated'));
+    } catch(e) {
+      console.error(e);
+    }
   };
 
-  const handleToggleRead = (id) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, read: !n.read } : n);
-    updateNotificationsState(updated);
+  const handleToggleRead = async (id) => {
+    const notif = notifications.find(n => n.id === id);
+    if (!notif) return;
+    try {
+      await api.post('mark_notification_read.php', { notificationId: id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
-  const handleDelete = (id) => {
-    const updated = notifications.filter(n => n.id !== id);
-    updateNotificationsState(updated);
+  const handleDelete = async (id) => {
+    try {
+      await api.post('delete_notification.php', { notificationId: id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
-  const handleMarkAllRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    updateNotificationsState(updated);
+  const handleMarkAllRead = async () => {
+    if (!loggedInUser.id) return;
+    try {
+      await api.post('mark_notification_read.php', { userId: loggedInUser.id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
-  const handleClearAll = () => {
-    updateNotificationsState([]);
+  const handleClearAll = async () => {
+    if (!loggedInUser.id) return;
+    try {
+      await api.post('delete_notification.php', { userId: loggedInUser.id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
   const togglePreference = (key) => {

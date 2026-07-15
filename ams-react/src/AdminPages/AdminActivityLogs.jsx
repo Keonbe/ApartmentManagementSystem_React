@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,22 +9,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 
-const initialLogs = [
-  { id: 'LOG-001', category: 'payment', action: 'Payment Received', details: '₱12,500 from Unit H (Miguel Santos) for May 2025 Rent & Utilities', time: '10 mins ago', date: '2026-07-13 18:56', operator: 'System' },
-  { id: 'LOG-002', category: 'maintenance', action: 'Maintenance Updated', details: 'REQ-003 kitchen drain clogging marked as In Progress. Assigned to Mang Totoy.', time: '1 hour ago', date: '2026-07-13 18:06', operator: 'Admin (admin@apartment.com)' },
-  { id: 'LOG-003', category: 'tenant', action: 'New Tenant Onboarded', details: 'Miguel Santos added to Unit H, registered vehicle Honda Click (Plate: XYZ-8812)', time: '2 hours ago', date: '2026-07-13 17:06', operator: 'Admin (admin@apartment.com)' },
-  { id: 'LOG-004', category: 'document', action: 'Contract Generated', details: 'Lease Agreement generated for Gloria Tan (Unit J). Term: 12 months.', time: 'Yesterday', date: '2026-07-12 14:30', operator: 'Admin (admin@apartment.com)' },
-  { id: 'LOG-005', category: 'system', action: 'System Login', details: 'Administrator logged in from IP 192.168.1.105', time: 'Yesterday', date: '2026-07-12 09:15', operator: 'Admin (admin@apartment.com)' },
-  { id: 'LOG-006', category: 'parking', action: 'Parking Slot Assigned', details: 'Slot P-15 successfully reserved for Unit F (Rosa Dela Cruz) vehicle Toyota Vios', time: '2 days ago', date: '2026-07-11 11:20', operator: 'System' },
-  { id: 'LOG-007', category: 'cctv', action: 'CCTV Request Approved', details: 'Request CCTV-002 for corridor footage near elevator 2 on July 10', time: '2 days ago', date: '2026-07-11 10:15', operator: 'Admin (admin@apartment.com)' },
-  { id: 'LOG-008', category: 'payment', action: 'Rent Application Approved', details: 'Application for Unit H (Miguel Santos) approved and lease contract initialized', time: '3 days ago', date: '2026-07-10 15:45', operator: 'Admin (admin@apartment.com)' },
-  { id: 'LOG-009', category: 'maintenance', action: 'New Maintenance Request', details: 'Tenant Maria Santos (Unit A) reported bedroom light switch sparking', time: '3 days ago', date: '2026-07-10 12:30', operator: 'Tenant (maria.santos@email.com)' },
-  { id: 'LOG-010', category: 'system', action: 'Database Backup', details: 'Automated database backup completed successfully. Status: OK', time: '4 days ago', date: '2026-07-09 00:00', operator: 'System Service' },
-  { id: 'LOG-011', category: 'payment', action: 'Invoice Generated', details: 'Monthly utility invoices generated for all occupied units (13 total invoices)', time: '5 days ago', date: '2026-07-08 08:00', operator: 'System Service' },
-  { id: 'LOG-012', category: 'document', action: 'Contract Signed', details: 'Tenant Pedro Cruz uploaded signed lease agreement for Unit E', time: '5 days ago', date: '2026-07-08 16:30', operator: 'Tenant (pedro.cruz@email.com)' },
-  { id: 'LOG-013', category: 'announcement', action: 'Announcement Posted', details: 'Notice: Scheduled water maintenance on July 15, 2026 from 1 PM to 5 PM', time: '6 days ago', date: '2026-07-07 10:00', operator: 'Admin (admin@apartment.com)' },
-  { id: 'LOG-014', category: 'cctv', action: 'New CCTV Request', details: 'CCTV-003 requested by Carlos Diaz (Unit D) for parking lot footage', time: '1 week ago', date: '2026-07-06 14:15', operator: 'Tenant (carlos.diaz@email.com)' }
-];
+import api from '../api/axiosConfig';
 
 const categoryConfig = {
   payment: { label: 'Payment', icon: faDollarSign, color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
@@ -39,8 +24,30 @@ const categoryConfig = {
 
 export default function AdminActivityLogs() {
   const navigate = useNavigate();
-  const [logs, setLogs] = useState(initialLogs);
+  const [logs, setLogs] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  useEffect(() => {
+    fetchLogs();
+  }, []);
+
+  const fetchLogs = async () => {
+    try {
+      const response = await api.get('get_activity_logs.php');
+      if (response.data.success) {
+        setLogs(response.data.logs.map(log => ({
+          id: `LOG-${log.id.toString().padStart(3, '0')}`,
+          category: log.category,
+          action: log.action,
+          details: log.details,
+          date: log.created_at,
+          operator: log.first_name ? `${log.first_name} ${log.last_name}` : 'System'
+        })));
+      }
+    } catch (e) {
+      console.error("Failed to fetch logs:", e);
+    }
+  };
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedLog, setSelectedLog] = useState(null);
   

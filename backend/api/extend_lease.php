@@ -37,6 +37,7 @@ if ($row = $result->fetch_assoc()) {
     $update->bind_param("is", $new_total_months, $email);
     
     if ($update->execute()) {
+        log_activity($conn, null, 'tenant', "Lease Extended", "Tenant Email: $email, Added $additional_months months");
         echo json_encode(["success" => true, "message" => "Lease extended successfully"]);
     } else {
         echo json_encode(["success" => false, "message" => "Update failed"]);

@@ -5,6 +5,23 @@ const api = axios.create({
     headers: {
         "Content-Type": "application/json"
     }
-})
+});
+
+api.interceptors.request.use((config) => {
+    const loggedInUserStr = sessionStorage.getItem("loggedInUser");
+    if (loggedInUserStr) {
+        try {
+            const loggedInUser = JSON.parse(loggedInUserStr);
+            if (loggedInUser.role === 'admin' && loggedInUser.id) {
+                config.headers['X-Admin-Id'] = loggedInUser.id;
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
+});
 
 export default api;

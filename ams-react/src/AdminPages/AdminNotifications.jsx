@@ -8,18 +8,7 @@ import {
   faCog, faFilter, faCheck, faCircle
 } from '@fortawesome/free-solid-svg-icons';
 
-const initialNotifications = [
-  { id: 1, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit E — Pedro Cruz rent of ₱6,500 is due in 3 days (July 5).', time: '2 hours ago', timestamp: '2024-07-02 10:00', read: false },
-  { id: 2, type: 'overdue', title: 'Overdue Alert', message: 'Unit G — Ben Flores has an overdue balance of ₱6,500 (7 days past due).', time: '3 hours ago', timestamp: '2024-07-02 09:00', read: false },
-  { id: 3, type: 'maintenance', title: 'Maintenance Update', message: 'REQ-003 (Clogged kitchen drain) has been marked as In Progress. Assigned to Mang Totoy.', time: '5 hours ago', timestamp: '2024-07-02 07:00', read: false },
-  { id: 4, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit F — Rosa Dela Cruz rent of ₱7,500 is due in 5 days (July 7).', time: 'Yesterday', timestamp: '2024-07-01 14:00', read: true },
-  { id: 5, type: 'sms', title: 'SMS Sent', message: 'Rent reminder SMS sent to Pedro Cruz (0919-345-6789).', time: 'Yesterday', timestamp: '2024-07-01 10:00', read: true },
-  { id: 6, type: 'email', title: 'Email Sent', message: 'Monthly invoice email sent to maria.santos@email.com for Unit A.', time: '2 days ago', timestamp: '2024-06-30 09:00', read: true },
-  { id: 7, type: 'overdue', title: 'Overdue Alert', message: 'Unit G — Ben Flores has an overdue balance of ₱6,500 (5 days past due).', time: '2 days ago', timestamp: '2024-06-30 08:00', read: true },
-  { id: 8, type: 'maintenance', title: 'Maintenance Completed', message: 'REQ-004 (Electrical short in outlet) has been resolved.', time: '3 days ago', timestamp: '2024-06-29 16:00', read: true },
-  { id: 9, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit J — Gloria Tan rent of ₱6,500 is due tomorrow.', time: '4 days ago', timestamp: '2024-06-28 10:00', read: true },
-  { id: 10, type: 'sms', title: 'SMS Sent', message: 'Overdue notice SMS sent to Ben Flores (0921-567-8901).', time: '5 days ago', timestamp: '2024-06-27 09:00', read: true },
-];
+import api from '../api/axiosConfig';
 
 const typeConfig = {
   rent_due: { label: 'Rent Due', icon: faClock, color: 'bg-blue-100 text-blue-600', badge: 'bg-blue-100 text-blue-700' },
@@ -33,53 +22,30 @@ const AdminNotifications = () => {
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
   const emailKey = loggedInUser.email_address || "default_admin";
 
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
-    return saved ? JSON.parse(saved) : initialNotifications;
-  });
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSettings, setShowSettings] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
-  // Settings state
-  const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem(`admin_notif_settings_${emailKey}`);
-    return saved ? JSON.parse(saved) : {
-      rentDueEnabled: true, rentDueDays: '3',
-      overdueEnabled: true, overdueDays: '1',
-      maintenanceEnabled: true,
-      smsEnabled: true, smsPhone: '0917-123-4567',
-      emailEnabled: true, emailAddress: 'admin@apartment.com',
-    };
-  });
-
-  // Sync state with localStorage updates (from header or other pages)
   useEffect(() => {
-    const handleSync = () => {
-      const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setNotifications(prev => {
-          if (JSON.stringify(prev) !== saved) {
-            return parsed;
-          }
-          return prev;
-        });
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    if (!loggedInUser.id) return;
+    try {
+      const response = await api.get(`get_notifications.php?userId=${loggedInUser.id}`);
+      if (response.data.success) {
+        setNotifications(response.data.notifications.map(n => ({
+          id: n.id,
+          type: n.type,
+          title: n.title,
+          message: n.message,
+          time: new Date(n.created_at).toLocaleString(),
+          read: n.is_read
+        })));
       }
-    };
-    window.addEventListener('admin_notifications_updated', handleSync);
-    return () => window.removeEventListener('admin_notifications_updated', handleSync);
-  }, [emailKey]);
-
-  // Persist state to localStorage and emit sync event
-  useEffect(() => {
-    const currentStr = JSON.stringify(notifications);
-    const saved = localStorage.getItem(`admin_notifications_${emailKey}`);
-    if (saved !== currentStr) {
-      localStorage.setItem(`admin_notifications_${emailKey}`, currentStr);
-      window.dispatchEvent(new Event('admin_notifications_updated'));
+    } catch(e) {
+      console.error(e);
     }
-  }, [notifications, emailKey]);
+  };
 
   // Persist settings
   useEffect(() => {
@@ -106,20 +72,34 @@ const AdminNotifications = () => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleMarkAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const handleMarkAllRead = async () => {
+    if (!loggedInUser.id) return;
+    try {
+      await api.post('mark_notification_read.php', { userId: loggedInUser.id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
-  const handleClearAll = () => {
-    setNotifications([]);
+  const handleClearAll = async () => {
+    if (!loggedInUser.id) return;
+    try {
+      await api.post('delete_notification.php', { userId: loggedInUser.id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
-  const handleToggleRead = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: !n.read } : n));
+  const handleToggleRead = async (id) => {
+    try {
+      await api.post('mark_notification_read.php', { notificationId: id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
-  const handleDelete = (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const handleDelete = async (id) => {
+    try {
+      await api.post('delete_notification.php', { notificationId: id });
+      fetchNotifications();
+    } catch(e) {}
   };
 
   const toggleSetting = (key) => {

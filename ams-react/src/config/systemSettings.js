@@ -3,7 +3,9 @@
 // ==========================================
 // Shared configuration module for AMS system settings.
 // All admin pages import from here to read configurable values.
-// Values are persisted in localStorage and editable via AdminAccountSettings.
+// Values are retrieved from the backend API.
+
+import api from '../api/axiosConfig';
 
 const DEFAULTS = {
   minLeaseDuration: 3,             // months
@@ -16,23 +18,38 @@ const DEFAULTS = {
 
 const STORAGE_KEY = 'ams_system_settings';
 
-export const getSystemSettings = () => {
+export const getSystemSettings = async () => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return { ...DEFAULTS, ...JSON.parse(stored) };
+    const response = await api.get('get_system_settings.php');
+    if (response.data.success && response.data.settings) {
+      const dbSettings = response.data.settings;
+      return {
+        minLeaseDuration: parseInt(dbSettings.min_lease_duration || DEFAULTS.minLeaseDuration),
+        overdueThresholdDays: parseInt(dbSettings.overdue_threshold_days || DEFAULTS.overdueThresholdDays),
+        autoFlagEviction: (dbSettings.auto_flag_eviction === 1 || dbSettings.auto_flag_eviction === true || dbSettings.auto_flag_eviction === '1'),
+        maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || DEFAULTS.maintenanceMonthlyBudget),
+        tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || DEFAULTS.tenantResponsibilityClause
+      };
     }
   } catch (e) {
-    console.warn('Failed to load system settings from localStorage:', e);
+    console.warn('Failed to load system settings from backend:', e);
   }
   return { ...DEFAULTS };
 };
 
-export const saveSystemSettings = (settings) => {
+export const saveSystemSettings = async (settings) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    const payload = {
+      min_lease_duration: settings.minLeaseDuration,
+      overdue_threshold_days: settings.overdueThresholdDays,
+      auto_flag_eviction: settings.autoFlagEviction ? 1 : 0,
+      maintenance_monthly_budget: settings.maintenanceMonthlyBudget,
+      tenant_responsibility_clause: settings.tenantResponsibilityClause
+    };
+    await api.post('update_system_settings.php', payload);
   } catch (e) {
-    console.warn('Failed to save system settings to localStorage:', e);
+    console.warn('Failed to save system settings to backend:', e);
+    throw e;
   }
 };
 

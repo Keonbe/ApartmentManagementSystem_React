@@ -46,6 +46,22 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Admin-only protection layer
+function AdminProtectedRoute({ children }) {
+  const loggedInUserStr = sessionStorage.getItem("loggedInUser");
+  
+  if (!loggedInUserStr) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  const loggedInUser = JSON.parse(loggedInUserStr);
+  if (loggedInUser.role !== 'admin') {
+    return <Navigate to="/home" replace />;
+  }
+  
+  return children;
+}
+
 //Conditional Layout Wrapper Framework Component containing universal global Footer injection
 function BaseAppLayout({ children, hasRentedRoom }) {
   const navigate = useNavigate();
@@ -112,18 +128,18 @@ function AppContent() {
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} />} />
 
         {/*ADMIN OPERATION PANEL WORKSPACES*/}
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
-        <Route path="/admin-units" element={<AdminUnits />} />
-        <Route path="/admin-tenants" element={<AdminTenants />} />
-        <Route path="/admin-payments" element={<AdminPayments />} />
-        <Route path="/admin-maintenance" element={<AdminMaintenance />} />
-        <Route path="/admin-announcements" element={<AdminAnnouncements />} />
-        <Route path="/admin-reports" element={<AdminReports />} />
-        <Route path="/admin-notifications" element={<AdminNotifications />} />
-        <Route path="/admin-contracts" element={<AdminContracts />} />
-        <Route path="/admin-services" element={<AdminServicePage />} />
-        <Route path="/admin-settings" element={<AdminAccountSettings />} />
-        <Route path="/admin-activity-logs" element={<AdminActivityLogs />} />
+        <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+        <Route path="/admin-units" element={<AdminProtectedRoute><AdminUnits /></AdminProtectedRoute>} />
+        <Route path="/admin-tenants" element={<AdminProtectedRoute><AdminTenants /></AdminProtectedRoute>} />
+        <Route path="/admin-payments" element={<AdminProtectedRoute><AdminPayments /></AdminProtectedRoute>} />
+        <Route path="/admin-maintenance" element={<AdminProtectedRoute><AdminMaintenance /></AdminProtectedRoute>} />
+        <Route path="/admin-announcements" element={<AdminProtectedRoute><AdminAnnouncements /></AdminProtectedRoute>} />
+        <Route path="/admin-reports" element={<AdminProtectedRoute><AdminReports /></AdminProtectedRoute>} />
+        <Route path="/admin-notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
+        <Route path="/admin-contracts" element={<AdminProtectedRoute><AdminContracts /></AdminProtectedRoute>} />
+        <Route path="/admin-services" element={<AdminProtectedRoute><AdminServicePage /></AdminProtectedRoute>} />
+        <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
+        <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
       </Routes>
 
       <LogInModal 

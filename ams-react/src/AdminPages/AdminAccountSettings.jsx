@@ -16,12 +16,16 @@ const AdminAccountSettings = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   // System Configuration State
-  const [settings, setSettings] = useState(getSystemSettings());
+  const [settings, setSettings] = useState(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  // Load settings from localStorage on mount
+  // Load settings from backend on mount
   useEffect(() => {
-    setSettings(getSystemSettings());
+    const loadSettings = async () => {
+      const data = await getSystemSettings();
+      setSettings(data);
+    };
+    loadSettings();
   }, []);
 
   const handleProfileSubmit = (e) => {
@@ -41,11 +45,15 @@ const AdminAccountSettings = () => {
     setConfirmPassword('');
   };
 
-  const handleSettingsSave = (e) => {
+  const handleSettingsSave = async (e) => {
     e.preventDefault();
-    saveSystemSettings(settings);
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 3000);
+    try {
+      await saveSystemSettings(settings);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 3000);
+    } catch (error) {
+      alert("Failed to save settings");
+    }
   };
 
   const updateSetting = (key, value) => {
@@ -211,6 +219,7 @@ const AdminAccountSettings = () => {
               </div>
 
               <div className="p-6">
+                {!settings ? <div className="text-center py-4 text-slate-500">Loading settings...</div> : (
                 <form onSubmit={handleSettingsSave} className="space-y-8">
 
                   {/* Success Banner */}
@@ -393,6 +402,7 @@ const AdminAccountSettings = () => {
                     </button>
                   </div>
                 </form>
+                )}
               </div>
             </div>
 
