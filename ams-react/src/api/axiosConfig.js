@@ -2,7 +2,7 @@ import axios from "axios";
 
 // This is the base URL for all API requests. It is set to the URL of the XAMPP server.
 const api = axios.create({
-    baseURL: "http://localhost:8080/ApartmentManagementSystem_React/backend/api/",
+    baseURL: "http://localhost/ApartmentManagementSystem_React/backend/api/",
     headers: {
         "Content-Type": "application/json"
     }
