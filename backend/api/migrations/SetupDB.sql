@@ -331,20 +331,20 @@ VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14Z
 
 -- 2. Initial Units
 INSERT IGNORE INTO `rooms` (`id`, `type`, `floor`, `monthly_rent`, `status`, `tenant_name`, `lease_start`, `lease_end`, `last_tenant`, `maintenance_flag`) VALUES
-('A', 'Studio', '1F', 6500, 'occupied', 'Maria Santos', '2024-06-01', '2025-06-01', NULL, 0),
-('B', 'Studio', '1F', 6500, 'occupied', 'Jose Reyes', '2024-07-15', '2025-07-15', NULL, 0),
-('C', '1BR', '1F', 7500, 'occupied', 'Ana Garcia', '2024-05-01', '2025-05-01', NULL, 0),
-('D', 'Studio', '2F', 6500, 'vacant', NULL, NULL, NULL, 'Carlos Mendoza', 0),
-('E', 'Studio', '2F', 6500, 'occupied', 'Pedro Cruz', '2024-03-01', '2025-03-01', NULL, 0),
-('F', '1BR', '2F', 7500, 'occupied', 'Rosa Dela Cruz', '2024-08-01', '2025-08-01', NULL, 1),
-('G', 'Studio', '3F', 6500, 'occupied', 'Ben Flores', '2024-04-15', '2025-04-15', NULL, 1),
-('H', 'Studio', '3F', 6500, 'occupied', 'Lita Ramos', '2024-01-01', '2025-01-01', 'Roberto Tan', 0),
-('I', '1BR', '3F', 7500, 'occupied', 'Dante Abad', '2024-05-01', '2025-05-01', NULL, 0),
-('J', 'Studio', '4F', 6500, 'occupied', 'Gloria Tan', '2024-09-01', '2025-09-01', NULL, 0),
-('K', 'Studio', '4F', 6500, 'occupied', 'Ramon Lim', '2024-02-01', '2025-02-01', NULL, 0),
-('L', '1BR', '4F', 7500, 'occupied', 'Cora Santos', '2024-10-01', '2025-10-01', NULL, 0),
-('M', 'Studio', '5F', 6500, 'vacant', NULL, NULL, NULL, NULL, 0),
-('N', '1BR', '5F', 7500, 'occupied', 'Nilo Ocampo', '2024-11-01', '2025-11-01', NULL, 0);
+('A', 'Studio', '1F', 6500, 'occupied', 'R.G', '2024-06-01', '2025-06-01', NULL, 0),
+('B', 'Studio', '1F', 6500, 'occupied', 'K.L', '2024-07-15', '2025-07-15', NULL, 0),
+('C', '1BR', '1F', 7500, 'occupied', 'J.D', '2024-05-01', '2025-05-01', NULL, 0),
+('D', 'Studio', '1F', 6500, 'vacant', NULL, NULL, NULL, 'S.A', 0),
+('E', 'Studio', '2F', 6500, 'occupied', 'E.P', '2024-03-01', '2025-03-01', NULL, 0),
+('F', '1BR', '2F', 7500, 'occupied', 'P.T', '2024-08-01', '2025-08-01', NULL, 1),
+('G', 'Studio', '2F', 6500, 'occupied', 'R.A', '2024-04-15', '2025-04-15', NULL, 1),
+('H', 'Studio', '2F', 6500, 'occupied', 'R.G', '2024-01-01', '2025-01-01', 'R.G', 0),
+('I', '1BR', '3F', 7500, 'occupied', 'J.L', '2024-05-01', '2025-05-01', NULL, 0),
+('J', 'Studio', '3F', 6500, 'occupied', 'N.K', '2024-09-01', '2025-09-01', NULL, 0),
+('K', 'Studio', '3F', 6500, 'occupied', 'G.Y', '2024-02-01', '2025-02-01', NULL, 0),
+('L', '1BR', '3F', 7500, 'occupied', 'R.U', '2024-10-01', '2025-10-01', NULL, 0),
+('M', 'Studio', '3F', 6500, 'vacant', NULL, NULL, NULL, NULL, 0),
+('N', '1BR', '3F', 7500, 'occupied', 'C.L', '2024-11-01', '2025-11-01', NULL, 0);
 
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
