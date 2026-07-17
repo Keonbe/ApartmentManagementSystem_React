@@ -147,7 +147,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         <button onClick={() => navigate('/home')} className={navItemClass('/home')}>
                             Home
                         </button>
-                        {isLoggedIn && (
+                        {isLoggedIn && hasRentedRoom && (
                             <button onClick={() => navigate('/services')} className={navItemClass('/services')}>
                                 Services
                             </button>
@@ -328,7 +328,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         >
                             Home
                         </button>
-                        {isLoggedIn && (
+                        {isLoggedIn && hasRentedRoom && (
                             <button
                                 onClick={() => {
                                     setIsMobileMenuOpen(false);

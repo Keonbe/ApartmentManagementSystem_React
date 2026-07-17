@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import api from './api/axiosConfig';
 
 //Components
 import TopBar from './Components/TopBar';
@@ -65,6 +66,26 @@ function AdminProtectedRoute({ children }) {
   return children;
 }
 
+// Tenant-only protection layer
+function TenantProtectedRoute({ children, hasRentedRoom }) {
+  const loggedInUserStr = sessionStorage.getItem("loggedInUser");
+  
+  if (!loggedInUserStr) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  const loggedInUser = JSON.parse(loggedInUserStr);
+  if (loggedInUser.role === 'admin') {
+    return children;
+  }
+  
+  if (!hasRentedRoom) {
+    return <Navigate to="/home" replace />;
+  }
+  
+  return children;
+}
+
 //Conditional Layout Wrapper Framework Component containing universal global Footer injection
 function BaseAppLayout({ children, hasRentedRoom }) {
   const navigate = useNavigate();
@@ -91,10 +112,37 @@ function BaseAppLayout({ children, hasRentedRoom }) {
 
 function AppContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  //Toggle true/false manually to verify navigation element states visibility changes
-  const [hasRentedRoom, setHasRentedRoom] = useState(true);
+  const [hasRentedRoom, setHasRentedRoom] = useState(false);
+
+  useEffect(() => {
+    const checkRoomStatus = async () => {
+      const loggedInUserStr = sessionStorage.getItem("loggedInUser");
+      if (!loggedInUserStr) {
+        setHasRentedRoom(false);
+        return;
+      }
+      const loggedInUser = JSON.parse(loggedInUserStr);
+      if (loggedInUser.role === 'admin') {
+        setHasRentedRoom(true);
+        return;
+      }
+      try {
+        const res = await api.get('/my_room.php');
+        if (res.data.success && res.data.data && res.data.data.status === 'Approved') {
+          setHasRentedRoom(true);
+        } else {
+          setHasRentedRoom(false);
+        }
+      } catch (err) {
+        console.error("Error checking room status:", err);
+        setHasRentedRoom(false);
+      }
+    };
+    checkRoomStatus();
+  }, [location.pathname]);
 
   //Global Route Action Protection Layer
   const handleRentActionTrigger = (roomId) => {
@@ -116,19 +164,19 @@ function AppContent() {
         <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} /></BaseAppLayout>} />
         
         {/*SECURED TENANT DASHBOARDS SERVICES (WRAPPED IN PROTECTED ROUTE CONTROLLERS)*/}
-        <Route path="/services" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/pay-bills" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/parking-reservation" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/cctv-request" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/maintenance-request" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/services" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/pay-bills" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/parking-reservation" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/cctv-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/maintenance-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/my-room" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/my-room" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/view-contract" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/my-requests" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/announcements" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></ProtectedRoute>} />
-        <Route path="/payment-history" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/my-requests" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></TenantProtectedRoute>} />
         {/*SECURITY AUTH TARGET SCHEMAS*/}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} />} />
