@@ -12,6 +12,7 @@ const navSections = [
     title: 'Main',
     items: [
       { to: '/admin-dashboard', icon: faHome, label: 'Dashboard' },
+      { to: '/admin-applications', icon: faFileAlt, label: 'Applications' },
       { to: '/admin-units', icon: faBuilding, label: 'Units' },
       { to: '/admin-tenants', icon: faUsers, label: 'Tenants' },
       { to: '/admin-payments', icon: faCreditCard, label: 'Payments' },

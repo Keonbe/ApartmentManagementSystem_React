@@ -13,30 +13,31 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $result = $conn->query("SELECT * FROM rent_applications ORDER BY id DESC");
-    $tenants = [];
+    $applications = [];
     
     while ($row = $result->fetch_assoc()) {
-        $tenants[] = [
+        $applications[] = [
             'id' => $row['id'],
-            'name' => $row['first_name'] . ' ' . $row['last_name'],
+            'first_name' => $row['first_name'],
+            'middle_name' => $row['middle_name'] ?? '',
+            'last_name' => $row['last_name'],
+            'suffix' => $row['suffix'] ?? '',
+            'name' => trim($row['first_name'] . ' ' . ($row['middle_name'] ?? '') . ' ' . $row['last_name'] . ' ' . ($row['suffix'] ?? '')),
             'email' => $row['email'],
             'phone' => $row['contact_no'],
+            'gender' => $row['gender'] ?? 'Not Specified',
+            'occupants' => $row['occupants'] ?? '1',
+            'months_of_rent' => $row['months_of_rent'] ?? '1',
             'unit' => $row['room_name'],
             'rent' => '₱' . number_format($row['monthly_rent']),
-            'moveIn' => $row['status'] === 'Pending Review' ? null : $row['created_at'], 
-            'leaseEnd' => date('Y-m-d', strtotime($row['created_at'] . ' + ' . $row['months_of_rent'] . ' months')),
-            'status' => $row['status'] ?? 'active',
-            'paymentStatus' => 'paid',
-            'documents' => [],
+            'status' => $row['status'] ?? 'Pending Review',
+            'created_at' => $row['created_at'] ?? '',
             'valid_id_front_path' => $row['valid_id_front_path'] ?? null,
             'valid_id_back_path' => $row['valid_id_back_path'] ?? null,
             'nbi_clearance_path' => $row['nbi_clearance_path'] ?? null,
-            'archiveDate' => $row['archive_date'] ?? null,
-            'archiveReason' => $row['archive_reason'] ?? null,
-            'archiveNotes' => $row['archive_notes'] ?? null,
         ];
     }
-    echo json_encode(["success" => true, "data" => $tenants]);
+    echo json_encode(["success" => true, "data" => $applications]);
     exit;
 }
 ?>

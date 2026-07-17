@@ -30,6 +30,7 @@ import UserPaymentHistory from './UserPages/UserPaymentHistory';
 import AdminDashboard from './AdminPages/AdminDashboard';
 import AdminUnits from './AdminPages/AdminUnits';
 import AdminTenants from './AdminPages/AdminTenants';
+import AdminApplications from './AdminPages/AdminApplications';
 import AdminPayments from './AdminPages/AdminPayments';
 import AdminMaintenance from './AdminPages/AdminMaintainance';
 import AdminAnnouncements from './AdminPages/AdminAnnouncements';
@@ -185,6 +186,7 @@ function AppContent() {
 
         {/*ADMIN OPERATION PANEL WORKSPACES*/}
         <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+        <Route path="/admin-applications" element={<AdminProtectedRoute><AdminApplications /></AdminProtectedRoute>} />
         <Route path="/admin-units" element={<AdminProtectedRoute><AdminUnits /></AdminProtectedRoute>} />
         <Route path="/admin-tenants" element={<AdminProtectedRoute><AdminTenants /></AdminProtectedRoute>} />
         <Route path="/admin-payments" element={<AdminProtectedRoute><AdminPayments /></AdminProtectedRoute>} />

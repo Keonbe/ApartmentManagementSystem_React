@@ -89,7 +89,10 @@ const AdminTenants = () => {
   const fetchTenants = async () => {
     try {
       const res = await api.get('/get_tenants.php');
-      if (res.data.success) setTenants(res.data.data);
+      if (res.data.success) {
+        const actualTenants = res.data.data.filter(t => t.status !== 'Pending Review' && t.status !== 'Rejected');
+        setTenants(actualTenants);
+      }
     } catch (err) {
       console.error("Error fetching tenants:", err);
     }
@@ -138,7 +141,6 @@ const AdminTenants = () => {
 
   const counts = {
     all: tenants.length + archivedTenants.length,
-    'pending-review': pendingReviewCount,
     active: activeTenantCount,
     'pending-move-out': pendingMoveOutCount,
     'moved-out': movedOutCount,
@@ -147,7 +149,6 @@ const AdminTenants = () => {
 
   const filters = [
     { key: 'all', label: `All (${counts.all})` },
-    { key: 'Pending Review', label: `Pending (${counts['pending-review']})`, activeStyle: 'bg-blue-100 text-blue-800 border-blue-300' },
     { key: 'active', label: `Active (${counts.active})`, activeStyle: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
     { key: 'pending-move-out', label: `Pending Move-Out (${counts['pending-move-out']})`, activeStyle: 'bg-amber-100 text-amber-800 border-amber-300' },
     { key: 'moved-out', label: `Moved Out (${counts['moved-out']})`, activeStyle: 'bg-slate-200 text-slate-600 border-slate-300' },
