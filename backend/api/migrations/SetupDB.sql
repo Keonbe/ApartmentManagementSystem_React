@@ -221,6 +221,7 @@ CREATE TABLE `rent_applications` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) DEFAULT NULL,
   `first_name` varchar(100) NOT NULL,
+  `middle_name` varchar(100) DEFAULT NULL,
   `last_name` varchar(100) NOT NULL,
   `suffix` varchar(20) DEFAULT NULL,
   `contact_no` varchar(30) NOT NULL,
@@ -296,6 +297,7 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `first_name` varchar(30) NOT NULL,
+  `middle_name` varchar(50) DEFAULT NULL,
   `last_name` varchar(30) NOT NULL,
   `suffix` varchar(20) DEFAULT NULL,
   `contact_no` varchar(30) DEFAULT NULL,

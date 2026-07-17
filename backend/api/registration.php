@@ -18,7 +18,9 @@ if (!$input) {
 }
 
 $first_name = $input["first_name"];
+$middle_name = $input["middle_name"] ?? null;
 $last_name = $input["last_name"];
+$suffix = $input["suffix"] ?? null;
 $email_address = $input["email_address"];
 $password = $input["password"];
 $confirmPass = $input["conPassword"];
@@ -60,8 +62,8 @@ $checkStmt->close();
 
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
-$stmt = $conn->prepare("INSERT INTO users (first_name, last_name, email_address, password) VALUES (?, ?, ?, ?)");
-$stmt->bind_param("ssss", $first_name, $last_name, $email_address, $hashed_password);
+$stmt = $conn->prepare("INSERT INTO users (first_name, middle_name, last_name, suffix, email_address, password) VALUES (?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("ssssss", $first_name, $middle_name, $last_name, $suffix, $email_address, $hashed_password);
 
 
 if ($stmt->execute()) {

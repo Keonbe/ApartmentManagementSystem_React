@@ -20,7 +20,7 @@ if (!$input) {
 $email = $input["email_address"];
 $password = $input["password"];
 
-$stmt = $conn->prepare("SELECT id, email_address, first_name, last_name, password, role FROM users WHERE email_address = ?");
+$stmt = $conn->prepare("SELECT id, email_address, first_name, middle_name, last_name, suffix, password, role FROM users WHERE email_address = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -36,7 +36,9 @@ if (password_verify($password, $user["password"])) {
     $_SESSION['user'] = [
         "id" => $user["id"],
         "first_name" => $user["first_name"],
+        "middle_name" => $user["middle_name"],
         "last_name" => $user["last_name"],
+        "suffix" => $user["suffix"],
         "email_address" => $user["email_address"],
         "role" => $user["role"]
     ];

@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
 
@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
-    $stmt = $conn->prepare("SELECT first_name, last_name, suffix, contact_no, gender FROM users WHERE email_address = ?");
+    $stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender FROM users WHERE email_address = ?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old_email = $input['oldEmail'] ?? '';
     $new_email = $input['email'] ?? '';
     $first_name = $input['firstName'] ?? '';
+    $middle_name = $input['middleName'] ?? '';
     $last_name = $input['lastName'] ?? '';
     $suffix = $input['suffix'] ?? '';
     $contact_no = $input['contactNo'] ?? '';
@@ -55,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $conn->begin_transaction();
 
     try {
-        $stmt1 = $conn->prepare("UPDATE users SET first_name = ?, last_name = ?, suffix = ?, contact_no = ?, gender = ?, email_address = ? WHERE email_address = ?");
-        $stmt1->bind_param("sssssss", $first_name, $last_name, $suffix, $contact_no, $gender, $new_email, $old_email);
+        $stmt1 = $conn->prepare("UPDATE users SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, gender = ?, email_address = ? WHERE email_address = ?");
+        $stmt1->bind_param("ssssssss", $first_name, $middle_name, $last_name, $suffix, $contact_no, $gender, $new_email, $old_email);
         $stmt1->execute();
 
         $stmt2 = $conn->prepare("UPDATE rent_applications SET first_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ? WHERE email = ?");
@@ -72,7 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $conn->close();
     exit;
-
 }
 
 echo json_encode(["success" => false, "message" => "Invalid request method"]);

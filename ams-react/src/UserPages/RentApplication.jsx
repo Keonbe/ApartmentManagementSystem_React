@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
@@ -11,7 +11,9 @@ export default function RentApplication() {
 
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const defaultFirstName = loggedInUser.first_name || '';
+    const defaultMiddleName = loggedInUser.middle_name || '';
     const defaultLastName = loggedInUser.last_name || '';
+    const defaultSuffix = loggedInUser.suffix || '';
     const defaultEmail = loggedInUser.email_address || '';
 
     const passedRoomId = location.state?.selectedRoomId || 'C';
@@ -24,8 +26,28 @@ export default function RentApplication() {
     const [applicationStatus, setApplicationStatus] = useState('none');
 
     const [firstName, setFirstName] = useState(defaultFirstName);
+    const [middleName, setMiddleName] = useState(defaultMiddleName);
     const [lastName, setLastName] = useState(defaultLastName);
-    const [suffix, setSuffix] = useState('');
+    const [suffix, setSuffix] = useState(defaultSuffix);
+    
+    useEffect(() => {
+        const fetchUserProfile = async () => {
+            if (!defaultEmail) return;
+            try {
+                const res = await api.get(`/profile.php?email=${encodeURIComponent(defaultEmail)}`);
+                if (res.data.success && res.data.data) {
+                    const data = res.data.data;
+                    setFirstName(data.first_name || '');
+                    setMiddleName(data.middle_name || '');
+                    setLastName(data.last_name || '');
+                    setSuffix(data.suffix || '');
+                }
+            } catch (err) {
+                console.error("Failed to fetch user profile details:", err);
+            }
+        };
+        fetchUserProfile();
+    }, [defaultEmail]);
     
     const [phoneRawNumber, setPhoneRawNumber] = useState('');
     const [phoneError, setPhoneError] = useState('');
@@ -124,6 +146,7 @@ export default function RentApplication() {
 
         const formData = new FormData();
         formData.append('firstName', firstName.trim());
+        formData.append('middleName', middleName.trim());
         formData.append('lastName', lastName.trim());
         formData.append('suffix', suffix.trim());
         formData.append('contactNo', fullContactNumber);
@@ -182,12 +205,21 @@ export default function RentApplication() {
                     
                     <div className="space-y-4">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Personal Details</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="flex flex-col space-y-1.5">
                                 <label className="text-sm font-bold text-slate-700">First Name</label>
                                 <input
                                     type="text"
                                     value={firstName}
+                                    disabled
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
+                                />
+                            </div>
+                            <div className="flex flex-col space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Middle Name</label>
+                                <input
+                                    type="text"
+                                    value={middleName}
                                     disabled
                                     className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                 />

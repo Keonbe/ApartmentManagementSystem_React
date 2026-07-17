@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
 
@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 $first_name = $_POST['firstName'] ?? '';
+$middle_name = $_POST['middleName'] ?? '';
 $last_name = $_POST['lastName'] ?? '';
 $suffix = $_POST['suffix'] ?? '';
 $contact_no = $_POST['contactNo'] ?? '';
@@ -59,9 +60,9 @@ if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-$stmt->bind_param("issssssiisssss", $user_id, $first_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
+$stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
 
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
