@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faHourglassHalf, faCheckCircle, faTimesCircle, faArrowRight, faFileInvoiceDollar, 
-    faHome, faCalendarAlt, faUsers, faInfoCircle, faArrowLeft
+    faHome, faCalendarAlt, faUsers, faInfoCircle, faArrowLeft,
+    faWallet, faUniversity, faMoneyBillWave, faCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
@@ -13,6 +14,42 @@ export default function TrackApplication() {
     const [loading, setLoading] = useState(true);
     const [application, setApplication] = useState(null);
     const [error, setError] = useState(null);
+    const [selectedMethod, setSelectedMethod] = useState('cash');
+    const [paying, setPaying] = useState(false);
+
+    const handleInitialPayment = async (e) => {
+        e.preventDefault();
+        if (!application?.pending_invoice_id) {
+            alert("No pending invoice found.");
+            return;
+        }
+
+        setPaying(true);
+        try {
+            const methodLabel = selectedMethod === 'gcash' ? 'GCash' : selectedMethod === 'bank' ? 'Bank Transfer' : 'Cash on Hand';
+            const res = await api.post("/pay_bill.php", {
+                invoiceId: application.pending_invoice_id,
+                paymentMethod: methodLabel
+            });
+
+            if (res.data.success) {
+                // FUTURE: Add notification when application payment/approval is completed
+                if (methodLabel === 'Cash on Hand') {
+                    alert("Cash payment method selected successfully. Please proceed to the management office to settle your payment. Your room details will be unlocked once management confirms receipt of the payment.");
+                } else {
+                    alert(`Initial lease payment successful via ${methodLabel}! Your tenancy is now active.`);
+                }
+                window.location.reload();
+            } else {
+                alert(res.data.message || "Failed to process payment.");
+            }
+        } catch (error) {
+            console.error("Error submitting initial payment:", error);
+            alert("Payment failed. Please try again.");
+        } finally {
+            setPaying(false);
+        }
+    };
 
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const activeEmail = loggedInUser.email_address || '';
@@ -134,13 +171,20 @@ export default function TrackApplication() {
                             </div>
 
                             {statusNormalized === 'approved' && (
-                                <button
-                                    onClick={() => navigate('/my-room')}
-                                    className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
-                                >
-                                    <span>Proceed to My Room</span>
-                                    <FontAwesomeIcon icon={faArrowRight} />
-                                </button>
+                                application.has_pending_first_payment ? (
+                                    <div className="flex items-center space-x-2 text-amber-400 text-xs bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-500/20">
+                                        <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400 animate-pulse" />
+                                        <span>Payment Pending</span>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => navigate('/my-room')}
+                                        className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
+                                    >
+                                        <span>Proceed to My Room</span>
+                                        <FontAwesomeIcon icon={faArrowRight} />
+                                    </button>
+                                )
                             )}
 
                             {statusNormalized === 'pending' && (
@@ -160,6 +204,91 @@ export default function TrackApplication() {
                                 </button>
                             )}
                         </div>
+
+                        {statusNormalized === 'approved' && application.has_pending_first_payment && (
+                            <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+                                <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
+                                    <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-indigo-400" />
+                                    Complete Initial Lease Payment
+                                </h3>
+                                <p className="text-slate-300 text-sm m-0">
+                                    Your lease application is approved! To activate your tenancy and access your room information and services, please settle your initial payment for {application.months_of_rent} month(s) of lease.
+                                </p>
+                                
+                                <div className="border-t border-b border-white/10 py-4 flex justify-between items-center">
+                                    <span className="text-sm text-slate-400 font-medium">First Month Rent Due ({application.months_of_rent} Months Lease):</span>
+                                    <span className="text-2xl font-black text-indigo-400">₱{parseFloat(application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+
+                                {application.pending_payment_method === 'Cash on Hand' ? (
+                                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 space-y-3">
+                                        <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
+                                            <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                            Cash Payment Request Pending
+                                        </div>
+                                        <p className="text-slate-300 text-xs m-0 leading-relaxed">
+                                            Please proceed to the management office to settle your cash payment of <strong className="text-white">₱{parseFloat(application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Payment Method Selector */}
+                                        <div className="space-y-3">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Payment Method</label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                {[
+                                                    { id: 'gcash', label: 'GCash (Not Available)', icon: faWallet, disabled: true },
+                                                    { id: 'bank', label: 'Bank Transfer (Not Available)', icon: faUniversity, disabled: true },
+                                                    { id: 'cash', label: 'Cash on Hand', icon: faMoneyBillWave, disabled: false }
+                                                ].map((method) => (
+                                                    <button
+                                                        key={method.id}
+                                                        disabled={method.disabled}
+                                                        onClick={() => !method.disabled && setSelectedMethod(method.id)}
+                                                        className={`flex items-center justify-between p-4 rounded-2xl border text-sm font-semibold transition-all ${
+                                                            method.disabled
+                                                                ? 'opacity-40 bg-white/5 border-white/5 text-slate-500 cursor-not-allowed'
+                                                                : selectedMethod === method.id 
+                                                                    ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg cursor-pointer' 
+                                                                    : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 cursor-pointer'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center space-x-3">
+                                                            <FontAwesomeIcon icon={method.icon} className={selectedMethod === method.id ? 'text-indigo-400' : 'text-slate-400'} />
+                                                            <span>{method.label}</span>
+                                                        </div>
+                                                        {selectedMethod === method.id && (
+                                                            <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-xs">
+                                                                <FontAwesomeIcon icon={faCheck} className="text-white text-[10px]" />
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Action Button */}
+                                        <button
+                                            onClick={handleInitialPayment}
+                                            disabled={paying}
+                                            className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-bold py-4 rounded-2xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {paying ? (
+                                                <>
+                                                    <FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" />
+                                                    <span>Processing Payment...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>Pay ₱{parseFloat(application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} Now</span>
+                                                    <FontAwesomeIcon icon={faArrowRight} />
+                                                </>
+                                            )}
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
 
                         {/* Visual Progress Timeline */}
                         <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
@@ -215,7 +344,9 @@ export default function TrackApplication() {
                                             {statusNormalized === 'rejected' ? 'Application Rejected' : 'Final Decision'}
                                         </span>
                                         <span className="text-xs text-slate-400 mt-0.5">
-                                            {statusNormalized === 'approved' ? 'Ready to move in' : 
+                                            {statusNormalized === 'approved' ? (
+                                                application.has_pending_first_payment ? 'Pending Initial Payment' : 'Ready to move in'
+                                            ) : 
                                              statusNormalized === 'rejected' ? 'Review feedback or re-apply' : 'Pending decisions'}
                                         </span>
                                     </div>

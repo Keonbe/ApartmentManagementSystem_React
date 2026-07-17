@@ -31,8 +31,8 @@ if ($id > 0 && !empty($status)) {
         $stmt->execute();
         
         if ($status === 'Approved') {
-            // Get application details to update the room
-            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent FROM rent_applications WHERE id = ?");
+            // Get application details to update the room and generate invoice
+            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, user_id, monthly_rent FROM rent_applications WHERE id = ?");
             $app_stmt->bind_param("i", $id);
             $app_stmt->execute();
             $app_res = $app_stmt->get_result();
@@ -41,6 +41,8 @@ if ($id > 0 && !empty($status)) {
                 $tenant_name = $app['first_name'] . ' ' . $app['last_name'];
                 $room_name = $app['room_name'];
                 $months = (int)$app['months_of_rent'];
+                $user_id = $app['user_id'];
+                $monthly_rent = (double)$app['monthly_rent'];
                 
                 $lease_start = date('Y-m-d');
                 $lease_end = date('Y-m-d', strtotime("+$months months"));
@@ -50,6 +52,23 @@ if ($id > 0 && !empty($status)) {
                 $room_stmt->bind_param("sssss", $room_status, $tenant_name, $lease_start, $lease_end, $room_name);
                 $room_stmt->execute();
                 $room_stmt->close();
+
+                // Check if invoice already exists for this application
+                $check_inv = $conn->prepare("SELECT id FROM invoices WHERE rent_application_id = ?");
+                $check_inv->bind_param("i", $id);
+                $check_inv->execute();
+                $check_res = $check_inv->get_result();
+                if ($check_res->num_rows === 0) {
+                    $invoice_id = 'INV-' . uniqid();
+                    $billing_period = date('F Y');
+                    $due_date = date('Y-m-d', strtotime('+7 days'));
+                    
+                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)");
+                    $inv_stmt->bind_param("siiddss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $billing_period, $due_date);
+                    $inv_stmt->execute();
+                    $inv_stmt->close();
+                }
+                $check_inv->close();
             }
             $app_stmt->close();
         }

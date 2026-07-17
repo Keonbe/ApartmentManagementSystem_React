@@ -133,7 +133,7 @@ function AppContent() {
       }
       try {
         const res = await api.get('/my_room.php');
-        if (res.data.success && res.data.data && res.data.data.status === 'Approved') {
+        if (res.data.success && res.data.data && res.data.data.status === 'Approved' && !res.data.data.has_pending_first_payment) {
           setHasRentedRoom(true);
         } else {
           setHasRentedRoom(false);

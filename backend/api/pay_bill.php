@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
 
@@ -26,19 +26,15 @@ if (empty($invoice_id) || empty($payment_method)) {
     exit;
 }
 
-$status = 'paid';
-$paid_at = date('Y-m-d H:i:s');
+$status = ($payment_method === 'Cash on Hand') ? 'pending' : 'paid';
+$paid_at = ($payment_method === 'Cash on Hand') ? null : date('Y-m-d H:i:s');
 
 $stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, status = ?, paid_at = ? WHERE id = ?");
 $stmt->bind_param("ssss", $payment_method, $status, $paid_at, $invoice_id);
 
 if ($stmt->execute()) {
-    if ($stmt->affected_rows > 0) {
-        log_activity($conn, null, 'payment', "Tenant paid bill", "Invoice ID: $invoice_id, Method: $payment_method");
-        echo json_encode(["success" => true, "message" => "Payment processed successfully"]);
-    } else {
-        echo json_encode(["success" => false, "message" => "Invoice not found or already paid"]);
-    }
+    log_activity($conn, null, 'payment', "Tenant payment action", "Invoice ID: $invoice_id, Method: $payment_method, Status: $status");
+    echo json_encode(["success" => true, "message" => "Payment method registered successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to process payment", "error" => $stmt->error]);
 }

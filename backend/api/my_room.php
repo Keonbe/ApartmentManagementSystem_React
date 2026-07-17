@@ -18,13 +18,33 @@ if (empty($user_id)) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT room_name, monthly_rent, months_of_rent, status, created_at, occupants FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT id, room_name, monthly_rent, months_of_rent, status, created_at, occupants FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows > 0) {
     $room_data = $result->fetch_assoc();
+    $app_id = $room_data['id'];
+    
+    // Check if there is a pending invoice for this application
+    $inv_stmt = $conn->prepare("SELECT id, payment_method FROM invoices WHERE rent_application_id = ? AND status = 'pending' LIMIT 1");
+    $inv_stmt->bind_param("i", $app_id);
+    $inv_stmt->execute();
+    $inv_res = $inv_stmt->get_result();
+    
+    $room_data['has_pending_first_payment'] = false;
+    $room_data['pending_invoice_id'] = null;
+    $room_data['pending_payment_method'] = null;
+    
+    if ($inv_res->num_rows > 0) {
+        $inv_row = $inv_res->fetch_assoc();
+        $room_data['has_pending_first_payment'] = true;
+        $room_data['pending_invoice_id'] = $inv_row['id'];
+        $room_data['pending_payment_method'] = $inv_row['payment_method'];
+    }
+    $inv_stmt->close();
+    
     echo json_encode(["success" => true, "data" => $room_data]);
 } else {
     echo json_encode(["success" => false, "message" => "No room application found for this user."]);
