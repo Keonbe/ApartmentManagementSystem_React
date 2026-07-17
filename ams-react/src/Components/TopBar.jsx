@@ -147,6 +147,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         <button onClick={() => navigate('/home')} className={navItemClass('/home')}>
                             Home
                         </button>
+                        {isLoggedIn && !hasRentedRoom && (
+                            <button onClick={() => navigate('/track-application')} className={navItemClass('/track-application')}>
+                                Track Application
+                            </button>
+                        )}
                         {isLoggedIn && hasRentedRoom && (
                             <button onClick={() => navigate('/services')} className={navItemClass('/services')}>
                                 Services
@@ -280,6 +285,18 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         <FontAwesomeIcon icon={faCog} className="text-slate-400 text-xs" />
                                         <span>Profile Settings</span>
                                     </button>
+                                    {!hasRentedRoom && (
+                                        <button
+                                            onClick={() => {
+                                                setIsDropdownOpen(false);
+                                                navigate('/track-application');
+                                            }}
+                                            className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold"
+                                        >
+                                            <FontAwesomeIcon icon={faFileContract} className="text-slate-400 text-xs" />
+                                            <span>Track Application</span>
+                                        </button>
+                                    )}
                                     <div className="border-t border-slate-100 my-1"></div>
                                     <button
                                         onClick={() => {
@@ -328,6 +345,17 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         >
                             Home
                         </button>
+                        {isLoggedIn && !hasRentedRoom && (
+                            <button
+                                onClick={() => {
+                                    setIsMobileMenuOpen(false);
+                                    navigate('/track-application');
+                                }}
+                                className={`text-left text-base py-2.5 font-bold border-0 bg-transparent cursor-pointer ${isActive('/track-application') ? 'text-white' : 'text-white/70'}`}
+                            >
+                                Track Application
+                            </button>
+                        )}
                         {isLoggedIn && hasRentedRoom && (
                             <button
                                 onClick={() => {
@@ -413,6 +441,18 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     <FontAwesomeIcon icon={faCog} className="text-slate-300 text-xs" />
                                     <span>Profile Settings</span>
                                 </button>
+                                {!hasRentedRoom && (
+                                    <button
+                                        onClick={() => {
+                                            setIsMobileMenuOpen(false);
+                                            navigate('/track-application');
+                                        }}
+                                        className="flex items-center space-x-2 text-white/90 hover:text-white text-left font-semibold text-sm py-2 border-0 bg-transparent cursor-pointer"
+                                    >
+                                        <FontAwesomeIcon icon={faFileContract} className="text-slate-300 text-xs" />
+                                        <span>Track Application</span>
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => {
                                         sessionStorage.removeItem("loggedInUser");

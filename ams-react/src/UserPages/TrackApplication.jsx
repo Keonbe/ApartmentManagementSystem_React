@@ -1,0 +1,301 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+    faHourglassHalf, faCheckCircle, faTimesCircle, faArrowRight, faFileInvoiceDollar, 
+    faHome, faCalendarAlt, faUsers, faInfoCircle, faArrowLeft
+} from '@fortawesome/free-solid-svg-icons';
+import api from '../api/axiosConfig';
+import ApartmentPic from '../assets/Apartment_Pic.png';
+
+export default function TrackApplication() {
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
+    const [application, setApplication] = useState(null);
+    const [error, setError] = useState(null);
+
+    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+    const activeEmail = loggedInUser.email_address || '';
+
+    useEffect(() => {
+        const fetchApplicationStatus = async () => {
+            if (!activeEmail) {
+                setError("Please log in to track your application.");
+                setLoading(false);
+                return;
+            }
+            try {
+                // Call my_room.php which returns the user's latest rent application status
+                const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
+                if (res.data.success && res.data.data) {
+                    setApplication(res.data.data);
+                } else {
+                    // success false indicates no application exists
+                    setApplication(null);
+                }
+            } catch (err) {
+                console.error("Failed to fetch application status:", err);
+                setError("Unable to connect to the server. Please try again later.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchApplicationStatus();
+    }, [activeEmail]);
+
+    if (loading) {
+        return (
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-950 text-white">
+                <div className="flex flex-col items-center space-y-4">
+                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-500 animate-spin" />
+                    <h2 className="text-xl font-bold tracking-wide">Loading application details...</h2>
+                </div>
+            </div>
+        );
+    }
+
+    // Determine status normalized representation
+    const rawStatus = application?.status || '';
+    let statusNormalized = 'none';
+    let statusLabel = 'No Active Application';
+    let statusColorClass = 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+    
+    if (rawStatus.toLowerCase() === 'pending review' || rawStatus.toLowerCase() === 'pending') {
+        statusNormalized = 'pending';
+        statusLabel = 'Pending Review';
+        statusColorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+    } else if (rawStatus.toLowerCase() === 'approved' || rawStatus.toLowerCase() === 'active') {
+        statusNormalized = 'approved';
+        statusLabel = 'Approved';
+        statusColorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    } else if (rawStatus.toLowerCase() === 'rejected' || rawStatus.toLowerCase() === 'declined') {
+        statusNormalized = 'rejected';
+        statusLabel = 'Rejected';
+        statusColorClass = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+    }
+
+    return (
+        <div className="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12 text-left">
+            {/* Background Image & Overlay */}
+            <div className="absolute inset-0 z-0">
+                <img
+                    src={ApartmentPic}
+                    alt="Apartment Background"
+                    className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-900/85 to-slate-950/95"></div>
+            </div>
+
+            <div className="w-full max-w-4xl z-10 space-y-8 flex flex-col justify-start relative border-0 bg-transparent">
+                
+                {/* Back Link */}
+                <button 
+                    onClick={() => navigate('/home')}
+                    className="flex items-center space-x-2 text-white/70 hover:text-white transition-all bg-transparent border-0 cursor-pointer self-start p-0 outline-none"
+                >
+                    <FontAwesomeIcon icon={faArrowLeft} />
+                    <span className="text-sm font-bold">Back to Home</span>
+                </button>
+
+                {/* Page Title */}
+                <div className="border-b border-white/10 pb-4">
+                    <h1 className="text-4xl font-sans font-extrabold m-0 text-white tracking-tight select-none">
+                        Track Application
+                    </h1>
+                    <p className="text-slate-300 text-sm mt-1.5 m-0 font-medium">
+                        Monitor the live onboarding status of your studio lease request in real-time.
+                    </p>
+                </div>
+
+                {error && (
+                    <div className="bg-rose-500/15 border border-rose-500/30 rounded-2xl p-5 flex items-center space-x-3 text-rose-300 text-sm font-semibold">
+                        <FontAwesomeIcon icon={faTimesCircle} className="text-rose-400 text-lg shrink-0" />
+                        <span>{error}</span>
+                    </div>
+                )}
+
+                {/* Application exists and has a valid status */}
+                {application ? (
+                    <div className="space-y-8">
+                        {/* Status Summary Banner */}
+                        <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="space-y-2">
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColorClass} select-none`}>
+                                    <span className="w-2 h-2 rounded-full bg-current mr-2 animate-pulse"></span>
+                                    {statusLabel}
+                                </span>
+                                <h2 className="text-2xl font-bold text-white m-0">
+                                    Lease Application for {application.room_name ? `Room ${application.room_name}` : "Studio Unit"}
+                                </h2>
+                                <p className="text-slate-400 text-xs m-0 font-medium pt-1">
+                                    Submitted on {new Date(application.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                </p>
+                            </div>
+
+                            {statusNormalized === 'approved' && (
+                                <button
+                                    onClick={() => navigate('/my-room')}
+                                    className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
+                                >
+                                    <span>Proceed to My Room</span>
+                                    <FontAwesomeIcon icon={faArrowRight} />
+                                </button>
+                            )}
+
+                            {statusNormalized === 'pending' && (
+                                <div className="flex items-center space-x-2 text-slate-400 text-xs bg-white/5 px-4 py-2.5 rounded-xl border border-white/10">
+                                    <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400 animate-pulse" />
+                                    <span>Locked during review</span>
+                                </div>
+                            )}
+
+                            {statusNormalized === 'rejected' && (
+                                <button
+                                    onClick={() => navigate('/preview')}
+                                    className="bg-[#6366f1] hover:bg-[#4f46e5] active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
+                                >
+                                    <span>Re-Apply / Browse Rooms</span>
+                                    <FontAwesomeIcon icon={faArrowRight} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Visual Progress Timeline */}
+                        <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+                            <h3 className="text-lg font-bold text-white m-0">Application Progress</h3>
+                            
+                            <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
+                                {/* Timeline Line (Desktop) */}
+                                <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-slate-800 hidden md:block z-0"></div>
+                                <div 
+                                    className="absolute top-[20px] left-0 h-0.5 bg-indigo-500 hidden md:block z-0 transition-all duration-500"
+                                    style={{
+                                        width: statusNormalized === 'approved' ? '100%' : statusNormalized === 'rejected' ? '100%' : '50%'
+                                    }}
+                                ></div>
+
+                                {/* Step 1: Submitted */}
+                                <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                    <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold shadow-md border-4 border-slate-900">
+                                        <FontAwesomeIcon icon={faCheckCircle} />
+                                    </div>
+                                    <div className="flex flex-col md:items-center">
+                                        <span className="text-sm font-bold text-white">Application Submitted</span>
+                                        <span className="text-xs text-slate-400 mt-0.5">Documents uploaded successfully</span>
+                                    </div>
+                                </div>
+
+                                {/* Step 2: Under Review */}
+                                <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
+                                        statusNormalized === 'pending' ? 'bg-amber-500 text-white animate-pulse' : 'bg-indigo-500 text-white'
+                                    }`}>
+                                        <FontAwesomeIcon icon={statusNormalized === 'pending' ? faHourglassHalf : faCheckCircle} className={statusNormalized === 'pending' ? 'animate-spin' : ''} />
+                                    </div>
+                                    <div className="flex flex-col md:items-center">
+                                        <span className="text-sm font-bold text-white">Under Review</span>
+                                        <span className="text-xs text-slate-400 mt-0.5">Building management verification</span>
+                                    </div>
+                                </div>
+
+                                {/* Step 3: Final Decision */}
+                                <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
+                                        statusNormalized === 'approved' ? 'bg-emerald-500 text-white' : 
+                                        statusNormalized === 'rejected' ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-500'
+                                    }`}>
+                                        <FontAwesomeIcon icon={
+                                            statusNormalized === 'approved' ? faCheckCircle : 
+                                            statusNormalized === 'rejected' ? faTimesCircle : faCheckCircle
+                                        } />
+                                    </div>
+                                    <div className="flex flex-col md:items-center">
+                                        <span className="text-sm font-bold text-white">
+                                            {statusNormalized === 'rejected' ? 'Application Rejected' : 'Final Decision'}
+                                        </span>
+                                        <span className="text-xs text-slate-400 mt-0.5">
+                                            {statusNormalized === 'approved' ? 'Ready to move in' : 
+                                             statusNormalized === 'rejected' ? 'Review feedback or re-apply' : 'Pending decisions'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Lease Details Grid */}
+                        <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+                            <h3 className="text-lg font-bold text-white m-0">Lease Details</h3>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                                <div className="flex items-center space-x-3.5">
+                                    <div className="w-11 h-11 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
+                                        <FontAwesomeIcon icon={faHome} className="text-lg" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Room</span>
+                                        <span className="text-sm font-extrabold text-white mt-0.5">{application.room_name ? `Room ${application.room_name}` : "Studio Unit"}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-3.5">
+                                    <div className="w-11 h-11 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
+                                        <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-lg" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Monthly Rent</span>
+                                        <span className="text-sm font-extrabold text-white mt-0.5">
+                                            ₱{parseFloat(application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-3.5">
+                                    <div className="w-11 h-11 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
+                                        <FontAwesomeIcon icon={faCalendarAlt} className="text-lg" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lease Term</span>
+                                        <span className="text-sm font-extrabold text-white mt-0.5">{application.months_of_rent} Months</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-3.5">
+                                    <div className="w-11 h-11 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
+                                        <FontAwesomeIcon icon={faUsers} className="text-lg" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Occupants</span>
+                                        <span className="text-sm font-extrabold text-white mt-0.5">{application.occupants} Person(s)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    /* Empty State (No application found) */
+                    <div className="bg-slate-900/50 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-10 text-center space-y-6 max-w-xl mx-auto">
+                        <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/20">
+                            <FontAwesomeIcon icon={faHourglassHalf} className="text-2xl" />
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-bold text-white m-0">No Active Application</h2>
+                            <p className="text-slate-300 text-sm leading-relaxed max-w-md mx-auto m-0 font-medium">
+                                You haven't submitted any lease application yet. Browse our available studio room configurations to start your boarding process.
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={() => navigate('/preview')}
+                            className="bg-[#6366f1] hover:bg-[#4f46e5] active:scale-95 text-white font-bold py-3 px-8 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer inline-flex items-center space-x-2"
+                        >
+                            <span>Browse Available Rooms</span>
+                            <FontAwesomeIcon icon={faArrowRight} />
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

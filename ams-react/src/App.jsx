@@ -19,6 +19,7 @@ import CctvRequest from './UserPages/CctvRequest';
 import MaintenanceRequest from './UserPages/MaintenanceRequest'; 
 import RentApplication from './UserPages/RentApplication';
 import ProfileSettings from './UserPages/ProfileSettings';
+import TrackApplication from './UserPages/TrackApplication';
 import MyRoom from './UserPages/MyRoom';
 import UserNotifications from './UserPages/UserNotifications';
 import ViewContract from './UserPages/ViewContract';
@@ -170,6 +171,7 @@ function AppContent() {
         <Route path="/cctv-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/maintenance-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/track-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><TrackApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-room" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/view-contract" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></TenantProtectedRoute>} />
