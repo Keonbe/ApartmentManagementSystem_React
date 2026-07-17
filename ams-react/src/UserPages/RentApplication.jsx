@@ -154,7 +154,7 @@ export default function RentApplication() {
         formData.append('gender', gender);
         formData.append('occupants', occupants);
         formData.append('monthsOfRent', monthsOfRent);
-        formData.append('roomName', roomName);
+        formData.append('roomName', passedRoomId);
         formData.append('monthlyRent', monthlyRent);
         formData.append('validIdFrontFile', validIdFrontFile);
         formData.append('validIdBackFile', validIdBackFile);
