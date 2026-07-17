@@ -8,7 +8,7 @@ export default defineConfig({
     server: {
     proxy: {
       '/api': {
-        target: 'http://localhost', // Your XAMPP Apache server base URL
+        target: 'http://localhost:8080', // Your XAMPP Apache server base URL
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '/Capstone/ApartmentManagementSystem_React'), 
       }

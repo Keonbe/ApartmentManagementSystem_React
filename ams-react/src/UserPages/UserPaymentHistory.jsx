@@ -84,7 +84,7 @@ export default function UserPaymentHistory() {
                                         )}
                                         
                                         {inv.receipt_path && (
-                                            <a href={`http://localhost/ApartmentManagementSystem_React/backend/${inv.receipt_path}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors no-underline">
+                                            <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${inv.receipt_path}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors no-underline">
                                                 <FontAwesomeIcon icon={faDownload} /> Receipt
                                             </a>
                                         )}
