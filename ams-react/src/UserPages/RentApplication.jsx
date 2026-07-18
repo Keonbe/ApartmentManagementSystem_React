@@ -19,7 +19,7 @@ export default function RentApplication() {
     const passedRoomId = location.state?.selectedRoomId || 'C';
 
     const getRoomPrice = (id) => {
-        if (id === 'M') return 3500;
+        if (['K', 'L', 'M', 'N'].includes(id)) return 3500;
         return 4000;                
     };
     
@@ -71,6 +71,27 @@ export default function RentApplication() {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     const isReadOnly = applicationStatus === 'pending' || applicationStatus === 'accepted';
+
+    const validateFile = (file) => {
+        if (!file) return false;
+
+        const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSizeBytes) {
+            alert(`File "${file.name}" exceeds the 10MB size limit. Please upload a smaller file.`);
+            return false;
+        }
+
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+
+        if (!allowedExtensions.includes(fileExtension) || (file.type && !allowedMimeTypes.includes(file.type))) {
+            alert(`Invalid file format for "${file.name}". Only JPEG, PNG, and PDF formats are allowed.`);
+            return false;
+        }
+
+        return true;
+    };
 
     const handlePhoneRawInput = (e) => {
         if (isReadOnly) return;
@@ -364,7 +385,10 @@ export default function RentApplication() {
                     </div>
 
                     <div className="space-y-4">
-                        <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Verification Documents</h3>
+                        <div className="border-b border-slate-100 pb-2">
+                            <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Verification Documents</h3>
+                            <p className="text-slate-500 text-xs mt-1 m-0">Accepted formats: JPEG, PNG, PDF (Max 10MB per file)</p>
+                        </div>
                         
                         {isReadOnly ? (
                             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex items-center space-x-3 text-slate-600 text-sm font-medium">
@@ -382,7 +406,10 @@ export default function RentApplication() {
                                             onDrop={(e) => {
                                                 e.preventDefault();
                                                 setIsDraggingIdFront(false);
-                                                if (e.dataTransfer.files && e.dataTransfer.files[0]) setValidIdFrontFile(e.dataTransfer.files[0]);
+                                                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                                    const file = e.dataTransfer.files[0];
+                                                    if (validateFile(file)) setValidIdFrontFile(file);
+                                                }
                                             }}
                                             className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdFront ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                         >
@@ -391,7 +418,12 @@ export default function RentApplication() {
                                                     <input
                                                         type="file"
                                                         accept=".pdf,.jpg,.jpeg,.png"
-                                                        onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdFrontFile(e.target.files[0]); }}
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files[0]) {
+                                                                const file = e.target.files[0];
+                                                                if (validateFile(file)) setValidIdFrontFile(file);
+                                                            }
+                                                        }}
                                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                     />
                                                     <div className="space-y-1 pointer-events-none">
@@ -433,7 +465,10 @@ export default function RentApplication() {
                                             onDrop={(e) => {
                                                 e.preventDefault();
                                                 setIsDraggingIdBack(false);
-                                                if (e.dataTransfer.files && e.dataTransfer.files[0]) setValidIdBackFile(e.dataTransfer.files[0]);
+                                                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                                    const file = e.dataTransfer.files[0];
+                                                    if (validateFile(file)) setValidIdBackFile(file);
+                                                }
                                             }}
                                             className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdBack ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                         >
@@ -442,7 +477,12 @@ export default function RentApplication() {
                                                     <input
                                                         type="file"
                                                         accept=".pdf,.jpg,.jpeg,.png"
-                                                        onChange={(e) => { if (e.target.files && e.target.files[0]) setValidIdBackFile(e.target.files[0]); }}
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files[0]) {
+                                                                const file = e.target.files[0];
+                                                                if (validateFile(file)) setValidIdBackFile(file);
+                                                            }
+                                                        }}
                                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                     />
                                                     <div className="space-y-1 pointer-events-none">
@@ -485,7 +525,10 @@ export default function RentApplication() {
                                         onDrop={(e) => {
                                             e.preventDefault();
                                             setIsDraggingNbi(false);
-                                            if (e.dataTransfer.files && e.dataTransfer.files[0]) setNbiFile(e.dataTransfer.files[0]);
+                                            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                                const file = e.dataTransfer.files[0];
+                                                if (validateFile(file)) setNbiFile(file);
+                                            }
                                         }}
                                         className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingNbi ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                     >
@@ -494,7 +537,12 @@ export default function RentApplication() {
                                                 <input
                                                     type="file"
                                                     accept=".pdf,.jpg,.jpeg,.png"
-                                                    onChange={(e) => { if (e.target.files && e.target.files[0]) setNbiFile(e.target.files[0]); }}
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            const file = e.target.files[0];
+                                                            if (validateFile(file)) setNbiFile(file);
+                                                        }
+                                                    }}
                                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                 />
                                                 <div className="space-y-1 pointer-events-none">

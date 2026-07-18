@@ -33,6 +33,46 @@ if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($emai
     exit;
 }
 
+// Backend File Validation
+$required_files = ['validIdFrontFile', 'validIdBackFile', 'nbiFile'];
+$allowed_extensions = ['jpg', 'jpeg', 'png', 'pdf'];
+$allowed_mime_types = ['image/jpeg', 'image/png', 'application/pdf'];
+$max_size = 10 * 1024 * 1024; // 10MB
+
+foreach ($required_files as $fileKey) {
+    if (!isset($_FILES[$fileKey]) || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(["success" => false, "message" => "Missing or failed upload for required file: " . $fileKey]);
+        exit;
+    }
+    
+    $file_size = $_FILES[$fileKey]['size'];
+    $file_name = $_FILES[$fileKey]['name'];
+    $file_tmp = $_FILES[$fileKey]['tmp_name'];
+    
+    // Check size limit
+    if ($file_size > $max_size) {
+        echo json_encode(["success" => false, "message" => "File '" . htmlspecialchars($file_name) . "' exceeds the 10MB size limit."]);
+        exit;
+    }
+    
+    // Check extension
+    $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowed_extensions)) {
+        echo json_encode(["success" => false, "message" => "Invalid extension for file '" . htmlspecialchars($file_name) . "'. Only JPEG, PNG, and PDF are allowed."]);
+        exit;
+    }
+    
+    // Check MIME type
+    $mime = $_FILES[$fileKey]['type'];
+    if (function_exists('mime_content_type')) {
+        $mime = mime_content_type($file_tmp);
+    }
+    if (!in_array($mime, $allowed_mime_types)) {
+        echo json_encode(["success" => false, "message" => "Invalid file format for '" . htmlspecialchars($file_name) . "'. Only JPEG, PNG, and PDF are allowed."]);
+        exit;
+    }
+}
+
 $upload_dir = "../uploads/applications/"; 
 if (!is_dir($upload_dir)) {
     mkdir($upload_dir, 0777, true);

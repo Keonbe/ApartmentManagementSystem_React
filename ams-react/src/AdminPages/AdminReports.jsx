@@ -529,6 +529,27 @@ const AdminReports = () => {
     document.body.removeChild(link);
   };
 
+  if (loading || !data) {
+    return (
+      <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+        <div className="print:hidden">
+          <Sidebar />
+        </div>
+        <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
+          <div className="print:hidden">
+            <Header title="Reports & Analytics" />
+          </div>
+          <div className="flex-1 flex items-center justify-center bg-slate-50">
+            <div className="text-center space-y-4">
+              <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-sm font-semibold text-slate-600">Loading reports data...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
       {/* Sidebar (Hidden on Print) */}
@@ -1753,7 +1774,7 @@ const AdminReports = () => {
                             <p className="text-[10px] text-slate-500 font-semibold m-0">Vacant</p>
                           </div>
                           <div className="bg-indigo-50 rounded-lg p-2.5 text-center border border-indigo-100">
-                            <p className="text-lg font-bold text-indigo-700 m-0">{formatCurrency(data.occupancy.vacantUnits * 6500)}</p>
+                            <p className="text-lg font-bold text-indigo-700 m-0">{formatCurrency(data.occupancy.vacantUnits * 4000)}</p>
                             <p className="text-[10px] text-indigo-600 font-semibold m-0">Lost Revenue/mo</p>
                           </div>
                         </div>
@@ -1821,7 +1842,7 @@ const AdminReports = () => {
                         {data.occupancy.vacantUnits > 0 && (
                           <div className="flex items-start gap-2 text-xs">
                             <FontAwesomeIcon icon={faBuilding} className="text-amber-500 mt-0.5" />
-                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Occupancy Gap:</strong> {data.occupancy.vacantUnits} vacant unit(s) representing {formatCurrency(data.occupancy.vacantUnits * 6500)}/mo in potential lost revenue. Increase marketing efforts.</p>
+                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Occupancy Gap:</strong> {data.occupancy.vacantUnits} vacant unit(s) representing {formatCurrency(data.occupancy.vacantUnits * 4000)}/mo in potential lost revenue. Increase marketing efforts.</p>
                           </div>
                         )}
                         {data.payments.collectionEfficiency < 90 && (

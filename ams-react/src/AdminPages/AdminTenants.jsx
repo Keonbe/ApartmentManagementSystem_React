@@ -16,41 +16,41 @@ import api from '../api/axiosConfig';
 const initialArchivedTenants = [
   {
     id: 'ARC-001', name: 'Carlos Mendoza', email: 'carlos.mendoza@email.com', phone: '0917-555-1234',
-    unit: 'D', rent: '₱6,500', moveIn: '2023-06-01', leaseEnd: '2024-06-01',
+    unit: 'D', rent: '₱4,000', moveIn: '2023-06-01', leaseEnd: '2024-06-01',
     movedOutDate: '2024-06-01', archiveDate: '2024-06-05', archiveReason: 'End of Lease',
     status: 'archived',
     leaseHistory: [
-      { event: 'Lease Started', date: '2023-06-01', detail: 'Studio Unit D · ₱6,500/mo · 12 months' },
+      { event: 'Lease Started', date: '2023-06-01', detail: 'Studio Unit D · ₱4,000/mo · 12 months' },
       { event: 'Lease Ended', date: '2024-06-01', detail: 'End of lease term, tenant did not renew' },
     ],
-    paymentSummary: { totalPaid: 78000, monthsPaid: 12, overdueCount: 0, lastPayment: '2024-05-28' },
+    paymentSummary: { totalPaid: 48000, monthsPaid: 12, overdueCount: 0, lastPayment: '2024-05-28' },
     maintenanceRequests: [
       { id: 'REQ-010', issue: 'Door lock replacement', date: '2023-09-15', status: 'Completed', cost: 800 }
     ]
   },
   {
     id: 'ARC-002', name: 'Elena Gomez', email: 'elena.gomez@email.com', phone: '0918-333-5678',
-    unit: 'M', rent: '₱6,500', moveIn: '2023-01-15', leaseEnd: '2024-01-15',
+    unit: 'M', rent: '₱3,500', moveIn: '2023-01-15', leaseEnd: '2024-01-15',
     movedOutDate: '2024-01-15', archiveDate: '2024-01-20', archiveReason: 'Personal Reasons',
     status: 'archived',
     leaseHistory: [
-      { event: 'Lease Started', date: '2023-01-15', detail: 'Studio Unit M · ₱6,500/mo · 12 months' },
+      { event: 'Lease Started', date: '2023-01-15', detail: 'Studio Unit M · ₱3,500/mo · 12 months' },
       { event: 'Lease Ended', date: '2024-01-15', detail: 'Tenant chose not to renew — personal reasons' },
     ],
-    paymentSummary: { totalPaid: 78000, monthsPaid: 12, overdueCount: 1, lastPayment: '2024-01-10' },
+    paymentSummary: { totalPaid: 42000, monthsPaid: 12, overdueCount: 1, lastPayment: '2024-01-10' },
     maintenanceRequests: []
   },
   {
     id: 'ARC-003', name: 'Roberto Tan', email: 'roberto.tan@email.com', phone: '0919-777-9012',
-    unit: 'H', rent: '₱6,500', moveIn: '2022-08-01', leaseEnd: '2023-08-01',
+    unit: 'H', rent: '₱4,000', moveIn: '2022-08-01', leaseEnd: '2023-08-01',
     movedOutDate: '2023-08-15', archiveDate: '2023-08-20', archiveReason: 'Relocated',
     status: 'archived',
     leaseHistory: [
-      { event: 'Lease Started', date: '2022-08-01', detail: 'Studio Unit H · ₱6,500/mo · 12 months' },
+      { event: 'Lease Started', date: '2022-08-01', detail: 'Studio Unit H · ₱4,000/mo · 12 months' },
       { event: 'Lease Extended', date: '2023-02-01', detail: 'Extended by 6 months, new end: 2023-08-01' },
       { event: 'Lease Ended', date: '2023-08-01', detail: 'Tenant relocated out of city' },
     ],
-    paymentSummary: { totalPaid: 78000, monthsPaid: 12, overdueCount: 2, lastPayment: '2023-07-28' },
+    paymentSummary: { totalPaid: 48000, monthsPaid: 12, overdueCount: 2, lastPayment: '2023-07-28' },
     maintenanceRequests: [
       { id: 'REQ-007', issue: 'Leaking ceiling', date: '2023-03-10', status: 'Completed', cost: 2500 },
       { id: 'REQ-009', issue: 'Broken window latch', date: '2023-05-22', status: 'Completed', cost: 600 }
@@ -72,6 +72,8 @@ const AdminTenants = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [sortBy, setSortBy] = useState('name'); // 'name' | 'unit'
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
 
   // Archive workflow states
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -158,7 +160,7 @@ const AdminTenants = () => {
   // Determine displayed list
   let displayed = [];
   if (activeFilter === 'archived') {
-    displayed = archivedTenants;
+    displayed = [...archivedTenants];
   } else if (activeFilter === 'all') {
     displayed = [...tenants, ...archivedTenants];
   } else {
@@ -172,6 +174,24 @@ const AdminTenants = () => {
       (t.email || '').toLowerCase().includes(q)
     );
   }
+
+  // Sort logic
+  displayed.sort((a, b) => {
+    let valA = '';
+    let valB = '';
+
+    if (sortBy === 'name') {
+      valA = (a.name || '').toLowerCase();
+      valB = (b.name || '').toLowerCase();
+    } else if (sortBy === 'unit') {
+      valA = (a.unit || '').toLowerCase();
+      valB = (b.unit || '').toLowerCase();
+    }
+
+    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   const getOccupancyBadge = (status) => {
     const map = {
@@ -204,6 +224,32 @@ const AdminTenants = () => {
               <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
                 <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search tenants, units, emails..." className="flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
+              </div>
+
+              {/* Sorting Filters */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Sort by:</span>
+                  <select 
+                    value={sortBy} 
+                    onChange={e => setSortBy(e.target.value)} 
+                    className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-700 focus:border-indigo-500 cursor-pointer shadow-sm"
+                  >
+                    <option value="name">Name</option>
+                    <option value="unit">Unit</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Order:</span>
+                  <select 
+                    value={sortOrder} 
+                    onChange={e => setSortOrder(e.target.value)} 
+                    className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-700 focus:border-indigo-500 cursor-pointer shadow-sm"
+                  >
+                    <option value="asc">Ascending (A-Z)</option>
+                    <option value="desc">Descending (Z-A)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
