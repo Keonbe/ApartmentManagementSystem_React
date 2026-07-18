@@ -100,16 +100,28 @@ if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$conn->begin_transaction();
+try {
+    // 1. Insert rent application
+    $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
+    $stmt->execute();
+    $stmt->close();
 
-$stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
+    // 2. Sync profile details to the users table
+    if ($user_id > 0) {
+        $user_stmt = $conn->prepare("UPDATE users SET middle_name = ?, suffix = ?, contact_no = ?, gender = ? WHERE id = ?");
+        $user_stmt->bind_param("ssssi", $middle_name, $suffix, $contact_no, $gender, $user_id);
+        $user_stmt->execute();
+        $user_stmt->close();
+    }
 
-if ($stmt->execute()) {
+    $conn->commit();
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to submit application", "error" => $stmt->error]);
+} catch (Exception $e) {
+    $conn->rollback();
+    echo json_encode(["success" => false, "message" => "Failed to submit application", "error" => $e->getMessage()]);
 }
 
-$stmt->close();
 $conn->close();
 ?>

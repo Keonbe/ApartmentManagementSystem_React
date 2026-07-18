@@ -21,9 +21,27 @@ export default function UserNotifications() {
 
   // State to hold notifications
   const [notifications, setNotifications] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [showSettings, setShowSettings] = useState(false);
+  const [preferences, setPreferences] = useState(() => {
+    const saved = localStorage.getItem(`user_notif_pref_${emailKey}`);
+    return saved ? JSON.parse(saved) : {
+      rentReminders: true,
+      maintenanceUpdates: true,
+      leaseAlerts: true,
+      emailChannel: true,
+      smsChannel: false
+    };
+  });
 
   useEffect(() => {
     fetchNotifications();
+    const handleSync = () => {
+      fetchNotifications();
+    };
+    window.addEventListener('user_notifications_updated', handleSync);
+    return () => window.removeEventListener('user_notifications_updated', handleSync);
   }, []);
 
   const fetchNotifications = async () => {

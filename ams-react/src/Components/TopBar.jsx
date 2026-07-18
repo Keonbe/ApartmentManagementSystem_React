@@ -1,16 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import api from '../api/axiosConfig';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
     faBell, faCheck, faTrash, faInfoCircle, faExclamationTriangle, faFileContract, faCheckCircle, faHistory 
 } from '@fortawesome/free-solid-svg-icons';
 
 const defaultNotifications = [
-  { id: 1, title: "Rent Overdue Alert", message: "Your Rent payment is due in 3 days. Please settle outstanding balances.", type: "warning", time: "1 hour ago", read: false },
-  { id: 2, title: "Maintenance Resolved", message: "Maintenance Request REQ-003 has been marked as Completed.", type: "success", time: "5 hours ago", read: false },
-  { id: 3, title: "Lease Document Required", message: "Your signed lease agreement has not been uploaded yet. Please submit the document.", type: "action", time: "1 day ago", read: false },
-  { id: 4, title: "Welcome to AMS", message: "Welcome to the Apartment Management System. You can manage rooms, request services, and pay bills here.", type: "info", time: "3 days ago", read: true }
+  { id: 1, title: "Welcome to AMS", message: "Welcome to the Apartment Management System. You can manage rooms, request services, and pay bills here.", type: "info", time: "Just now", read: false }
 ];
 
 export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginClick }) {
@@ -27,42 +25,61 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
 
     // Notification State & Persistance
-    const [notifications, setNotifications] = useState(() => {
-        if (!loggedInUser.email_address) return [];
-        const saved = localStorage.getItem(`user_notifications_${loggedInUser.email_address}`);
-        return saved ? JSON.parse(saved) : defaultNotifications;
-    });
+    const [notifications, setNotifications] = useState([]);
+    const [fetchError, setFetchError] = useState(null);
+
+    const formatTime = (dateStr) => {
+        if (!dateStr) return '';
+        try {
+            const diff = new Date() - new Date(dateStr.replace(/-/g, '/'));
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Just now';
+            if (mins < 60) return `${mins}m ago`;
+            const hours = Math.floor(mins / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            return `${days}d ago`;
+        } catch (e) {
+            return dateStr;
+        }
+    };
+
+    const fetchNotifications = async () => {
+        if (!loggedInUser.id) return;
+        setFetchError(null);
+        try {
+            const response = await api.get(`get_notifications.php?userId=${loggedInUser.id}`);
+            if (response.data.success) {
+                setNotifications(response.data.notifications.map(n => ({
+                    id: n.id,
+                    title: n.title,
+                    message: n.message,
+                    type: n.type,
+                    time: formatTime(n.created_at),
+                    read: n.is_read
+                })));
+            } else {
+                setFetchError(response.data.message || 'API failed');
+            }
+        } catch(e) {
+            console.error(e);
+            setFetchError(e.message || 'Network error');
+        }
+    };
+
+    useEffect(() => {
+        fetchNotifications();
+    }, [loggedInUser.id]);
 
     // Listen for updates from other parts of the app
     useEffect(() => {
-        if (!loggedInUser.email_address) return;
+        if (!loggedInUser.id) return;
         const handleSync = () => {
-            const saved = localStorage.getItem(`user_notifications_${loggedInUser.email_address}`);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                setNotifications(prev => {
-                    if (JSON.stringify(prev) !== saved) {
-                        return parsed;
-                    }
-                    return prev;
-                });
-            }
+            fetchNotifications();
         };
         window.addEventListener('user_notifications_updated', handleSync);
         return () => window.removeEventListener('user_notifications_updated', handleSync);
-    }, [loggedInUser.email_address]);
-
-    // Save and emit sync event on changes
-    useEffect(() => {
-        if (loggedInUser.email_address) {
-            const currentStr = JSON.stringify(notifications);
-            const saved = localStorage.getItem(`user_notifications_${loggedInUser.email_address}`);
-            if (saved !== currentStr) {
-                localStorage.setItem(`user_notifications_${loggedInUser.email_address}`, currentStr);
-                window.dispatchEvent(new Event('user_notifications_updated'));
-            }
-        }
-    }, [notifications, loggedInUser.email_address]);
+    }, [loggedInUser.id]);
 
     // Close dropdowns on outside clicks
     useEffect(() => {
@@ -80,16 +97,36 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
     const unreadCount = notifications.filter(n => !n.read).length;
 
-    const markAsRead = (id) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    const markAsRead = async (id) => {
+        try {
+            await api.post('mark_notification_read.php', { notificationId: id });
+            fetchNotifications();
+            window.dispatchEvent(new Event('user_notifications_updated'));
+        } catch(e) {
+            console.error(e);
+        }
     };
 
-    const markAllRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    const markAllRead = async () => {
+        if (!loggedInUser.id) return;
+        try {
+            await api.post('mark_notification_read.php', { userId: loggedInUser.id });
+            fetchNotifications();
+            window.dispatchEvent(new Event('user_notifications_updated'));
+        } catch(e) {
+            console.error(e);
+        }
     };
 
-    const clearAll = () => {
-        setNotifications([]);
+    const clearAll = async () => {
+        if (!loggedInUser.id) return;
+        try {
+            await api.post('delete_notification.php', { userId: loggedInUser.id });
+            fetchNotifications();
+            window.dispatchEvent(new Event('user_notifications_updated'));
+        } catch(e) {
+            console.error(e);
+        }
     };
 
     const getInitials = () => {

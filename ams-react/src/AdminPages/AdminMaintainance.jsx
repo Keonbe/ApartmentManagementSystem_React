@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import api from '../api/axiosConfig';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -10,14 +11,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 
-const initialRequests = [
-  { id: 'REQ-001', title: 'Leaking faucet in bathroom', issueType: 'Plumbing', unit: 'Unit E', tenant: 'Pedro Cruz', priority: 'High', status: 'Pending', description: 'The sink faucet is dripping continuously, creating a puddle.', dateReported: '2024-05-15', timeReported: '09:30 AM', dateResolved: null, timeResolved: null, assignee: null, photos: [], cost: null, tenantResponsible: false, budgetCategory: 'Plumbing', approvalStatus: null, approvalHistory: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-15 09:30 AM' }], notes: [] },
-  { id: 'REQ-002', title: 'Busted ceiling light', issueType: 'Electrical', unit: 'Unit G', tenant: 'Ben Flores', priority: 'Medium', status: 'Pending', description: 'Living room light flickered and died.', dateReported: '2024-05-16', timeReported: '14:20 PM', dateResolved: null, timeResolved: null, assignee: null, photos: [], cost: null, tenantResponsible: false, budgetCategory: 'Electrical', approvalStatus: null, approvalHistory: [], statusHistory: [{ status: 'Pending', timestamp: '2024-05-16 14:20 PM' }], notes: [] },
-  { id: 'REQ-003', title: 'Clogged kitchen drain', issueType: 'Plumbing', unit: 'Unit F', tenant: 'Rosa Dela Cruz', priority: 'High', status: 'In Progress', description: 'Water not going down the kitchen sink.', dateReported: '2024-05-14', timeReported: '08:15 AM', dateResolved: null, timeResolved: null, assignee: 'Mang Totoy', photos: [{ url: 'clogged-sink.jpg', name: 'sink_photo.jpg' }], cost: null, tenantResponsible: false, budgetCategory: 'Plumbing', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-05-14 10:00 AM', estimatedCost: 1500, note: 'Approve for p-trap replacement' }], statusHistory: [{ status: 'Pending', timestamp: '2024-05-14 08:15 AM' }, { status: 'Awaiting Approval', timestamp: '2024-05-14 09:00 AM' }, { status: 'Approved', timestamp: '2024-05-14 10:00 AM' }, { status: 'In Progress', timestamp: '2024-05-14 10:00 AM', assignee: 'Mang Totoy' }], notes: [{ text: 'Checked the pipes, need to buy a new p-trap.', author: 'Admin', timestamp: '2024-05-14 11:30 AM' }] },
-  { id: 'REQ-004', title: 'Electrical short in outlet', issueType: 'Electrical', unit: 'Unit C', tenant: 'Ana Garcia', priority: 'Urgent', status: 'Completed', description: 'Sparks flew when I plugged in the microwave.', dateReported: '2024-04-20', timeReported: '18:45 PM', dateResolved: '2024-04-21', timeResolved: '10:00 AM', assignee: 'Mang Totoy', photos: [], cost: 1200, tenantResponsible: false, budgetCategory: 'Electrical', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-04-20 19:00 PM', estimatedCost: 1500, note: 'Urgent — safety hazard' }], statusHistory: [{ status: 'Pending', timestamp: '2024-04-20 18:45 PM' }, { status: 'Approved', timestamp: '2024-04-20 19:00 PM' }, { status: 'In Progress', timestamp: '2024-04-20 19:30 PM', assignee: 'Mang Totoy' }, { status: 'Completed', timestamp: '2024-04-21 10:00 AM' }], notes: [] },
-  { id: 'REQ-005', title: 'Broken cabinet hinge', issueType: 'Carpentry', unit: 'Unit A', tenant: 'Maria Santos', priority: 'Low', status: 'Completed', description: 'Kitchen cabinet door hinge broke off.', dateReported: '2024-03-10', timeReported: '11:00 AM', dateResolved: '2024-03-12', timeResolved: '15:00 PM', assignee: 'Mang Totoy', photos: [], cost: 450, tenantResponsible: true, budgetCategory: 'Carpentry', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-03-10 14:00 PM', estimatedCost: 500, note: 'Tenant responsible — negligence per T&C' }], statusHistory: [{ status: 'Pending', timestamp: '2024-03-10 11:00 AM' }, { status: 'Approved', timestamp: '2024-03-10 14:00 PM' }, { status: 'In Progress', timestamp: '2024-03-11 08:00 AM', assignee: 'Mang Totoy' }, { status: 'Completed', timestamp: '2024-03-12 15:00 PM' }], notes: [] },
-  { id: 'REQ-006', title: 'Water heater not working', issueType: 'Appliance', unit: 'Unit B', tenant: 'Jose Reyes', priority: 'Medium', status: 'Completed', description: 'No hot water from the shower heater.', dateReported: '2024-02-15', timeReported: '07:00 AM', dateResolved: '2024-02-17', timeResolved: '14:30 PM', assignee: 'Electrician Juan', photos: [], cost: 3800, tenantResponsible: false, budgetCategory: 'Appliance', approvalStatus: 'Approved', approvalHistory: [{ action: 'Approved', by: 'Admin', date: '2024-02-15 09:00 AM', estimatedCost: 4000, note: 'Heater element replacement' }], statusHistory: [{ status: 'Pending', timestamp: '2024-02-15 07:00 AM' }, { status: 'Approved', timestamp: '2024-02-15 09:00 AM' }, { status: 'In Progress', timestamp: '2024-02-16 08:00 AM', assignee: 'Electrician Juan' }, { status: 'Completed', timestamp: '2024-02-17 14:30 PM' }], notes: [] }
-];
+// DB-backed: no more mock data
 
 const priorityConfig = {
   'Urgent': { color: 'bg-red-100 text-red-800 border-red-200' },
@@ -37,7 +31,8 @@ const getRelativeTime = (dateStr) => {
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
 const AdminMaintainance = () => {
-  const [requests, setRequests] = useState(initialRequests);
+  const [requests, setRequests] = useState([]);
+  const [loadingReqs, setLoadingReqs] = useState(true);
   const [viewMode, setViewMode] = useState('kanban');
   
   const [showNewModal, setShowNewModal] = useState(false);
@@ -61,6 +56,55 @@ const AdminMaintainance = () => {
 
   const settings = getSystemSettings();
   const monthlyBudget = settings.maintenanceMonthlyBudget || 50000;
+
+  // ─── DB Fetch ───
+  const fetchRequests = useCallback(async () => {
+    setLoadingReqs(true);
+    try {
+      const res = await api.get('get_maintenance_requests.php');
+      if (res.data.success) {
+        setRequests(res.data.requests.map(r => ({
+          id: `REQ-${String(r.id).padStart(3, '0')}`,
+          _dbId: r.id,
+          title: r.issue_category || 'Maintenance Request',
+          issueType: r.issue_category || 'Plumbing',
+          unit: r.room_name ? `Unit ${r.room_name}` : '—',
+          tenant: r.tenant_name || 'Unknown Tenant',
+          priority: r.urgency === 'Emergency' ? 'Urgent' : (r.urgency || 'Medium'),
+          status: r.status || 'Pending',
+          description: r.description || '',
+          dateReported: r.created_at ? r.created_at.slice(0, 10) : '',
+          timeReported: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          dateResolved: null,
+          timeResolved: null,
+          assignee: r.assigned_to || null,
+          photos: r.attachment_path ? [{ url: r.attachment_path, name: r.attachment_path.split('/').pop() }] : [],
+          cost: r.estimated_cost ? parseFloat(r.estimated_cost) : null,
+          tenantResponsible: !!r.tenant_responsible,
+          budgetCategory: r.issue_category || 'General',
+          approvalStatus: (r.status === 'Approved' || r.status === 'In Progress' || r.status === 'Completed') ? 'Approved' : null,
+          approvalHistory: [],
+          statusHistory: [{ status: r.status, timestamp: r.created_at }],
+          notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to fetch maintenance requests:', err);
+    } finally {
+      setLoadingReqs(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+
+  // ─── Persist to DB helper ───
+  const persistToDb = async (dbId, payload) => {
+    try {
+      await api.post('update_maintenance_status.php', { id: dbId, ...payload });
+    } catch (err) {
+      console.error('Failed to persist maintenance update:', err);
+    }
+  };
 
   // Filtering
   const filteredRequests = useMemo(() => {
@@ -162,6 +206,7 @@ const AdminMaintainance = () => {
       ...r,
       status: newStatus,
       approvalStatus: approvalForm.action,
+      cost: Number(approvalForm.estimatedCost) || r.cost,
       approvalHistory: [...(r.approvalHistory || []), approvalEntry],
       statusHistory: [...r.statusHistory,
         { status: 'Awaiting Approval', timestamp: timestampStr },
@@ -174,6 +219,7 @@ const AdminMaintainance = () => {
         ...prev,
         status: newStatus,
         approvalStatus: approvalForm.action,
+        cost: Number(approvalForm.estimatedCost) || prev.cost,
         approvalHistory: [...(prev.approvalHistory || []), approvalEntry],
         statusHistory: [...prev.statusHistory,
           { status: 'Awaiting Approval', timestamp: timestampStr },
@@ -182,8 +228,16 @@ const AdminMaintainance = () => {
       }));
     }
 
+    // Persist to DB
+    persistToDb(selectedReq._dbId, {
+      status: newStatus,
+      estimatedCost: Number(approvalForm.estimatedCost) || null,
+      workNotes: approvalForm.note || null
+    });
+
     setShowApprovalModal(false);
   };
+
 
   const triggerStatusAdvance = (req) => {
     setSelectedReq(req);
@@ -218,32 +272,50 @@ const AdminMaintainance = () => {
         statusHistory: [...prev.statusHistory, { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
       }));
     }
+
+    // Persist to DB
+    persistToDb(selectedReq._dbId, {
+      status: nextStatus,
+      assignedTo: finalAssignee,
+      estimatedCost: finalCost || null
+    });
     
     setShowConfirmModal(false);
     setCompletionCost('');
   };
 
+
   const handleToggleTenantResponsible = (reqId) => {
-    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, tenantResponsible: !r.tenantResponsible } : r));
+    const target = requests.find(r => r.id === reqId);
+    const newVal = target ? !target.tenantResponsible : false;
+    setRequests(prev => prev.map(r => r.id === reqId ? { ...r, tenantResponsible: newVal } : r));
     if (selectedReq && selectedReq.id === reqId) {
-      setSelectedReq(prev => ({ ...prev, tenantResponsible: !prev.tenantResponsible }));
+      setSelectedReq(prev => ({ ...prev, tenantResponsible: newVal }));
     }
+    if (target?._dbId) persistToDb(target._dbId, { tenantResponsible: newVal ? 1 : 0 });
   };
+
 
   const handleAddNote = () => {
     if (!newNote.trim()) return;
     const timestampStr = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const note = { text: newNote, author: 'Admin', timestamp: timestampStr };
-    setRequests(prev => prev.map(r => r.id === selectedReq.id ? { ...r, notes: [...r.notes, note] } : r));
-    setSelectedReq(prev => ({ ...prev, notes: [...prev.notes, note] }));
+    const updatedNotes = [...(selectedReq.notes || []), note];
+    setRequests(prev => prev.map(r => r.id === selectedReq.id ? { ...r, notes: updatedNotes } : r));
+    setSelectedReq(prev => ({ ...prev, notes: updatedNotes }));
+    // Persist combined notes as work_notes
+    if (selectedReq._dbId) persistToDb(selectedReq._dbId, { workNotes: updatedNotes.map(n => `[${n.timestamp}] ${n.text}`).join('\n---\n') });
     setNewNote('');
   };
+
 
   const handleReassignInDetail = (e) => {
     const newAssignee = e.target.value;
     setRequests(prev => prev.map(r => r.id === selectedReq.id ? { ...r, assignee: newAssignee } : r));
     setSelectedReq(prev => ({ ...prev, assignee: newAssignee }));
+    if (selectedReq._dbId) persistToDb(selectedReq._dbId, { assignedTo: newAssignee });
   };
+
 
   // Max category spend for chart scaling
   const maxCategorySpend = Math.max(...Object.values(budgetData.categories), 1);
@@ -376,6 +448,12 @@ const AdminMaintainance = () => {
             </div>
 
             {/* ─── KANBAN / LIST VIEW ─── */}
+            {loadingReqs ? (
+              <div className="py-16 text-center text-slate-400 text-sm font-medium bg-white border border-slate-200 rounded-xl shadow-sm">
+                Loading maintenance requests from database…
+              </div>
+            ) : (
+              <>
             {viewMode === 'kanban' ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {Object.entries(columns).map(([status, reqs]) => (
@@ -478,6 +556,10 @@ const AdminMaintainance = () => {
                 </table>
               </div>
             )}
+            {/* end kanban/list ternary */}
+              </>
+            )}
+            {/* end loadingReqs ternary */}
 
           </div>
         </div>

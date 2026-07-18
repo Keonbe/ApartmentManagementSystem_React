@@ -31,16 +31,48 @@ if (empty($title) || empty($body)) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels) VALUES (?, ?, ?, ?, ?)");
-$stmt->bind_param("sssss", $tag, $title, $body, $send_to, $channels);
+// 1. Fetch non-admin user IDs to send notification to
+$recipients = [];
+$user_res = $conn->query("SELECT id FROM users WHERE role != 'admin'");
+if ($user_res) {
+    while ($row = $user_res->fetch_assoc()) {
+        $recipients[] = (int)$row['id'];
+    }
+}
+$recipient_count = count($recipients);
 
-if ($stmt->execute()) {
+$conn->begin_transaction();
+try {
+    // 2. Insert the announcement
+    $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, recipient_count) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssssi", $tag, $title, $body, $send_to, $channels, $recipient_count);
+    $stmt->execute();
+    $stmt->close();
+
+    // 3. Insert notification for each recipient
+    $notif_type = 'info';
+    if (strtolower($tag) === 'urgent') {
+        $notif_type = 'warning';
+    } else if (strtolower($tag) === 'reminder') {
+        $notif_type = 'action';
+    }
+
+    if ($recipient_count > 0) {
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)");
+        foreach ($recipients as $uid) {
+            $notif_stmt->bind_param("isss", $uid, $title, $body, $notif_type);
+            $notif_stmt->execute();
+        }
+        $notif_stmt->close();
+    }
+
+    $conn->commit();
     log_activity($conn, $admin_id, 'communication', "Created Announcement", "Title: $title");
     echo json_encode(["success" => true, "message" => "Announcement created successfully"]);
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to create announcement", "error" => $stmt->error]);
+} catch (Exception $e) {
+    $conn->rollback();
+    echo json_encode(["success" => false, "message" => "Failed to create announcement", "error" => $e->getMessage()]);
 }
 
-$stmt->close();
 $conn->close();
 ?>
