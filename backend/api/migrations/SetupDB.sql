@@ -101,6 +101,7 @@ CREATE TABLE `invoices` (
   `electricity` decimal(10,2) NOT NULL DEFAULT 0.00,
   `parking` decimal(10,2) NOT NULL DEFAULT 0.00,
   `total_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `security_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
   `payment_method` varchar(50) DEFAULT NULL,
   `billing_period` varchar(50) NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',

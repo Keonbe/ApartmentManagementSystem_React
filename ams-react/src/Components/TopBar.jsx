@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
-    faBell, faCheck, faTrash, faInfoCircle, faExclamationTriangle, faFileContract, faCheckCircle 
+    faBell, faCheck, faTrash, faInfoCircle, faExclamationTriangle, faFileContract, faCheckCircle, faHistory 
 } from '@fortawesome/free-solid-svg-icons';
 
 const defaultNotifications = [
@@ -295,6 +295,18 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         >
                                             <FontAwesomeIcon icon={faFileContract} className="text-slate-400 text-xs" />
                                             <span>Track Application</span>
+                                        </button>
+                                    )}
+                                    {hasRentedRoom && (
+                                        <button
+                                            onClick={() => {
+                                                setIsDropdownOpen(false);
+                                                navigate('/payment-history');
+                                            }}
+                                            className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold"
+                                        >
+                                            <FontAwesomeIcon icon={faHistory} className="text-slate-400 text-xs" />
+                                            <span>Payment History</span>
                                         </button>
                                     )}
                                     <div className="border-t border-slate-100 my-1"></div>

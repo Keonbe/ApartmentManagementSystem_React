@@ -62,9 +62,10 @@ if ($id > 0 && !empty($status)) {
                     $invoice_id = 'INV-' . uniqid();
                     $billing_period = date('F Y');
                     $due_date = date('Y-m-d', strtotime('+7 days'));
+                    $total_amount = $monthly_rent * 2;
                     
-                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)");
-                    $inv_stmt->bind_param("siiddss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $billing_period, $due_date);
+                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
+                    $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
                     $inv_stmt->execute();
                     $inv_stmt->close();
                 }

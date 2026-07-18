@@ -28,7 +28,7 @@ if ($result->num_rows > 0) {
     $app_id = $room_data['id'];
     
     // Check if there is a pending invoice for this application
-    $inv_stmt = $conn->prepare("SELECT id, payment_method FROM invoices WHERE rent_application_id = ? AND status = 'pending' LIMIT 1");
+    $inv_stmt = $conn->prepare("SELECT id, payment_method, base_rent, security_deposit, total_amount FROM invoices WHERE rent_application_id = ? AND status = 'pending' LIMIT 1");
     $inv_stmt->bind_param("i", $app_id);
     $inv_stmt->execute();
     $inv_res = $inv_stmt->get_result();
@@ -36,12 +36,18 @@ if ($result->num_rows > 0) {
     $room_data['has_pending_first_payment'] = false;
     $room_data['pending_invoice_id'] = null;
     $room_data['pending_payment_method'] = null;
+    $room_data['pending_base_rent'] = null;
+    $room_data['pending_security_deposit'] = null;
+    $room_data['pending_total_amount'] = null;
     
     if ($inv_res->num_rows > 0) {
         $inv_row = $inv_res->fetch_assoc();
         $room_data['has_pending_first_payment'] = true;
         $room_data['pending_invoice_id'] = $inv_row['id'];
         $room_data['pending_payment_method'] = $inv_row['payment_method'];
+        $room_data['pending_base_rent'] = $inv_row['base_rent'];
+        $room_data['pending_security_deposit'] = $inv_row['security_deposit'];
+        $room_data['pending_total_amount'] = $inv_row['total_amount'];
     }
     $inv_stmt->close();
     

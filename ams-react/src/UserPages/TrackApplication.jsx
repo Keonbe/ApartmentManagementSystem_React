@@ -212,12 +212,22 @@ export default function TrackApplication() {
                                     Complete Initial Lease Payment
                                 </h3>
                                 <p className="text-slate-300 text-sm m-0">
-                                    Your lease application is approved! To activate your tenancy and access your room information and services, please settle your initial payment for {application.months_of_rent} month(s) of lease.
+                                    Your lease application is approved! To activate your tenancy and access your room information and services, please settle your initial payment details below:
                                 </p>
-                                
-                                <div className="border-t border-b border-white/10 py-4 flex justify-between items-center">
-                                    <span className="text-sm text-slate-400 font-medium">First Month Rent Due ({application.months_of_rent} Months Lease):</span>
-                                    <span className="text-2xl font-black text-indigo-400">₱{parseFloat(application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+
+                                <div className="space-y-3 bg-white/5 border border-white/10 rounded-2xl p-5 text-sm">
+                                    <div className="flex justify-between items-center text-slate-300">
+                                        <span>1-Month Advance Rent:</span>
+                                        <span className="font-semibold text-white">₱{parseFloat(application.pending_base_rent || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-300">
+                                        <span>1-Month Security Deposit:</span>
+                                        <span className="font-semibold text-white">₱{parseFloat(application.pending_security_deposit || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="border-t border-white/10 pt-3 flex justify-between items-center font-bold">
+                                        <span className="text-slate-200">Total Initial Payment Due:</span>
+                                        <span className="text-2xl font-black text-indigo-400">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
                                 </div>
 
                                 {application.pending_payment_method === 'Cash on Hand' ? (
@@ -227,7 +237,7 @@ export default function TrackApplication() {
                                             Cash Payment Request Pending
                                         </div>
                                         <p className="text-slate-300 text-xs m-0 leading-relaxed">
-                                            Please proceed to the management office to settle your cash payment of <strong className="text-white">₱{parseFloat(application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
+                                            Please proceed to the management office to settle your cash payment of <strong className="text-white">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
                                         </p>
                                     </div>
                                 ) : (
@@ -280,7 +290,7 @@ export default function TrackApplication() {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <span>Pay ₱{parseFloat(application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} Now</span>
+                                                    <span>Pay ₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })} Now</span>
                                                     <FontAwesomeIcon icon={faArrowRight} />
                                                 </>
                                             )}

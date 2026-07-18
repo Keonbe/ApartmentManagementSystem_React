@@ -53,6 +53,7 @@ const AdminPayments = () => {
             t.billing.water = parseFloat(inv.water);
             t.billing.electricity = parseFloat(inv.electricity);
             t.billing.parking = parseFloat(inv.parking);
+            t.billing.securityDeposit = parseFloat(inv.security_deposit || 0);
             t.outstandingBalance += parseFloat(inv.total_amount);
             t.pendingInvoiceId = inv.id;
           } else if (inv.status === 'paid') {
@@ -106,7 +107,7 @@ const AdminPayments = () => {
     if (!activeTenant) return 0;
     return isExtendedRent 
       ? Number(extendedAmount) + Number(customAddOns)
-      : activeTenant.billing.baseRent + activeTenant.billing.water + activeTenant.billing.electricity + activeTenant.billing.parking + Number(customAddOns);
+      : (activeTenant.outstandingBalance || 0) + Number(customAddOns);
   };
   const totalDue = calculateTotal();
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
@@ -337,7 +338,8 @@ const AdminPayments = () => {
                   {filteredTenants.map(t => {
                     const days = getDaysUntilDue(t.dueDate);
                     const isDueSoon = t.status !== 'paid' && days !== null && days >= 0 && days <= 5;
-                    const tenantTotalDue = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking;
+                    const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking;
+                    const tenantTotalDue = t.outstandingBalance > 0 ? t.outstandingBalance : fallbackTotal;
                     return (
                       <div key={t.id} onClick={() => {setSelectedTenantId(t.id); setHistoryPage(1);}} className={`flex items-center justify-between p-4 border-b border-slate-100 cursor-pointer ${selectedTenantId === t.id ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}`}>
                         <div>
@@ -437,7 +439,16 @@ const AdminPayments = () => {
                         <input type="number" value={customAddOns} onChange={e => setCustomAddOns(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 transition-colors" placeholder="0" />
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right flex flex-col items-end">
+                      <div className="mb-3 text-xs text-slate-500 space-y-1">
+                        <div className="flex justify-end gap-4"><span className="w-32 text-right">Base Rent:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.baseRent)}</span></div>
+                        {activeTenant.billing.securityDeposit > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Security Deposit:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.securityDeposit)}</span></div>}
+                        {activeTenant.billing.water > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Water:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.water)}</span></div>}
+                        {activeTenant.billing.electricity > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Electricity:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.electricity)}</span></div>}
+                        {activeTenant.billing.parking > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Parking:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.parking)}</span></div>}
+                        {Number(customAddOns) > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-ons:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(customAddOns)}</span></div>}
+                        <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
+                      </div>
                       <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Total Due</p>
                       <p className="text-3xl font-bold text-indigo-600 m-0 mt-0.5">{formatCurrency(totalDue)}</p>
                     </div>
