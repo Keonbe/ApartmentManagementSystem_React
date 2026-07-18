@@ -1,7 +1,7 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, X-Admin-Id, X-User-Id, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -48,7 +48,7 @@ try {
     $updateFields = [];
     $params = [];
 
-    $allowedFields = ['status', 'tenant_name', 'lease_start', 'lease_end', 'last_tenant', 'maintenance_flag', 'monthly_rent'];
+    $allowedFields = ['status', 'tenant_name', 'lease_start', 'lease_end', 'last_tenant', 'maintenance_flag', 'monthly_rent', 'occupants'];
     
     foreach ($allowedFields as $field) {
         // Map frontend camelCase to db snake_case if necessary, or assume payload uses snake_case

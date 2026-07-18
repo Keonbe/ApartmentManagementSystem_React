@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Id, X-User-Id");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
 
@@ -48,8 +48,8 @@ if ($id > 0 && !empty($status)) {
                 $lease_end = date('Y-m-d', strtotime("+$months months"));
                 $room_status = 'occupied';
                 
-                $room_stmt = $conn->prepare("UPDATE rooms SET status = ?, tenant_name = ?, lease_start = ?, lease_end = ? WHERE id = ?");
-                $room_stmt->bind_param("sssss", $room_status, $tenant_name, $lease_start, $lease_end, $room_name);
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = ?, tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ?");
+                $room_stmt->bind_param("ssssis", $room_status, $tenant_name, $lease_start, $lease_end, $app['occupants'], $room_name);
                 $room_stmt->execute();
                 $room_stmt->close();
 

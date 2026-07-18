@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
 
@@ -36,16 +36,25 @@ if ($occupant_count > 4 || $occupant_count < 1) {
     exit;
 }
 
-// Update the database for this user's most recent application
-$stmt = $conn->prepare("UPDATE rent_applications SET occupants = ? WHERE email = ? ORDER BY id DESC LIMIT 1");
-$stmt->bind_param("is", $occupant_count, $email);
+// Update the database for this user's most recent application and active room
+$conn->begin_transaction();
+try {
+    $stmt = $conn->prepare("UPDATE rent_applications SET occupants = ? WHERE email = ? ORDER BY id DESC LIMIT 1");
+    $stmt->bind_param("is", $occupant_count, $email);
+    $stmt->execute();
+    $stmt->close();
 
-if ($stmt->execute()) {
+    $room_stmt = $conn->prepare("UPDATE rooms SET occupants = ? WHERE id = (SELECT room_name FROM rent_applications WHERE email = ? AND status = 'Approved' ORDER BY id DESC LIMIT 1)");
+    $room_stmt->bind_param("is", $occupant_count, $email);
+    $room_stmt->execute();
+    $room_stmt->close();
+
+    $conn->commit();
     echo json_encode(["success" => true, "message" => "Occupants updated successfully"]);
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to update occupants", "error" => $stmt->error]);
+} catch (Exception $e) {
+    $conn->rollback();
+    echo json_encode(["success" => false, "message" => "Failed to update occupants", "error" => $e->getMessage()]);
 }
 
-$stmt->close();
 $conn->close();
 ?>

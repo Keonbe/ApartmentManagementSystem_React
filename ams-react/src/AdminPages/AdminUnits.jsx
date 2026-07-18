@@ -507,6 +507,9 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 <DetailField label="Type" value={unit.type} />
                 <DetailField label="Floor" value={unit.floor} />
                 <DetailField label="Monthly Rent" value={formatCurrency(unit.rent)} />
+                {unit.status === 'occupied' && (
+                  <DetailField label="Current Occupants" value={`${unit.occupants || 0} Person(s)`} />
+                )}
               </div>
             </div>
           )}
@@ -517,10 +520,11 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 <>
                   <div className="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl p-5 border border-indigo-100">
                     <h4 className="text-sm font-semibold text-slate-800 m-0 mb-4">Lease Progress</h4>
-                    <div className="grid grid-cols-3 gap-4 text-center mb-4">
-                      <div><p className="text-2xl font-bold text-indigo-600 m-0">{unit.tenant?.split(' ')[0]}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Tenant</p></div>
-                      <div><p className="text-2xl font-bold text-slate-800 m-0">{elapsed > 0 ? elapsed : 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Days Elapsed</p></div>
-                      <div><p className={`text-2xl font-bold m-0 ${remaining <= 30 ? 'text-red-500' : remaining <= 90 ? 'text-amber-500' : 'text-emerald-600'}`}>{remaining > 0 ? remaining : 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Days Left</p></div>
+                    <div className="grid grid-cols-4 gap-2 text-center mb-4">
+                      <div><p className="text-xl font-bold text-indigo-600 m-0 truncate" title={unit.tenant}>{unit.tenant?.split(' ')[0]}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Tenant</p></div>
+                      <div><p className="text-xl font-bold text-slate-800 m-0">{unit.occupants || 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Occupants</p></div>
+                      <div><p className="text-xl font-bold text-slate-800 m-0">{elapsed > 0 ? elapsed : 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Days Elapsed</p></div>
+                      <div><p className={`text-xl font-bold m-0 ${remaining <= 30 ? 'text-red-500' : remaining <= 90 ? 'text-amber-500' : 'text-emerald-600'}`}>{remaining > 0 ? remaining : 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Days Left</p></div>
                     </div>
                     <div>
                       <div className="flex justify-between text-[10px] text-slate-400 mb-1"><span>{unit.leaseStart}</span><span>{unit.leaseEnd}</span></div>

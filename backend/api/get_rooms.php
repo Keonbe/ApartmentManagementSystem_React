@@ -1,7 +1,7 @@
 <?php
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, X-Admin-Id, X-User-Id, Authorization");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 header("Content-Type: application/json; charset=UTF-8");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -30,7 +30,8 @@ try {
             'leaseStart' => $room['lease_start'],
             'leaseEnd' => $room['lease_end'],
             'lastTenant' => $room['last_tenant'],
-            'maintenanceFlag' => (bool) $room['maintenance_flag']
+            'maintenanceFlag' => (bool) $room['maintenance_flag'],
+            'occupants' => (int) ($room['occupants'] ?? 0)
         ];
     }, $rooms);
 
