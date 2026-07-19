@@ -77,11 +77,18 @@ $upload_dir = "../uploads/applications/";
 if (!is_dir($upload_dir)) {
     mkdir($upload_dir, 0777, true);
 }
-function uploadFile($fileInputName, $upload_dir) {
+// Update the uploadFile function definition
+function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
     if (isset($_FILES[$fileInputName]) && $_FILES[$fileInputName]['error'] === UPLOAD_ERR_OK) {
         $file_name = basename($_FILES[$fileInputName]['name']);
         $file_tmp = $_FILES[$fileInputName]['tmp_name'];
-        $unique_file_name = time() . "_" . uniqid() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", $file_name);
+        $extension = pathinfo($file_name, PATHINFO_EXTENSION);
+        
+        // Create a clean prefix: remove spaces/special chars from the user's name
+        $safe_name = preg_replace("/[^a-zA-Z0-9]/", "_", $user_name_prefix);
+        
+        // Format: Name_Type_Timestamp_Random.ext
+        $unique_file_name = $safe_name . "_" . $fileInputName . "_" . time() . "_" . uniqid() . "." . $extension;
         $destination = $upload_dir . $unique_file_name;
         
         if (move_uploaded_file($file_tmp, $destination)) {
@@ -91,9 +98,13 @@ function uploadFile($fileInputName, $upload_dir) {
     return null;
 }
 
-$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir);
-$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir);
-$nbi_clearance_path = uploadFile('nbiFile', $upload_dir);
+// Prepare the name string
+$user_name_prefix = $first_name . "_" . $last_name;
+
+// Update these lines to pass the new argument
+$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir, $user_name_prefix);
+$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir, $user_name_prefix);
+$nbi_clearance_path = uploadFile('nbiFile', $upload_dir, $user_name_prefix);
 
 if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     echo json_encode(["success" => false, "message" => "Valid ID (Front & Back) and NBI Clearance documents are all required."]);

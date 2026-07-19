@@ -39,9 +39,22 @@ const AdminApplications = () => {
     }
   };
 
+  // Maps database avatar paths cleanly to your Apache local server url structures
+  const getFullAvatarUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    
+    const cleanPath = url.replace(/^\//, ''); 
+    return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
+  };
+
   const updateStatus = async (id, status) => {
     try {
-      await api.post('/update_tenant_status.php', { id, status });
+      const res = await api.post('/update_tenant_status.php', { id, status });
+      if (!res.data.success) {
+        alert("Backend Error: " + res.data.message);
+        return;
+      }
       fetchApplications();
     } catch (err) {
       console.error("Error updating status:", err);
@@ -59,8 +72,8 @@ const AdminApplications = () => {
     (t.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const pendingApps = filteredApps.filter(a => a.status === 'Pending Review');
-  const approvedApps = filteredApps.filter(a => a.status === 'Approved' || a.status === 'active'); // Match database status
+  const pendingApps = filteredApps.filter(a => a.status === 'Pending Review' || a.status === 'Pending Deposit');
+  const approvedApps = filteredApps.filter(a => a.status === 'Approved' || a.status === 'active'); 
   const rejectedApps = filteredApps.filter(a => a.status === 'Rejected');
 
   const getInitials = (name) => {
@@ -73,16 +86,27 @@ const AdminApplications = () => {
       className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer group"
     >
       <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-inner ${isPending ? 'bg-indigo-500' : app.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`}>
-            {getInitials(app.name)}
-          </div>
-          <div>
-            <h4 className="m-0 text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{app.name}</h4>
+        <div className="flex items-center gap-3 min-w-0">
+          
+          {/* Kanban Avatar Block Indicator */}
+          {app.avatar_url ? (
+            <img 
+              src={getFullAvatarUrl(app.avatar_url)} 
+              alt="Applicant Avatar" 
+              className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 shadow-inner"
+            />
+          ) : (
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 shadow-inner ${isPending ? 'bg-indigo-500' : app.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`}>
+              {getInitials(app.name)}
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <h4 className="m-0 text-sm font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate">{app.name}</h4>
             <p className="m-0 text-[11px] text-slate-400">{new Date(app.created_at).toLocaleDateString()}</p>
           </div>
         </div>
-        <div className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md border border-slate-200">
+        <div className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-md border border-slate-200 shrink-0">
           Unit {app.unit}
         </div>
       </div>
@@ -199,13 +223,24 @@ const AdminApplications = () => {
             
             {/* Modal Header */}
             <div className={`px-8 py-6 flex items-center justify-between shrink-0 text-white ${
-              selectedApp.status === 'Pending Review' ? 'bg-gradient-to-r from-indigo-600 to-indigo-800' : 
-              selectedApp.status === 'active' ? 'bg-gradient-to-r from-emerald-600 to-emerald-800' : 'bg-gradient-to-r from-red-600 to-red-800'
+              selectedApp.status === 'Pending Review' || selectedApp.status === 'Pending Deposit' ? 'bg-gradient-to-r from-indigo-600 to-indigo-800' : 
+              selectedApp.status === 'active' || selectedApp.status === 'Approved' ? 'bg-gradient-to-r from-emerald-600 to-emerald-800' : 'bg-gradient-to-r from-red-600 to-red-800'
             }`}>
               <div className="flex items-center gap-5">
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold bg-white/20 backdrop-blur shadow-sm">
-                  {getInitials(selectedApp.name)}
-                </div>
+                
+                {/* Modal Window Profile Avatar Display */}
+                {selectedApp.avatar_url ? (
+                  <img 
+                    src={getFullAvatarUrl(selectedApp.avatar_url)} 
+                    alt="Modal Profile Avatar" 
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20 shadow-md bg-white/10 shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold bg-white/20 backdrop-blur shadow-sm shrink-0">
+                    {getInitials(selectedApp.name)}
+                  </div>
+                )}
+
                 <div>
                   <h3 className="text-2xl font-bold m-0 tracking-tight">{selectedApp.name}</h3>
                   <div className="flex gap-3 mt-1.5 opacity-90 text-sm">
@@ -281,7 +316,7 @@ const AdminApplications = () => {
               </div>
 
               {/* Actions */}
-              {selectedApp.status === 'Pending Review' && (
+              {(selectedApp.status === 'Pending Review' || selectedApp.status === 'Pending Deposit') && (
                 <div className="flex gap-4 mt-8 pt-6 border-t border-slate-200">
                   <button 
                     onClick={() => { updateStatus(selectedApp.id, 'Approved'); setShowProfileModal(false); }} 

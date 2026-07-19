@@ -17,6 +17,7 @@ const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOption, setSortOption] = useState('name-asc');
   
   useEffect(() => {
     fetchInvoices();
@@ -107,7 +108,28 @@ const AdminPayments = () => {
   const settings = getSystemSettings();
 
   const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0] || null;
-  const filteredTenants = tenants.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()) || t.unit?.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredTenants = useMemo(() => {
+    const filtered = tenants.filter(t => 
+      t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      t.unit?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    return filtered.sort((a, b) => {
+      if (sortOption === 'name-asc') {
+        return a.name.localeCompare(b.name);
+      } else if (sortOption === 'name-desc') {
+        return b.name.localeCompare(a.name);
+      } else if (sortOption === 'due-asc') {
+        const valA = a.dueDate || '';
+        const valB = b.dueDate || '';
+        return valA.localeCompare(valB);
+      } else if (sortOption === 'due-desc') {
+        const valA = a.dueDate || '';
+        const valB = b.dueDate || '';
+        return valB.localeCompare(valA);
+      }
+      return 0;
+    });
+  }, [tenants, searchTerm, sortOption]);
 
   const calculateTotal = () => {
     if (!activeTenant) return 0;
@@ -333,11 +355,23 @@ const AdminPayments = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Tenant Selector */}
               <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden h-[calc(100vh-18rem)] min-h-[500px]">
-                <div className="p-4 border-b border-slate-200 bg-slate-50">
-                  <h3 className="text-sm font-semibold text-slate-800 mb-3 m-0">Select Tenant</h3>
-                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-all">
-                    <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                    <input type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                <div className="p-4 border-b border-slate-200 bg-slate-50 space-y-2">
+                  <h3 className="text-sm font-semibold text-slate-800 m-0">Select Tenant</h3>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
+                      <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
+                      <input type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                    </div>
+                    <select 
+                      value={sortOption} 
+                      onChange={e => setSortOption(e.target.value)} 
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                    >
+                      <option value="name-asc">Name (A-Z)</option>
+                      <option value="name-desc">Name (Z-A)</option>
+                      <option value="due-asc">Due Date (Oldest)</option>
+                      <option value="due-desc">Due Date (Newest)</option>
+                    </select>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
