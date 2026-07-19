@@ -175,7 +175,7 @@ function AppContent() {
         <Route path="/track-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><TrackApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/profile-settings" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ProfileSettings /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-room" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></TenantProtectedRoute>} />
-        <Route path="/view-contract" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-requests" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />

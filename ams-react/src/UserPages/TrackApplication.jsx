@@ -172,9 +172,17 @@ export default function TrackApplication() {
 
                             {statusNormalized === 'approved' && (
                                 application.has_pending_first_payment ? (
-                                    <div className="flex items-center space-x-2 text-amber-400 text-xs bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-500/20">
-                                        <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400 animate-pulse" />
-                                        <span>Payment Pending</span>
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                        <button
+                                            onClick={() => navigate('/view-contract')}
+                                            className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-semibold px-6 py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center"
+                                        >
+                                            View Lease Contract
+                                        </button>
+                                        <div className="flex items-center space-x-2 text-amber-400 text-xs bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-500/20">
+                                            <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400 animate-pulse" />
+                                            <span>Payment Pending</span>
+                                        </div>
                                     </div>
                                 ) : (
                                     <button

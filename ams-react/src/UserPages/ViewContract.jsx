@@ -80,10 +80,10 @@ export default function ViewContract() {
                     <h2 className="text-2xl font-bold text-rose-500">Error</h2>
                     <p className="text-slate-400 text-sm">{error}</p>
                     <button
-                        onClick={() => navigate('/my-room')}
+                        onClick={() => navigate(-1)}
                         className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all border-0 cursor-pointer text-xs"
                     >
-                        Back to My Room
+                        Go Back
                     </button>
                 </div>
             </div>
@@ -96,11 +96,11 @@ export default function ViewContract() {
             {/*Control Actions Toolbar Bar Panel Layout (Hidden on Print)*/}
             <div className="w-full max-w-3xl flex justify-between items-center mb-6 print:hidden select-none">
                 <button
-                    onClick={() => navigate('/my-room')}
+                    onClick={() => navigate(-1)}
                     className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-200 shadow-sm cursor-pointer transition-all"
                 >
                     <FontAwesomeIcon icon={faArrowLeft} />
-                    <span>Back to My Room</span>
+                    <span>Go Back</span>
                 </button>
                 
                 <button
