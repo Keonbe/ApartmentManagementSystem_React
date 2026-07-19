@@ -24,21 +24,30 @@ export default function TrackApplication() {
             return;
         }
 
+        const methodLabel = selectedMethod === 'gcash' ? 'GCash' : selectedMethod === 'bank' ? 'Bank Transfer' : 'Cash on Hand';
+        const totalAmount = parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0)));
+
+        if (methodLabel !== 'Cash on Hand') {
+            navigate('/upload-payment', { 
+                state: { 
+                    invoiceId: application.pending_invoice_id, 
+                    amount: totalAmount, 
+                    paymentMethod: methodLabel,
+                    returnUrl: '/track-application'
+                } 
+            });
+            return;
+        }
+
         setPaying(true);
         try {
-            const methodLabel = selectedMethod === 'gcash' ? 'GCash' : selectedMethod === 'bank' ? 'Bank Transfer' : 'Cash on Hand';
             const res = await api.post("/pay_bill.php", {
                 invoiceId: application.pending_invoice_id,
                 paymentMethod: methodLabel
             });
 
             if (res.data.success) {
-                // FUTURE: Add notification when application payment/approval is completed
-                if (methodLabel === 'Cash on Hand') {
-                    alert("Cash payment method selected successfully. Please proceed to the management office to settle your payment. Your room details will be unlocked once management confirms receipt of the payment.");
-                } else {
-                    alert(`Initial lease payment successful via ${methodLabel}! Your tenancy is now active.`);
-                }
+                alert("Cash payment method selected successfully. Please proceed to the management office to settle your payment. Your room details will be unlocked once management confirms receipt of the payment.");
                 window.location.reload();
             } else {
                 alert(res.data.message || "Failed to process payment.");
@@ -255,14 +264,14 @@ export default function TrackApplication() {
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Payment Method</label>
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                 {[
-                                                    { id: 'gcash', label: 'GCash (Not Available)', icon: faWallet, disabled: true },
-                                                    { id: 'bank', label: 'Bank Transfer (Not Available)', icon: faUniversity, disabled: true },
+                                                    { id: 'gcash', label: 'GCash', icon: faWallet, disabled: false },
+                                                    { id: 'bank', label: 'Bank Transfer', icon: faUniversity, disabled: false },
                                                     { id: 'cash', label: 'Cash on Hand', icon: faMoneyBillWave, disabled: false }
                                                 ].map((method) => (
                                                     <button
                                                         key={method.id}
                                                         disabled={method.disabled}
-                                                        onClick={() => !method.disabled && setSelectedMethod(method.id)}
+                                                        onClick={() => setSelectedMethod(method.id)}
                                                         className={`flex items-center justify-between p-4 rounded-2xl border text-sm font-semibold transition-all ${
                                                             method.disabled
                                                                 ? 'opacity-40 bg-white/5 border-white/5 text-slate-500 cursor-not-allowed'

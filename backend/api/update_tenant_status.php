@@ -32,7 +32,7 @@ if ($id > 0 && !empty($status)) {
         
         if ($status === 'Approved') {
             // Get application details to update the room and generate invoice
-            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, user_id, monthly_rent FROM rent_applications WHERE id = ?");
+            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, user_id, monthly_rent, occupants FROM rent_applications WHERE id = ?");
             $app_stmt->bind_param("i", $id);
             $app_stmt->execute();
             $app_res = $app_stmt->get_result();

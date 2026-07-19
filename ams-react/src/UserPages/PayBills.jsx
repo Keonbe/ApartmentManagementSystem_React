@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { useNavigate } from 'react-router-dom';
 
 export default function PayBills() {
+    const navigate = useNavigate();
     const [selectedMethod, setSelectedMethod] = useState('gcash');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isAutoPayEnabled, setIsAutoPayEnabled] = useState(false);
@@ -75,6 +77,18 @@ export default function PayBills() {
             return;
         }
 
+        if (currentMethodObj.isDigital) {
+            navigate('/upload-payment', { 
+                state: { 
+                    invoiceId: billDetails.invoiceId, 
+                    amount: totalAmount, 
+                    paymentMethod: currentMethodObj.label,
+                    returnUrl: '/pay-bills'
+                } 
+            });
+            return;
+        }
+
         try {
             const res = await api.post("/pay_bill.php", {
                 invoiceId: billDetails.invoiceId,
@@ -82,7 +96,7 @@ export default function PayBills() {
             });
 
             if (res.data.success) {
-                alert(`Payment successful via ${currentMethodObj.label}. Auto-Pay state: ${isAutoPayEnabled ? "ENABLED" : "DISABLED"}`);
+                alert(`Payment successful via ${currentMethodObj.label}.`);
                 window.location.reload();
             } else {
                 console.error("Server Error:", res.data.message);

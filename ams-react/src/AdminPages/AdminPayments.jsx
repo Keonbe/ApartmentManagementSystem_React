@@ -46,7 +46,7 @@ const AdminPayments = () => {
             };
           }
           const t = grouped[inv.user_id];
-          if (inv.status === 'pending' || inv.status === 'overdue') {
+          if (inv.status === 'pending' || inv.status === 'overdue' || inv.status === 'pending-verification') {
             t.status = inv.status;
             t.dueDate = inv.due_date;
             t.billing.baseRent = parseFloat(inv.base_rent);
@@ -56,6 +56,12 @@ const AdminPayments = () => {
             t.billing.securityDeposit = parseFloat(inv.security_deposit || 0);
             t.outstandingBalance += parseFloat(inv.total_amount);
             t.pendingInvoiceId = inv.id;
+            t.proofOfPaymentPath = inv.proof_of_payment_path;
+            t.paymentReference = inv.payment_reference;
+            t.senderName = inv.sender_name;
+            if (inv.status === 'pending-verification' && inv.payment_method) {
+               t.preferredMethod = inv.payment_method;
+            }
           } else if (inv.status === 'paid') {
             t.history.push({
               id: inv.id, period: inv.billing_period, breakdown: `Total: ${inv.total_amount}`,
@@ -461,7 +467,7 @@ const AdminPayments = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Method</label>
-                          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
+                          <select value={activeTenant.preferredMethod || paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
                             <option value="Cash">Cash</option>
                             <option value="GCash">GCash</option>
                             <option value="Bank Transfer">Bank Transfer</option>
@@ -476,6 +482,21 @@ const AdminPayments = () => {
                           <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 text-slate-700 font-semibold">{formatCurrency(change)}</div>
                         </div>
                       </div>
+                      
+                      {activeTenant.status === 'pending-verification' && (
+                        <div className="mt-4 p-4 bg-indigo-50 border border-indigo-100 rounded-lg">
+                          <h5 className="text-sm font-bold text-indigo-900 m-0 mb-2">Payment Verification Required</h5>
+                          <div className="grid grid-cols-2 gap-4 text-sm text-indigo-800 mb-3">
+                             <div><strong>Sender:</strong> {activeTenant.senderName}</div>
+                             <div><strong>Reference No:</strong> {activeTenant.paymentReference}</div>
+                          </div>
+                          {activeTenant.proofOfPaymentPath && (
+                            <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${activeTenant.proofOfPaymentPath}`} target="_blank" rel="noreferrer" className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors no-underline">
+                              View Proof of Payment Image
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
