@@ -63,30 +63,53 @@ const AdminMaintainance = () => {
     try {
       const res = await api.get('get_maintenance_requests.php');
       if (res.data.success) {
-        setRequests(res.data.requests.map(r => ({
-          id: `REQ-${String(r.id).padStart(3, '0')}`,
-          _dbId: r.id,
-          title: r.issue_category || 'Maintenance Request',
-          issueType: r.issue_category || 'Plumbing',
-          unit: r.room_name ? `Unit ${r.room_name}` : '—',
-          tenant: r.tenant_name || 'Unknown Tenant',
-          priority: r.urgency === 'Emergency' ? 'Urgent' : (r.urgency || 'Medium'),
-          status: r.status || 'Pending',
-          description: r.description || '',
-          dateReported: r.created_at ? r.created_at.slice(0, 10) : '',
-          timeReported: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-          dateResolved: null,
-          timeResolved: null,
-          assignee: r.assigned_to || null,
-          photos: r.attachment_path ? [{ url: r.attachment_path, name: r.attachment_path.split('/').pop() }] : [],
-          cost: r.estimated_cost ? parseFloat(r.estimated_cost) : null,
-          tenantResponsible: !!r.tenant_responsible,
-          budgetCategory: r.issue_category || 'General',
-          approvalStatus: (r.status === 'Approved' || r.status === 'In Progress' || r.status === 'Completed') ? 'Approved' : null,
-          approvalHistory: [],
-          statusHistory: [{ status: r.status, timestamp: r.created_at }],
-          notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
-        })));
+        setRequests(res.data.requests.map(r => {
+          // Normalize urgency/priority to 'Low', 'Medium', 'High', 'Urgent'
+          let normPriority = 'Medium';
+          if (r.urgency) {
+            const lowerUrg = r.urgency.toLowerCase();
+            if (lowerUrg === 'low') normPriority = 'Low';
+            else if (lowerUrg === 'medium') normPriority = 'Medium';
+            else if (lowerUrg === 'high') normPriority = 'High';
+            else if (lowerUrg === 'urgent' || lowerUrg === 'emergency') normPriority = 'Urgent';
+          }
+
+          // Normalize issue type to match Admin's types: 'Plumbing', 'Electrical', 'Carpentry', 'Appliance', 'Others'
+          let normIssueType = 'Plumbing';
+          if (r.issue_category) {
+            const lowerCat = r.issue_category.toLowerCase();
+            if (lowerCat === 'plumbing') normIssueType = 'Plumbing';
+            else if (lowerCat === 'electrical') normIssueType = 'Electrical';
+            else if (lowerCat === 'appliance') normIssueType = 'Appliance';
+            else if (lowerCat === 'structural' || lowerCat === 'carpentry') normIssueType = 'Carpentry';
+            else normIssueType = r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1);
+          }
+
+          return {
+            id: `REQ-${String(r.id).padStart(3, '0')}`,
+            _dbId: r.id,
+            title: r.issue_category ? (r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1)) : 'Maintenance Request',
+            issueType: normIssueType,
+            unit: r.room_name ? `Unit ${r.room_name}` : '—',
+            tenant: r.tenant_name || 'Unknown Tenant',
+            priority: normPriority,
+            status: r.status || 'Pending',
+            description: r.description || '',
+            dateReported: r.created_at ? r.created_at.slice(0, 10) : '',
+            timeReported: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            dateResolved: null,
+            timeResolved: null,
+            assignee: r.assigned_to || null,
+            photos: r.attachment_path ? [{ url: r.attachment_path, name: r.attachment_path.split('/').pop() }] : [],
+            cost: r.estimated_cost ? parseFloat(r.estimated_cost) : null,
+            tenantResponsible: !!r.tenant_responsible,
+            budgetCategory: normIssueType,
+            approvalStatus: (r.status === 'Approved' || r.status === 'In Progress' || r.status === 'Completed') ? 'Approved' : null,
+            approvalHistory: [],
+            statusHistory: [{ status: r.status, timestamp: r.created_at }],
+            notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
+          };
+        }));
       }
     } catch (err) {
       console.error('Failed to fetch maintenance requests:', err);
