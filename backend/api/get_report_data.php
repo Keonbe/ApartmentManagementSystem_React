@@ -19,9 +19,15 @@ $dateCondition = "";
 if ($timeframe === 'yearly') {
     $dateCondition = "YEAR(created_at) = $year";
     $paidDateCondition = "YEAR(paid_at) = $year";
+    $maintDateCondition = "YEAR(m.created_at) = $year";
+    $parkingDateCondition = "YEAR(p.created_at) = $year";
+    $invoiceDateCondition = "YEAR(i.paid_at) = $year";
 } else {
     $dateCondition = "YEAR(created_at) = $year AND MONTH(created_at) = $month";
     $paidDateCondition = "YEAR(paid_at) = $year AND MONTH(paid_at) = $month";
+    $maintDateCondition = "YEAR(m.created_at) = $year AND MONTH(m.created_at) = $month";
+    $parkingDateCondition = "YEAR(p.created_at) = $year AND MONTH(p.created_at) = $month";
+    $invoiceDateCondition = "YEAR(i.paid_at) = $year AND MONTH(i.paid_at) = $month";
 }
 
 $data = [
@@ -138,7 +144,7 @@ $stmt->close();
 // 2. methodsBreakdown & payment records
 $data['methodsBreakdown'] = ['Cash' => 0, 'GCash' => 0, 'Bank Transfer' => 0];
 $data['paymentRecords'] = [];
-$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND $paidDateCondition ORDER BY i.paid_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
@@ -178,7 +184,7 @@ $stmt->close();
 
 // 4. maintenanceRecords
 $data['maintenanceRecords'] = [];
-$stmt = $conn->prepare("SELECT m.id, u.first_name, u.last_name, r.id as unit, m.issue_category, m.urgency, m.created_at, m.status, m.description FROM maintenance_requests m LEFT JOIN users u ON m.user_id = u.id LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved' LEFT JOIN rooms r ON ra.room_name = r.id WHERE $dateCondition ORDER BY m.created_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT m.id, u.first_name, u.last_name, r.id as unit, m.issue_category, m.urgency, m.created_at, m.status, m.description FROM maintenance_requests m LEFT JOIN users u ON m.user_id = u.id LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved' LEFT JOIN rooms r ON ra.room_name = r.id WHERE $maintDateCondition ORDER BY m.created_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
@@ -215,7 +221,7 @@ $stmt->close();
 
 // 6. parkingList
 $data['parkingList'] = [];
-$stmt = $conn->prepare("SELECT p.id, u.first_name, u.last_name, p.vehicle_model, p.vehicle_type, p.plate_number, p.total_cost, p.duration_months, p.created_at, p.status FROM parking_reservations p LEFT JOIN users u ON p.user_id = u.id WHERE $dateCondition ORDER BY p.created_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT p.id, u.first_name, u.last_name, p.vehicle_model, p.vehicle_type, p.plate_number, p.total_cost, p.duration_months, p.created_at, p.status FROM parking_reservations p LEFT JOIN users u ON p.user_id = u.id WHERE $parkingDateCondition ORDER BY p.created_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
