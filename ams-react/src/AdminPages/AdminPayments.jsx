@@ -16,6 +16,7 @@ const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
   const [selectedTenantId, setSelectedTenantId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOption, setSortOption] = useState('name-asc');
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {

@@ -81,6 +81,25 @@ if ($id > 0 && !empty($status)) {
             $app_stmt->close();
         }
 
+        if ($status === 'moved-out') {
+            // Get application details to vacate the room
+            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name FROM rent_applications WHERE id = ?");
+            $app_stmt->bind_param("i", $id);
+            $app_stmt->execute();
+            $app_res = $app_stmt->get_result();
+            if ($app_res->num_rows > 0) {
+                $app = $app_res->fetch_assoc();
+                $full_name = $app['first_name'] . ' ' . $app['last_name'];
+                $room_name = $app['room_name'];
+                
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
+                $room_stmt->bind_param("ss", $full_name, $room_name);
+                $room_stmt->execute();
+                $room_stmt->close();
+            }
+            $app_stmt->close();
+        }
+
         $conn->commit();
         
         log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");

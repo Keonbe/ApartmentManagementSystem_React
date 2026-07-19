@@ -80,6 +80,53 @@ try {
     $stmt->execute();
     $stmt->close();
 
+    $user_id = $data['user_id'] ?? $data['userId'] ?? null;
+    $status = $data['status'] ?? null;
+    if ($status === 'occupied' && !empty($user_id)) {
+        // Fetch user info
+        $u_stmt = $conn->prepare("SELECT first_name, last_name, email_address, contact_no, gender FROM users WHERE id = ?");
+        $u_stmt->bind_param("i", $user_id);
+        $u_stmt->execute();
+        $u_res = $u_stmt->get_result();
+        if ($u_res->num_rows > 0) {
+            $user_info = $u_res->fetch_assoc();
+            $first_name = $user_info['first_name'];
+            $last_name = $user_info['last_name'];
+            $email = $user_info['email_address'];
+            $contact_no = $user_info['contact_no'] ?? '';
+            $gender = $user_info['gender'] ?? 'Not Specified';
+
+            $lease_start = $data['lease_start'] ?? $data['leaseStart'] ?? date('Y-m-d');
+            $lease_end = $data['lease_end'] ?? $data['leaseEnd'] ?? date('Y-m-d', strtotime('+6 months'));
+            $monthly_rent = (double)($data['monthly_rent'] ?? $data['monthlyRent'] ?? $currentRoom['monthly_rent'] ?? 4000);
+            
+            // Calculate months of rent
+            $ts1 = strtotime($lease_start);
+            $ts2 = strtotime($lease_end);
+            $year1 = date('Y', $ts1);
+            $year2 = date('Y', $ts2);
+            $month1 = date('m', $ts1);
+            $month2 = date('m', $ts2);
+            $months = (($year2 - $year1) * 12) + ($month2 - $month1);
+            if ($months <= 0) $months = 6;
+
+            // Check if there is already an approved application for this room and user
+            $app_check = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND room_name = ? AND status = 'Approved' LIMIT 1");
+            $app_check->bind_param("is", $user_id, $id);
+            $app_check->execute();
+            $check_res = $app_check->get_result();
+            if ($check_res->num_rows === 0) {
+                // Insert a dummy approved application so the user can access the room
+                $ins_app = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, status) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'placeholder', 'placeholder', 'placeholder', 'Approved')");
+                $ins_app->bind_param("isssssisd", $user_id, $first_name, $last_name, $contact_no, $email, $gender, $months, $id, $monthly_rent);
+                $ins_app->execute();
+                $ins_app->close();
+            }
+            $app_check->close();
+        }
+        $u_stmt->close();
+    }
+
     // Log the activity
     $actionDesc = "Updated details for Room $id.";
     if (isset($data['status']) && $data['status'] !== $currentRoom['status']) {
