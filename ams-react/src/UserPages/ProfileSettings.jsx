@@ -7,7 +7,7 @@ import api from '../api/axiosConfig';
 
 export default function ProfileSettings() {
     const [loggedInUser, setLoggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
-    
+
     const [firstName, setFirstName] = useState(loggedInUser.first_name || '');
     const [lastName, setLastName] = useState(loggedInUser.last_name || '');
     const [suffix, setSuffix] = useState(loggedInUser.suffix || '');
@@ -24,6 +24,7 @@ export default function ProfileSettings() {
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [cameraStream, setCameraStream] = useState(null);
     const [tempAvatar, setTempAvatar] = useState(null); // Before submission preview
+    const [selectedFile, setSelectedFile] = useState(null); // Store the actual file object
     const videoRef = useRef(null);
 
     useEffect(() => {
@@ -41,7 +42,16 @@ export default function ProfileSettings() {
                         setPhoneRawNumber(data.contact_no.replace('+63 ', ''));
                     }
                     if (data.avatar_url) {
-                        setAvatarUrl(data.avatar_url);
+                        // Ensure the URL is properly formatted for the browser
+                        const avatarPath = data.avatar_url.startsWith('/') ? data.avatar_url : '/' + data.avatar_url;
+                        setAvatarUrl(avatarPath);
+                        // Update session storage
+                        const updatedUser = {
+                            ...loggedInUser,
+                            avatar_url: avatarPath
+                        };
+                        sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
+                        setLoggedInUser(updatedUser);
                     }
                 }
             } catch (error) {
@@ -55,6 +65,7 @@ export default function ProfileSettings() {
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+            setSelectedFile(file); // Store the file for later upload
             const reader = new FileReader();
             reader.onloadend = () => {
                 setTempAvatar(reader.result);
@@ -67,6 +78,7 @@ export default function ProfileSettings() {
     const startCamera = async () => {
         setIsCameraActive(true);
         setTempAvatar(null);
+        setSelectedFile(null);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             setCameraStream(stream);
@@ -75,7 +87,6 @@ export default function ProfileSettings() {
             }
         } catch (err) {
             console.warn("Camera hardware not available, running fallback simulation mode.", err);
-            // Fallback: simulate static canvas or mock photo
         }
     };
 
@@ -89,8 +100,15 @@ export default function ProfileSettings() {
             if (videoRef.current) {
                 ctx.drawImage(videoRef.current, 0, 0, 320, 320);
                 const dataUrl = canvas.toDataURL('image/png');
-                setTempAvatar(dataUrl);
-                stopCamera();
+                // Convert data URL to file
+                fetch(dataUrl)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const file = new File([blob], `camera_${Date.now()}.png`, { type: 'image/png' });
+                        setSelectedFile(file);
+                        setTempAvatar(dataUrl);
+                        stopCamera();
+                    });
             }
         } else {
             // Static simulation fallback photo
@@ -117,6 +135,7 @@ export default function ProfileSettings() {
     // Retake snapshot or re-upload file
     const handleRetake = () => {
         setTempAvatar(null);
+        setSelectedFile(null);
         if (isCameraActive) {
             startCamera();
         }
@@ -138,76 +157,89 @@ export default function ProfileSettings() {
         return "";
     };
 
+    // Update your handleFormSubmit function with this complete flow
     const handleFormSubmit = async (e) => {
         e.preventDefault();
-        
+
+        // Validate phone number
         const validationError = validatePhilippineNumber(phoneRawNumber);
         if (validationError) {
             setPhoneError(validationError);
-            alert(validationError);
             return;
         }
 
-        const finalAvatar = tempAvatar || avatarUrl;
-        const fullContactNumber = `+63 ${phoneRawNumber}`;
-
         try {
-            const payload = {
+            let currentAvatarUrl = avatarUrl;
+
+            // 1. If a new avatar file is pending, upload it first!
+            if (selectedFile) {
+                const formData = new FormData();
+                formData.append('oldEmail', loggedInUser.email_address);
+                formData.append('avatar', selectedFile);
+
+                const avatarRes = await api.post('/profile.php', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                if (avatarRes.data.success && avatarRes.data.avatar_url) {
+                    // Update our tracked tracking path variable
+                    currentAvatarUrl = avatarRes.data.avatar_url;
+                } else {
+                    alert(avatarRes.data.message || "Failed to upload avatar image file.");
+                    return; // Halt if image upload explicitly failed
+                }
+            }
+
+            // 2. Submit the primary profile data updates via JSON
+            const fullContactNumber = `+63 ${phoneRawNumber}`;
+            const profileData = {
                 oldEmail: loggedInUser.email_address,
                 email: email.trim(),
                 firstName: firstName.trim(),
+                middleName: loggedInUser.middle_name || '',
                 lastName: lastName.trim(),
                 suffix: suffix.trim(),
                 contactNo: fullContactNumber,
-                gender: gender,
-                avatar_url: finalAvatar
+                gender: gender
             };
 
-            const res = await api.post('/profile.php', payload);
+            const res = await api.post('/profile.php', profileData, {
+                headers: { 'Content-Type': 'application/json' }
+            });
 
-            if (res.data.success || true) { // Fallback standard success path
+            if (res.data.success) {
+                // 3. Sync both text and new image paths to session storage
                 const updatedUser = {
                     ...loggedInUser,
+                    email_address: email.trim(),
                     first_name: firstName.trim(),
                     last_name: lastName.trim(),
                     suffix: suffix.trim(),
                     contact_no: fullContactNumber,
                     gender: gender,
-                    email_address: email.trim(),
-                    avatar_url: finalAvatar
+                    avatar_url: currentAvatarUrl
                 };
-                
+
                 sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
-                setLoggedInUser(updatedUser);
-                setAvatarUrl(finalAvatar);
-                setTempAvatar(null);
-                
-                alert("Profile saved successfully.");
-                // Trigger page refresh to sync TopBar
+                alert("Profile and avatar settings updated successfully.");
                 window.location.reload();
             } else {
-                alert(res.data.message);
+                alert(res.data.message || "Failed to update profile text registry.");
             }
         } catch (error) {
-            console.error("Error saving profile:", error);
-            // Local fallback logic
-            const updatedUser = {
-                ...loggedInUser,
-                first_name: firstName.trim(),
-                last_name: lastName.trim(),
-                suffix: suffix.trim(),
-                contact_no: fullContactNumber,
-                gender: gender,
-                email_address: email.trim(),
-                avatar_url: finalAvatar
-            };
-            sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
-            setLoggedInUser(updatedUser);
-            setAvatarUrl(finalAvatar);
-            setTempAvatar(null);
-            alert("Profile settings saved locally.");
-            window.location.reload();
+            console.error("Error updating profile settings payload workflow:", error);
+            alert("An error occurred while saving your profile data layers.");
         }
+    };
+
+    // Replace your getFullAvatarUrl helper to prevent backslash/path errors
+    const getFullAvatarUrl = (url) => {
+        if (!url) return null;
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+
+        // Ensure relative paths match your backend asset framework endpoint
+        const cleanPath = url.replace(/^\//, '');
+        return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
     };
 
     const getInitials = () => {
@@ -228,18 +260,27 @@ export default function ProfileSettings() {
                             Review and maintain your master identity records configuration details below.
                         </p>
                     </div>
-                    
+
                     {/* Profile Picture Display / Preview */}
                     <div className="flex items-center gap-4">
                         <div className="relative group select-none">
                             {tempAvatar || avatarUrl ? (
-                                <img 
-                                    src={tempAvatar || avatarUrl} 
-                                    alt="Avatar" 
+                                <img
+                                    src={tempAvatar || getFullAvatarUrl(avatarUrl)}
+                                    alt="Avatar"
                                     className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-md"
+                                    onError={(e) => {
+                                        // If image fails to load, show initials
+                                        e.target.style.display = 'none';
+                                        e.target.parentElement.innerHTML = `
+                                            <div class="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black shrink-0 tracking-wider shadow-md border-2 border-white" style="background-color: #3b4276">
+                                                ${getInitials() || "?"}
+                                            </div>
+                                        `;
+                                    }}
                                 />
                             ) : (
-                                <div 
+                                <div
                                     className="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black shrink-0 tracking-wider shadow-md border-2 border-white"
                                     style={{ backgroundColor: '#3b4276' }}
                                 >
@@ -247,9 +288,38 @@ export default function ProfileSettings() {
                                 </div>
                             )}
                             {(tempAvatar || avatarUrl) && (
-                                <button 
-                                    type="button" 
-                                    onClick={() => { setAvatarUrl(''); setTempAvatar(null); }}
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (window.confirm("Are you sure you want to delete your profile avatar?")) {
+                                            try {
+                                                // Post an empty string or clear signal to the backend
+                                                const res = await api.post('/profile.php', {
+                                                    oldEmail: loggedInUser.email_address,
+                                                    clearAvatar: true
+                                                });
+
+                                                if (res.data.success) {
+                                                    setAvatarUrl('');
+                                                    setTempAvatar(null);
+                                                    setSelectedFile(null);
+
+                                                    // Update session storage details locally
+                                                    const updatedUser = { ...loggedInUser, avatar_url: '' };
+                                                    sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
+                                                    setLoggedInUser(updatedUser);
+
+                                                    alert("Avatar deleted successfully.");
+                                                    window.location.reload(); // Force real-time topbar synchronization sync
+                                                } else {
+                                                    alert(res.data.message || "Failed to delete avatar from server.");
+                                                }
+                                            } catch (err) {
+                                                console.error("Error deleting avatar:", err);
+                                                alert("An error occurred during avatar deletion processing.");
+                                            }
+                                        }
+                                    }}
                                     className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] hover:bg-red-600 border-0 cursor-pointer shadow-sm"
                                     title="Delete Avatar"
                                 >
@@ -264,7 +334,7 @@ export default function ProfileSettings() {
                     {/* Profile Photo Uploader with Camera Capture */}
                     <div className="space-y-3">
                         <h3 className="text-sm font-bold text-slate-700 m-0">Profile Avatar Photo</h3>
-                        
+
                         {isCameraActive ? (
                             <div className="max-w-sm w-full bg-slate-900 rounded-2xl overflow-hidden aspect-square relative flex flex-col items-center justify-center border border-slate-800">
                                 {tempAvatar ? (
@@ -272,7 +342,7 @@ export default function ProfileSettings() {
                                 ) : (
                                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]"></video>
                                 )}
-                                
+
                                 <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3 px-4">
                                     {!tempAvatar ? (
                                         <>
@@ -299,10 +369,10 @@ export default function ProfileSettings() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {/* Local file selector */}
                                 <div className="border border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 relative cursor-pointer group transition-colors min-h-[110px]">
-                                    <input 
-                                        type="file" 
-                                        accept="image/*" 
-                                        onChange={handleFileChange} 
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
                                     <FontAwesomeIcon icon={faUpload} className="text-slate-400 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
@@ -311,8 +381,8 @@ export default function ProfileSettings() {
                                 </div>
 
                                 {/* Simulated Camera button */}
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={startCamera}
                                     className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 cursor-pointer group transition-all min-h-[110px]"
                                 >
@@ -332,7 +402,10 @@ export default function ProfileSettings() {
                                         <p className="text-[10px] text-indigo-500 m-0">Click Save Profile below to commit updates</p>
                                     </div>
                                 </div>
-                                <button type="button" onClick={() => setTempAvatar(null)} className="text-slate-400 hover:text-red-500 bg-transparent border-0 cursor-pointer text-xs font-semibold px-2">
+                                <button type="button" onClick={() => {
+                                    setTempAvatar(null);
+                                    setSelectedFile(null);
+                                }} className="text-slate-400 hover:text-red-500 bg-transparent border-0 cursor-pointer text-xs font-semibold px-2">
                                     Remove
                                 </button>
                             </div>
@@ -392,6 +465,7 @@ export default function ProfileSettings() {
                                             required
                                         />
                                     </div>
+                                    {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
                                 </div>
 
                                 <div className="flex flex-col space-y-1.5">

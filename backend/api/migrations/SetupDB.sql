@@ -331,6 +331,8 @@ CREATE TABLE `users` (
 INSERT IGNORE INTO `users` (`first_name`, `last_name`, `email_address`, `password`, `role`) 
 VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin');
 
+ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL;
+
 -- 2. Initial Units
 INSERT IGNORE INTO `rooms` (`id`, `type`, `floor`, `monthly_rent`, `status`, `tenant_name`, `lease_start`, `lease_end`, `last_tenant`, `maintenance_flag`, `occupants`) VALUES
 ('A', 'Studio', '1F', 6500, 'occupied', 'R.G', '2024-06-01', '2025-06-01', NULL, 0, 1),

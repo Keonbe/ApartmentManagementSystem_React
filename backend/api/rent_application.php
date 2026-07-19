@@ -98,7 +98,7 @@ function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
     return null;
 }
 
-// Prepare the name string (e.g., "John_Doe")
+// Prepare the name string
 $user_name_prefix = $first_name . "_" . $last_name;
 
 // Update these lines to pass the new argument
