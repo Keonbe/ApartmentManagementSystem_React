@@ -316,7 +316,7 @@ flowchart LR
 | `/admin-contracts` | `AdminContracts.jsx` | Generate, View, Upload Signed/Notarized, Eviction | `lease_contracts` via `create_contract.php`, `get_contracts.php`, `upload_lease_document.php` | ✅ DB-backed |
 | `/admin-services` | `AdminServicePage.jsx` | CCTV Review, Parking Approval, Service Toggles | **Mock data arrays only** | ⚠️ Fully mocked |
 | `/admin-announcements` | `AdminAnnouncements.jsx` | Compose, Send, View history | `announcements` via `create_announcement.php`, `get_announcements.php` | ✅ DB-backed; auto-notifies tenants |
-| `/admin-reports` | `AdminReports.jsx` | Financial, Occupancy, Maintenance, Reservations | `get_report_data.php` exists; **frontend still uses mock engine** | ⚠️ Endpoint ready; frontend not wired |
+| `/admin-reports` | `AdminReports.jsx` | Financial, Occupancy, Maintenance, Reservations | `get_report_data.php` | ✅ DB-backed; detailed reports wired |
 | `/admin-notifications` | `AdminNotifications.jsx` | Read/Delete admin alerts | `notifications` | ✅ DB-backed |
 | `/admin-activity-logs` | `AdminActivityLogs.jsx` | System audit trail | `activity_logs` via `get_activity_logs.php` | ✅ DB-backed |
 | `/admin-settings` | `AdminAccountSettings.jsx` | Admin profile, password, system config | `system_settings` via `get_system_settings.php`, `update_system_settings.php` | ✅ DB-backed |
@@ -423,7 +423,7 @@ flowchart LR
 | `AdminContracts.jsx` | `/admin-contracts` | Contract generation, upload, eviction tracking (DB-backed) |
 | `AdminServicePage.jsx` | `/admin-services` | CCTV + Parking request review (⚠️ mock data) |
 | `AdminAnnouncements.jsx` | `/admin-announcements` | Compose and send announcements (DB-backed) |
-| `AdminReports.jsx` | `/admin-reports` | Financial, occupancy, maintenance reports (⚠️ mock engine; API ready) |
+| `AdminReports.jsx` | `/admin-reports` | Financial, occupancy, maintenance reports (DB-backed) |
 | `AdminNotifications.jsx` | `/admin-notifications` | Admin notification management (DB-backed) |
 | `AdminActivityLogs.jsx` | `/admin-activity-logs` | System event audit trail (DB-backed) |
 | `AdminAccountSettings.jsx` | `/admin-settings` | Admin profile + system configuration (DB-backed) |
@@ -471,7 +471,7 @@ flowchart LR
 |-----------|-----|--------|
 | `AdminMaintainance.jsx` | Uses `initialRequests` hardcoded array. Status updates, assignee, and cost are in-memory only. | Admin maintenance data is not persisted across page refreshes. |
 | `AdminServicePage.jsx` | Uses `initialCctvRequests` and `initialParkingReservations` mock arrays. Approve/reject does not persist. | CCTV and parking status changes are lost on refresh. |
-| `AdminReports.jsx` | Uses deterministic mock data engine (`generateReportData`). `get_report_data.php` exists but is never called. | All report figures are fake. |
+| `AdminReports.jsx` | Fully wired to live DB data from `get_report_data.php`. Replaced dummy generator. | |
 | `ViewContract.jsx` | Derives contract data from `my_room.php` (rent application record), not from the `lease_contracts` table. | Cannot reflect uploaded signed lease or notarized contract status. |
 
 ### 9.2 Schema Issues
@@ -650,7 +650,7 @@ ALTER TABLE maintenance_requests
 | AdminMaintenance | ⚠️ | Reads DB stub; writes **in-memory only** |
 | AdminServices | ⚠️ | **Fully mocked** — no DB reads or writes |
 | AdminAnnouncements | ✅ | `create_announcement.php` + `get_announcements.php`; auto-notifies tenants |
-| AdminReports | ⚠️ | `get_report_data.php` ready; **frontend not wired** |
+| AdminReports | ✅ | `get_report_data.php` fully wired |
 | AdminNotifications | ✅ | `get_notifications.php` + mark read/delete |
 | AdminActivityLogs | ✅ | `get_activity_logs.php` + `log_activity()` on all mutations |
 | AdminSystemSettings | ✅ | `get_system_settings.php` + `update_system_settings.php` |

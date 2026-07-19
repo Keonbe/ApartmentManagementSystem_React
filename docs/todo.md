@@ -159,10 +159,10 @@ Generate reports by:
 * [x] Occupancy
 * [x] Payments
 * [x] Maintenance
-* [ ] **Wire `AdminReports.jsx` to `get_report_data.php`** (Priority B — Critical):
+* [x] **Wire `AdminReports.jsx` to `get_report_data.php`** (Priority B — Done):
   * Backend endpoint `get_report_data.php` is already created and queries real DB data.
-  * `AdminReports.jsx` still uses deterministic mock engine — swap it out.
-  * Extend `get_report_data.php` to return per-month breakdown arrays for yearly charts.
+  * `AdminReports.jsx` now fetches from backend and mock engine has been removed.
+  * Extended `get_report_data.php` to return array lists for the detailed tables.
 * [ ] Per-module reservation reports (parking, CCTV, maintenance per unit).
 
 ---

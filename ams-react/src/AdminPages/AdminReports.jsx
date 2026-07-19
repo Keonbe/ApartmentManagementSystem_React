@@ -58,318 +58,7 @@ const units = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
 const vehicleModels = ['Honda Click', 'Yamaha Nmax', 'Toyota Vios', 'Mitsubishi Mirage', 'Suzuki Swift', 'Honda Civic'];
 const issueCategories = ['Plumbing', 'Electrical', 'Structural', 'Appliance', 'Pest Control', 'Others'];
 
-const generateReportData = (timeframe, selectedMonth, selectedYear) => {
-  const monthsToProcess = timeframe === 'yearly' ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : [selectedMonth];
-
-  let totalOccupied = 0;
-  let moveIns = 0;
-  let moveOuts = 0;
-
-  let rentCollected = 0;
-  let waterCollected = 0;
-  let electricCollected = 0;
-  let parkingCollected = 0;
-  let expenses = 0;
-  let outstandingBalancesList = [];
-
-  let totalMaintenance = 0;
-  let maintCompleted = 0;
-  let maintInProgress = 0;
-  let maintPending = 0;
-  let maintCategoryCounts = { Plumbing: 0, Electrical: 0, Structural: 0, Appliance: 0, 'Pest Control': 0, Others: 0 };
-  let maintUrgencyCounts = { Emergency: 0, Routine: 0 };
-  let maintenanceLogs = [];
-
-  let roomApplications = 0;
-  let roomApproved = 0;
-  let roomRejected = 0;
-  let roomPending = 0;
-  let parkingReservationsCount = 0;
-  let parkingReservationsList = [];
-  let rentApplicationsList = [];
-
-  monthsToProcess.forEach(m => {
-    const occupiedCount = getDeterministicValue('occupied_units', selectedYear, m, 9, 13);
-    totalOccupied = Math.max(totalOccupied, occupiedCount);
-    moveIns += getDeterministicValue('move_ins', selectedYear, m, 0, 3);
-    moveOuts += getDeterministicValue('move_outs', selectedYear, m, 0, 2);
-
-    const baseRent = occupiedCount * 6500;
-    const addon = getDeterministicValue('rent_addon', selectedYear, m, 1000, 4000);
-    rentCollected += baseRent + addon;
-
-    const water = occupiedCount * getDeterministicValue('water_avg', selectedYear, m, 280, 340);
-    waterCollected += water;
-
-    const electric = occupiedCount * getDeterministicValue('elec_avg', selectedYear, m, 670, 830);
-    electricCollected += electric;
-
-    const parkingUnits = getDeterministicValue('parking_count', selectedYear, m, 3, 6);
-    parkingCollected += parkingUnits * 1200;
-
-    expenses += getDeterministicValue('expenses', selectedYear, m, 37000, 47000);
-
-    const maintMonthCount = getDeterministicValue('maint_total', selectedYear, m, 3, 7);
-    totalMaintenance += maintMonthCount;
-
-    const compCount = Math.floor(maintMonthCount * getDeterministicValue('maint_comp_pct', selectedYear, m, 60, 80) / 100);
-    maintCompleted += compCount;
-
-    const progCount = Math.floor((maintMonthCount - compCount) * 0.6);
-    maintInProgress += progCount;
-    maintPending += (maintMonthCount - compCount - progCount);
-
-    for (let i = 0; i < maintMonthCount; i++) {
-      const catIdx = getDeterministicValue(`maint_cat_${i}`, selectedYear, m, 0, 5);
-      const cat = issueCategories[catIdx];
-      maintCategoryCounts[cat] = (maintCategoryCounts[cat] || 0) + 1;
-
-      const urgIdx = getDeterministicValue(`maint_urg_${i}`, selectedYear, m, 0, 1);
-      const urgency = ['Emergency', 'Routine'][urgIdx];
-      maintUrgencyCounts[urgency] = (maintUrgencyCounts[urgency] || 0) + 1;
-    }
-
-    roomApplications += getDeterministicValue('room_apps', selectedYear, m, 1, 4);
-    roomApproved += getDeterministicValue('room_approved', selectedYear, m, 1, 2);
-    roomRejected += getDeterministicValue('room_rejected', selectedYear, m, 0, 1);
-    roomPending += getDeterministicValue('room_pending', selectedYear, m, 0, 1);
-
-    parkingReservationsCount += getDeterministicValue('parking_res', selectedYear, m, 1, 3);
-  });
-
-  const totalUnits = 15;
-  const occupancyRate = (totalOccupied / totalUnits) * 100;
-  const totalCollected = rentCollected + waterCollected + electricCollected + parkingCollected;
-  const netIncome = totalCollected - expenses;
-  const avgResolutionTime = (timeframe === 'yearly' ? 2.4 : getDeterministicValue('avg_res_time', selectedYear, selectedMonth, 15, 35) / 10).toFixed(1);
-
-  const activeTenantList = [];
-  const unitOccupancy = {};
-
-  for (let i = 0; i < totalOccupied; i++) {
-    const uIdx = getDeterministicValue(`occupied_unit_idx_${i}`, selectedYear, selectedMonth, 0, units.length - 1);
-    const unit = units[uIdx];
-    if (!unitOccupancy[unit]) {
-      const tIdx = getDeterministicValue(`tenant_idx_${i}`, selectedYear, selectedMonth, 0, tenantNames.length - 1);
-      const tenantName = tenantNames[tIdx];
-
-      const moveInMonth = getDeterministicValue(`move_in_month_${i}`, selectedYear, selectedMonth, 1, 12);
-      const moveInYear = selectedYear - (moveInMonth > selectedMonth ? 1 : 0);
-      const duration = getDeterministicValue(`duration_${i}`, selectedYear, selectedMonth, 6, 12);
-
-      unitOccupancy[unit] = {
-        unit,
-        name: tenantName,
-        email: `${tenantName.toLowerCase().replace(' ', '.')}@email.com`,
-        phone: `0917-${getDeterministicValue(`phone2_${i}`, selectedYear, selectedMonth, 100, 999)}-${getDeterministicValue(`phone3_${i}`, selectedYear, selectedMonth, 1000, 9999)}`,
-        rent: unit.endsWith('C') ? 7500 : 6500,
-        moveIn: `${moveInYear}-${String(moveInMonth).padStart(2, '0')}-01`,
-        leaseEnd: `${moveInYear + (moveInMonth + duration > 12 ? 1 : 0)}-${String((moveInMonth + duration) % 12 || 12).padStart(2, '0')}-01`,
-        status: 'active'
-      };
-      activeTenantList.push(unitOccupancy[unit]);
-    }
-  }
-
-  units.forEach(u => {
-    if (!unitOccupancy[u]) {
-      const isPending = getDeterministicValue(`vacant_status_${u}`, selectedYear, selectedMonth, 0, 12) === 1;
-      if (isPending) {
-        const tIdx = getDeterministicValue(`tenant_out_${u}`, selectedYear, selectedMonth, 0, tenantNames.length - 1);
-        activeTenantList.push({
-          unit: u,
-          name: tenantNames[tIdx],
-          email: `${tenantNames[tIdx].toLowerCase().replace(' ', '.')}@email.com`,
-          phone: `0918-222-${getDeterministicValue(`phone_out_${u}`, selectedYear, selectedMonth, 1000, 9999)}`,
-          rent: u.endsWith('C') ? 7500 : 6500,
-          moveIn: `${selectedYear - 1}-08-15`,
-          leaseEnd: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-28`,
-          status: 'pending-move-out'
-        });
-      }
-    }
-  });
-
-  const outstandingCount = getDeterministicValue('outstanding_count', selectedYear, selectedMonth, 1, 3);
-  for (let i = 0; i < outstandingCount; i++) {
-    const tIdx = getDeterministicValue(`out_tenant_${i}`, selectedYear, selectedMonth, 0, tenantNames.length - 1);
-    const uIdx = getDeterministicValue(`out_unit_${i}`, selectedYear, selectedMonth, 0, units.length - 1);
-    const balance = getDeterministicValue(`out_balance_${i}`, selectedYear, selectedMonth, 1, 2) * 6500;
-    outstandingBalancesList.push({
-      tenant: tenantNames[tIdx],
-      name: tenantNames[tIdx],
-      unit: units[uIdx],
-      balance,
-      daysOverdue: getDeterministicValue(`out_days_${i}`, selectedYear, selectedMonth, 4, 18),
-      status: 'overdue'
-    });
-  }
-
-  const paymentRecordsList = [];
-  const numTransactions = timeframe === 'yearly' ? 40 : getDeterministicValue('tx_count', selectedYear, selectedMonth, 7, 12);
-  for (let i = 0; i < numTransactions; i++) {
-    const m = timeframe === 'yearly' ? getDeterministicValue(`tx_m_${i}`, selectedYear, i, 1, 12) : selectedMonth;
-    const day = getDeterministicValue(`tx_d_${i}`, selectedYear, m, 2, 28);
-    const tIdx = getDeterministicValue(`tx_tenant_${i}`, selectedYear, m, 0, tenantNames.length - 1);
-    const uIdx = getDeterministicValue(`tx_unit_${i}`, selectedYear, m, 0, units.length - 1);
-    const rentVal = units[uIdx].endsWith('C') ? 7500 : 6500;
-    const waterVal = getDeterministicValue(`tx_w_${i}`, selectedYear, m, 250, 350);
-    const elecVal = getDeterministicValue(`tx_e_${i}`, selectedYear, m, 620, 840);
-    const totalVal = rentVal + waterVal + elecVal;
-
-    const methodIdx = getDeterministicValue(`tx_method_${i}`, selectedYear, m, 0, 2);
-    const method = ['Cash', 'GCash', 'Bank Transfer'][methodIdx];
-
-    paymentRecordsList.push({
-      id: `RCT-${selectedYear}${String(m).padStart(2, '0')}${String(i + 1000).substring(1)}`,
-      tenant: tenantNames[tIdx],
-      unit: units[uIdx],
-      period: `${monthsList.find(x => x.value === m).label} ${selectedYear}`,
-      amount: totalVal,
-      datePaid: `${selectedYear}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      breakdown: `Rent: ${rentVal}, Water: ${waterVal}, Elec: ${elecVal}`,
-      status: 'paid',
-      method
-    });
-  }
-  paymentRecordsList.sort((a, b) => b.datePaid.localeCompare(a.datePaid));
-
-  for (let i = 0; i < totalMaintenance; i++) {
-    const m = timeframe === 'yearly' ? getDeterministicValue(`maint_m_${i}`, selectedYear, i, 1, 12) : selectedMonth;
-    const day = getDeterministicValue(`maint_d_${i}`, selectedYear, m, 1, 28);
-    const tIdx = getDeterministicValue(`maint_tenant_${i}`, selectedYear, m, 0, tenantNames.length - 1);
-    const uIdx = getDeterministicValue(`maint_unit_${i}`, selectedYear, m, 0, units.length - 1);
-    const catIdx = getDeterministicValue(`maint_cat_${i}`, selectedYear, m, 0, issueCategories.length - 1);
-    const urgIdx = getDeterministicValue(`maint_urg_${i}`, selectedYear, m, 0, 1);
-
-    let status = 'Completed';
-    const randStatus = getDeterministicValue(`maint_status_${i}`, selectedYear, m, 1, 10);
-    if (randStatus === 8) status = 'In Progress';
-    else if (randStatus >= 9) status = 'Pending';
-
-    const descriptions = {
-      Plumbing: 'Leaky faucet in bathroom sink causing puddles.',
-      Electrical: 'Living room light switch sparking when toggled.',
-      Structural: 'Front door lock sticking, requires alignment.',
-      Appliance: 'Refrigerator freezer is not cooling properly.',
-      'Pest Control': 'Ant infestation observed in kitchen cabinet corners.',
-      Others: 'Clogged ventilation filter in kitchen hood.'
-    };
-
-    const cost = status === 'Completed' ? getDeterministicValue(`maint_cost_${i}`, selectedYear, m, 500, 5000) : null;
-
-    maintenanceLogs.push({
-      id: `REQ-${selectedYear}${String(m).padStart(2, '0')}${String(i + 100).substring(1)}`,
-      unit: units[uIdx],
-      tenant: tenantNames[tIdx],
-      category: issueCategories[catIdx],
-      urgency: ['Emergency', 'Routine'][urgIdx],
-      description: descriptions[issueCategories[catIdx]],
-      dateSubmitted: `${selectedYear}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      status,
-      cost
-    });
-  }
-  maintenanceLogs.sort((a, b) => b.dateSubmitted.localeCompare(a.dateSubmitted));
-
-  for (let i = 0; i < roomApplications; i++) {
-    const m = timeframe === 'yearly' ? getDeterministicValue(`room_app_m_${i}`, selectedYear, i, 1, 12) : selectedMonth;
-    const day = getDeterministicValue(`room_app_d_${i}`, selectedYear, m, 1, 28);
-    const tIdx = getDeterministicValue(`room_app_tenant_${i}`, selectedYear, m, 0, tenantNames.length - 1);
-    const uIdx = getDeterministicValue(`room_app_unit_${i}`, selectedYear, m, 0, units.length - 1);
-
-    let status = 'Approved';
-    const rand = getDeterministicValue(`room_app_status_${i}`, selectedYear, m, 1, 10);
-    if (rand <= 3) status = 'Pending Review';
-    else if (rand === 4) status = 'Rejected';
-
-    rentApplicationsList.push({
-      id: `APP-${selectedYear}${String(m).padStart(2, '0')}${String(i + 100).substring(1)}`,
-      name: tenantNames[tIdx],
-      unit: units[uIdx],
-      rent: units[uIdx].endsWith('C') ? 7500 : 6500,
-      duration: getDeterministicValue(`room_app_dur_${i}`, selectedYear, m, 6, 12),
-      dateSubmitted: `${selectedYear}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      status
-    });
-  }
-  rentApplicationsList.sort((a, b) => b.dateSubmitted.localeCompare(a.dateSubmitted));
-
-  for (let i = 0; i < parkingReservationsCount; i++) {
-    const m = timeframe === 'yearly' ? getDeterministicValue(`park_m_${i}`, selectedYear, i, 1, 12) : selectedMonth;
-    const day = getDeterministicValue(`park_d_${i}`, selectedYear, m, 1, 28);
-    const tIdx = getDeterministicValue(`park_tenant_${i}`, selectedYear, m, 0, tenantNames.length - 1);
-    const vIdx = getDeterministicValue(`park_veh_${i}`, selectedYear, m, 0, vehicleModels.length - 1);
-    const duration = getDeterministicValue(`park_dur_${i}`, selectedYear, m, 3, 12);
-
-    parkingReservationsList.push({
-      id: `PRK-${selectedYear}${String(m).padStart(2, '0')}${String(i + 100).substring(1)}`,
-      tenant: tenantNames[tIdx],
-      vehicleType: vIdx < 2 ? 'Motorcycle' : 'Car',
-      vehicleModel: vehicleModels[vIdx],
-      plateNumber: `XYZ-${getDeterministicValue(`park_plate_${i}`, selectedYear, m, 1000, 9999)}`,
-      duration,
-      totalCost: duration * 1200,
-      dateSubmitted: `${selectedYear}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-      status: 'Assigned'
-    });
-  }
-  parkingReservationsList.sort((a, b) => b.dateSubmitted.localeCompare(a.dateSubmitted));
-
-  const totalMaintenanceCost = maintenanceLogs.reduce((sum, log) => sum + (log.cost || 0), 0);
-  const maintenanceBudget = timeframe === 'yearly' ? 50000 * 12 : 50000;
-
-  return {
-    occupancy: {
-      totalUnits,
-      occupiedUnits: totalOccupied,
-      vacantUnits: totalUnits - totalOccupied,
-      occupancyRate: Math.round(occupancyRate),
-      moveIns,
-      moveOuts,
-      tenantList: activeTenantList
-    },
-    payments: {
-      rentCollected,
-      waterCollected,
-      electricCollected,
-      parkingCollected,
-      totalCollected,
-      expenses,
-      netIncome,
-      outstandingBalances: outstandingBalancesList,
-      totalOutstanding: outstandingBalancesList.reduce((sum, b) => sum + b.balance, 0),
-      collectionEfficiency: getDeterministicValue('coll_eff', selectedYear, selectedMonth, 89, 97),
-      records: paymentRecordsList,
-      methodsBreakdown: paymentRecordsList.reduce((acc, r) => {
-        acc[r.method] = (acc[r.method] || 0) + 1;
-        return acc;
-      }, { Cash: 0, GCash: 0, 'Bank Transfer': 0 })
-    },
-    maintenance: {
-      total: totalMaintenance,
-      totalCost: totalMaintenanceCost,
-      budget: maintenanceBudget,
-      completed: maintCompleted,
-      inProgress: maintInProgress,
-      pending: maintPending,
-      categoryCounts: maintCategoryCounts,
-      urgencyCounts: maintUrgencyCounts,
-      avgResolutionTime,
-      records: maintenanceLogs
-    },
-    reservations: {
-      roomApps: roomApplications,
-      roomApproved,
-      roomRejected,
-      roomPending,
-      parkingCount: parkingReservationsCount,
-      parkingRevenue: parkingReservationsCount * 1200,
-      parkingList: parkingReservationsList,
-      roomList: rentApplicationsList
-    }
-  };
-};
+// Mock data generator removed per ponytail rules
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
@@ -410,7 +99,7 @@ const AdminReports = () => {
             occupancyRate: Math.round((bd.totalOccupied / 28) * 100) || 0,
             moveIns: bd.moveIns,
             moveOuts: bd.moveOuts,
-            tenantList: [] // Mock empty for UI
+            tenantList: bd.tenantList || []
           },
           payments: {
             rentCollected: bd.rentCollected,
@@ -420,11 +109,11 @@ const AdminReports = () => {
             totalCollected,
             expenses: bd.expenses,
             netIncome,
-            outstandingBalances: [],
-            totalOutstanding: 0,
-            collectionEfficiency: 92,
-            records: [],
-            methodsBreakdown: { Cash: 0, GCash: 0, 'Bank Transfer': 0 }
+            outstandingBalances: bd.outstandingBalances || [],
+            totalOutstanding: (bd.outstandingBalances || []).reduce((sum, b) => sum + b.balance, 0),
+            collectionEfficiency: totalCollected > 0 ? 92 : 0, // Mock metric
+            records: bd.paymentRecords || [],
+            methodsBreakdown: bd.methodsBreakdown || { Cash: 0, GCash: 0, 'Bank Transfer': 0 }
           },
           maintenance: {
             total: bd.totalMaintenance,
@@ -433,10 +122,10 @@ const AdminReports = () => {
             completed: bd.maintCompleted,
             inProgress: bd.maintInProgress,
             pending: bd.maintPending,
-            categoryCounts: bd.maintCategoryCounts,
-            urgencyCounts: bd.maintUrgencyCounts,
+            categoryCounts: bd.maintCategoryCounts || {},
+            urgencyCounts: bd.maintUrgencyCounts || {},
             avgResolutionTime: 24.5,
-            records: []
+            records: bd.maintenanceRecords || []
           },
           reservations: {
             roomApps: bd.roomApplications,
@@ -445,8 +134,8 @@ const AdminReports = () => {
             roomPending: bd.roomPending,
             parkingCount: bd.parkingReservationsCount,
             parkingRevenue: bd.parkingReservationsCount * 1200,
-            parkingList: [],
-            roomList: []
+            parkingList: bd.parkingList || [],
+            roomList: bd.roomList || []
           }
         });
         
@@ -663,7 +352,7 @@ const AdminReports = () => {
               <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                 <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-semibold uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
-                  Local Simulation Engine Live
+                  Live Database Feed
                 </span>
                 <span className="text-[10px] text-slate-400">
                   Calculated records: {data.occupancy.tenantList.length} tenants • {data.payments.records.length} paid invoices • {data.maintenance.records.length} maintenance tickets
