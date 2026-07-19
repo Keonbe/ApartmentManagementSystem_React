@@ -27,6 +27,25 @@ $months_of_rent = $_POST['monthsOfRent'] ?? '';
 $room_name = $_POST['roomName'] ?? '';
 $monthly_rent = $_POST['monthlyRent'] ?? '';
 $user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+$app_id = $_POST['appId'] ?? null;
+
+$existing_front = null;
+$existing_back = null;
+$existing_nbi = null;
+
+if (!empty($app_id) && !empty($user_id)) {
+    $check_stmt = $conn->prepare("SELECT valid_id_front_path, valid_id_back_path, nbi_clearance_path FROM rent_applications WHERE id = ? AND user_id = ?");
+    $check_stmt->bind_param("ii", $app_id, $user_id);
+    $check_stmt->execute();
+    $res = $check_stmt->get_result();
+    if ($res->num_rows > 0) {
+        $row = $res->fetch_assoc();
+        $existing_front = $row['valid_id_front_path'];
+        $existing_back = $row['valid_id_back_path'];
+        $existing_nbi = $row['nbi_clearance_path'];
+    }
+    $check_stmt->close();
+}
 
 if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($email) || empty($gender) || empty($occupants) || empty($months_of_rent)) {
     echo json_encode(["success" => false, "message" => "Please fill in all required personal details."]);
@@ -41,6 +60,10 @@ $max_size = 10 * 1024 * 1024; // 10MB
 
 foreach ($required_files as $fileKey) {
     if (!isset($_FILES[$fileKey]) || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
+        if (!empty($app_id)) {
+            // Re-submitting: files are optional if already uploaded
+            continue;
+        }
         echo json_encode(["success" => false, "message" => "Missing or failed upload for required file: " . $fileKey]);
         exit;
     }
@@ -102,9 +125,9 @@ function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
 $user_name_prefix = $first_name . "_" . $last_name;
 
 // Update these lines to pass the new argument
-$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir, $user_name_prefix);
-$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir, $user_name_prefix);
-$nbi_clearance_path = uploadFile('nbiFile', $upload_dir, $user_name_prefix);
+$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir, $user_name_prefix) ?: $existing_front;
+$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir, $user_name_prefix) ?: $existing_back;
+$nbi_clearance_path = uploadFile('nbiFile', $upload_dir, $user_name_prefix) ?: $existing_nbi;
 
 if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     echo json_encode(["success" => false, "message" => "Valid ID (Front & Back) and NBI Clearance documents are all required."]);
@@ -113,11 +136,19 @@ if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
 
 $conn->begin_transaction();
 try {
-    // 1. Insert rent application
-    $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
-    $stmt->execute();
-    $stmt->close();
+    if (!empty($app_id) && $existing_front) {
+        // Update existing application and set status to 'Pending Review' and clear rejection_reason
+        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL WHERE id = ? AND user_id = ?");
+        $stmt->bind_param("sssssssiisssssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path, $app_id, $user_id);
+        $stmt->execute();
+        $stmt->close();
+    } else {
+        // Insert new application
+        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
+        $stmt->execute();
+        $stmt->close();
+    }
 
     // 2. Sync profile details to the users table
     if ($user_id > 0) {

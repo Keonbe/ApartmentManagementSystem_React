@@ -190,7 +190,11 @@ export default function TrackApplication() {
                                         </button>
                                         <div className="flex items-center space-x-2 text-amber-400 text-xs bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-500/20">
                                             <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400 animate-pulse" />
-                                            <span>Payment Pending</span>
+                                            <span>
+                                                {application.pending_invoice_status === 'pending-verification'
+                                                    ? 'Verification Pending'
+                                                    : 'Payment Pending'}
+                                            </span>
                                         </div>
                                     </div>
                                 ) : (
@@ -213,14 +217,26 @@ export default function TrackApplication() {
 
                             {statusNormalized === 'rejected' && (
                                 <button
-                                    onClick={() => navigate('/preview')}
+                                    onClick={() => navigate('/rent-application', { state: { editApplication: application } })}
                                     className="bg-[#6366f1] hover:bg-[#4f46e5] active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
                                 >
-                                    <span>Re-Apply / Browse Rooms</span>
+                                    <span>Fix & Resubmit Application</span>
                                     <FontAwesomeIcon icon={faArrowRight} />
                                 </button>
                             )}
                         </div>
+
+                        {statusNormalized === 'rejected' && application.rejection_reason && (
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-3">
+                                <h3 className="text-lg font-bold text-rose-400 m-0 flex items-center gap-2">
+                                    <FontAwesomeIcon icon={faTimesCircle} className="text-rose-400" />
+                                    Reason for Rejection
+                                </h3>
+                                <p className="text-slate-300 text-sm m-0 leading-relaxed bg-rose-950/20 p-4 rounded-xl border border-rose-500/10 font-medium">
+                                    {application.rejection_reason}
+                                </p>
+                            </div>
+                        )}
 
                         {statusNormalized === 'approved' && application.has_pending_first_payment && (
                             <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
@@ -247,7 +263,17 @@ export default function TrackApplication() {
                                     </div>
                                 </div>
 
-                                {application.pending_payment_method === 'Cash on Hand' ? (
+                                {application.pending_invoice_status === 'pending-verification' ? (
+                                    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 space-y-3">
+                                        <div className="flex items-center gap-2.5 text-indigo-400 font-bold text-sm">
+                                            <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                            Payment Verification Pending
+                                        </div>
+                                        <p className="text-slate-300 text-xs m-0 leading-relaxed">
+                                            Your payment proof (via <strong>{application.pending_payment_method}</strong>) has been submitted and is currently being verified by management. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
+                                        </p>
+                                    </div>
+                                ) : application.pending_payment_method === 'Cash on Hand' ? (
                                     <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 space-y-3">
                                         <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
                                             <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />

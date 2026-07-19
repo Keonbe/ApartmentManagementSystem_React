@@ -13,50 +13,7 @@ import api from '../api/axiosConfig';
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
 // ==========================================
-const initialArchivedTenants = [
-  {
-    id: 'ARC-001', name: 'Carlos Mendoza', email: 'carlos.mendoza@email.com', phone: '0917-555-1234',
-    unit: 'D', rent: '₱4,000', moveIn: '2023-06-01', leaseEnd: '2024-06-01',
-    movedOutDate: '2024-06-01', archiveDate: '2024-06-05', archiveReason: 'End of Lease',
-    status: 'archived',
-    leaseHistory: [
-      { event: 'Lease Started', date: '2023-06-01', detail: 'Studio Unit D · ₱4,000/mo · 12 months' },
-      { event: 'Lease Ended', date: '2024-06-01', detail: 'End of lease term, tenant did not renew' },
-    ],
-    paymentSummary: { totalPaid: 48000, monthsPaid: 12, overdueCount: 0, lastPayment: '2024-05-28' },
-    maintenanceRequests: [
-      { id: 'REQ-010', issue: 'Door lock replacement', date: '2023-09-15', status: 'Completed', cost: 800 }
-    ]
-  },
-  {
-    id: 'ARC-002', name: 'Elena Gomez', email: 'elena.gomez@email.com', phone: '0918-333-5678',
-    unit: 'M', rent: '₱3,500', moveIn: '2023-01-15', leaseEnd: '2024-01-15',
-    movedOutDate: '2024-01-15', archiveDate: '2024-01-20', archiveReason: 'Personal Reasons',
-    status: 'archived',
-    leaseHistory: [
-      { event: 'Lease Started', date: '2023-01-15', detail: 'Studio Unit M · ₱3,500/mo · 12 months' },
-      { event: 'Lease Ended', date: '2024-01-15', detail: 'Tenant chose not to renew — personal reasons' },
-    ],
-    paymentSummary: { totalPaid: 42000, monthsPaid: 12, overdueCount: 1, lastPayment: '2024-01-10' },
-    maintenanceRequests: []
-  },
-  {
-    id: 'ARC-003', name: 'Roberto Tan', email: 'roberto.tan@email.com', phone: '0919-777-9012',
-    unit: 'H', rent: '₱4,000', moveIn: '2022-08-01', leaseEnd: '2023-08-01',
-    movedOutDate: '2023-08-15', archiveDate: '2023-08-20', archiveReason: 'Relocated',
-    status: 'archived',
-    leaseHistory: [
-      { event: 'Lease Started', date: '2022-08-01', detail: 'Studio Unit H · ₱4,000/mo · 12 months' },
-      { event: 'Lease Extended', date: '2023-02-01', detail: 'Extended by 6 months, new end: 2023-08-01' },
-      { event: 'Lease Ended', date: '2023-08-01', detail: 'Tenant relocated out of city' },
-    ],
-    paymentSummary: { totalPaid: 48000, monthsPaid: 12, overdueCount: 2, lastPayment: '2023-07-28' },
-    maintenanceRequests: [
-      { id: 'REQ-007', issue: 'Leaking ceiling', date: '2023-03-10', status: 'Completed', cost: 2500 },
-      { id: 'REQ-009', issue: 'Broken window latch', date: '2023-05-22', status: 'Completed', cost: 600 }
-    ]
-  }
-];
+const initialArchivedTenants = [];
 
 const archiveReasons = ['End of Lease', 'Personal Reasons', 'Relocated', 'Financial Hardship', 'Evicted', 'Other'];
 
@@ -92,8 +49,11 @@ const AdminTenants = () => {
     try {
       const res = await api.get('/get_tenants.php');
       if (res.data.success) {
-        const actualTenants = res.data.data.filter(t => t.status !== 'Pending Review' && t.status !== 'Rejected');
-        setTenants(actualTenants);
+        const allApplications = res.data.data.filter(t => t.status !== 'Pending Review' && t.status !== 'Rejected');
+        const dbActive = allApplications.filter(t => t.status !== 'archived');
+        const dbArchived = allApplications.filter(t => t.status === 'archived');
+        setTenants(dbActive);
+        setArchivedTenants(dbArchived);
       }
     } catch (err) {
       console.error("Error fetching tenants:", err);

@@ -8,12 +8,7 @@ import api from '../api/axiosConfig';
 export default function Preview({ onRentClick }) {
     const [selectedRoomId, setSelectedRoomId] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-    const [rooms, setRooms] = useState([
-        { id: 'C', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
-        { id: 'F', type: 'Studio', floor: '2F', price: '₱4,000/mo' },
-        { id: 'D', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
-        { id: 'M', type: 'Studio', floor: '3F', price: '₱3,500/mo' },
-    ]);
+    const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -30,9 +25,7 @@ export default function Preview({ onRentClick }) {
                             floor: r.floor,
                             price: `₱${Number(r.rent).toLocaleString()}/mo`
                         }));
-                    if (vacant.length > 0) {
-                        setRooms(vacant);
-                    }
+                    setRooms(vacant);
                 }
             } catch (error) {
                 console.error("Failed to fetch available rooms", error);
@@ -88,33 +81,43 @@ export default function Preview({ onRentClick }) {
                             Available Rooms
                         </h2>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {rooms.map((room) => (
-                                <div key={room.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-slate-800 m-0" style={{ color: '#1e293b' }}>Room {room.id}</h3>
-                                        <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
-                                        <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
+                        {loading ? (
+                            <div className="flex items-center justify-center py-12">
+                                <span className="text-slate-500 font-semibold text-sm">Loading available rooms...</span>
+                            </div>
+                        ) : rooms.length === 0 ? (
+                            <div className="bg-slate-100/50 rounded-2xl p-8 border border-dashed border-slate-200 text-center">
+                                <p className="text-slate-500 font-medium text-sm m-0">No rooms are currently available for lease. Please check back later!</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {rooms.map((room) => (
+                                    <div key={room.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-slate-800 m-0" style={{ color: '#1e293b' }}>Room {room.id}</h3>
+                                            <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
+                                            <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 mt-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenPreview(room.id)}
+                                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm"
+                                            >
+                                                <FontAwesomeIcon icon={faEye} />
+                                                <span>View Layout</span>
+                                            </button>
+                                            <button
+                                                onClick={() => onRentClick(room.id)}
+                                                className="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center"
+                                            >
+                                                Rent Now
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-2 mt-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleOpenPreview(room.id)}
-                                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm"
-                                        >
-                                            <FontAwesomeIcon icon={faEye} />
-                                            <span>View Layout</span>
-                                        </button>
-                                        <button
-                                            onClick={() => onRentClick(room.id)}
-                                            className="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center"
-                                        >
-                                            Rent Now
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                 </div>

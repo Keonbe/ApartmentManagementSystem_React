@@ -16,7 +16,8 @@ export default function RentApplication() {
     const defaultSuffix = loggedInUser.suffix || '';
     const defaultEmail = loggedInUser.email_address || '';
 
-    const passedRoomId = location.state?.selectedRoomId || 'C';
+    const editApp = location.state?.editApplication;
+    const passedRoomId = location.state?.selectedRoomId || editApp?.room_name || 'C';
 
     const getRoomPrice = (id) => {
         if (['K', 'L', 'M', 'N'].includes(id)) return 3500;
@@ -25,14 +26,14 @@ export default function RentApplication() {
     
     const [applicationStatus, setApplicationStatus] = useState('none');
 
-    const [firstName, setFirstName] = useState(defaultFirstName);
-    const [middleName, setMiddleName] = useState(defaultMiddleName);
-    const [lastName, setLastName] = useState(defaultLastName);
-    const [suffix, setSuffix] = useState(defaultSuffix);
+    const [firstName, setFirstName] = useState(editApp?.first_name || defaultFirstName);
+    const [middleName, setMiddleName] = useState(editApp?.middle_name || defaultMiddleName);
+    const [lastName, setLastName] = useState(editApp?.last_name || defaultLastName);
+    const [suffix, setSuffix] = useState(editApp?.suffix || defaultSuffix);
     
     useEffect(() => {
         const fetchUserProfile = async () => {
-            if (!defaultEmail) return;
+            if (!defaultEmail || editApp) return;
             try {
                 const res = await api.get(`/profile.php?email=${encodeURIComponent(defaultEmail)}`);
                 if (res.data.success && res.data.data) {
@@ -49,13 +50,13 @@ export default function RentApplication() {
         fetchUserProfile();
     }, [defaultEmail]);
     
-    const [phoneRawNumber, setPhoneRawNumber] = useState('');
+    const [phoneRawNumber, setPhoneRawNumber] = useState(editApp?.contact_no?.replace('+63 ', '') || '');
     const [phoneError, setPhoneError] = useState('');
 
-    const [email, setEmail] = useState(defaultEmail);
-    const [gender, setGender] = useState('');
-    const [occupants, setOccupants] = useState('');
-    const [monthsOfRent, setMonthsOfRent] = useState('');
+    const [email, setEmail] = useState(editApp?.email || defaultEmail);
+    const [gender, setGender] = useState(editApp?.gender || '');
+    const [occupants, setOccupants] = useState(editApp?.occupants || '');
+    const [monthsOfRent, setMonthsOfRent] = useState(editApp?.months_of_rent || '');
     const [roomName] = useState(`Room ${passedRoomId}`);
     const [monthlyRent] = useState(getRoomPrice(passedRoomId));
     
@@ -158,7 +159,8 @@ export default function RentApplication() {
             return;
         }
 
-        if (!validIdFrontFile || !validIdBackFile || !nbiFile) {
+        const isEditing = !!editApp;
+        if (!isEditing && (!validIdFrontFile || !validIdBackFile || !nbiFile)) {
             alert("Please upload your Valid ID Front, Valid ID Back, and NBI Clearance.");
             return;
         }
@@ -166,6 +168,9 @@ export default function RentApplication() {
         const fullContactNumber = `+63 ${phoneRawNumber}`;
 
         const formData = new FormData();
+        if (isEditing) {
+            formData.append('appId', editApp.id);
+        }
         formData.append('firstName', firstName.trim());
         formData.append('middleName', middleName.trim());
         formData.append('lastName', lastName.trim());
@@ -177,9 +182,9 @@ export default function RentApplication() {
         formData.append('monthsOfRent', monthsOfRent);
         formData.append('roomName', passedRoomId);
         formData.append('monthlyRent', monthlyRent);
-        formData.append('validIdFrontFile', validIdFrontFile);
-        formData.append('validIdBackFile', validIdBackFile);
-        formData.append('nbiFile', nbiFile);
+        if (validIdFrontFile) formData.append('validIdFrontFile', validIdFrontFile);
+        if (validIdBackFile) formData.append('validIdBackFile', validIdBackFile);
+        if (nbiFile) formData.append('nbiFile', nbiFile);
 
         try {
             const res = await api.post("/rent_application.php", formData, {
@@ -426,9 +431,12 @@ export default function RentApplication() {
                                                         }}
                                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                     />
-                                                    <div className="space-y-1 pointer-events-none">
+                                                    <div className="space-y-1 pointer-events-none p-2">
                                                         <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
                                                         <p className="text-xs font-medium text-slate-700 m-0">Drop ID card front view here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                        {editApp?.valid_id_front_path && (
+                                                            <p className="text-[10px] text-emerald-600 font-bold m-0 mt-1">✓ Keeps: {editApp.valid_id_front_path.split('/').pop()}</p>
+                                                        )}
                                                     </div>
                                                 </>
                                             ) : (
@@ -485,9 +493,12 @@ export default function RentApplication() {
                                                         }}
                                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                     />
-                                                    <div className="space-y-1 pointer-events-none">
+                                                    <div className="space-y-1 pointer-events-none p-2">
                                                         <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
                                                         <p className="text-xs font-medium text-slate-700 m-0">Drop ID card back view here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                        {editApp?.valid_id_back_path && (
+                                                            <p className="text-[10px] text-emerald-600 font-bold m-0 mt-1">✓ Keeps: {editApp.valid_id_back_path.split('/').pop()}</p>
+                                                        )}
                                                     </div>
                                                 </>
                                             ) : (
@@ -545,9 +556,12 @@ export default function RentApplication() {
                                                     }}
                                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                 />
-                                                <div className="space-y-1 pointer-events-none">
+                                                <div className="space-y-1 pointer-events-none p-2">
                                                     <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
                                                     <p className="text-xs font-medium text-slate-700 m-0">Drop your valid NBI clearance form here, or <span className="text-indigo-600 font-bold">browse</span></p>
+                                                    {editApp?.nbi_clearance_path && (
+                                                        <p className="text-[10px] text-emerald-600 font-bold m-0 mt-1">✓ Keeps: {editApp.nbi_clearance_path.split('/').pop()}</p>
+                                                    )}
                                                 </div>
                                             </>
                                         ) : (
