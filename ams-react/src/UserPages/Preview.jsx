@@ -1,19 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
+import api from '../api/axiosConfig';
 
 export default function Preview({ onRentClick }) {
     const [selectedRoomId, setSelectedRoomId] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-
-    const rooms = [
+    const [rooms, setRooms] = useState([
         { id: 'C', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
         { id: 'F', type: 'Studio', floor: '2F', price: '₱4,000/mo' },
         { id: 'D', type: 'Studio', floor: '1F', price: '₱4,000/mo' },
         { id: 'M', type: 'Studio', floor: '3F', price: '₱3,500/mo' },
-    ];
+    ]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchAvailableRooms = async () => {
+            try {
+                const response = await api.get('get_rooms.php');
+                if (response.data.success && Array.isArray(response.data.rooms)) {
+                    // Filter to vacant rooms
+                    const vacant = response.data.rooms
+                        .filter(r => r.status && r.status.toLowerCase() === 'vacant')
+                        .map(r => ({
+                            id: r.id,
+                            type: r.type,
+                            floor: r.floor,
+                            price: `₱${Number(r.rent).toLocaleString()}/mo`
+                        }));
+                    if (vacant.length > 0) {
+                        setRooms(vacant);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch available rooms", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchAvailableRooms();
+    }, []);
 
     const handleOpenPreview = (roomId) => {
         setSelectedRoomId(roomId);
