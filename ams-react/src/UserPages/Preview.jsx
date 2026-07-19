@@ -1,53 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faCircleNotch } from '@fortawesome/free-solid-svg-icons';
+import { faEye } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import api from '../api/axiosConfig';
 
 export default function Preview({ onRentClick }) {
-    const navigate = useNavigate();
     const [selectedRoomId, setSelectedRoomId] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // 1. Route protection: Check if user already has an active application
-    useEffect(() => {
-        const checkApplicationStatus = async () => {
-            const loggedInUserStr = sessionStorage.getItem("loggedInUser");
-            if (!loggedInUserStr) {
-                setIsChecking(false);
-                return;
-            }
-
-            try {
-                const loggedInUser = JSON.parse(loggedInUserStr);
-                if (loggedInUser.email_address) {
-                    const res = await api.get(`/my_room.php?email=${encodeURIComponent(loggedInUser.email_address)}`);
-
-                    if (res.data.success && res.data.data) {
-                        const status = res.data.data.status?.toLowerCase();
-
-                        // Only redirect if the application is still in progress (pending or approved)
-                        if (status === 'pending' || status === 'pending review' || status === 'approved' || status === 'active') {
-                            navigate('/track-application', { replace: true });
-                            return;
-                        }
-                        // If status is 'rejected', the code will skip the 'if' and let the page render!
-                    }
-                }
-            } catch (error) {
-                console.error("Error verifying route access:", error);
-            }
-            setIsChecking(false);
-        };
-
-        checkApplicationStatus();
-    }, [navigate]);
-
-    // 2. Fetch live room availability
     useEffect(() => {
         const fetchAvailableRooms = async () => {
             try {
@@ -78,15 +41,6 @@ export default function Preview({ onRentClick }) {
         setIsPreviewOpen(true);
     };
 
-    // Block rendering until the check finishes so they don't see the preview UI flash
-    if (isChecking) {
-        return (
-            <div className="w-full h-[calc(100vh-76px)] bg-slate-50 flex items-center justify-center">
-                <FontAwesomeIcon icon={faCircleNotch} className="text-4xl text-indigo-500 animate-spin" />
-            </div>
-        );
-    }
-
     return (
         <div className="w-full h-auto lg:h-[calc(100vh-76px)] bg-slate-50 p-4 md:p-8 lg:overflow-hidden box-border">
             <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-6 text-left items-stretch">
@@ -97,7 +51,7 @@ export default function Preview({ onRentClick }) {
                     {/*Modern Dynamic Hero Banner*/}
                     <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gradient-to-r from-[#3b4276] via-[#4f46e5] to-[#6366f1] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent)] pointer-events-none"></div>
-
+                        
                         {/*Increased image wrapper dimensions to accurately reproduce the old landscape placeholder style heights*/}
                         <div className="w-full sm:w-72 overflow-hidden relative min-h-[200px] sm:min-h-[240px]">
                             <img
@@ -107,7 +61,7 @@ export default function Preview({ onRentClick }) {
                             />
                             <div className="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-black/20 via-transparent to-transparent"></div>
                         </div>
-
+                        
                         <div className="p-8 text-white flex flex-col justify-center flex-grow relative z-10 space-y-3">
                             <div>
                                 <span className="text-[10px] tracking-widest uppercase font-bold px-2.5 py-1 rounded-md bg-white/20 backdrop-blur-sm inline-block mb-2">Featured Listing</span>
@@ -179,11 +133,11 @@ export default function Preview({ onRentClick }) {
                         title="Apartment Location Map"
                     ></iframe>
                 </div>
-
+                                    
             </div>
 
             {/*Injected Room Visual Layout Overlays*/}
-            <RoomPreviewModal
+            <RoomPreviewModal 
                 isOpen={isPreviewOpen}
                 onClose={() => setIsPreviewOpen(false)}
                 roomId={selectedRoomId}

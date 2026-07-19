@@ -54,6 +54,24 @@ export default function ParkingReservation() {
         }
     };
 
+    // Format Plate Number to XXX-XXXX
+    const handlePlateNumberChange = (e) => {
+        // Remove all non-alphanumeric characters and convert to uppercase
+        let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+        // Limit to 7 alphanumeric characters (which becomes 8 total with the hyphen)
+        if (val.length > 7) {
+            val = val.substring(0, 7);
+        }
+
+        // Automatically insert the hyphen after the 3rd character
+        if (val.length > 3) {
+            val = val.substring(0, 3) + '-' + val.substring(3);
+        }
+
+        setPlateNumber(val);
+    };
+
     const handleFormSubmit = async (e) => {
         e.preventDefault();
 
@@ -168,7 +186,8 @@ export default function ParkingReservation() {
                             type="text"
                             placeholder="FAJ-8231"
                             value={plateNumber}
-                            onChange={(e) => setPlateNumber(e.target.value)}
+                            onChange={handlePlateNumberChange}
+                            maxLength={8}
                             className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase"
                             style={{ color: '#1e293b' }}
                         />

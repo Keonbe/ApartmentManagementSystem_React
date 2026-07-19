@@ -11,8 +11,6 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 
-// DB-backed: no more mock data
-
 const priorityConfig = {
   'Urgent': { color: 'bg-red-100 text-red-800 border-red-200' },
   'High': { color: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -21,6 +19,7 @@ const priorityConfig = {
 };
 
 const getRelativeTime = (dateStr) => {
+  if (!dateStr) return '—';
   const diffInDays = Math.floor((new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24));
   if (diffInDays === 0) return 'Today';
   if (diffInDays === 1) return 'Yesterday';
@@ -51,53 +50,87 @@ const AdminMaintainance = () => {
   const [validationErrors, setValidationErrors] = useState({});
   const [newNote, setNewNote] = useState('');
 
-  // Approval form state
   const [approvalForm, setApprovalForm] = useState({ estimatedCost: '', note: '', action: 'Approved' });
 
   const settings = getSystemSettings();
   const monthlyBudget = settings.maintenanceMonthlyBudget || 50000;
 
   // ─── DB Fetch ───
-const fetchRequests = useCallback(async () => {
-  setLoadingReqs(true);
-  try {
-    const res = await api.get('get_maintenance_requests.php');
-    
-    // LOG THE RAW DATA TO CONSOLE
-    console.log("RAW DATA FROM PHP:", res.data);
+  const fetchRequests = useCallback(async () => {
+    setLoadingReqs(true);
+    try {
+      const res = await api.get('get_maintenance_requests.php');
+      console.log("RAW DATA FROM PHP:", res.data);
 
-    if (res.data && res.data.success && Array.isArray(res.data.requests)) {
-      setRequests(res.data.requests.map(r => ({
-        id: `REQ-${String(r.id || 0).padStart(3, '0')}`,
-        _dbId: r.id,
-        // Using optional chaining and nullish coalescing to avoid crashes
-        title: r.issue_category ? (r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1)) : 'Maintenance Request',
-        issueType: r.issue_category || 'Others',
-        unit: r.room_name ? `Unit ${r.room_name}` : '—',
-        tenant: r.tenant_name || 'Unknown Tenant',
-        priority: r.urgency ? r.urgency.charAt(0).toUpperCase() + r.urgency.slice(1) : 'Medium',
-        status: r.status || 'Pending',
-        description: r.description || '',
-        created_at: r.created_at || new Date().toISOString(),
-        assignee: r.assigned_to || null,
-        photos: r.attachment_path ? [{ url: r.attachment_path, name: 'Attachment' }] : [],
-        cost: parseFloat(r.estimated_cost) || 0,
-        tenantResponsible: Number(r.tenant_responsible) === 1,
-        notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
-      })));
-    } else {
-      console.error("Data structure error:", res.data);
+      if (res.data && res.data.success && Array.isArray(res.data.requests)) {
+        setRequests(res.data.requests.map(r => {
+          let normPriority = 'Medium';
+          if (r.urgency) {
+            const lowerUrg = r.urgency.toLowerCase();
+            if (lowerUrg === 'low') normPriority = 'Low';
+            else if (lowerUrg === 'medium') normPriority = 'Medium';
+            else if (lowerUrg === 'high') normPriority = 'High';
+            else if (lowerUrg === 'urgent' || lowerUrg === 'emergency') normPriority = 'Urgent';
+          }
+
+          let normIssueType = 'Plumbing';
+          if (r.issue_category) {
+            const lowerCat = r.issue_category.toLowerCase();
+            if (lowerCat === 'plumbing') normIssueType = 'Plumbing';
+            else if (lowerCat === 'electrical') normIssueType = 'Electrical';
+            else if (lowerCat === 'appliance') normIssueType = 'Appliance';
+            else if (lowerCat === 'structural' || lowerCat === 'carpentry') normIssueType = 'Carpentry';
+            else normIssueType = r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1);
+          }
+
+          // Strict string normalizations matching conditional formatting tags exactly
+          let displayStatus = 'Pending';
+          if (r.status) {
+            const lowerStatus = r.status.toLowerCase();
+            if (lowerStatus === 'pending') displayStatus = 'Pending';
+            else if (lowerStatus === 'in progress') displayStatus = 'In Progress';
+            else if (lowerStatus === 'completed') displayStatus = 'Completed';
+            else if (lowerStatus === 'approved') displayStatus = 'Approved';
+            else displayStatus = r.status;
+          }
+
+          return {
+            id: `REQ-${String(r.id || 0).padStart(3, '0')}`,
+            _dbId: r.id,
+            title: r.issue_category ? (r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1)) : 'Maintenance Request',
+            issueType: normIssueType,
+            unit: r.room_name ? `Unit ${r.room_name}` : '—',
+            tenant: r.tenant_name || 'Unknown Tenant',
+            priority: normPriority,
+            status: displayStatus,
+            description: r.description || '',
+            dateReported: r.created_at ? r.created_at.slice(0, 10) : '',
+            timeReported: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            dateResolved: null,
+            timeResolved: null,
+            assignee: r.assigned_to || null,
+            photos: r.attachment_path ? [{ url: r.attachment_path, name: 'Attachment' }] : [],
+            cost: r.estimated_cost ? parseFloat(r.estimated_cost) : null,
+            tenantResponsible: Number(r.tenant_responsible) === 1,
+            budgetCategory: normIssueType,
+            approvalStatus: (displayStatus === 'Approved' || displayStatus === 'In Progress' || displayStatus === 'Completed') ? 'Approved' : null,
+            approvalHistory: [],
+            statusHistory: [{ status: displayStatus, timestamp: r.created_at || new Date().toISOString() }],
+            notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
+          };
+        }));
+      } else {
+        console.error("Data structure error:", res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch maintenance requests:', err);
+    } finally {
+      setLoadingReqs(false);
     }
-  } catch (err) {
-    console.error('Failed to fetch maintenance requests:', err);
-  } finally {
-    setLoadingReqs(false);
-  }
-}, []);
+  }, []);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
-  // ─── Persist to DB helper ───
   const persistToDb = async (dbId, payload) => {
     try {
       await api.post('update_maintenance_status.php', { id: dbId, ...payload });
@@ -106,7 +139,6 @@ const fetchRequests = useCallback(async () => {
     }
   };
 
-  // Filtering
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {
       const matchSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -118,13 +150,12 @@ const fetchRequests = useCallback(async () => {
     });
   }, [requests, searchQuery, filterPriority, filterType]);
 
-const columns = {
-  'Pending': filteredRequests.filter(r => r.status.toLowerCase() === 'pending' || r.status.toLowerCase() === 'awaiting approval'),
-  'In Progress': filteredRequests.filter(r => r.status.toLowerCase() === 'in progress' || r.status.toLowerCase() === 'approved'),
-  'Completed': filteredRequests.filter(r => r.status.toLowerCase() === 'completed'),
-};
+  const columns = {
+    'Pending': filteredRequests.filter(r => r.status === 'Pending' || r.status === 'Awaiting Approval'),
+    'In Progress': filteredRequests.filter(r => r.status === 'In Progress' || r.status === 'Approved'),
+    'Completed': filteredRequests.filter(r => r.status === 'Completed'),
+  };
 
-  // ─── Budget Comparison Data ───
   const budgetData = useMemo(() => {
     const completedRequests = requests.filter(r => r.status === 'Completed');
     const buildingCosts = completedRequests.filter(r => !r.tenantResponsible);
@@ -136,14 +167,12 @@ const columns = {
     const usedPct = monthlyBudget > 0 ? Math.round((totalSpent / monthlyBudget) * 100) : 0;
     const isOverBudget = totalSpent > monthlyBudget;
 
-    // By category
     const categories = {};
     buildingCosts.forEach(r => {
       const cat = r.budgetCategory || r.issueType;
       categories[cat] = (categories[cat] || 0) + (r.cost || 0);
     });
 
-    // Per unit totals
     const perUnit = {};
     completedRequests.forEach(r => {
       perUnit[r.unit] = (perUnit[r.unit] || 0) + (r.cost || 0);
@@ -183,7 +212,6 @@ const columns = {
     setShowNewModal(false);
   };
 
-  // Submit for approval
   const handleSubmitForApproval = (req) => {
     setSelectedReq(req);
     setApprovalForm({ estimatedCost: '', note: '', action: 'Approved' });
@@ -208,7 +236,7 @@ const columns = {
       approvalStatus: approvalForm.action,
       cost: Number(approvalForm.estimatedCost) || r.cost,
       approvalHistory: [...(r.approvalHistory || []), approvalEntry],
-      statusHistory: [...r.statusHistory,
+      statusHistory: [...(r.statusHistory || []),
         { status: 'Awaiting Approval', timestamp: timestampStr },
         { status: isApproved ? 'Approved' : 'Rejected', timestamp: timestampStr, note: approvalForm.note }
       ]
@@ -221,14 +249,13 @@ const columns = {
         approvalStatus: approvalForm.action,
         cost: Number(approvalForm.estimatedCost) || prev.cost,
         approvalHistory: [...(prev.approvalHistory || []), approvalEntry],
-        statusHistory: [...prev.statusHistory,
+        statusHistory: [...(prev.statusHistory || []),
           { status: 'Awaiting Approval', timestamp: timestampStr },
           { status: isApproved ? 'Approved' : 'Rejected', timestamp: timestampStr, note: approvalForm.note }
         ]
       }));
     }
 
-    // Persist to DB
     persistToDb(selectedReq._dbId, {
       status: newStatus,
       estimatedCost: Number(approvalForm.estimatedCost) || null,
@@ -237,7 +264,6 @@ const columns = {
 
     setShowApprovalModal(false);
   };
-
 
   const triggerStatusAdvance = (req) => {
     setSelectedReq(req);
@@ -248,10 +274,9 @@ const columns = {
 
   const handleConfirmAdvance = () => {
     const currentStatus = selectedReq.status;
-    let nextStatus;
+    let nextStatus = 'In Progress';
     if (currentStatus === 'Approved') nextStatus = 'In Progress';
     else if (currentStatus === 'In Progress') nextStatus = 'Completed';
-    else nextStatus = 'In Progress';
 
     const timestampStr = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const finalAssignee = nextStatus === 'In Progress' ? (reassignName || 'Admin Assigned') : selectedReq.assignee;
@@ -263,17 +288,16 @@ const columns = {
       timeResolved: nextStatus === 'Completed' ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
       assignee: finalAssignee,
       cost: finalCost,
-      statusHistory: [...r.statusHistory, { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
+      statusHistory: [...(r.statusHistory || []), { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
     } : r));
     
     if (showDetailModal) {
       setSelectedReq(prev => ({
         ...prev, status: nextStatus, assignee: finalAssignee, cost: finalCost,
-        statusHistory: [...prev.statusHistory, { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
+        statusHistory: [...(prev.statusHistory || []), { status: nextStatus, timestamp: timestampStr, assignee: nextStatus === 'In Progress' ? finalAssignee : undefined }]
       }));
     }
 
-    // Persist to DB
     persistToDb(selectedReq._dbId, {
       status: nextStatus,
       assignedTo: finalAssignee,
@@ -283,7 +307,6 @@ const columns = {
     setShowConfirmModal(false);
     setCompletionCost('');
   };
-
 
   const handleToggleTenantResponsible = (reqId) => {
     const target = requests.find(r => r.id === reqId);
@@ -295,7 +318,6 @@ const columns = {
     if (target?._dbId) persistToDb(target._dbId, { tenantResponsible: newVal ? 1 : 0 });
   };
 
-
   const handleAddNote = () => {
     if (!newNote.trim()) return;
     const timestampStr = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -303,11 +325,9 @@ const columns = {
     const updatedNotes = [...(selectedReq.notes || []), note];
     setRequests(prev => prev.map(r => r.id === selectedReq.id ? { ...r, notes: updatedNotes } : r));
     setSelectedReq(prev => ({ ...prev, notes: updatedNotes }));
-    // Persist combined notes as work_notes
     if (selectedReq._dbId) persistToDb(selectedReq._dbId, { workNotes: updatedNotes.map(n => `[${n.timestamp}] ${n.text}`).join('\n---\n') });
     setNewNote('');
   };
-
 
   const handleReassignInDetail = (e) => {
     const newAssignee = e.target.value;
@@ -316,8 +336,6 @@ const columns = {
     if (selectedReq._dbId) persistToDb(selectedReq._dbId, { assignedTo: newAssignee });
   };
 
-
-  // Max category spend for chart scaling
   const maxCategorySpend = Math.max(...Object.values(budgetData.categories), 1);
 
   return (
@@ -330,7 +348,7 @@ const columns = {
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
-            {/* ─── BUDGET COMPARISON PANEL ─── */}
+            {/* Budget Panel */}
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
@@ -340,7 +358,6 @@ const columns = {
                 <span className="text-[11px] text-slate-400">Monthly Budget: <strong className="text-slate-700">{formatCurrency(monthlyBudget)}</strong></span>
               </div>
               <div className="p-6">
-                {/* KPI Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
                     <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(monthlyBudget)}</p>
@@ -364,7 +381,6 @@ const columns = {
                   </div>
                 </div>
 
-                {/* Budget Progress Bar */}
                 <div className="mb-6">
                   <div className="flex justify-between text-[10px] text-slate-400 mb-1">
                     <span>₱0</span>
@@ -380,7 +396,6 @@ const columns = {
                   )}
                 </div>
 
-                {/* Category Breakdown Chart */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-3 m-0">Spend by Category</h4>
@@ -419,7 +434,7 @@ const columns = {
               </div>
             </div>
 
-            {/* ─── VIEW CONTROLS ─── */}
+            {/* View Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex bg-white rounded-lg border border-slate-200 p-1 shrink-0">
                 <button onClick={() => setViewMode('kanban')} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-semibold border-0 cursor-pointer ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 bg-transparent hover:bg-slate-50'}`}><FontAwesomeIcon icon={faTableCells} /> Kanban</button>
@@ -447,7 +462,7 @@ const columns = {
               </div>
             </div>
 
-            {/* ─── KANBAN / LIST VIEW ─── */}
+            {/* Kanban / List Board */}
             {loadingReqs ? (
               <div className="py-16 text-center text-slate-400 text-sm font-medium bg-white border border-slate-200 rounded-xl shadow-sm">
                 Loading maintenance requests from database…
@@ -470,12 +485,12 @@ const columns = {
                         <div key={req.id} onClick={() => { setSelectedReq(req); setShowDetailModal(true); }} className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group">
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex gap-1.5 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[req.priority].color}`}>{req.priority}</span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[req.priority]?.color || 'bg-slate-100 text-slate-700'}`}>{req.priority}</span>
                               <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-slate-50 text-slate-600">{req.issueType}</span>
                               {req.tenantResponsible && (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Bill</span>
                               )}
-                              {req.approvalStatus === 'Approved' && (
+                              {req.status === 'Approved' && (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">✓ Approved</span>
                               )}
                             </div>
@@ -495,13 +510,12 @@ const columns = {
                               )}
                               <div className="flex items-center gap-2">
                                 {req.cost !== null && req.cost > 0 && <span className="text-[10px] font-bold text-emerald-600">{formatCurrency(req.cost)}</span>}
-                                {req.photos.length > 0 && (
+                                {req.photos?.length > 0 && (
                                   <span className="text-[10px] text-slate-400 flex items-center gap-1"><FontAwesomeIcon icon={faImage} /> {req.photos.length}</span>
                                 )}
                               </div>
                             </div>
-                            {/* Approval action for pending items */}
-                            {req.status === 'Pending' && !req.approvalStatus && (
+                            {req.status === 'Pending' && (
                               <button onClick={e => { e.stopPropagation(); handleSubmitForApproval(req); }} className="w-full mt-1 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md text-[11px] font-semibold hover:bg-amber-100 cursor-pointer transition-colors">
                                 <FontAwesomeIcon icon={faGavel} className="mr-1" /> Submit for Approval
                               </button>
@@ -540,13 +554,13 @@ const columns = {
                         <td className="py-3 px-4 text-slate-700">{req.tenant} <span className="text-slate-400 text-xs ml-1">({req.unit})</span></td>
                         <td className="py-3 px-4">
                           <div className="flex gap-1.5">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[req.priority].color}`}>{req.priority}</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[req.priority]?.color || 'bg-slate-100 text-slate-700'}`}>{req.priority}</span>
                             <span className="px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-200 bg-white text-slate-600">{req.issueType}</span>
                           </div>
                         </td>
                         <td className="py-3 px-4 text-xs font-semibold text-slate-600">{req.cost ? formatCurrency(req.cost) : '—'}</td>
                         <td className="py-3 px-4 text-xs font-medium text-slate-600">{req.assignee || '-'}</td>
-                        <td className="py-3 px-4"><span className={`text-xs font-semibold ${req.status === 'Completed' ? 'text-emerald-600' : req.status === 'In Progress' ? 'text-indigo-600' : req.status === 'Approved' ? 'text-emerald-600' : 'text-amber-600'}`}>{req.status}</span></td>
+                        <td className="py-3 px-4"><span className={`text-xs font-semibold ${req.status === 'Completed' ? 'text-emerald-600' : req.status === 'In Progress' ? 'text-indigo-600' : 'text-amber-600'}`}>{req.status}</span></td>
                       </tr>
                     ))}
                     {filteredRequests.length === 0 && (
@@ -556,10 +570,8 @@ const columns = {
                 </table>
               </div>
             )}
-            {/* end kanban/list ternary */}
               </>
             )}
-            {/* end loadingReqs ternary */}
 
           </div>
         </div>
@@ -616,7 +628,7 @@ const columns = {
                   <FontAwesomeIcon icon={faUpload} className="text-slate-400 mb-2 text-lg" />
                   <p className="text-xs text-slate-600 m-0">Click to attach photos (simulated)</p>
                 </div>
-                {newReq.photos.length > 0 && (
+                {newReq.photos?.length > 0 && (
                   <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
                     {newReq.photos.map((p, idx) => (
                       <div key={idx} className="w-12 h-12 rounded bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
@@ -647,7 +659,7 @@ const columns = {
                 <div>
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{selectedReq.id}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[selectedReq.priority].color}`}>{selectedReq.priority}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${priorityConfig[selectedReq.priority]?.color || 'bg-slate-100 text-slate-700'}`}>{selectedReq.priority}</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${selectedReq.status === 'Completed' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : selectedReq.status === 'In Progress' ? 'bg-indigo-100 text-indigo-800 border-indigo-200' : selectedReq.status === 'Approved' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>{selectedReq.status}</span>
                     {selectedReq.tenantResponsible && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200">Tenant Responsible</span>
@@ -696,7 +708,7 @@ const columns = {
                   )}
                 </div>
                 
-                {selectedReq.photos.length > 0 && (
+                {selectedReq.photos?.length > 0 && (
                   <div>
                     <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 m-0">Attached Photos</h4>
                     <div className="flex gap-3">
@@ -731,10 +743,12 @@ const columns = {
                 <div>
                   <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3 m-0">Status Timeline</h4>
                   <div className="space-y-4 relative before:absolute before:inset-0 before:ml-3 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                    {selectedReq.statusHistory.map((sh, i) => (
+                    {/* FIXED: Fallback array fallback wrapper injected to prevent crash errors */}
+                    {(selectedReq.statusHistory || []).map((sh, i) => (
                       <div key={i} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                         <div className="flex items-center justify-center w-6 h-6 rounded-full border border-white bg-slate-200 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          <FontAwesomeIcon icon={sh.status === 'Completed' ? faCheckCircle : sh.status === 'In Progress' ? faWrench : sh.status === 'Approved' ? faGavel : sh.status === 'Rejected' ? faTimes : faClock} className={`text-[10px] ${sh.status === 'Completed' ? 'text-emerald-500' : sh.status === 'In Progress' ? 'text-indigo-500' : sh.status === 'Approved' ? 'text-emerald-500' : sh.status === 'Rejected' ? 'text-red-500' : 'text-amber-500'}`} />
+                          {/* FIXED: Safe fallback method chaining normalizations */}
+                          <FontAwesomeIcon icon={(sh.status || '').toLowerCase() === 'completed' ? faCheckCircle : (sh.status || '').toLowerCase() === 'in progress' ? faWrench : (sh.status || '').toLowerCase() === 'approved' ? faGavel : (sh.status || '').toLowerCase() === 'rejected' ? faTimes : faClock} className={`text-[10px] ${(sh.status || '').toLowerCase() === 'completed' ? 'text-emerald-500' : (sh.status || '').toLowerCase() === 'in progress' ? 'text-indigo-500' : (sh.status || '').toLowerCase() === 'approved' ? 'text-emerald-500' : (sh.status || '').toLowerCase() === 'rejected' ? 'text-red-500' : 'text-amber-500'}`} />
                         </div>
                         <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-lg border border-slate-100 bg-white shadow-sm">
                           <div className="flex items-center justify-between mb-1">
@@ -783,7 +797,7 @@ const columns = {
                 
                 <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3 m-0 shrink-0">Admin Notes</h4>
                 <div className="flex-1 overflow-y-auto mb-4 space-y-3 pr-1">
-                  {selectedReq.notes.map((note, idx) => (
+                  {selectedReq.notes?.map((note, idx) => (
                     <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
                       <p className="text-xs text-slate-700 m-0 leading-relaxed mb-2">{note.text}</p>
                       <div className="flex justify-between items-center text-[9px] text-slate-400 font-medium">
@@ -792,7 +806,7 @@ const columns = {
                       </div>
                     </div>
                   ))}
-                  {selectedReq.notes.length === 0 && (
+                  {(!selectedReq.notes || selectedReq.notes.length === 0) && (
                     <div className="text-center py-4 text-slate-400 text-xs italic">No notes added yet.</div>
                   )}
                 </div>
@@ -828,7 +842,6 @@ const columns = {
                 <div className="flex justify-between"><span className="text-slate-500">Priority:</span><span className="font-semibold text-slate-800">{selectedReq.priority}</span></div>
               </div>
 
-              {/* Budget impact preview */}
               {approvalForm.estimatedCost && (
                 <div className={`rounded-lg p-3 border text-xs ${(budgetData.totalSpent + Number(approvalForm.estimatedCost)) > monthlyBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
                   <p className="font-semibold m-0 text-slate-700">Budget Impact Preview</p>
