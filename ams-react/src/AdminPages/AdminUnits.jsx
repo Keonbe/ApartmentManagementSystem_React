@@ -33,10 +33,11 @@ const openAssignTenant = (unit, setSelectedUnit, setAssignForm, emptyAssignForm,
 };
 
 const emptyUnitForm = { id: '', type: 'Studio', floor: '1F', rent: '' };
-const emptyAssignForm = { tenantName: '', moveIn: '', leaseEnd: '', rent: '' };
+const emptyAssignForm = { userId: '', tenantName: '', moveIn: '', leaseEnd: '', rent: '' };
 
 const AdminUnits = () => {
   const [units, setUnits] = useState([]);
+  const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState(null);
@@ -55,7 +56,19 @@ const AdminUnits = () => {
 
   useEffect(() => {
     fetchRooms();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('get_users.php');
+      if (res.data.success) {
+        setUsers(res.data.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch users list:", err);
+    }
+  };
 
   const fetchRooms = async () => {
     try {
@@ -117,6 +130,21 @@ const AdminUnits = () => {
 
   const validateLeaseDuration = (startDate, endDate) => {
     if (!startDate || !endDate) return '';
+    const start = new Date(startDate);
+    start.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    if (start < today) {
+      return 'Move-in date cannot be in the past.';
+    }
+
+    const end = new Date(endDate);
+    end.setHours(0,0,0,0);
+    if (end <= start) {
+      return 'Lease end date must be after the move-in date.';
+    }
+
     const months = monthsBetween(startDate, endDate);
     if (months < minLeaseDuration) {
       return `Lease duration must be at least ${minLeaseDuration} months. Current: ${months} month(s).`;
@@ -140,7 +168,7 @@ const AdminUnits = () => {
   };
 
   const handleAssignTenant = async () => {
-    if (!assignForm.tenantName || !assignForm.moveIn || !assignForm.leaseEnd || !selectedUnit) return;
+    if (!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd || !selectedUnit) return;
     const error = validateLeaseDuration(assignForm.moveIn, assignForm.leaseEnd);
     if (error) { setLeaseError(error); return; }
     setLeaseError('');
@@ -149,6 +177,7 @@ const AdminUnits = () => {
       const payload = {
         id: selectedUnit.id,
         status: 'occupied',
+        user_id: Number(assignForm.userId),
         tenant_name: assignForm.tenantName,
         lease_start: assignForm.moveIn,
         lease_end: assignForm.leaseEnd,
@@ -395,8 +424,24 @@ const AdminUnits = () => {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Tenant Name *</label>
-                <input value={assignForm.tenantName} onChange={e => setAssignForm({ ...assignForm, tenantName: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="Full name of tenant" />
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant User *</label>
+                <select 
+                  value={assignForm.userId} 
+                  onChange={e => {
+                    const selectedUser = users.find(u => String(u.id) === e.target.value);
+                    setAssignForm({ 
+                      ...assignForm, 
+                      userId: e.target.value,
+                      tenantName: selectedUser ? selectedUser.name : '' 
+                    });
+                  }} 
+                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white"
+                >
+                  <option value="">-- Choose Existing User --</option>
+                  {users.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -422,7 +467,7 @@ const AdminUnits = () => {
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
               <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button onClick={handleAssignTenant} disabled={!assignForm.tenantName || !assignForm.moveIn || !assignForm.leaseEnd} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">Assign Tenant</button>
+              <button onClick={handleAssignTenant} disabled={!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">Assign Tenant</button>
             </div>
           </div>
         </div>

@@ -661,5 +661,5 @@ ALTER TABLE maintenance_requests
 | UserPaymentHistory | ✅ | `get_invoices.php` (all invoices with status) |
 | ViewContract | ⚠️ | Derived from `my_room.php`; not from `lease_contracts` table |
 | TrackApplication | ✅ | Status + initial payment wired |
-| Move-Out Request | ❌ | No page or endpoint exists |
+| Move-Out Request | ✅ | `record_move_out.php` + button in `MyRoom.jsx` + `AdminTenants.jsx` |
 | Payment Proof Upload | ❌ | No file upload or reference number field |

@@ -172,10 +172,10 @@ Generate reports by:
 * [x] Archive tenant accounts after move-out with reason and notes.
 * [x] Preserve tenant history.
 * [x] `AdminTenants.jsx` manages Pending Review, Active, and Archived tenants.
-* [ ] Move-Out Request (self-service) for tenants (Priority D):
-  * Add move-out button/modal to `MyRoom.jsx`.
-  * Create `record_move_out.php` to set `status = 'pending-move-out'`.
-  * Highlight `pending-move-out` tenants in `AdminTenants.jsx`.
+* [x] Move-Out Request (self-service) for tenants (Priority D):
+  * [x] Add move-out button/modal to `MyRoom.jsx`.
+  * [x] Create `record_move_out.php` to set `status = 'pending-move-out'`.
+  * [x] Highlight `pending-move-out` tenants in `AdminTenants.jsx`.
 
 ---
 

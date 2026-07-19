@@ -97,7 +97,7 @@ const AdminTenants = () => {
 
   // Count logic
   const pendingReviewCount = tenants.filter(t => t.status === 'Pending Review').length;
-  const activeTenantCount = tenants.filter(t => t.status === 'active').length;
+  const activeTenantCount = tenants.filter(t => t.status === 'active' || t.status === 'Approved').length;
   const pendingMoveOutCount = tenants.filter(t => t.status === 'pending-move-out').length;
   const movedOutCount = tenants.filter(t => t.status === 'moved-out').length;
 
@@ -123,6 +123,8 @@ const AdminTenants = () => {
     displayed = [...archivedTenants];
   } else if (activeFilter === 'all') {
     displayed = [...tenants, ...archivedTenants];
+  } else if (activeFilter === 'active') {
+    displayed = tenants.filter(t => t.status === 'active' || t.status === 'Approved');
   } else {
     displayed = tenants.filter(t => t.status === activeFilter);
   }
@@ -318,12 +320,20 @@ const AdminTenants = () => {
                               <FontAwesomeIcon icon={faArchive} className="text-[10px]" /> Archive
                             </button>
                           )}
-                          {t.status === 'active' && (
+                          {(t.status === 'active' || t.status === 'Approved') && (
                             <button 
                               onClick={() => { updateStatus(t.id, 'pending-move-out'); }}
                               className="flex items-center gap-1.5 text-amber-600 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
                             >
                               <FontAwesomeIcon icon={faSignOutAlt} className="text-[10px]" /> Move Out
+                            </button>
+                          )}
+                          {t.status === 'pending-move-out' && (
+                            <button 
+                              onClick={() => { updateStatus(t.id, 'moved-out'); }}
+                              className="flex items-center gap-1.5 text-slate-600 font-semibold border-0 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+                            >
+                              <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Complete Move Out
                             </button>
                           )}
                         </div>
@@ -470,12 +480,20 @@ const AdminTenants = () => {
                       </button>
                     </div>
                   )}
-                  {selectedTenant.status !== 'archived' && selectedTenant.status === 'active' && (
+                  {selectedTenant.status !== 'archived' && (selectedTenant.status === 'active' || selectedTenant.status === 'Approved') && (
                     <button 
                       onClick={() => { updateStatus(selectedTenant.id, 'pending-move-out'); setShowProfileModal(false); }} 
                       className="w-full mt-4 flex items-center justify-center gap-2 bg-amber-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-amber-600 transition-colors"
                     >
                       <FontAwesomeIcon icon={faSignOutAlt} /> Initiate Move Out
+                    </button>
+                  )}
+                  {selectedTenant.status === 'pending-move-out' && (
+                    <button 
+                      onClick={() => { updateStatus(selectedTenant.id, 'moved-out'); setShowProfileModal(false); }} 
+                      className="w-full mt-4 flex items-center justify-center gap-2 bg-slate-600 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-slate-700 transition-colors"
+                    >
+                      <FontAwesomeIcon icon={faCheckCircle} /> Complete Move Out
                     </button>
                   )}
                   {selectedTenant.status === 'moved-out' && (

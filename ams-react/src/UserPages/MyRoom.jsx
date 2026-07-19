@@ -140,10 +140,24 @@ export default function MyRoom() {
         }
     };
 
-    const handleEndRent = () => {
+    const handleEndRent = async () => {
         const confirmAction = window.confirm("Are you sure you want to request lease termination? This action sends a notice to administration.");
-        if (confirmAction) {
-            alert("Termination notice submitted.");
+        if (!confirmAction) return;
+
+        try {
+            const res = await api.post('/record_move_out.php', {
+                email: activeEmail
+            });
+
+            if (res.data.success) {
+                alert("Termination notice submitted successfully.");
+                window.location.reload();
+            } else {
+                alert(res.data.message);
+            }
+        } catch (err) {
+            console.error("Move-out error:", err);
+            alert("Failed to submit termination request. Please try again.");
         }
     };
 
@@ -354,9 +368,14 @@ export default function MyRoom() {
                         <button
                             type="button"
                             onClick={handleEndRent}
-                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
+                            disabled={roomDetails.status === 'pending-move-out'}
+                            className={`w-full font-bold py-3 rounded-xl text-xs border-0 transition-all shadow-md ${
+                                roomDetails.status === 'pending-move-out'
+                                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    : 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
+                            }`}
                         >
-                            End Rent Term
+                            {roomDetails.status === 'pending-move-out' ? 'Move-Out Pending' : 'End Rent Term'}
                         </button>
                     </div>
 
