@@ -58,65 +58,42 @@ const AdminMaintainance = () => {
   const monthlyBudget = settings.maintenanceMonthlyBudget || 50000;
 
   // ─── DB Fetch ───
-  const fetchRequests = useCallback(async () => {
-    setLoadingReqs(true);
-    try {
-      const res = await api.get('get_maintenance_requests.php');
-      if (res.data.success) {
-        setRequests(res.data.requests.map(r => {
-          // Normalize urgency/priority to 'Low', 'Medium', 'High', 'Urgent'
-          let normPriority = 'Medium';
-          if (r.urgency) {
-            const lowerUrg = r.urgency.toLowerCase();
-            if (lowerUrg === 'low') normPriority = 'Low';
-            else if (lowerUrg === 'medium') normPriority = 'Medium';
-            else if (lowerUrg === 'high') normPriority = 'High';
-            else if (lowerUrg === 'urgent' || lowerUrg === 'emergency') normPriority = 'Urgent';
-          }
+const fetchRequests = useCallback(async () => {
+  setLoadingReqs(true);
+  try {
+    const res = await api.get('get_maintenance_requests.php');
+    
+    // LOG THE RAW DATA TO CONSOLE
+    console.log("RAW DATA FROM PHP:", res.data);
 
-          // Normalize issue type to match Admin's types: 'Plumbing', 'Electrical', 'Carpentry', 'Appliance', 'Others'
-          let normIssueType = 'Plumbing';
-          if (r.issue_category) {
-            const lowerCat = r.issue_category.toLowerCase();
-            if (lowerCat === 'plumbing') normIssueType = 'Plumbing';
-            else if (lowerCat === 'electrical') normIssueType = 'Electrical';
-            else if (lowerCat === 'appliance') normIssueType = 'Appliance';
-            else if (lowerCat === 'structural' || lowerCat === 'carpentry') normIssueType = 'Carpentry';
-            else normIssueType = r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1);
-          }
-
-          return {
-            id: `REQ-${String(r.id).padStart(3, '0')}`,
-            _dbId: r.id,
-            title: r.issue_category ? (r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1)) : 'Maintenance Request',
-            issueType: normIssueType,
-            unit: r.room_name ? `Unit ${r.room_name}` : '—',
-            tenant: r.tenant_name || 'Unknown Tenant',
-            priority: normPriority,
-            status: r.status || 'Pending',
-            description: r.description || '',
-            dateReported: r.created_at ? r.created_at.slice(0, 10) : '',
-            timeReported: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-            dateResolved: null,
-            timeResolved: null,
-            assignee: r.assigned_to || null,
-            photos: r.attachment_path ? [{ url: r.attachment_path, name: r.attachment_path.split('/').pop() }] : [],
-            cost: r.estimated_cost ? parseFloat(r.estimated_cost) : null,
-            tenantResponsible: !!r.tenant_responsible,
-            budgetCategory: normIssueType,
-            approvalStatus: (r.status === 'Approved' || r.status === 'In Progress' || r.status === 'Completed') ? 'Approved' : null,
-            approvalHistory: [],
-            statusHistory: [{ status: r.status, timestamp: r.created_at }],
-            notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
-          };
-        }));
-      }
-    } catch (err) {
-      console.error('Failed to fetch maintenance requests:', err);
-    } finally {
-      setLoadingReqs(false);
+    if (res.data && res.data.success && Array.isArray(res.data.requests)) {
+      setRequests(res.data.requests.map(r => ({
+        id: `REQ-${String(r.id || 0).padStart(3, '0')}`,
+        _dbId: r.id,
+        // Using optional chaining and nullish coalescing to avoid crashes
+        title: r.issue_category ? (r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1)) : 'Maintenance Request',
+        issueType: r.issue_category || 'Others',
+        unit: r.room_name ? `Unit ${r.room_name}` : '—',
+        tenant: r.tenant_name || 'Unknown Tenant',
+        priority: r.urgency ? r.urgency.charAt(0).toUpperCase() + r.urgency.slice(1) : 'Medium',
+        status: r.status || 'Pending',
+        description: r.description || '',
+        created_at: r.created_at || new Date().toISOString(),
+        assignee: r.assigned_to || null,
+        photos: r.attachment_path ? [{ url: r.attachment_path, name: 'Attachment' }] : [],
+        cost: parseFloat(r.estimated_cost) || 0,
+        tenantResponsible: Number(r.tenant_responsible) === 1,
+        notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
+      })));
+    } else {
+      console.error("Data structure error:", res.data);
     }
-  }, []);
+  } catch (err) {
+    console.error('Failed to fetch maintenance requests:', err);
+  } finally {
+    setLoadingReqs(false);
+  }
+}, []);
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
@@ -141,11 +118,11 @@ const AdminMaintainance = () => {
     });
   }, [requests, searchQuery, filterPriority, filterType]);
 
-  const columns = {
-    'Pending': filteredRequests.filter(r => r.status === 'Pending' || r.status === 'Awaiting Approval'),
-    'In Progress': filteredRequests.filter(r => r.status === 'In Progress' || r.status === 'Approved'),
-    'Completed': filteredRequests.filter(r => r.status === 'Completed'),
-  };
+const columns = {
+  'Pending': filteredRequests.filter(r => r.status.toLowerCase() === 'pending' || r.status.toLowerCase() === 'awaiting approval'),
+  'In Progress': filteredRequests.filter(r => r.status.toLowerCase() === 'in progress' || r.status.toLowerCase() === 'approved'),
+  'Completed': filteredRequests.filter(r => r.status.toLowerCase() === 'completed'),
+};
 
   // ─── Budget Comparison Data ───
   const budgetData = useMemo(() => {

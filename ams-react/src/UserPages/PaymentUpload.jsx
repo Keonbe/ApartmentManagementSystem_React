@@ -40,6 +40,18 @@ export default function PaymentUpload() {
         }
     };
 
+    // Limits GCash characters dynamically to 13 numerical values while typing
+    const handleReferenceChange = (e) => {
+        const val = e.target.value;
+        if (paymentMethod === 'GCash') {
+            // Strip any character that isn't a digit and clamp the maximum length to 13
+            const numericVal = val.replace(/\D/g, '').slice(0, 13);
+            setReferenceNo(numericVal);
+        } else {
+            setReferenceNo(val);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!senderName || !referenceNo || !proofImage) {
@@ -49,7 +61,7 @@ export default function PaymentUpload() {
 
         if (paymentMethod === 'GCash') {
             if (!/^\d{13}$/.test(referenceNo)) {
-                setError("GCash Reference Number must be exactly 13 digits and contain only numbers.");
+                setError("GCash Reference Number must be exactly 13 digits.");
                 return;
             }
         } else if (paymentMethod === 'Bank Transfer') {
@@ -154,8 +166,10 @@ export default function PaymentUpload() {
                             <input 
                                 type="text" 
                                 value={referenceNo} 
-                                onChange={e => setReferenceNo(e.target.value)} 
+                                onChange={handleReferenceChange} 
                                 required
+                                inputMode={paymentMethod === 'GCash' ? "numeric" : "text"}
+                                maxLength={paymentMethod === 'GCash' ? 13 : undefined}
                                 className="w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
                                 placeholder={paymentMethod === 'GCash' ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
                             />
