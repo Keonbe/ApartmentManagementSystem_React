@@ -1,8 +1,9 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id");
+
 require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -10,80 +11,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_POST['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $invoice_id = $_POST['invoiceId'] ?? 0;
+    $payment_method = $_POST['paymentMethod'] ?? '';
+    $sender_name = $_POST['senderName'] ?? '';
+    $reference_no = $_POST['referenceNo'] ?? '';
 
-if (!$user_id) {
-    http_response_code(401);
-    echo json_encode(["success" => false, "message" => "Unauthorized - User ID required"]);
-    exit;
-}
-
-$invoiceId = $_POST['invoiceId'] ?? '';
-$paymentMethod = $_POST['paymentMethod'] ?? '';
-$senderName = $_POST['senderName'] ?? '';
-$referenceNo = $_POST['referenceNo'] ?? '';
-
-if (empty($invoiceId) || empty($paymentMethod) || empty($senderName) || empty($referenceNo)) {
-    echo json_encode(["success" => false, "message" => "Missing required fields."]);
-    exit;
-}
-
-if ($paymentMethod === 'GCash') {
-    if (!preg_match('/^\d{13}$/', $referenceNo)) {
-        echo json_encode(["success" => false, "message" => "GCash Reference Number must be exactly 13 digits (numbers only)."]);
+    if (empty($invoice_id) || empty($payment_method) || empty($sender_name) || empty($reference_no)) {
+        echo json_encode(["success" => false, "message" => "Missing required data payloads."]);
         exit;
     }
-} else if ($paymentMethod === 'Bank Transfer') {
-    if (strlen($referenceNo) > 55) {
-        echo json_encode(["success" => false, "message" => "Bank Transfer Reference Number must be 55 characters or less."]);
+
+    if (!isset($_FILES['proofImage']) || $_FILES['proofImage']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(["success" => false, "message" => "Missing required transaction receipt image file."]);
         exit;
     }
-    if (preg_match('/^\d+$/', $referenceNo)) {
-        echo json_encode(["success" => false, "message" => "Bank Transfer Reference Number cannot consist of numbers only."]);
-        exit;
+
+    $base_path = dirname(__DIR__);
+    $upload_dir = $base_path . "/uploads/payments/";
+    if (!is_dir($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
     }
-}
 
-if (!isset($_FILES['proofImage']) || $_FILES['proofImage']['error'] !== UPLOAD_ERR_OK) {
-    echo json_encode(["success" => false, "message" => "Valid image file is required."]);
-    exit;
-}
+    $ext = strtolower(pathinfo($_FILES['proofImage']['name'], PATHINFO_EXTENSION));
+    $file_name = "INV_" . $invoice_id . "_" . time() . "_" . uniqid() . "." . $ext;
+    $server_path = $upload_dir . $file_name;
+    $relative_path = "uploads/payments/" . $file_name;
 
-// target dir is one level up inside uploads/payments
-$target_dir = "../uploads/payments/";
-if (!is_dir($target_dir)) {
-    mkdir($target_dir, 0777, true);
-}
+    if (move_uploaded_file($_FILES['proofImage']['tmp_name'], $server_path)) {
+        // Shift status state to 'pending-verification' and bind tracking parameters
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'pending-verification', payment_method = ?, sender_name = ?, payment_reference = ?, proof_of_payment_path = ? WHERE id = ?");
+        $stmt->bind_param("sssss", $payment_method, $sender_name, $reference_no, $relative_path, $invoice_id);
 
-$file_ext = strtolower(pathinfo($_FILES["proofImage"]["name"], PATHINFO_EXTENSION));
-$allowed_exts = ['jpg', 'jpeg', 'png'];
-
-if (!in_array($file_ext, $allowed_exts)) {
-    echo json_encode(["success" => false, "message" => "Only JPG, JPEG, and PNG files are allowed."]);
-    exit;
-}
-
-$new_filename = "proof_" . time() . "_" . uniqid() . "." . $file_ext;
-$target_file = $target_dir . $new_filename;
-$relative_path = "uploads/payments/" . $new_filename;
-
-if (move_uploaded_file($_FILES["proofImage"]["tmp_name"], $target_file)) {
-    $stmt = $conn->prepare("UPDATE invoices SET status = 'pending-verification', payment_method = ?, sender_name = ?, payment_reference = ?, proof_of_payment_path = ? WHERE id = ? AND user_id = ?");
-    $stmt->bind_param("sssssi", $paymentMethod, $senderName, $referenceNo, $relative_path, $invoiceId, $user_id);
-    if ($stmt->execute()) {
-        if ($stmt->affected_rows > 0) {
-            log_activity($conn, null, 'payment', 'Proof Uploaded', "User $user_id uploaded proof for $paymentMethod on invoice $invoiceId");
-            echo json_encode(["success" => true, "message" => "Payment proof submitted successfully."]);
+        if ($stmt->execute()) {
+            echo json_encode(["success" => true, "message" => "Payment proof uploaded to review pipeline successfully."]);
         } else {
-            echo json_encode(["success" => false, "message" => "Invoice not found or unauthorized."]);
+            echo json_encode(["success" => false, "message" => "Failed to update invoice tracking row entries."]);
         }
+        $stmt->close();
     } else {
-        echo json_encode(["success" => false, "message" => "Database error: " . $stmt->error]);
+        echo json_encode(["success" => false, "message" => "Failed to write file system asset blocks."]);
     }
-    $stmt->close();
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to upload image."]);
+    $conn->close();
+    exit;
 }
-
-$conn->close();
 ?>
