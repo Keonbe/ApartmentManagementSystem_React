@@ -243,6 +243,7 @@ CREATE TABLE `rent_applications` (
   `valid_id_back_path` varchar(255) NOT NULL,
   `nbi_clearance_path` varchar(255) NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'Pending Review',
+  `rejection_reason` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `archive_date` date DEFAULT NULL,
   `archive_reason` varchar(255) DEFAULT NULL,

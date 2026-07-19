@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faTimes, faUser, faBuilding, faCalendarAlt, faPhone, faEnvelope, 
   faCheckCircle, faClock, faUsers, faVenusMars,
-  faFileAlt
+  faFileAlt, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 
@@ -48,9 +48,13 @@ const AdminApplications = () => {
     return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
   };
 
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id, status, rejectionReason = null) => {
     try {
-      const res = await api.post('/update_tenant_status.php', { id, status });
+      const res = await api.post('/update_tenant_status.php', { 
+        id, 
+        status, 
+        rejection_reason: rejectionReason 
+      });
       if (!res.data.success) {
         alert("Backend Error: " + res.data.message);
         return;
@@ -258,6 +262,16 @@ const AdminApplications = () => {
             {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-8 bg-slate-50 space-y-8">
               
+              {selectedApp.status === 'Rejected' && selectedApp.rejection_reason && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-2.5 text-red-800">
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-bold text-xs uppercase tracking-wider block">Rejection Reason</span>
+                    <p className="text-sm m-0 mt-1 font-medium">{selectedApp.rejection_reason}</p>
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faVenusMars} className="mr-1"/> Gender</p>
@@ -325,7 +339,12 @@ const AdminApplications = () => {
                     <FontAwesomeIcon icon={faCheckCircle} className="text-lg" /> APPROVE APPLICATION
                   </button>
                   <button 
-                    onClick={() => { updateStatus(selectedApp.id, 'Rejected'); setShowProfileModal(false); }} 
+                    onClick={() => { 
+                      const reason = prompt("Enter reason for rejecting this application:");
+                      if (reason === null) return; // User cancelled
+                      updateStatus(selectedApp.id, 'Rejected', reason); 
+                      setShowProfileModal(false); 
+                    }} 
                     className="flex-1 flex items-center justify-center gap-2 bg-white text-red-600 border-2 border-red-200 p-4 rounded-xl cursor-pointer text-sm font-bold hover:bg-red-50 hover:border-red-300 transition-all shadow-sm"
                   >
                     <FontAwesomeIcon icon={faTimes} className="text-lg" /> REJECT

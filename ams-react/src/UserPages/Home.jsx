@@ -1,9 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
+import api from '../api/axiosConfig';
 
 export default function Home({ onCardClick, username }) {
+    const [counts, setCounts] = useState({ total: 14, available: 4 });
+
+    useEffect(() => {
+        const fetchCounts = async () => {
+            try {
+                const response = await api.get('get_rooms.php');
+                if (response.data.success && Array.isArray(response.data.rooms)) {
+                    const total = response.data.rooms.length;
+                    const available = response.data.rooms.filter(r => r.status && r.status.toLowerCase() === 'vacant').length;
+                    setCounts({ total, available });
+                }
+            } catch (error) {
+                console.error("Failed to fetch room counts", error);
+            }
+        };
+        fetchCounts();
+    }, []);
+
     return (
         <div className="w-full min-h-[calc(100vh-76px)] relative flex items-center justify-start overflow-hidden box-border">
             
@@ -41,8 +60,8 @@ export default function Home({ onCardClick, username }) {
 
                     <div className="pt-4 flex flex-wrap gap-4 items-center justify-between border-t border-white/10 mt-2">
                         <div className="flex space-x-4 text-xs font-semibold text-white/80">
-                            <span>• 14 Total Units</span>
-                            <span className="text-emerald-400">• 4 Available Rooms</span>
+                            <span>• {counts.total} Total Units</span>
+                            <span className="text-emerald-400">• {counts.available} Available Rooms</span>
                         </div>
                         
                         <button

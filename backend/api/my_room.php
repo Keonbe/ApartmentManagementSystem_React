@@ -18,7 +18,7 @@ if (empty($user_id)) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT id, room_name, monthly_rent, months_of_rent, status, created_at, occupants FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT id, room_name, monthly_rent, months_of_rent, status, created_at, occupants, rejection_reason FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();

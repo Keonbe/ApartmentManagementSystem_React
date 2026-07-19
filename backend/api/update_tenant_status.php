@@ -21,14 +21,21 @@ if (!verify_admin($conn, $admin_id)) {
 $input = json_decode(file_get_contents("php://input"), true);
 $id = $input['id'] ?? 0;
 $status = $input['status'] ?? '';
+$rejection_reason = $input['rejection_reason'] ?? null;
 
 if ($id > 0 && !empty($status)) {
     // Start transaction to ensure data integrity
     $conn->begin_transaction();
     try {
-        $stmt = $conn->prepare("UPDATE rent_applications SET status = ? WHERE id = ?");
-        $stmt->bind_param("si", $status, $id);
+        if ($status === 'Rejected' || $status === 'Declined') {
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ?");
+            $stmt->bind_param("ssi", $status, $rejection_reason, $id);
+        } else {
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ?");
+            $stmt->bind_param("si", $status, $id);
+        }
         $stmt->execute();
+        $stmt->close();
         
         if ($status === 'Approved') {
             // Get application details to update the room and generate invoice
