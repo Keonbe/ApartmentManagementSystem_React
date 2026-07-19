@@ -683,7 +683,7 @@ export default function RentApplication() {
                 isOpen={showSuccessModal} 
                 onClose={() => {
                     setShowSuccessModal(false);
-                    navigate('/home');
+                    navigate('/track-application');
                 }} 
                 message="Application Submitted Successfully" 
             />

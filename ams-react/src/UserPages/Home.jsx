@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { faArrowRight, faCircleNotch } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from '../api/axiosConfig';
 
@@ -25,7 +25,7 @@ export default function Home({ onCardClick, username }) {
 
     return (
         <div className="w-full min-h-[calc(100vh-76px)] relative flex items-center justify-start overflow-hidden box-border">
-            
+
             {/*Full Bleed Background Image Asset*/}
             <div className="absolute inset-0 z-0">
                 <img
@@ -40,11 +40,11 @@ export default function Home({ onCardClick, username }) {
             {/*Clean Floating Content Panel Layout*/}
             <div className="w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">
                 <div className="max-w-2xl space-y-6 bg-slate-900/40 backdrop-blur-md p-8 md:p-10 rounded-3xl border border-white/10 shadow-2xl">
-                    
+
                     <span className="text-[10px] tracking-widest uppercase font-bold px-3 py-1.5 rounded-lg bg-[#6366f1] text-white inline-block select-none shadow-sm">
                         Premium Rental Property
                     </span>
-                    
+
                     <div className="space-y-2">
                         <h1 className="text-4xl md:text-5xl font-sans font-extrabold m-0 text-white tracking-tight leading-tight">
                             {username ? `Welcome Back, ${username}` : "Renting, Made Easy"}
@@ -63,7 +63,7 @@ export default function Home({ onCardClick, username }) {
                             <span>• {counts.total} Total Units</span>
                             <span className="text-emerald-400">• {counts.available} Available Rooms</span>
                         </div>
-                        
+
                         <button
                             onClick={onCardClick}
                             className="bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-bold px-6 py-3 rounded-xl text-xs transition-all duration-200 shadow-lg shadow-emerald-950/30 border-0 cursor-pointer flex items-center space-x-2"
