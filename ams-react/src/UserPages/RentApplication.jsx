@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle, faFilePdf, faEye, faTimes, faUndo } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
@@ -67,6 +67,10 @@ export default function RentApplication() {
     const [isDraggingIdBack, setIsDraggingIdBack] = useState(false);
     const [isDraggingNbi, setIsDraggingNbi] = useState(false);
 
+    //1.PDFModalViewerState
+    const [pdfModalUrl, setPdfModalUrl] = useState(null);
+    const [pdfModalTitle, setPdfModalUrlTitle] = useState('PDF Viewer');
+
     const [agreePrivacy, setAgreePrivacy] = useState(false);
     const [showTermsModal, setShowTermsModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -76,7 +80,7 @@ export default function RentApplication() {
     const validateFile = (file) => {
         if (!file) return false;
 
-        const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+        const maxSizeBytes = 10 * 1024 * 1024; //10MB
         if (file.size > maxSizeBytes) {
             alert(`File "${file.name}" exceeds the 10MB size limit. Please upload a smaller file.`);
             return false;
@@ -133,10 +137,26 @@ export default function RentApplication() {
         if (!isNaN(num) && num >= 1 && num <= 4) setOccupants(num);
     };
 
+    //2.LimitLeaseMonthsToMax24Months
     const handleMonthsInput = (e) => {
         if (isReadOnly) return;
         const value = e.target.value;
-        if (value === '' || /^[0-9]\d*$/.test(value)) setMonthsOfRent(value);
+        if (value === '') { 
+            setMonthsOfRent(''); 
+            return; 
+        }
+        const num = parseInt(value, 10);
+        if (!isNaN(num)) {
+            if (num > 24) setMonthsOfRent(24);
+            else if (num < 1) setMonthsOfRent(1);
+            else setMonthsOfRent(num);
+        }
+    };
+
+    const openPdfPreview = (file, title) => {
+        const url = URL.createObjectURL(file);
+        setPdfModalUrl(url);
+        setPdfModalUrlTitle(title);
     };
 
     const handleFormSubmit = async (e) => {
@@ -340,12 +360,18 @@ export default function RentApplication() {
                                     required
                                 />
                             </div>
+                            {/*3.MonthsOfRentInputLimitedTo24Months*/}
                             <div className="flex flex-col space-y-1.5">
-                                <label className="text-sm font-bold text-slate-700">Months of Rent</label>
+                                <label className="text-sm font-bold text-slate-700 flex justify-between">
+                                    <span>Months of Rent</span>
+                                    <span className="text-xs font-normal text-slate-400">(Max 24 months / 2 years)</span>
+                                </label>
                                 <input
-                                    type="text"
+                                    type="number"
                                     inputMode="numeric"
-                                    placeholder="6 Months"
+                                    min="1"
+                                    max="24"
+                                    placeholder="e.g. 6 (Max 24)"
                                     value={monthsOfRent}
                                     disabled={isReadOnly}
                                     onChange={handleMonthsInput}
@@ -389,6 +415,7 @@ export default function RentApplication() {
                         </div>
                     </div>
 
+                    {/*4.EnhancedVerificationDocumentsUploadSection*/}
                     <div className="space-y-4">
                         <div className="border-b border-slate-100 pb-2">
                             <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Verification Documents</h3>
@@ -403,6 +430,7 @@ export default function RentApplication() {
                         ) : (
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/*ValidIDFrontUploadCard*/}
                                     <div className="flex flex-col space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Valid ID Card (Front Side)</label>
                                         <div
@@ -416,7 +444,7 @@ export default function RentApplication() {
                                                     if (validateFile(file)) setValidIdFrontFile(file);
                                                 }
                                             }}
-                                            className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdFront ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                            className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingIdFront ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                         >
                                             {!validIdFrontFile ? (
                                                 <>
@@ -431,8 +459,8 @@ export default function RentApplication() {
                                                         }}
                                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                     />
-                                                    <div className="space-y-1 pointer-events-none p-2">
-                                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                    <div className="space-y-2 pointer-events-none p-2">
+                                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
                                                         <p className="text-xs font-medium text-slate-700 m-0">Drop ID card front view here, or <span className="text-indigo-600 font-bold">browse</span></p>
                                                         {editApp?.valid_id_front_path && (
                                                             <p className="text-[10px] text-emerald-600 font-bold m-0 mt-1">✓ Keeps: {editApp.valid_id_front_path.split('/').pop()}</p>
@@ -440,23 +468,30 @@ export default function RentApplication() {
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="space-y-2 flex flex-col items-center w-full z-10">
+                                                <div className="space-y-3 flex flex-col items-center w-full z-10 p-2">
                                                     {validIdFrontFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(validIdFrontFile.name) ? (
                                                         <img 
                                                             src={URL.createObjectURL(validIdFrontFile)} 
                                                             alt="Valid ID Front Preview" 
-                                                            className="w-24 h-16 object-cover rounded border border-slate-200"
+                                                            className="w-full max-w-[280px] h-36 object-contain rounded-xl border border-slate-200 bg-white shadow-sm"
                                                         />
                                                     ) : (
-                                                        <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
-                                                            PDF
+                                                        <div className="w-full max-w-[280px] h-28 bg-indigo-50 flex flex-col items-center justify-center rounded-xl border border-indigo-200 text-indigo-600 gap-2">
+                                                            <FontAwesomeIcon icon={faFilePdf} className="text-3xl" />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openPdfPreview(validIdFrontFile, 'Valid ID Front PDF')}
+                                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow flex items-center gap-1.5"
+                                                            >
+                                                                <FontAwesomeIcon icon={faEye} /> View PDF Document
+                                                            </button>
                                                         </div>
                                                     )}
-                                                    <p className="text-[11px] font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdFrontFile.name}</p>
+                                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[240px]">{validIdFrontFile.name}</p>
                                                     <button
                                                         type="button"
                                                         onClick={() => setValidIdFrontFile(null)}
-                                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow-sm"
+                                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-1.5 rounded-xl border-0 cursor-pointer transition-colors shadow-sm"
                                                     >
                                                         Remove / Retake
                                                     </button>
@@ -465,6 +500,7 @@ export default function RentApplication() {
                                         </div>
                                     </div>
 
+                                    {/*ValidIDBackUploadCard*/}
                                     <div className="flex flex-col space-y-2">
                                         <label className="text-sm font-bold text-slate-700">Valid ID Card (Back Side)</label>
                                         <div
@@ -478,7 +514,7 @@ export default function RentApplication() {
                                                     if (validateFile(file)) setValidIdBackFile(file);
                                                 }
                                             }}
-                                            className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingIdBack ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                            className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingIdBack ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                         >
                                             {!validIdBackFile ? (
                                                 <>
@@ -493,8 +529,8 @@ export default function RentApplication() {
                                                         }}
                                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                     />
-                                                    <div className="space-y-1 pointer-events-none p-2">
-                                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                    <div className="space-y-2 pointer-events-none p-2">
+                                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
                                                         <p className="text-xs font-medium text-slate-700 m-0">Drop ID card back view here, or <span className="text-indigo-600 font-bold">browse</span></p>
                                                         {editApp?.valid_id_back_path && (
                                                             <p className="text-[10px] text-emerald-600 font-bold m-0 mt-1">✓ Keeps: {editApp.valid_id_back_path.split('/').pop()}</p>
@@ -502,23 +538,30 @@ export default function RentApplication() {
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="space-y-2 flex flex-col items-center w-full z-10">
+                                                <div className="space-y-3 flex flex-col items-center w-full z-10 p-2">
                                                     {validIdBackFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(validIdBackFile.name) ? (
                                                         <img 
                                                             src={URL.createObjectURL(validIdBackFile)} 
                                                             alt="Valid ID Back Preview" 
-                                                            className="w-24 h-16 object-cover rounded border border-slate-200"
+                                                            className="w-full max-w-[280px] h-36 object-contain rounded-xl border border-slate-200 bg-white shadow-sm"
                                                         />
                                                     ) : (
-                                                        <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
-                                                            PDF
+                                                        <div className="w-full max-w-[280px] h-28 bg-indigo-50 flex flex-col items-center justify-center rounded-xl border border-indigo-200 text-indigo-600 gap-2">
+                                                            <FontAwesomeIcon icon={faFilePdf} className="text-3xl" />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openPdfPreview(validIdBackFile, 'Valid ID Back PDF')}
+                                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow flex items-center gap-1.5"
+                                                            >
+                                                                <FontAwesomeIcon icon={faEye} /> View PDF Document
+                                                            </button>
                                                         </div>
                                                     )}
-                                                    <p className="text-[11px] font-bold text-slate-800 m-0 truncate max-w-[200px]">{validIdBackFile.name}</p>
+                                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[240px]">{validIdBackFile.name}</p>
                                                     <button
                                                         type="button"
                                                         onClick={() => setValidIdBackFile(null)}
-                                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow-sm"
+                                                        className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-1.5 rounded-xl border-0 cursor-pointer transition-colors shadow-sm"
                                                     >
                                                         Remove / Retake
                                                     </button>
@@ -528,6 +571,7 @@ export default function RentApplication() {
                                     </div>
                                 </div>
 
+                                {/*NBIClearanceUploadCard*/}
                                 <div className="flex flex-col space-y-2">
                                     <label className="text-sm font-bold text-slate-700">NBI Clearance Form Document Attachment</label>
                                     <div
@@ -541,7 +585,7 @@ export default function RentApplication() {
                                                 if (validateFile(file)) setNbiFile(file);
                                             }
                                         }}
-                                        className={`border-2 border-dashed rounded-2xl p-4 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[120px] ${isDraggingNbi ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                        className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingNbi ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                     >
                                         {!nbiFile ? (
                                             <>
@@ -556,8 +600,8 @@ export default function RentApplication() {
                                                     }}
                                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                                 />
-                                                <div className="space-y-1 pointer-events-none p-2">
-                                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-2xl text-slate-400" />
+                                                <div className="space-y-2 pointer-events-none p-2">
+                                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
                                                     <p className="text-xs font-medium text-slate-700 m-0">Drop your valid NBI clearance form here, or <span className="text-indigo-600 font-bold">browse</span></p>
                                                     {editApp?.nbi_clearance_path && (
                                                         <p className="text-[10px] text-emerald-600 font-bold m-0 mt-1">✓ Keeps: {editApp.nbi_clearance_path.split('/').pop()}</p>
@@ -565,23 +609,30 @@ export default function RentApplication() {
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="space-y-2 flex flex-col items-center w-full z-10">
+                                            <div className="space-y-3 flex flex-col items-center w-full z-10 p-2">
                                                 {nbiFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(nbiFile.name) ? (
                                                     <img 
                                                         src={URL.createObjectURL(nbiFile)} 
                                                         alt="NBI Clearance Preview" 
-                                                        className="w-24 h-16 object-cover rounded border border-slate-200"
+                                                        className="w-full max-w-[360px] h-40 object-contain rounded-xl border border-slate-200 bg-white shadow-sm"
                                                     />
                                                 ) : (
-                                                    <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
-                                                        PDF
+                                                    <div className="w-full max-w-[360px] h-32 bg-indigo-50 flex flex-col items-center justify-center rounded-xl border border-indigo-200 text-indigo-600 gap-2">
+                                                        <FontAwesomeIcon icon={faFilePdf} className="text-4xl text-rose-500" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openPdfPreview(nbiFile, 'NBI Clearance PDF Document')}
+                                                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer transition-colors shadow flex items-center gap-2"
+                                                        >
+                                                            <FontAwesomeIcon icon={faEye} /> View PDF Document
+                                                        </button>
                                                     </div>
                                                 )}
-                                                <p className="text-[11px] font-bold text-slate-800 m-0 truncate max-w-[200px]">{nbiFile.name}</p>
+                                                <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[300px]">{nbiFile.name}</p>
                                                 <button
                                                     type="button"
                                                     onClick={() => setNbiFile(null)}
-                                                    className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer transition-colors shadow-sm"
+                                                    className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-1.5 rounded-xl border-0 cursor-pointer transition-colors shadow-sm"
                                                 >
                                                     Remove / Retake
                                                 </button>
@@ -637,6 +688,48 @@ export default function RentApplication() {
 
                 </form>
             </div>
+
+            {/*5.PDFPreviewModalOverlay*/}
+            {pdfModalUrl && (
+                <div 
+                    onClick={() => setPdfModalUrl(null)}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
+                >
+                    <div 
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden"
+                    >
+                        <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                            <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
+                                <FontAwesomeIcon icon={faFilePdf} className="text-rose-500" />
+                                {pdfModalTitle}
+                            </h3>
+                            <button 
+                                onClick={() => setPdfModalUrl(null)}
+                                className="text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-lg"
+                            >
+                                <FontAwesomeIcon icon={faTimes} />
+                            </button>
+                        </div>
+                        <div className="flex-1 w-full bg-slate-100 p-2">
+                            <iframe 
+                                src={pdfModalUrl} 
+                                title={pdfModalTitle} 
+                                className="w-full h-full border-0 rounded-xl bg-white"
+                            ></iframe>
+                        </div>
+                        <div className="p-3 border-t border-slate-200 flex justify-end bg-slate-50">
+                            <button
+                                type="button"
+                                onClick={() => setPdfModalUrl(null)}
+                                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-5 py-2 rounded-xl text-xs border-0 cursor-pointer transition-colors"
+                            >
+                                Close PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showTermsModal && (
                 <div 
