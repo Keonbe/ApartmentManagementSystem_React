@@ -28,7 +28,7 @@ if (!$notification_id || !in_array($action, ['approve', 'reject'])) {
 }
 
 try {
-    // 1. Fetch notification details
+    // 1. Fetch the original notification details
     $stmt = $conn->prepare("SELECT * FROM notifications WHERE id = ?");
     $stmt->bind_param("i", $notification_id);
     $stmt->execute();
@@ -42,9 +42,9 @@ try {
     $target_user_id = $notif['user_id'];
     $type = $notif['type'];
 
+    // 2. Only perform database updates if APPROVED
     if ($action === 'approve') {
         if ($type === 'occupancy_request') {
-            // Extract proposed occupants from details/message or stored value
             $new_occupants = (int) $notif['metadata_value']; 
             
             $updateStmt = $conn->prepare("UPDATE rent_applications SET occupants = ? WHERE user_id = ? AND status = 'Approved'");
@@ -66,18 +66,19 @@ try {
         }
     }
 
-    // 2. Mark notification as read / resolved
+    // 3. Mark the original Admin notification as resolved
     $markStmt = $conn->prepare("UPDATE notifications SET is_read = 1, status = ? WHERE id = ?");
     $statusText = ($action === 'approve') ? 'Approved' : 'Rejected';
     $markStmt->bind_param("si", $statusText, $notification_id);
     $markStmt->execute();
     $markStmt->close();
 
-    // 3. Notify Tenant of decision
+    // 4. Notify Tenant of decision 
+    // FIX APPLIED HERE: We explicitly insert 'Resolved' into the status column so it doesn't trigger the action buttons again.
     $title = ($action === 'approve') ? "Request Approved" : "Request Declined";
     $msg = "Your " . str_replace('_', ' ', $type) . " has been " . strtolower($statusText) . " by management.";
     
-    $userNotif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, is_read) VALUES (?, ?, ?, ?, 0)");
+    $userNotif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, ?, ?, ?, 'Resolved', 0)");
     $userNotif->bind_param("isss", $target_user_id, $type, $title, $msg);
     $userNotif->execute();
     $userNotif->close();

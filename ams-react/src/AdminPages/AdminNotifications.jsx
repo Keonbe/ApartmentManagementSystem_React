@@ -107,19 +107,26 @@ const AdminNotifications = () => {
   };
 
   const handleMarkAllRead = async () => {
-    if (!loggedInUser.id) return;
     try {
-      await api.post('mark_notification_read.php', { userId: loggedInUser.id });
-      fetchNotifications();
-    } catch(e) {}
+      const res = await api.post('mark_notification_read.php', { isAdmin: true });
+      if (res.data.success) {
+        fetchNotifications();
+      }
+    } catch(e) {
+      console.error("Error marking all read:", e);
+    }
   };
 
   const handleClearAll = async () => {
-    if (!loggedInUser.id) return;
+    if (!window.confirm("Are you sure you want to clear all processed notifications?")) return;
     try {
-      await api.post('delete_notification.php', { userId: loggedInUser.id });
-      fetchNotifications();
-    } catch(e) {}
+      const res = await api.post('delete_notification.php', { isAdmin: true });
+      if (res.data.success) {
+        fetchNotifications();
+      }
+    } catch(e) {
+      console.error("Error clearing notifications:", e);
+    }
   };
 
   const handleToggleRead = async (id) => {
