@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faParking, faWrench, faVideo, faListAlt, faBullhorn, faHistory } from '@fortawesome/free-solid-svg-icons';
+import { faFileInvoiceDollar, faParking, faWrench, faVideo, faListAlt, faBullhorn, faHistory, faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
+import api from '../api/axiosConfig';
 
 export default function Services() {
     const navigate = useNavigate();
 
-    const serviceList = [
+    //1.StaticBaseServicesListMappedToSystemSettingKeys
+    const allServices = [
         {
             id: 1,
+            key: 'service_pay_bills_active',
             title: 'Bill Payments',
             description: 'View outstanding apartment utility statement accounts and settle monthly balances securely.',
             icon: faFileInvoiceDollar,
@@ -17,6 +20,7 @@ export default function Services() {
         },
         {
             id: 2,
+            key: 'service_parking_active',
             title: 'Parking Reservation',
             description: 'Check slot availability charts and reserve motorcycle or vehicle parking spaces.',
             icon: faParking,
@@ -25,6 +29,7 @@ export default function Services() {
         },
         {
             id: 3,
+            key: 'service_maintenance_active',
             title: 'Maintenance Request',
             description: 'Submit technical service tickets for unit repairs, electrical fixtures, or plumbing issues.',
             icon: faWrench,
@@ -33,6 +38,7 @@ export default function Services() {
         },
         {
             id: 4,
+            key: 'service_cctv_active',
             title: 'CCTV Footage Request',
             description: 'File formal security review logs to request administrative access to corridor camera recording archives.',
             icon: faVideo,
@@ -41,6 +47,7 @@ export default function Services() {
         },
         {
             id: 5,
+            key: null, //AlwaysActiveSystemUtility
             title: 'My Requests',
             description: 'Track the status and timeline of all your submitted service, parking, and CCTV requests.',
             icon: faListAlt,
@@ -49,6 +56,7 @@ export default function Services() {
         },
         {
             id: 6,
+            key: null, //AlwaysActiveSystemUtility
             title: 'Announcements',
             description: 'Read important memos, scheduled maintenance notices, and general building updates.',
             icon: faBullhorn,
@@ -57,6 +65,7 @@ export default function Services() {
         },
         {
             id: 7,
+            key: null, //AlwaysActiveSystemUtility
             title: 'Payment History',
             description: 'Review your past monthly billing invoices and download official payment receipts.',
             icon: faHistory,
@@ -65,11 +74,53 @@ export default function Services() {
         },
     ];
 
+    const [visibleServices, setVisibleServices] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    //2.FetchActiveSystemSettingsOnLoad
+    useEffect(() => {
+        const loadServiceVisibility = async () => {
+            try {
+                const res = await api.get('/get_system_settings.php');
+                if (res.data.success && res.data.settings) {
+                    const settings = res.data.settings;
+                    
+                    //FilterOnlyEnabledServices
+                    const filtered = allServices.filter(s => {
+                        if (!s.key) return true; //AlwaysShowUtilitiesLikeHistoryAndMyRequests
+                        return settings[s.key] === undefined || settings[s.key] === 'true' || settings[s.key] === true;
+                    });
+                    setVisibleServices(filtered);
+                } else {
+                    setVisibleServices(allServices);
+                }
+            } catch (err) {
+                console.error("Failed to load modular service states:", err);
+                setVisibleServices(allServices);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadServiceVisibility();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50">
+                <div className="flex flex-col items-center space-y-3 text-slate-500">
+                    <FontAwesomeIcon icon={faHourglassHalf} className="text-3xl text-indigo-500 animate-spin" />
+                    <p className="text-sm font-semibold m-0">Loading Available Services...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-[1400px] space-y-8 flex flex-col justify-start text-left">
 
-                {/*Page Title*/}
+                {/*PageTitle*/}
                 <div className="border-b border-slate-200 pb-4">
                     <h1
                         className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
@@ -82,14 +133,14 @@ export default function Services() {
                     </p>
                 </div>
 
-                {/*Services Grid*/}
+                {/*ServicesGrid*/}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
-                    {serviceList.map((service) => (
+                    {visibleServices.map((service) => (
                         <div
                             key={service.id}
                             className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col sm:flex-row items-center sm:items-stretch space-y-4 sm:space-y-0 sm:space-x-6 hover:shadow-md hover:border-slate-200/80 transition-all duration-200 group"
                         >
-                            {/*Left Rounded Icon Box*/}
+                            {/*LeftRoundedIconBox*/}
                             <div className="w-24 h-24 sm:w-32 sm:h-auto rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm bg-slate-100 transition-transform duration-300 group-hover:scale-105">
                                 <FontAwesomeIcon
                                     icon={service.icon}
@@ -97,7 +148,7 @@ export default function Services() {
                                 />
                             </div>
 
-                            {/*Right Metadata Row*/}
+                            {/*RightMetadataRow*/}
                             <div className="flex flex-col justify-between flex-grow text-center sm:text-left min-w-0 space-y-4">
                                 <div className="space-y-1">
                                     <h2
@@ -111,7 +162,7 @@ export default function Services() {
                                     </p>
                                 </div>
 
-                                {/*Action Trigger Button Layout*/}
+                                {/*ActionTriggerButtonLayout*/}
                                 <div className="w-full sm:w-auto self-center sm:self-start">
                                     <button
                                         onClick={() => navigate(service.path)}
