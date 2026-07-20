@@ -90,30 +90,32 @@ export default function MyRoom() {
         setOccupants(val);
     };
 
-    const handleUpdateOccupants = async (e) => {
-        e.preventDefault();
+const handleUpdateOccupants = async (e) => {
+    e.preventDefault();
+    if (!occupants || occupants < 1 || occupants > 4) {
+        alert("Please enter a valid number of occupants between 1 and 4.");
+        return;
+    }
 
-        if (!occupants || occupants < 1 || occupants > 4) {
-            alert("Please enter a valid number of occupants between 1 and 4.");
-            return;
+    try {
+        const res = await api.post('/update_occupants.php', {
+            email: activeEmail,
+            occupants: occupants
+        });
+
+        if (res.data.success) {
+            // CHANGE THIS: Do not imply immediate success. 
+            // Instead, inform them the request is sent for review.
+            alert("Your request to change occupants has been sent to administration for verification. You will be notified once reviewed.");
+            // Do NOT use window.location.reload() if it makes it look like it's done
+        } else {
+            alert(`Error: ${res.data.message}`);
         }
-
-        try {
-            const res = await api.post('/update_occupants.php', {
-                email: activeEmail,
-                occupants: occupants
-            });
-
-            if (res.data.success) {
-                alert(`Successfully updated your room to ${occupants} occupants.`);
-            } else {
-                alert(`Error: ${res.data.message}`);
-            }
-        } catch (err) {
-            console.error("Failed to update occupants:", err);
-            alert("A network error occurred while updating.");
-        }
-    };
+    } catch (err) {
+        console.error("Failed to update occupants:", err);
+        alert("A network error occurred while updating.");
+    }
+};
 
     const handleSeeContract = () => {
         navigate('/view-contract');
