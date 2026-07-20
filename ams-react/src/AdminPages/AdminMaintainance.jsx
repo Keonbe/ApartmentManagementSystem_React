@@ -83,7 +83,6 @@ const AdminMaintainance = () => {
             else normIssueType = r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1);
           }
 
-          // Strict string normalizations matching conditional formatting tags exactly
           let displayStatus = 'Pending';
           if (r.status) {
             const lowerStatus = r.status.toLowerCase();
@@ -92,6 +91,20 @@ const AdminMaintainance = () => {
             else if (lowerStatus === 'completed') displayStatus = 'Completed';
             else if (lowerStatus === 'approved') displayStatus = 'Approved';
             else displayStatus = r.status;
+          }
+
+          // URL & Video Processing Logic
+          let mediaFiles = [];
+          if (r.attachment_path) {
+            const cleanPath = r.attachment_path.replace(/^(\.\.\/)+/, '');
+            const baseUrl = cleanPath.startsWith('http') 
+              ? cleanPath 
+              : `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`; // CHANGE THIS IF YOUR FOLDER IS DIFFERENT
+            
+            const fullUrl = encodeURI(baseUrl);
+            const isVid = /\.(mp4|webm|ogg|mov|m4v)$/i.test(cleanPath);
+            
+            mediaFiles = [{ url: fullUrl, name: 'Attachment', isVideo: isVid }];
           }
 
           return {
@@ -109,7 +122,7 @@ const AdminMaintainance = () => {
             dateResolved: null,
             timeResolved: null,
             assignee: r.assigned_to || null,
-            photos: r.attachment_path ? [{ url: r.attachment_path, name: 'Attachment' }] : [],
+            photos: mediaFiles,
             cost: r.estimated_cost ? parseFloat(r.estimated_cost) : null,
             tenantResponsible: Number(r.tenant_responsible) === 1,
             budgetCategory: normIssueType,
@@ -184,7 +197,7 @@ const AdminMaintainance = () => {
   const handleSimulatePhotoUpload = () => {
     setNewReq(prev => ({
       ...prev,
-      photos: [...prev.photos, { url: `simulated-photo-${prev.photos.length + 1}.jpg`, name: `photo_${prev.photos.length + 1}.jpg` }]
+      photos: [...prev.photos, { url: `simulated-photo-${prev.photos.length + 1}.jpg`, name: `photo_${prev.photos.length + 1}.jpg`, isVideo: false }]
     }));
   };
 
@@ -710,11 +723,23 @@ const AdminMaintainance = () => {
                 
                 {selectedReq.photos?.length > 0 && (
                   <div>
-                    <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 m-0">Attached Photos</h4>
-                    <div className="flex gap-3">
+                    <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 m-0">Attached Media</h4>
+                    <div className="flex gap-3 flex-wrap">
                       {selectedReq.photos.map((p, idx) => (
-                        <div key={idx} className="w-20 h-20 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center cursor-pointer hover:border-indigo-400 transition-colors" title={p.name}>
-                          <FontAwesomeIcon icon={faImage} className="text-slate-400 text-2xl" />
+                        <div key={idx} className="relative group">
+                          {p.isVideo ? (
+                            <div className="w-64 h-36 bg-slate-900 rounded-lg overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center">
+                              <video controls className="w-full h-full object-contain" preload="metadata">
+                                <source src={p.url} type="video/mp4" />
+                                <source src={p.url} type="video/webm" />
+                                Your browser does not support playing this video format.
+                              </video>
+                            </div>
+                          ) : (
+                            <a href={p.url} target="_blank" rel="noopener noreferrer" className="w-24 h-24 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden flex items-center justify-center hover:border-indigo-500 transition-colors shadow-sm block" title={p.name}>
+                              <img src={p.url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" onError={(e) => { e.target.onerror = null; e.target.parentElement.innerHTML = '<span class="text-[10px] text-slate-400 p-1 text-center">Unable to load image</span>'; }} />
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -743,11 +768,9 @@ const AdminMaintainance = () => {
                 <div>
                   <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3 m-0">Status Timeline</h4>
                   <div className="space-y-4 relative before:absolute before:inset-0 before:ml-3 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                    {/* FIXED: Fallback array fallback wrapper injected to prevent crash errors */}
                     {(selectedReq.statusHistory || []).map((sh, i) => (
                       <div key={i} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                         <div className="flex items-center justify-center w-6 h-6 rounded-full border border-white bg-slate-200 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-sm z-10">
-                          {/* FIXED: Safe fallback method chaining normalizations */}
                           <FontAwesomeIcon icon={(sh.status || '').toLowerCase() === 'completed' ? faCheckCircle : (sh.status || '').toLowerCase() === 'in progress' ? faWrench : (sh.status || '').toLowerCase() === 'approved' ? faGavel : (sh.status || '').toLowerCase() === 'rejected' ? faTimes : faClock} className={`text-[10px] ${(sh.status || '').toLowerCase() === 'completed' ? 'text-emerald-500' : (sh.status || '').toLowerCase() === 'in progress' ? 'text-indigo-500' : (sh.status || '').toLowerCase() === 'approved' ? 'text-emerald-500' : (sh.status || '').toLowerCase() === 'rejected' ? 'text-red-500' : 'text-amber-500'}`} />
                         </div>
                         <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-lg border border-slate-100 bg-white shadow-sm">
