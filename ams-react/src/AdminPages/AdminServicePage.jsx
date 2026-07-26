@@ -105,12 +105,13 @@ const AdminServicePage = () => {
       if (cctvRes.data.success) {
         setCctvRequests(cctvRes.data.requests.map(r => ({
           id: r.id,
-          tenant: r.tenant_name || 'Unknown',
-          unit: r.room_name || '—',
-          incidentDate: r.incident_date,
-          time: r.incident_time || '',
-          location: r.location_details,
-          reason: r.reason_request,
+          rawId: r.rawId || r.id,
+          tenant: r.tenant || r.tenant_name || 'Unknown',
+          unit: r.unit || r.room_name || '—',
+          incidentDate: r.incidentDate || r.incident_date,
+          time: r.time || r.incidentTime || r.incident_time || '',
+          location: r.location || r.location_details,
+          reason: r.reason || r.reason_request,
           status: r.status,
         })));
       }
@@ -118,16 +119,17 @@ const AdminServicePage = () => {
       if (parkingRes.data.success) {
         setParkingReservations(parkingRes.data.reservations.map(r => ({
           id: r.id,
-          tenant: r.tenant_name || 'Unknown',
-          unit: r.room_name || '—',
-          vehicleType: r.vehicle_type,
-          model: r.vehicle_model,
-          plate: r.plate_number,
+          rawId: r.rawId || r.id,
+          tenant: r.tenant || r.tenant_name || 'Unknown',
+          unit: r.unit || r.room_name || '—',
+          vehicleType: r.vehicleType || r.vehicle_type,
+          model: r.vehicleModel || r.vehicle_model,
+          plate: r.plateNumber || r.plate_number,
           transmission: r.transmission,
-          duration: r.duration_months,
-          totalCost: parseFloat(r.total_cost),
+          duration: r.durationMonths || r.duration_months,
+          totalCost: parseFloat(r.totalCost || r.total_cost || 0),
           status: r.status,
-          documentPath: r.document_path,
+          documentPath: r.documentPath || r.document_path,
         })));
       }
     } catch (err) {
@@ -168,10 +170,12 @@ const AdminServicePage = () => {
     }
   };
 
-  const handleCctvStatus = async (id, newStatus) => {
-    setCctvRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+  const handleCctvStatus = async (item, newStatus) => {
+    const rawId = typeof item === 'object' ? (item.rawId || item.id) : item;
+    const targetId = typeof item === 'object' ? item.id : item;
+    setCctvRequests(prev => prev.map(r => r.id === targetId ? { ...r, status: newStatus } : r));
     try {
-      const res = await api.post('update_cctv_status.php', { id, status: newStatus });
+      const res = await api.post('update_cctv_status.php', { rawId, status: newStatus });
       if (!res.data.success) {
         fetchData();
         alert('Failed to update CCTV status: ' + (res.data.message || 'Unknown error'));
@@ -182,10 +186,12 @@ const AdminServicePage = () => {
     }
   };
 
-  const handleParkingStatus = async (id, newStatus) => {
-    setParkingReservations(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+  const handleParkingStatus = async (item, newStatus) => {
+    const rawId = typeof item === 'object' ? (item.rawId || item.id) : item;
+    const targetId = typeof item === 'object' ? item.id : item;
+    setParkingReservations(prev => prev.map(r => r.id === targetId ? { ...r, status: newStatus } : r));
     try {
-      const res = await api.post('update_parking_status.php', { id, status: newStatus });
+      const res = await api.post('update_parking_status.php', { rawId, status: newStatus });
       if (!res.data.success) {
         fetchData();
         alert('Failed to update parking status: ' + (res.data.message || 'Unknown error'));

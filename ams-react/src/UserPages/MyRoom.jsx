@@ -29,6 +29,7 @@ export default function MyRoom() {
 
     const [occupants, setOccupants] = useState(2);
     const [expectedEnd, setExpectedEnd] = useState('');
+    const [daysUntilExpiration, setDaysUntilExpiration] = useState(null);
 
     useEffect(() => {
         const fetchMyRoom = async () => {
@@ -51,8 +52,10 @@ export default function MyRoom() {
                     nextMonth.setMonth(nextMonth.getMonth() + 1);
                     const dueDateString = nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-                    const endDate = new Date(creationDate);
-                    endDate.setMonth(endDate.getMonth() + parseInt(data.months_of_rent));
+                    const endDate = data.lease_end ? new Date(data.lease_end) : new Date(creationDate);
+                    if (!data.lease_end) {
+                        endDate.setMonth(endDate.getMonth() + parseInt(data.months_of_rent));
+                    }
 
                     setRoomDetails({
                         name: data.room_name,
@@ -62,6 +65,10 @@ export default function MyRoom() {
                         paymentDue: dueDateString,
                         status: data.status
                     });
+
+                    const diffTime = endDate.getTime() - new Date().getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    setDaysUntilExpiration(diffDays);
 
                     setExpectedEnd(endDate.toISOString().split('T')[0]);
 
@@ -245,6 +252,20 @@ export default function MyRoom() {
             </div>
 
             <div className="w-full max-w-6xl z-10 space-y-8 flex flex-col justify-start text-left">
+
+                {daysUntilExpiration !== null && daysUntilExpiration > 0 && daysUntilExpiration <= 30 && (
+                    <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-4 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 backdrop-blur-md">
+                        <div className="flex items-center space-x-3">
+                            <FontAwesomeIcon icon={faCalendarAlt} className="text-amber-400 text-2xl" />
+                            <div>
+                                <h4 className="font-bold text-amber-300 m-0 text-sm">Lease Expiring Soon!</h4>
+                                <p className="text-xs m-0 mt-0.5 text-amber-200/90">
+                                    Your current lease contract expires in <strong>{daysUntilExpiration} days</strong> ({expectedEnd}). Submit an extension to prevent service disruption.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="space-y-1">

@@ -14,72 +14,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    echo json_encode(["success" => false, "message" => "Forbidden"]);
     exit;
 }
 
 $input = json_decode(file_get_contents("php://input"), true);
-$id            = $input['id'] ?? null;
-$status        = $input['status'] ?? null;
-$assigned_to   = $input['assignedTo'] ?? null;
+$id = $input['id'] ?? null;
+$status = $input['status'] ?? null;
+$assigned_to = $input['assignedTo'] ?? null;
 $estimated_cost = isset($input['estimatedCost']) ? (float)$input['estimatedCost'] : null;
-$work_notes    = $input['workNotes'] ?? null;
-$tenant_responsible = isset($input['tenantResponsible']) ? (int)$input['tenantResponsible'] : null;
+$work_notes = $input['workNotes'] ?? null;
+$tenant_responsible = isset($input['tenantResponsible']) ? ((bool)$input['tenantResponsible'] ? 1 : 0) : 0;
 
-if (!$id) {
-    echo json_encode(["success" => false, "message" => "Maintenance request ID is required"]);
+if (!$id || !$status) {
+    echo json_encode(["success" => false, "message" => "Request ID and status are required."]);
     exit;
 }
 
-// Build dynamic SET clause based on what was provided
-$sets = [];
-$params = [];
-$types = '';
-
-if ($status !== null) {
-    $sets[] = "status = ?";
-    $params[] = $status;
-    $types .= 's';
-}
-if ($assigned_to !== null) {
-    $sets[] = "assigned_to = ?";
-    $params[] = $assigned_to;
-    $types .= 's';
-}
-if ($estimated_cost !== null) {
-    $sets[] = "estimated_cost = ?";
-    $params[] = $estimated_cost;
-    $types .= 'd';
-}
-if ($work_notes !== null) {
-    $sets[] = "work_notes = ?";
-    $params[] = $work_notes;
-    $types .= 's';
-}
-if ($tenant_responsible !== null) {
-    $sets[] = "tenant_responsible = ?";
-    $params[] = $tenant_responsible;
-    $types .= 'i';
-}
-
-if (empty($sets)) {
-    echo json_encode(["success" => false, "message" => "No fields to update"]);
-    exit;
-}
-
-$params[] = $id;
-$types .= 'i';
-
-$sql = "UPDATE maintenance_requests SET " . implode(', ', $sets) . " WHERE id = ?";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param($types, ...$params);
+$stmt = $conn->prepare("UPDATE maintenance_requests SET status = ?, assigned_to = ?, estimated_cost = ?, work_notes = ?, tenant_responsible = ? WHERE id = ?");
+$stmt->bind_param("ssdsii", $status, $assigned_to, $estimated_cost, $work_notes, $tenant_responsible, $id);
 
 if ($stmt->execute()) {
-    $action = $status ? "Updated Maintenance Status to $status" : "Updated Maintenance Details";
-    log_activity($conn, $admin_id, 'maintenance', $action, "Request ID: $id");
-    echo json_encode(["success" => true, "message" => "Maintenance request updated successfully"]);
+    log_activity($conn, $admin_id, 'maintenance', "Updated Maintenance Ticket #$id", "Status: $status, Assigned: $assigned_to");
+    echo json_encode(["success" => true, "message" => "Maintenance ticket updated successfully."]);
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to update: " . $stmt->error]);
+    echo json_encode(["success" => false, "message" => "Failed to update maintenance ticket", "error" => $stmt->error]);
 }
 
 $stmt->close();

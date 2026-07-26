@@ -8,6 +8,7 @@ export default function CctvRequest() {
     const [incidentTime, setIncidentTime] = useState('');
     const [locationDetails, setLocationDetails] = useState('');
     const [reasonRequest, setReasonRequest] = useState('');
+    const [privacyConsent, setPrivacyConsent] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const navigate = useNavigate();
 
@@ -145,11 +146,27 @@ export default function CctvRequest() {
                         />
                     </div>
 
+                    {/*Data Privacy Consent Checkbox*/}
+                    <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-start space-x-3">
+                        <input
+                            type="checkbox"
+                            id="privacyConsent"
+                            checked={privacyConsent}
+                            onChange={(e) => setPrivacyConsent(e.target.checked)}
+                            className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded cursor-pointer"
+                            required
+                        />
+                        <label htmlFor="privacyConsent" className="text-xs text-slate-600 cursor-pointer text-left leading-relaxed">
+                            I understand and agree that requested CCTV footage contains private data governed by the <strong>Philippine Data Privacy Act of 2012 (RA 10173)</strong>. I certify that this request is made for legitimate security or investigation purposes only.
+                        </label>
+                    </div>
+
                     {/*Submission Request Action Trigger Button Layout Area*/}
                     <div className="md:col-span-2 border-t border-slate-100 pt-6 flex justify-end">
                         <button
                             type="submit"
-                            className="w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer"
+                            disabled={!privacyConsent}
+                            className="w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer"
                         >
                             Submit Request
                         </button>

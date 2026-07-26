@@ -14,41 +14,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    echo json_encode(["success" => false, "message" => "Forbidden"]);
     exit;
 }
 
-try {
-    $stmt = $conn->prepare("
-        SELECT 
-            p.id,
-            p.user_id,
-            p.vehicle_type,
-            p.vehicle_model,
-            p.plate_number,
-            p.status,
-            p.transmission,
-            p.duration_months,
-            p.total_cost,
-            p.document_path,
-            p.created_at,
-            CONCAT(u.first_name, ' ', u.last_name) AS tenant_name,
-            ra.room_name
-        FROM parking_reservations p
-        LEFT JOIN users u ON p.user_id = u.id
-        LEFT JOIN rent_applications ra ON ra.user_id = p.user_id AND ra.status = 'Approved'
-        ORDER BY p.created_at DESC
-    ");
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $reservations = $result->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+$query = "SELECT p.*, u.first_name, u.last_name, u.contact_no, r.id as room_name 
+          FROM parking_reservations p 
+          LEFT JOIN users u ON p.user_id = u.id 
+          LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved'
+          LEFT JOIN rooms r ON ra.room_name = r.id 
+          ORDER BY p.created_at DESC";
 
-    echo json_encode(['success' => true, 'reservations' => $reservations]);
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+$result = $conn->query($query);
+$reservations = [];
+
+if ($result) {
+    while ($row = $result->fetch_assoc()) {
+        $reservations[] = [
+            'id' => 'PRK-' . str_pad($row['id'], 3, '0', STR_PAD_LEFT),
+            'rawId' => $row['id'],
+            'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'unit' => $row['room_name'] ?? 'N/A',
+            'phone' => $row['contact_no'] ?? '',
+            'vehicleType' => $row['vehicle_type'],
+            'vehicleModel' => $row['vehicle_model'],
+            'plateNumber' => $row['plate_number'],
+            'transmission' => $row['transmission'] ?? 'Automatic',
+            'durationMonths' => (int)$row['duration_months'],
+            'totalCost' => (float)$row['total_cost'],
+            'documentPath' => $row['document_path'],
+            'status' => $row['status'] ?? 'Pending',
+            'dateSubmitted' => date('Y-m-d', strtotime($row['created_at']))
+        ];
+    }
 }
 
+echo json_encode(["success" => true, "reservations" => $reservations]);
 $conn->close();
 ?>

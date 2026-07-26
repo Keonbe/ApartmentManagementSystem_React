@@ -70,6 +70,9 @@ export default function PayBills() {
         }
     };
 
+    const [paymentReference, setPaymentReference] = useState('');
+    const [proofFile, setProofFile] = useState(null);
+
     const handlePaymentExecution = async (e) => {
         e.preventDefault();
         if (!billDetails.invoiceId) {
@@ -77,26 +80,36 @@ export default function PayBills() {
             return;
         }
 
-        if (currentMethodObj.isDigital) {
-            navigate('/upload-payment', { 
-                state: { 
-                    invoiceId: billDetails.invoiceId, 
-                    amount: totalAmount, 
-                    paymentMethod: currentMethodObj.label,
-                    returnUrl: '/pay-bills'
-                } 
-            });
-            return;
+        let proofPath = null;
+        if (proofFile) {
+            const formData = new FormData();
+            formData.append('invoice_id', billDetails.invoiceId);
+            formData.append('payment_reference', paymentReference);
+            formData.append('payment_method', currentMethodObj.label);
+            formData.append('proof', proofFile);
+
+            try {
+                const uploadRes = await api.post('/upload_payment_proof.php', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                if (uploadRes.data.success) {
+                    proofPath = uploadRes.data.proof_path;
+                }
+            } catch (err) {
+                console.error("Proof upload failed:", err);
+            }
         }
 
         try {
             const res = await api.post("/pay_bill.php", {
                 invoiceId: billDetails.invoiceId,
-                paymentMethod: currentMethodObj.label
+                paymentMethod: currentMethodObj.label,
+                paymentReference: paymentReference,
+                proofOfPaymentPath: proofPath
             });
 
             if (res.data.success) {
-                alert(`Payment successful via ${currentMethodObj.label}.`);
+                alert(`Payment submitted successfully via ${currentMethodObj.label}.`);
                 window.location.reload();
             } else {
                 console.error("Server Error:", res.data.message);
@@ -209,6 +222,34 @@ export default function PayBills() {
                                 </div>
                             )}
                         </div>
+
+                        {currentMethodObj.isDigital && (
+                            <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Reference / Transaction No. (Optional)
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        placeholder="e.g. 1002 9382 1823"
+                                        value={paymentReference}
+                                        onChange={e => setPaymentReference(e.target.value)}
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Proof of Payment (Screenshot)
+                                    </label>
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,.pdf"
+                                        onChange={e => setProofFile(e.target.files[0])}
+                                        className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {/*Polished Automatic Subscriptions Selection Box with Custom Transparent Checkbox*/}
                         <div className={`p-4 rounded-2xl border transition-all duration-300 flex items-center justify-between ${currentMethodObj.isDigital ? 'bg-slate-50/50 border-slate-100 opacity-100' : 'bg-slate-50/30 border-slate-100/50 opacity-40 select-none pointer-events-none'}`}>

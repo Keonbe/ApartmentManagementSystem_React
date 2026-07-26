@@ -43,7 +43,9 @@ export default function UserPaymentHistory() {
             amount: parseFloat(inv.total_amount),
             breakdown: breakdown,
             status: inv.status.toUpperCase(),
-            method: inv.payment_method || 'N/A'
+            method: inv.payment_method || 'N/A',
+            reference: inv.payment_reference || null,
+            proofPath: inv.proof_of_payment_path || null
         });
         setShowReceipt(true);
     };
@@ -179,12 +181,24 @@ export default function UserPaymentHistory() {
                             </div>
                             <div className="flex justify-between border-b border-slate-200 pb-4">
                                 <div><p className="text-slate-500 text-[10px] uppercase m-0">Received From</p><p className="font-bold text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-xs">Unit {receiptData.unit}</p></div>
-                                <div className="text-right"><p className="text-slate-500 text-[10px] uppercase m-0">Method</p><p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p></div>
+                                <div className="text-right">
+                                    <p className="text-slate-500 text-[10px] uppercase m-0">Method</p>
+                                    <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p>
+                                    {receiptData.reference && (
+                                        <p className="text-[10px] text-indigo-600 m-0 mt-1 font-bold">Ref: {receiptData.reference}</p>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <p className="text-slate-500 text-[10px] uppercase m-0 mb-1">Payment Breakdown ({receiptData.period})</p>
                                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed text-xs text-slate-700">{receiptData.breakdown}</div>
                             </div>
+                            {receiptData.proofPath && (
+                                <div className="text-xs text-slate-600 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100 flex items-center justify-between">
+                                    <span>Proof of Payment Attached</span>
+                                    <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${receiptData.proofPath}`} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">View Screenshot</a>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center pt-4 border-t-2 border-dashed border-slate-200">
                                 <p className="font-bold text-slate-600 m-0 text-base">TOTAL PAID</p>
                                 <p className="text-2xl font-bold text-slate-900 m-0">{formatCurrency(receiptData.amount)}</p>

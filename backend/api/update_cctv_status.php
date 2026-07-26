@@ -14,22 +14,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    echo json_encode(["success" => false, "message" => "Forbidden"]);
     exit;
 }
 
 $input = json_decode(file_get_contents("php://input"), true);
-$id     = $input['id'] ?? null;
-$status = $input['status'] ?? null; // 'Approved' or 'Rejected'
+$id = $input['rawId'] ?? $input['id'] ?? null;
+$status = $input['status'] ?? null;
 
 if (!$id || !$status) {
-    echo json_encode(["success" => false, "message" => "ID and status are required"]);
-    exit;
-}
-
-$allowed = ['Approved', 'Rejected'];
-if (!in_array($status, $allowed)) {
-    echo json_encode(["success" => false, "message" => "Invalid status value"]);
+    echo json_encode(["success" => false, "message" => "Request ID and status are required."]);
     exit;
 }
 
@@ -37,10 +31,10 @@ $stmt = $conn->prepare("UPDATE cctv_requests SET status = ? WHERE id = ?");
 $stmt->bind_param("si", $status, $id);
 
 if ($stmt->execute()) {
-    log_activity($conn, $admin_id, 'service', "CCTV Request $status", "Request ID: $id");
-    echo json_encode(["success" => true, "message" => "CCTV request $status"]);
+    log_activity($conn, $admin_id, 'system', "Updated CCTV Request #$id Status", "Status set to: $status");
+    echo json_encode(["success" => true, "message" => "CCTV request status updated."]);
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to update: " . $stmt->error]);
+    echo json_encode(["success" => false, "message" => "Failed to update CCTV request", "error" => $stmt->error]);
 }
 
 $stmt->close();

@@ -23,19 +23,25 @@ export default function ViewContract() {
             }
 
             try {
-                const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
+                let contractRes = await api.get(`/get_my_contract.php?email=${encodeURIComponent(activeEmail)}`);
+                let data = null;
+                
+                if (contractRes.data.success && contractRes.data.contract) {
+                    data = contractRes.data.contract;
+                } else {
+                    const fallbackRes = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
+                    if (fallbackRes.data.success && fallbackRes.data.data) {
+                        data = fallbackRes.data.data;
+                    }
+                }
 
-                if (res.data.success && res.data.data) {
-                    const data = res.data.data;
-                    
+                if (data) {
                     const isTentative = !data.lease_start;
-                    const entryDateRaw = data.lease_start || data.created_at;
+                    const entryDateRaw = data.lease_start || data.created_at || data.app_created_at;
                     const creationDate = new Date(entryDateRaw);
                     const startDateString = creationDate.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
                     
                     const rentDay = creationDate.getDate();
-
-                    // Stripped out the raw "Room " prefix to avoid duplicating "Room Room C"
                     const cleanRoomName = data.room_name ? data.room_name.replace(/^Room\s+/i, '') : 'C';
 
                     setContractData({
@@ -46,7 +52,9 @@ export default function ViewContract() {
                         monthlyRent: parseFloat(data.monthly_rent),
                         entryDate: startDateString,
                         dueDateDay: rentDay,
-                        isTentative: isTentative
+                        isTentative: isTentative,
+                        signedLeasePath: data.signed_lease_path || null,
+                        notarizedLeasePath: data.notarized_lease_path || null
                     });
                 } else {
                     setError("No active room lease agreements found for this account.");

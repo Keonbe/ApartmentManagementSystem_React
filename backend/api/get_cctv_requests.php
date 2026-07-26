@@ -14,38 +14,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    echo json_encode(["success" => false, "message" => "Forbidden"]);
     exit;
 }
 
-try {
-    $stmt = $conn->prepare("
-        SELECT 
-            c.id,
-            c.user_id,
-            c.incident_date,
-            c.incident_time,
-            c.location_details,
-            c.reason_request,
-            c.status,
-            c.created_at,
-            CONCAT(u.first_name, ' ', u.last_name) AS tenant_name,
-            ra.room_name
-        FROM cctv_requests c
-        LEFT JOIN users u ON c.user_id = u.id
-        LEFT JOIN rent_applications ra ON ra.user_id = c.user_id AND ra.status = 'Approved'
-        ORDER BY c.created_at DESC
-    ");
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $requests = $result->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
+$query = "SELECT c.*, u.first_name, u.last_name, u.contact_no, r.id as room_name 
+          FROM cctv_requests c 
+          LEFT JOIN users u ON c.user_id = u.id 
+          LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved'
+          LEFT JOIN rooms r ON ra.room_name = r.id 
+          ORDER BY c.created_at DESC";
 
-    echo json_encode(['success' => true, 'requests' => $requests]);
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+$result = $conn->query($query);
+$requests = [];
+
+if ($result) {
+    while ($row = $result->fetch_assoc()) {
+        $requests[] = [
+            'id' => 'CCTV-' . str_pad($row['id'], 3, '0', STR_PAD_LEFT),
+            'rawId' => $row['id'],
+            'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'unit' => $row['room_name'] ?? 'N/A',
+            'phone' => $row['contact_no'] ?? '',
+            'incidentDate' => $row['incident_date'],
+            'incidentTime' => $row['incident_time'],
+            'location' => $row['location_details'],
+            'reason' => $row['reason_request'],
+            'status' => $row['status'] ?? 'Pending',
+            'dateSubmitted' => date('Y-m-d', strtotime($row['created_at']))
+        ];
+    }
 }
 
+echo json_encode(["success" => true, "requests" => $requests]);
 $conn->close();
 ?>
