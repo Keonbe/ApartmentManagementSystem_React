@@ -96,7 +96,7 @@ export default function MyRoom() {
             setOccupants('');
             return;
         }
-        if (val > 4) val = 4;
+        if (val > 8) val = 8;
         if (val < 1) val = 1;
         setOccupants(val);
     };
@@ -105,15 +105,20 @@ export default function MyRoom() {
     // 2. In your useEffect (fetchMyRoom), store current occupants when room data loads
     useEffect(() => {
         const fetchMyRoom = async () => {
-            // ... previous fetch logic ...
-            if (res.data.success && res.data.data) {
-                const data = res.data.data;
+            if (!activeEmail) return;
+            try {
+                const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
+                if (res.data.success && res.data.data) {
+                    const data = res.data.data;
 
-                if (data.occupants) {
-                    const count = parseInt(data.occupants, 10);
-                    setOccupants(count);
-                    setCurrentOccupants(count); // Store current baseline
+                    if (data.occupants) {
+                        const count = parseInt(data.occupants, 10);
+                        setOccupants(count);
+                        setCurrentOccupants(count); // Store current baseline
+                    }
                 }
+            } catch (err) {
+                console.error("Failed to fetch current occupants:", err);
             }
         };
         fetchMyRoom();
@@ -121,8 +126,8 @@ export default function MyRoom() {
     const handleUpdateOccupants = async (e) => {
         if (e) e.preventDefault();
 
-        if (!occupants || occupants < 1 || occupants > 4) {
-            alert("Please enter a valid number of occupants between 1 and 4.");
+        if (!occupants || occupants < 1 || occupants > 8) {
+            alert("Please enter a valid number of occupants between 1 and 8.");
             return;
         }
 
@@ -326,16 +331,24 @@ export default function MyRoom() {
                                     <h3 className="text-lg font-bold text-white m-0">No. Occupants</h3>
                                 </div>
                                 <div className="flex flex-col space-y-1.5 text-left">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Room Count</label>
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No. Occupants (Max 4)</label>
+                                        <span className="text-[9px] text-slate-400">Exceeding 4 adds ₱1,000/person surcharge</span>
+                                    </div>
                                     <input
                                         type="number"
                                         min="1"
-                                        max="4"
+                                        max="8"
                                         value={occupants}
                                         onChange={handleOccupantChange}
                                         className="w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold"
                                         required
                                     />
+                                    {occupants > 4 && (
+                                        <span className="text-[9px] text-amber-300 font-medium leading-normal mt-1">
+                                            ⚠️ +₱{((occupants - 4) * 1000).toLocaleString()}/mo capacity surcharge (₱1,000 per person exceeding 4)
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                             <button
@@ -358,8 +371,18 @@ export default function MyRoom() {
                             <div className="space-y-2.5 pt-1 text-left">
                                 <div className="flex justify-between text-xs font-semibold text-slate-400">
                                     <span>Rent Balance:</span>
-                                    <span className="text-slate-200">₱{roomDetails.monthlyRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    <span className="text-slate-200">
+                                        ₱{roomDetails.monthlyRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
                                 </div>
+                                {occupants > 4 && (
+                                    <div className="flex justify-between text-[10px] font-semibold text-indigo-300">
+                                        <span>(Base + Extra Occupant Surcharge):</span>
+                                        <span>
+                                            ₱{(roomDetails.monthlyRent - (occupants - 4) * 1000).toLocaleString()} + ₱{((occupants - 4) * 1000).toLocaleString()}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-xs font-semibold text-slate-400">
                                     <span>Cycle Started:</span>
                                     <span className="text-slate-200">{roomDetails.rentStart}</span>

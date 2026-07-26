@@ -20,6 +20,8 @@ export default function PayBills() {
         water: 0,
         electricity: 0,
         parking: 0,
+        securityDeposit: 0,
+        lateFee: 0,
         invoiceId: null
     });
 
@@ -38,6 +40,8 @@ export default function PayBills() {
                                 water: parseFloat(pending.water) || 0,
                                 electricity: parseFloat(pending.electricity) || 0,
                                 parking: parseFloat(pending.parking) || 0,
+                                securityDeposit: parseFloat(pending.security_deposit) || 0,
+                                lateFee: parseFloat(pending.late_fee) || 0,
                                 invoiceId: pending.id
                             });
                         }
@@ -50,7 +54,7 @@ export default function PayBills() {
         fetchInvoice();
     }, []);
 
-    const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking;
+    const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.securityDeposit + billDetails.lateFee;
 
     {/*Available payment processing channels matrix*/}
     const paymentMethods = [
@@ -149,9 +153,15 @@ export default function PayBills() {
 
                         <div className="space-y-4">
                             <div className="flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>Base Rent (Room C)</span>
+                                <span>Base Rent</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.baseRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
+                            {billDetails.securityDeposit > 0 && (
+                                <div className="flex justify-between items-center text-sm font-medium text-slate-600">
+                                    <span>Security Deposit (1 Month)</span>
+                                    <span className="font-bold text-slate-900">₱{billDetails.securityDeposit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center text-sm font-medium text-slate-600">
                                 <span>Water (Metered)</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.water.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -164,6 +174,12 @@ export default function PayBills() {
                                 <span>Parking Reservation</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.parking.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
+                            {billDetails.lateFee > 0 && (
+                                <div className="flex justify-between items-center text-sm font-medium text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 font-bold">
+                                    <span>Late Fee Penalty (Overdue)</span>
+                                    <span>₱{billDetails.lateFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="border-t-2 border-slate-900 pt-4 mt-4 flex justify-between items-center">

@@ -29,6 +29,22 @@ $monthly_rent = $_POST['monthlyRent'] ?? '';
 $user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
 $app_id = $_POST['appId'] ?? null;
 
+if (empty($app_id) && !empty($user_id)) {
+    $dup_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1");
+    $dup_stmt->bind_param("i", $user_id);
+    $dup_stmt->execute();
+    $dup_res = $dup_stmt->get_result();
+    if ($dup_res->num_rows > 0) {
+        $dup_row = $dup_res->fetch_assoc();
+        $st = strtolower($dup_row['status']);
+        if ($st === 'pending' || $st === 'approved' || $st === 'active' || $st === 'pending-move-out') {
+            echo json_encode(["success" => false, "message" => "You already have an active or pending lease application. You cannot submit another one unless it is rejected."]);
+            exit;
+        }
+    }
+    $dup_stmt->close();
+}
+
 $existing_front = null;
 $existing_back = null;
 $existing_nbi = null;

@@ -50,6 +50,15 @@ if ($id > 0 && !empty($status)) {
                 $months = (int)$app['months_of_rent'];
                 $user_id = $app['user_id'];
                 $monthly_rent = (double)$app['monthly_rent'];
+                $occupants = (int)$app['occupants'];
+                
+                // Enforce the occupant capacity surcharge of ₱1,000/person exceeding 4 occupants
+                $room_id_clean = trim(str_replace('Room', '', $room_name));
+                $base_room_rent = in_array(strtoupper($room_id_clean), ['K', 'L', 'M', 'N']) ? 3500.00 : 4000.00;
+                $expected_rent = $base_room_rent + ($occupants > 4 ? ($occupants - 4) * 1000 : 0);
+                if ($monthly_rent < $expected_rent) {
+                    $monthly_rent = $expected_rent;
+                }
                 
                 $lease_start = date('Y-m-d');
                 $lease_end = date('Y-m-d', strtotime("+$months months"));

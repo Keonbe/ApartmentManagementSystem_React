@@ -29,6 +29,9 @@ export default function UserPaymentHistory() {
         if (parseFloat(inv.parking) > 0) {
             breakdown += `\nParking: ${formatCurrency(inv.parking)}`;
         }
+        if (parseFloat(inv.late_fee) > 0) {
+            breakdown += `\nLate Fee Penalty (Overdue): ${formatCurrency(inv.late_fee)}`;
+        }
 
         const datePaid = inv.paid_at 
             ? new Date(inv.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
