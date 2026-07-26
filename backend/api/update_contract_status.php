@@ -26,24 +26,41 @@ if (!$input) {
 }
 
 $contract_id = $input['contractId'] ?? '';
-$action = $input['action'] ?? ''; // 'flag' or 'clear'
+$action = $input['action'] ?? ''; // 'flag', 'clear', or 'edit'
 
 if (empty($contract_id) || empty($action)) {
     echo json_encode(["success" => false, "message" => "Contract ID and action are required."]);
     exit;
 }
 
-$status = $action === 'flag' ? 'eviction-pending' : 'active';
-$eviction_status = $action === 'flag' ? 'flagged' : null;
-
-$stmt = $conn->prepare("UPDATE lease_contracts SET status = ?, eviction_status = ? WHERE id = ?");
-$stmt->bind_param("sss", $status, $eviction_status, $contract_id);
-
-if ($stmt->execute()) {
-    log_activity($conn, $admin_id, 'tenant', "Updated Contract Eviction Status", "Contract: $contract_id, Action: $action");
-    echo json_encode(["success" => true, "message" => "Eviction status updated successfully"]);
+if ($action === 'edit') {
+    $lease_start = $input['leaseStart'] ?? null;
+    $lease_end = $input['leaseEnd'] ?? null;
+    if (empty($lease_start) || empty($lease_end)) {
+        echo json_encode(["success" => false, "message" => "Lease Start and Lease End are required."]);
+        exit;
+    }
+    $stmt = $conn->prepare("UPDATE lease_contracts SET lease_start = ?, lease_end = ? WHERE id = ?");
+    $stmt->bind_param("sss", $lease_start, $lease_end, $contract_id);
+    if ($stmt->execute()) {
+        log_activity($conn, $admin_id, 'tenant', "Updated Contract Dates", "Contract: $contract_id, Start: $lease_start, End: $lease_end");
+        echo json_encode(["success" => true, "message" => "Contract dates updated successfully"]);
+    } else {
+        echo json_encode(["success" => false, "message" => "Failed to update contract dates", "error" => $stmt->error]);
+    }
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to update eviction status", "error" => $stmt->error]);
+    $status = $action === 'flag' ? 'eviction-pending' : 'active';
+    $eviction_status = $action === 'flag' ? 'flagged' : null;
+
+    $stmt = $conn->prepare("UPDATE lease_contracts SET status = ?, eviction_status = ? WHERE id = ?");
+    $stmt->bind_param("sss", $status, $eviction_status, $contract_id);
+
+    if ($stmt->execute()) {
+        log_activity($conn, $admin_id, 'tenant', "Updated Contract Eviction Status", "Contract: $contract_id, Action: $action");
+        echo json_encode(["success" => true, "message" => "Eviction status updated successfully"]);
+    } else {
+        echo json_encode(["success" => false, "message" => "Failed to update eviction status", "error" => $stmt->error]);
+    }
 }
 
 $stmt->close();

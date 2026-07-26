@@ -18,7 +18,7 @@ if (empty($user_id)) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT id, room_name, monthly_rent, months_of_rent, status, created_at, occupants, rejection_reason FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT ra.id, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, lc.lease_start, lc.lease_end, lc.id as contract_id FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();

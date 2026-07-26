@@ -30,6 +30,8 @@ const AdminContracts = () => {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
   const [createStep, setCreateStep] = useState(1);
+  const [isEditingDates, setIsEditingDates] = useState(false);
+  const [editForm, setEditForm] = useState({ leaseStart: '', leaseEnd: '' });
 
   const [form, setForm] = useState({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
 
@@ -132,7 +134,33 @@ const AdminContracts = () => {
 
   const openPreview = (contract) => {
     setSelectedContract(contract);
+    setEditForm({ leaseStart: contract.leaseStart || '', leaseEnd: contract.leaseEnd || '' });
+    setIsEditingDates(false);
     setShowPreviewModal(true);
+  };
+
+  const handleSaveDates = async () => {
+    try {
+      const res = await api.post('/update_contract_status.php', {
+        contractId: selectedContract.id,
+        action: 'edit',
+        leaseStart: editForm.leaseStart,
+        leaseEnd: editForm.leaseEnd
+      });
+      if (res.data.success) {
+        fetchContracts();
+        setSelectedContract(prev => ({
+          ...prev,
+          leaseStart: editForm.leaseStart,
+          leaseEnd: editForm.leaseEnd
+        }));
+        setIsEditingDates(false);
+      } else {
+        alert(res.data.message);
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleUploadFile = async (contractId, docType) => {
@@ -494,13 +522,51 @@ const AdminContracts = () => {
                   <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Lease Agreement</p>
                   <p className="text-[10px] text-slate-400 m-0 mt-1">Generated: {selectedContract.generatedDate}</p>
                 </div>
-                <div className="space-y-3 text-sm text-slate-700">
-                  <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Tenant</span><span className="font-semibold">{selectedContract.tenant}</span></div>
-                  <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Unit</span><span className="font-semibold">{selectedContract.unit} ({selectedContract.type})</span></div>
-                  <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Monthly Rent</span><span className="font-semibold">{formatCurrency(selectedContract.rent)}</span></div>
-                  <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Security Deposit</span><span className="font-semibold">{formatCurrency(selectedContract.deposit)}</span></div>
-                  <div className="flex justify-between py-1"><span className="text-slate-400">Lease Period</span><span className="font-semibold">{selectedContract.leaseStart} → {selectedContract.leaseEnd}</span></div>
-                </div>
+                {isEditingDates ? (
+                  <div className="space-y-3 text-sm text-slate-700 bg-slate-100/50 p-4 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start (Move-in) *</label>
+                        <input 
+                          type="date" 
+                          value={editForm.leaseStart} 
+                          onChange={e => setEditForm(p => ({...p, leaseStart: e.target.value}))} 
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                        <input 
+                          type="date" 
+                          value={editForm.leaseEnd} 
+                          onChange={e => setEditForm(p => ({...p, leaseEnd: e.target.value}))} 
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" 
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button onClick={() => setIsEditingDates(false)} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer">Cancel</button>
+                      <button onClick={handleSaveDates} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 border-0 cursor-pointer">Save</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 text-sm text-slate-700">
+                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Tenant</span><span className="font-semibold">{selectedContract.tenant}</span></div>
+                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Unit</span><span className="font-semibold">{selectedContract.unit} ({selectedContract.type})</span></div>
+                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Monthly Rent</span><span className="font-semibold">{formatCurrency(selectedContract.rent)}</span></div>
+                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Security Deposit</span><span className="font-semibold">{formatCurrency(selectedContract.deposit)}</span></div>
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-slate-400">Lease Period</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{selectedContract.leaseStart} → {selectedContract.leaseEnd}</span>
+                        <button onClick={() => setIsEditingDates(true)} className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold border-0 cursor-pointer transition-colors">
+                          <FontAwesomeIcon icon={faEdit} className="text-[10px]" />
+                          <span>Edit Dates</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="border-t border-slate-200 pt-4 mt-4">
                   <h4 className="text-xs font-bold text-slate-600 mb-2 m-0">Terms & Conditions</h4>
                   <p className="text-[10px] text-slate-400 leading-relaxed m-0">
