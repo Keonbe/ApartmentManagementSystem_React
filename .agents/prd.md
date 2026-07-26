@@ -205,6 +205,7 @@ Unit availability is the source of truth for accepting new applications. If the 
 - Status values: `Vacant`, `Occupied`, `Maintenance`
 - Grid view (visual) and list view (dense) toggle in `AdminUnits`
 - Filter by unit type (Studio, 1BR), floor, and status
+- Unit preview displays layout pictures/static photos of the unit, explicitly excluding 3D room tours or VR walkthroughs to match deployment scale
 - `Maintenance` flag prevents new assignment during active repair
 
 ---
@@ -569,7 +570,8 @@ The admin's first action each session should answer: who has not paid, what is b
 **In scope:**
 - Bar or line chart of monthly income from `invoices` (paid, grouped by month)
 - `AdminReports` page: Financial report (income vs. billing), Occupancy report, Maintenance cost report
-- Filter by month or year
+- Report intervals: Generates summaries on a monthly, quarterly, and yearly basis
+- Filter by month, quarter, or year
 - Data from `get_report_data.php` (fully wired)
 
 ---

@@ -63,8 +63,9 @@ const issueCategories = ['Plumbing', 'Electrical', 'Structural', 'Appliance', 'P
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
 const AdminReports = () => {
-  const [timeframe, setTimeframe] = useState('monthly'); // 'monthly' | 'yearly'
+  const [timeframe, setTimeframe] = useState('monthly'); // 'monthly' | 'quarterly' | 'yearly'
   const [selectedMonth, setSelectedMonth] = useState(5); // May
+  const [selectedQuarter, setSelectedQuarter] = useState(2); // Q2
   const [selectedYear, setSelectedYear] = useState(2025);
   const [activeModule, setActiveModule] = useState('all'); // 'all', 'occupancy', 'payments', 'maintenance', 'reservations'
 
@@ -80,12 +81,12 @@ const AdminReports = () => {
 
   useEffect(() => {
     fetchReportData();
-  }, [timeframe, selectedMonth, selectedYear]);
+  }, [timeframe, selectedMonth, selectedQuarter, selectedYear]);
 
   const fetchReportData = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`get_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&year=${selectedYear}`);
+      const response = await api.get(`get_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`);
       if (response.data.success) {
         const bd = response.data.data;
         const totalCollected = bd.rentCollected + bd.waterCollected + bd.electricCollected + bd.parkingCollected;
@@ -211,7 +212,7 @@ const AdminReports = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    const filename = `AMS_Report_${timeframe}_${selectedYear}${timeframe === 'monthly' ? '_' + selectedMonth : ''}_${activeModule}.csv`;
+    const filename = `AMS_Report_${timeframe}_${selectedYear}${timeframe === 'monthly' ? '_' + selectedMonth : timeframe === 'quarterly' ? '_Q' + selectedQuarter : ''}_${activeModule}.csv`;
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
@@ -263,7 +264,7 @@ const AdminReports = () => {
               <p className="text-sm text-slate-500 uppercase tracking-widest mt-1">Management Performance & Performance Review Report</p>
               <div className="grid grid-cols-2 mt-4 text-xs text-left text-slate-700 bg-slate-100 p-3 rounded">
                 <div>
-                  <p><strong>Report Scope:</strong> {timeframe === 'yearly' ? `Yearly Review (${selectedYear})` : `Monthly Review (${monthsList.find(m => m.value === selectedMonth).label} ${selectedYear})`}</p>
+                  <p><strong>Report Scope:</strong> {timeframe === 'yearly' ? `Yearly Review (${selectedYear})` : timeframe === 'quarterly' ? `Quarterly Review (Q${selectedQuarter} ${selectedYear})` : `Monthly Review (${monthsList.find(m => m.value === selectedMonth).label} ${selectedYear})`}</p>
                   <p><strong>Active Module Scope:</strong> {activeModule.toUpperCase()}</p>
                 </div>
                 <div className="text-right">
@@ -285,7 +286,7 @@ const AdminReports = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Monthly vs Yearly Scoping Selectors */}
+                  {/* Monthly vs Quarterly vs Yearly Scoping Selectors */}
                   <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
                     <button
                       onClick={() => setTimeframe('monthly')}
@@ -294,12 +295,32 @@ const AdminReports = () => {
                       Monthly
                     </button>
                     <button
+                      onClick={() => setTimeframe('quarterly')}
+                      className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${timeframe === 'quarterly' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
+                    >
+                      Quarterly
+                    </button>
+                    <button
                       onClick={() => setTimeframe('yearly')}
                       className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${timeframe === 'yearly' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
                     >
                       Yearly
                     </button>
                   </div>
+
+                  {/* Quarter Selection */}
+                  {timeframe === 'quarterly' && (
+                    <select
+                      value={selectedQuarter}
+                      onChange={(e) => setSelectedQuarter(Number(e.target.value))}
+                      className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-700 focus:border-indigo-500"
+                    >
+                      <option value={1}>Q1 (Jan - Mar)</option>
+                      <option value={2}>Q2 (Apr - Jun)</option>
+                      <option value={3}>Q3 (Jul - Sep)</option>
+                      <option value={4}>Q4 (Oct - Dec)</option>
+                    </select>
+                  )}
 
                   {/* Month Selection */}
                   {timeframe === 'monthly' && (

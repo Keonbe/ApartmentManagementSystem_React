@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 $timeframe = $_GET['timeframe'] ?? 'monthly';
 $month = isset($_GET['month']) ? (int)$_GET['month'] : date('n');
 $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+$quarter = isset($_GET['quarter']) ? (int)$_GET['quarter'] : ceil(date('n') / 3);
 
 $dateCondition = "";
 if ($timeframe === 'yearly') {
@@ -22,6 +23,12 @@ if ($timeframe === 'yearly') {
     $maintDateCondition = "YEAR(m.created_at) = $year";
     $parkingDateCondition = "YEAR(p.created_at) = $year";
     $invoiceDateCondition = "YEAR(i.paid_at) = $year";
+} elseif ($timeframe === 'quarterly') {
+    $dateCondition = "YEAR(created_at) = $year AND QUARTER(created_at) = $quarter";
+    $paidDateCondition = "YEAR(paid_at) = $year AND QUARTER(paid_at) = $quarter";
+    $maintDateCondition = "YEAR(m.created_at) = $year AND QUARTER(m.created_at) = $quarter";
+    $parkingDateCondition = "YEAR(p.created_at) = $year AND QUARTER(p.created_at) = $quarter";
+    $invoiceDateCondition = "YEAR(i.paid_at) = $year AND QUARTER(i.paid_at) = $quarter";
 } else {
     $dateCondition = "YEAR(created_at) = $year AND MONTH(created_at) = $month";
     $paidDateCondition = "YEAR(paid_at) = $year AND MONTH(paid_at) = $month";
