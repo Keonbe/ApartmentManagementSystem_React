@@ -16,7 +16,6 @@ const DEFAULTS = {
     'Per the Terms & Conditions of this lease agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the leased unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
 };
 
-const STORAGE_KEY = 'ams_system_settings';
 
 export const getSystemSettings = async () => {
   try {

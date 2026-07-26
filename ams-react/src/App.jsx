@@ -4,7 +4,6 @@ import api from './api/axiosConfig';
 
 // Components
 import TopBar from './Components/TopBar';
-import LogInModal from './Components/LogInModal';
 import Footer from './Components/Footer';
 
 // User Pages
@@ -122,7 +121,6 @@ function BaseAppLayout({ children, hasRentedRoom }) {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const [hasRentedRoom, setHasRentedRoom] = useState(false);
   // NEW: Track status loading to hold route evaluation
@@ -167,7 +165,7 @@ function AppContent() {
     const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
     
     if (!loggedInUser) {
-      setIsModalOpen(true);
+      navigate('/login', { state: { selectedRoomId: roomId } });
     } else {
       navigate('/rent-application', { state: { selectedRoomId: roomId } });
     }
@@ -217,15 +215,6 @@ function AppContent() {
         <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
       </Routes>
-
-      <LogInModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onLoginRedirect={() => {
-          setIsModalOpen(false);
-          navigate('/login');
-        }}
-      />
     </>
   );
 }

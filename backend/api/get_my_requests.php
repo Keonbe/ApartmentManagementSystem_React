@@ -19,41 +19,22 @@ if (!$user_id) {
 }
 
 $requests = [];
+$query = "(SELECT id, 'Maintenance' as type, issue_category as title, status, created_at FROM maintenance_requests WHERE user_id = ?)
+          UNION ALL
+          (SELECT id, 'CCTV' as type, location_details as title, status, created_at FROM cctv_requests WHERE user_id = ?)
+          UNION ALL
+          (SELECT id, 'Parking' as type, vehicle_type as title, status, created_at FROM parking_reservations WHERE user_id = ?)
+          ORDER BY created_at DESC";
 
-// 1. Maintenance Requests
-$stmt1 = $conn->prepare("SELECT id, 'Maintenance' as type, issue_category as title, status, created_at FROM maintenance_requests WHERE user_id = ?");
-$stmt1->bind_param("i", $user_id);
-$stmt1->execute();
-$res1 = $stmt1->get_result();
-while ($row = $res1->fetch_assoc()) {
+$stmt = $conn->prepare($query);
+$stmt->bind_param("iii", $user_id, $user_id, $user_id);
+$stmt->execute();
+$res = $stmt->get_result();
+
+while ($row = $res->fetch_assoc()) {
     $requests[] = $row;
 }
-$stmt1->close();
-
-// 2. CCTV Requests
-$stmt2 = $conn->prepare("SELECT id, 'CCTV' as type, location_details as title, status, created_at FROM cctv_requests WHERE user_id = ?");
-$stmt2->bind_param("i", $user_id);
-$stmt2->execute();
-$res2 = $stmt2->get_result();
-while ($row = $res2->fetch_assoc()) {
-    $requests[] = $row;
-}
-$stmt2->close();
-
-// 3. Parking Reservations
-$stmt3 = $conn->prepare("SELECT id, 'Parking' as type, vehicle_type as title, status, created_at FROM parking_reservations WHERE user_id = ?");
-$stmt3->bind_param("i", $user_id);
-$stmt3->execute();
-$res3 = $stmt3->get_result();
-while ($row = $res3->fetch_assoc()) {
-    $requests[] = $row;
-}
-$stmt3->close();
-
-// Sort by created_at DESC
-usort($requests, function($a, $b) {
-    return strtotime($b['created_at']) - strtotime($a['created_at']);
-});
+$stmt->close();
 
 echo json_encode(["success" => true, "requests" => $requests]);
 $conn->close();

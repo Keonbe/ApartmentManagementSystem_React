@@ -11,17 +11,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$query = "SELECT * FROM announcements ORDER BY created_at DESC";
-$result = $conn->query($query);
+$public = isset($_GET['public']) && $_GET['public'] == '1';
+
+if ($public) {
+    $stmt = $conn->prepare("SELECT id, tag, title, body, created_at FROM announcements WHERE status = 'sent' OR send_to = 'All Tenants' ORDER BY created_at DESC");
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $query = "SELECT * FROM announcements ORDER BY created_at DESC";
+    $result = $conn->query($query);
+}
+
 $announcements = [];
 
 if ($result) {
     while ($row = $result->fetch_assoc()) {
-        $row['channels'] = json_decode($row['channels'], true);
+        if (!$public) {
+            $row['channels'] = json_decode($row['channels'], true);
+        }
         $announcements[] = $row;
     }
 }
 
 echo json_encode(["success" => true, "announcements" => $announcements]);
+
+if ($public && isset($stmt)) {
+    $stmt->close();
+}
 $conn->close();
 ?>

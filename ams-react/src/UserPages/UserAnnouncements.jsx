@@ -14,7 +14,7 @@ export default function UserAnnouncements() {
     const fetchAnnouncements = async () => {
         try {
             setLoading(true);
-            const response = await api.get('get_announcements_public.php');
+            const response = await api.get('get_announcements.php?public=1');
             if (response.data.success) {
                 setAnnouncements(response.data.announcements);
             }
