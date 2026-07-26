@@ -8,9 +8,13 @@ import api from "../api/axiosConfig";
 export default function MyRoom() {
     const navigate = useNavigate();
 
-    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
-    const activeFirstName = loggedInUser ? loggedInUser.first_name : "";
-    const activeEmail = loggedInUser ? loggedInUser.email_address : "";
+    const [loggedInUser] = useState(() => {
+        const sessionData = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
+        return sessionData ? JSON.parse(sessionData) : null;
+    });
+
+    const activeEmail = loggedInUser?.email_address || "";
+    const activeFirstName = loggedInUser?.first_name || "";
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -89,12 +93,34 @@ export default function MyRoom() {
         if (val < 1) val = 1;
         setOccupants(val);
     };
+    const [currentOccupants, setCurrentOccupants] = useState(2);
 
+    // 2. In your useEffect (fetchMyRoom), store current occupants when room data loads
+    useEffect(() => {
+        const fetchMyRoom = async () => {
+            // ... previous fetch logic ...
+            if (res.data.success && res.data.data) {
+                const data = res.data.data;
+
+                if (data.occupants) {
+                    const count = parseInt(data.occupants, 10);
+                    setOccupants(count);
+                    setCurrentOccupants(count); // Store current baseline
+                }
+            }
+        };
+        fetchMyRoom();
+    }, [activeEmail]);
     const handleUpdateOccupants = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
 
         if (!occupants || occupants < 1 || occupants > 4) {
             alert("Please enter a valid number of occupants between 1 and 4.");
+            return;
+        }
+
+        if (occupants === currentOccupants) {
+            alert(`Your room is already assigned to ${occupants} occupant(s).`);
             return;
         }
 
@@ -102,18 +128,23 @@ export default function MyRoom() {
             const res = await api.post('/update_occupants.php', {
                 email: activeEmail,
                 occupants: occupants
+            }, {
+                headers: { 'Content-Type': 'application/json' }
             });
 
             if (res.data.success) {
-                alert(`Successfully updated your room to ${occupants} occupants.`);
+                alert("Your request to change occupants has been sent to administration for verification.");
+                // Refresh the current route
+                window.location.reload();
             } else {
                 alert(`Error: ${res.data.message}`);
             }
         } catch (err) {
             console.error("Failed to update occupants:", err);
-            alert("A network error occurred while updating.");
+            alert("A network error occurred while submitting your request.");
         }
     };
+
 
     const handleSeeContract = () => {
         navigate('/view-contract');
@@ -122,21 +153,32 @@ export default function MyRoom() {
     const [additionalMonths, setAdditionalMonths] = useState(1);
 
     const handleExtendRent = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
+
+        const months = parseInt(additionalMonths, 10);
+        if (!months || months < 1 || months > 12) {
+            alert("Please enter a valid extension period between 1 and 12 months.");
+            return;
+        }
+
         try {
             const res = await api.post('/extend_lease.php', {
                 email: activeEmail,
-                additionalMonths: additionalMonths
+                additionalMonths: months
+            }, {
+                headers: { 'Content-Type': 'application/json' }
             });
 
             if (res.data.success) {
-                alert("Lease extended successfully.");
+                alert("Your lease extension request has been sent to administration for verification.");
+                // Refresh the current route
                 window.location.reload();
             } else {
-                alert(res.data.message);
+                alert(`Error: ${res.data.message}`);
             }
         } catch (err) {
-            alert("Failed to connect to server.");
+            console.error("Failed to extend lease:", err);
+            alert("A network error occurred while submitting your request.");
         }
     };
 
@@ -340,9 +382,35 @@ export default function MyRoom() {
                                         type="number"
                                         min="1"
                                         max="12"
+                                        maxLength="2"
                                         value={additionalMonths}
-                                        onChange={(e) => setAdditionalMonths(parseInt(e.target.value) || 1)}
+                                        onChange={(e) => {
+                                            let val = e.target.value;
+
+                                            // Truncate to 2 characters maximum
+                                            if (val.length > 2) val = val.slice(0, 2);
+
+                                            let intVal = parseInt(val, 10);
+
+                                            // Handle empty or invalid typing
+                                            if (isNaN(intVal) || intVal < 1) {
+                                                setAdditionalMonths('');
+                                                return;
+                                            }
+
+                                            // Hard-cap at 12 months
+                                            if (intVal > 12) intVal = 12;
+
+                                            setAdditionalMonths(intVal);
+                                        }}
+                                        onBlur={() => {
+                                            // Fallback to 1 if left empty when clicking away
+                                            if (!additionalMonths || additionalMonths < 1) {
+                                                setAdditionalMonths(1);
+                                            }
+                                        }}
                                         className="w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold"
+                                        required
                                     />
                                 </div>
                                 <button
@@ -369,11 +437,10 @@ export default function MyRoom() {
                             type="button"
                             onClick={handleEndRent}
                             disabled={roomDetails.status === 'pending-move-out'}
-                            className={`w-full font-bold py-3 rounded-xl text-xs border-0 transition-all shadow-md ${
-                                roomDetails.status === 'pending-move-out'
-                                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                                    : 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
-                            }`}
+                            className={`w-full font-bold py-3 rounded-xl text-xs border-0 transition-all shadow-md ${roomDetails.status === 'pending-move-out'
+                                ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                : 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
+                                }`}
                         >
                             {roomDetails.status === 'pending-move-out' ? 'Move-Out Pending' : 'End Rent Term'}
                         </button>

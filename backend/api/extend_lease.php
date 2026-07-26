@@ -2,50 +2,67 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, x-user-id");
 
 require_once "../config.php";
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(["success" => false, "message" => "Invalid request"]);
-    exit;
-}
+try {
+    $input = json_decode(file_get_contents("php://input"), true);
+    $email = $input['email'] ?? '';
+    $additionalMonths = (int)($input['additionalMonths'] ?? 0);
 
-$input = json_decode(file_get_contents("php://input"), true);
-$email = $input['email'] ?? '';
-$additional_months = (int)($input['additionalMonths'] ?? 0);
-
-if (empty($email) || $additional_months <= 0) {
-    echo json_encode(["success" => false, "message" => "Invalid input"]);
-    exit;
-}
-
-$stmt = $conn->prepare("SELECT months_of_rent FROM rent_applications WHERE email = ? ORDER BY created_at DESC LIMIT 1");
-$stmt->bind_param("s", $email);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($row = $result->fetch_assoc()) {
-    $new_total_months = $row['months_of_rent'] + $additional_months;
-    
-    $update = $conn->prepare("UPDATE rent_applications SET months_of_rent = ? WHERE email = ? ORDER BY created_at DESC LIMIT 1");
-    $update->bind_param("is", $new_total_months, $email);
-    
-    if ($update->execute()) {
-        log_activity($conn, null, 'tenant', "Lease Extended", "Tenant Email: $email, Added $additional_months months");
-        echo json_encode(["success" => true, "message" => "Lease extended successfully"]);
-    } else {
-        echo json_encode(["success" => false, "message" => "Update failed"]);
+    if (empty($email) || $additionalMonths < 1 || $additionalMonths > 12) {
+        throw new Exception("Invalid request: Extension must be between 1 and 12 months.");
     }
-} else {
-    echo json_encode(["success" => false, "message" => "Application not found"]);
+
+    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.room_name FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id WHERE u.email_address = ?");
+    $userQuery->bind_param("s", $email);
+    $userQuery->execute();
+    $user = $userQuery->get_result()->fetch_assoc();
+    $userQuery->close();
+
+    if ($user) {
+        $userId = $user['id'];
+        $tenantName = $user['first_name'] . ' ' . $user['last_name'];
+        $roomName = $user['room_name'] ?? 'Unassigned';
+
+        // Check for recent pending requests in the last 24 hours
+        $checkStmt = $conn->prepare("SELECT id FROM notifications WHERE user_id = ? AND type = 'lease_extension_request' AND status = 'Pending' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+        $checkStmt->bind_param("i", $userId);
+        $checkStmt->execute();
+        $hasRecent = $checkStmt->get_result()->num_rows > 0;
+        $checkStmt->close();
+
+        if ($hasRecent) {
+            echo json_encode(["success" => false, "message" => "You already have a pending lease extension request. Please wait for admin decision."]);
+            exit;
+        }
+
+        $title = "Lease Extension Request";
+        $msg = "$tenantName (Unit $roomName) requested a $additionalMonths month(s) lease extension.";
+
+        $stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, metadata_value, status, is_read) VALUES (?, 'lease_extension_request', ?, ?, ?, 'Pending', 0)");
+        if (!$stmt) {
+            throw new Exception("Database prepare failed: " . $conn->error);
+        }
+
+        $stmt->bind_param("isss", $userId, $title, $msg, $additionalMonths);
+
+        if ($stmt->execute()) {
+            echo json_encode(["success" => true, "message" => "Lease extension request submitted for admin verification."]);
+        } else {
+            throw new Exception("Failed to save extension request.");
+        }
+        $stmt->close();
+    } else {
+        throw new Exception("User not found.");
+    }
+} catch (Exception $e) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => $e->getMessage()]);
 }
 
-$stmt->close();
 $conn->close();
 ?>

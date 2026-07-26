@@ -231,22 +231,32 @@ const AdminPayments = () => {
     setShowConfirmModal(true);
   };
 
-  const handleMarkAsPaid = async () => {
+const handleMarkAsPaid = async () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId) return;
+    
     try {
       const res = await api.post('/record_payment_admin.php', {
         invoiceId: activeTenant.pendingInvoiceId,
         paymentMethod: paymentMethod
       });
-      if (res.data.success) {
+      
+      // Safely check if the response is successful
+      if (res.data && res.data.success) {
         fetchInvoices();
-        setIsExtendedRent(false); setExtendedAmount(0); setCustomAddOns(0); setAmountTendered('');
+        setIsExtendedRent(false); 
+        setExtendedAmount(0); 
+        setCustomAddOns(0); 
+        setAmountTendered('');
         setShowConfirmModal(false);
       } else {
-        alert(res.data.message);
+        // If it's a string (HTML error) or missing the message property, alert a safe fallback
+        console.error("Server returned an error format:", res.data);
+        alert(res.data?.message || "Server Error. Check the browser console for details.");
       }
     } catch(err) {
-      console.error(err);
+      console.error("Network or API Error:", err);
+      // Safely chain into the error response
+      alert(err.response?.data?.message || "A network or server error occurred.");
     }
   };
 

@@ -14,7 +14,6 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        // Double check your table aliases! If rent_applications column is actually called 'unit', change ra.room_name to ra.unit
         $query = "SELECT 
                     i.*, 
                     u.first_name, 
@@ -28,7 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $result = $conn->query($query);
 
         if (!$result) {
-            // Force SQL errors to stay within the catch block instead of crashing PHP flat out
             throw new Exception("Database query failed: " . $conn->error);
         }
 
@@ -36,16 +34,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         while ($row = $result->fetch_assoc()) {
             $invoices[] = [
                 'id' => $row['id'],
+                // FIX FOR DUPLICATE PREFIX: Pass raw ID/Number or strip duplicate prefix
+                'invoice_number' => $row['invoice_number'] ?? $row['id'], 
                 'user_id' => $row['user_id'],
                 'first_name' => $row['first_name'] ?? '',
                 'last_name' => $row['last_name'] ?? '',
                 'room_name' => $row['room_name'] ?? 'Unassigned',
                 'base_rent' => $row['base_rent'],
-                'water' => $row['water'],
-                'electricity' => $row['electricity'],
-                'parking' => $row['parking'],
-                'total_amount' => $row['base_rent'] + $row['water'] + $row['electricity'] + $row['parking'],
+                'water' => $row['water'] ?? 0,
+                'electricity' => $row['electricity'] ?? 0,
+                'parking' => $row['parking'] ?? 0,
+                'total_amount' => ($row['base_rent'] ?? 0) + ($row['water'] ?? 0) + ($row['electricity'] ?? 0) + ($row['parking'] ?? 0),
                 'status' => $row['status'],
+                
+                // FIX FOR INVALID DATE: Send created_at or issue_date timestamp
+                'created_at' => $row['created_at'] ?? $row['issue_date'] ?? date('Y-m-d H:i:s'), 
                 'due_date' => $row['due_date'] ?? '',
                 'paid_at' => $row['paid_at'] ?? null,
                 'payment_method' => $row['payment_method'] ?? null,
@@ -58,7 +61,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         echo json_encode(["success" => true, "invoices" => $invoices]);
 
     } catch (Exception $e) {
-        // Keeping headers alive during a failure so your frontend can read the message safely
         http_response_code(500);
         echo json_encode([
             "success" => false, 

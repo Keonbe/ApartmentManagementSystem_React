@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 
@@ -40,11 +40,10 @@ export default function PaymentUpload() {
         }
     };
 
-    // Limits GCash characters dynamically to 13 numerical values while typing
+    //{/*LimitsGCashCharactersDynamicallyTo13Digits*/}
     const handleReferenceChange = (e) => {
         const val = e.target.value;
         if (paymentMethod === 'GCash') {
-            // Strip any character that isn't a digit and clamp the maximum length to 13
             const numericVal = val.replace(/\D/g, '').slice(0, 13);
             setReferenceNo(numericVal);
         } else {
@@ -110,7 +109,7 @@ export default function PaymentUpload() {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start py-10 px-4 md:px-12 box-border">
+        <div className="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start py-10 px-4 md:px-12 box-border text-left">
             <div className="absolute inset-0 z-0 hidden md:block">
                 <img src={ApartmentPic} alt="Background" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-900/90 to-slate-950/95"></div>
@@ -181,32 +180,57 @@ export default function PaymentUpload() {
                         </div>
                     </div>
 
+                    {/*AdjustedReceiptPreviewContainerArea*/}
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Upload Receipt Image</label>
-                        <div className="relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner">
-                            <input 
-                                type="file" 
-                                accept="image/jpeg,image/png,image/jpg" 
-                                onChange={handleImageChange}
-                                required
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                            />
-                            {previewUrl ? (
-                                <img src={previewUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover z-10" />
-                            ) : (
-                                <>
-                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 md:text-indigo-400 mb-3 group-hover:scale-110 transition-transform" />
-                                    <p className="text-sm font-semibold text-slate-600 md:text-slate-300 m-0">Click to upload or drag & drop</p>
-                                    <p className="text-xs text-slate-500 md:text-slate-400 mt-1 m-0 font-medium">JPG, JPEG, PNG (Max 5MB)</p>
-                                </>
-                            )}
-                            {previewUrl && (
-                                <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm">
-                                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-white mb-2" />
-                                    <span className="text-white font-bold text-sm">Change Image</span>
+                        
+                        {!previewUrl ? (
+                            <div className="relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
+                                <input 
+                                    type="file" 
+                                    accept="image/jpeg,image/png,image/jpg" 
+                                    onChange={handleImageChange}
+                                    required
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                />
+                                <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 md:text-indigo-400 mb-3 group-hover:scale-110 transition-transform" />
+                                <p className="text-sm font-semibold text-slate-600 md:text-slate-300 m-0">Click to upload or drag & drop</p>
+                                <p className="text-xs text-slate-500 md:text-slate-400 mt-1 m-0 font-medium">JPG, JPEG, PNG (Max 5MB)</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center space-y-3 p-4 bg-slate-950/80 rounded-2xl border border-slate-200 md:border-white/10 shadow-inner">
+                                <div className="w-full h-72 flex items-center justify-center overflow-hidden rounded-xl bg-black/40">
+                                    <img 
+                                        src={previewUrl} 
+                                        alt="Uploaded Receipt Preview" 
+                                        className="max-h-full max-w-full object-contain rounded"
+                                    />
                                 </div>
-                            )}
-                        </div>
+                                <div className="flex items-center gap-3 w-full pt-1">
+                                    <label className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
+                                        <FontAwesomeIcon icon={faCloudUploadAlt} />
+                                        <span>Change Photo</span>
+                                        <input 
+                                            type="file" 
+                                            accept="image/jpeg,image/png,image/jpg" 
+                                            onChange={handleImageChange}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setProofImage(null);
+                                            setPreviewUrl('');
+                                        }}
+                                        className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold px-4 py-2.5 rounded-xl border border-rose-500/30 cursor-pointer transition-colors flex items-center gap-1.5"
+                                    >
+                                        <FontAwesomeIcon icon={faUndo} />
+                                        <span>Remove</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="pt-2">

@@ -18,7 +18,16 @@ if (!verify_admin($conn, $admin_id)) {
     exit;
 }
 
-$query = "SELECT a.*, u.first_name, u.last_name 
+// Added 'AS' aliases to match the object keys your React map() function expects
+$query = "SELECT 
+            a.id,
+            a.action,
+            a.created_at,
+            a.category AS entity_type,
+            a.performed_by AS admin_id,
+            a.id AS entity_id,
+            u.first_name, 
+            u.last_name 
           FROM activity_logs a 
           LEFT JOIN users u ON a.performed_by = u.id 
           ORDER BY a.created_at DESC LIMIT 100";
