@@ -37,7 +37,7 @@ export default function AdminActivityLogs() {
       if (response.data.success) {
         setLogs(response.data.logs.map(log => ({
           id: `LOG-${log.id.toString().padStart(3, '0')}`,
-          category: log.category,
+          category: log.entity_type,
           action: log.action,
           details: log.details,
           date: log.created_at,
