@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$query = "SELECT c.*, r.first_name, r.last_name, r.room_name, r.monthly_rent, rm.type 
+$query = "SELECT c.*, r.first_name, r.last_name, r.email, r.room_name, r.monthly_rent, rm.type 
           FROM lease_contracts c 
           LEFT JOIN rent_applications r ON c.rent_application_id = r.id
           LEFT JOIN rooms rm ON r.room_name = rm.id

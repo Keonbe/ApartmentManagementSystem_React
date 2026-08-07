@@ -47,6 +47,7 @@ const AdminContracts = () => {
         const fetched = res.data.contracts.map(c => ({
           id: c.id,
           tenant: `${c.first_name} ${c.last_name}`,
+          tenantEmail: c.email,
           unit: c.room_name,
           type: c.type || 'Unit',
           rent: c.monthly_rent,
@@ -55,8 +56,8 @@ const AdminContracts = () => {
           leaseEnd: c.lease_end,
           status: c.status,
           generatedDate: c.generated_at ? c.generated_at.split(' ')[0] : '',
-          signedLease: { uploaded: !!c.signed_lease_path, fileName: c.signed_lease_path ? c.signed_lease_path.split('/').pop() : null, uploadDate: null },
-          notarizedLease: { uploaded: !!c.notarized_lease_path, fileName: c.notarized_lease_path ? c.notarized_lease_path.split('/').pop() : null, uploadDate: null },
+          signedLease: { uploaded: !!c.signed_lease_path, fileName: c.signed_lease_path ? c.signed_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.signed_lease_path },
+          notarizedLease: { uploaded: !!c.notarized_lease_path, fileName: c.notarized_lease_path ? c.notarized_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.notarized_lease_path },
           evictionStatus: c.eviction_status,
           overdueInfo: null
         }));
@@ -140,6 +141,29 @@ const AdminContracts = () => {
   };
 
   const handleSaveDates = async () => {
+    if (!editForm.leaseStart || !editForm.leaseEnd) {
+      alert("Please select both lease start and end dates.");
+      return;
+    }
+    const start = new Date(editForm.leaseStart);
+    const end = new Date(editForm.leaseEnd);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      alert("Invalid date format selected.");
+      return;
+    }
+    if (end <= start) {
+      alert("Lease end date must be after the lease start date.");
+      return;
+    }
+    
+    // Check if end date is greater than 24 months from start date
+    const maxEnd = new Date(start);
+    maxEnd.setMonth(maxEnd.getMonth() + 24);
+    if (end > maxEnd) {
+      alert("The maximum lease period is 24 months.");
+      return;
+    }
+
     try {
       const res = await api.post('/update_contract_status.php', {
         contractId: selectedContract.id,
@@ -184,7 +208,7 @@ const AdminContracts = () => {
             if (selectedContract && selectedContract.id === contractId) {
                setSelectedContract(prev => ({
                  ...prev,
-                 [docType]: { uploaded: true, fileName: e.target.files[0].name, uploadDate: new Date().toISOString().slice(0, 10) }
+                 [docType]: { uploaded: true, fileName: e.target.files[0].name, uploadDate: new Date().toISOString().slice(0, 10), filePath: res.data.filePath }
                }));
             }
           } else {
@@ -486,7 +510,35 @@ const AdminContracts = () => {
                 </button>
               ) : <div></div>}
               {createStep < 3 ? (
-                <button onClick={() => setCreateStep(s => s + 1)} disabled={createStep === 1 && !form.tenant} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50">
+                <button 
+                  onClick={() => {
+                    if (createStep === 2) {
+                      if (!form.leaseStart || !form.leaseEnd) {
+                        alert("Please select both lease start and end dates.");
+                        return;
+                      }
+                      const start = new Date(form.leaseStart);
+                      const end = new Date(form.leaseEnd);
+                      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                        alert("Invalid date format selected.");
+                        return;
+                      }
+                      if (end <= start) {
+                        alert("Lease end date must be after the lease start date.");
+                        return;
+                      }
+                      const maxEnd = new Date(start);
+                      maxEnd.setMonth(maxEnd.getMonth() + 24);
+                      if (end > maxEnd) {
+                        alert("The maximum lease period is 24 months.");
+                        return;
+                      }
+                    }
+                    setCreateStep(s => s + 1);
+                  }}
+                  disabled={createStep === 1 && !form.tenant} 
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50"
+                >
                   Next <FontAwesomeIcon icon={faArrowRight} />
                 </button>
               ) : (
@@ -590,6 +642,7 @@ const AdminContracts = () => {
                 </div>
                 <div className="p-5 space-y-4">
                   {/* Signed Lease */}
+                  {/* Signed Lease */}
                   <div className={`rounded-lg border p-4 ${selectedContract.signedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -599,10 +652,20 @@ const AdminContracts = () => {
                         <div>
                           <p className="text-sm font-semibold text-slate-800 m-0">Signed Lease Agreement</p>
                           {selectedContract.signedLease?.uploaded ? (
-                            <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                              <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
-                              {selectedContract.signedLease.fileName} · Uploaded {selectedContract.signedLease.uploadDate}
-                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-[11px] text-slate-500 m-0 font-sans">
+                                <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
+                                {selectedContract.signedLease.fileName}
+                              </p>
+                              <a 
+                                href={selectedContract.signedLease.filePath ? 'http://localhost:8080/ApartmentManagementSystem_React/backend/' + selectedContract.signedLease.filePath.replace(/^\.\.\//, '') : '#'} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
+                              >
+                                View / Download File
+                              </a>
+                            </div>
                           ) : (
                             <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
                           )}
@@ -630,10 +693,20 @@ const AdminContracts = () => {
                         <div>
                           <p className="text-sm font-semibold text-slate-800 m-0">Notarized Lease Copy</p>
                           {selectedContract.notarizedLease?.uploaded ? (
-                            <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                              <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
-                              {selectedContract.notarizedLease.fileName} · Uploaded {selectedContract.notarizedLease.uploadDate}
-                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-[11px] text-slate-500 m-0 font-sans">
+                                <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
+                                {selectedContract.notarizedLease.fileName}
+                              </p>
+                              <a 
+                                href={selectedContract.notarizedLease.filePath ? 'http://localhost:8080/ApartmentManagementSystem_React/backend/' + selectedContract.notarizedLease.filePath.replace(/^\.\.\//, '') : '#'} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
+                              >
+                                View / Download File
+                              </a>
+                            </div>
                           ) : (
                             <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
                           )}
@@ -701,11 +774,17 @@ const AdminContracts = () => {
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2 shrink-0">
-              <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors">
-                <FontAwesomeIcon icon={faPrint} /> Print
-              </button>
-              <button className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
-                <FontAwesomeIcon icon={faDownload} /> Download PDF
+              <button 
+                onClick={() => {
+                  if (selectedContract.tenantEmail) {
+                    window.open('/view-contract?email=' + encodeURIComponent(selectedContract.tenantEmail), '_blank');
+                  } else {
+                    alert('No tenant email associated with this contract to preview.');
+                  }
+                }}
+                className="flex-grow flex items-center justify-center gap-2 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"
+              >
+                <FontAwesomeIcon icon={faPrint} /> View / Print System Lease Agreement
               </button>
             </div>
           </div>

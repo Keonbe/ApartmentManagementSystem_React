@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faHourglassHalf, faCheckCircle, faTimesCircle, faArrowRight, faFileInvoiceDollar, 
     faHome, faCalendarAlt, faUsers, faInfoCircle, faArrowLeft,
-    faWallet, faUniversity, faMoneyBillWave, faCheck
+    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faLock
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
@@ -16,9 +16,51 @@ export default function TrackApplication() {
     const [error, setError] = useState(null);
     const [selectedMethod, setSelectedMethod] = useState('cash');
     const [paying, setPaying] = useState(false);
+    const [contractFile, setContractFile] = useState(null);
+    const [uploadingContract, setUploadingContract] = useState(false);
+
+    const handleContractUpload = async (e) => {
+        e.preventDefault();
+        if (!contractFile) {
+            alert("Please select a signed contract file to upload.");
+            return;
+        }
+        setUploadingContract(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', contractFile);
+            formData.append('rentApplicationId', application.id);
+            formData.append('docType', 'signedLease');
+
+            const res = await api.post('/upload_lease_document.php', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            if (res.data.success) {
+                alert("Signed lease contract uploaded successfully! You may now proceed to initial payment.");
+                setApplication(prev => ({
+                    ...prev,
+                    signed_lease_path: res.data.filePath,
+                    contract_id: res.data.contractId
+                }));
+                setContractFile(null);
+            } else {
+                alert(res.data.message || "Failed to upload contract.");
+            }
+        } catch (err) {
+            console.error("Contract upload error:", err);
+            alert("Failed to upload contract. Please try again.");
+        } finally {
+            setUploadingContract(false);
+        }
+    };
 
     const handleInitialPayment = async (e) => {
         e.preventDefault();
+        if (!application?.signed_lease_path) {
+            alert("Please upload your signed lease contract before proceeding to payment.");
+            return;
+        }
         if (!application?.pending_invoice_id) {
             alert("No pending invoice found.");
             return;
@@ -239,108 +281,200 @@ export default function TrackApplication() {
                         )}
 
                         {statusNormalized === 'approved' && application.has_pending_first_payment && (
-                            <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-                                <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
-                                    <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-indigo-400" />
-                                    Complete Initial Lease Payment
-                                </h3>
-                                <p className="text-slate-300 text-sm m-0">
-                                    Your lease application is approved! To activate your tenancy and access your room information and services, please settle your initial payment details below:
-                                </p>
+                            <>
+                                {/* Step 1: Lease Contract Verification & Upload */}
+                                <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
+                                                <FontAwesomeIcon icon={faFileContract} className="text-indigo-400" />
+                                                Step 1: Sign & Upload Lease Contract
+                                            </h3>
+                                            <p className="text-slate-300 text-xs m-0 mt-1">
+                                                Review your lease agreement, sign it, and upload the signed document below to unlock payment.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => navigate('/view-contract')}
+                                            className="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shrink-0 cursor-pointer flex items-center gap-2"
+                                        >
+                                            <FontAwesomeIcon icon={faFileContract} />
+                                            <span>View / Print Contract</span>
+                                        </button>
+                                    </div>
 
-                                <div className="space-y-3 bg-white/5 border border-white/10 rounded-2xl p-5 text-sm">
-                                    <div className="flex justify-between items-center text-slate-300">
-                                        <span>1-Month Advance Rent:</span>
-                                        <span className="font-semibold text-white">₱{parseFloat(application.pending_base_rent || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-slate-300">
-                                        <span>1-Month Security Deposit:</span>
-                                        <span className="font-semibold text-white">₱{parseFloat(application.pending_security_deposit || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                    <div className="border-t border-white/10 pt-3 flex justify-between items-center font-bold">
-                                        <span className="text-slate-200">Total Initial Payment Due:</span>
-                                        <span className="text-2xl font-black text-indigo-400">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                    </div>
+                                    {application.signed_lease_path ? (
+                                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
+                                            <div className="flex items-center space-x-3 text-emerald-400 font-bold">
+                                                <FontAwesomeIcon icon={faCheckCircle} className="text-lg" />
+                                                <div>
+                                                    <p className="m-0 text-white font-bold">Signed Lease Contract Uploaded</p>
+                                                    <p className="m-0 text-xs font-normal text-emerald-300">Your signed contract has been attached. You may now proceed to initial payment below.</p>
+                                                </div>
+                                            </div>
+                                            <label className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition-all border border-white/10 shrink-0">
+                                                <span>Re-upload Contract</span>
+                                                <input 
+                                                    type="file" 
+                                                    accept="application/pdf,image/*" 
+                                                    className="hidden" 
+                                                    onChange={(e) => {
+                                                        if (e.target.files?.[0]) {
+                                                            setContractFile(e.target.files[0]);
+                                                        }
+                                                    }} 
+                                                />
+                                            </label>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-3">
+                                            <div className="flex items-center space-x-2.5 text-amber-400 font-bold text-sm">
+                                                <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                                <span>Signed Contract Upload Required</span>
+                                            </div>
+                                            <p className="text-slate-300 text-xs m-0">
+                                                You must upload your signed contract first before initial payment options are enabled.
+                                            </p>
+                                            <form onSubmit={handleContractUpload} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                                                <input 
+                                                    type="file" 
+                                                    accept="application/pdf,image/*"
+                                                    onChange={(e) => setContractFile(e.target.files[0])}
+                                                    className="flex-1 text-xs text-slate-300 bg-white/5 border border-white/10 rounded-xl p-2.5 outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
+                                                />
+                                                <button
+                                                    type="submit"
+                                                    disabled={!contractFile || uploadingContract}
+                                                    className="bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                                >
+                                                    {uploadingContract ? (
+                                                        <>
+                                                            <FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" />
+                                                            <span>Uploading...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FontAwesomeIcon icon={faUpload} />
+                                                            <span>Upload Contract</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </form>
+                                        </div>
+                                    )}
                                 </div>
 
-                                {application.pending_invoice_status === 'pending-verification' ? (
-                                    <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 space-y-3">
-                                        <div className="flex items-center gap-2.5 text-indigo-400 font-bold text-sm">
-                                            <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
-                                            Payment Verification Pending
-                                        </div>
-                                        <p className="text-slate-300 text-xs m-0 leading-relaxed">
-                                            Your payment proof (via <strong>{application.pending_payment_method}</strong>) has been submitted and is currently being verified by management. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
-                                        </p>
-                                    </div>
-                                ) : application.pending_payment_method === 'Cash on Hand' ? (
-                                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 space-y-3">
-                                        <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
-                                            <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
-                                            Cash Payment Request Pending
-                                        </div>
-                                        <p className="text-slate-300 text-xs m-0 leading-relaxed">
-                                            Please proceed to the management office to settle your cash payment of <strong className="text-white">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        {/* Payment Method Selector */}
-                                        <div className="space-y-3">
-                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Payment Method</label>
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                {[
-                                                    { id: 'gcash', label: 'GCash', icon: faWallet, disabled: false },
-                                                    { id: 'bank', label: 'Bank Transfer', icon: faUniversity, disabled: false },
-                                                    { id: 'cash', label: 'Cash on Hand', icon: faMoneyBillWave, disabled: false }
-                                                ].map((method) => (
-                                                    <button
-                                                        key={method.id}
-                                                        disabled={method.disabled}
-                                                        onClick={() => setSelectedMethod(method.id)}
-                                                        className={`flex items-center justify-between p-4 rounded-2xl border text-sm font-semibold transition-all ${
-                                                            method.disabled
-                                                                ? 'opacity-40 bg-white/5 border-white/5 text-slate-500 cursor-not-allowed'
-                                                                : selectedMethod === method.id 
-                                                                    ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg cursor-pointer' 
-                                                                    : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 cursor-pointer'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center space-x-3">
-                                                            <FontAwesomeIcon icon={method.icon} className={selectedMethod === method.id ? 'text-indigo-400' : 'text-slate-400'} />
-                                                            <span>{method.label}</span>
-                                                        </div>
-                                                        {selectedMethod === method.id && (
-                                                            <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-xs">
-                                                                <FontAwesomeIcon icon={faCheck} className="text-white text-[10px]" />
-                                                            </div>
-                                                        )}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
+                                {/* Step 2: Complete Initial Lease Payment */}
+                                <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+                                    <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
+                                        <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-indigo-400" />
+                                        Step 2: Complete Initial Lease Payment
+                                    </h3>
+                                    <p className="text-slate-300 text-sm m-0">
+                                        Your lease application is approved! Settle your initial 1-month advance rent and 1-month security deposit below:
+                                    </p>
 
-                                        {/* Action Button */}
-                                        <button
-                                            onClick={handleInitialPayment}
-                                            disabled={paying}
-                                            className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-bold py-4 rounded-2xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {paying ? (
-                                                <>
-                                                    <FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" />
-                                                    <span>Processing Payment...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <span>Pay ₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })} Now</span>
-                                                    <FontAwesomeIcon icon={faArrowRight} />
-                                                </>
-                                            )}
-                                        </button>
-                                    </>
-                                )}
-                            </div>
+                                    {!application.signed_lease_path && (
+                                        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-4 rounded-2xl text-xs font-semibold flex items-center space-x-2">
+                                            <FontAwesomeIcon icon={faLock} className="text-rose-400 text-sm shrink-0" />
+                                            <span>Payment is locked. Please upload your signed lease contract in Step 1 above to enable initial payment.</span>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-3 bg-white/5 border border-white/10 rounded-2xl p-5 text-sm">
+                                        <div className="flex justify-between items-center text-slate-300">
+                                            <span>1-Month Advance Rent:</span>
+                                            <span className="font-semibold text-white">₱{parseFloat(application.pending_base_rent || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-slate-300">
+                                            <span>1-Month Security Deposit:</span>
+                                            <span className="font-semibold text-white">₱{parseFloat(application.pending_security_deposit || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                        <div className="border-t border-white/10 pt-3 flex justify-between items-center font-bold">
+                                            <span className="text-slate-200">Total Initial Payment Due:</span>
+                                            <span className="text-2xl font-black text-indigo-400">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                    </div>
+
+                                    {application.pending_invoice_status === 'pending-verification' ? (
+                                        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 space-y-3">
+                                            <div className="flex items-center gap-2.5 text-indigo-400 font-bold text-sm">
+                                                <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                                Payment Verification Pending
+                                            </div>
+                                            <p className="text-slate-300 text-xs m-0 leading-relaxed">
+                                                Your payment proof (via <strong>{application.pending_payment_method}</strong>) has been submitted and is currently being verified by management. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
+                                            </p>
+                                        </div>
+                                    ) : application.pending_payment_method === 'Cash on Hand' ? (
+                                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 space-y-3">
+                                            <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
+                                                <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                                Cash Payment Request Pending
+                                            </div>
+                                            <p className="text-slate-300 text-xs m-0 leading-relaxed">
+                                                Please proceed to the management office to settle your cash payment of <strong className="text-white">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Payment Method Selector */}
+                                            <div className={`space-y-3 ${!application.signed_lease_path ? 'opacity-40 pointer-events-none' : ''}`}>
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Payment Method</label>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                    {[
+                                                        { id: 'gcash', label: 'GCash', icon: faWallet, disabled: !application.signed_lease_path },
+                                                        { id: 'bank', label: 'Bank Transfer', icon: faUniversity, disabled: !application.signed_lease_path },
+                                                        { id: 'cash', label: 'Cash on Hand', icon: faMoneyBillWave, disabled: !application.signed_lease_path }
+                                                    ].map((method) => (
+                                                        <button
+                                                            key={method.id}
+                                                            disabled={method.disabled}
+                                                            onClick={() => setSelectedMethod(method.id)}
+                                                            className={`flex items-center justify-between p-4 rounded-2xl border text-sm font-semibold transition-all ${
+                                                                method.disabled
+                                                                    ? 'opacity-40 bg-white/5 border-white/5 text-slate-500 cursor-not-allowed'
+                                                                    : selectedMethod === method.id 
+                                                                        ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg cursor-pointer' 
+                                                                        : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 cursor-pointer'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center space-x-3">
+                                                                <FontAwesomeIcon icon={method.icon} className={selectedMethod === method.id ? 'text-indigo-400' : 'text-slate-400'} />
+                                                                <span>{method.label}</span>
+                                                            </div>
+                                                            {selectedMethod === method.id && (
+                                                                <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-xs">
+                                                                    <FontAwesomeIcon icon={faCheck} className="text-white text-[10px]" />
+                                                                </div>
+                                                            )}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Action Button */}
+                                            <button
+                                                onClick={handleInitialPayment}
+                                                disabled={paying || !application.signed_lease_path}
+                                                className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-bold py-4 rounded-2xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {paying ? (
+                                                    <>
+                                                        <FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" />
+                                                        <span>Processing Payment...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>Pay ₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })} Now</span>
+                                                        <FontAwesomeIcon icon={faArrowRight} />
+                                                    </>
+                                                )}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </>
                         )}
 
                         {/* Visual Progress Timeline */}

@@ -322,7 +322,7 @@ const handleMarkAsPaid = async () => {
   const showBanner = activeTenant ? (activeTenant.status === 'overdue' || (activeTenant.status === 'pending' && activeDaysDue !== null && activeDaysDue <= 5) || activeTenant.status === 'pending-verification') : false;
 
   // SAFETY GUARD CLAUSE: Stops render tree compilation if async requests haven't completed
-  if (loading || !activeTenant) {
+  if (loading) {
     return (
       <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
         <Sidebar />
@@ -330,6 +330,24 @@ const handleMarkAsPaid = async () => {
           <Header title="Payment Management" />
           <div className="flex-1 flex items-center justify-center p-6 md:p-8">
              <p className="text-slate-400 text-sm font-semibold animate-pulse">Loading active tenant ledger parameters safely...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!activeTenant) {
+    return (
+      <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+        <Sidebar />
+        <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
+          <Header title="Payment Management" />
+          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 text-center bg-white border border-slate-200 rounded-xl m-6">
+             <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-2xl mb-4">
+               <FontAwesomeIcon icon={faInfoCircle} />
+             </div>
+             <h3 className="text-lg font-bold text-slate-800 m-0">No Active Tenant Ledgers</h3>
+             <p className="text-slate-500 text-sm max-w-sm mt-2">There are currently no active tenant ledgers or invoices in the system. Create invoices or approve a tenant's rent application to view ledgers here.</p>
           </div>
         </main>
       </div>

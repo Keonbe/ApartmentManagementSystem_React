@@ -12,9 +12,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
+$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+
+$is_admin = verify_admin($conn, $admin_id);
+if (!$is_admin && empty($user_id)) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    echo json_encode(["success" => false, "message" => "Forbidden: Authentication required"]);
     exit;
 }
 
@@ -24,11 +27,30 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $contract_id = $_POST['contractId'] ?? '';
-$doc_type = $_POST['docType'] ?? ''; // 'signedLease' or 'notarizedLease'
+$rent_app_id = $_POST['rentApplicationId'] ?? '';
+$doc_type = $_POST['docType'] ?? 'signedLease'; // 'signedLease' or 'notarizedLease'
 $action = $_POST['action'] ?? 'upload'; // 'upload' or 'remove'
 
+if (empty($contract_id) && !empty($rent_app_id)) {
+    // Lookup or auto-create lease contract for this rent application
+    $stmt = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ? LIMIT 1");
+    $stmt->bind_param("i", $rent_app_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res && $res->num_rows > 0) {
+        $contract_id = $res->fetch_assoc()['id'];
+    } else {
+        $contract_id = 'LC-' . uniqid();
+        $ins = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount) VALUES (?, ?, 0.00)");
+        $ins->bind_param("si", $contract_id, $rent_app_id);
+        $ins->execute();
+        $ins->close();
+    }
+    $stmt->close();
+}
+
 if (empty($contract_id) || empty($doc_type)) {
-    echo json_encode(["success" => false, "message" => "Contract ID and docType are required."]);
+    echo json_encode(["success" => false, "message" => "Contract ID or Rent Application ID and docType are required."]);
     exit;
 }
 
@@ -43,7 +65,7 @@ if ($action === 'remove') {
     $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = NULL WHERE id = ?");
     $stmt->bind_param("s", $contract_id);
     if ($stmt->execute()) {
-        log_activity($conn, $admin_id, 'tenant', "Removed Lease Document", "Document: $doc_type from Contract: $contract_id");
+        log_activity($conn, $admin_id ?: $user_id, 'tenant', "Removed Lease Document", "Document: $doc_type from Contract: $contract_id");
         echo json_encode(["success" => true, "message" => "Document removed successfully"]);
     } else {
         echo json_encode(["success" => false, "message" => "Failed to remove document"]);
@@ -68,8 +90,8 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
         $stmt->bind_param("ss", $destination, $contract_id);
         
         if ($stmt->execute()) {
-            log_activity($conn, $admin_id, 'tenant', "Uploaded Lease Document", "Document: $doc_type to Contract: $contract_id");
-            echo json_encode(["success" => true, "message" => "Document uploaded successfully", "filePath" => $destination]);
+            log_activity($conn, $admin_id ?: $user_id, 'tenant', "Uploaded Lease Document", "Document: $doc_type to Contract: $contract_id");
+            echo json_encode(["success" => true, "message" => "Document uploaded successfully", "filePath" => $destination, "contractId" => $contract_id]);
         } else {
             echo json_encode(["success" => false, "message" => "Database update failed"]);
         }

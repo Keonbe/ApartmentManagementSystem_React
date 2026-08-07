@@ -56,7 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'payment_method' => $row['payment_method'] ?? null,
                 'sender_name' => $row['sender_name'] ?? null,
                 'payment_reference' => $row['payment_reference'] ?? null,
-                'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null
+                'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null,
+                'billing_period' => $row['billing_period'] ?? null
             ];
         }
 
