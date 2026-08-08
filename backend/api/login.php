@@ -20,7 +20,7 @@ if (!$input) {
 $email = $input["email_address"];
 $password = $input["password"];
 
-$stmt = $conn->prepare("SELECT id, email_address, first_name, middle_name, last_name, suffix, password, role FROM users WHERE email_address = ?");
+$stmt = $conn->prepare("SELECT id, email_address, first_name, middle_name, last_name, suffix, password, role, is_archived FROM users WHERE email_address = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -31,6 +31,11 @@ if ($result->num_rows === 0) {
 }
 
 $user = $result->fetch_assoc();
+
+if ((int)$user["is_archived"] === 1) {
+    echo json_encode(["message" => "This account has been archived and cannot log in.", "valid" => false]);
+    exit;
+}
 
 if (password_verify($password, $user["password"])) {
     $_SESSION['user'] = [

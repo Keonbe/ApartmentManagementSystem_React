@@ -41,6 +41,7 @@ import AdminContracts from './AdminPages/AdminContracts';
 import AdminServicePage from './AdminPages/AdminServicePage';
 import AdminAccountSettings from './AdminPages/AdminAccountSettings';
 import AdminActivityLogs from './AdminPages/AdminActivityLogs';
+import AdminUsers from './AdminPages/AdminUsers';
 
 function ProtectedRoute({ children }) {
   const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
@@ -214,6 +215,7 @@ function AppContent() {
         <Route path="/admin-services" element={<AdminProtectedRoute><AdminServicePage /></AdminProtectedRoute>} />
         <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
+        <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
       </Routes>
     </>
   );

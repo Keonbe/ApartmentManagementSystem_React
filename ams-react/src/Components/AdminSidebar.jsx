@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
-  faHistory
+  faHistory, faUsersCog
 } from '@fortawesome/free-solid-svg-icons';
 
 const navSections = [
@@ -15,6 +15,7 @@ const navSections = [
       { to: '/admin-applications', icon: faFileAlt, label: 'Applications' },
       { to: '/admin-units', icon: faBuilding, label: 'Units' },
       { to: '/admin-tenants', icon: faUsers, label: 'Tenants' },
+      { to: '/admin-users', icon: faUsersCog, label: 'Users' },
       { to: '/admin-payments', icon: faCreditCard, label: 'Payments' },
     ],
   },

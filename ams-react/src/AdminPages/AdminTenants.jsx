@@ -88,6 +88,21 @@ const AdminTenants = () => {
     }
   };
 
+  const handleRestoreTenant = async (id) => {
+    try {
+      const res = await api.post('/restore_tenant.php', { id });
+      if (res.data.success) {
+        alert(res.data.message || 'Tenant restored successfully.');
+        fetchTenants();
+      } else {
+        alert(res.data.message || 'Failed to restore tenant.');
+      }
+    } catch (err) {
+      console.error("Error restoring tenant:", err);
+      alert('Failed to restore tenant.');
+    }
+  };
+
   const openArchiveModal = (tenant) => {
     setArchiveTarget(tenant);
     setArchiveReason('End of Lease');
@@ -318,6 +333,14 @@ const AdminTenants = () => {
                               className="flex items-center gap-1.5 text-violet-600 font-semibold border-0 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
                             >
                               <FontAwesomeIcon icon={faArchive} className="text-[10px]" /> Archive
+                            </button>
+                          )}
+                          {t.status === 'archived' && (
+                            <button 
+                              onClick={() => handleRestoreTenant(t.id)}
+                              className="flex items-center gap-1.5 text-emerald-600 font-semibold border-0 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+                            >
+                              <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Restore Tenant
                             </button>
                           )}
                           {(t.status === 'active' || t.status === 'Approved') && (
