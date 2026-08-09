@@ -14,22 +14,6 @@ import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 import { useEffect } from 'react';
 
-// ==========================================
-// DETERMINISTIC MOCK DATA ENGINE
-// ==========================================
-const seedRandom = (str) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return Math.abs(hash);
-};
-
-const getDeterministicValue = (key, year, month, min, max) => {
-  const seed = seedRandom(`${key}-${year}-${month}`);
-  return min + (seed % (max - min + 1));
-};
-
 const monthsList = [
   { value: 1, label: 'January' },
   { value: 2, label: 'February' },
@@ -46,19 +30,6 @@ const monthsList = [
 ];
 
 const yearsList = [2024, 2025, 2026];
-
-const tenantNames = [
-  'Maria Santos', 'Jose Reyes', 'Pedro Cruz', 'Rosa Dela Cruz', 'Ben Flores',
-  'Lita Ramos', 'Dante Abad', 'Gloria Tan', 'Ramon Lim', 'Cora Santos',
-  'Nilo Ocampo', 'Carlos Mendoza', 'Ana Garcia', 'Miguel Santos', 'Elena Gomez',
-  'Carlos Diaz', 'Roberto Tan', 'Lisa Flores', 'Juan Santos', 'Rosa Santos'
-];
-
-const units = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
-const vehicleModels = ['Honda Click', 'Yamaha Nmax', 'Toyota Vios', 'Mitsubishi Mirage', 'Suzuki Swift', 'Honda Civic'];
-const issueCategories = ['Plumbing', 'Electrical', 'Structural', 'Appliance', 'Pest Control', 'Others'];
-
-// Mock data generator removed per ponytail rules
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 

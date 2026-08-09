@@ -28,7 +28,7 @@ export default function ViewContract() {
             }
 
             try {
-                let contractRes = await api.get(`/get_my_contract.php?email=${encodeURIComponent(activeEmail)}`);
+                let contractRes = await api.get(`/get_contracts.php?email=${encodeURIComponent(activeEmail)}`);
                 let data = null;
                 
                 if (contractRes.data.success && contractRes.data.contract) {
