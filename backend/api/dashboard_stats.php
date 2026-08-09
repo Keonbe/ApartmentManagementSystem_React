@@ -221,6 +221,132 @@ try {
     }
     $stmt->close();
 
+    // 9. Operational Action Queues (Pending Approvals, Invoices, Maintenance)
+    $response['pending_actions'] = [
+        'applications' => [],
+        'invoices' => [],
+        'maintenance' => []
+    ];
+
+    // 9a. Pending Applications
+    $stmt = $conn->prepare("
+        SELECT id, first_name, last_name, room_name, monthly_rent, created_at 
+        FROM rent_applications 
+        WHERE status IN ('Pending Review', 'Pending') 
+        ORDER BY created_at DESC 
+        LIMIT 4
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $response['pending_actions']['applications'][] = [
+            'id' => $row['id'],
+            'name' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'unit' => $row['room_name'] ?? 'Unassigned',
+            'rent' => (float)($row['monthly_rent'] ?? 0),
+            'date' => date('M d, Y', strtotime($row['created_at']))
+        ];
+    }
+    $stmt->close();
+
+    // 9b. Pending / Unverified Invoices
+    $stmt = $conn->prepare("
+        SELECT i.id, u.first_name, u.last_name, ra.room_name, i.total_amount, i.status, i.due_date, i.billing_period 
+        FROM invoices i
+        LEFT JOIN users u ON i.user_id = u.id
+        LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved'
+        WHERE LOWER(i.status) IN ('pending', 'pending-verification', 'unpaid', 'overdue')
+        ORDER BY CASE WHEN LOWER(i.status) = 'pending-verification' THEN 1 WHEN i.due_date < CURRENT_DATE() THEN 2 ELSE 3 END, i.created_at DESC
+        LIMIT 4
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $response['pending_actions']['invoices'][] = [
+            'id' => $row['id'],
+            'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'unit' => $row['room_name'] ?? 'N/A',
+            'amount' => (float)($row['total_amount'] ?? 0),
+            'status' => $row['status'],
+            'period' => $row['billing_period'] ?? '',
+            'due_date' => $row['due_date'] ? date('M d', strtotime($row['due_date'])) : 'No due date',
+            'is_overdue' => ($row['due_date'] && strtotime($row['due_date']) < strtotime(date('Y-m-d')))
+        ];
+    }
+    $stmt->close();
+
+    // 9c. Active Maintenance Tickets
+    $stmt = $conn->prepare("
+        SELECT m.id, u.first_name, u.last_name, ra.room_name, m.issue_category, m.urgency, m.status, m.created_at 
+        FROM maintenance_requests m
+        LEFT JOIN users u ON m.user_id = u.id
+        LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved'
+        WHERE m.status IN ('Pending', 'In Progress')
+        ORDER BY CASE WHEN LOWER(m.urgency) IN ('emergency', 'urgent', 'high') THEN 1 ELSE 2 END, m.created_at DESC
+        LIMIT 4
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $response['pending_actions']['maintenance'][] = [
+            'id' => $row['id'],
+            'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'unit' => $row['room_name'] ?? 'N/A',
+            'category' => $row['issue_category'],
+            'urgency' => $row['urgency'],
+            'status' => $row['status'],
+            'date' => date('M d', strtotime($row['created_at']))
+        ];
+    }
+    $stmt->close();
+
+    // 10. Rooms Summary Matrix (For interactive unit inventory map)
+    $response['rooms_summary'] = [];
+    $stmt = $conn->prepare("
+        SELECT id, type, floor, status, monthly_rent, tenant_name, maintenance_flag 
+        FROM rooms 
+        ORDER BY floor ASC, id ASC
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $response['rooms_summary'][] = [
+            'id' => $row['id'],
+            'type' => $row['type'],
+            'floor' => $row['floor'],
+            'status' => strtolower($row['status']),
+            'rent' => (float)($row['monthly_rent'] ?? 0),
+            'tenant' => $row['tenant_name'],
+            'maintenance_flag' => (bool)$row['maintenance_flag']
+        ];
+    }
+    $stmt->close();
+
+    // 11. Recent Activity Logs (Audit stream)
+    $response['activity_logs'] = [];
+    $stmt = $conn->prepare("
+        SELECT 
+            a.id,
+            a.action,
+            a.details,
+            a.created_at,
+            a.category AS entity_type,
+            a.performed_by AS admin_id,
+            a.id AS entity_id,
+            u.first_name, 
+            u.last_name 
+        FROM activity_logs a 
+        LEFT JOIN users u ON a.performed_by = u.id 
+        ORDER BY a.created_at DESC 
+        LIMIT 10
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $response['activity_logs'][] = $row;
+    }
+    $stmt->close();
+
     echo json_encode($response);
 } catch (Exception $e) {
     http_response_code(500);

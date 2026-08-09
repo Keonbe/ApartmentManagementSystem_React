@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);
     echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
@@ -22,6 +22,7 @@ if (!verify_admin($conn, $admin_id)) {
 $query = "SELECT 
             a.id,
             a.action,
+            a.details,
             a.created_at,
             a.category AS entity_type,
             a.performed_by AS admin_id,

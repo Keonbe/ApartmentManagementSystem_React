@@ -9,7 +9,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-    const loggedInUserStr = sessionStorage.getItem("loggedInUser");
+    const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
     if (loggedInUserStr) {
         try {
             const loggedInUser = JSON.parse(loggedInUserStr);

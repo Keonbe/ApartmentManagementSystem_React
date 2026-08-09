@@ -7,17 +7,24 @@ import {
   faCheckCircle, faClock, faChartLine, faChartPie, faWrench, faKey,
   faChartBar, faTable, faArrowUp, faArrowDown, faUserPlus, faInfoCircle,
   faFileContract, faFileAlt, faDownload, faHistory, faFileInvoiceDollar, faCogs, faFileSignature,
-  faClipboardList, faArrowRight
+  faClipboardList, faArrowRight, faBullhorn, faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 
 const formatCurrency = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
+const formatLogDate = (dateStr) => {
+  if (!dateStr) return 'Recently';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? 'Recently' : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [chartView, setChartView] = useState('bar'); 
   const [selectedMonth, setSelectedMonth] = useState(null);
+  const [activeLowerTab, setActiveLowerTab] = useState('actions');
 
   const [stats, setStats] = useState({
     total_revenue: 0,
@@ -40,6 +47,12 @@ const AdminDashboard = () => {
   });
   const [incomeData, setIncomeData] = useState([]);
   const [newTenants, setNewTenants] = useState([]);
+  const [pendingActions, setPendingActions] = useState({
+    applications: [],
+    invoices: [],
+    maintenance: []
+  });
+  const [roomsSummary, setRoomsSummary] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,23 +63,27 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [statsRes, logsRes] = await Promise.all([
-        api.get('dashboard_stats.php'),
-        api.get('get_activity_logs.php')
-      ]);
-
+      const statsRes = await api.get('dashboard_stats.php');
       if (statsRes.data && statsRes.data.success) {
         setStats(statsRes.data.stats || {});
         setIncomeData(statsRes.data.income_data || []);
         setNewTenants(statsRes.data.new_tenants || []);
-      }
-      if (logsRes.data && logsRes.data.success) {
-        setActivityLogs((logsRes.data.logs || []).slice(0, 6));
+        
+        const actions = statsRes.data.pending_actions || { applications: [], invoices: [], maintenance: [] };
+        setPendingActions(actions);
+        setRoomsSummary(statsRes.data.rooms_summary || []);
+        setActivityLogs(statsRes.data.activity_logs || []);
+        
+        const totalPending = (actions.applications?.length || 0) + (actions.invoices?.length || 0) + (actions.maintenance?.length || 0);
+        if (totalPending === 0) {
+          setActiveLowerTab('units');
+        }
       }
     } catch (error) {
       console.error("Failed to fetch dashboard data", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const maxValue = Math.max(
@@ -91,6 +108,10 @@ const AdminDashboard = () => {
 
   const rentCollectionRate = stats.collection_rate !== undefined ? stats.collection_rate : 0;
   const activeMonthData = incomeData.find(d => d.month === selectedMonth || d.key === selectedMonth);
+
+  const totalPendingActions = (pendingActions?.applications?.length || 0) + 
+                              (pendingActions?.invoices?.length || 0) + 
+                              (pendingActions?.maintenance?.length || 0);
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
@@ -517,90 +538,350 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Third Row: Activity Logs & Tools */}
+            {/* Third Row: Operational Command Center & Management Hub */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* System Activity Logs */}
-              <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-[22rem]">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center shrink-0">
-                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 m-0">
-                    <FontAwesomeIcon icon={faHistory} className="text-slate-500" /> System Activity Log
+              {/* Left (Col 2): Operations Command Center */}
+              <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                
+                {/* Tab Header */}
+                <div className="p-4 md:px-6 md:py-4 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3">
+                  <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
+                    <FontAwesomeIcon icon={faCogs} className="text-indigo-600" /> Operational Command
                   </h3>
-                  <button onClick={() => navigate('/admin-activity-logs')} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0">
-                    View All
-                  </button>
-                </div>
-                <div className="p-0 flex-1 overflow-y-auto">
-                  <div className="divide-y divide-slate-100">
-                    {loading ? (
-                        <div className="text-sm text-slate-400 text-center py-8">Loading logs...</div>
-                    ) : activityLogs.length === 0 ? (
-                        <div className="text-sm text-slate-400 text-center py-8">No recent activity</div>
-                    ) : activityLogs.map((log) => (
-                      <div key={log.id} className="p-4 hover:bg-slate-50 transition-colors flex gap-4">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${log.entity_type === 'invoice' ? 'bg-emerald-100 text-emerald-600' : log.entity_type === 'maintenance' || log.entity_type === 'room' ? 'bg-amber-100 text-amber-600' : log.entity_type === 'rent_application' ? 'bg-blue-100 text-blue-600' : log.entity_type === 'contract' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-600'}`}>
-                          <FontAwesomeIcon icon={log.entity_type === 'invoice' ? faDollarSign : log.entity_type === 'maintenance' ? faWrench : log.entity_type === 'rent_application' ? faUserPlus : log.entity_type === 'contract' ? faFileContract : faCogs} className="text-xs" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start mb-1">
-                            <p className="text-sm font-semibold text-slate-800 m-0">{log.action}</p>
-                            <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{new Date(log.created_at).toLocaleDateString()} {new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                          </div>
-                          <p className="text-xs text-slate-500 m-0">Admin #{log.admin_id} modified {log.entity_type} #{log.entity_id}</p>
-                        </div>
-                      </div>
-                    ))}
+
+                  <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+                    <button
+                      onClick={() => setActiveLowerTab('actions')}
+                      className={`px-3 py-1.5 rounded-md cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'actions' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <FontAwesomeIcon icon={faClipboardList} />
+                      <span>Action Queue</span>
+                      {totalPendingActions > 0 && (
+                        <span className="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                          {totalPendingActions}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setActiveLowerTab('units')}
+                      className={`px-3 py-1.5 rounded-md cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'units' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <FontAwesomeIcon icon={faBuilding} />
+                      <span>Unit Matrix</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        ({roomsSummary.length})
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveLowerTab('activity')}
+                      className={`px-3 py-1.5 rounded-md cursor-pointer border-0 transition-all flex items-center gap-1.5 ${activeLowerTab === 'activity' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <FontAwesomeIcon icon={faHistory} />
+                      <span>Activity Log</span>
+                    </button>
                   </div>
+                </div>
+
+                {/* Tab Content */}
+                <div className="p-5 md:p-6 flex-1 overflow-y-auto max-h-[22rem]">
+                  
+                  {/* TAB 1: ACTION QUEUE */}
+                  {activeLowerTab === 'actions' && (
+                    <div className="space-y-4">
+                      {totalPendingActions === 0 ? (
+                        <div className="py-8 text-center flex flex-col items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl mb-3">
+                            <FontAwesomeIcon icon={faCheckCircle} />
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-800 m-0">All Operational Queues Clear</h4>
+                          <p className="text-xs text-slate-500 mt-1 max-w-sm">No pending applications, unverified payments, or active maintenance bottlenecks at this time.</p>
+                          <div className="flex gap-2 mt-4">
+                            <button onClick={() => navigate('/admin-units')} className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border-0 cursor-pointer transition-colors">
+                              View Unit Inventory
+                            </button>
+                            <button onClick={() => navigate('/admin-announcements')} className="text-xs px-3 py-1.5 rounded-lg font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-0 cursor-pointer transition-colors">
+                              Post Announcement
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Pending Applications */}
+                          {(pendingActions?.applications || []).map(app => (
+                            <div key={`app-${app.id}`} className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/70 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs shrink-0">
+                                  <FontAwesomeIcon icon={faUserPlus} />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs font-bold text-slate-800 m-0">{app.name}</p>
+                                    <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded font-semibold">Lease Application</span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                                    Requested Unit <strong>{app.unit}</strong> • {formatCurrency(app.rent)}/mo • {app.date}
+                                  </p>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => navigate('/admin-applications')}
+                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors whitespace-nowrap"
+                              >
+                                Review
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* Pending Invoices / Payments */}
+                          {(pendingActions?.invoices || []).map(inv => (
+                            <div key={`inv-${inv.id}`} className="p-3.5 bg-rose-50/60 rounded-xl border border-rose-200/70 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-xs shrink-0">
+                                  <FontAwesomeIcon icon={faDollarSign} />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs font-bold text-slate-800 m-0">{inv.tenant || 'Tenant'}</p>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${inv.is_overdue ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                                      {inv.is_overdue ? 'Overdue' : 'Pending Payment'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                                    Unit {inv.unit} • <strong>{formatCurrency(inv.amount)}</strong> • Due {inv.due_date}
+                                  </p>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => navigate('/admin-payments')}
+                                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors whitespace-nowrap"
+                              >
+                                Verify
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* Active Maintenance */}
+                          {(pendingActions?.maintenance || []).map(maint => (
+                            <div key={`maint-${maint.id}`} className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-200/70 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs shrink-0">
+                                  <FontAwesomeIcon icon={faWrench} />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs font-bold text-slate-800 m-0">{maint.category || 'Maintenance'}</p>
+                                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${maint.urgency?.toLowerCase() === 'emergency' || maint.urgency?.toLowerCase() === 'urgent' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
+                                      {maint.urgency || 'Normal'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                                    Unit {maint.unit} ({maint.tenant}) • Submitted {maint.date}
+                                  </p>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => navigate('/admin-maintenance')}
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors whitespace-nowrap"
+                              >
+                                Open Ticket
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TAB 2: UNIT MATRIX */}
+                  {activeLowerTab === 'units' && (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center text-xs text-slate-500 border-b border-slate-100 pb-2">
+                        <div className="flex gap-4">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                            <span>Occupied ({stats.occupied_rooms})</span>
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block"></span>
+                            <span>Vacant ({stats.vacant_rooms})</span>
+                          </span>
+                        </div>
+                        <button 
+                          onClick={() => navigate('/admin-units')}
+                          className="text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0"
+                        >
+                          Manage All Units →
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {(roomsSummary || []).map(room => {
+                          const isOccupied = room.status === 'occupied';
+                          return (
+                            <div 
+                              key={room.id}
+                              onClick={() => navigate('/admin-units')}
+                              className={`p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${isOccupied ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' : 'bg-slate-50 border-slate-200 hover:border-indigo-400'}`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <span className="font-extrabold text-sm text-slate-800">{room.id}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isOccupied ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
+                                  {isOccupied ? 'Occupied' : 'Vacant'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 m-0 mt-1">{room.floor} • {room.type}</p>
+                              <p className="text-xs font-semibold m-0 mt-2 truncate text-slate-700">
+                                {isOccupied ? room.tenant || 'Active Tenant' : formatCurrency(room.rent)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB 3: ACTIVITY LOGS */}
+                  {activeLowerTab === 'activity' && (
+                    <div className="space-y-3">
+                      {(activityLogs || []).length === 0 ? (
+                        <div className="text-xs text-slate-400 text-center py-8">No recent activity logged</div>
+                      ) : (
+                        <div className="divide-y divide-slate-100">
+                          {(activityLogs || []).map(log => (
+                            <div key={log.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start gap-3 hover:bg-slate-50/50 rounded-lg transition-colors">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${log.entity_type === 'invoice' || log.entity_type === 'payment' ? 'bg-emerald-100 text-emerald-600' : log.entity_type === 'maintenance' ? 'bg-amber-100 text-amber-600' : log.entity_type === 'rent_application' || log.entity_type === 'tenant' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
+                                <FontAwesomeIcon icon={log.entity_type === 'invoice' || log.entity_type === 'payment' ? faDollarSign : log.entity_type === 'maintenance' ? faWrench : log.entity_type === 'rent_application' || log.entity_type === 'tenant' ? faUserPlus : faCogs} className="text-xs" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start gap-2">
+                                  <p className="text-xs font-bold text-slate-800 m-0 truncate">{log.action}</p>
+                                  <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap shrink-0">
+                                    {formatLogDate(log.created_at)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                                  {log.details || `Performed by ${log.first_name ? log.first_name + ' ' + (log.last_name || '') : 'Admin #' + log.admin_id}`}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <div className="pt-2 text-center border-t border-slate-100">
+                        <button 
+                          onClick={() => navigate('/admin-activity-logs')}
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer"
+                        >
+                          View Full Audit History →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
 
-              {/* Tools: Reports & Contracts */}
-              <div className="flex flex-col gap-6">
+              {/* Right: Quick Tools & Actions Launcher (Col 1) */}
+              <div className="flex flex-col gap-5">
                 
-                {/* Reports Generation */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 m-0">
-                    <FontAwesomeIcon icon={faFileAlt} className="text-indigo-600" /> Generate Reports
+                {/* 4 Fast Action Shortcuts */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                  <h3 className="text-sm font-bold text-slate-800 mb-3.5 flex items-center gap-2 m-0">
+                    <FontAwesomeIcon icon={faCogs} className="text-indigo-600" /> Management Hub
                   </h3>
-                  <div className="space-y-3">
-                    <button onClick={() => navigate('/admin-reports')} className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-indigo-400 hover:shadow-sm transition-all bg-white cursor-pointer group">
+                  
+                  <div className="space-y-2.5">
+                    <button 
+                      onClick={() => navigate('/admin-contracts')} 
+                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-indigo-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
+                    >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                          <FontAwesomeIcon icon={faFileInvoiceDollar} />
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                          <FontAwesomeIcon icon={faFileSignature} className="text-xs" />
                         </div>
-                        <div className="text-left">
-                          <p className="text-sm font-semibold text-slate-800 m-0">Financial Report</p>
-                          <p className="text-[10px] text-slate-500 m-0">Income & Collections</p>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 m-0">Create Lease Agreement</p>
+                          <p className="text-[10px] text-slate-500 m-0">Generate contract for approved tenant</p>
                         </div>
                       </div>
-                      <FontAwesomeIcon icon={faDownload} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-indigo-600 text-xs transition-colors" />
                     </button>
-                    
-                    <button onClick={() => navigate('/admin-reports')} className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-indigo-400 hover:shadow-sm transition-all bg-white cursor-pointer group">
+
+                    <button 
+                      onClick={() => navigate('/admin-payments')} 
+                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-emerald-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
+                    >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded bg-blue-50 text-blue-600 flex items-center justify-center">
-                          <FontAwesomeIcon icon={faBuilding} />
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                          <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-xs" />
                         </div>
-                        <div className="text-left">
-                          <p className="text-sm font-semibold text-slate-800 m-0">Occupancy Report</p>
-                          <p className="text-[10px] text-slate-500 m-0">Tenant & Unit Status</p>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 m-0">Record / Verify Payment</p>
+                          <p className="text-[10px] text-slate-500 m-0">Log cash or verify bank transfer</p>
                         </div>
                       </div>
-                      <FontAwesomeIcon icon={faDownload} className="text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-emerald-600 text-xs transition-colors" />
+                    </button>
+
+                    <button 
+                      onClick={() => navigate('/admin-announcements')} 
+                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-amber-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                          <FontAwesomeIcon icon={faBullhorn} className="text-xs" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 m-0">Broadcast Notice</p>
+                          <p className="text-[10px] text-slate-500 m-0">Notify all building tenants</p>
+                        </div>
+                      </div>
+                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-amber-600 text-xs transition-colors" />
+                    </button>
+
+                    <button 
+                      onClick={() => navigate('/admin-reports')} 
+                      className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-200 hover:border-blue-400 hover:shadow-sm transition-all bg-white cursor-pointer group text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                          <FontAwesomeIcon icon={faDownload} className="text-xs" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800 m-0">Financial & Occupancy Reports</p>
+                          <p className="text-[10px] text-slate-500 m-0">Export income, billing & tenant data</p>
+                        </div>
+                      </div>
+                      <FontAwesomeIcon icon={faChevronRight} className="text-slate-300 group-hover:text-blue-600 text-xs transition-colors" />
                     </button>
                   </div>
                 </div>
 
-                {/* Contract Generation */}
-                <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-xl shadow-md p-6 text-white relative overflow-hidden">
-                  <FontAwesomeIcon icon={faFileSignature} className="absolute -right-4 -bottom-4 text-8xl text-white/10" />
-                  <div className="relative z-10">
-                    <h3 className="text-sm font-bold flex items-center gap-2 m-0 mb-2">
-                      <FontAwesomeIcon icon={faFileContract} /> Contract Generation
-                    </h3>
-                    <p className="text-xs text-indigo-100 mb-4">Create new lease agreements instantly with pre-filled templates.</p>
-                    <button onClick={() => navigate('/admin-contracts')} className="w-full py-2.5 bg-white text-indigo-700 rounded-lg text-sm font-bold shadow-sm hover:bg-indigo-50 transition-colors border-0 cursor-pointer">
-                      Create New Contract
+                {/* Building Portfolio Quick Card */}
+                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-xl shadow-sm p-5 text-white flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Property Overview</span>
+                      <span className="text-[10px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full font-semibold">ams_db</span>
+                    </div>
+                    <h4 className="text-sm font-bold m-0 text-white">Apartment Building Portfolio</h4>
+                    <p className="text-xs text-slate-400 mt-1 m-0">13 Total Units • 3 Floors • Studio Layouts</p>
+                  </div>
+                  
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400">Total Leased</span>
+                      <p className="font-bold text-emerald-400 text-sm m-0">{stats.occupied_rooms} / {stats.total_rooms} Units</p>
+                    </div>
+                    <button 
+                      onClick={() => navigate('/admin-reports')}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer shadow-sm transition-colors"
+                    >
+                      View Reports
                     </button>
                   </div>
                 </div>
