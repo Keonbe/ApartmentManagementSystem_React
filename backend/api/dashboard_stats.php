@@ -15,99 +15,193 @@ $response = [
     'success' => true,
     'stats' => [
         'total_revenue' => 0,
+        'last_month_revenue' => 0,
+        'revenue_trend' => null,
         'pending_dues' => 0,
+        'overdue_dues' => 0,
+        'overdue_count' => 0,
         'total_tenants' => 0,
+        'pending_applications' => 0,
         'occupancy_rate' => 0,
         'occupied_rooms' => 0,
         'total_rooms' => 0,
         'vacant_rooms' => 0,
         'open_maintenance' => 0,
+        'urgent_maintenance' => 0,
+        'collection_rate' => 0,
+        'total_6m_collected' => 0,
+        'avg_monthly_income' => 0,
     ],
     'income_data' => [],
     'new_tenants' => [],
 ];
 
 try {
-    // 1. Total Revenue (Current Month)
-    // Updated to use your specific invoice column structure instead of 'amount'
-    $stmt = $conn->prepare("SELECT SUM(base_rent + security_deposit + water + electricity + parking) as total FROM invoices WHERE status = 'paid' AND MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())");
+    // 1. Total Revenue (Current Month & Previous Month for MoM Trend)
+    $stmt = $conn->prepare("
+        SELECT 
+            SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(CURRENT_DATE()) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(CURRENT_DATE()) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as current_revenue,
+            SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as last_revenue
+        FROM invoices 
+        WHERE LOWER(status) = 'paid'
+    ");
     $stmt->execute();
     $res = $stmt->get_result();
     if ($row = $res->fetch_assoc()) {
-        $response['stats']['total_revenue'] = (float)($row['total'] ?? 0);
-    }
-    $stmt->close();
-
-    // 2. Pending Dues
-    $stmt = $conn->prepare("SELECT SUM(base_rent + security_deposit + water + electricity + parking) as total FROM invoices WHERE status IN ('unpaid', 'pending-verification')");
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) {
-        $response['stats']['pending_dues'] = (float)($row['total'] ?? 0);
-    }
-    $stmt->close();
-
-    // 3. Total Active Tenants
-    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM rent_applications WHERE status = 'Approved'");
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) {
-        $response['stats']['total_tenants'] = (int)($row['total'] ?? 0);
-    }
-    $stmt->close();
-
-    // 4. Room Stats
-    $stmt = $conn->prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) as occupied, SUM(CASE WHEN status = 'vacant' THEN 1 ELSE 0 END) as vacant FROM rooms");
-    $stmt->execute();
-    $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) {
-        $response['stats']['total_rooms'] = (int)($row['total'] ?? 0);
-        $response['stats']['occupied_rooms'] = (int)($row['occupied'] ?? 0);
-        $response['stats']['vacant_rooms'] = (int)($row['vacant'] ?? 0);
-        if ($response['stats']['total_rooms'] > 0) {
-            $response['stats']['occupancy_rate'] = round(($response['stats']['occupied_rooms'] / $response['stats']['total_rooms']) * 100);
+        $cur = (float)($row['current_revenue'] ?? 0);
+        $last = (float)($row['last_revenue'] ?? 0);
+        $response['stats']['total_revenue'] = $cur;
+        $response['stats']['last_month_revenue'] = $last;
+        if ($last > 0) {
+            $diff = round((($cur - $last) / $last) * 100);
+            $response['stats']['revenue_trend'] = ($diff >= 0 ? "+{$diff}%" : "{$diff}%");
+        } elseif ($cur > 0) {
+            $response['stats']['revenue_trend'] = "+100%";
         }
     }
     $stmt->close();
 
-    // 5. Open Maintenance Requests
-    $stmt = $conn->prepare("SELECT COUNT(*) as total FROM maintenance_requests WHERE status IN ('Pending', 'In Progress')");
+    // 2. Pending Dues & Overdue Receivables
+    $stmt = $conn->prepare("
+        SELECT 
+            SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as total_pending,
+            SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as overdue_total,
+            SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cnt
+        FROM invoices 
+        WHERE LOWER(status) IN ('pending', 'unpaid', 'overdue', 'pending-verification')
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        $response['stats']['pending_dues'] = (float)($row['total_pending'] ?? 0);
+        $response['stats']['overdue_dues'] = (float)($row['overdue_total'] ?? 0);
+        $response['stats']['overdue_count'] = (int)($row['overdue_cnt'] ?? 0);
+    }
+    $stmt->close();
+
+    // 3. Total Active Tenants & Pending Applications
+    $stmt = $conn->prepare("
+        SELECT 
+            SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) as active_tenants,
+            SUM(CASE WHEN status IN ('Pending Review', 'Pending') THEN 1 ELSE 0 END) as pending_apps
+        FROM rent_applications
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        $response['stats']['total_tenants'] = (int)($row['active_tenants'] ?? 0);
+        $response['stats']['pending_applications'] = (int)($row['pending_apps'] ?? 0);
+    }
+    $stmt->close();
+
+    // 4. Room Stats & Occupancy Rate
+    $stmt = $conn->prepare("
+        SELECT 
+            COUNT(*) as total, 
+            SUM(CASE WHEN LOWER(status) = 'occupied' THEN 1 ELSE 0 END) as occupied, 
+            SUM(CASE WHEN LOWER(status) = 'vacant' THEN 1 ELSE 0 END) as vacant 
+        FROM rooms
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        $totalRooms = (int)($row['total'] ?? 0);
+        $occupied = (int)($row['occupied'] ?? 0);
+        $vacant = (int)($row['vacant'] ?? 0);
+        $response['stats']['total_rooms'] = $totalRooms;
+        $response['stats']['occupied_rooms'] = $occupied;
+        $response['stats']['vacant_rooms'] = $vacant;
+        if ($totalRooms > 0) {
+            $response['stats']['occupancy_rate'] = round(($occupied / $totalRooms) * 100);
+        }
+    }
+    $stmt->close();
+
+    // 5. Open & Urgent Maintenance Requests
+    $stmt = $conn->prepare("
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN LOWER(urgency) IN ('emergency', 'urgent', 'high') THEN 1 ELSE 0 END) as urgent_total
+        FROM maintenance_requests 
+        WHERE status IN ('Pending', 'In Progress')
+    ");
     $stmt->execute();
     $res = $stmt->get_result();
     if ($row = $res->fetch_assoc()) {
         $response['stats']['open_maintenance'] = (int)($row['total'] ?? 0);
+        $response['stats']['urgent_maintenance'] = (int)($row['urgent_total'] ?? 0);
     }
     $stmt->close();
 
-    // 6. Income Data (Last 6 Months)
+    // 6. Collection Rate (Current Month)
+    $stmt = $conn->prepare("
+        SELECT 
+            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as collected,
+            SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as total
+        FROM invoices 
+        WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())
+    ");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        $total = (float)($row['total'] ?? 0);
+        $collected = (float)($row['collected'] ?? 0);
+        if ($total > 0) {
+            $response['stats']['collection_rate'] = round(($collected / $total) * 100);
+        } else {
+            $response['stats']['collection_rate'] = 100;
+        }
+    }
+    $stmt->close();
+
+    // 7. Rolling 6-Month Income Data
     $months = [];
     for ($i = 5; $i >= 0; $i--) {
-        $months[date('b', strtotime("-$i months"))] = [
-            'month' => date('b', strtotime("-$i months")),
-            'value' => 0,
-            'expenses' => 0, 
+        $time = strtotime("first day of -$i month");
+        $key = date('Y-m', $time);
+        $months[$key] = [
+            'key' => $key,
+            'month' => date('M', $time),
+            'full_month' => date('M Y', $time),
+            'collected' => 0.0,
+            'pending' => 0.0,
+            'billed' => 0.0,
+            'count' => 0,
         ];
     }
 
     $stmt = $conn->prepare("
-        SELECT DATE_FORMAT(created_at, '%b') as m, SUM(base_rent + security_deposit + water + electricity + parking) as val 
+        SELECT 
+            DATE_FORMAT(created_at, '%Y-%m') as m_key, 
+            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as collected_val,
+            SUM(CASE WHEN LOWER(status) IN ('pending', 'unpaid', 'overdue', 'pending-verification') THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as pending_val,
+            SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as billed_val,
+            COUNT(*) as total_cnt
         FROM invoices 
-        WHERE status = 'paid' AND created_at >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
-        GROUP BY YEAR(created_at), MONTH(created_at), DATE_FORMAT(created_at, '%b')
-        ORDER BY YEAR(created_at), MONTH(created_at)
+        WHERE created_at >= DATE_SUB(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 5 MONTH)
+        GROUP BY m_key
+        ORDER BY m_key ASC
     ");
     $stmt->execute();
     $res = $stmt->get_result();
+    $total6mCollected = 0;
     while ($row = $res->fetch_assoc()) {
-        if (isset($months[$row['m']])) {
-            $months[$row['m']]['value'] = (float)$row['val'];
-            $months[$row['m']]['expenses'] = round((float)$row['val'] * 0.3); // Mock expense
+        $k = $row['m_key'];
+        if (isset($months[$k])) {
+            $months[$k]['collected'] = (float)$row['collected_val'];
+            $months[$k]['pending'] = (float)$row['pending_val'];
+            $months[$k]['billed'] = (float)$row['billed_val'];
+            $months[$k]['count'] = (int)$row['total_cnt'];
+            $total6mCollected += (float)$row['collected_val'];
         }
     }
-    $response['income_data'] = array_values($months);
     $stmt->close();
 
-    // 7. Newest Tenants (Added JOIN to pull names from users table)
+    $response['income_data'] = array_values($months);
+    $response['stats']['total_6m_collected'] = $total6mCollected;
+    $response['stats']['avg_monthly_income'] = round($total6mCollected / 6);
+
+    // 8. Newest Approved Tenants
     $stmt = $conn->prepare("
         SELECT u.first_name, u.last_name, ra.room_name, ra.created_at 
         FROM rent_applications ra 
@@ -120,8 +214,8 @@ try {
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
         $response['new_tenants'][] = [
-            'name' => trim($row['first_name'] . ' ' . $row['last_name']),
-            'unit' => $row['room_name'],
+            'name' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+            'unit' => $row['room_name'] ?? 'N/A',
             'date' => date('M d, Y', strtotime($row['created_at']))
         ];
     }

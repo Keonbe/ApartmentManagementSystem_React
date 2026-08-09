@@ -19,13 +19,27 @@ const statusConfig = {
 const AdminAnnouncements = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [tenantCount, setTenantCount] = useState(0);
   
   // Compose form
   const [form, setForm] = useState({ sendTo: 'All tenants', type: 'General', title: '', body: '', channels: ['in-app'], scheduleEnabled: false, scheduleDate: '' });
 
   useEffect(() => {
     fetchAnnouncements();
+    fetchTenantCount();
   }, []);
+
+  const fetchTenantCount = async () => {
+    try {
+      const res = await api.get('/get_tenants.php');
+      if (res.data.success) {
+        const active = res.data.data.filter(t => t.status === 'active' || t.status === 'Approved' || t.status === 'pending-move-out');
+        setTenantCount(active.length);
+      }
+    } catch (err) {
+      console.error("Error fetching tenants count:", err);
+    }
+  };
 
   const fetchAnnouncements = async () => {
     try {
@@ -141,7 +155,7 @@ const AdminAnnouncements = () => {
               {/* Recipient Count */}
               <div className="mb-4 bg-slate-50 border border-slate-100 rounded-lg p-3 flex items-center gap-2 text-xs text-slate-600">
                 <FontAwesomeIcon icon={faUsers} className="text-indigo-500" />
-                <span>Will be sent to <strong className="text-slate-800">24 tenants</strong></span>
+                <span>Will be sent to <strong className="text-slate-800">{tenantCount} tenants</strong></span>
               </div>
 
               <div className="flex gap-3">
