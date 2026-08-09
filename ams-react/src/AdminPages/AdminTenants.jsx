@@ -32,6 +32,10 @@ const AdminTenants = () => {
   const [sortBy, setSortBy] = useState('name'); // 'name' | 'unit'
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
 
+  const [invoices, setInvoices] = useState([]);
+  const [maintenanceRequests, setMaintenanceRequests] = useState([]);
+  const [contracts, setContracts] = useState([]);
+
   // Archive workflow states
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState(null);
@@ -43,7 +47,43 @@ const AdminTenants = () => {
 
   useEffect(() => {
     fetchTenants();
+    fetchInvoices();
+    fetchMaintenanceRequests();
+    fetchContracts();
   }, []);
+
+  const fetchInvoices = async () => {
+    try {
+      const res = await api.get('/get_invoices.php');
+      if (res.data.success) {
+        setInvoices(res.data.invoices);
+      }
+    } catch (err) {
+      console.error("Error fetching invoices:", err);
+    }
+  };
+
+  const fetchMaintenanceRequests = async () => {
+    try {
+      const res = await api.get('/get_maintenance_requests.php');
+      if (res.data.success) {
+        setMaintenanceRequests(res.data.requests || res.data.maintenance || []);
+      }
+    } catch (err) {
+      console.error("Error fetching maintenance requests:", err);
+    }
+  };
+
+  const fetchContracts = async () => {
+    try {
+      const res = await api.get('/get_contracts.php');
+      if (res.data.success) {
+        setContracts(res.data.contracts);
+      }
+    } catch (err) {
+      console.error("Error fetching contracts:", err);
+    }
+  };
 
   const fetchTenants = async () => {
     try {
@@ -169,6 +209,56 @@ const AdminTenants = () => {
     if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
     return 0;
   });
+
+  const tenantInvoices = selectedTenant ? invoices.filter(inv => Number(inv.user_id) === Number(selectedTenant.user_id)) : [];
+  const tenantMaintenance = selectedTenant ? maintenanceRequests.filter(req => Number(req.user_id) === Number(selectedTenant.user_id)) : [];
+
+  const totalPaid = tenantInvoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + Number(inv.total_amount), 0);
+  const monthsPaid = tenantInvoices.filter(inv => inv.status === 'paid').length;
+  const overdueCount = tenantInvoices.filter(inv => inv.status === 'overdue' || (inv.status === 'pending' && new Date(inv.due_date) < new Date())).length;
+  const lastPaidInvoice = tenantInvoices.filter(inv => inv.status === 'paid').sort((a,b) => new Date(b.paid_at) - new Date(a.paid_at))[0];
+  const lastPayment = lastPaidInvoice ? (lastPaidInvoice.paid_at ? lastPaidInvoice.paid_at.split(' ')[0] : '—') : '—';
+
+  const timeline = [];
+  if (selectedTenant) {
+    if (selectedTenant.moveIn) {
+      timeline.push({
+        event: 'Lease Started',
+        date: selectedTenant.moveIn.split(' ')[0],
+        detail: `Tenant moved into Unit ${selectedTenant.unit} with rent of ${selectedTenant.rent}`
+      });
+    }
+    const myContract = contracts.find(c => Number(c.rent_application_id) === Number(selectedTenant.id));
+    if (myContract) {
+      timeline.push({
+        event: 'Contract Generated',
+        date: myContract.generated_at ? myContract.generated_at.split(' ')[0] : (selectedTenant.moveIn ? selectedTenant.moveIn.split(' ')[0] : ''),
+        detail: `Lease contract generated. Status: ${myContract.status}`
+      });
+      if (myContract.signed_lease_path) {
+        timeline.push({
+          event: 'Signed Contract Uploaded',
+          date: myContract.generated_at ? myContract.generated_at.split(' ')[0] : (selectedTenant.moveIn ? selectedTenant.moveIn.split(' ')[0] : ''),
+          detail: 'Signed lease agreement uploaded and registered.'
+        });
+      }
+    }
+    if (selectedTenant.leaseEnd) {
+      timeline.push({
+        event: 'Lease Scheduled End',
+        date: selectedTenant.leaseEnd,
+        detail: `Lease is scheduled to end on ${selectedTenant.leaseEnd}`
+      });
+    }
+    if (selectedTenant.status === 'moved-out' || selectedTenant.status === 'archived') {
+      timeline.push({
+        event: 'Tenant Moved Out',
+        date: selectedTenant.archiveDate || selectedTenant.movedOutDate || new Date().toISOString().split(' ')[0],
+        detail: `Tenant officially moved out. Reason: ${selectedTenant.archiveReason || 'End of Lease'}`
+      });
+    }
+  }
+  const sortedTimeline = timeline.filter(t => t.date).sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const getOccupancyBadge = (status) => {
     const map = {
@@ -533,15 +623,15 @@ const AdminTenants = () => {
               {/* Lease Timeline Tab */}
               {profileTab === 'lease' && (
                 <div className="space-y-4">
-                  {selectedTenant.leaseHistory && selectedTenant.leaseHistory.length > 0 ? (
+                  {sortedTimeline.length > 0 ? (
                     <div className="relative pl-6">
                       {/* Timeline line */}
                       <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-indigo-200"></div>
-                      {selectedTenant.leaseHistory.map((entry, idx) => (
+                      {sortedTimeline.map((entry, idx) => (
                         <div key={idx} className="relative mb-4 last:mb-0">
                           <div className={`absolute -left-4 top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${
                             entry.event.includes('End') || entry.event.includes('Moved') ? 'bg-red-500' : 
-                            entry.event.includes('Extended') ? 'bg-amber-500' : 'bg-emerald-500'
+                            entry.event.includes('Contract') ? 'bg-amber-500' : 'bg-emerald-500'
                           }`}></div>
                           <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 ml-2">
                             <div className="flex items-center justify-between mb-1">
@@ -570,32 +660,59 @@ const AdminTenants = () => {
               {/* Payment History Tab */}
               {profileTab === 'payments' && (
                 <div className="space-y-4">
-                  {selectedTenant.paymentSummary ? (
-                    <>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
-                          <p className="text-lg font-bold text-emerald-700 m-0">₱{(selectedTenant.paymentSummary.totalPaid || 0).toLocaleString()}</p>
-                          <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Total Paid</p>
-                        </div>
-                        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
-                          <p className="text-lg font-bold text-indigo-700 m-0">{selectedTenant.paymentSummary.monthsPaid || 0}</p>
-                          <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">Months Paid</p>
-                        </div>
-                        <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
-                          <p className="text-lg font-bold text-red-700 m-0">{selectedTenant.paymentSummary.overdueCount || 0}</p>
-                          <p className="text-[10px] text-red-600 font-semibold m-0 mt-0.5">Overdue Instances</p>
-                        </div>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
-                          <p className="text-sm font-bold text-slate-700 m-0">{selectedTenant.paymentSummary.lastPayment || '—'}</p>
-                          <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Last Payment</p>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-12">
-                      <FontAwesomeIcon icon={faDollarSign} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                      <p className="text-sm text-slate-400 m-0">No payment history available for this tenant.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-emerald-700 m-0">₱{totalPaid.toLocaleString()}</p>
+                      <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Total Paid</p>
                     </div>
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-indigo-700 m-0">{monthsPaid}</p>
+                      <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">Invoices Paid</p>
+                    </div>
+                    <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
+                      <p className="text-lg font-bold text-red-700 m-0">{overdueCount}</p>
+                      <p className="text-[10px] text-red-600 font-semibold m-0 mt-0.5">Overdue Invoices</p>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                      <p className="text-sm font-bold text-slate-700 m-0 truncate">{lastPayment}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Last Payment</p>
+                    </div>
+                  </div>
+
+                  {tenantInvoices.length > 0 ? (
+                    <div className="space-y-2 mt-4 max-h-[300px] overflow-y-auto pr-1">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Invoices list</p>
+                      {tenantInvoices.map((entry, idx) => (
+                        <div key={idx} className="flex items-start justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                          <div className="flex items-start gap-2.5">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                              entry.status === 'paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                            }`}>
+                              ₱
+                            </div>
+                            <div className="text-left">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-bold text-slate-800 m-0">₱{Number(entry.total_amount).toLocaleString()}</p>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${
+                                  entry.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {entry.status.toUpperCase()}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 m-0 mt-0.5">
+                                {entry.billing_period || 'Initial Lease Payment'} · Due: {entry.due_date}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right text-[10px] text-slate-400">
+                            <div className="font-mono text-indigo-600">{entry.invoice_number}</div>
+                            {entry.paid_at && <div className="mt-0.5">Paid: {entry.paid_at.split(' ')[0]}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-400 text-sm">No payments recorded.</div>
                   )}
                 </div>
               )}
@@ -603,21 +720,21 @@ const AdminTenants = () => {
               {/* Maintenance Tab */}
               {profileTab === 'maintenance' && (
                 <div className="space-y-3">
-                  {selectedTenant.maintenanceRequests && selectedTenant.maintenanceRequests.length > 0 ? (
-                    selectedTenant.maintenanceRequests.map((req, idx) => (
+                  {tenantMaintenance.length > 0 ? (
+                    tenantMaintenance.map((req, idx) => (
                       <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs ${
                           req.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
                         }`}>
                           <FontAwesomeIcon icon={faWrench} />
                         </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-slate-800 m-0">{req.issue}</p>
+                        <div className="flex-1 text-left">
+                          <p className="text-sm font-medium text-slate-800 m-0">{req.category} - {req.description}</p>
                           <p className="text-[11px] text-slate-400 m-0 mt-0.5">
-                            Status: {req.status} {req.cost ? `· Cost: ₱${req.cost.toLocaleString()}` : ''}
+                            Status: {req.status} {req.estimatedCost ? `· Cost: ₱${req.estimatedCost.toLocaleString()}` : ''}
                           </p>
                         </div>
-                        <span className="text-[11px] text-slate-400 shrink-0">{req.date}</span>
+                        <span className="text-[11px] text-slate-400 shrink-0">{req.dateSubmitted}</span>
                       </div>
                     ))
                   ) : (

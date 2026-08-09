@@ -495,7 +495,6 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
     { key: 'occupancyHistory', label: 'Occupancy History', icon: faHistory },
     { key: 'leaseHistory', label: 'Lease History', icon: faFileContract },
     { key: 'maintenance', label: 'Maintenance', icon: faWrench },
-    { key: 'payments', label: 'Payments', icon: faMoneyBillWave },
   ];
 
   const remaining = daysRemaining(unit.leaseEnd);
@@ -779,28 +778,6 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
             </div>
           )}
 
-          {activeTab === 'payments' && (
-            <div className="space-y-3">
-              {unit.paymentHistory && unit.paymentHistory.length > 0 ? [...unit.paymentHistory].map((entry, idx) => (
-                <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <div className={`w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faCheckCircle} /></div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-slate-800 m-0">{formatCurrency(entry.amount)}</p>
-                      <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-semibold">{entry.method}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">{entry.period} · {entry.breakdown}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[10px] font-mono text-indigo-600 m-0">{entry.id}</p>
-                    <p className="text-[11px] text-slate-400 m-0 mt-0.5">{entry.datePaid}</p>
-                  </div>
-                </div>
-              )) : (
-                <div className="text-center py-8 text-slate-400 text-sm">No payment history for this unit.</div>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
