@@ -790,3 +790,242 @@ xychart-beta
 - [ ] Test: create announcement with email + SMS channels selected
 - [ ] Add notification preferences to ProfileSettings
 - [ ] Ship it
+
+---
+
+## 16. Alternative Approaches — Extended Analysis
+
+Section 13 covers WhatsApp Business API, Web Push, and Viber Business Messages briefly. This section expands with **additional alternatives not covered above**, each with detailed technical and performance cost analysis for the AMS stack.
+
+---
+
+### Alt A — Telegram Bot API (Free Messaging Channel)
+
+Use a Telegram Bot to push notifications to tenants who subscribe via a `/start` command. The admin sends through the AMS panel; PHP's `send_sms.php`-equivalent calls the Telegram Bot API instead.
+
+```
+Tenant: opens Telegram → messages @AMS_BuildingBot → /start
+PHP: stores tenant's Telegram chat_id in users table
+On event: PHP cURL → https://api.telegram.org/bot<TOKEN>/sendMessage
+```
+
+| Dimension | Cost |
+|---|---|
+| **Monetary cost** | **₱0 forever.** Telegram Bot API is completely free with no rate limits for bots under 30 messages/sec. |
+| **Technical complexity** | **Low.** Create bot via @BotFather (2 minutes). One cURL call per message. No SDK needed. |
+| **PHP integration** | Trivial — same pattern as Semaphore (HTTP POST with JSON body). ~15 lines of PHP. |
+| **User onboarding** | **This is the friction point.** Each tenant must: (1) have Telegram installed, (2) search for the bot, (3) send `/start`. You need a registration flow that links `telegram_chat_id` → `users.id`. |
+| **Deliverability** | Excellent — messages arrive instantly, with rich formatting (bold, links, inline buttons). Higher open rates than email. |
+| **Two-way capability** | Telegram bots can receive messages. You could build a lightweight "reply to admin" flow via webhook, but this adds server complexity (Telegram sends POST to your server — needs a public URL, not localhost). |
+| **Reach in PH** | **Low-moderate.** Telegram adoption in the Philippines is growing but still behind Messenger, Viber, and SMS. Not all tenants will use it. |
+| **LAN / offline** | Requires internet (Telegram is cloud-based). Same limitation as Firebase. |
+| **DB changes** | `ALTER TABLE users ADD COLUMN telegram_chat_id VARCHAR(50) NULL` |
+
+**Cost comparison vs SMS:**
+
+| | Semaphore SMS | Telegram Bot |
+|---|---|---|
+| Per-message cost | ₱0.35–₱0.50 | ₱0 |
+| Monthly (150 msgs) | ~₱75 | ₱0 |
+| Tenant adoption effort | None (they have phones) | Must install Telegram + link account |
+| Works without internet | Yes (SMS) | No |
+| Rich media | No | Yes (images, buttons, markdown) |
+
+**Verdict:** Excellent as a **supplementary free channel** alongside SMS, not a replacement. Add it as a fourth channel option (`in-app`, `email`, `sms`, `telegram`) in `notification_preferences`. Zero cost makes it attractive for budget-conscious deployments. But don't rely on it alone — PH Telegram adoption isn't universal enough.
+
+---
+
+### Alt B — Facebook Messenger Platform (Via Page)
+
+Use a Facebook Page + Messenger Platform API to message tenants. Requires a Facebook Business Page and approved Messenger bot.
+
+| Dimension | Cost |
+|---|---|
+| **Monetary cost** | **₱0** for standard messages within 24-hour window. Paid for "message tags" outside the window (~$0.01–$0.03 each). |
+| **Technical complexity** | **High.** Facebook Business verification, Page creation, Messenger Platform app review, webhook setup, access token management. Meta's API changes frequently and docs are dense. |
+| **PHP integration** | cURL to Graph API. Moderate — must handle page-scoped user IDs (PSIDs), token refresh, and webhook verification. |
+| **User onboarding** | Tenant must message the Facebook Page first (24-hour engagement window rule). You cannot proactively message users who haven't initiated contact. |
+| **24-hour window rule** | **Critical limitation.** After a user's last message, you have 24 hours to respond freely. After that, you can only send "message tags" (limited categories like `CONFIRMED_EVENT_UPDATE`). A rent reminder 3 days after last contact requires a tag — and Meta audits tag usage. |
+| **Reach in PH** | **Very high.** Facebook Messenger is the #1 messaging app in the Philippines. Nearly 100% adoption among smartphone users. |
+| **Privacy** | Messages route through Facebook's servers. Tenant identities are linked to Facebook profiles. Data Privacy Act implications. |
+| **Maintenance burden** | Meta regularly deprecates API versions (every ~2 years). Messenger Platform has had 3 major API changes since 2020. Ongoing maintenance cost is non-trivial. |
+
+**Verdict:** The reach is unbeatable in PH, but the **24-hour window**, **app review process**, and **ongoing API maintenance** make this one of the highest-effort integrations. Not worth it for a XAMPP-based local apartment system. **Consider only if AMS becomes a SaaS product** where a dedicated team can maintain the Meta integration.
+
+---
+
+### Alt C — Cron-Based Async Queue (Deferred Dispatch)
+
+Instead of sending email/SMS **inline** during the HTTP request (which blocks the admin's browser until all messages are sent), write notification jobs to a `notification_queue` table and process them via a **cron job** that runs every minute.
+
+```
+Admin action → INSERT INTO notification_queue (pending) → HTTP 200 immediately
+Cron (every 1 min) → process_queue.php → sends email/SMS → marks as sent/failed
+```
+
+```sql
+CREATE TABLE IF NOT EXISTS notification_queue (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    channel ENUM('email', 'sms', 'telegram') NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    payload JSON NOT NULL,
+    status ENUM('pending', 'processing', 'sent', 'failed') DEFAULT 'pending',
+    attempts TINYINT DEFAULT 0,
+    max_attempts TINYINT DEFAULT 3,
+    next_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    processed_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_pending (status, next_attempt_at)
+);
+```
+
+| Dimension | Cost |
+|---|---|
+| **Technical complexity** | **Moderate.** Requires: (1) a `notification_queue` table, (2) a `process_queue.php` CLI script, (3) a Windows Task Scheduler or XAMPP cron entry to run it every minute. |
+| **Performance — admin UX** | **Much better.** Admin clicks "Send Announcement" → instant response. No waiting for 30 emails to send sequentially. Current inline approach would take ~15–30 seconds for 30 tenants. |
+| **Performance — delivery latency** | **Slightly worse.** Messages arrive within 0–60 seconds instead of immediately. Acceptable for announcements and status updates (not chat). |
+| **Retry capability** | **Built-in.** Failed sends stay in queue with `attempts < max_attempts`. Next cron run picks them up with exponential backoff (`next_attempt_at`). The current inline approach has **no retry** — a failed email is silently lost. |
+| **Monitoring** | Queue table doubles as a delivery log. Admin can see pending/failed messages in a dashboard. |
+| **XAMPP cron setup** | On Windows: Task Scheduler → run `php C:\xampp\htdocs\...\process_queue.php` every minute. On Linux: standard crontab. Not hard, but one more thing to configure. |
+| **Concurrency** | Must ensure only one `process_queue.php` runs at a time (use `SELECT ... FOR UPDATE` or a lock file). Without this, two overlapping crons can double-send. |
+
+**process_queue.php sketch:**
+
+```php
+<?php
+// CLI only — run via cron/Task Scheduler
+require_once __DIR__ . "/../config.php";
+require_once __DIR__ . "/services/send_email.php";
+require_once __DIR__ . "/services/send_sms.php";
+
+$batch = $conn->query("
+    SELECT * FROM notification_queue
+    WHERE status = 'pending' AND next_attempt_at <= NOW()
+    ORDER BY created_at ASC LIMIT 20
+");
+
+while ($job = $batch->fetch_assoc()) {
+    $conn->query("UPDATE notification_queue SET status='processing' WHERE id={$job['id']}");
+    $payload = json_decode($job['payload'], true);
+
+    $success = match($job['channel']) {
+        'email' => send_email_notification($conn, $payload),
+        'sms'   => send_sms_notification($conn, $payload),
+        default => false
+    };
+
+    if ($success) {
+        $conn->query("UPDATE notification_queue SET status='sent', processed_at=NOW() WHERE id={$job['id']}");
+    } else {
+        $attempts = $job['attempts'] + 1;
+        $status = $attempts >= $job['max_attempts'] ? 'failed' : 'pending';
+        $backoff = min(60 * pow(2, $attempts), 3600); // exponential backoff, max 1hr
+        $conn->query("UPDATE notification_queue SET status='$status', attempts=$attempts,
+                      next_attempt_at=DATE_ADD(NOW(), INTERVAL $backoff SECOND) WHERE id={$job['id']}");
+    }
+}
+$conn->close();
+```
+
+**Verdict:** **Strongly recommended as an enhancement to ANY notification approach** (including the current Gmail + Semaphore recommendation). The queue decouples sending from the admin's HTTP request, adds retry, and prevents the UI from hanging. The cost is one cron job + one table — minimal for a significant reliability gain. This isn't an alternative to the current provider choices; it's an **architectural improvement** that sits between the dispatcher and the senders.
+
+> [!IMPORTANT]
+> Whether you use Gmail, Resend, Semaphore, or Telegram — running sends through a queue is almost always better than inline dispatch. The only exception is if you need guaranteed instant delivery (rare for AMS use cases).
+
+---
+
+### Alt D — Supabase (BaaS — Postgres + Realtime + Edge Functions)
+
+Use Supabase as a hosted backend for notifications. Supabase offers a Postgres database with built-in real-time subscriptions and Edge Functions for serverless compute.
+
+```
+Admin action → PHP calls Supabase REST API → INSERT notification row
+Supabase Realtime → pushes to subscribed React clients instantly
+Supabase Edge Function (Deno) → sends email via Resend / SMS via Semaphore
+```
+
+| Dimension | Cost |
+|---|---|
+| **Monetary cost** | **Free tier:** 500 MB DB, 2 GB bandwidth, 500K edge function invocations/month. AMS would never exceed this. |
+| **Technical complexity** | **High.** Supabase project setup, Row Level Security policies, Deno-based Edge Functions (not PHP), React `@supabase/supabase-js` integration. Fundamentally different paradigm from PHP + MySQL. |
+| **Performance** | **Excellent for real-time.** Supabase Realtime uses WebSockets under the hood. Notifications appear instantly in the React UI without polling. |
+| **Data split** | Same problem as Firebase — notification data lives in Supabase Postgres, not in your `ams_db` MySQL. Two databases to manage, no cross-joins. |
+| **PHP integration** | Awkward. PHP would call Supabase's REST API to insert rows, essentially treating Supabase as an external service. Edge Functions are Deno, not PHP — you'd rewrite senders in TypeScript. |
+| **Learning curve** | Supabase, Deno, Row Level Security, and Realtime subscriptions are all new concepts if the team only knows PHP + MySQL. |
+| **LAN / offline** | Requires internet. Same limitation as Firebase. |
+| **Vendor lock-in** | Supabase is open source — you could self-host, but that requires Docker + Postgres + GoTrue + Realtime server. Heavier than XAMPP. |
+
+**Verdict:** Supabase is a powerful modern platform, but it's a **paradigm shift** from the XAMPP + PHP + MySQL stack. The benefit is real-time without polling, but you pay with data fragmentation and a split tech stack. **Not recommended for AMS** — the team would spend more time learning Supabase than the notification feature is worth. Relevant only if AMS is being rebuilt from scratch on a modern stack.
+
+---
+
+### Alt E — Local SMTP Relay (hMailServer, Mailpit, or Mercury Mail)
+
+Instead of sending through Gmail SMTP (which requires internet + Google account), run a **local SMTP server** on the same Windows machine as XAMPP. PHPMailer connects to `localhost:25` instead of `smtp.gmail.com:587`.
+
+| Tool | Type | Windows Support | Notes |
+|---|---|---|---|
+| **hMailServer** | Full SMTP server | Native Windows | Can actually deliver to real inboxes |
+| **Mailpit** | Dev mail catcher | Windows binary | Catches all emails for local testing (doesn't deliver) |
+| **Mercury Mail** | XAMPP bundled | Already in XAMPP | Basic, comes with XAMPP but rarely configured |
+
+| Dimension | Cost |
+|---|---|
+| **Monetary cost** | ₱0 — all tools are free. |
+| **Technical complexity** | **Low-Moderate.** Install hMailServer → point PHPMailer to `localhost:25`. No internet needed for send step. |
+| **Deliverability** | **Very poor for production.** Emails from a local server without proper DNS (SPF, DKIM, DMARC) will be rejected or spam-binned by Gmail, Yahoo, Outlook. Works only for **testing** or **internal LAN email** (if tenants have email on the same network). |
+| **For development/testing** | **Excellent.** Mailpit catches all outbound email and shows it in a web UI (`localhost:8025`). No emails leak to real inboxes during testing. |
+| **Internet dependency** | **None for send.** But delivery to external inboxes still requires internet + DNS resolution. |
+| **DNS requirements** | To actually deliver to `tenant@gmail.com`, you need: (1) public IP, (2) reverse DNS (PTR record), (3) SPF record, (4) DKIM signing. Most residential ISPs block port 25. |
+
+**Verdict:** Two different use cases:
+- **For development/testing:** Use **Mailpit** — it's invaluable. Install it, point PHPMailer to `localhost:1025`, and see all outbound emails at `http://localhost:8025`. Add this to the dev setup guide.
+- **For production delivery:** **Do not use a local SMTP server.** Gmail/Resend/SendGrid exist specifically because delivering email reliably from a local server is a solved problem you shouldn't re-solve. Stick with the Gmail SMTP recommendation.
+
+---
+
+### Alt F — Unified Notification via Existing In-App System Only (No External Services)
+
+The most conservative alternative: **don't add email or SMS at all**. Keep everything in-app and improve the existing notification UX so tenants don't miss important messages.
+
+Enhancements to make in-app sufficient:
+
+1. **Urgency levels** — `ALTER TABLE notifications ADD COLUMN urgency ENUM('normal','important','urgent') DEFAULT 'normal'` — urgent notifications get a red badge and persistent toast.
+2. **Sound/vibration** — play a notification sound when new urgent notifications arrive (browser `Audio` API).
+3. **Unread count in browser tab** — `document.title = \`(${count}) AMS\`` — tenant sees count even when tab is in background.
+4. **Daily digest email as a cron** — one email per day summarizing unread notifications, instead of real-time per-event emails. Much simpler than event-driven email and covers the "I forgot to check the app" case.
+
+| Dimension | Cost |
+|---|---|
+| **Monetary cost** | ₱0 — no external services. |
+| **Technical complexity** | **Very low.** Tiny changes to existing code. No new dependencies. |
+| **Reach** | **Limited.** Only works when tenants open the app. If they don't log in for a week, they miss urgent notices. |
+| **UX improvements** | Browser tab badge + notification sound can make in-app feel more real-time without any backend changes. |
+| **When it breaks down** | Emergency announcements (water shutoff, fire drill) need to reach tenants who aren't currently in the app. In-app alone can't do this. |
+| **Daily digest option** | Sending one summary email/day via cron is dramatically simpler than per-event email dispatch. Works well for non-urgent reminders (overdue invoices, lease expiry). |
+
+**Verdict:** This is the **ponytail answer** — do you actually need external notifications right now, or does improving in-app notifications cover 80% of the need? Ship the urgency levels + tab badge first (~2 hours of work). If tenants still miss critical announcements, add email/SMS. The daily digest cron is a pragmatic middle ground between "nothing" and "real-time email per event."
+
+---
+
+### Alternative Approaches — Summary Matrix
+
+| Approach | Cost/Month | Setup Effort | PH Reach | AMS Fit | Best For |
+|---|---|---|---|---|---|
+| **Gmail + Semaphore** (current rec) | ~₱75 | ~4 hrs | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Production deployment — best balance |
+| **Alt A: Telegram Bot** | ₱0 | ~1 hr | ⭐⭐ | ⭐⭐⭐ | Free supplementary channel |
+| **Alt B: Messenger Platform** | ₱0–₱50 | ~2 days | ⭐⭐⭐⭐⭐ | ⭐⭐ | SaaS product with dedicated team |
+| **Alt C: Cron Queue** | ₱0 (infra) | ~3 hrs | N/A | ⭐⭐⭐⭐⭐ | **Add to ANY approach** — reliability layer |
+| **Alt D: Supabase** | ₱0 (free tier) | ~2 days | N/A | ⭐ | Full rebuild on modern stack |
+| **Alt E: Local SMTP** | ₱0 | ~30 min | N/A | ⭐⭐ (test only) | Development/testing setup |
+| **Alt F: In-App Only** | ₱0 | ~2 hrs | ⭐ (app users only) | ⭐⭐⭐⭐ | YAGNI validation — ship first |
+
+> [!TIP]
+> **Actionable takeaways:**
+> 1. **Alt C (Cron Queue) is not optional** — add it to the current Gmail + Semaphore plan. It prevents admin UI hangs and adds retry for free.
+> 2. **Alt A (Telegram)** is worth adding as a fourth channel — zero cost, one hour of work.
+> 3. **Alt F (In-App Only + digest)** is the right first step if you're unsure whether tenants need external notifications at all.
+> 4. Everything else (Messenger, Supabase, local SMTP for production) is either too complex or architecturally mismatched for AMS on XAMPP.
