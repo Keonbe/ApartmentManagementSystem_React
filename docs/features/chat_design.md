@@ -5,45 +5,142 @@
 
 ---
 
+## 0. Conceptual Architecture
+
+Before jumping into code, understand the fundamental separation:
+
+> **MySQL stores the messages. PHP provides the API. React displays them. Something still needs to notify React that a new message exists.**
+
+That "something" is the key design decision — it's what separates polling from WebSockets from SSE. But the rest of the architecture stays the same regardless:
+
+```
+                 React
+              Admin / Tenant
+                   │
+          HTTP requests / polling
+                   │
+                   ▼
+              PHP API
+             /        \
+            /          \
+           ▼            ▼
+       MySQL DB      Authentication
+           │          (X-User-Id header)
+           ▼
+     conversations
+        messages
+```
+
+A message flows like this:
+
+```
+Admin types message
+      │
+      ▼
+React: POST /send_message.php
+      │
+      ▼
+PHP: validate user → INSERT INTO messages
+      │
+      ▼
+MySQL: message stored
+      │
+      ▼
+Tenant's React: polling picks up new message → renders in chat window
+```
+
+The same flow works in reverse (tenant → admin). Chat isn't fundamentally a "React feature" — it's a **database + API + communication architecture problem**. React is the interface sitting on top.
+
+---
+
 ## 1. Approach Selection
 
-XAMPP does not run a persistent process (Node.js, Go, etc.), so WebSockets are impractical without a separate server. The two viable options for this stack are:
+XAMPP does not run a persistent process (Node.js, Go, etc.), so WebSockets are impractical without a separate server. There are three main approaches:
 
-| | **Option A — HTTP Polling** | **Option B — Server-Sent Events (SSE)** |
-|---|---|---|
-| Transport | Repeated `GET` every N seconds | Persistent HTTP stream (one-direction server→client) |
-| Server complexity | Trivial — plain PHP endpoint | Moderate — PHP keeps connection alive |
-| Client complexity | Simple `setInterval` | `EventSource` API |
-| Real-time feel | 3–5 s lag (tunable) | Near-instant receive |
-| XAMPP compatible | ✅ Yes | ✅ Yes (with `flush()`) |
-| Send messages | Normal POST | Normal POST |
-| **Recommendation** | ✅ **Start here** | Upgrade path when polling feels laggy |
+| | **Option A — HTTP Polling** | **Option B — Server-Sent Events (SSE)** | **Option C — WebSockets** |
+|---|---|---|---|
+| Transport | Repeated `GET` every N seconds | Persistent HTTP stream (server→client) | Persistent bidirectional TCP |
+| Server complexity | Trivial — plain PHP endpoint | Moderate — PHP keeps connection alive | High — separate WS server needed |
+| Client complexity | Simple `setInterval` | `EventSource` API | `WebSocket` API |
+| Real-time feel | 3–5 s lag (tunable) | Near-instant receive | True real-time (sub-100 ms) |
+| XAMPP compatible | ✅ Yes | ✅ Yes (with `flush()`) | ❌ Not natively (needs Node.js sidecar) |
+| Send messages | Normal POST | Normal POST | Through WS connection |
+| **Recommendation** | ✅ **Start here** | Upgrade path when polling feels laggy | Only if real-time is a hard requirement |
 
-**Decision:** Implement polling first (`ponytail: polling ceiling — upgrade to SSE when users complain about lag`). The schema and React components are identical for both; switching later only touches the polling loop.
+### Why not WebSockets?
+
+Plain PHP running through Apache isn't a persistent WebSocket server. To get WebSockets, you'd need to run a separate process alongside XAMPP:
+
+```
+React
+   │
+   ├──────── HTTP ────────► PHP/Apache    (existing API)
+   │
+   └──── WebSocket ───────► Node.js WS server  (new process)
+                                │
+                                ▼
+                              MySQL
+```
+
+That's considerably more infrastructure. For a capstone apartment management system with 15–100 tenants, a 3-second polling delay is perfectly acceptable. You're not building WhatsApp.
+
+**Decision:** Implement polling first (`ponytail: polling ceiling — upgrade to SSE when users complain about lag`). The schema and React components are identical for all approaches; switching later only touches the polling loop. See Section 8 for SSE upgrade path and Section 11 for WebSocket sidecar details.
 
 ---
 
 ## 2. Database Schema
 
-### Migration: `backend/api/migrations/add_chat_messages.sql`
+Separate **conversations** from **messages**. A conversation represents the chat between two users; messages belong to a conversation. Don't create a new conversation for every message.
+
+```
+Conversation (admin ↔ tenant)
+     │
+     ├── Message
+     ├── Message
+     ├── Message
+     └── Message
+```
+
+### Migration: `backend/api/migrations/add_chat_tables.sql`
 
 ```sql
-CREATE TABLE IF NOT EXISTS chat_messages (
+-- Represents a chat thread between two users
+CREATE TABLE IF NOT EXISTS conversations (
     id          INT AUTO_INCREMENT PRIMARY KEY,
-    sender_id   INT         NOT NULL,
-    receiver_id INT         NOT NULL,   -- NULL = broadcast; keep NOT NULL for 1-to-1
-    message     TEXT        NOT NULL,
-    is_read     TINYINT(1)  NOT NULL DEFAULT 0,
+    admin_id    INT         NOT NULL,
+    tenant_id   INT         NOT NULL,
     created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (sender_id)   REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_conversation (sender_id, receiver_id),
-    INDEX idx_receiver_unread (receiver_id, is_read)
+    FOREIGN KEY (admin_id)  REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_pair (admin_id, tenant_id)
+);
+
+-- Individual messages within a conversation
+CREATE TABLE IF NOT EXISTS messages (
+    id               INT AUTO_INCREMENT PRIMARY KEY,
+    conversation_id  INT         NOT NULL,
+    sender_id        INT         NOT NULL,
+    message          TEXT        NOT NULL,
+    is_read          TINYINT(1)  NOT NULL DEFAULT 0,
+    created_at       DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY (sender_id)       REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_conv_messages (conversation_id, id),
+    INDEX idx_unread (conversation_id, is_read)
 );
 ```
 
+### Why two tables instead of one?
+
+| | Single `chat_messages` table | Two tables (`conversations` + `messages`) |
+|---|---|---|
+| Finding a conversation | `WHERE (sender=A AND receiver=B) OR (sender=B AND receiver=A)` — messy OR clause | `WHERE conversation_id = ?` — single indexed lookup |
+| Permission check | Must infer from sender/receiver columns | `SELECT * FROM conversations WHERE id=? AND (admin_id=? OR tenant_id=?)` — explicit |
+| Conversation metadata | Nowhere to put it (last activity, subject, archived flag) | Add columns to `conversations` as needed |
+| Query complexity | `get_chat_contacts.php` needs a gnarly subquery to derive conversations | Direct `JOIN conversations c ON c.id = m.conversation_id` |
+
 > [!NOTE]
-> One table covers both admin→tenant and tenant→admin flows. A "conversation" is the pair `(min(a,b), max(a,b))` so queries are order-independent.
+> The `UNIQUE KEY (admin_id, tenant_id)` ensures only one conversation exists per admin-tenant pair. If a tenant messages admin, PHP finds or creates the conversation row first, then inserts the message.
 
 ---
 
@@ -55,35 +152,44 @@ All files live in `backend/api/`. Follow the existing PHP template from `config.
 
 ```php
 <?php
-// GET ?with=<other_user_id>&since=<last_message_id>
+// GET ?conversation_id=<id>&since=<last_message_id>
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Headers: Content-Type, X-User-Id, X-Admin-Id");
 require_once "../config.php";
 
-$me    = intval($_SERVER['HTTP_X_USER_ID'] ?? 0);
-$other = intval($_GET['with']  ?? 0);
-$since = intval($_GET['since'] ?? 0);   // ponytail: cursor-based, not offset pagination
+$me      = intval($_SERVER['HTTP_X_USER_ID'] ?? 0);
+$conv_id = intval($_GET['conversation_id'] ?? 0);
+$since   = intval($_GET['since'] ?? 0);   // ponytail: cursor-based, not offset pagination
 
-if (!$me || !$other) { http_response_code(400); echo json_encode(["success"=>false]); exit; }
+if (!$me || !$conv_id) { http_response_code(400); echo json_encode(["success"=>false]); exit; }
+
+// CRITICAL: Verify user belongs to this conversation
+$check = $conn->prepare("SELECT id FROM conversations WHERE id = ? AND (admin_id = ? OR tenant_id = ?)");
+$check->bind_param("iii", $conv_id, $me, $me);
+$check->execute();
+if (!$check->get_result()->num_rows) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Not your conversation"]);
+    exit;
+}
 
 $stmt = $conn->prepare("
-    SELECT id, sender_id, receiver_id, message, is_read, created_at
-    FROM chat_messages
-    WHERE id > ?
-      AND ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))
+    SELECT id, sender_id, message, is_read, created_at
+    FROM messages
+    WHERE conversation_id = ? AND id > ?
     ORDER BY id ASC
     LIMIT 50
 ");
-$stmt->bind_param("iiiii", $since, $me, $other, $other, $me);
+$stmt->bind_param("ii", $conv_id, $since);
 $stmt->execute();
 $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // Mark fetched messages as read (receiver side only)
 if (!empty($rows)) {
     $ids = implode(',', array_column($rows, 'id'));
-    $conn->query("UPDATE chat_messages SET is_read=1
-                  WHERE receiver_id=$me AND id IN ($ids)");
+    $conn->query("UPDATE messages SET is_read=1
+                  WHERE conversation_id=$conv_id AND sender_id != $me AND id IN ($ids)");
 }
 
 echo json_encode(["success" => true, "messages" => $rows]);
@@ -104,17 +210,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit();
 
 $me   = intval($_SERVER['HTTP_X_USER_ID'] ?? 0);
 $body = json_decode(file_get_contents("php://input"), true);
-$to   = intval($body['to']      ?? 0);
-$msg  = trim($body['message']   ?? '');
+$conv_id = intval($body['conversation_id'] ?? 0);
+$msg  = trim($body['message'] ?? '');
 
-if (!$me || !$to || $msg === '') {
+if (!$me || !$conv_id || $msg === '') {
     http_response_code(400);
     echo json_encode(["success" => false, "message" => "Missing fields"]);
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO chat_messages (sender_id, receiver_id, message) VALUES (?,?,?)");
-$stmt->bind_param("iis", $me, $to, $msg);
+// Verify user belongs to this conversation
+$check = $conn->prepare("SELECT admin_id, tenant_id FROM conversations WHERE id = ? AND (admin_id = ? OR tenant_id = ?)");
+$check->bind_param("iii", $conv_id, $me, $me);
+$check->execute();
+$conv = $check->get_result()->fetch_assoc();
+if (!$conv) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Not your conversation"]);
+    exit;
+}
+
+// Determine the other user
+$other_id = ($conv['admin_id'] == $me) ? $conv['tenant_id'] : $conv['admin_id'];
+
+$stmt = $conn->prepare("INSERT INTO messages (conversation_id, sender_id, message) VALUES (?,?,?)");
+$stmt->bind_param("iis", $conv_id, $me, $msg);
 $stmt->execute();
 $new_id = $conn->insert_id;
 
@@ -122,21 +242,73 @@ $new_id = $conn->insert_id;
 $preview = mb_strimwidth($msg, 0, 60, '…');
 $notif = $conn->prepare("INSERT INTO notifications (user_id, message, is_read) VALUES (?, ?, 0)");
 $notif_msg = "New message: $preview";
-$notif->bind_param("is", $to, $notif_msg);
+$notif->bind_param("is", $other_id, $notif_msg);
 $notif->execute();
 
-log_activity($conn, $me, 'chat', 'send_message', "To user $to: $preview");
+// Log contact, not every message — keep activity log high-signal
+// ponytail: only log first message in a conversation, or throttle to 1 log per hour per conversation
+log_activity($conn, $me, 'chat', 'send_message', "Messaged user $other_id");
 
 echo json_encode(["success" => true, "id" => $new_id]);
 $conn->close();
 ?>
 ```
 
-### 3.3 `get_chat_contacts.php` — list of users the current user has chatted with (for inbox sidebar)
+### 3.3 `start_conversation.php` — find or create a conversation
 
 ```php
 <?php
-// Returns distinct conversation partners + last message + unread count
+// POST { "with": <other_user_id> }
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, X-User-Id, X-Admin-Id");
+require_once "../config.php";
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
+
+$me   = intval($_SERVER['HTTP_X_USER_ID'] ?? 0);
+$body = json_decode(file_get_contents("php://input"), true);
+$other = intval($body['with'] ?? 0);
+
+if (!$me || !$other) { http_response_code(400); echo json_encode(["success"=>false]); exit; }
+
+// Determine who is admin and who is tenant
+$role_check = $conn->prepare("SELECT id, role FROM users WHERE id IN (?, ?)");
+$role_check->bind_param("ii", $me, $other);
+$role_check->execute();
+$users = $role_check->get_result()->fetch_all(MYSQLI_ASSOC);
+$roles = array_column($users, 'role', 'id');
+
+$admin_id  = ($roles[$me] === 'admin') ? $me : $other;
+$tenant_id = ($roles[$me] === 'admin') ? $other : $me;
+
+// Find existing or create new
+$find = $conn->prepare("SELECT id FROM conversations WHERE admin_id = ? AND tenant_id = ?");
+$find->bind_param("ii", $admin_id, $tenant_id);
+$find->execute();
+$existing = $find->get_result()->fetch_assoc();
+
+if ($existing) {
+    $conv_id = $existing['id'];
+} else {
+    $ins = $conn->prepare("INSERT INTO conversations (admin_id, tenant_id) VALUES (?, ?)");
+    $ins->bind_param("ii", $admin_id, $tenant_id);
+    $ins->execute();
+    $conv_id = $conn->insert_id;
+}
+
+echo json_encode(["success" => true, "conversation_id" => $conv_id]);
+$conn->close();
+?>
+```
+
+### 3.4 `get_conversations.php` — list conversations for inbox sidebar
+
+With the two-table schema, this query is much cleaner than deriving conversations from a flat messages table:
+
+```php
+<?php
+// Returns conversations with last message + unread count
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Headers: Content-Type, X-User-Id, X-Admin-Id");
@@ -145,30 +317,27 @@ require_once "../config.php";
 $me = intval($_SERVER['HTTP_X_USER_ID'] ?? 0);
 if (!$me) { http_response_code(401); exit; }
 
-// ponytail: subquery acceptable here — message volume is low in an apartment context
 $sql = "
     SELECT
-        u.id, u.first_name, u.last_name, u.role,
-        m.message AS last_message,
-        m.created_at AS last_at,
-        SUM(m2.is_read = 0 AND m2.receiver_id = $me) AS unread_count
-    FROM (
-        SELECT IF(sender_id = $me, receiver_id, sender_id) AS partner_id,
-               MAX(id) AS last_id
-        FROM chat_messages
-        WHERE sender_id = $me OR receiver_id = $me
-        GROUP BY partner_id
-    ) AS conv
-    JOIN chat_messages m ON m.id = conv.last_id
-    JOIN users u ON u.id = conv.partner_id
-    LEFT JOIN chat_messages m2 ON
-        (m2.sender_id = conv.partner_id AND m2.receiver_id = $me)
-    GROUP BY u.id, m.message, m.created_at
+        c.id AS conversation_id,
+        u.id AS partner_id, u.first_name, u.last_name, u.role,
+        last_msg.message AS last_message,
+        last_msg.created_at AS last_at,
+        (
+            SELECT COUNT(*) FROM messages
+            WHERE conversation_id = c.id AND sender_id != $me AND is_read = 0
+        ) AS unread_count
+    FROM conversations c
+    JOIN users u ON u.id = IF(c.admin_id = $me, c.tenant_id, c.admin_id)
+    LEFT JOIN messages last_msg ON last_msg.id = (
+        SELECT MAX(id) FROM messages WHERE conversation_id = c.id
+    )
+    WHERE c.admin_id = $me OR c.tenant_id = $me
     ORDER BY last_at DESC
 ";
 
 $result = $conn->query($sql);
-echo json_encode(["success" => true, "contacts" => $result->fetch_all(MYSQLI_ASSOC)]);
+echo json_encode(["success" => true, "conversations" => $result->fetch_all(MYSQLI_ASSOC)]);
 $conn->close();
 ?>
 ```
@@ -198,7 +367,7 @@ import api from '../api/axiosConfig';
 
 const POLL_MS = 4000; // ponytail: polling ceiling — switch to SSE if lag complaints arise
 
-export default function ChatWindow({ otherUserId, otherName }) {
+export default function ChatWindow({ conversationId, otherName }) {
     const [messages, setMessages]   = useState([]);
     const [input, setInput]         = useState('');
     const [sending, setSending]     = useState(false);
@@ -209,14 +378,14 @@ export default function ChatWindow({ otherUserId, otherName }) {
     const fetchNew = useCallback(async () => {
         try {
             const { data } = await api.get('get_messages.php', {
-                params: { with: otherUserId, since: lastIdRef.current }
+                params: { conversation_id: conversationId, since: lastIdRef.current }
             });
             if (data.messages?.length) {
                 setMessages(prev => [...prev, ...data.messages]);
                 lastIdRef.current = data.messages.at(-1).id;
             }
         } catch { /* silent — user sees stale but not broken */ }
-    }, [otherUserId]);
+    }, [conversationId]);
 
     // Initial load + start polling
     useEffect(() => {
@@ -225,7 +394,7 @@ export default function ChatWindow({ otherUserId, otherName }) {
         fetchNew();
         intervalRef.current = setInterval(fetchNew, POLL_MS);
         return () => clearInterval(intervalRef.current);
-    }, [otherUserId, fetchNew]);
+    }, [conversationId, fetchNew]);
 
     // Auto-scroll to bottom on new messages
     useEffect(() => {
@@ -246,7 +415,7 @@ export default function ChatWindow({ otherUserId, otherName }) {
         setMessages(prev => [...prev, optimistic]);
 
         try {
-            const { data } = await api.post('send_message.php', { to: otherUserId, message: text });
+            const { data } = await api.post('send_message.php', { conversation_id: conversationId, message: text });
             if (data.success) {
                 // Replace optimistic with real id on next poll — no extra fetch needed
             }
@@ -299,20 +468,21 @@ import api from '../api/axiosConfig';
 import ChatWindow from '../Components/ChatWindow';
 
 export default function AdminChat() {
-    const [contacts, setContacts] = useState([]);
-    const [active, setActive]     = useState(null);
+    const [conversations, setConversations] = useState([]);
+    const [active, setActive] = useState(null);
 
     useEffect(() => {
-        api.get('get_chat_contacts.php')
-           .then(r => setContacts(r.data.contacts ?? []));
+        api.get('get_conversations.php')
+           .then(r => setConversations(r.data.conversations ?? []));
     }, [active]); // re-fetch sidebar when switching chats so unread counts update
 
     return (
         <div className="chat-layout">
             <aside className="chat-sidebar">
                 <h3>Conversations</h3>
-                {contacts.map(c => (
-                    <button key={c.id} className={`contact-row ${active?.id === c.id ? 'active' : ''}`}
+                {conversations.map(c => (
+                    <button key={c.conversation_id}
+                            className={`contact-row ${active?.conversation_id === c.conversation_id ? 'active' : ''}`}
                             onClick={() => setActive(c)}>
                         <strong>{c.first_name} {c.last_name}</strong>
                         <small>{c.last_message}</small>
@@ -322,7 +492,8 @@ export default function AdminChat() {
             </aside>
             <main className="chat-main">
                 {active
-                    ? <ChatWindow otherUserId={active.id} otherName={`${active.first_name} ${active.last_name}`} />
+                    ? <ChatWindow conversationId={active.conversation_id}
+                                  otherName={`${active.first_name} ${active.last_name}`} />
                     : <p className="chat-empty">Select a conversation</p>
                 }
             </main>
@@ -340,16 +511,22 @@ import api from '../api/axiosConfig';
 import ChatWindow from '../Components/ChatWindow';
 
 export default function TenantChat() {
-    const [adminId, setAdminId] = useState(null);
+    const [conversationId, setConversationId] = useState(null);
 
     useEffect(() => {
-        // Fetch the first admin user to use as the fixed chat partner
+        // Find or create conversation with admin
         api.get('get_users.php', { params: { role: 'admin' } })
-           .then(r => setAdminId(r.data.users?.[0]?.id ?? null));
+           .then(r => {
+               const adminId = r.data.users?.[0]?.id;
+               if (adminId) {
+                   return api.post('start_conversation.php', { with: adminId });
+               }
+           })
+           .then(r => setConversationId(r?.data?.conversation_id ?? null));
     }, []);
 
-    if (!adminId) return <p>Loading…</p>;
-    return <ChatWindow otherUserId={adminId} otherName="Property Manager" />;
+    if (!conversationId) return <p>Loading…</p>;
+    return <ChatWindow conversationId={conversationId} otherName="Property Manager" />;
 }
 ```
 
@@ -377,7 +554,7 @@ The existing notification polling in your app can be extended to also surface un
 
 ```js
 // Anywhere you fetch notification counts, add:
-const totalUnread = contacts.reduce((n, c) => n + Number(c.unread_count), 0);
+const totalUnread = conversations.reduce((n, c) => n + Number(c.unread_count), 0);
 ```
 
 Display alongside the existing bell icon or as a separate chat icon badge.
@@ -437,28 +614,86 @@ return () => evtSource.close();
 
 ## 9. Implementation Checklist
 
-- [ ] Run `add_chat_messages.sql` migration on `ams_db`
-- [ ] Create `backend/api/get_messages.php`
-- [ ] Create `backend/api/send_message.php`
-- [ ] Create `backend/api/get_chat_contacts.php`
+Build in this order — each step is testable before moving to the next:
+
+**Phase 1 — Database + API (backend-first)**
+
+- [ ] Run `add_chat_tables.sql` migration on `ams_db` (creates `conversations` + `messages`)
+- [ ] Create `backend/api/start_conversation.php` (find-or-create)
+- [ ] Create `backend/api/get_messages.php` (fetch + mark read)
+- [ ] Create `backend/api/send_message.php` (insert + notify)
+- [ ] Create `backend/api/get_conversations.php` (inbox sidebar)
+- [ ] Verify `get_users.php` accepts `?role=admin` filter (add if missing)
+
+**Phase 2 — React UI**
+
 - [ ] Create `ams-react/src/Components/ChatWindow.jsx`
 - [ ] Create `ams-react/src/AdminPages/AdminChat.jsx`
 - [ ] Create `ams-react/src/TenantPages/TenantChat.jsx`
 - [ ] Add routes in `App.jsx`
+
+**Phase 3 — Polish**
+
+- [ ] Add polling so the other user's messages appear automatically
 - [ ] Add nav link + unread badge in admin sidebar and tenant nav
 - [ ] Add CSS to `index.css`
-- [ ] Verify `get_users.php` accepts `?role=admin` filter (add if missing)
+- [ ] Only then consider SSE if polling lag is noticeable
+
+> [!TIP]
+> This order mirrors a learning path: you understand the data model first, prove the API works (test with Postman or curl), then build the UI on top. Chat isn't a "React feature" — it's a database + API + communication architecture problem.
 
 ---
 
-## 10. Security Notes
+## 10. Security & Auth Notes
+
+### Conversation-level permissions
+
+This is one of the most important parts. You **cannot** simply trust React saying `sender_id = 1`. A malicious user could manipulate the request.
+
+```
+Request arrives
+     ↓
+Authenticate user (X-User-Id header — set by axiosConfig.js)
+     ↓
+Check conversation permissions
+  → "Is this user actually a participant of conversation #X?"
+     ↓
+Perform operation
+     ↓
+Return data
+```
+
+Every endpoint (`get_messages.php`, `send_message.php`) must verify:
+
+```php
+// Does this user belong to this conversation?
+$check = $conn->prepare("SELECT id FROM conversations WHERE id = ? AND (admin_id = ? OR tenant_id = ?)");
+```
+
+Without this, Tenant A could change a conversation ID in the request and read Tenant B's messages with admin.
+
+### Other concerns
 
 | Concern | Mitigation |
 |---|---|
-| IDOR — tenant reading another tenant's messages | `get_messages.php` filters by `HTTP_X_USER_ID` (injected by `axiosConfig.js`), never a client-supplied `me` param |
-| Admin impersonation | `verify_admin()` already available in `config.php` — not required for chat send/receive since both parties are authenticated users |
+| IDOR — tenant reading another tenant's messages | Every endpoint checks `conversations` membership via `X-User-Id`, never a client-supplied `me` param |
+| Admin impersonation | `verify_admin()` available in `config.php` — not required for chat since both parties are authenticated users |
 | XSS | PHP stores raw text; React renders via JSX (auto-escaped) — safe |
 | Message spam | Add `LIMIT 10 per minute` rate-limit in `send_message.php` if needed; out of scope for v1 |
+
+### Activity log integration
+
+Connect chat to the existing `activity_logs` table, but keep it **high-signal**:
+
+```
+Admin sends message
+        │
+        ├────────► messages table      (the actual conversation)
+        │
+        └────────► activity_logs       ("Admin contacted Miguel Santos")
+```
+
+Don't log every individual message as a system activity — that would flood the audit trail. Instead, log the first contact or throttle to one log entry per conversation per hour. The actual conversation history stays in `messages`.
 
 ---
 

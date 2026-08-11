@@ -1,8 +1,93 @@
 # AMS — SMS & Email Notification Services
 
-> **Document Version:** 1.0 — July 2026
+> **Document Version:** 1.1 — August 2026
 > **Status:** Research & Planning
 > **Stack Context:** PHP 8 backend (XAMPP), React SPA frontend, MySQL/MariaDB
+
+---
+
+## 0. Conceptual Architecture
+
+Before diving into providers and code, understand the fundamental separation:
+
+> **XAMPP itself does not send SMS or email.** XAMPP gives you Apache + PHP + MySQL. Your PHP backend then connects to an **external email/SMS service**.
+
+```
+                APARTMENT SYSTEM
+                       │
+              ┌────────┴────────┐
+              │                 │
+            React              PHP
+                                │
+                    ┌───────────┼───────────┐
+                    │           │           │
+                  MySQL      PHPMailer    SMS API
+                    │           │           │
+              Data/history    Email        SMS
+```
+
+### How notifications flow
+
+When an admin records a payment:
+
+```
+React
+  │
+  │ "Payment received"
+  ▼
+PHP API
+  │
+  ├──────────────► MySQL
+  │                  │
+  │                  └── Store notification record
+  │
+  ├──────────────► Email service (PHPMailer → SMTP)
+  │
+  └──────────────► SMS service (cURL → Semaphore API)
+```
+
+### Email vs SMS — different mechanisms
+
+**Email** uses SMTP. PHPMailer authenticates with an SMTP provider (like Gmail) and the provider delivers the email. Your PHP app doesn't host its own email server.
+
+```
+React → PHP → PHPMailer → SMTP server → Tenant's email
+```
+
+**SMS** uses an HTTP API. Your PHP backend sends an HTTP POST to an SMS gateway (like Semaphore), which routes the message through the mobile network.
+
+```
+React → PHP → cURL POST → SMS API → Mobile network → Tenant's phone
+```
+
+You can't do `PHP → MySQL → cellphone`. MySQL stores the notification record; the SMS gateway handles actual delivery.
+
+### API keys stay on the server
+
+React should **never** directly communicate with Twilio, Semaphore, or SMTP credentials. Frontend code is exposed to the browser.
+
+```
+✅ Correct:
+React → POST /api/send_notification → PHP (has API keys) → External service
+
+❌ Wrong:
+React → Twilio API (API key in JavaScript = exposed to anyone)
+```
+
+Your secrets stay on the PHP server. React only tells PHP "what happened" (payment recorded, maintenance updated). PHP decides which channels to use and holds all credentials.
+
+### What MySQL does for notifications
+
+MySQL doesn't deliver notifications — it **tracks** them. Every notification attempt gets logged:
+
+| Type               | Channel | Status |
+| ------------------ | ------- | ------ |
+| Payment Receipt    | Email   | Sent   |
+| Payment Reminder   | SMS     | Sent   |
+| Maintenance Update | Email   | Sent   |
+| Maintenance Update | SMS     | Failed |
+
+This gives your admin a notification history dashboard — not just "fire and forget."
 
 ---
 
@@ -662,6 +747,8 @@ gantt
 
 ### Phase 2 — Wire to Endpoints (3–4 days)
 
+This is where notifications become genuinely useful — not just "we added SMS because the panel wanted SMS" but actual business events that tenants care about.
+
 | Trigger Point | What Gets Sent |
 |---|---|
 | `create_announcement.php` | Email + SMS to all tenants (based on channel selection) |
@@ -669,6 +756,66 @@ gantt
 | `pay_bill.php` | "Payment of ₱X received for invoice #INV-xxx" |
 | `process_tenant_request.php` | "Your [maintenance/CCTV/parking] request status: [status]" |
 | `extend_lease.php` | "Your lease has been extended to [date]" |
+
+#### Concrete examples of what tenants receive
+
+When a payment is recorded:
+
+```
+Email:
+  Subject: Payment Received — Unit H
+  Body: ₱12,500 payment received for Unit H.
+        Date: August 11, 2026
+        Reference: PAY-00123
+
+SMS:
+  Apartment System: ₱12,500 payment received for Unit H. Ref: PAY-00123
+```
+
+When a maintenance request status changes:
+
+```
+Email:
+  Subject: Maintenance Request Updated — REQ-003
+  Body: Your maintenance request REQ-003 is now In Progress.
+        Our team will begin work as scheduled.
+
+SMS:
+  AMS: Your maintenance request REQ-003 is now In Progress.
+```
+
+When rent is due tomorrow:
+
+```
+Email:
+  Subject: Rent Payment Reminder — Unit H
+  Body: Your ₱12,500 rent payment for Unit H is due on August 15.
+        Please settle through the tenant portal.
+
+SMS:
+  AMS: Your ₱12,500 rent for Unit H is due Aug 15.
+```
+
+The system flow for an automatic trigger:
+
+```
+             Payment Due
+                  │
+                  ▼
+          PHP detects event
+                  │
+         ┌────────┴────────┐
+         ▼                 ▼
+       MySQL            Notification
+         │                 │
+         │           ┌─────┴─────┐
+         │           ▼           ▼
+         │         Email        SMS
+         │           │           │
+         ▼           ▼           ▼
+     Record       Tenant      Tenant
+     saved       inbox        phone
+```
 
 ### Phase 3 — User Controls (2–3 days)
 
@@ -688,6 +835,48 @@ gantt
 | Testing | End-to-end: create announcement → verify in-app + email + SMS arrive |
 
 **Total estimated effort: 11–15 days**
+
+> [!WARNING]
+> ### Practical warning about SMS for capstone
+>
+> **SMS is the expensive/awkward part.** Email is comparatively easy to implement for a school project. SMS requires an external provider, credentials, sender configuration, and usually paid messaging once you're beyond testing.
+>
+> Semaphore gives free test credits (~50 SMS), but after that it's prepaid. Twilio trial accounts prefix every message with "Sent from a Twilio trial account."
+>
+> If your panel says the system needs **"SMS and email notifications,"** clarify whether they expect:
+> - **Real SMS delivery** during the demo, or
+> - A **notification module that is architecturally capable** of SMS but demonstrates with email only
+>
+> Build both into the architecture regardless — but for the actual demo, make sure email works reliably first. SMS can be shown working with test credits.
+
+### Architecture to defend at capstone panel
+
+This is the clean mental model:
+
+```
+                APARTMENT SYSTEM
+                       │
+              ┌────────┴────────┐
+              │                 │
+            React              PHP
+           (frontend)       (backend)
+                                │
+                    ┌───────────┼───────────┐
+                    │           │           │
+                  MySQL      PHPMailer    SMS API
+                    │           │           │
+              Data/history    Email        SMS
+                    │           │           │
+              notification   tenant's     tenant's
+              records        inbox         phone
+```
+
+Key points to articulate:
+- React tells PHP **what happened** ("payment recorded"). React never touches API keys.
+- PHP decides **how to notify** (check preferences, pick channels, dispatch).
+- MySQL tracks **what was sent** (delivery log, not just fire-and-forget).
+- External services handle **actual delivery** (SMTP for email, HTTP API for SMS).
+- Tenants control **what they receive** (notification preferences).
 
 ---
 
