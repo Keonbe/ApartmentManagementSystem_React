@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'archiveDate' => $row['archive_date'] ?? null,
             'archiveReason' => $row['archive_reason'] ?? null,
             'archiveNotes' => $row['archive_notes'] ?? null,
+            'requestedMoveOutDate' => $row['requested_move_out_date'] ?? null,
             'user_id' => $row['user_id'] ?? null,
         ];
     }

@@ -86,6 +86,7 @@ export default function RentApplication() {
 
     const isReadOnly = applicationStatus?.toLowerCase().startsWith('pending') || applicationStatus === 'accepted';
     const hasActiveApplication = ['pending', 'pending review', 'approved', 'active', 'pending-move-out'].includes(applicationStatus?.toLowerCase()) && !editApp;
+    const isTenant = ['approved', 'active', 'pending-move-out', 'accepted'].includes(applicationStatus?.toLowerCase());
 
     const validateFile = (file) => {
         if (!file) return false;
@@ -250,7 +251,7 @@ export default function RentApplication() {
                         </p>
                     </div>
 
-                    {applicationStatus !== 'none' && (
+                    {['pending review', 'pending', 'approved', 'active', 'pending-move-out'].includes(applicationStatus?.toLowerCase()) && (
                         <div className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border border-current self-start sm:self-center transition-all duration-300 ${applicationStatus.toLowerCase().startsWith('pending') ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
                             <FontAwesomeIcon icon={applicationStatus.toLowerCase().startsWith('pending') ? faHourglassHalf : faCheck} className={applicationStatus.toLowerCase().startsWith('pending') ? 'animate-spin' : ''} />
                             <div className="flex flex-col text-left">
@@ -262,31 +263,73 @@ export default function RentApplication() {
                 </div>
 
                 {hasActiveApplication ? (
-                    <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-md select-none">
-                        <div className="w-16 h-16 rounded-full bg-indigo-50/15 text-indigo-600 flex items-center justify-center mx-auto">
-                            <FontAwesomeIcon icon={faInfoCircle} className="text-3xl animate-bounce" />
+                    isTenant ? (
+                        <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-md select-none">
+                            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                                <FontAwesomeIcon icon={faCheckCircle} className="text-4xl" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-800 m-0">Tenancy Confirmed</h2>
+                            <p className="text-slate-500 text-sm m-0 leading-relaxed font-medium">
+                                You are already an active tenant with an approved lease application. You do not need to fill out a new application. Manage your room, utility bills, and maintenance requests directly from your portal.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/my-room')}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow"
+                                >
+                                    Go to My Room
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/pay-bills')}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                >
+                                    Pay Bills
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/maintenance-request')}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                >
+                                    Request Maintenance
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/home')}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                >
+                                    Go to Home
+                                </button>
+                            </div>
                         </div>
-                        <h2 className="text-2xl font-bold text-slate-800 m-0">Application Active</h2>
-                        <p className="text-slate-500 text-sm m-0 leading-relaxed font-medium">
-                            You currently have an active or pending lease application (Status: <strong className="text-indigo-600">{applicationStatus}</strong>). Submitting another application is not allowed unless your current one is rejected or declined.
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-                            <button
-                                type="button"
-                                onClick={() => navigate('/track-application')}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow"
-                            >
-                                Track Application
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => navigate('/services')}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
-                            >
-                                Back to Services
-                            </button>
+                    ) : (
+                        <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-md select-none">
+                            <div className="w-16 h-16 rounded-full bg-indigo-50/15 text-indigo-600 flex items-center justify-center mx-auto">
+                                <FontAwesomeIcon icon={faInfoCircle} className="text-3xl animate-bounce" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-800 m-0">Application Active</h2>
+                            <p className="text-slate-500 text-sm m-0 leading-relaxed font-medium">
+                                You currently have an active or pending lease application (Status: <strong className="text-indigo-600">{applicationStatus}</strong>). Submitting another application is not allowed unless your current one is rejected or declined.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/track-application')}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow"
+                                >
+                                    Track Application
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/services')}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                >
+                                    Back to Services
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )
                 ) : (
                     <form className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8" onSubmit={handleFormSubmit}>
                         
@@ -695,7 +738,7 @@ export default function RentApplication() {
 
                         <div className="flex flex-col items-center space-y-4 pt-4 border-t border-slate-100 select-none">
                             
-                            {applicationStatus === 'none' && (
+                            {!hasActiveApplication && (
                                 <div className="flex items-center space-x-3">
                                     <label className="relative flex items-center justify-center w-5 h-5 rounded-md border-2 border-indigo-500 bg-transparent cursor-pointer transition-all">
                                         <input

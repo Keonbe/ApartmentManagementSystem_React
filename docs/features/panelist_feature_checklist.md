@@ -56,7 +56,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 1.2 | Tenant Profile | ✅ | Critical | `profile.php` with edit |
 | 1.3 | ID / Document Upload | ✅ | Critical | `upload_lease_document.php` |
 | 1.4 | Occupancy Record | ✅ | Critical | Via `rent_applications` approval |
-| 1.5 | Move-In / Move-Out Tracking | 🔧 | High | Move-out exists; self-service pending |
+| 1.5 | Move-In / Move-Out Tracking | ✅ | High | Tenant initiates, admin inspects and approves |
 | 1.6 | Application Processing Flow | ✅ | Critical | Pending → Approved/Rejected |
 | 1.7 | Acceptance Criteria Enforcement | 📋 | Medium | Terms not yet enforced in flow |
 
@@ -230,7 +230,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 1.2 | **Tenant Profile** | View/edit tenant details, profile photo, contact info, lease status, room assignment | Small+ | `profile.php`, `get_tenants.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 | 1.3 | **ID / Document Upload** | Upload valid government ID (front/back), proof of income, other supporting docs; stored securely on server | Small+ | `upload_lease_document.php`, `get_documents.php` | — |
 | 1.4 | **Occupancy Record** | Track which tenant occupies which unit, move-in date, expected stay duration, number of occupants | Small+ | `rent_applications` table (status: Approved), `update_occupants.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 1.5 | **Move-In / Move-Out Tracking** | Record move-in date on approval, move-out with unit inspection notes, deposit refund status, archive tenant record | Small+ | `record_move_out.php`, `archive_tenant.php`, `restore_tenant.php` | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
+| 1.5 | **Move-In / Move-Out Tracking** | Record move-in date on approval, move-out with unit inspection notes, deposit refund status, archive tenant record | Small+ | `record_move_out.php`, `archive_tenant.php`, `restore_tenant.php` | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) |
 | 1.6 | **Application Processing Flow** | Status pipeline: Pending → Reviewed → Approved/Rejected. Admin sees pending applications, reviews documents, sets acceptance criteria | Small+ | `rent_application.php`, `get_applications.php` | — |
 | 1.7 | **Acceptance Criteria Enforcement** | Before approval: verify valid ID uploaded, confirm payment terms agreed (1 month advance + 1 month deposit + security deposit) | Medium | Terms stored in `lease_contracts` or `system_settings` | — |
 

@@ -30,6 +30,25 @@ if ($id > 0 && !empty($status)) {
         if ($status === 'Rejected' || $status === 'Declined') {
             $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ?");
             $stmt->bind_param("ssi", $status, $rejection_reason, $id);
+        } else if ($status === 'pending-move-out') {
+            $requested_move_out_date = $input['requested_move_out_date'] ?? null;
+            if (empty($requested_move_out_date)) {
+                throw new Exception("Move-out date is required.");
+            }
+            $today = new DateTime(date('Y-m-d'));
+            $selected_date = new DateTime($requested_move_out_date);
+            $interval = $today->diff($selected_date);
+            $days_diff = (int)$interval->format('%r%a');
+
+            if ($days_diff < 15) {
+                throw new Exception("Prior notice of at least 15 days is required before actual move-out.");
+            }
+            if ($days_diff > 30) {
+                throw new Exception("Move-out notice cannot exceed 30 days in advance.");
+            }
+
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ?");
+            $stmt->bind_param("ssi", $status, $requested_move_out_date, $id);
         } else {
             $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ?");
             $stmt->bind_param("si", $status, $id);
@@ -91,6 +110,8 @@ if ($id > 0 && !empty($status)) {
         }
 
         if ($status === 'moved-out') {
+            $clearance_notes = $input['clearance_notes'] ?? '';
+
             // Get application details to vacate the room
             $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name FROM rent_applications WHERE id = ?");
             $app_stmt->bind_param("i", $id);
@@ -107,11 +128,26 @@ if ($id > 0 && !empty($status)) {
                 $room_stmt->close();
             }
             $app_stmt->close();
+
+            if (!empty($clearance_notes)) {
+                $notes_stmt = $conn->prepare("UPDATE rent_applications SET archive_notes = ? WHERE id = ?");
+                $notes_stmt->bind_param("si", $clearance_notes, $id);
+                $notes_stmt->execute();
+                $notes_stmt->close();
+            }
+
+            // Cancel any remaining pending invoices associated with this past move-out application
+            $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
+            $cancel_inv->bind_param("i", $id);
+            $cancel_inv->execute();
+            $cancel_inv->close();
+
+            log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance", "Application ID: $id, $clearance_notes");
+        } else {
+            log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         }
 
         $conn->commit();
-        
-        log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         echo json_encode(["success" => true]);
         
     } catch (Exception $e) {

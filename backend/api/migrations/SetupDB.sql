@@ -248,6 +248,7 @@ CREATE TABLE `rent_applications` (
   `archive_date` date DEFAULT NULL,
   `archive_reason` varchar(255) DEFAULT NULL,
   `archive_notes` text DEFAULT NULL,
+  `requested_move_out_date` date DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_rent_room` (`room_name`),
   KEY `fk_rent_user` (`user_id`),

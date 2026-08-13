@@ -150,7 +150,7 @@ function AppContent() {
       
       try {
         const res = await api.get(`/my_room.php?email=${encodeURIComponent(loggedInUser.email_address || '')}`);
-        if (res.data.success && res.data.data && res.data.data.status === 'Approved' && !res.data.data.has_pending_first_payment) {
+        if (res.data.success && res.data.data && ['approved', 'active', 'pending-move-out'].includes(res.data.data.status?.toLowerCase()) && !res.data.data.has_pending_first_payment) {
           setHasRentedRoom(true);
         } else {
           setHasRentedRoom(false);

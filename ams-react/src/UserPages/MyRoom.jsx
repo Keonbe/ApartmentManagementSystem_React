@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons';
+import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
 
@@ -30,6 +30,8 @@ export default function MyRoom() {
     const [occupants, setOccupants] = useState(2);
     const [expectedEnd, setExpectedEnd] = useState('');
     const [daysUntilExpiration, setDaysUntilExpiration] = useState(null);
+    const [showMoveOutModal, setShowMoveOutModal] = useState(false);
+    const [moveOutDate, setMoveOutDate] = useState('');
 
     useEffect(() => {
         const fetchMyRoom = async () => {
@@ -63,7 +65,8 @@ export default function MyRoom() {
                         monthlyRent: parseFloat(data.monthly_rent),
                         rentStart: startDateString,
                         paymentDue: dueDateString,
-                        status: data.status
+                        status: data.status,
+                        requestedMoveOutDate: data.requested_move_out_date
                     });
 
                     const diffTime = endDate.getTime() - new Date().getTime();
@@ -194,26 +197,55 @@ export default function MyRoom() {
         }
     };
 
-    const handleEndRent = async () => {
-        const confirmAction = window.confirm("Are you sure you want to request lease termination? This action sends a notice to administration.");
-        if (!confirmAction) return;
+    const handleEndRent = () => {
+        const date = new Date();
+        date.setDate(date.getDate() + 15);
+        setMoveOutDate(date.toISOString().split('T')[0]);
+        setShowMoveOutModal(true);
+    };
+
+    const handleConfirmMoveOut = async () => {
+        if (!moveOutDate) {
+            alert("Please select a move-out date.");
+            return;
+        }
 
         try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const selected = new Date(moveOutDate);
+            selected.setHours(0, 0, 0, 0);
+
+            const diffTime = selected.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 15) {
+                alert("Prior notice of at least 15 days is required before your actual move-out.");
+                return;
+            }
+            if (diffDays > 30) {
+                alert("Move-out notice cannot exceed 30 days in advance.");
+                return;
+            }
+
             const res = await api.post('/record_move_out.php', {
-                email: activeEmail
+                email: activeEmail,
+                move_out_date: moveOutDate
             });
 
             if (res.data.success) {
                 alert("Termination notice submitted successfully.");
+                setShowMoveOutModal(false);
                 window.location.reload();
             } else {
                 alert(res.data.message);
             }
         } catch (err) {
             console.error("Move-out error:", err);
-            alert("Failed to submit termination request. Please try again.");
+            alert(err.response?.data?.message || "Failed to submit termination request. Please try again.");
         }
     };
+
 
     if (loading) {
         return (
@@ -488,11 +520,91 @@ export default function MyRoom() {
                         >
                             {roomDetails.status === 'pending-move-out' ? 'Move-Out Pending' : 'End Rent Term'}
                         </button>
+                        {roomDetails.status === 'pending-move-out' && (
+                            <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-1.5 mt-2">
+                                <div className="text-xs font-bold text-amber-400">Move-Out Notice Active</div>
+                                <div className="text-[11px] text-slate-300 leading-normal">
+                                    Your scheduled move-out date: <strong>{roomDetails.requestedMoveOutDate ? new Date(roomDetails.requestedMoveOutDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Pending'}</strong>
+                                </div>
+                                {roomDetails.requestedMoveOutDate && (() => {
+                                    const diff = Math.ceil((new Date(roomDetails.requestedMoveOutDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                                    return (
+                                        <div className="text-[10px] text-amber-300/90 font-semibold">
+                                            ⏳ {diff > 0 ? `${diff} days remaining until move-out` : 'Move-out is due today'}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
                     </div>
 
                 </div>
 
             </div>
+
+            {/* ─── MOVE OUT SCHEDULING MODAL ─── */}
+            {showMoveOutModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowMoveOutModal(false)}>
+                    <div className="bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+                            <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20">
+                                    <FontAwesomeIcon icon={faSignOutAlt} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-white m-0">Terminate Tenancy</h3>
+                                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">Submit notice to administration</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-4 text-left">
+                            <div className="bg-rose-950/20 border border-rose-500/20 rounded-2xl p-4 flex items-start space-x-3">
+                                <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-400 mt-0.5 shrink-0" />
+                                <p className="text-xs text-slate-300 m-0 leading-relaxed">
+                                    Under system policy, prior notice must be given at least <strong>15 days</strong> but less than <strong>30 days</strong> before your actual move-out date.
+                                </p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actual Move-Out Date</label>
+                                <input
+                                    type="date"
+                                    value={moveOutDate}
+                                    min={(() => {
+                                        const d = new Date();
+                                        d.setDate(d.getDate() + 15);
+                                        return d.toISOString().split('T')[0];
+                                    })()}
+                                    max={(() => {
+                                        const d = new Date();
+                                        d.setDate(d.getDate() + 30);
+                                        return d.toISOString().split('T')[0];
+                                    })()}
+                                    onChange={(e) => setMoveOutDate(e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-sm box-border font-bold"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-950/40 border-t border-white/10">
+                            <button 
+                                onClick={() => setShowMoveOutModal(false)} 
+                                className="px-4 py-2 text-xs text-slate-400 font-bold hover:text-white rounded-xl border-0 bg-transparent cursor-pointer transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleConfirmMoveOut} 
+                                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md border-0 cursor-pointer transition-all"
+                            >
+                                Confirm Notice
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -6,7 +6,7 @@ import {
   faSearch, faTimes, faUser, faBuilding, faCalendarAlt, faPhone, faEnvelope, 
   faExclamationTriangle, faCheckCircle, faEye, faChevronRight, faClock, 
   faShieldAlt, faArchive, faHistory, faDollarSign, faWrench, faFileAlt,
-  faSignOutAlt, faBoxOpen, faUserSlash, faChevronDown, faChevronUp
+  faSignOutAlt, faBoxOpen, faUserSlash, faChevronDown, faChevronUp, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 
@@ -41,6 +41,62 @@ const AdminTenants = () => {
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [archiveReason, setArchiveReason] = useState('End of Lease');
   const [archiveNotes, setArchiveNotes] = useState('');
+
+  // Move out scheduling states
+  const [showMoveOutModal, setShowMoveOutModal] = useState(false);
+  const [moveOutTarget, setMoveOutTarget] = useState(null);
+  const [moveOutDate, setMoveOutDate] = useState('');
+
+  // Move-out inspection & clearance states
+  const [showClearanceModal, setShowClearanceModal] = useState(false);
+  const [clearanceTarget, setClearanceTarget] = useState(null);
+  const [damageDeduction, setDamageDeduction] = useState(0);
+  const [damageNotes, setDamageNotes] = useState('');
+  const [utilityDeduction, setUtilityDeduction] = useState(0);
+
+  const openClearanceModal = (tenant) => {
+    setClearanceTarget(tenant);
+    setDamageDeduction(0);
+    setDamageNotes('');
+    setUtilityDeduction(0);
+    setShowProfileModal(false);
+    setShowClearanceModal(true);
+  };
+
+  const handleConfirmClearance = async () => {
+    if (!clearanceTarget) return;
+
+    const rentStr = clearanceTarget.rent ? String(clearanceTarget.rent) : '4000';
+    const baseDeposit = parseFloat(rentStr.replace(/[^0-9.]/g, '')) || 4000;
+    const damages = parseFloat(damageDeduction) || 0;
+    const utilities = parseFloat(utilityDeduction) || 0;
+    const netRefund = Math.max(0, baseDeposit - damages - utilities);
+
+    const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
+
+    try {
+      const res = await api.post('/update_tenant_status.php', {
+        id: clearanceTarget.id,
+        status: 'moved-out',
+        damage_deduction: damages,
+        damage_notes: damageNotes,
+        utility_deduction: utilities,
+        clearance_notes: summaryNotes
+      });
+
+      if (res.data.success) {
+        alert("Move-out clearance completed successfully. Room is now marked vacant.");
+        setShowClearanceModal(false);
+        setClearanceTarget(null);
+        fetchTenants();
+      } else {
+        alert(res.data.message || "Failed to complete move-out clearance.");
+      }
+    } catch (err) {
+      console.error("Error confirming clearance:", err);
+      alert("Failed to submit move-out clearance.");
+    }
+  };
 
   // Profile modal tab state
   const [profileTab, setProfileTab] = useState('overview');
@@ -106,6 +162,56 @@ const AdminTenants = () => {
       fetchTenants();
     } catch (err) {
       console.error("Error updating status:", err);
+    }
+  };
+
+  const handleInitiateMoveOutClick = (tenant) => {
+    setMoveOutTarget(tenant);
+    const date = new Date();
+    date.setDate(date.getDate() + 15);
+    setMoveOutDate(date.toISOString().split('T')[0]);
+    setShowProfileModal(false);
+    setShowMoveOutModal(true);
+  };
+
+  const handleConfirmMoveOut = async () => {
+    if (!moveOutTarget || !moveOutDate) return;
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selected = new Date(moveOutDate);
+      selected.setHours(0, 0, 0, 0);
+
+      const diffTime = selected.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 15) {
+        alert("Prior notice of at least 15 days is required before actual move-out.");
+        return;
+      }
+      if (diffDays > 30) {
+        alert("Move-out notice cannot exceed 30 days in advance.");
+        return;
+      }
+
+      const res = await api.post('/update_tenant_status.php', {
+        id: moveOutTarget.id,
+        status: 'pending-move-out',
+        requested_move_out_date: moveOutDate
+      });
+
+      if (res.data.success) {
+        alert("Move-out scheduled successfully.");
+        setShowMoveOutModal(false);
+        setMoveOutTarget(null);
+        fetchTenants();
+      } else {
+        alert(res.data.message || "Failed to update tenant status.");
+      }
+    } catch (err) {
+      console.error("Error setting move out date:", err);
+      alert(err.response?.data?.message || "Failed to update status. Please try again.");
     }
   };
 
@@ -405,6 +511,17 @@ const AdminTenants = () => {
                               </div>
                             )}
                           </div>
+                        ) : t.status === 'pending-move-out' ? (
+                          <div>
+                            <div>Scheduled Out: {t.requestedMoveOutDate}</div>
+                            {daysRemaining(t.requestedMoveOutDate) > 0 ? (
+                              <div className="text-[10px] text-amber-600 font-semibold">
+                                {daysRemaining(t.requestedMoveOutDate)} days notice
+                              </div>
+                            ) : (
+                              <div className="text-[10px] text-red-500 font-semibold">Notice expired / due today</div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}
@@ -435,7 +552,7 @@ const AdminTenants = () => {
                           )}
                           {(t.status === 'active' || t.status === 'Approved') && (
                             <button 
-                              onClick={() => { updateStatus(t.id, 'pending-move-out'); }}
+                              onClick={() => handleInitiateMoveOutClick(t)}
                               className="flex items-center gap-1.5 text-amber-600 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
                             >
                               <FontAwesomeIcon icon={faSignOutAlt} className="text-[10px]" /> Move Out
@@ -443,7 +560,7 @@ const AdminTenants = () => {
                           )}
                           {t.status === 'pending-move-out' && (
                             <button 
-                              onClick={() => { updateStatus(t.id, 'moved-out'); }}
+                              onClick={() => openClearanceModal(t)}
                               className="flex items-center gap-1.5 text-slate-600 font-semibold border-0 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
                             >
                               <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Complete Move Out
@@ -595,7 +712,7 @@ const AdminTenants = () => {
                   )}
                   {selectedTenant.status !== 'archived' && (selectedTenant.status === 'active' || selectedTenant.status === 'Approved') && (
                     <button 
-                      onClick={() => { updateStatus(selectedTenant.id, 'pending-move-out'); setShowProfileModal(false); }} 
+                      onClick={() => handleInitiateMoveOutClick(selectedTenant)} 
                       className="w-full mt-4 flex items-center justify-center gap-2 bg-amber-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-amber-600 transition-colors"
                     >
                       <FontAwesomeIcon icon={faSignOutAlt} /> Initiate Move Out
@@ -603,7 +720,7 @@ const AdminTenants = () => {
                   )}
                   {selectedTenant.status === 'pending-move-out' && (
                     <button 
-                      onClick={() => { updateStatus(selectedTenant.id, 'moved-out'); setShowProfileModal(false); }} 
+                      onClick={() => openClearanceModal(selectedTenant)} 
                       className="w-full mt-4 flex items-center justify-center gap-2 bg-slate-600 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-slate-700 transition-colors"
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Complete Move Out
@@ -825,6 +942,188 @@ const AdminTenants = () => {
           </div>
         </div>
       )}
+        {/* ─── ADMIN MOVE OUT SCHEDULING MODAL ─── */}
+        {showMoveOutModal && moveOutTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowMoveOutModal(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <FontAwesomeIcon icon={faSignOutAlt} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 m-0">Schedule Move-Out</h3>
+                    <p className="text-xs text-slate-400 m-0 mt-0.5">Set planned move-out date for tenant</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowMoveOutModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+                  <FontAwesomeIcon icon={faTimes} className="text-base" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Tenant Summary */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-left">
+                  <p className="text-sm font-bold text-slate-800 m-0">{moveOutTarget.name}</p>
+                  <p className="text-xs text-slate-400 m-0 mt-0.5">Unit {moveOutTarget.unit} · {moveOutTarget.rent}</p>
+                </div>
+
+                {/* Policy alert */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 text-left">
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-500 mt-0.5 text-xs shrink-0" />
+                  <p className="text-[11px] text-amber-700 m-0">
+                    Prior notice of at least <strong>15 days</strong> but less than <strong>30 days</strong> is required before the Tenant's actual move-out date.
+                  </p>
+                </div>
+
+                {/* Date Picker */}
+                <div className="text-left">
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Planned Move-Out Date *</label>
+                  <input
+                    type="date"
+                    value={moveOutDate}
+                    min={(() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 15);
+                      return d.toISOString().split('T')[0];
+                    })()}
+                    max={(() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 30);
+                      return d.toISOString().split('T')[0];
+                    })()}
+                    onChange={(e) => setMoveOutDate(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 bg-white text-slate-800"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
+                <button onClick={() => setShowMoveOutModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+                <button onClick={handleConfirmMoveOut} className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 shadow-sm border-0 cursor-pointer">
+                  Confirm Schedule
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* ─── MOVE-OUT INSPECTION & CLEARANCE MODAL ─── */}
+        {showClearanceModal && clearanceTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowClearanceModal(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold">
+                    <FontAwesomeIcon icon={faClipboardCheck} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 m-0">Move-Out Inspection & Clearance</h3>
+                    <p className="text-xs text-slate-400 m-0 mt-0.5">Physical inspection, deposit deductions, & utility settlement</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowClearanceModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer">
+                  <FontAwesomeIcon icon={faTimes} className="text-base" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-left max-h-[75vh] overflow-y-auto">
+                {/* Tenant Summary */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800 m-0">{clearanceTarget.name}</p>
+                    <p className="text-xs text-slate-400 m-0 mt-0.5">Unit {clearanceTarget.unit} · {clearanceTarget.rent}/mo</p>
+                  </div>
+                  <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                    Pending Clearance
+                  </span>
+                </div>
+
+                {/* Section 1: Room Inspection for Damages */}
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    1. Physical Room Inspection & Damages
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Damage Deductions (₱)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={damageDeduction}
+                        onChange={(e) => setDamageDeduction(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Inspection Notes / Details</label>
+                      <input
+                        type="text"
+                        value={damageNotes}
+                        onChange={(e) => setDamageNotes(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                        placeholder="e.g., Wall repaint, key replacement"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Unpaid Utility Bills Settlement */}
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    2. Unpaid Utility Bills Settlement
+                  </label>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Unpaid Electricity & Water Balance (₱)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={utilityDeduction}
+                      onChange={(e) => setUtilityDeduction(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                {/* Section 3: Security Deposit Calculations */}
+                <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-4 space-y-2 border-t border-slate-100 pt-3">
+                  <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wide m-0">
+                    3. Security Deposit Settlement Calculation
+                  </label>
+                  <div className="space-y-1.5 text-xs text-slate-600 pt-1">
+                    <div className="flex justify-between">
+                      <span>Initial Security Deposit:</span>
+                      <span className="font-semibold text-slate-800">₱{(parseFloat(String(clearanceTarget.rent || '4000').replace(/[^0-9.]/g, '')) || 4000).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-rose-600">
+                      <span>Less: Room Damages:</span>
+                      <span className="font-semibold">-₱{damageDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-rose-600">
+                      <span>Less: Unpaid Utilities:</span>
+                      <span className="font-semibold">-₱{utilityDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="border-t border-indigo-200 pt-2 flex justify-between font-bold text-sm text-indigo-950">
+                      <span>Net Refundable Security Deposit:</span>
+                      <span className="text-emerald-600 font-black">
+                        ₱{Math.max(0, (parseFloat(String(clearanceTarget.rent || '4000').replace(/[^0-9.]/g, '')) || 4000) - damageDeduction - utilityDeduction).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50">
+                <button onClick={() => setShowClearanceModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+                <button onClick={handleConfirmClearance} className="px-5 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-semibold hover:bg-slate-900 shadow-sm border-0 cursor-pointer flex items-center gap-2">
+                  <FontAwesomeIcon icon={faCheckCircle} /> Confirm Clearance & Complete Move Out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };

@@ -14,17 +14,33 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        $query = "SELECT 
-                    i.*, 
-                    u.first_name, 
-                    u.last_name, 
-                    ra.room_name 
-                  FROM invoices i
-                  LEFT JOIN users u ON i.user_id = u.id
-                  LEFT JOIN rent_applications ra ON u.id = ra.user_id
-                  ORDER BY i.id DESC";
-
-        $result = $conn->query($query);
+        $user_id_param = $_GET['userId'] ?? null;
+        if ($user_id_param) {
+            $stmt = $conn->prepare("SELECT 
+                        i.*, 
+                        u.first_name, 
+                        u.last_name, 
+                        ra.room_name 
+                      FROM invoices i
+                      LEFT JOIN users u ON i.user_id = u.id
+                      LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
+                      WHERE i.user_id = ?
+                      ORDER BY i.id DESC");
+            $stmt->bind_param("i", $user_id_param);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        } else {
+            $query = "SELECT 
+                        i.*, 
+                        u.first_name, 
+                        u.last_name, 
+                        ra.room_name 
+                      FROM invoices i
+                      LEFT JOIN users u ON i.user_id = u.id
+                      LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
+                      ORDER BY i.id DESC";
+            $result = $conn->query($query);
+        }
 
         if (!$result) {
             throw new Exception("Database query failed: " . $conn->error);

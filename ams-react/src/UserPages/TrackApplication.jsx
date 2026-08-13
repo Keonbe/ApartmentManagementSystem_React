@@ -157,6 +157,14 @@ export default function TrackApplication() {
         statusNormalized = 'approved';
         statusLabel = 'Approved';
         statusColorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    } else if (rawStatus.toLowerCase() === 'pending-move-out') {
+        statusNormalized = 'pending-move-out';
+        statusLabel = 'Move-Out Pending';
+        statusColorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+    } else if (rawStatus.toLowerCase() === 'moved-out') {
+        statusNormalized = 'moved-out';
+        statusLabel = 'Moved Out';
+        statusColorClass = 'text-purple-400 bg-purple-500/10 border-purple-500/20';
     } else if (rawStatus.toLowerCase() === 'rejected' || rawStatus.toLowerCase() === 'declined') {
         statusNormalized = 'rejected';
         statusLabel = 'Rejected';
@@ -257,6 +265,26 @@ export default function TrackApplication() {
                                 </div>
                             )}
 
+                            {statusNormalized === 'pending-move-out' && (
+                                <button
+                                    onClick={() => navigate('/my-room')}
+                                    className="bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
+                                >
+                                    <span>View Move-Out Notice</span>
+                                    <FontAwesomeIcon icon={faArrowRight} />
+                                </button>
+                            )}
+
+                            {statusNormalized === 'moved-out' && (
+                                <button
+                                    onClick={() => navigate('/rent-application')}
+                                    className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
+                                >
+                                    <span>Apply for a New Room</span>
+                                    <FontAwesomeIcon icon={faArrowRight} />
+                                </button>
+                            )}
+
                             {statusNormalized === 'rejected' && (
                                 <button
                                     onClick={() => navigate('/rent-application', { state: { editApplication: application } })}
@@ -277,6 +305,27 @@ export default function TrackApplication() {
                                 <p className="text-slate-300 text-sm m-0 leading-relaxed bg-rose-950/20 p-4 rounded-xl border border-rose-500/10 font-medium">
                                     {application.rejection_reason}
                                 </p>
+                            </div>
+                        )}
+
+                        {statusNormalized === 'moved-out' && (
+                            <div className="bg-purple-500/10 border border-purple-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4 text-left">
+                                <div className="flex items-center space-x-3 text-purple-300">
+                                    <FontAwesomeIcon icon={faCheckCircle} className="text-2xl text-purple-400" />
+                                    <h3 className="text-xl font-bold text-white m-0">Tenancy Concluded (Moved Out)</h3>
+                                </div>
+                                <p className="text-slate-300 text-sm m-0 leading-relaxed font-medium">
+                                    Your tenancy for <strong>{application.room_name ? `Room ${application.room_name}` : "your rented unit"}</strong> has officially ended and room clearance is complete. You are currently not renting a unit, so you are eligible to submit a brand new rent application whenever you are ready!
+                                </p>
+                                <div className="pt-2">
+                                    <button
+                                        onClick={() => navigate('/rent-application')}
+                                        className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer inline-flex items-center space-x-2"
+                                    >
+                                        <span>Browse Available Rooms & Apply</span>
+                                        <FontAwesomeIcon icon={faArrowRight} />
+                                    </button>
+                                </div>
                             </div>
                         )}
 

@@ -32,6 +32,12 @@ if ($id > 0) {
         $stmt->execute();
         $stmt->close();
 
+        // Cancel any remaining pending invoices for this application
+        $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
+        $cancel_inv->bind_param("i", $id);
+        $cancel_inv->execute();
+        $cancel_inv->close();
+
         if ($room_res) {
             $room_name = $room_res['room_name'];
             $full_name = $room_res['first_name'] . ' ' . $room_res['last_name'];
