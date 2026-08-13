@@ -315,6 +315,8 @@ CREATE TABLE `users` (
   `email_address` varchar(30) NOT NULL,
   `password` varchar(200) NOT NULL,
   `role` varchar(20) DEFAULT 'user',
+  `avatar_url` varchar(255) DEFAULT NULL,
+  `is_archived` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email_address` (`email_address`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -338,8 +340,6 @@ CREATE TABLE `users` (
 -- 1. Default Admin User
 INSERT IGNORE INTO `users` (`first_name`, `last_name`, `email_address`, `password`, `role`) 
 VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin'); -- admin123
-
-ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL;
 
 -- 2. Initial Units
 INSERT IGNORE INTO `rooms` (`id`, `type`, `floor`, `monthly_rent`, `status`, `tenant_name`, `lease_start`, `lease_end`, `last_tenant`, `maintenance_flag`, `occupants`) VALUES
