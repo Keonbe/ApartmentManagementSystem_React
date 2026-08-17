@@ -47,12 +47,31 @@ try {
         if ($type === 'occupancy_request') {
             $new_occupants = (int) $notif['metadata_value']; 
             
-            $updateStmt = $conn->prepare("UPDATE rent_applications SET occupants = ? WHERE user_id = ? AND status = 'Approved'");
-            $updateStmt->bind_param("ii", $new_occupants, $target_user_id);
-            $updateStmt->execute();
-            $updateStmt->close();
+            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved' ORDER BY id DESC LIMIT 1");
+            $appStmt->bind_param("i", $target_user_id);
+            $appStmt->execute();
+            $app_res = $appStmt->get_result()->fetch_assoc();
+            $appStmt->close();
 
-            log_activity($conn, $admin_id, 'tenant', "Approved Occupancy Change", "User ID: $target_user_id updated to $new_occupants occupants");
+            $new_monthly_rent = 4000;
+            if ($app_res) {
+                $room_name = $app_res['room_name'];
+                $clean_room = strtoupper(trim(str_ireplace('Room', '', $room_name)));
+                $base_room_rent = in_array($clean_room, ['E', 'F']) ? 3500 : 4000;
+                $new_monthly_rent = $base_room_rent + ($new_occupants > 4 ? ($new_occupants - 4) * 1000 : 0);
+
+                $updateStmt = $conn->prepare("UPDATE rent_applications SET occupants = ?, monthly_rent = ? WHERE id = ?");
+                $updateStmt->bind_param("idi", $new_occupants, $new_monthly_rent, $app_res['id']);
+                $updateStmt->execute();
+                $updateStmt->close();
+
+                $roomStmt = $conn->prepare("UPDATE rooms SET occupants = ?, monthly_rent = ? WHERE id = ?");
+                $roomStmt->bind_param("ids", $new_occupants, $new_monthly_rent, $room_name);
+                $roomStmt->execute();
+                $roomStmt->close();
+            }
+
+            log_activity($conn, $admin_id, 'tenant', "Approved Occupancy Change", "User ID: $target_user_id updated to $new_occupants occupants (Rent: ₱$new_monthly_rent)");
 
         } else if ($type === 'lease_extension_request') {
             $add_months = (int) $notif['metadata_value'];
