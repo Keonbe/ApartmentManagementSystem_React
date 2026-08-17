@@ -18,7 +18,10 @@ $id = $input['id'] ?? 0;
 
 if ($id > 0) {
     // Get application details
-    $stmt = $conn->prepare("SELECT user_id, room_name, first_name, last_name, monthly_rent, lease_start, lease_end, occupants FROM rent_applications WHERE id = ?");
+    $stmt = $conn->prepare("SELECT ra.user_id, ra.room_name, ra.first_name, ra.last_name, ra.monthly_rent, ra.occupants, ra.months_of_rent, lc.lease_start, lc.lease_end 
+                            FROM rent_applications ra 
+                            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
+                            WHERE ra.id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $app = $stmt->get_result()->fetch_assoc();
@@ -33,9 +36,10 @@ if ($id > 0) {
     $room_name = $app['room_name'];
     $full_name = $app['first_name'] . ' ' . $app['last_name'];
     $rent = $app['monthly_rent'];
-    $lease_start = $app['lease_start'];
-    $lease_end = $app['lease_end'];
-    $occupants = $app['occupants'];
+    $months = (int)($app['months_of_rent'] ?? 6);
+    $lease_start = $app['lease_start'] ?? date('Y-m-d');
+    $lease_end = $app['lease_end'] ?? date('Y-m-d', strtotime("+$months months"));
+    $occupants = (int)($app['occupants'] ?? 1);
 
     $conn->begin_transaction();
     try {

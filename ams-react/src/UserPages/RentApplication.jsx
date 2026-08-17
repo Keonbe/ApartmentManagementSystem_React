@@ -84,9 +84,10 @@ export default function RentApplication() {
     const [showTermsModal, setShowTermsModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-    const isReadOnly = applicationStatus?.toLowerCase().startsWith('pending') || applicationStatus === 'accepted';
-    const hasActiveApplication = ['pending', 'pending review', 'approved', 'active', 'pending-move-out'].includes(applicationStatus?.toLowerCase()) && !editApp;
-    const isTenant = ['approved', 'active', 'pending-move-out', 'accepted'].includes(applicationStatus?.toLowerCase());
+    const isPendingReview = ['pending', 'pending review'].includes(applicationStatus?.toLowerCase());
+    const isReadOnly = isPendingReview || applicationStatus === 'accepted';
+    const hasActiveApplication = ['pending', 'pending review', 'approved', 'active'].includes(applicationStatus?.toLowerCase()) && !editApp;
+    const isTenant = ['approved', 'active'].includes(applicationStatus?.toLowerCase());
 
     const validateFile = (file) => {
         if (!file) return false;
@@ -251,12 +252,12 @@ export default function RentApplication() {
                         </p>
                     </div>
 
-                    {['pending review', 'pending', 'approved', 'active', 'pending-move-out'].includes(applicationStatus?.toLowerCase()) && (
-                        <div className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border border-current self-start sm:self-center transition-all duration-300 ${applicationStatus.toLowerCase().startsWith('pending') ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            <FontAwesomeIcon icon={applicationStatus.toLowerCase().startsWith('pending') ? faHourglassHalf : faCheck} className={applicationStatus.toLowerCase().startsWith('pending') ? 'animate-spin' : ''} />
+                    {['pending review', 'pending', 'approved', 'active'].includes(applicationStatus?.toLowerCase()) && (
+                        <div className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border border-current self-start sm:self-center transition-all duration-300 ${isPendingReview ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            <FontAwesomeIcon icon={isPendingReview ? faHourglassHalf : faCheck} className={isPendingReview ? 'animate-spin' : ''} />
                             <div className="flex flex-col text-left">
                                 <span className="text-[10px] uppercase tracking-wider opacity-75 leading-none">Application Status</span>
-                                <span className="text-sm font-black mt-0.5">{applicationStatus.toLowerCase().startsWith('pending') ? 'Pending Review' : 'Approved'}</span>
+                                <span className="text-sm font-black mt-0.5">{isPendingReview ? 'Pending Review' : 'Approved'}</span>
                             </div>
                         </div>
                     )}
@@ -764,7 +765,7 @@ export default function RentApplication() {
                                 </div>
                             )}
 
-                            {applicationStatus?.toLowerCase().startsWith('pending') ? (
+                            {isPendingReview ? (
                                 <div className="text-center p-4 bg-amber-50 rounded-2xl border border-amber-200 text-amber-700 text-sm font-medium w-full">
                                     Your lease request data is currently under review by building management. Submissions cannot be edited at this time.
                                 </div>

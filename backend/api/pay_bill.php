@@ -28,8 +28,8 @@ if (empty($invoice_id) || empty($payment_method)) {
     exit;
 }
 
-$status = ($payment_method === 'Cash on Hand') ? 'pending' : 'paid';
-$paid_at = ($payment_method === 'Cash on Hand') ? null : date('Y-m-d H:i:s');
+$status = ($payment_method === 'Cash on Hand') ? 'pending' : 'pending-verification';
+$paid_at = null;
 
 $stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, proof_of_payment_path = ?, status = ?, paid_at = ? WHERE id = ?");
 $stmt->bind_param("ssssss", $payment_method, $payment_reference, $proof_path, $status, $paid_at, $invoice_id);

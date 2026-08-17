@@ -37,7 +37,7 @@ if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
     }
 }
 
-$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?";
+$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, status = 'pending-verification'";
 $params = [$payment_method, $payment_reference, $sender_name];
 $types = "sss";
 

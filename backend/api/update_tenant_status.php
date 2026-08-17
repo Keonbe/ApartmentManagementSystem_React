@@ -105,6 +105,20 @@ if ($id > 0 && !empty($status)) {
                     $inv_stmt->close();
                 }
                 $check_inv->close();
+
+                // Check if contract already exists for this application
+                $check_ctr = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ?");
+                $check_ctr->bind_param("i", $id);
+                $check_ctr->execute();
+                $ctr_res = $check_ctr->get_result();
+                if ($ctr_res->num_rows === 0) {
+                    $contract_id = 'CTR-' . uniqid();
+                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'active')");
+                    $ctr_stmt->bind_param("sidss", $contract_id, $id, $monthly_rent, $lease_start, $lease_end);
+                    $ctr_stmt->execute();
+                    $ctr_stmt->close();
+                }
+                $check_ctr->close();
             }
             $app_stmt->close();
         }

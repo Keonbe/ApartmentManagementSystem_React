@@ -11,6 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+if (!verify_admin($conn, $admin_id)) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    exit;
+}
+
 $input = json_decode(file_get_contents("php://input"), true);
 $id = $input['id'] ?? 0;
 $archiveReason = $input['archiveReason'] ?? 'End of Lease';
@@ -55,6 +62,8 @@ if ($id > 0) {
                 $user_stmt->close();
             }
         }
+
+        log_activity($conn, $admin_id, 'tenant', "Archived Tenant", "Application ID: $id, Reason: $archiveReason" . ($archiveNotes ? ", Notes: $archiveNotes" : ""));
 
         $conn->commit();
         echo json_encode(["success" => true]);

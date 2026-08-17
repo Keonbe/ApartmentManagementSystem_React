@@ -222,10 +222,14 @@ export default function TrackApplication() {
                                     {statusLabel}
                                 </span>
                                 <h2 className="text-2xl font-bold text-white m-0">
-                                    Lease Application for {application.room_name ? `Room ${application.room_name}` : "Studio Unit"}
+                                    {statusNormalized === 'moved-out' 
+                                        ? "Previous Tenancy Concluded" 
+                                        : `Lease Application for ${application.room_name ? `Room ${application.room_name}` : "Studio Unit"}`}
                                 </h2>
                                 <p className="text-slate-400 text-xs m-0 font-medium pt-1">
-                                    Submitted on {new Date(application.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    {statusNormalized === 'moved-out'
+                                        ? "You have officially moved out of your previous room."
+                                        : `Submitted on ${new Date(application.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}
                                 </p>
                             </div>
 
@@ -275,15 +279,7 @@ export default function TrackApplication() {
                                 </button>
                             )}
 
-                            {statusNormalized === 'moved-out' && (
-                                <button
-                                    onClick={() => navigate('/rent-application')}
-                                    className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
-                                >
-                                    <span>Apply for a New Room</span>
-                                    <FontAwesomeIcon icon={faArrowRight} />
-                                </button>
-                            )}
+
 
                             {statusNormalized === 'rejected' && (
                                 <button
@@ -319,7 +315,7 @@ export default function TrackApplication() {
                                 </p>
                                 <div className="pt-2">
                                     <button
-                                        onClick={() => navigate('/rent-application')}
+                                        onClick={() => navigate('/preview')}
                                         className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer inline-flex items-center space-x-2"
                                     >
                                         <span>Browse Available Rooms & Apply</span>
@@ -528,66 +524,108 @@ export default function TrackApplication() {
 
                         {/* Visual Progress Timeline */}
                         <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-                            <h3 className="text-lg font-bold text-white m-0">Application Progress</h3>
+                            <h3 className="text-lg font-bold text-white m-0">
+                                {statusNormalized === 'moved-out' ? "Tenancy Checkout Milestones" : "Application Progress"}
+                            </h3>
                             
-                            <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
-                                {/* Timeline Line (Desktop) */}
-                                <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-slate-800 hidden md:block z-0"></div>
-                                <div 
-                                    className="absolute top-[20px] left-0 h-0.5 bg-indigo-500 hidden md:block z-0 transition-all duration-500"
-                                    style={{
-                                        width: statusNormalized === 'approved' ? '100%' : statusNormalized === 'rejected' ? '100%' : '50%'
-                                    }}
-                                ></div>
+                            {statusNormalized === 'moved-out' ? (
+                                <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
+                                    {/* Timeline Line (Desktop) */}
+                                    <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-indigo-500/80 hidden md:block z-0"></div>
 
-                                {/* Step 1: Submitted */}
-                                <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
-                                    <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold shadow-md border-4 border-slate-900">
-                                        <FontAwesomeIcon icon={faCheckCircle} />
+                                    {/* Step 1: Concluded */}
+                                    <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                        <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold shadow-md border-4 border-slate-900">
+                                            <FontAwesomeIcon icon={faCheckCircle} />
+                                        </div>
+                                        <div className="flex flex-col md:items-center">
+                                            <span className="text-sm font-bold text-white">Tenancy Concluded</span>
+                                            <span className="text-xs text-slate-400 mt-0.5">Lease period ended</span>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col md:items-center">
-                                        <span className="text-sm font-bold text-white">Application Submitted</span>
-                                        <span className="text-xs text-slate-400 mt-0.5">Documents uploaded successfully</span>
+
+                                    {/* Step 2: Clearance */}
+                                    <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                        <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold shadow-md border-4 border-slate-900">
+                                            <FontAwesomeIcon icon={faCheckCircle} />
+                                        </div>
+                                        <div className="flex flex-col md:items-center">
+                                            <span className="text-sm font-bold text-white">Inspected & Cleared</span>
+                                            <span className="text-xs text-slate-400 mt-0.5">Deductions and utilities settled</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Step 3: Vacated */}
+                                    <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                        <div className="w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold shadow-md border-4 border-slate-900">
+                                            <FontAwesomeIcon icon={faCheckCircle} />
+                                        </div>
+                                        <div className="flex flex-col md:items-center">
+                                            <span className="text-sm font-bold text-white">Unit Vacated</span>
+                                            <span className="text-xs text-slate-400 mt-0.5">Room released vacant for lease</span>
+                                        </div>
                                     </div>
                                 </div>
+                            ) : (
+                                <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
+                                    {/* Timeline Line (Desktop) */}
+                                    <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-slate-800 hidden md:block z-0"></div>
+                                    <div 
+                                        className="absolute top-[20px] left-0 h-0.5 bg-indigo-500 hidden md:block z-0 transition-all duration-500"
+                                        style={{
+                                            width: statusNormalized === 'approved' ? '100%' : statusNormalized === 'rejected' ? '100%' : '50%'
+                                        }}
+                                    ></div>
 
-                                {/* Step 2: Under Review */}
-                                <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
-                                        statusNormalized === 'pending' ? 'bg-amber-500 text-white animate-pulse' : 'bg-indigo-500 text-white'
-                                    }`}>
-                                        <FontAwesomeIcon icon={statusNormalized === 'pending' ? faHourglassHalf : faCheckCircle} className={statusNormalized === 'pending' ? 'animate-spin' : ''} />
+                                    {/* Step 1: Submitted */}
+                                    <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                        <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold shadow-md border-4 border-slate-900">
+                                            <FontAwesomeIcon icon={faCheckCircle} />
+                                        </div>
+                                        <div className="flex flex-col md:items-center">
+                                            <span className="text-sm font-bold text-white">Application Submitted</span>
+                                            <span className="text-xs text-slate-400 mt-0.5">Documents uploaded successfully</span>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col md:items-center">
-                                        <span className="text-sm font-bold text-white">Under Review</span>
-                                        <span className="text-xs text-slate-400 mt-0.5">Building management verification</span>
+
+                                    {/* Step 2: Under Review */}
+                                    <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
+                                            statusNormalized === 'pending' ? 'bg-amber-500 text-white animate-pulse' : 'bg-indigo-500 text-white'
+                                        }`}>
+                                            <FontAwesomeIcon icon={statusNormalized === 'pending' ? faHourglassHalf : faCheckCircle} className={statusNormalized === 'pending' ? 'animate-spin' : ''} />
+                                        </div>
+                                        <div className="flex flex-col md:items-center">
+                                            <span className="text-sm font-bold text-white">Under Review</span>
+                                            <span className="text-xs text-slate-400 mt-0.5">Building management verification</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Step 3: Final Decision */}
+                                    <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
+                                            statusNormalized === 'approved' ? 'bg-emerald-500 text-white' : 
+                                            statusNormalized === 'rejected' ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-500'
+                                        }`}>
+                                            <FontAwesomeIcon icon={
+                                                statusNormalized === 'approved' ? faCheckCircle : 
+                                                statusNormalized === 'rejected' ? faTimesCircle : faCheckCircle
+                                            } />
+                                        </div>
+                                        <div className="flex flex-col md:items-center">
+                                            <span className="text-sm font-bold text-white">
+                                                {statusNormalized === 'rejected' ? 'Application Rejected' : 'Final Decision'}
+                                            </span>
+                                            <span className="text-xs text-slate-400 mt-0.5">
+                                                {statusNormalized === 'approved' ? (
+                                                    application.has_pending_first_payment ? 'Pending Initial Payment' : 'Ready to move in'
+                                                ) : 
+                                                 statusNormalized === 'rejected' ? 'Review feedback or re-apply' : 'Pending decisions'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-
-                                {/* Step 3: Final Decision */}
-                                <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
-                                        statusNormalized === 'approved' ? 'bg-emerald-500 text-white' : 
-                                        statusNormalized === 'rejected' ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-500'
-                                    }`}>
-                                        <FontAwesomeIcon icon={
-                                            statusNormalized === 'approved' ? faCheckCircle : 
-                                            statusNormalized === 'rejected' ? faTimesCircle : faCheckCircle
-                                        } />
-                                    </div>
-                                    <div className="flex flex-col md:items-center">
-                                        <span className="text-sm font-bold text-white">
-                                            {statusNormalized === 'rejected' ? 'Application Rejected' : 'Final Decision'}
-                                        </span>
-                                        <span className="text-xs text-slate-400 mt-0.5">
-                                            {statusNormalized === 'approved' ? (
-                                                application.has_pending_first_payment ? 'Pending Initial Payment' : 'Ready to move in'
-                                            ) : 
-                                             statusNormalized === 'rejected' ? 'Review feedback or re-apply' : 'Pending decisions'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Lease Details Grid */}
