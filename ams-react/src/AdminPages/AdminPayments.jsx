@@ -19,6 +19,7 @@ const AdminPayments = () => {
   const [sortOption, setSortOption] = useState('name-asc');
   const [statusFilter, setStatusFilter] = useState('all');
   const [contracts, setContracts] = useState([]);
+  const [activeTab, setActiveTab] = useState('billing');
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
@@ -423,6 +424,25 @@ const handleMarkAsPaid = async () => {
               </div>
             )}
 
+            <div className="flex border-b border-slate-200 mb-2 gap-4">
+              <button 
+                onClick={() => setActiveTab('billing')}
+                className={`pb-3 pt-1 text-sm font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'billing' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              >
+                <FontAwesomeIcon icon={faFileAlt} className="mr-2" />
+                Tenant Billing & Payments
+              </button>
+              <button 
+                onClick={() => setActiveTab('deposits')}
+                className={`pb-3 pt-1 text-sm font-bold border-b-2 transition-colors cursor-pointer bg-transparent outline-none ${activeTab === 'deposits' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+              >
+                <FontAwesomeIcon icon={faShieldAlt} className="mr-2" />
+                Security Deposit Ledger
+              </button>
+            </div>
+
+            {activeTab === 'billing' && (
+            <>
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Tenant Selector */}
               <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl flex flex-col overflow-hidden h-[calc(100vh-18rem)] min-h-[500px]">
@@ -788,39 +808,44 @@ const handleMarkAsPaid = async () => {
                     })}
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* ─── PAYMENT SETTLEMENT TRACKING ─── */}
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
-                  <FontAwesomeIcon icon={faHandshake} className="text-violet-600" />
-                  Settlement Tracking — {activeTenant.name}
-                </h3>
-                <button onClick={() => setShowSettlementForm(!showSettlementForm)} className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors">
-                  <FontAwesomeIcon icon={faPlus} /> Record Settlement
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                {/* Outstanding Balance Monitor */}
-                <div className={`rounded-xl p-4 border flex items-center justify-between ${(activeTenant.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
-                  <div className="flex items-center gap-3">
-                    <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-500 text-xl' : 'text-emerald-500 text-xl'} />
-                    <div>
-                      <p className="text-sm font-bold text-slate-800 m-0">Outstanding Balance</p>
-                      <p className="text-[11px] text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
+                
+                {/* ─── PAYMENT SETTLEMENT TRACKING ─── */}
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faHandshake} className="text-violet-600" />
+                      Settlement Tracking — {activeTenant.name}
+                    </h3>
+                    <button onClick={() => setShowSettlementForm(!showSettlementForm)} className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors">
+                      <FontAwesomeIcon icon={faPlus} /> Record Settlement
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    {/* Outstanding Balance Monitor */}
+                    <div className={`rounded-xl p-4 border flex items-center justify-between ${(activeTenant.outstandingBalance || 0) > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon icon={faBalanceScale} className={(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-500 text-xl' : 'text-emerald-500 text-xl'} />
+                        <div>
+                          <p className="text-sm font-bold text-slate-800 m-0">Outstanding Balance</p>
+                          <p className="text-[11px] text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
+                        </div>
+                      </div>
+                      <p className={`text-2xl font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {formatCurrency(activeTenant.outstandingBalance || 0)}
+                      </p>
                     </div>
                   </div>
-                  <p className={`text-2xl font-bold m-0 ${(activeTenant.outstandingBalance || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                    {formatCurrency(activeTenant.outstandingBalance || 0)}
-                  </p>
                 </div>
+
               </div>
             </div>
+            </>
+            )}
 
-            {/* ─── SECURITY DEPOSIT TRACKING LEDGER ─── */}
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            {activeTab === 'deposits' && (
+            <div className="grid grid-cols-1 gap-6">
+              {/* ─── SECURITY DEPOSIT TRACKING LEDGER ─── */}
+              <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
                   <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-600" />
@@ -910,9 +935,11 @@ const handleMarkAsPaid = async () => {
                       )}
                     </tbody>
                   </table>
-                </div>
               </div>
             </div>
+            </div>
+            </div>
+            )}
 
           </div>
         </div>
