@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faUser, faCalendarAlt, 
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
-  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight
+  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight, faShieldAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
@@ -17,10 +17,13 @@ const AdminPayments = () => {
   const [selectedTenantId, setSelectedTenantId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOption, setSortOption] = useState('name-asc');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
     fetchInvoices();
+    fetchContracts();
   }, []);
 
   const fetchInvoices = async () => {
@@ -92,6 +95,17 @@ const AdminPayments = () => {
       setLoading(false);
     }
   };
+
+  const fetchContracts = async () => {
+    try {
+      const res = await api.get('/get_contracts.php');
+      if (res.data.success) {
+        setContracts(res.data.contracts || []);
+      }
+    } catch (err) {
+      console.error("Error fetching contracts for security deposit ledger:", err);
+    }
+  };
   
   const [billingPeriod, setBillingPeriod] = useState('July 2026');
   const [isExtendedRent, setIsExtendedRent] = useState(false);
@@ -121,10 +135,16 @@ const AdminPayments = () => {
 
   const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0] || null;
   const filteredTenants = useMemo(() => {
-    const filtered = tenants.filter(t => 
-      t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      t.unit?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filtered = tenants.filter(t => {
+      const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            t.unit?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || 
+                            (statusFilter === 'unpaid' && t.status !== 'paid') ||
+                            (statusFilter === 'paid' && t.status === 'paid') ||
+                            (statusFilter === 'pending-verification' && t.status === 'pending-verification') ||
+                            (statusFilter === 'overdue' && t.status === 'overdue');
+      return matchesSearch && matchesStatus;
+    });
     return filtered.sort((a, b) => {
       if (sortOption === 'name-asc') {
         return a.name.localeCompare(b.name);
@@ -141,7 +161,7 @@ const AdminPayments = () => {
       }
       return 0;
     });
-  }, [tenants, searchTerm, sortOption]);
+  }, [tenants, searchTerm, sortOption, statusFilter]);
 
   // Switch dynamic admin selection method parameters on tenant changes
   useEffect(() => {
@@ -166,6 +186,16 @@ const AdminPayments = () => {
   const overdueCount = tenants.filter(t => t.status === 'overdue').length;
   const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification').length;
   const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking)), 0);
+
+  // Security Deposit Tracking summaries (Non-refundable)
+  const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
+  const totalDepositDeductions = contracts.reduce((sum, c) => sum + parseFloat(c.damage_deduction || 0) + parseFloat(c.utility_deduction || 0), 0);
+  const totalAppliedToRent = contracts.filter(c => c.status === 'expired').reduce((sum, c) => {
+    const dep = parseFloat(c.deposit_amount || 0);
+    const dmg = parseFloat(c.damage_deduction || 0);
+    const utl = parseFloat(c.utility_deduction || 0);
+    return sum + Math.max(0, dep - dmg - utl);
+  }, 0);
 
   // Outstanding Balance Aging
   const agingData = useMemo(() => {
@@ -403,16 +433,29 @@ const handleMarkAsPaid = async () => {
                       <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
                       <input type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
                     </div>
-                    <select 
-                      value={sortOption} 
-                      onChange={e => setSortOption(e.target.value)} 
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
-                    >
-                      <option value="name-asc">Name (A-Z)</option>
-                      <option value="name-desc">Name (Z-A)</option>
-                      <option value="due-asc">Due Date (Oldest)</option>
-                      <option value="due-desc">Due Date (Newest)</option>
-                    </select>
+                    <div className="flex gap-2">
+                      <select 
+                        value={statusFilter} 
+                        onChange={e => setStatusFilter(e.target.value)} 
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                      >
+                        <option value="all">All</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="paid">Paid</option>
+                        <option value="pending-verification">Verify</option>
+                        <option value="overdue">Overdue</option>
+                      </select>
+                      <select 
+                        value={sortOption} 
+                        onChange={e => setSortOption(e.target.value)} 
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                      >
+                        <option value="name-asc">Name ↑</option>
+                        <option value="name-desc">Name ↓</option>
+                        <option value="due-asc">Due ↑</option>
+                        <option value="due-desc">Due ↓</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
@@ -776,6 +819,101 @@ const handleMarkAsPaid = async () => {
               </div>
             </div>
 
+            {/* ─── SECURITY DEPOSIT TRACKING LEDGER ─── */}
+            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
+                  <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-600" />
+                  Security Deposit Tracking Ledger
+                </h3>
+                <span className="text-xs text-slate-500 font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wider">Non-Refundable Held Assets</span>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Deposit metrics summary cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide m-0">Total Deposits Held</p>
+                      <p className="text-2xl font-extrabold text-emerald-800 m-0 mt-1">{formatCurrency(totalDepositsHeld)}</p>
+                    </div>
+                    <FontAwesomeIcon icon={faShieldAlt} className="text-emerald-600/30 text-3xl" />
+                  </div>
+                  
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide m-0">Total Billing Deductions Applied</p>
+                      <p className="text-2xl font-extrabold text-amber-800 m-0 mt-1">{formatCurrency(totalDepositDeductions)}</p>
+                    </div>
+                    <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600/30 text-3xl" />
+                  </div>
+
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wide m-0">Total Applied to Last Rent Month</p>
+                      <p className="text-2xl font-extrabold text-indigo-800 m-0 mt-1">{formatCurrency(totalAppliedToRent)}</p>
+                    </div>
+                    <FontAwesomeIcon icon={faCheckCircle} className="text-indigo-600/30 text-3xl" />
+                  </div>
+                </div>
+
+                {/* Detailed Deposits Table */}
+                <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-50">
+                        <th className="py-3 px-4">Tenant Name</th>
+                        <th className="py-3 px-4 text-center">Unit</th>
+                        <th className="py-3 px-4">Lease Term</th>
+                        <th className="py-3 px-4">Original Deposit</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4">Fixture Damages</th>
+                        <th className="py-3 px-4">Unpaid Utilities</th>
+                        <th className="py-3 px-4">Applied to Rent</th>
+                        <th className="py-3 px-4">Refunded</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {contracts.length > 0 ? contracts.map((c, idx) => {
+                        const tenantName = c.tenant || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Tenant';
+                        const leaseStart = c.leaseStart || c.lease_start ? new Date(c.leaseStart || c.lease_start).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A';
+                        const leaseEnd = c.leaseEnd || c.lease_end ? new Date(c.leaseEnd || c.lease_end).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A';
+                        const baseDeposit = parseFloat(c.deposit || c.deposit_amount || 0);
+                        const dmg = parseFloat(c.damage_deduction || 0);
+                        const utl = parseFloat(c.utility_deduction || 0);
+                        const appliedRent = c.status === 'expired' ? Math.max(0, baseDeposit - dmg - utl) : 0;
+                        const status = c.deposit_status || (c.status === 'active' ? 'Held' : 'Processed');
+                        
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="py-3.5 px-4 font-bold text-slate-800">{tenantName}</td>
+                            <td className="py-3.5 px-4 text-center font-bold text-indigo-600">{c.unit || c.room_name}</td>
+                            <td className="py-3.5 px-4 text-slate-500">{leaseStart} – {leaseEnd}</td>
+                            <td className="py-3.5 px-4 font-semibold text-slate-700">{formatCurrency(baseDeposit)}</td>
+                            <td className="py-3.5 px-4">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                status === 'Applied to Rent' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}>
+                                {status}
+                              </span>
+                            </td>
+                            <td className={`py-3.5 px-4 font-semibold ${dmg > 0 ? 'text-red-600' : 'text-slate-400'}`}>{dmg > 0 ? formatCurrency(dmg) : '—'}</td>
+                            <td className={`py-3.5 px-4 font-semibold ${utl > 0 ? 'text-red-600' : 'text-slate-400'}`}>{utl > 0 ? formatCurrency(utl) : '—'}</td>
+                            <td className="py-3.5 px-4 font-bold text-indigo-600">{appliedRent > 0 ? formatCurrency(appliedRent) : '—'}</td>
+                            <td className="py-3.5 px-4 text-slate-400 font-medium">₱0.00 <span className="text-[9px] text-slate-400 italic font-normal">(Non-Refundable)</span></td>
+                          </tr>
+                        );
+                      }) : (
+                        <tr><td colSpan="9" className="py-6 text-center text-slate-400">No security deposit transactions registered.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </main>
@@ -797,6 +935,51 @@ const handleMarkAsPaid = async () => {
                 <button onClick={handleMarkAsPaid} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">Confirm Approval</button>
                 <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      {showReceipt && receiptData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowReceipt(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500">
+              <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
+              <div className="mt-4 pt-4 border-t border-slate-700/50">
+                <p className="text-sm font-semibold text-slate-300 uppercase tracking-widest m-0">Official Receipt</p>
+                <p className="text-xs font-mono text-indigo-300 m-0 mt-1">{receiptData.rctId}</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4 font-mono text-sm">
+              <div className="flex justify-between border-b border-slate-200 pb-4">
+                <div><p className="text-slate-500 text-[10px] uppercase m-0">Date</p><p className="font-semibold m-0 mt-0.5">{receiptData.date}</p></div>
+                <div className="text-right"><p className="text-slate-500 text-[10px] uppercase m-0">Status</p><p className="font-bold text-emerald-600 m-0 mt-0.5">{receiptData.status}</p></div>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-4">
+                <div><p className="text-slate-500 text-[10px] uppercase m-0">Received From</p><p className="font-bold text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-xs">Unit {receiptData.unit}</p></div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-[10px] uppercase m-0">Method</p>
+                  <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-slate-500 text-[10px] uppercase m-0 mb-1">Payment Breakdown ({receiptData.period})</p>
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed text-xs text-slate-700">{receiptData.breakdown}</div>
+              </div>
+              <div className="flex justify-between items-center pt-4 border-t-2 border-dashed border-slate-200">
+                <p className="font-bold text-slate-600 m-0 text-base">TOTAL PAID</p>
+                <p className="text-2xl font-bold text-slate-900 m-0">{formatCurrency(receiptData.amount)}</p>
+              </div>
+              {/* Signature placeholder */}
+              <div className="pt-6 flex flex-col items-end text-right">
+                <div className="border-b border-slate-400 w-36 h-8 mb-1"></div>
+                <p className="text-[9px] uppercase text-slate-400 font-bold tracking-widest m-0">Authorized Admin Signature</p>
+              </div>
+            </div>
+            <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">
+              <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
+              <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors">Close</button>
             </div>
           </div>
         </div>

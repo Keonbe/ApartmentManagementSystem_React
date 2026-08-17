@@ -58,7 +58,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 1.4 | Occupancy Record | ✅ | Critical | Via `rent_applications` approval |
 | 1.5 | Move-In / Move-Out Tracking | ✅ | High | Tenant initiates, admin inspects and approves |
 | 1.6 | Application Processing Flow | ✅ | Critical | Pending → Approved/Rejected |
-| 1.7 | Acceptance Criteria Enforcement | 📋 | Medium | Terms not yet enforced in flow |
+| 1.7 | Acceptance Criteria Enforcement | ✅ | Medium | Terms not yet enforced in flow |
 
 ### Module 2 — Apartment / Unit Management
 
@@ -79,12 +79,12 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 3.1 | Monthly Billing / Invoice Generation | ✅ | Critical | `invoices` table |
 | 3.2 | Payment Recording | ✅ | Critical | `record_payment_admin.php` |
 | 3.3 | Payment History | ✅ | Critical | `get_invoices.php` |
-| 3.4 | Receipt Generation | 📋 | High | Print view not yet built |
-| 3.5 | Balance Monitoring | 🔧 | High | Invoices filterable; dashboard summary pending |
+| 3.4 | Receipt Generation | ✅ | High | Printable official receipts with admin signature placeholder |
+| 3.5 | Balance Monitoring | ✅ | High | Status filter select and full balance tracking metrics & aging ledger |
 | 3.6 | Due Date Reminders | 📋 | High | Depends on notification module |
 | 3.7 | Overdue Alerts | 📋 | High | Depends on notification module |
 | 3.8 | Payment Proof Upload | ✅ | High | `upload_payment_proof.php` |
-| 3.9 | Security Deposit Tracking | 📋 | Medium | Not yet modeled |
+| 3.9 | Security Deposit Tracking | ✅ | Medium | Non-refundable deposit tracking applied to rent, bills, or damages |
 | 3.10 | Extended Rent Terms | 🔧 | Medium | Lease extension exists; billing adjustment pending |
 
 ### Module 4 — Maintenance Request
@@ -193,7 +193,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 |---|---|---|---|---|---|
 | 1. Tenant Management | 7 | 6 | 0 | 1 | 0 |
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
-| 3. Payment & Billing | 10 | 4 | 2 | 4 | 0 |
+| 3. Payment & Billing | 10 | 7 | 1 | 2 | 0 |
 | 4. Maintenance Request | 10 | 7 | 3 | 0 | 0 |
 | 5. Service Management | 4 | 0 | 0 | 0 | 4 |
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
@@ -203,7 +203,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 10. Parking | 4 | 3 | 0 | 1 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 0 | 0 | 0 | 3 |
-| **TOTAL** | **77** | **38** | **10** | **22** | **7** |
+| **TOTAL** | **77** | **41** | **9** | **20** | **7** |
 
 ### Core Functionality Coverage
 

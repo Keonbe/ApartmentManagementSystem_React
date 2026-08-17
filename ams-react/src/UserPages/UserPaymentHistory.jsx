@@ -169,7 +169,7 @@ export default function UserPaymentHistory() {
             {/* Receipt Modal */}
             {showReceipt && receiptData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowReceipt(false)}>
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt" onClick={e => e.stopPropagation()}>
                         <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500">
                             <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
                             <div className="mt-4 pt-4 border-t border-slate-700/50">
@@ -207,7 +207,7 @@ export default function UserPaymentHistory() {
                                 <p className="text-2xl font-bold text-slate-900 m-0">{formatCurrency(receiptData.amount)}</p>
                             </div>
                         </div>
-                        <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200">
+                        <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">
                             <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
                             <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors">Close</button>
                         </div>

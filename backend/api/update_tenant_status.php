@@ -126,6 +126,7 @@ if ($id > 0 && !empty($status)) {
         if ($status === 'moved-out') {
             $clearance_notes = $input['clearance_notes'] ?? '';
             $damage_deduction = isset($input['damage_deduction']) ? (float)$input['damage_deduction'] : 0.0;
+            $utility_deduction = isset($input['utility_deduction']) ? (float)$input['utility_deduction'] : 0.0;
             $room_condition = ($damage_deduction > 0) ? 'Needs Repair' : 'Good';
 
             // Get application details to vacate the room
@@ -142,6 +143,27 @@ if ($id > 0 && !empty($status)) {
                 $room_stmt->bind_param("sss", $full_name, $room_condition, $room_name);
                 $room_stmt->execute();
                 $room_stmt->close();
+
+                // Update lease contract to store security deposit allocation details
+                // The security deposit is non-refundable (refund_amount is 0.00)
+                $deposit_status = 'Applied to Rent';
+                if ($damage_deduction > 0 || $utility_deduction > 0) {
+                    $deposit_status = 'Applied to Bills/Damages';
+                }
+                
+                $ctr_stmt = $conn->prepare("
+                    UPDATE lease_contracts 
+                    SET status = 'expired', 
+                        deposit_status = ?, 
+                        damage_deduction = ?, 
+                        utility_deduction = ?, 
+                        refund_amount = 0.00, 
+                        refund_date = CURDATE() 
+                    WHERE rent_application_id = ? AND status = 'active'
+                ");
+                $ctr_stmt->bind_param("sddi", $deposit_status, $damage_deduction, $utility_deduction, $id);
+                $ctr_stmt->execute();
+                $ctr_stmt->close();
             }
             $app_stmt->close();
 
