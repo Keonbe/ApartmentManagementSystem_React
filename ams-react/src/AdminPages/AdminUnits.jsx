@@ -480,6 +480,7 @@ const AdminUnits = () => {
           onAssign={() => { setShowDetailModal(false); setAssignForm({ ...emptyAssignForm, rent: String(selectedUnit.rent) }); setShowAssignModal(true); }}
           showExtendForm={showExtendForm} setShowExtendForm={setShowExtendForm} extendForm={extendForm} setExtendForm={setExtendForm} onExtendLease={handleExtendLease}
           minLeaseDuration={minLeaseDuration} leaseError={leaseError} setLeaseError={setLeaseError}
+          onUpdateSuccess={fetchRooms}
         />
       )}
     </div>
@@ -487,8 +488,41 @@ const AdminUnits = () => {
 };
 
 /* ─── Unit Detail Tabbed Modal Sub-Component ─── */
-const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError }) => {
+const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError, onUpdateSuccess }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Unit status monitoring edit states
+  const [showStatusEdit, setShowStatusEdit] = useState(false);
+  const [editCondition, setEditCondition] = useState(unit.roomCondition || 'Good');
+  const [editInspectionDate, setEditInspectionDate] = useState(unit.lastInspectionDate || '');
+  const [editFurnishing, setEditFurnishing] = useState(unit.furnishingStatus || 'Unfurnished');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleSaveMonitoring = async () => {
+    setIsUpdating(true);
+    try {
+      const res = await api.post('update_room.php', {
+        id: unit.id,
+        room_condition: editCondition,
+        last_inspection_date: editInspectionDate || null,
+        furnishing_status: editFurnishing
+      });
+      if (res.data.success) {
+        setShowStatusEdit(false);
+        if (onUpdateSuccess) {
+          onUpdateSuccess();
+        }
+      } else {
+        alert(res.data.message || "Failed to update room attributes");
+      }
+    } catch (err) {
+      console.error("Error updating room monitoring:", err);
+      alert("Failed to update status monitoring attributes.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const tabs = [
     { key: 'overview', label: 'Overview', icon: faLayerGroup },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
@@ -553,6 +587,86 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 <DetailField label="Monthly Rent" value={formatCurrency(unit.rent)} />
                 {unit.status === 'occupied' && (
                   <DetailField label="Current Occupants" value={`${unit.occupants || 0} Person(s)`} />
+                )}
+                <DetailField label="Room Condition" value={unit.roomCondition || 'Good'} />
+                <DetailField label="Furnishing Status" value={unit.furnishingStatus || 'Unfurnished'} />
+                <DetailField label="Last Inspected" value={unit.lastInspectionDate || 'Never Inspected'} />
+              </div>
+
+              {/* Status Monitoring Editor section */}
+              <div className="border-t border-slate-100 pt-4 mt-2">
+                {!showStatusEdit ? (
+                  <button 
+                    onClick={() => {
+                      setEditCondition(unit.roomCondition || 'Good');
+                      setEditInspectionDate(unit.lastInspectionDate || '');
+                      setEditFurnishing(unit.furnishingStatus || 'Unfurnished');
+                      setShowStatusEdit(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faWrench} className="text-[10px]" /> Update Status & Inspection Details
+                  </button>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4 text-left">
+                    <h4 className="text-xs font-bold text-slate-700 m-0">Edit Unit Status Monitoring</h4>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Room Condition</label>
+                        <select 
+                          value={editCondition} 
+                          onChange={e => setEditCondition(e.target.value)}
+                          className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none bg-white text-slate-800"
+                        >
+                          <option value="Good">Good</option>
+                          <option value="Fair">Fair</option>
+                          <option value="Poor">Poor</option>
+                          <option value="Needs Repair">Needs Repair</option>
+                          <option value="Under Maintenance">Under Maintenance</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Furnishing Status</label>
+                        <select 
+                          value={editFurnishing} 
+                          onChange={e => setEditFurnishing(e.target.value)}
+                          className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none bg-white text-slate-800"
+                        >
+                          <option value="Unfurnished">Unfurnished</option>
+                          <option value="Semi-Furnished">Semi-Furnished</option>
+                          <option value="Fully Furnished">Fully Furnished</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Last Inspection Date</label>
+                        <input 
+                          type="date" 
+                          value={editInspectionDate} 
+                          onChange={e => setEditInspectionDate(e.target.value)}
+                          className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white text-slate-800"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 justify-end pt-1">
+                      <button 
+                        onClick={handleSaveMonitoring} 
+                        disabled={isUpdating}
+                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold border-0 cursor-pointer disabled:opacity-50"
+                      >
+                        {isUpdating ? 'Saving...' : 'Save Monitoring'}
+                      </button>
+                      <button 
+                        onClick={() => setShowStatusEdit(false)} 
+                        className="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

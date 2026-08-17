@@ -65,12 +65,13 @@ const AdminReports = () => {
         
         setData({
           occupancy: {
-            totalUnits: 28,
+            totalUnits: bd.totalRooms || 15,
             occupiedUnits: bd.totalOccupied,
-            vacantUnits: 28 - bd.totalOccupied,
-            occupancyRate: Math.round((bd.totalOccupied / 28) * 100) || 0,
+            vacantUnits: (bd.totalRooms || 15) - bd.totalOccupied,
+            occupancyRate: Math.round((bd.totalOccupied / (bd.totalRooms || 15)) * 100) || 0,
             moveIns: bd.moveIns,
             moveOuts: bd.moveOuts,
+            avgStayDuration: bd.avgStayDuration || 6.0,
             tenantList: bd.tenantList || []
           },
           payments: {
@@ -111,8 +112,7 @@ const AdminReports = () => {
           }
         });
         
-        // Mock trend points for now to prevent breaking charts
-        setTrendPoints([
+        setTrendPoints(bd.trendPoints || [
           { label: 'Jan', revenue: 40000, expenses: 12000, net: 28000, occupancyRate: 85 },
           { label: 'Feb', revenue: 41000, expenses: 12500, net: 28500, occupancyRate: 85 },
           { label: 'Mar', revenue: 39000, expenses: 11000, net: 28000, occupancyRate: 85 },
@@ -382,7 +382,7 @@ const AdminReports = () => {
             {/* ==================================================== */}
             {/* KPI METRIC CARDS GRID (Tailored by Module) */}
             {/* ==================================================== */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${activeModule === 'occupancy' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
               
               {/* All / Overview KPI Cards */}
               {activeModule === 'all' && (
@@ -447,7 +447,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Occupancy Rate</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.occupancy.occupancyRate}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Rate relative to 15 unit building</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Rate relative to {data.occupancy.totalUnits} unit building</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Occupied Units</p>
@@ -463,6 +463,11 @@ const AdminReports = () => {
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Move-Ins / Move-Outs</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">+{data.occupancy.moveIns} / -{data.occupancy.moveOuts}</p>
                     <span className="text-[9px] text-slate-500 mt-2 block">Contract modifications</span>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Average Stay Duration</p>
+                    <p className="text-xl font-bold text-emerald-600 m-0 mt-1">{data.occupancy.avgStayDuration} Mos</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Average tenant term</span>
                   </div>
                 </>
               )}

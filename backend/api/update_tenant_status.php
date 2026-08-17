@@ -125,6 +125,8 @@ if ($id > 0 && !empty($status)) {
 
         if ($status === 'moved-out') {
             $clearance_notes = $input['clearance_notes'] ?? '';
+            $damage_deduction = isset($input['damage_deduction']) ? (float)$input['damage_deduction'] : 0.0;
+            $room_condition = ($damage_deduction > 0) ? 'Needs Repair' : 'Good';
 
             // Get application details to vacate the room
             $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name FROM rent_applications WHERE id = ?");
@@ -136,8 +138,8 @@ if ($id > 0 && !empty($status)) {
                 $full_name = $app['first_name'] . ' ' . $app['last_name'];
                 $room_name = $app['room_name'];
                 
-                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
-                $room_stmt->bind_param("ss", $full_name, $room_name);
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0, last_inspection_date = CURDATE(), room_condition = ? WHERE id = ?");
+                $room_stmt->bind_param("sss", $full_name, $room_condition, $room_name);
                 $room_stmt->execute();
                 $room_stmt->close();
             }

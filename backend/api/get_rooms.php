@@ -19,7 +19,32 @@ try {
 
     // Format the response to match frontend expectations
     // The frontend expects: id, type, rent, status, tenant, lastTenant, floor, leaseStart, leaseEnd, maintenanceFlag
-    $formattedRooms = array_map(function($room) {
+    $formattedRooms = array_map(function($room) use ($conn) {
+        $roomId = $room['id'];
+        
+        // Fetch real maintenance requests associated with this room's applicants
+        $m_stmt = $conn->prepare("
+            SELECT m.issue_category as issue, m.status, m.estimated_cost as cost, DATE(m.created_at) as date
+            FROM maintenance_requests m
+            JOIN users u ON m.user_id = u.id
+            JOIN rent_applications ra ON u.id = ra.user_id
+            WHERE ra.room_name = ?
+            ORDER BY m.created_at DESC
+        ");
+        $m_stmt->bind_param("s", $roomId);
+        $m_stmt->execute();
+        $m_res = $m_stmt->get_result();
+        $maintHistory = [];
+        while ($row = $m_res->fetch_assoc()) {
+            $maintHistory[] = [
+                'issue' => $row['issue'],
+                'status' => $row['status'],
+                'cost' => $row['cost'] ? (float)$row['cost'] : 0.0,
+                'date' => $row['date']
+            ];
+        }
+        $m_stmt->close();
+
         return [
             'id' => $room['id'],
             'type' => $room['type'],
@@ -31,7 +56,11 @@ try {
             'leaseEnd' => $room['lease_end'],
             'lastTenant' => $room['last_tenant'],
             'maintenanceFlag' => (bool) $room['maintenance_flag'],
-            'occupants' => (int) ($room['occupants'] ?? 0)
+            'occupants' => (int) ($room['occupants'] ?? 0),
+            'roomCondition' => $room['room_condition'] ?? 'Good',
+            'furnishingStatus' => $room['furnishing_status'] ?? 'Unfurnished',
+            'lastInspectionDate' => $room['last_inspection_date'],
+            'maintenanceHistory' => $maintHistory
         ];
     }, $rooms);
 

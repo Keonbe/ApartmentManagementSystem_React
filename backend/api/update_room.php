@@ -48,7 +48,7 @@ try {
     $updateFields = [];
     $params = [];
 
-    $allowedFields = ['status', 'tenant_name', 'lease_start', 'lease_end', 'last_tenant', 'maintenance_flag', 'monthly_rent', 'occupants'];
+    $allowedFields = ['status', 'tenant_name', 'lease_start', 'lease_end', 'last_tenant', 'maintenance_flag', 'monthly_rent', 'occupants', 'room_condition', 'furnishing_status', 'last_inspection_date'];
     
     foreach ($allowedFields as $field) {
         // Map frontend camelCase to db snake_case if necessary, or assume payload uses snake_case

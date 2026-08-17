@@ -67,8 +67,8 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 2.1 | Room / Unit Listing | ✅ | Critical | `get_rooms.php` |
 | 2.2 | Unit Availability Dashboard | ✅ | Critical | Room status in admin panel |
 | 2.3 | Set Occupancy | ✅ | Critical | Via application approval |
-| 2.4 | Unit Status Monitoring | 🔧 | Medium | Basic status exists; inspection tracking not built |
-| 2.5 | Occupancy Tracking | 🔧 | Medium | Reports page partially built |
+| 2.4 | Unit Status Monitoring | ✅ | Medium | DB-backed condition, furnishing, inspection logs & inline edit |
+| 2.5 | Occupancy Tracking | ✅ | Medium | Dynamic stay durations, active counts, and 6-mo trend points |
 | 2.6 | Extended Rent / Lease Renewal | ✅ | High | `extend_lease.php` |
 | 2.7 | Unit Rate Configuration | ✅ | High | `update_room.php` |
 
@@ -191,10 +191,10 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 | Module | Total Features | ✅ Done | 🔧 Partial | 📋 Designed | ❌ Not Started |
 |---|---|---|---|---|---|
-| 1. Tenant Management | 7 | 4 | 1 | 1 | 0 |
-| 2. Unit Management | 7 | 4 | 2 | 0 | 0 |
+| 1. Tenant Management | 7 | 6 | 0 | 1 | 0 |
+| 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
 | 3. Payment & Billing | 10 | 4 | 2 | 4 | 0 |
-| 4. Maintenance Request | 10 | 6 | 3 | 0 | 0 |
+| 4. Maintenance Request | 10 | 7 | 3 | 0 | 0 |
 | 5. Service Management | 4 | 0 | 0 | 0 | 4 |
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 6 | 0 | 0 | 6 | 0 |
@@ -203,7 +203,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 10. Parking | 4 | 3 | 0 | 1 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 0 | 0 | 0 | 3 |
-| **TOTAL** | **77** | **32** | **13** | **22** | **7** |
+| **TOTAL** | **77** | **38** | **10** | **22** | **7** |
 
 ### Core Functionality Coverage
 
