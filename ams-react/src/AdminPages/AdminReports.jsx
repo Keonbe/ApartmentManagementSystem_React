@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -7,12 +7,11 @@ import {
   faDollarSign, faExclamationTriangle, faTimes, faUser, faCalendarAlt,
   faBolt, faTint, faCheckCircle, faClock, faPrint, faArrowUp, faArrowDown,
   faWrench, faSquareParking, faChevronRight, faUserFriends, faClipboardList,
-  faFilePdf, faCalendarCheck, faCheck, faTools, faTools as faCogs, faSlidersH, faInfoCircle,
-  faShieldAlt, faGavel, faHandshake, faFileUpload
+  faFilePdf, faCalendarCheck, faCheck, faTools, faSlidersH, faInfoCircle,
+  faShieldAlt, faGavel, faHandshake, faFileUpload, faLayerGroup, faReceipt,
+  faChartPie
 } from '@fortawesome/free-solid-svg-icons';
-import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
-import { useEffect } from 'react';
 
 const monthsList = [
   { value: 1, label: 'January' },
@@ -31,21 +30,20 @@ const monthsList = [
 
 const yearsList = [2024, 2025, 2026];
 
-const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+const formatCurrency = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 const AdminReports = () => {
   const [timeframe, setTimeframe] = useState('monthly'); // 'monthly' | 'quarterly' | 'yearly'
-  const [selectedMonth, setSelectedMonth] = useState(5); // May
-  const [selectedQuarter, setSelectedQuarter] = useState(2); // Q2
-  const [selectedYear, setSelectedYear] = useState(2025);
-  const [activeModule, setActiveModule] = useState('all'); // 'all', 'occupancy', 'payments', 'maintenance', 'reservations'
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // Current month
+  const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3)); // Current quarter
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Current year
+  const [activeModule, setActiveModule] = useState('all'); // 'all', 'income', 'streams', 'occupancy', 'payments', 'maintenance', 'reservations', 'gaps'
 
   // Modal Invoice Generation States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({ tenant: '', unit: '', rent: '', water: '', electric: '', dueDate: '' });
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
 
-  
   const [data, setData] = useState(null);
   const [trendPoints, setTrendPoints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,64 +58,91 @@ const AdminReports = () => {
       const response = await api.get(`get_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`);
       if (response.data.success) {
         const bd = response.data.data;
-        const totalCollected = bd.rentCollected + bd.waterCollected + bd.electricCollected + bd.parkingCollected;
-        const netIncome = totalCollected - bd.expenses;
-        
+        const totalCollected = (bd.rentCollected || 0) + (bd.waterCollected || 0) + (bd.electricCollected || 0) + (bd.parkingCollected || 0) + (bd.depositCollected || 0);
+        const expenses = bd.expenses || 0;
+        const netIncome = totalCollected - expenses;
+
         setData({
           occupancy: {
             totalUnits: bd.totalRooms || 15,
-            occupiedUnits: bd.totalOccupied,
-            vacantUnits: (bd.totalRooms || 15) - bd.totalOccupied,
-            occupancyRate: Math.round((bd.totalOccupied / (bd.totalRooms || 15)) * 100) || 0,
-            moveIns: bd.moveIns,
-            moveOuts: bd.moveOuts,
+            occupiedUnits: bd.totalOccupied || 0,
+            vacantUnits: (bd.totalRooms || 15) - (bd.totalOccupied || 0),
+            occupancyRate: Math.round(((bd.totalOccupied || 0) / (bd.totalRooms || 15)) * 100) || 0,
+            moveIns: bd.moveIns || 0,
+            moveOuts: bd.moveOuts || 0,
             avgStayDuration: bd.avgStayDuration || 6.0,
             tenantList: bd.tenantList || []
           },
           payments: {
-            rentCollected: bd.rentCollected,
-            waterCollected: bd.waterCollected,
-            electricCollected: bd.electricCollected,
-            parkingCollected: bd.parkingCollected,
+            rentCollected: bd.rentCollected || 0,
+            waterCollected: bd.waterCollected || 0,
+            electricCollected: bd.electricCollected || 0,
+            parkingCollected: bd.parkingCollected || 0,
+            depositCollected: bd.depositCollected || 0,
             totalCollected,
-            expenses: bd.expenses,
+            expenses,
             netIncome,
             outstandingBalances: bd.outstandingBalances || [],
-            totalOutstanding: (bd.outstandingBalances || []).reduce((sum, b) => sum + b.balance, 0),
-            collectionEfficiency: totalCollected > 0 ? 92 : 0, // Mock metric
+            totalOutstanding: bd.incomeStatement?.totalOutstanding || (bd.outstandingBalances || []).reduce((sum, b) => sum + b.balance, 0),
+            collectionEfficiency: bd.incomeStatement?.collectionEfficiency || (totalCollected > 0 ? 92 : 0),
             records: bd.paymentRecords || [],
             methodsBreakdown: bd.methodsBreakdown || { Cash: 0, GCash: 0, 'Bank Transfer': 0 }
           },
+          incomeStatement: bd.incomeStatement || {
+            grossRevenue: totalCollected,
+            rentalRevenue: (bd.rentCollected || 0) + (bd.parkingCollected || 0),
+            utilityRevenue: (bd.waterCollected || 0) + (bd.electricCollected || 0),
+            depositRevenue: bd.depositCollected || 0,
+            maintenanceExpenses: 0,
+            operatingOverhead: Math.round(totalCollected * 0.15),
+            operatingExpenses: expenses,
+            netOperatingIncome: netIncome,
+            netMarginPct: totalCollected > 0 ? Math.round((netIncome / totalCollected) * 100) : 0,
+            collectionEfficiency: 95,
+            totalOutstanding: 0,
+            prevGrossRevenue: 0,
+            revenueGrowthPct: 0,
+            prevNetIncome: 0,
+            netGrowthPct: 0
+          },
+          revenueStreams: bd.revenueStreams || [
+            { id: 'rent', category: 'Base Room Rent', amount: bd.rentCollected || 0, pct: 75, prevAmount: 0, growthPct: 0, color: '#6366f1', icon: 'faBuilding' },
+            { id: 'electric', category: 'Electricity Utility', amount: bd.electricCollected || 0, pct: 12, prevAmount: 0, growthPct: 0, color: '#f59e0b', icon: 'faBolt' },
+            { id: 'water', category: 'Water Utility', amount: bd.waterCollected || 0, pct: 6, prevAmount: 0, growthPct: 0, color: '#3b82f6', icon: 'faTint' },
+            { id: 'parking', category: 'Parking Space', amount: bd.parkingCollected || 0, pct: 7, prevAmount: 0, growthPct: 0, color: '#ec4899', icon: 'faSquareParking' }
+          ],
+          unitIncome: bd.unitIncome || [],
+          diversification: bd.diversification || {
+            coreRentPct: 75,
+            utilitiesPct: 18,
+            ancillaryPct: 7,
+            utilityRecoveryRatio: 100
+          },
           maintenance: {
-            total: bd.totalMaintenance,
-            totalCost: bd.totalMaintenance * 2500, // mock cost
+            total: bd.totalMaintenance || 0,
+            totalCost: (bd.maintenanceRecords || []).reduce((acc, m) => acc + (m.cost || 0), 0) || (bd.totalMaintenance * 1500),
             budget: 50000,
-            completed: bd.maintCompleted,
-            inProgress: bd.maintInProgress,
-            pending: bd.maintPending,
+            completed: bd.maintCompleted || 0,
+            inProgress: bd.maintInProgress || 0,
+            pending: bd.maintPending || 0,
             categoryCounts: bd.maintCategoryCounts || {},
             urgencyCounts: bd.maintUrgencyCounts || {},
             avgResolutionTime: 24.5,
             records: bd.maintenanceRecords || []
           },
           reservations: {
-            roomApps: bd.roomApplications,
-            roomApproved: bd.roomApproved,
-            roomRejected: bd.roomRejected,
-            roomPending: bd.roomPending,
-            parkingCount: bd.parkingReservationsCount,
-            parkingRevenue: bd.parkingReservationsCount * 1200,
+            roomApps: bd.roomApplications || 0,
+            roomApproved: bd.roomApproved || 0,
+            roomRejected: bd.roomRejected || 0,
+            roomPending: bd.roomPending || 0,
+            parkingCount: bd.parkingReservationsCount || 0,
+            parkingRevenue: bd.parkingCollected || (bd.parkingReservationsCount * 1200),
             parkingList: bd.parkingList || [],
             roomList: bd.roomList || []
           }
         });
-        
-        setTrendPoints(bd.trendPoints || [
-          { label: 'Jan', revenue: 40000, expenses: 12000, net: 28000, occupancyRate: 85 },
-          { label: 'Feb', revenue: 41000, expenses: 12500, net: 28500, occupancyRate: 85 },
-          { label: 'Mar', revenue: 39000, expenses: 11000, net: 28000, occupancyRate: 85 },
-          { label: 'Apr', revenue: 42000, expenses: 13000, net: 29000, occupancyRate: 85 },
-        ]);
+
+        setTrendPoints(bd.trendPoints || []);
       }
     } catch (e) {
       console.error(e);
@@ -125,10 +150,11 @@ const AdminReports = () => {
     setLoading(false);
   };
 
-
   // Max value for revenue scaling in chart
   const maxRevenueTrend = useMemo(() => {
-    return Math.max(...trendPoints.map(p => Math.max(p.revenue, p.expenses))) * 1.15 || 10000;
+    if (!trendPoints || trendPoints.length === 0) return 10000;
+    const maxVal = Math.max(...trendPoints.map(p => Math.max(p.revenue || 0, p.expenses || 0, (p.rent || 0) + (p.electric || 0) + (p.water || 0) + (p.parking || 0) + (p.deposit || 0))), 0);
+    return maxVal > 0 ? maxVal * 1.15 : 10000;
   }, [trendPoints]);
 
   const tenantInvoiceOptions = data?.occupancy?.tenantList?.map(t => ({ name: t.name, unit: t.unit, rent: t.rent })) || [];
@@ -155,7 +181,27 @@ const AdminReports = () => {
 
   const exportCSV = (moduleType) => {
     let csvContent = "data:text/csv;charset=utf-8,";
-    if (moduleType === 'occupancy' || activeModule === 'occupancy') {
+    
+    if (moduleType === 'income' || activeModule === 'income') {
+      csvContent += "Unit,Room Type,Floor,Base Rent,Water,Electricity,Parking,Deposits,Total Collected,% Gross Contribution,Invoices Count\r\n";
+      (data.unitIncome || []).forEach(u => {
+        csvContent += `"${u.unit}","${u.roomType}",${u.floor},${u.rent},${u.water},${u.electric},${u.parking},${u.deposit},${u.total},"${u.pct}%",${u.invoicesCount}\r\n`;
+      });
+      csvContent += "\r\n--- Income Statement Summary ---\r\n";
+      csvContent += `Gross Revenue,${data.incomeStatement.grossRevenue}\r\n`;
+      csvContent += `Rental Revenue,${data.incomeStatement.rentalRevenue}\r\n`;
+      csvContent += `Utility Recovery,${data.incomeStatement.utilityRevenue}\r\n`;
+      csvContent += `Operating Expenses,${data.incomeStatement.operatingExpenses}\r\n`;
+      csvContent += `Net Operating Income,${data.incomeStatement.netOperatingIncome}\r\n`;
+      csvContent += `Net Margin,${data.incomeStatement.netMarginPct}%\r\n`;
+      csvContent += `Collection Efficiency,${data.incomeStatement.collectionEfficiency}%\r\n`;
+      csvContent += `Outstanding Arrears,${data.incomeStatement.totalOutstanding}\r\n`;
+    } else if (moduleType === 'streams' || activeModule === 'streams') {
+      csvContent += "Revenue Stream Category,Amount Collected,Percentage Share,Prior Period Amount,Period Growth (%)\r\n";
+      (data.revenueStreams || []).forEach(s => {
+        csvContent += `"${s.category}",${s.amount},"${s.pct}%",${s.prevAmount},"${s.growthPct}%"\r\n`;
+      });
+    } else if (moduleType === 'occupancy' || activeModule === 'occupancy') {
       csvContent += "Unit,Tenant Name,Email,Phone,Rent,Move-In Date,Lease End,Status\r\n";
       data.occupancy.tenantList.forEach(t => {
         csvContent += `"${t.unit}","${t.name}","${t.email}","${t.phone}",${t.rent},"${t.moveIn}","${t.leaseEnd}","${t.status}"\r\n`;
@@ -166,9 +212,9 @@ const AdminReports = () => {
         csvContent += `"${r.id}","${r.tenant}","${r.unit}","${r.period}",${r.amount},"${r.datePaid}","${r.method}","${r.breakdown}"\r\n`;
       });
     } else if (moduleType === 'maintenance' || activeModule === 'maintenance') {
-      csvContent += "Request ID,Unit,Tenant,Category,Urgency,Date Submitted,Status,Description\r\n";
+      csvContent += "Request ID,Unit,Tenant,Category,Urgency,Date Submitted,Status,Description,Cost\r\n";
       data.maintenance.records.forEach(r => {
-        csvContent += `"${r.id}","${r.unit}","${r.tenant}","${r.category}","${r.urgency}","${r.dateSubmitted}","${r.status}","${r.description}"\r\n`;
+        csvContent += `"${r.id}","${r.unit}","${r.tenant}","${r.category}","${r.urgency}","${r.dateSubmitted}","${r.status}","${r.description}",${r.cost || 0}\r\n`;
       });
     } else {
       csvContent += "ID,Type,Name,Unit/Vehicle,Amount,Duration (Months),Date,Status\r\n";
@@ -203,7 +249,7 @@ const AdminReports = () => {
           <div className="flex-1 flex items-center justify-center bg-slate-50">
             <div className="text-center space-y-4">
               <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p className="text-sm font-semibold text-slate-600">Loading reports data...</p>
+              <p className="text-sm font-semibold text-slate-600">Loading reports and financial analytics...</p>
             </div>
           </div>
         </main>
@@ -231,16 +277,16 @@ const AdminReports = () => {
             
             {/* PRINT-ONLY BUSINESS REPORT HEADER */}
             <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6 text-center">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">Apartment Complex</h1>
-              <p className="text-sm text-slate-500 uppercase tracking-widest mt-1">Management Performance & Performance Review Report</p>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 uppercase">Apartment Complex Management System</h1>
+              <p className="text-sm text-slate-500 uppercase tracking-widest mt-1">Official Management Performance & Financial Audit Report</p>
               <div className="grid grid-cols-2 mt-4 text-xs text-left text-slate-700 bg-slate-100 p-3 rounded">
                 <div>
-                  <p><strong>Report Scope:</strong> {timeframe === 'yearly' ? `Yearly Review (${selectedYear})` : timeframe === 'quarterly' ? `Quarterly Review (Q${selectedQuarter} ${selectedYear})` : `Monthly Review (${monthsList.find(m => m.value === selectedMonth).label} ${selectedYear})`}</p>
+                  <p><strong>Report Scope:</strong> {timeframe === 'yearly' ? `Yearly Review (${selectedYear})` : timeframe === 'quarterly' ? `Quarterly Review (Q${selectedQuarter} ${selectedYear})` : `Monthly Review (${monthsList.find(m => m.value === selectedMonth)?.label} ${selectedYear})`}</p>
                   <p><strong>Active Module Scope:</strong> {activeModule.toUpperCase()}</p>
                 </div>
                 <div className="text-right">
                   <p><strong>Date Generated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p><strong>Author:</strong> System Administrator Dashboard</p>
+                  <p><strong>Author:</strong> System Administrator Financial Center</p>
                 </div>
               </div>
             </div>
@@ -253,7 +299,7 @@ const AdminReports = () => {
                     <FontAwesomeIcon icon={faSlidersH} className="text-indigo-600" />
                     Report Scoping & Filters
                   </h2>
-                  <p className="text-xs text-slate-500 m-0 mt-1">Select scope and dates to dynamically calculate operations performance reports.</p>
+                  <p className="text-xs text-slate-500 m-0 mt-1">Select scope and dates to dynamically calculate income statements, revenue streams, and property operations.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -344,19 +390,21 @@ const AdminReports = () => {
               <div className="flex items-center justify-between border-t border-slate-100 pt-3">
                 <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-semibold uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
-                  Live Database Feed
+                  Live Database Feed Active
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  Calculated records: {data.occupancy.tenantList.length} tenants • {data.payments.records.length} paid invoices • {data.maintenance.records.length} maintenance tickets
+                  Gross: {formatCurrency(data.payments.totalCollected)} • {data.payments.records.length} paid invoices • {data.unitIncome?.length || 0} revenue-generating units
                 </span>
               </div>
             </div>
 
             {/* Module Filter Navigation Tabs (Hidden on Print) */}
             <div className="border-b border-slate-200 print:hidden">
-              <nav className="flex gap-1">
+              <nav className="flex gap-1 overflow-x-auto pb-1">
                 {[
                   { id: 'all', label: 'Overview', icon: faChartBar },
+                  { id: 'income', label: 'Income Reports', icon: faReceipt },
+                  { id: 'streams', label: 'Revenue Streams', icon: faLayerGroup },
                   { id: 'occupancy', label: 'Occupancy', icon: faBuilding },
                   { id: 'payments', label: 'Payments & Bills', icon: faDollarSign },
                   { id: 'maintenance', label: 'Maintenance', icon: faWrench },
@@ -366,7 +414,7 @@ const AdminReports = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveModule(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-2 border-b-2 text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center gap-2 px-4 py-2 border-b-2 text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                       activeModule === tab.id
                         ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50 rounded-t-lg'
                         : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
@@ -382,11 +430,24 @@ const AdminReports = () => {
             {/* ==================================================== */}
             {/* KPI METRIC CARDS GRID (Tailored by Module) */}
             {/* ==================================================== */}
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${activeModule === 'occupancy' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${activeModule === 'income' || activeModule === 'streams' ? 'lg:grid-cols-4' : activeModule === 'occupancy' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
               
               {/* All / Overview KPI Cards */}
               {activeModule === 'all' && (
                 <>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faDollarSign} /></div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Gross Revenue</p>
+                        <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(data.payments.totalCollected)}</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 flex items-center gap-1 w-fit">
+                      Net Income: {formatCurrency(data.payments.netIncome)}
+                    </span>
+                  </div>
+
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
@@ -397,19 +458,6 @@ const AdminReports = () => {
                     </div>
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 flex items-center gap-1 w-fit">
                       {data.occupancy.occupiedUnits} / {data.occupancy.totalUnits} Units Renting
-                    </span>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faDollarSign} /></div>
-                      <div>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Rent Collections</p>
-                        <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(data.payments.totalCollected)}</p>
-                      </div>
-                    </div>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 flex items-center gap-1 w-fit">
-                      Net Income: {formatCurrency(data.payments.netIncome)}
                     </span>
                   </div>
 
@@ -437,6 +485,75 @@ const AdminReports = () => {
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 flex items-center gap-1 w-fit">
                       {data.reservations.parkingCount} Vehicles Registered
                     </span>
+                  </div>
+                </>
+              )}
+
+              {/* 8.2 Income Reports KPI Cards */}
+              {activeModule === 'income' && (
+                <>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Gross Revenue Collected</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{formatCurrency(data.incomeStatement.grossRevenue)}</p>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${data.incomeStatement.revenueGrowthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                        <FontAwesomeIcon icon={data.incomeStatement.revenueGrowthPct >= 0 ? faArrowUp : faArrowDown} />
+                        {Math.abs(data.incomeStatement.revenueGrowthPct)}% vs prior period
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Net Operating Income (NOI)</p>
+                    <p className="text-xl font-bold text-emerald-600 m-0 mt-1">{formatCurrency(data.incomeStatement.netOperatingIncome)}</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">
+                      Operating Margin: <strong>{data.incomeStatement.netMarginPct}%</strong>
+                    </span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Operating Deductions</p>
+                    <p className="text-xl font-bold text-red-600 m-0 mt-1">{formatCurrency(data.incomeStatement.operatingExpenses)}</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">
+                      Maint: {formatCurrency(data.incomeStatement.maintenanceExpenses)} • Ops: {formatCurrency(data.incomeStatement.operatingOverhead)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Collection Efficiency</p>
+                    <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.incomeStatement.collectionEfficiency}%</p>
+                    <span className="text-[9px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
+                      Outstanding: {formatCurrency(data.incomeStatement.totalOutstanding)}
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {/* 8.3 Revenue Streams KPI Cards */}
+              {activeModule === 'streams' && (
+                <>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Core Base Rent Share</p>
+                    <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.diversification.coreRentPct}%</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.rentCollected)} from unit leases</span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Utility Recovery Share</p>
+                    <p className="text-xl font-bold text-amber-600 m-0 mt-1">{data.diversification.utilitiesPct}%</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.waterCollected + data.payments.electricCollected)} electricity & water</span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Ancillary & Parking Share</p>
+                    <p className="text-xl font-bold text-pink-600 m-0 mt-1">{data.diversification.ancillaryPct}%</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.parkingCollected + data.payments.depositCollected)} parking & fees</span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active Streams Count</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.revenueStreams.filter(s => s.amount > 0).length} Categories</p>
+                    <span className="text-[9px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">100% Diversified Tracking</span>
                   </div>
                 </>
               )}
@@ -483,7 +600,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Operating Expenses</p>
                     <p className="text-xl font-bold text-red-600 m-0 mt-1">{formatCurrency(data.payments.expenses)}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Water/Power/Staffing/Support</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Maintenance & Facilities</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Net Income</p>
@@ -496,14 +613,6 @@ const AdminReports = () => {
                     <span className="text-[9px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
                       Outstanding: {formatCurrency(data.payments.totalOutstanding)}
                     </span>
-                  </div>
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Payment Methods</p>
-                    <div className="mt-2 space-y-1">
-                      <div className="flex justify-between text-[11px]"><span className="text-slate-600">Cash</span><span className="font-semibold text-slate-800">{data.payments.methodsBreakdown['Cash']}</span></div>
-                      <div className="flex justify-between text-[11px]"><span className="text-slate-600">GCash</span><span className="font-semibold text-slate-800">{data.payments.methodsBreakdown['GCash']}</span></div>
-                      <div className="flex justify-between text-[11px]"><span className="text-slate-600">Bank Transfer</span><span className="font-semibold text-slate-800">{data.payments.methodsBreakdown['Bank Transfer']}</span></div>
-                    </div>
                   </div>
                 </>
               )}
@@ -529,21 +638,9 @@ const AdminReports = () => {
                     <span className="text-[9px] text-slate-500 mt-2 block">Work orders assigned</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Avg Resolution Time</p>
-                    <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.maintenance.avgResolutionTime} Days</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">First response to completion</span>
-                  </div>
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Maintenance Cost</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{formatCurrency(data.maintenance.totalCost)}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Total expense for completed requests</span>
-                  </div>
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Budget Comparison</p>
-                    <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{Math.round((data.maintenance.totalCost / data.maintenance.budget) * 100)}% Used</p>
-                    <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">
-                      Budget: {formatCurrency(data.maintenance.budget)}
-                    </span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Completed repairs expense</span>
                   </div>
                 </>
               )}
@@ -579,7 +676,351 @@ const AdminReports = () => {
             </div>
 
             {/* ==================================================== */}
-            {/* VISUAL CHARTS SECTION (SVG Custom Rendering) */}
+            {/* 8.2 INCOME REPORTS DEDICATED VIEW */}
+            {/* ==================================================== */}
+            {(activeModule === 'income' || activeModule === 'all') && (
+              <div className="space-y-6">
+                
+                {/* Income Statement Detailed Financial Box */}
+                <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden print:border-slate-300 print:shadow-none">
+                  <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
+                        <FontAwesomeIcon icon={faReceipt} className="text-indigo-600" />
+                        Comprehensive Income Statement
+                      </h3>
+                      <p className="text-xs text-slate-500 m-0 mt-0.5">
+                        Operating revenue statement for {timeframe === 'yearly' ? selectedYear : timeframe === 'quarterly' ? `Q${selectedQuarter} ${selectedYear}` : `${monthsList.find(m => m.value === selectedMonth)?.label} ${selectedYear}`}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 print:hidden">
+                      Net Margin: {data.incomeStatement.netMarginPct}%
+                    </span>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* Left: Operating Revenue Streams */}
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-2 flex justify-between">
+                          <span>Operating Inflows (Collections)</span>
+                          <span>Amount</span>
+                        </h4>
+                        <div className="flex justify-between text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faBuilding} className="text-indigo-500 w-3.5" /> Base Room Rent Collections</span>
+                          <span className="font-semibold">{formatCurrency(data.payments.rentCollected)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faBolt} className="text-amber-500 w-3.5" /> Electricity Utility Recovery</span>
+                          <span className="font-semibold">{formatCurrency(data.payments.electricCollected)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faTint} className="text-blue-500 w-3.5" /> Water Utility Recovery</span>
+                          <span className="font-semibold">{formatCurrency(data.payments.waterCollected)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faSquareParking} className="text-pink-500 w-3.5" /> Parking Permits & Space</span>
+                          <span className="font-semibold">{formatCurrency(data.payments.parkingCollected)}</span>
+                        </div>
+                        {data.payments.depositCollected > 0 && (
+                          <div className="flex justify-between text-xs py-1 text-slate-700">
+                            <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-emerald-500 w-3.5" /> Security Deposits & Fees</span>
+                            <span className="font-semibold">{formatCurrency(data.payments.depositCollected)}</span>
+                          </div>
+                        )}
+                        <div className="border-t border-slate-200 pt-2 flex justify-between text-xs font-bold text-slate-900 bg-indigo-50/60 p-2.5 rounded-lg">
+                          <span>Total Gross Revenue Collected</span>
+                          <span className="text-indigo-700 font-extrabold">{formatCurrency(data.incomeStatement.grossRevenue)}</span>
+                        </div>
+                      </div>
+
+                      {/* Right: Operating Deductions & Net Margin */}
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-2 flex justify-between">
+                          <span>Operating Deductions & Overhead</span>
+                          <span>Amount</span>
+                        </h4>
+                        <div className="flex justify-between text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faWrench} className="text-red-500 w-3.5" /> Direct Maintenance & Repairs</span>
+                          <span className="font-semibold text-red-600">({formatCurrency(data.incomeStatement.maintenanceExpenses)})</span>
+                        </div>
+                        <div className="flex justify-between text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faSlidersH} className="text-slate-500 w-3.5" /> Facility & Operations Overhead (15%)</span>
+                          <span className="font-semibold text-red-600">({formatCurrency(data.incomeStatement.operatingOverhead)})</span>
+                        </div>
+                        <div className="flex justify-between text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-500 w-3.5" /> Outstanding Arrears / Uncollected</span>
+                          <span className="font-semibold text-amber-600">{formatCurrency(data.incomeStatement.totalOutstanding)}</span>
+                        </div>
+                        <div className="border-t border-slate-200 pt-2 flex justify-between text-xs font-bold text-slate-900 bg-red-50/60 p-2.5 rounded-lg">
+                          <span>Total Operating Deductions</span>
+                          <span className="text-red-700 font-extrabold">({formatCurrency(data.incomeStatement.operatingExpenses)})</span>
+                        </div>
+
+                        {/* Bottom Line Net Operating Income */}
+                        <div className="mt-4 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex justify-between items-center">
+                          <div>
+                            <span className="text-[11px] uppercase tracking-wider font-bold text-emerald-800 block">Net Operating Income (NOI)</span>
+                            <span className="text-[10px] text-emerald-600 font-medium">Profit Margin: {data.incomeStatement.netMarginPct}%</span>
+                          </div>
+                          <span className="text-lg font-black text-emerald-700">{formatCurrency(data.incomeStatement.netOperatingIncome)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Unit-by-Unit Income Performance Table */}
+                {activeModule === 'income' && (
+                  <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden print:border-slate-300 print:shadow-none">
+                    <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
+                          <FontAwesomeIcon icon={faBuilding} className="text-indigo-600" />
+                          Unit-by-Unit Income & Revenue Ledger
+                        </h3>
+                        <p className="text-xs text-slate-500 m-0 mt-0.5">Ranking and revenue decomposition by individual room and unit type</p>
+                      </div>
+                      <span className="text-xs text-slate-500 font-semibold print:hidden">
+                        {data.unitIncome?.length || 0} Units Generating Revenue
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100/75 border-b border-slate-200">
+                          <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <th className="py-3 px-4 font-extrabold">Unit</th>
+                            <th className="py-3 px-4">Type / Floor</th>
+                            <th className="py-3 px-4 text-right">Rent</th>
+                            <th className="py-3 px-4 text-right">Water</th>
+                            <th className="py-3 px-4 text-right">Electricity</th>
+                            <th className="py-3 px-4 text-right">Parking / Dep</th>
+                            <th className="py-3 px-4 text-right font-extrabold text-indigo-900">Total Income</th>
+                            <th className="py-3 px-4 text-center">% Share</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(data.unitIncome || []).map((u, idx) => (
+                            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                              <td className="py-3 px-4 font-bold text-indigo-600">{u.unit}</td>
+                              <td className="py-3 px-4 text-slate-600 font-medium">
+                                <div>{u.roomType}</div>
+                                <div className="text-[10px] text-slate-400">Floor {u.floor}</div>
+                              </td>
+                              <td className="py-3 px-4 text-right text-slate-700 font-semibold">{formatCurrency(u.rent)}</td>
+                              <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.water)}</td>
+                              <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.electric)}</td>
+                              <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.parking + u.deposit)}</td>
+                              <td className="py-3 px-4 text-right font-extrabold text-emerald-600">{formatCurrency(u.total)}</td>
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${Math.min(100, u.pct * 4)}%` }}></div>
+                                  </div>
+                                  <span className="font-bold text-[10px] text-slate-700">{u.pct}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {(!data.unitIncome || data.unitIncome.length === 0) && (
+                            <tr>
+                              <td colSpan="8" className="text-center py-8 text-slate-400">
+                                No unit income recorded for this period.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* ==================================================== */}
+            {/* 8.3 REVENUE STREAM ANALYSIS DEDICATED VIEW */}
+            {/* ==================================================== */}
+            {(activeModule === 'streams' || activeModule === 'all') && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* Stream Distribution Progress Bars */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300">
+                    <h3 className="text-sm font-bold text-slate-800 mb-4 m-0 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faChartPie} className="text-indigo-600" />
+                      Revenue Stream Share & Contribution
+                    </h3>
+                    <div className="space-y-4 pt-2">
+                      {(data.revenueStreams || []).map((stream, idx) => (
+                        <div key={idx} className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-semibold">
+                            <span className="text-slate-700 flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stream.color }}></span>
+                              {stream.category}
+                            </span>
+                            <span className="text-slate-800 font-bold">
+                              {formatCurrency(stream.amount)} <span className="text-slate-400 text-[10px] font-normal">({stream.pct}%)</span>
+                            </span>
+                          </div>
+                          <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full rounded-full transition-all duration-500" 
+                              style={{ width: `${stream.pct}%`, backgroundColor: stream.color }}
+                            ></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-slate-100 text-center">
+                      <div className="p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Core Leases</span>
+                        <span className="text-xs font-bold text-indigo-700">{data.diversification.coreRentPct}%</span>
+                      </div>
+                      <div className="p-2 bg-amber-50/50 rounded-lg border border-amber-100">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Utilities</span>
+                        <span className="text-xs font-bold text-amber-700">{data.diversification.utilitiesPct}%</span>
+                      </div>
+                      <div className="p-2 bg-pink-50/50 rounded-lg border border-pink-100">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Ancillary</span>
+                        <span className="text-xs font-bold text-pink-700">{data.diversification.ancillaryPct}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Multi-Stream Historical Trend SVG Visual */}
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300">
+                    <h3 className="text-sm font-bold text-slate-800 mb-4 m-0 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faChartLine} className="text-indigo-600" />
+                      Multi-Stream 6-Month Category Trends
+                    </h3>
+
+                    {/* SVG Multi-Stream Grouped Bar Chart */}
+                    <div className="relative h-48 flex items-end gap-2 pb-5 pt-3">
+                      {/* Y-Axis Guidelines */}
+                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none text-[8px] text-slate-400 select-none border-l border-slate-100 pl-1">
+                        <div className="border-t border-slate-100 pt-0.5">{formatCurrency(maxRevenueTrend)}</div>
+                        <div className="border-t border-slate-100 pt-0.5">{formatCurrency(maxRevenueTrend * 0.5)}</div>
+                        <div className="border-t border-slate-200">₱0</div>
+                      </div>
+
+                      {/* Stacked Streams Bars */}
+                      <div className="flex-grow h-full flex items-end justify-around pl-16 z-10">
+                        {trendPoints.map((p, idx) => {
+                          const rHeight = ((p.rent || 0) / maxRevenueTrend) * 100;
+                          const eHeight = ((p.electric || 0) / maxRevenueTrend) * 100;
+                          const wHeight = ((p.water || 0) / maxRevenueTrend) * 100;
+                          const pkHeight = ((p.parking || 0) / maxRevenueTrend) * 100;
+                          const dpHeight = ((p.deposit || 0) / maxRevenueTrend) * 100;
+                          const hasRevenue = (p.revenue || 0) > 0;
+
+                          return (
+                            <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
+                              {/* Tooltip */}
+                              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-all z-50 w-32 pointer-events-none">
+                                <p className="font-bold text-slate-300 border-b border-slate-600 pb-0.5 mb-1 text-center">{p.label}</p>
+                                <div className="flex justify-between"><span className="text-indigo-300">Rent:</span><span>{formatCurrency(p.rent)}</span></div>
+                                <div className="flex justify-between"><span className="text-amber-300">Elec:</span><span>{formatCurrency(p.electric)}</span></div>
+                                <div className="flex justify-between"><span className="text-blue-300">Water:</span><span>{formatCurrency(p.water)}</span></div>
+                                <div className="flex justify-between"><span className="text-pink-300">Park:</span><span>{formatCurrency(p.parking)}</span></div>
+                                <div className="flex justify-between"><span className="text-emerald-300">Deposit:</span><span>{formatCurrency(p.deposit)}</span></div>
+                                <div className="flex justify-between font-bold border-t border-slate-600 pt-0.5 mt-0.5"><span className="text-slate-200">Total:</span><span>{formatCurrency(p.revenue)}</span></div>
+                              </div>
+
+                              {/* Multi-Stream Stacked Column */}
+                              <div className="w-5 sm:w-6 flex flex-col-reverse items-center h-full justify-start overflow-hidden rounded-t">
+                                {p.rent > 0 && <div className="w-full bg-indigo-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${rHeight}%` }}></div>}
+                                {p.electric > 0 && <div className="w-full bg-amber-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${eHeight}%` }}></div>}
+                                {p.water > 0 && <div className="w-full bg-blue-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${wHeight}%` }}></div>}
+                                {p.parking > 0 && <div className="w-full bg-pink-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${pkHeight}%` }}></div>}
+                                {p.deposit > 0 && <div className="w-full bg-emerald-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${dpHeight}%` }}></div>}
+                                {!hasRevenue && (
+                                  <div className="w-full bg-slate-200 h-0.5 rounded"></div>
+                                )}
+                              </div>
+                              <span className="text-[9px] font-semibold text-slate-500">{p.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 mt-2 text-[9px] text-slate-500 border-t border-slate-50 pt-3">
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-indigo-500"></span> Base Rent</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-500"></span> Electricity</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-500"></span> Water</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-pink-500"></span> Parking</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-500"></span> Deposits & Fees</span>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Revenue Stream Breakdown Table */}
+                {activeModule === 'streams' && (
+                  <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden print:border-slate-300 print:shadow-none">
+                    <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
+                          <FontAwesomeIcon icon={faLayerGroup} className="text-indigo-600" />
+                          Revenue Stream Performance Audit
+                        </h3>
+                        <p className="text-xs text-slate-500 m-0 mt-0.5">Stream-level performance, prior period comparison, and growth trajectory</p>
+                      </div>
+                      <span className="text-xs text-slate-500 font-semibold print:hidden">
+                        Total Streams: {data.revenueStreams.length}
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100/75 border-b border-slate-200">
+                          <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <th className="py-3 px-4 font-extrabold">Revenue Stream</th>
+                            <th className="py-3 px-4 text-right">Current Revenue</th>
+                            <th className="py-3 px-4 text-center">% of Total</th>
+                            <th className="py-3 px-4 text-right">Prior Period</th>
+                            <th className="py-3 px-4 text-center">Period Growth</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.revenueStreams.map((s, idx) => (
+                            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                              <td className="py-3 px-4 font-semibold text-slate-800 flex items-center gap-2.5">
+                                <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px]" style={{ backgroundColor: s.color }}>
+                                  <FontAwesomeIcon icon={s.id === 'rent' ? faBuilding : s.id === 'electric' ? faBolt : s.id === 'water' ? faTint : s.id === 'parking' ? faSquareParking : faShieldAlt} />
+                                </div>
+                                {s.category}
+                              </td>
+                              <td className="py-3 px-4 text-right font-extrabold text-slate-900">{formatCurrency(s.amount)}</td>
+                              <td className="py-3 px-4 text-center font-bold text-indigo-600">{s.pct}%</td>
+                              <td className="py-3 px-4 text-right text-slate-500">{formatCurrency(s.prevAmount)}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${s.growthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                                  <FontAwesomeIcon icon={s.growthPct >= 0 ? faArrowUp : faArrowDown} className="mr-1" />
+                                  {Math.abs(s.growthPct)}%
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase tracking-wide">
+                                  Healthy
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ==================================================== */}
+            {/* VISUAL CHARTS SECTION (SVG Custom Rendering for Other Modules) */}
             {/* ==================================================== */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-2">
               
@@ -665,12 +1106,12 @@ const AdminReports = () => {
                       {/* Dynamic path construction */}
                       {(() => {
                         const width = 440;
-                        const height = 155; // 20 to 175
-                        const step = width / (trendPoints.length - 1);
+                        const height = 155;
+                        const step = width / (trendPoints.length - 1 || 1);
                         const points = trendPoints.map((p, i) => {
                           const x = 40 + i * step;
-                          const y = 175 - (p.occupancyRate / 100) * height;
-                          return { x, y, label: p.label, rate: p.occupancyRate };
+                          const y = 175 - ((p.occupancyRate || 80) / 100) * height;
+                          return { x, y, label: p.label, rate: p.occupancyRate || 80 };
                         });
                         
                         const pathD = points.reduce((acc, p, i) => {
@@ -679,13 +1120,11 @@ const AdminReports = () => {
 
                         return (
                           <>
-                            {/* Area under curve */}
                             <path 
                               d={`${pathD} L ${points[points.length - 1].x} 175 L 40 175 Z`} 
                               fill="url(#emeraldGrad)" 
                               opacity="0.15" 
                             />
-                            {/* Trend Line */}
                             <path 
                               d={pathD} 
                               fill="none" 
@@ -694,14 +1133,12 @@ const AdminReports = () => {
                               strokeLinecap="round" 
                               strokeLinejoin="round" 
                             />
-                            {/* Gradient definitions */}
                             <defs>
                               <linearGradient id="emeraldGrad" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#10b981" />
                                 <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
                               </linearGradient>
                             </defs>
-                            {/* Intersect Data Nodes */}
                             {points.map((p, i) => (
                               <g key={i} className="group cursor-pointer">
                                 <circle 
@@ -711,14 +1148,6 @@ const AdminReports = () => {
                                   fill="#10b981" 
                                   stroke="#fff" 
                                   strokeWidth="2" 
-                                />
-                                <circle 
-                                  cx={p.x} 
-                                  cy={p.y} 
-                                  r="9" 
-                                  fill="#10b981" 
-                                  opacity="0"
-                                  className="hover:opacity-30 transition-all"
                                 />
                               </g>
                             ))}
@@ -759,26 +1188,22 @@ const AdminReports = () => {
                           const progPct = (data.maintenance.inProgress / total) * 100;
                           const pendPct = (data.maintenance.pending / total) * 100;
                           
-                          // Radius = 40, Circumference = 251.3
                           const circ = 251.3;
                           const compOffset = circ - (compPct / 100) * circ;
                           const progOffset = circ - (progPct / 100) * circ;
                           const pendOffset = circ - (pendPct / 100) * circ;
                           
-                          // Cumulative rotations
                           const rot1 = (compPct / 100) * 360;
                           const rot2 = rot1 + (progPct / 100) * 360;
                           
                           return (
                             <>
-                              {/* Completed segment */}
                               <circle 
                                 cx="50" cy="50" r="40" fill="none" 
                                 stroke="#10b981" strokeWidth="10" 
                                 strokeDasharray={circ} strokeDashoffset={compOffset}
                                 strokeLinecap="round"
                               />
-                              {/* In progress segment */}
                               {progPct > 0 && (
                                 <circle 
                                   cx="50" cy="50" r="40" fill="none" 
@@ -788,7 +1213,6 @@ const AdminReports = () => {
                                   strokeLinecap="round"
                                 />
                               )}
-                              {/* Pending segment */}
                               {pendPct > 0 && (
                                 <circle 
                                   cx="50" cy="50" r="40" fill="none" 
@@ -802,7 +1226,6 @@ const AdminReports = () => {
                           );
                         })()}
                       </svg>
-                      {/* Inner label */}
                       <div className="absolute flex flex-col items-center justify-center text-center">
                         <span className="text-2xl font-bold text-slate-800">{data.maintenance.total}</span>
                         <span className="text-[8px] uppercase tracking-wider text-slate-400 font-semibold">Total Tickets</span>
@@ -820,7 +1243,7 @@ const AdminReports = () => {
                         <span className="font-bold text-slate-700">{data.maintenance.inProgress} ({Math.round((data.maintenance.inProgress / (data.maintenance.total || 1)) * 100)}%)</span>
                       </div>
                       <div className="flex items-center justify-between gap-4 p-2 bg-slate-50 rounded border border-slate-100">
-                        <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> Pending Review</span>
+                        <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> Pending</span>
                         <span className="font-bold text-slate-700">{data.maintenance.pending} ({Math.round((data.maintenance.pending / (data.maintenance.total || 1)) * 100)}%)</span>
                       </div>
                     </div>
@@ -837,7 +1260,6 @@ const AdminReports = () => {
                   </h3>
 
                   <div className="flex flex-col sm:flex-row items-center gap-6 py-4 justify-around">
-                    {/* Donut Circle */}
                     <div className="relative w-36 h-36 flex items-center justify-center">
                       <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="8" />
@@ -880,7 +1302,6 @@ const AdminReports = () => {
                       </div>
                     </div>
 
-                    {/* Donut Legend */}
                     <div className="space-y-3 text-xs w-full sm:w-auto">
                       <div className="flex items-center justify-between gap-4 p-2 bg-slate-50 rounded border border-slate-100">
                         <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Room Applications</span>
@@ -895,65 +1316,7 @@ const AdminReports = () => {
                 </div>
               )}
 
-              {/* Chart 5: Revenue breakdown (Payments / All) */}
-              {activeModule === 'all' && (
-                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300 print:break-inside-avoid">
-                  <h3 className="text-sm font-bold text-slate-800 mb-5 m-0 flex items-center gap-2">
-                    <FontAwesomeIcon icon={faBolt} className="text-amber-500" />
-                    Income Distribution Breakdown
-                  </h3>
-                  
-                  <div className="space-y-4 pt-1">
-                    {[
-                      { label: 'Room Rent', amount: data.payments.rentCollected, pct: (data.payments.rentCollected / data.payments.totalCollected) * 100 || 0, color: 'bg-indigo-500' },
-                      { label: 'Electricity Utility', amount: data.payments.electricCollected, pct: (data.payments.electricCollected / data.payments.totalCollected) * 100 || 0, color: 'bg-amber-500' },
-                      { label: 'Water Utility', amount: data.payments.waterCollected, pct: (data.payments.waterCollected / data.payments.totalCollected) * 100 || 0, color: 'bg-blue-500' },
-                      { label: 'Parking Space', amount: data.payments.parkingCollected, pct: (data.payments.parkingCollected / data.payments.totalCollected) * 100 || 0, color: 'bg-pink-500' }
-                    ].map((item, idx) => (
-                      <div key={idx} className="space-y-1">
-                        <div className="flex justify-between text-xs font-semibold">
-                          <span className="text-slate-600">{item.label}</span>
-                          <span className="text-slate-800 font-bold">{formatCurrency(item.amount)} ({Math.round(item.pct)}%)</span>
-                        </div>
-                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${item.color}`} style={{ width: `${item.pct}%` }}></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeModule === 'occupancy' && (
-                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300 print:break-inside-avoid">
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 m-0 flex items-center gap-2">
-                    <FontAwesomeIcon icon={faBuilding} className="text-indigo-600" />
-                    Unit Occupancy Type Allocations
-                  </h3>
-                  <div className="flex justify-around items-center h-40">
-                    <div className="text-center">
-                      <div className="w-16 h-16 rounded-full border-4 border-indigo-500 flex items-center justify-center mx-auto mb-2 bg-indigo-50">
-                        <span className="text-lg font-bold text-indigo-700">
-                          {data.occupancy.tenantList.filter(t => t.unit.endsWith('C')).length}
-                        </span>
-                      </div>
-                      <p className="text-xs font-semibold text-slate-600 m-0">1-Bedroom Units (C)</p>
-                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">₱7,500/month</p>
-                    </div>
-
-                    <div className="text-center">
-                      <div className="w-16 h-16 rounded-full border-4 border-emerald-500 flex items-center justify-center mx-auto mb-2 bg-emerald-50">
-                        <span className="text-lg font-bold text-emerald-700">
-                          {data.occupancy.tenantList.filter(t => !t.unit.endsWith('C') && t.unit !== '—').length}
-                        </span>
-                      </div>
-                      <p className="text-xs font-semibold text-slate-600 m-0">Studio Units (A & B)</p>
-                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">₱6,500/month</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
+              {/* Chart 5: Payments Arrears Overview */}
               {activeModule === 'payments' && (
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300 print:break-inside-avoid">
                   <h3 className="text-sm font-bold text-slate-800 mb-5 m-0 flex items-center gap-2">
@@ -980,58 +1343,6 @@ const AdminReports = () => {
                         No outstanding balances recorded for this period.
                       </div>
                     )}
-                  </div>
-                </div>
-              )}
-
-              {activeModule === 'maintenance' && (
-                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300 print:break-inside-avoid">
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 m-0 flex items-center gap-2">
-                    <FontAwesomeIcon icon={faTools} className="text-indigo-600" />
-                    Issue Categories Breakdown
-                  </h3>
-                  <div className="space-y-3">
-                    {Object.entries(data.maintenance.categoryCounts).map(([cat, count], idx) => {
-                      const total = data.maintenance.total || 1;
-                      const pct = Math.round((count / total) * 100);
-                      return (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-slate-600">{cat}</span>
-                            <span className="text-slate-800 font-bold">{count} ({pct}%)</span>
-                          </div>
-                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full bg-amber-500" style={{ width: `${pct}%` }}></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {activeModule === 'reservations' && (
-                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300 print:break-inside-avoid">
-                  <h3 className="text-sm font-bold text-slate-800 mb-4 m-0 flex items-center gap-2">
-                    <FontAwesomeIcon icon={faSquareParking} className="text-indigo-600" />
-                    Vehicle Type Distribution
-                  </h3>
-                  <div className="flex justify-around items-center h-40">
-                    <div className="text-center">
-                      <div className="w-16 h-16 rounded-full border-4 border-pink-500 flex items-center justify-center mx-auto mb-2 bg-pink-50 text-pink-600 font-bold text-lg">
-                        {data.reservations.parkingList.filter(p => p.vehicleType === 'Car').length}
-                      </div>
-                      <p className="text-xs font-semibold text-slate-600 m-0">Cars / Sedans</p>
-                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">₱1,200/month</p>
-                    </div>
-
-                    <div className="text-center">
-                      <div className="w-16 h-16 rounded-full border-4 border-purple-500 flex items-center justify-center mx-auto mb-2 bg-purple-50 text-purple-600 font-bold text-lg">
-                        {data.reservations.parkingList.filter(p => p.vehicleType === 'Motorcycle').length}
-                      </div>
-                      <p className="text-xs font-semibold text-slate-600 m-0">Motorcycles</p>
-                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">₱1,200/month</p>
-                    </div>
                   </div>
                 </div>
               )}
@@ -1157,7 +1468,7 @@ const AdminReports = () => {
                         <th className="py-3 px-4">Category</th>
                         <th className="py-3 px-4">Urgency</th>
                         <th className="py-3 px-4">Date Submitted</th>
-                        <th className="py-3 px-4">Description</th>
+                        <th className="py-3 px-4">Cost</th>
                         <th className="py-3 px-4 text-center">Status</th>
                       </tr>
                     </thead>
@@ -1170,13 +1481,13 @@ const AdminReports = () => {
                           <td className="py-3 px-4 text-slate-600 font-semibold">{m.category}</td>
                           <td className="py-3 px-4">
                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${
-                              m.urgency === 'Emergency' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'
+                              m.urgency === 'High' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'
                             }`}>
                               {m.urgency}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-slate-500 font-medium">{m.dateSubmitted}</td>
-                          <td className="py-3 px-4 text-slate-500 max-w-xs truncate" title={m.description}>{m.description}</td>
+                          <td className="py-3 px-4 text-slate-700 font-bold">{formatCurrency(m.cost)}</td>
                           <td className="py-3 px-4 text-center">
                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
                               m.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
@@ -1349,160 +1660,6 @@ const AdminReports = () => {
                       )}
                     </div>
 
-                    {/* Gap: Maintenance Budget */}
-                    {(() => {
-                      const isOverBudget = data.maintenance.totalCost > data.maintenance.budget;
-                      const usedPct = data.maintenance.budget > 0 ? Math.round((data.maintenance.totalCost / data.maintenance.budget) * 100) : 0;
-                      return (
-                        <div className={`rounded-xl border overflow-hidden ${isOverBudget ? 'border-red-200' : 'border-slate-200'}`}>
-                          <div className={`px-4 py-3 flex items-center justify-between ${isOverBudget ? 'bg-red-50' : 'bg-slate-50'}`}>
-                            <div className="flex items-center gap-2">
-                              <FontAwesomeIcon icon={faWrench} className={isOverBudget ? 'text-red-500' : 'text-slate-500'} />
-                              <span className="text-sm font-bold text-slate-800">Maintenance Budget vs Actual</span>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isOverBudget ? 'bg-red-200 text-red-900' : usedPct >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                              {usedPct}% Used
-                            </span>
-                          </div>
-                          <div className="p-4 space-y-3">
-                            <div className="grid grid-cols-3 gap-3">
-                              <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
-                                <p className="text-sm font-bold text-slate-700 m-0">{formatCurrency(data.maintenance.budget)}</p>
-                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Budget</p>
-                              </div>
-                              <div className={`rounded-lg p-2.5 text-center border ${isOverBudget ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-100'}`}>
-                                <p className={`text-sm font-bold m-0 ${isOverBudget ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(data.maintenance.totalCost)}</p>
-                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">Actual Spent</p>
-                              </div>
-                              <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
-                                <p className={`text-sm font-bold m-0 ${isOverBudget ? 'text-red-600' : 'text-slate-700'}`}>{formatCurrency(data.maintenance.budget - data.maintenance.totalCost)}</p>
-                                <p className="text-[10px] text-slate-500 m-0 mt-0.5">{isOverBudget ? 'Over Budget' : 'Remaining'}</p>
-                              </div>
-                            </div>
-                            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full ${isOverBudget ? 'bg-red-500' : usedPct >= 80 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, usedPct)}%` }}></div>
-                            </div>
-                            {isOverBudget && (
-                              <div className="flex items-center gap-2 text-xs text-red-600 font-semibold">
-                                <FontAwesomeIcon icon={faExclamationTriangle} /> Budget exceeded by {formatCurrency(Math.abs(data.maintenance.budget - data.maintenance.totalCost))}!
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Gap: Pending Maintenance */}
-                    <div className={`rounded-xl border overflow-hidden ${data.maintenance.pending > 0 ? 'border-amber-200' : 'border-slate-200'}`}>
-                      <div className={`px-4 py-3 flex items-center justify-between ${data.maintenance.pending > 0 ? 'bg-amber-50' : 'bg-slate-50'}`}>
-                        <div className="flex items-center gap-2">
-                          <FontAwesomeIcon icon={faClock} className={data.maintenance.pending > 0 ? 'text-amber-500' : 'text-slate-500'} />
-                          <span className="text-sm font-bold text-slate-800">Unresolved Maintenance Requests</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.maintenance.pending > 0 ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {data.maintenance.pending + data.maintenance.inProgress} Open
-                        </span>
-                      </div>
-                      <div className="p-4">
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="bg-amber-50 rounded-lg p-2.5 text-center border border-amber-100">
-                            <p className="text-lg font-bold text-amber-700 m-0">{data.maintenance.pending}</p>
-                            <p className="text-[10px] text-amber-600 font-semibold m-0 mt-0.5">Pending</p>
-                          </div>
-                          <div className="bg-indigo-50 rounded-lg p-2.5 text-center border border-indigo-100">
-                            <p className="text-lg font-bold text-indigo-700 m-0">{data.maintenance.inProgress}</p>
-                            <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">In Progress</p>
-                          </div>
-                          <div className="bg-emerald-50 rounded-lg p-2.5 text-center border border-emerald-100">
-                            <p className="text-lg font-bold text-emerald-700 m-0">{data.maintenance.completed}</p>
-                            <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Completed</p>
-                          </div>
-                        </div>
-                        {data.maintenance.pending > 0 && (
-                          <div className="mt-3 space-y-1.5">
-                            {data.maintenance.records.filter(r => r.status === 'Pending').slice(0, 5).map((r, idx) => (
-                              <div key={idx} className="flex items-center justify-between bg-amber-50/40 rounded-lg p-2 border border-amber-100 text-xs">
-                                <div>
-                                  <span className="font-mono text-amber-600 mr-2">{r.id}</span>
-                                  <span className="text-slate-700">{r.description?.substring(0, 40)}...</span>
-                                </div>
-                                <span className="text-slate-400">{r.dateSubmitted}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Gap: Occupancy */}
-                    <div className={`rounded-xl border overflow-hidden ${data.occupancy.vacantUnits > 0 ? 'border-amber-200' : 'border-emerald-200'}`}>
-                      <div className={`px-4 py-3 flex items-center justify-between ${data.occupancy.vacantUnits > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
-                        <div className="flex items-center gap-2">
-                          <FontAwesomeIcon icon={faBuilding} className={data.occupancy.vacantUnits > 0 ? 'text-amber-500' : 'text-emerald-500'} />
-                          <span className="text-sm font-bold text-slate-800">Occupancy & Vacancy</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.occupancy.vacantUnits > 0 ? 'bg-amber-200 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {data.occupancy.occupancyRate}% Occupied
-                        </span>
-                      </div>
-                      <div className="p-4">
-                        <div className="grid grid-cols-4 gap-3">
-                          <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
-                            <p className="text-lg font-bold text-slate-700 m-0">{data.occupancy.totalUnits}</p>
-                            <p className="text-[10px] text-slate-500 font-semibold m-0">Total</p>
-                          </div>
-                          <div className="bg-emerald-50 rounded-lg p-2.5 text-center border border-emerald-100">
-                            <p className="text-lg font-bold text-emerald-700 m-0">{data.occupancy.occupiedUnits}</p>
-                            <p className="text-[10px] text-emerald-600 font-semibold m-0">Occupied</p>
-                          </div>
-                          <div className={`rounded-lg p-2.5 text-center border ${data.occupancy.vacantUnits > 0 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
-                            <p className={`text-lg font-bold m-0 ${data.occupancy.vacantUnits > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{data.occupancy.vacantUnits}</p>
-                            <p className="text-[10px] text-slate-500 font-semibold m-0">Vacant</p>
-                          </div>
-                          <div className="bg-indigo-50 rounded-lg p-2.5 text-center border border-indigo-100">
-                            <p className="text-lg font-bold text-indigo-700 m-0">{formatCurrency(data.occupancy.vacantUnits * 4000)}</p>
-                            <p className="text-[10px] text-indigo-600 font-semibold m-0">Lost Revenue/mo</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Gap: Collection Efficiency */}
-                    <div className="rounded-xl border border-slate-200 overflow-hidden">
-                      <div className="bg-slate-50 px-4 py-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <FontAwesomeIcon icon={faChartLine} className="text-indigo-500" />
-                          <span className="text-sm font-bold text-slate-800">Collection Efficiency & Revenue Summary</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${data.payments.collectionEfficiency >= 95 ? 'bg-emerald-100 text-emerald-800' : data.payments.collectionEfficiency >= 85 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>
-                          {data.payments.collectionEfficiency}% Efficiency
-                        </span>
-                      </div>
-                      <div className="p-4">
-                        <div className="grid grid-cols-4 gap-3 mb-3">
-                          <div className="bg-emerald-50 rounded-lg p-2.5 text-center border border-emerald-100">
-                            <p className="text-sm font-bold text-emerald-700 m-0">{formatCurrency(data.payments.totalCollected)}</p>
-                            <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Total Collected</p>
-                          </div>
-                          <div className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-100">
-                            <p className="text-sm font-bold text-slate-700 m-0">{formatCurrency(data.payments.expenses)}</p>
-                            <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Expenses</p>
-                          </div>
-                          <div className={`rounded-lg p-2.5 text-center border ${data.payments.netIncome >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-                            <p className={`text-sm font-bold m-0 ${data.payments.netIncome >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatCurrency(data.payments.netIncome)}</p>
-                            <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Net Income</p>
-                          </div>
-                          <div className="bg-indigo-50 rounded-lg p-2.5 text-center border border-indigo-100">
-                            <p className="text-sm font-bold text-indigo-700 m-0">{data.payments.collectionEfficiency}%</p>
-                            <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">Efficiency</p>
-                          </div>
-                        </div>
-                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${data.payments.collectionEfficiency >= 95 ? 'bg-emerald-500' : data.payments.collectionEfficiency >= 85 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${data.payments.collectionEfficiency}%` }}></div>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Gap Summary */}
                     <div className="bg-gradient-to-r from-indigo-50 to-slate-50 rounded-xl border border-indigo-100 p-5">
                       <h4 className="text-sm font-bold text-slate-800 m-0 mb-3">Gap Summary & Recommendations</h4>
@@ -1511,12 +1668,6 @@ const AdminReports = () => {
                           <div className="flex items-start gap-2 text-xs">
                             <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
                             <p className="m-0 text-slate-700"><strong className="text-red-700">Payment Gap:</strong> {data.payments.outstandingBalances.length} tenant(s) with outstanding balances totaling {formatCurrency(data.payments.totalOutstanding)}. Send reminders and follow up.</p>
-                          </div>
-                        )}
-                        {data.maintenance.totalCost > data.maintenance.budget && (
-                          <div className="flex items-start gap-2 text-xs">
-                            <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
-                            <p className="m-0 text-slate-700"><strong className="text-red-700">Budget Gap:</strong> Maintenance spending exceeded budget by {formatCurrency(data.maintenance.totalCost - data.maintenance.budget)}. Review approval policies and negotiate vendor rates.</p>
                           </div>
                         )}
                         {data.maintenance.pending > 0 && (
@@ -1531,13 +1682,7 @@ const AdminReports = () => {
                             <p className="m-0 text-slate-700"><strong className="text-amber-700">Occupancy Gap:</strong> {data.occupancy.vacantUnits} vacant unit(s) representing {formatCurrency(data.occupancy.vacantUnits * 4000)}/mo in potential lost revenue. Increase marketing efforts.</p>
                           </div>
                         )}
-                        {data.payments.collectionEfficiency < 90 && (
-                          <div className="flex items-start gap-2 text-xs">
-                            <FontAwesomeIcon icon={faChartLine} className="text-amber-500 mt-0.5" />
-                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Efficiency Gap:</strong> Collection efficiency at {data.payments.collectionEfficiency}%. Below 90% threshold — implement stricter follow-up procedures.</p>
-                          </div>
-                        )}
-                        {data.payments.totalOutstanding === 0 && data.maintenance.pending === 0 && data.maintenance.totalCost <= data.maintenance.budget && data.occupancy.vacantUnits === 0 && (
+                        {data.payments.totalOutstanding === 0 && data.maintenance.pending === 0 && data.occupancy.vacantUnits === 0 && (
                           <div className="flex items-center gap-2 text-xs text-emerald-700 font-semibold">
                             <FontAwesomeIcon icon={faCheckCircle} className="text-emerald-500" />
                             All management metrics within acceptable ranges. No critical gaps detected.
@@ -1562,7 +1707,7 @@ const AdminReports = () => {
                 <div>
                   <p className="mb-12">Approved By:</p>
                   <div className="w-48 border-b border-slate-500 mx-auto"></div>
-                  <p className="mt-2 text-slate-500">Property Manager Operations Signature</p>
+                  <p className="mt-2 text-slate-500">Property Operations Finance Manager</p>
                 </div>
               </div>
               <p className="text-[8px] text-slate-400 mt-10 text-center uppercase tracking-widest">
@@ -1574,7 +1719,7 @@ const AdminReports = () => {
         </div>
       </main>
 
-      {/* Invoice Generation Modal (Shared feature context) */}
+      {/* Invoice Generation Modal */}
       {showInvoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>

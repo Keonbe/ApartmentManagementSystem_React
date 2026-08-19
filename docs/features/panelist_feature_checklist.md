@@ -140,8 +140,8 @@ Tenant applies             Admin reviews:               Tenant pays:
 | # | Feature | Status | Priority | Notes |
 |---|---|---|---|---|
 | 8.1 | Dashboard Statistics | ✅ | Critical | `dashboard_stats.php` |
-| 8.2 | Income Reports | 🔧 | High | `get_report_data.php` exists; UI pending |
-| 8.3 | Revenue Stream Analysis | 📋 | Medium | Category breakdown pending |
+| 8.2 | Income Reports | ✅ | High | Financial income statement, unit income rankings, period comparisons, CSV/Print export (`get_report_data.php` + `AdminReports.jsx`) |
+| 8.3 | Revenue Stream Analysis | ✅ | Medium | Category stream breakdown (Rent, Utilities, Parking, Deposits), multi-stream 6-month historical trends, diversification index |
 | 8.4 | Tenant Monitoring | ✅ | Critical | `get_tenants.php` |
 | 8.5 | Maintenance Monitoring | ✅ | High | `get_maintenance_requests.php` |
 | 8.6 | System Activity Logs | ✅ | High | `activity_logs` table |

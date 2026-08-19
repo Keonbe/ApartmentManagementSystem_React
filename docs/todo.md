@@ -159,6 +159,8 @@ Generate reports by:
 * [x] Occupancy
 * [x] Payments
 * [x] Maintenance
+* [x] **Income Reports (8.2)**: Comprehensive income statement, unit-by-unit income ledger, gross/net operating income, profit margin %, period comparisons (MoM/QoQ/YoY), and CSV/Print export.
+* [x] **Revenue Stream Analysis (8.3)**: 5-category stream breakdown (Rent, Electricity, Water, Parking, Deposits), 6-month historical multi-stream trends, diversification metrics, and stream audit table.
 * [x] **Wire `AdminReports.jsx` to `get_report_data.php`** (Priority B — Done):
   * Backend endpoint `get_report_data.php` is already created and queries real DB data.
   * `AdminReports.jsx` now fetches from backend and mock engine has been removed.
