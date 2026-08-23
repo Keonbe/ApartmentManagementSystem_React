@@ -104,10 +104,10 @@
 * [x] `status` column added to `parking_reservations` table.
 * [x] `user_id` stored on parking reservation submission.
 * [x] Tenant can cancel a `Pending` parking reservation from `/my-requests`.
-* [ ] **Wire `AdminServicePage.jsx` parking section to DB** (Priority A):
-  * Create `get_parking_reservations.php` and `update_parking_status.php`.
-  * Replace mock `initialParkingReservations` array with live DB data.
-  * Persist approve/reject actions.
+* [x] **Wire `AdminServicePage.jsx` parking section to DB** (Priority A — Done):
+  * Created `get_parking_reservations.php` and `update_parking_status.php`.
+  * Replaced mock `initialParkingReservations` array with live DB data.
+  * Persists approve/reject actions.
 * [ ] Plate number validation (enforce text length limit in frontend).
 
 ---
@@ -119,10 +119,10 @@
 * [x] `user_id` stored on maintenance request submission.
 * [x] Tenant can cancel a `Pending` maintenance request from `/my-requests`.
 * [x] Admin `AdminMaintainance.jsx` Kanban board with approval workflow.
-* [ ] **Wire `AdminMaintainance.jsx` to DB** (Priority A — Critical):
-  * Create `get_maintenance_requests.php` to replace `initialRequests` mock array.
-  * Create `update_maintenance_status.php` to persist status, assignee, and cost.
-  * Add schema columns: `assigned_to`, `estimated_cost`, `work_notes`.
+* [x] **Wire `AdminMaintainance.jsx` to DB** (Priority A — Done):
+  * Created `get_maintenance_requests.php` to fetch live requests.
+  * Created `update_maintenance_status.php` to persist status, assignee, cost, notes, and tenant responsibility.
+  * Wired to backend DB (`assigned_to`, `estimated_cost`, `work_notes`).
 * [ ] Video upload support for maintenance evidence.
 * [ ] Tenant responsibility / discretion defined in Terms & Conditions.
 * [ ] Maintenance approval workflow — notify tenant when status changes (insert to `notifications`).
@@ -141,10 +141,10 @@
 * [x] CCTV request form with incident date, time, location, and reason.
 * [x] `user_id` stored on CCTV request submission.
 * [x] Tenant can cancel a `Pending` CCTV request from `/my-requests`.
-* [ ] **Wire `AdminServicePage.jsx` CCTV section to DB** (Priority A):
-  * Create `get_cctv_requests.php` and `update_cctv_status.php`.
-  * Replace mock `initialCctvRequests` array with live DB data.
-  * Persist approve/reject actions.
+* [x] **Wire `AdminServicePage.jsx` CCTV section to DB** (Priority A — Done):
+  * Created `get_cctv_requests.php` and `update_cctv_status.php`.
+  * Replaced mock `initialCctvRequests` array with live DB data.
+  * Persists approve/reject actions.
 * [ ] Add **Data Privacy consent checkbox** to the CCTV request form.
 * [ ] Restrict CCTV requests to incident-related purposes only (enforce via form validation and admin review).
 
@@ -162,8 +162,8 @@ Generate reports by:
 * [x] **Income Reports (8.2)**: Comprehensive income statement, unit-by-unit income ledger, gross/net operating income, profit margin %, period comparisons (MoM/QoQ/YoY), and CSV/Print export.
 * [x] **Revenue Stream Analysis (8.3)**: 5-category stream breakdown (Rent, Electricity, Water, Parking, Deposits), 6-month historical multi-stream trends, diversification metrics, and stream audit table.
 * [x] **Wire `AdminReports.jsx` to `get_report_data.php`** (Priority B — Done):
-  * Backend endpoint `get_report_data.php` is already created and queries real DB data.
-  * `AdminReports.jsx` now fetches from backend and mock engine has been removed.
+  * Backend endpoint `get_report_data.php` is created and queries real DB data.
+  * `AdminReports.jsx` fetches from backend and mock engine has been removed.
   * Extended `get_report_data.php` to return array lists for the detailed tables.
 * [ ] Per-module reservation reports (parking, CCTV, maintenance per unit).
 
@@ -174,7 +174,7 @@ Generate reports by:
 * [x] Archive tenant accounts after move-out with reason and notes.
 * [x] Preserve tenant history.
 * [x] `AdminTenants.jsx` manages Pending Review, Active, and Archived tenants.
-* [x] Move-Out Request (self-service) for tenants (Priority D):
+* [x] Move-Out Request (self-service) for tenants (Priority D — Done):
   * [x] Add move-out button/modal to `MyRoom.jsx`.
   * [x] Create `record_move_out.php` to set `status = 'pending-move-out'`.
   * [x] Highlight `pending-move-out` tenants in `AdminTenants.jsx`.
@@ -198,8 +198,8 @@ Generate reports by:
 * [x] Payment tracking per tenant via `invoices` table.
 * [x] User-accessible payment records (`UserPaymentHistory.jsx`).
 * [x] Admin manual payment settlement via `record_payment_admin.php`.
-* [ ] Payment reference number field on invoices.
-* [ ] Proof of payment upload and admin verification.
+* [x] Payment reference number field on invoices (Priority E — Done).
+* [x] Proof of payment upload (`upload_payment_proof.php` & `PaymentUpload.jsx`) and admin verification (Priority E — Done).
 
 ---
 
@@ -207,9 +207,9 @@ Generate reports by:
 
 * [x] Maintenance history per unit (shown in `AdminUnits` detail modal).
 * [x] Maintenance cost tracking (UI in `AdminMaintainance.jsx`).
-* [x] Budget comparison/reporting (mocked in `AdminReports.jsx`).
+* [x] Budget comparison/reporting in `AdminMaintainance.jsx` and `AdminReports.jsx`.
 * [x] Maintenance approval workflow (UI in `AdminMaintainance.jsx`).
-* [ ] **Persist maintenance data to DB** (Priority A — all UI changes are currently in-memory only).
+* [x] **Persist maintenance data to DB** (Priority A — Done via `update_maintenance_status.php` and `get_maintenance_requests.php`).
 * [ ] Tenant responsibility/discretion defined in Terms & Conditions.
 
 ---
@@ -220,9 +220,9 @@ Generate reports by:
 * [x] Include signed and notarized lease agreement upload (`AdminContracts.jsx`).
 * [x] Automate overdue payment monitoring (UI flags in `AdminPayments.jsx`).
 * [x] Contract management with eviction status tracking (`AdminContracts.jsx`).
-* [ ] Wire `ViewContract.jsx` to read from `lease_contracts` table (Priority C):
-  * Create `get_my_contract.php`.
-  * Show signed/notarized upload status in tenant contract view.
+* [x] Wire `ViewContract.jsx` to read from `lease_contracts` table (Priority C — Done):
+  * `get_contracts.php` endpoint fetches `lease_contracts` joined with application and room details.
+  * Shows signed/notarized upload status in tenant contract view.
 
 ---
 
@@ -239,9 +239,9 @@ Generate reports by:
 
 ## Admin Services Page
 
-* [ ] **Wire CCTV request management to DB** (Priority A).
-* [ ] **Wire parking reservation management to DB** (Priority A).
-* [ ] Service toggles (cleaning, laundry, wifi, parking) — consider persisting toggle state to `system_settings` table instead of in-memory.
+* [x] **Wire CCTV request management to DB** (Priority A — Done).
+* [x] **Wire parking reservation management to DB** (Priority A — Done).
+* [x] Service toggles (cleaning, laundry, wifi, parking) — persisted toggle state to `system_settings` via `update_system_settings.php`.
 
 ---
 

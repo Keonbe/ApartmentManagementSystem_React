@@ -141,7 +141,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 |---|---|---|---|---|
 | 8.1 | Dashboard Statistics | ✅ | Critical | `dashboard_stats.php` |
 | 8.2 | Income Reports | ✅ | High | Financial income statement, unit income rankings, period comparisons, CSV/Print export (`get_report_data.php` + `AdminReports.jsx`) |
-| 8.3 | Revenue Stream Analysis | ✅ | Medium | Category stream breakdown (Rent, Utilities, Parking, Deposits), multi-stream 6-month historical trends, diversification index |
+| 8.3 | Revenue Stream Analysis | ✅ | Medium | Category stream breakdown (Rent, Utilities, Parking, Deposits), 100% database-backed 6-month historical trends (no mock data), and diversification index |
 | 8.4 | Tenant Monitoring | ✅ | Critical | `get_tenants.php` |
 | 8.5 | Maintenance Monitoring | ✅ | High | `get_maintenance_requests.php` |
 | 8.6 | System Activity Logs | ✅ | High | `activity_logs` table |
@@ -406,7 +406,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 |---|---|---|---|---|---|
 | 8.1 | **Dashboard Statistics** | Cards showing: total tenants, occupancy rate, total revenue (this month), pending maintenance, overdue payments | Small+ | `dashboard_stats.php` | — |
 | 8.2 | **Income Reports** | Monthly/quarterly revenue breakdown: rent collected, utilities, parking fees, outstanding balances | Small+ | `get_report_data.php` | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
-| 8.3 | **Revenue Stream Analysis** | Breakdown by source: base rent vs. water vs. electricity vs. parking vs. service fees | Medium | `get_report_data.php` with category breakdown | — |
+| 8.3 | **Revenue Stream Analysis** | Breakdown by source: base rent vs. water vs. electricity vs. parking vs. deposits. 100% database-backed 6-month category trends with no mock fallbacks. | Medium | `get_report_data.php` with real category breakdowns | — |
 | 8.4 | **Tenant Monitoring** | List view: all tenants with lease status, payment status (current/overdue), lease end date | Small+ | `get_tenants.php` | — |
 | 8.5 | **Maintenance Monitoring** | Overview: open requests by priority, average resolution time, requests by category | Small+ | `get_maintenance_requests.php` with aggregation | — |
 | 8.6 | **System Activity Logs** | Audit trail: who did what, when. Admin actions logged (tenant approved, payment recorded, settings changed) | Small+ | `get_activity_logs.php`, `activity_logs` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |

@@ -662,4 +662,306 @@ ALTER TABLE maintenance_requests
 | ViewContract | ⚠️ | Derived from `my_room.php`; not from `lease_contracts` table |
 | TrackApplication | ✅ | Status + initial payment wired |
 | Move-Out Request | ✅ | `record_move_out.php` + button in `MyRoom.jsx` + `AdminTenants.jsx` |
-| Payment Proof Upload | ❌ | No file upload or reference number field |
+| Payment Proof Upload | ✅ | `upload_payment_proof.php` + `PaymentUpload.jsx` + reference number field |
+
+---
+
+## 13. System Requirements
+
+> **Legend:** ✅ = Implemented &nbsp;|&nbsp; 🔲 = Planned (not yet built)
+
+### 13.1 Functional Requirements
+
+#### FR-1: Account Management
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-1.1 | The system shall allow guests to register an account with first name, middle name, last name, suffix, email, password, contact number, and gender. | ✅ |
+| FR-1.2 | The system shall enforce unique email addresses during registration. | ✅ |
+| FR-1.3 | The system shall authenticate users via email and password and redirect them based on role (`user` or `admin`). | ✅ |
+| FR-1.4 | The system shall store the authenticated user session in `sessionStorage` and inject identity headers (`X-User-Id`, `X-Admin-Id`) on all API calls. | ✅ |
+| FR-1.5 | The system shall allow users to update their profile information (name, contact, avatar). | ✅ |
+| FR-1.6 | The system shall allow users to change their password (requiring current password verification). | ✅ |
+| FR-1.7 | The system shall allow users to preview uploaded verification documents (Valid ID, NBI Clearance) from their profile. | ✅ |
+| FR-1.8 | The system shall enforce a configurable password reset/change policy (max changes, cooldown period). | 🔲 |
+
+---
+
+#### FR-2: Rent Application & Onboarding
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-2.1 | The system shall allow authenticated users to submit a rent application with personal details, room selection, lease duration, and required document uploads (Valid ID front/back, NBI Clearance). | ✅ |
+| FR-2.2 | The system shall store the applicant's `user_id` FK on the `rent_applications` record at submission time. | ✅ |
+| FR-2.3 | The system shall allow users to preview and retake uploaded images before submission. | ✅ |
+| FR-2.4 | The system shall provide an application tracking page (`/track-application`) showing current status and pending initial payment. | ✅ |
+| FR-2.5 | The system shall allow rejected applicants to resubmit or update their application. | 🔲 |
+| FR-2.6 | The system shall validate all input fields with appropriate min/max limits (plate numbers, contact numbers, etc.). | 🔲 |
+| FR-2.7 | The system shall support upload of Police Clearance and Utility Bill (Proof of Billing) as additional application documents. | 🔲 |
+
+---
+
+#### FR-3: Room & Unit Management
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-3.1 | The system shall maintain a database-backed room inventory with letter-coded IDs (`A`–`N`), type, floor, monthly rent, and status. | ✅ |
+| FR-3.2 | The system shall allow admins to view, filter, and manage all units via a grid/list view with detail modals. | ✅ |
+| FR-3.3 | The system shall automatically sync `rooms.tenant_name`, `rooms.lease_start`, and `rooms.lease_end` when a rent application is approved. | ✅ |
+| FR-3.4 | The system shall display room occupancy history and lease history in admin unit detail modals. | ✅ |
+| FR-3.5 | The system shall allow admins to set a maintenance flag on any unit. | ✅ |
+| FR-3.6 | The system shall track room condition and furnishing status per unit. | ✅ |
+| FR-3.7 | The system shall display room images in the Preview page and admin modals. | ✅ |
+| FR-3.8 | The system shall support occupant count changes with admin approval workflow. | 🔲 |
+| FR-3.9 | The system shall support multiple user accounts linked to a single room (shared occupancy). | 🔲 |
+| FR-3.10 | The system shall provide a configurable minimum lease duration (default: 3 months). | 🔲 |
+| FR-3.11 | The system shall provide a 360° room view option on the Preview page. | 🔲 |
+
+---
+
+#### FR-4: Lease & Contract Management
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-4.1 | The system shall allow admins to generate lease contracts linked to approved rent applications. | ✅ |
+| FR-4.2 | The system shall allow admins to upload signed and notarized lease agreement documents to a contract record. | ✅ |
+| FR-4.3 | The system shall allow tenants to view their lease contract with all terms, including signed/notarized document status. | ✅ |
+| FR-4.4 | The system shall allow tenants to extend their lease from the My Room page. | ✅ |
+| FR-4.5 | The system shall allow admins to extend a tenant's lease from the unit detail modal. | ✅ |
+| FR-4.6 | The system shall track eviction status on lease contracts. | ✅ |
+| FR-4.7 | The system shall detect lease extension conflicts when a room is already reserved by another pending applicant. | 🔲 |
+| FR-4.8 | The system shall send lease expiration reminders (notification + banner) when remaining lease days < 30. | 🔲 |
+| FR-4.9 | The system shall maintain a lease extension history tab in the unit detail modal. | 🔲 |
+
+---
+
+#### FR-5: Payment & Billing
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-5.1 | The system shall generate an initial invoice (advance + security deposit) when a rent application is approved. | ✅ |
+| FR-5.2 | The system shall allow tenants to view and pay pending monthly invoices via GCash, Bank Transfer, or Cash on Hand. | ✅ |
+| FR-5.3 | The system shall allow tenants to upload proof of payment with a reference number and sender name. | ✅ |
+| FR-5.4 | The system shall set invoice status to `pending-verification` upon proof upload, pending admin review. | ✅ |
+| FR-5.5 | The system shall allow admins to verify payment proofs and confirm/reject payments. | ✅ |
+| FR-5.6 | The system shall allow admins to manually record payments on behalf of tenants. | ✅ |
+| FR-5.7 | The system shall display payment history with receipt viewer, including payment method, reference number, and proof of payment. | ✅ |
+| FR-5.8 | The system shall track outstanding balances per tenant with aging analysis (current, 1–15 days, 16–30 days, 60+ days). | ✅ |
+| FR-5.9 | The system shall track security deposit status with deductions (fixture damage, unpaid utilities) and applied-to-rent calculations. | ✅ |
+| FR-5.10 | The system shall validate GCash reference numbers (exactly 13 digits) and Bank Transfer references (max 55 characters, not purely numeric). | ✅ |
+| FR-5.11 | The system shall auto-mark invoices as `overdue` when the `due_date` passes. | 🔲 |
+| FR-5.12 | The system shall cross-reference uploaded proof with payment reference number for admin verification. | 🔲 |
+
+---
+
+#### FR-6: Maintenance Management
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-6.1 | The system shall allow tenants to submit maintenance requests with issue category, urgency level, description, preferred schedule, and permission-to-enter flag. | ✅ |
+| FR-6.2 | The system shall allow tenants to attach photo/document evidence to maintenance requests. | ✅ |
+| FR-6.3 | The system shall allow tenants to cancel pending maintenance requests from the My Requests page. | ✅ |
+| FR-6.4 | The system shall provide admins a Kanban board view (Pending → In Progress → Completed) with list view alternative. | ✅ |
+| FR-6.5 | The system shall allow admins to approve/reject maintenance requests with estimated cost and work notes. | ✅ |
+| FR-6.6 | The system shall allow admins to assign a technician and advance request status through the workflow. | ✅ |
+| FR-6.7 | The system shall persist all maintenance updates (status, assignee, cost, notes, tenant responsibility) to the database. | ✅ |
+| FR-6.8 | The system shall allow admins to toggle the "tenant responsible" flag, indicating repair costs are billed to the tenant. | ✅ |
+| FR-6.9 | The system shall display a maintenance budget overview with monthly budget vs. spent, category breakdown, and per-unit cost analysis. | ✅ |
+| FR-6.10 | The system shall support video upload for maintenance evidence. | 🔲 |
+| FR-6.11 | The system shall automatically notify tenants when their maintenance request status changes. | 🔲 |
+
+---
+
+#### FR-7: CCTV Footage Requests
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-7.1 | The system shall allow tenants to submit CCTV footage requests with incident date, time, location, and reason. | ✅ |
+| FR-7.2 | The system shall allow tenants to cancel pending CCTV requests. | ✅ |
+| FR-7.3 | The system shall allow admins to approve or reject CCTV requests with status persisted to the database. | ✅ |
+| FR-7.4 | The system shall include a Data Privacy consent checkbox on the CCTV request form. | 🔲 |
+| FR-7.5 | The system shall restrict CCTV requests to incident-related purposes via form validation and admin review. | 🔲 |
+
+---
+
+#### FR-8: Parking Reservation
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-8.1 | The system shall allow tenants to reserve parking with vehicle type, model, plate number, transmission, and duration. | ✅ |
+| FR-8.2 | The system shall require OR/CR document upload for parking reservations. | ✅ |
+| FR-8.3 | The system shall allow tenants to cancel pending parking reservations. | ✅ |
+| FR-8.4 | The system shall allow admins to assign or reject parking reservations with status persisted to the database. | ✅ |
+| FR-8.5 | The system shall enforce plate number validation (text length limits) on the frontend. | 🔲 |
+
+---
+
+#### FR-9: Tenant Lifecycle Management
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-9.1 | The system shall allow admins to manage tenants across three stages: Pending Review, Active, and Archived. | ✅ |
+| FR-9.2 | The system shall allow admins to approve or reject rent applications with rejection reasons. | ✅ |
+| FR-9.3 | The system shall allow admins to archive tenant accounts with reason and notes, preserving tenant history. | ✅ |
+| FR-9.4 | The system shall allow tenants to submit a self-service move-out request from the My Room page. | ✅ |
+| FR-9.5 | The system shall highlight `pending-move-out` tenants in the admin tenant management view. | ✅ |
+| FR-9.6 | The system shall allow admins to restore archived tenants. | ✅ |
+| FR-9.7 | The system shall allow admins to request additional documents from tenants via notifications. | 🔲 |
+
+---
+
+#### FR-10: Announcements & Notifications
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-10.1 | The system shall allow admins to create and send announcements with tag (Urgent/Reminder/General), title, and body. | ✅ |
+| FR-10.2 | The system shall automatically create in-app notifications for all non-admin users when an announcement is published. | ✅ |
+| FR-10.3 | The system shall provide a tenant-facing announcement board showing all published announcements. | ✅ |
+| FR-10.4 | The system shall provide a Notification Center with history, read/unread status, and delete functionality. | ✅ |
+| FR-10.5 | The system shall display a live notification bell in the TopBar that reads unread count from the database. | ✅ |
+| FR-10.6 | The system shall allow admins to schedule announcements for future delivery. | 🔲 |
+| FR-10.7 | The system shall allow admins to target specific tenants for announcements (instead of all non-admin users). | 🔲 |
+| FR-10.8 | The system shall automatically send notifications when admin updates CCTV/parking/maintenance request status. | 🔲 |
+
+---
+
+#### FR-11: Reporting & Analytics
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-11.1 | The system shall generate financial reports with monthly and yearly aggregation from live database data. | ✅ |
+| FR-11.2 | The system shall generate occupancy reports showing room utilization rates. | ✅ |
+| FR-11.3 | The system shall generate maintenance reports with cost summaries. | ✅ |
+| FR-11.4 | The system shall generate income reports with gross/net operating income, profit margin %, and period comparisons (MoM/QoQ/YoY). | ✅ |
+| FR-11.5 | The system shall generate revenue stream analysis with 5-category breakdown (Rent, Electricity, Water, Parking, Deposits) and 6-month historical trends. | ✅ |
+| FR-11.6 | The system shall support CSV and Print export for all reports. | ✅ |
+| FR-11.7 | The system shall generate per-module reservation reports (parking, CCTV, maintenance per unit). | 🔲 |
+
+---
+
+#### FR-12: Admin Dashboard & Audit
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-12.1 | The system shall display a live admin dashboard with KPI cards (total units, occupancy rate, monthly revenue, pending requests). | ✅ |
+| FR-12.2 | The system shall display a 6-month income chart on the dashboard. | ✅ |
+| FR-12.3 | The system shall display recent activity feed and new tenant entries on the dashboard. | ✅ |
+| FR-12.4 | The system shall log all admin mutations via `log_activity()` to the `activity_logs` table. | ✅ |
+| FR-12.5 | The system shall provide a searchable activity log viewer for system auditing. | ✅ |
+
+---
+
+#### FR-13: System Configuration
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-13.1 | The system shall allow admins to configure system-wide settings (system name, contact info, currency, overdue threshold, eviction flag, maintenance budget, lease duration). | ✅ |
+| FR-13.2 | The system shall allow admins to toggle modular tenant services (Bill Payments, Parking, Maintenance, CCTV) on/off with state persisted to `system_settings`. | ✅ |
+| FR-13.3 | The system shall respect service toggle state in the tenant portal (disabled services are hidden). | ✅ |
+
+---
+
+#### FR-14: Service Module Controls
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-14.1 | The system shall provide a service management page displaying all modular services with active/disabled status and toggle switches. | ✅ |
+| FR-14.2 | The system shall display pending CCTV and parking request counts in the service management hero banner. | ✅ |
+| FR-14.3 | The system shall display incoming CCTV and parking requests in tabbed tables with approve/reject actions. | ✅ |
+
+---
+
+#### FR-15: Housekeeping (Planned)
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| FR-15.1 | The system shall provide a garbage collection schedule page or announcement. | 🔲 |
+| FR-15.2 | The system shall provide a house rules page (static or served via announcements). | 🔲 |
+
+---
+
+### 13.2 Non-Functional Requirements
+
+#### NFR-1: Performance
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| NFR-1.1 | The system shall load all admin and tenant pages within 2 seconds on standard broadband connections. | ✅ |
+| NFR-1.2 | The system shall use optimistic UI updates for mutation actions (toggle, approve/reject, status change) to provide instant visual feedback before backend confirmation. | ✅ |
+| NFR-1.3 | The system shall display inline loading spinners or skeleton states during data fetches — never blocking the entire page. | ✅ |
+| NFR-1.4 | The system shall use `Promise.all` for parallel independent API calls (e.g., fetching CCTV + parking data simultaneously). | ✅ |
+
+---
+
+#### NFR-2: Security
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| NFR-2.1 | The system shall hash all user passwords using `bcrypt` before storage. | ✅ |
+| NFR-2.2 | The system shall guard all admin API endpoints with `verify_admin($conn, $admin_id)` server-side validation. | ✅ |
+| NFR-2.3 | The system shall inject `X-User-Id` and `X-Admin-Id` headers on all authenticated API requests via a centralized axios interceptor. | ✅ |
+| NFR-2.4 | The system shall implement route-level guards: `ProtectedRoute` (auth required), `TenantProtectedRoute` (approved tenant), `AdminProtectedRoute` (admin role). | ✅ |
+| NFR-2.5 | The system shall use parameterized SQL queries (prepared statements) for all database operations to prevent SQL injection. | ✅ |
+| NFR-2.6 | The system shall set CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) on all API endpoints. | ✅ |
+| NFR-2.7 | The system shall handle OPTIONS preflight requests explicitly on all endpoints. | ✅ |
+| NFR-2.8 | The system shall validate file upload types and sizes server-side for all document/image uploads. | ✅ |
+
+---
+
+#### NFR-3: Usability
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| NFR-3.1 | The system shall provide a responsive layout that functions on desktop and tablet screen sizes. | ✅ |
+| NFR-3.2 | The system shall provide a collapsible sidebar navigation for the admin panel. | ✅ |
+| NFR-3.3 | The system shall use consistent status badge styling across all modules (color-coded: amber/pending, emerald/approved, red/rejected). | ✅ |
+| NFR-3.4 | The system shall provide modal-based detail views for records (units, requests, contracts) to avoid full-page navigation. | ✅ |
+| NFR-3.5 | The system shall provide search and filter controls on all list/table views (tenant lists, request queues, payment records). | ✅ |
+| NFR-3.6 | The system shall display currency values in Philippine Peso (₱) format with locale-aware number formatting. | ✅ |
+| NFR-3.7 | The system shall provide bilingual contract support (Tagalog / English toggle in ViewContract). | ✅ |
+| NFR-3.8 | The system shall provide print-friendly formatting for contracts and receipts via `window.print()`. | ✅ |
+
+---
+
+#### NFR-4: Reliability & Data Integrity
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| NFR-4.1 | The system shall revert optimistic UI updates and display an error alert when a backend API call fails. | ✅ |
+| NFR-4.2 | The system shall use foreign key constraints with `ON DELETE CASCADE` or `ON DELETE SET NULL` policies to maintain referential integrity. | ✅ |
+| NFR-4.3 | The system shall use database transactions where multiple related tables are updated in a single operation (e.g., tenant approval: update application + room + invoice + contract). | ✅ |
+| NFR-4.4 | The system shall log all admin write operations to the `activity_logs` table for audit trail. | ✅ |
+| NFR-4.5 | The system shall never drop database columns — migrations use `ADD COLUMN IF NOT EXISTS` only. | ✅ |
+
+---
+
+#### NFR-5: Maintainability
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| NFR-5.1 | The system shall centralize all API call configuration (base URL, auth headers) in a single `axiosConfig.js` module. | ✅ |
+| NFR-5.2 | The system shall centralize database connection and shared helper functions (`verify_admin`, `log_activity`) in a single `config.php` file. | ✅ |
+| NFR-5.3 | The system shall separate admin pages (`AdminPages/`) from tenant pages (`UserPages/`) in the frontend directory structure. | ✅ |
+| NFR-5.4 | The system shall use a consistent PHP endpoint template pattern across all backend APIs (CORS headers → config include → OPTIONS check → guard → logic → JSON response). | ✅ |
+| NFR-5.5 | The system shall store configurable system settings in the database (`system_settings` table) with `localStorage` as a client-side fallback cache. | ✅ |
+
+---
+
+#### NFR-6: Scalability
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| NFR-6.1 | The system shall support up to 14 rental units with room for additional seeding. | ✅ |
+| NFR-6.2 | The system shall support concurrent admin and tenant sessions via stateless API design (no server-side PHP sessions). | ✅ |
+| NFR-6.3 | The system shall paginate large data sets in admin views (payment history, activity logs). | ✅ |
+
+---
+
+#### NFR-7: Deployment & Environment
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| NFR-7.1 | The system shall run on XAMPP (Apache + MariaDB 10 + PHP 8) on localhost. | ✅ |
+| NFR-7.2 | The system shall use Vite as the React development server (port 5173) with proxy to PHP backend. | ✅ |
+| NFR-7.3 | The system shall provide SQL migration scripts for reproducible database setup (`SetupDB.sql` + incremental migrations). | ✅ |
+| NFR-7.4 | The system shall provide seed data scripts for initial rooms, admin user, and system settings. | ✅ |
