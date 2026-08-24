@@ -4,7 +4,6 @@
 > **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)  
 > **Context:** Small-to-medium scale apartment building (15–100 units)  
 > **Last Updated:** August 2026
-
 ---
 
 ## System Context
@@ -28,8 +27,8 @@ Tenant applies             Admin reviews:               Tenant pays:
 └── Room preference        └── Room availability
                                     │                          │
                                     ▼                          ▼
-                              LEASE CONTRACT              MOVE-IN
-                           (auto-generated)           (occupancy recorded)
+                               LEASE CONTRACT              MOVE-IN
+                            (auto-generated)           (occupancy recorded)
 ```
 
 ---
@@ -56,9 +55,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 1.2 | Tenant Profile | ✅ | Critical | `profile.php` with edit |
 | 1.3 | ID / Document Upload | ✅ | Critical | `upload_lease_document.php` |
 | 1.4 | Occupancy Record | ✅ | Critical | Via `rent_applications` approval |
-| 1.5 | Move-In / Move-Out Tracking | ✅ | High | Tenant initiates, admin inspects and approves |
+| 1.5 | Move-In / Move-Out Tracking | ✅ | High | Tenant initiates, admin inspects and approves (`record_move_out.php`) |
 | 1.6 | Application Processing Flow | ✅ | Critical | Pending → Approved/Rejected |
-| 1.7 | Acceptance Criteria Enforcement | ✅ | Medium | Terms not yet enforced in flow |
+| 1.7 | Acceptance Criteria Enforcement | ✅ | Medium | Terms verified in application approval flow |
 
 ### Module 2 — Apartment / Unit Management
 
@@ -95,21 +94,21 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 4.2 | Issue Categories | ✅ | Critical | `issue_category` field |
 | 4.3 | Priority Levels | ✅ | Critical | `urgency` field |
 | 4.4 | Photo Upload | 🔧 | High | Field exists; UI upload pending |
-| 4.5 | Status Tracking | ✅ | Critical | Pending → In Progress → Completed |
+| 4.5 | Status Tracking | ✅ | Critical | Pending → In Progress → Completed (`AdminMaintainance.jsx`) |
 | 4.6 | Date / Time Tracking | 🔧 | High | `created_at` exists; resolution timestamps pending |
 | 4.7 | Admin Assignment | ✅ | Medium | `assigned_to` field |
 | 4.8 | Cost Estimation | ✅ | Medium | `estimated_cost`, `tenant_responsible` fields |
 | 4.9 | Work Notes | ✅ | Medium | `work_notes` field |
-| 4.10 | Tenant Notification on Update | 🔧 | High | In-app works; email/SMS pending |
+| 4.10 | Tenant Notification on Update | 🔧 | High | In-app works; external channels pending |
 
 ### Module 5 — Service Management
 
 | # | Feature | Status | Priority | Notes |
 |---|---|---|---|---|
-| 5.1 | Service Request Submission | ❌ | Low | Medium-scale feature |
-| 5.2 | Service Catalog | ❌ | Low | Medium-scale feature |
-| 5.3 | Service Status Tracking | ❌ | Low | Medium-scale feature |
-| 5.4 | Service Billing Integration | ❌ | Low | Medium-scale feature |
+| 5.1 | Service Request Submission | 🔧 | Low | `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php` |
+| 5.2 | Service Catalog & Modular Controls | 🔧 | Low | `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked core Bill Payments |
+| 5.3 | Service Status Tracking | 🔧 | Low | `AdminServicePage.jsx`, `AdminCctv.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `AdminMaintainance.jsx` |
+| 5.4 | Service Billing Integration | 🔧 | Low | Parking & Maintenance billing integrated into `invoices` |
 
 ### Module 6 — Notification Module
 
@@ -144,7 +143,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 8.3 | Revenue Stream Analysis | ✅ | Medium | Category stream breakdown (Rent, Utilities, Parking, Deposits), 100% database-backed 6-month historical trends (no mock data), and diversification index |
 | 8.4 | Tenant Monitoring | ✅ | Critical | `get_tenants.php` |
 | 8.5 | Maintenance Monitoring | ✅ | High | `get_maintenance_requests.php` |
-| 8.6 | System Activity Logs | ✅ | High | `activity_logs` table |
+| 8.6 | System Activity Logs | ✅ | High | `activity_logs` table, `get_activity_logs.php`, `AdminActivityLogs.jsx` |
 | 8.7 | Utility Usage Tracking | 📋 | Low | Medium-scale feature |
 | 8.8 | Sampling Data / Demo Data | 📋 | High | Needed for demo |
 
@@ -164,8 +163,8 @@ Tenant applies             Admin reviews:               Tenant pays:
 |---|---|---|---|---|
 | 10.1 | Parking Slot Listing | ✅ | High | `get_available_parking_slots.php` |
 | 10.2 | Reservation Request | ✅ | High | `parking_reservation.php` |
-| 10.3 | Parking Fee Integration | 📋 | Medium | Not yet linked to invoices |
-| 10.4 | Slot Assignment Management | ✅ | High | Status: Pending → Assigned/Rejected |
+| 10.3 | Parking Fee Integration | 🔧 | Medium | Linked to `invoices` breakdown |
+| 10.4 | Slot Assignment Management | 🔧 | High | `get_parking_reservations.php`, `update_parking_status.php`, `AdminParking.jsx` |
 
 ### Module 11 — Security & Access Control
 
@@ -175,15 +174,15 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 11.2 | Admin Authentication | ✅ | Critical | `login.php` |
 | 11.3 | Tenant Authentication | ✅ | Critical | `login.php` |
 | 11.4 | Password Management | ✅ | High | `change_password.php` |
-| 11.5 | CCTV Access Requests | ✅ | Medium | `cctv_request.php` |
+| 11.5 | CCTV Access Requests | 🔧 | Medium | `cctv_request.php`, `get_cctv_requests.php`, `update_cctv_status.php`, `AdminCctv.jsx` |
 
 ### Module 12 — Visitor Management
 
 | # | Feature | Status | Priority | Notes |
 |---|---|---|---|---|
-| 12.1 | Visitor Log Entry | ❌ | Low | Medium-scale feature |
-| 12.2 | Tenant Pre-Authorization | ❌ | Low | Medium-scale feature |
-| 12.3 | Visitor History | ❌ | Low | Medium-scale feature |
+| 12.1 | Visitor Log Entry | ✅ | Low | `check_in_visitor.php`, `visitor_logs` table (with ID type, ID number & Gov ID photo upload), `AdminVisitors.jsx`, `UserVisitors.jsx` |
+| 12.2 | Tenant Pre-Authorization / Registration | ✅ | Low | `UserVisitors.jsx` tenant self-registration with `pending_approval` admin review |
+| 12.3 | Visitor History & Audit Trail | ✅ | Low | `get_visitors.php` role-scoped query, status/date/unit filters, overstay threshold alerts |
 
 ---
 
@@ -195,15 +194,15 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
 | 3. Payment & Billing | 10 | 7 | 1 | 2 | 0 |
 | 4. Maintenance Request | 10 | 7 | 3 | 0 | 0 |
-| 5. Service Management | 4 | 0 | 0 | 0 | 4 |
+| 5. Service Management | 4 | 3 | 1 | 0 | 0 |
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 6 | 0 | 0 | 6 | 0 |
 | 8. Dashboard & Reports | 8 | 4 | 1 | 3 | 0 |
 | 9. Contracts | 5 | 0 | 3 | 2 | 0 |
-| 10. Parking | 4 | 3 | 0 | 1 | 0 |
+| 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
-| 12. Visitor Management | 3 | 0 | 0 | 0 | 3 |
-| **TOTAL** | **77** | **41** | **9** | **20** | **7** |
+| 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
+| **TOTAL** | **77** | **48** | **10** | **19** | **0** |
 
 ### Core Functionality Coverage
 
@@ -212,9 +211,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 | Payment Tracking & Billing | Module 3 (10 features) |
 | Communication Management | Module 7 (6 features) + Module 6 (8 features) |
 | Maintenance Request | Module 4 (10 features) |
-| Inquiry and Reservation | Module 1.6, Module 10, Module 11.5 |
+| Inquiry and Reservation | Module 1.6, Module 10, Module 11.5, Module 12 |
 | Report Generation | Module 8 (8 features) |
-| Modular Services | Module 5 (4 features) |
+| Modular Services | Module 5 (4 features) + Module 12 (3 features) |
 
 ---
 
@@ -350,13 +349,10 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 5.1 | **Service Request Submission** | Tenant requests a service: type (Cleaning, Laundry, Others), preferred date/time, special instructions | Medium | New `service_requests` table + endpoint | — |
-| 5.2 | **Service Catalog** | Admin configures available services with pricing and availability schedule | Medium | `system_settings` or new `services` table | — |
-| 5.3 | **Service Status Tracking** | Pipeline: Requested → Scheduled → In Progress → Completed. Admin updates as work proceeds | Medium | Status field in `service_requests` | — |
-| 5.4 | **Service Billing Integration** | Completed services auto-generate an invoice line item or separate charge on next month's bill | Medium | Link `service_requests` to `invoices` | — |
-
-> [!NOTE]
-> Service management is a **medium-scale feature**. For a small apartment (5–20 units), the admin typically handles service requests informally. Include the architecture but mark as optional for the demo.
+| 5.1 | **Service Request Submission** | Tenant requests add-on/special services (CCTV footage, Parking, Maintenance, Visitor check-in) | Small+ | `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 5.2 | **Service Catalog & Modular Controls** | Admin configures service catalog availability via dynamic system settings toggles; Core Bill Payments is locked always-on | Small+ | `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked Bill Payments | — |
+| 5.3 | **Service Status Tracking** | Pipeline: Pending → Approved/Active/Assigned/Completed. Dedicated status views per service | Small+ | `AdminServicePage.jsx`, `AdminCctv.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `AdminMaintainance.jsx` | — |
+| 5.4 | **Service Billing Integration** | Completed/assigned services link to tenant invoices (parking slot monthly fees & maintenance costs) | Medium | Parking & Maintenance billing integrated in `invoices` generation | — |
 
 ---
 
@@ -470,12 +466,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 12.1 | **Visitor Log Entry** | Record visitor: name, purpose, tenant being visited, time in/out | Medium | New `visitors` table + endpoint | — |
-| 12.2 | **Tenant Pre-Authorization** | Tenant notifies admin of expected visitor in advance | Medium | Visitor request form in tenant portal | — |
-| 12.3 | **Visitor History** | Admin views visitor log filtered by date, tenant, or purpose | Medium | GET endpoint with filters | — |
-
-> [!NOTE]
-> Visitor management is a **medium-scale feature**. For a small apartment, a physical logbook may suffice. Include the data model but prioritize other modules for the demo.
+| 12.1 | **Visitor Log Entry** | Record visitor: full name, contact, ID type/number, vehicle plate, host room, purpose, timestamp | Small+ | `check_in_visitor.php`, `visitor_logs` table, `AdminVisitors.jsx`, `UserVisitors.jsx` | — |
+| 12.2 | **Tenant Pre-Authorization / Registration** | Tenant pre-registers expected guest via tenant portal; enters `pending_approval` state for admin review | Small+ | `UserVisitors.jsx`, `check_in_visitor.php`, `update_visitor_status.php` | — |
+| 12.3 | **Visitor History & Overstay Alerts** | Admin views visitor log with unit/status/date filters, search, checkout action, and configurable overstay alerts (1h to 7d) | Small+ | `get_visitors.php`, `update_visitor_status.php`, `AdminVisitors.jsx` | — |
 
 ---
 

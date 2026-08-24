@@ -6,7 +6,7 @@ import {
   faIdBadge, faUserPlus, faCheck, faTimes, faSignOutAlt, 
   faExclamationTriangle, faClock, faSearch, faFilter, faCar, 
   faBuilding, faSync, faSlidersH, faPhone, faUserCheck, faUserClock,
-  faDoorOpen, faInfoCircle
+  faDoorOpen, faInfoCircle, faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
@@ -44,7 +44,8 @@ export default function AdminVisitors() {
     purpose: 'Personal Visit',
     idType: 'National ID',
     idNumber: '',
-    vehiclePlate: ''
+    vehiclePlate: '',
+    idPhoto: null
   });
 
   const [checkoutNotes, setCheckoutNotes] = useState('');
@@ -107,7 +108,25 @@ export default function AdminVisitors() {
     }
     setSubmitting(true);
     try {
-      const res = await api.post('check_in_visitor.php', checkInForm);
+      let payload;
+      let headers = {};
+
+      if (checkInForm.idPhoto) {
+        payload = new FormData();
+        payload.append('visitorName', checkInForm.visitorName);
+        payload.append('contactNumber', checkInForm.contactNumber);
+        payload.append('unit', checkInForm.unit);
+        payload.append('purpose', checkInForm.purpose);
+        payload.append('idType', checkInForm.idType);
+        payload.append('idNumber', checkInForm.idNumber);
+        payload.append('vehiclePlate', checkInForm.vehiclePlate);
+        payload.append('idPhoto', checkInForm.idPhoto);
+        headers = { 'Content-Type': 'multipart/form-data' };
+      } else {
+        payload = checkInForm;
+      }
+
+      const res = await api.post('check_in_visitor.php', payload, { headers });
       if (res.data.success) {
         setShowCheckInModal(false);
         setCheckInForm({
@@ -117,7 +136,8 @@ export default function AdminVisitors() {
           purpose: 'Personal Visit',
           idType: 'National ID',
           idNumber: '',
-          vehiclePlate: ''
+          vehiclePlate: '',
+          idPhoto: null
         });
         fetchVisitors();
       } else {
@@ -426,13 +446,24 @@ export default function AdminVisitors() {
                                 </div>
                                 <div>
                                   <p className="font-bold text-slate-800 m-0 leading-snug">{v.visitorName}</p>
-                                  <p className="text-xs text-slate-500 m-0 mt-0.5 flex items-center gap-1.5">
+                                  <p className="text-xs text-slate-500 m-0 mt-0.5 flex flex-wrap items-center gap-1.5">
                                     <FontAwesomeIcon icon={faPhone} className="text-[10px] text-slate-400" />
                                     <span>{v.contactNumber}</span>
                                     {v.idNumber && (
                                       <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
                                         {v.idType}: {v.idNumber}
                                       </span>
+                                    )}
+                                    {v.idPhotoPath && (
+                                      <a
+                                        href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${v.idPhotoPath}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline inline-flex items-center gap-1 bg-indigo-50 px-1.5 py-0.5 rounded"
+                                      >
+                                        <FontAwesomeIcon icon={faEye} className="text-[9px]" />
+                                        <span>View ID</span>
+                                      </a>
                                     )}
                                   </p>
                                 </div>
@@ -680,15 +711,26 @@ export default function AdminVisitors() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate Number (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. ABC 1234 (Leave blank if pedestrian)"
-                  value={checkInForm.vehiclePlate}
-                  onChange={(e) => setCheckInForm({ ...checkInForm, vehiclePlate: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase font-mono"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. ABC 1234"
+                    value={checkInForm.vehiclePlate}
+                    onChange={(e) => setCheckInForm({ ...checkInForm, vehiclePlate: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setCheckInForm({ ...checkInForm, idPhoto: e.target.files[0] || null })}
+                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
+                  />
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-slate-100">

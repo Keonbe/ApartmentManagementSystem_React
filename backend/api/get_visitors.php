@@ -134,6 +134,7 @@ try {
             'contactNumber' => $row['contact_number'],
             'idType' => $row['id_type'] ?? 'ID',
             'idNumber' => $row['id_number'] ?? '',
+            'idPhotoPath' => $row['id_photo_path'] ?? '',
             'purpose' => $row['purpose'],
             'vehiclePlate' => $row['vehicle_plate'] ?? '',
             'rawStatus' => $row['status'],

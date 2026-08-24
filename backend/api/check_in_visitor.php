@@ -14,11 +14,8 @@ $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 $user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
 $isAdmin = verify_admin($conn, $admin_id);
 
-$input = json_decode(file_get_contents("php://input"), true);
-if (!$input) {
-    echo json_encode(["success" => false, "message" => "Invalid JSON payload."]);
-    exit;
-}
+// Parse input from $_POST or raw JSON input
+$input = !empty($_POST) ? $_POST : (json_decode(file_get_contents("php://input"), true) ?: []);
 
 $visitor_name = trim($input['visitorName'] ?? $input['visitor_name'] ?? '');
 $contact_number = trim($input['contactNumber'] ?? $input['contact_number'] ?? '');
@@ -32,6 +29,21 @@ $target_user_id = !empty($input['userId']) ? (int)$input['userId'] : ($user_id ?
 if (empty($visitor_name) || empty($contact_number) || empty($room_name) || empty($purpose)) {
     echo json_encode(["success" => false, "message" => "Visitor name, contact number, unit, and purpose are required."]);
     exit;
+}
+
+// Handle optional Government ID photo/pass upload
+$id_photo_path = null;
+if (isset($_FILES['idPhoto']) && $_FILES['idPhoto']['error'] === UPLOAD_ERR_OK) {
+    $upload_dir = "../uploads/visitors/";
+    if (!file_exists($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
+    }
+    $ext = pathinfo($_FILES['idPhoto']['name'], PATHINFO_EXTENSION);
+    $filename = "visitor_id_" . time() . "_" . uniqid() . "." . strtolower($ext);
+    $target_file = $upload_dir . $filename;
+    if (move_uploaded_file($_FILES['idPhoto']['tmp_name'], $target_file)) {
+        $id_photo_path = "uploads/visitors/" . $filename;
+    }
 }
 
 // If tenant user_id is missing, look up approved tenant for room_name
@@ -51,9 +63,9 @@ try {
     // If tenant is creating: initial 'pending_approval'
     $initial_status = $isAdmin ? 'checked_in' : 'pending_approval';
 
-    $stmt = $conn->prepare("INSERT INTO visitor_logs (user_id, room_name, visitor_name, contact_number, id_type, id_number, purpose, vehicle_plate, status, created_by, check_in_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+    $stmt = $conn->prepare("INSERT INTO visitor_logs (user_id, room_name, visitor_name, contact_number, id_type, id_number, id_photo_path, purpose, vehicle_plate, status, created_by, check_in_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
     $created_by_id = $isAdmin ? (int)$admin_id : (int)$user_id;
-    $stmt->bind_param("issssssssi", $target_user_id, $room_name, $visitor_name, $contact_number, $id_type, $id_number, $purpose, $vehicle_plate, $initial_status, $created_by_id);
+    $stmt->bind_param("isssssssssi", $target_user_id, $room_name, $visitor_name, $contact_number, $id_type, $id_number, $id_photo_path, $purpose, $vehicle_plate, $initial_status, $created_by_id);
     
     if (!$stmt->execute()) {
         throw new Exception("Failed to insert visitor log: " . $stmt->error);

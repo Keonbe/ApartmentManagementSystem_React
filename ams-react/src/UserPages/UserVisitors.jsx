@@ -68,12 +68,30 @@ export default function UserVisitors() {
     }
     setSubmitting(true);
     try {
-      const payload = {
-        ...registerForm,
-        unit: tenantRoom || 'Unassigned',
-        userId: loggedInUser.id
-      };
-      const res = await api.post('check_in_visitor.php', payload);
+      let payload;
+      let headers = {};
+
+      if (registerForm.idPhoto) {
+        payload = new FormData();
+        payload.append('visitorName', registerForm.visitorName);
+        payload.append('contactNumber', registerForm.contactNumber);
+        payload.append('purpose', registerForm.purpose);
+        payload.append('idType', registerForm.idType);
+        payload.append('idNumber', registerForm.idNumber);
+        payload.append('vehiclePlate', registerForm.vehiclePlate);
+        payload.append('idPhoto', registerForm.idPhoto);
+        payload.append('unit', tenantRoom || 'Unassigned');
+        payload.append('userId', loggedInUser.id);
+        headers = { 'Content-Type': 'multipart/form-data' };
+      } else {
+        payload = {
+          ...registerForm,
+          unit: tenantRoom || 'Unassigned',
+          userId: loggedInUser.id
+        };
+      }
+
+      const res = await api.post('check_in_visitor.php', payload, { headers });
       if (res.data.success) {
         setShowRegisterModal(false);
         setRegisterForm({
@@ -82,7 +100,8 @@ export default function UserVisitors() {
           purpose: 'Personal Visit',
           idType: 'National ID',
           idNumber: '',
-          vehiclePlate: ''
+          vehiclePlate: '',
+          idPhoto: null
         });
         fetchTenantData();
       } else {
@@ -398,6 +417,19 @@ export default function UserVisitors() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID Number (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. D01-19-12345"
+                    value={registerForm.idNumber}
+                    onChange={(e) => setRegisterForm({ ...registerForm, idNumber: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
                   <input
                     type="text"
@@ -405,6 +437,15 @@ export default function UserVisitors() {
                     value={registerForm.vehiclePlate}
                     onChange={(e) => setRegisterForm({ ...registerForm, vehiclePlate: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setRegisterForm({ ...registerForm, idPhoto: e.target.files[0] || null })}
+                    className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
                   />
                 </div>
               </div>
