@@ -1,0 +1,37 @@
+/* =====================================================
+   ADMIN SIDEBAR — admin-sidebar.responsive.css
+   Domain: admin
+   Base: Tailwind utilities in AdminSidebar.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .admin-sidebar-mobile-drawer {
+    box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  .admin-sidebar-mobile-drawer nav {
+    padding-bottom: 3.5rem !important;
+  }
+
+  .admin-sidebar-nav-link {
+    min-height: 48px !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+    font-size: 0.9375rem !important;
+  }
+
+  .admin-sidebar-close-btn {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-sidebar-mobile-drawer {
+    width: 86vw !important;
+    max-width: 300px !important;
+  }
+}

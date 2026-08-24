@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faSignOutAlt, faUserCog } from '@fortawesome/free-solid-svg-icons';
+import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import '../assets/styles/responsive/admin/admin-header.responsive.css';
 
 const defaultAdminNotifications = [
   { id: 1, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit E — Pedro Cruz rent of ₱6,500 is due in 3 days (July 5).', time: '2 hours ago', timestamp: '2024-07-02 10:00', read: false },
@@ -11,7 +12,7 @@ const defaultAdminNotifications = [
   { id: 4, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit F — Rosa Dela Cruz rent of ₱7,500 is due in 5 days (July 7).', time: 'Yesterday', timestamp: '2024-07-01 14:00', read: true },
 ];
 
-const Header = ({ title = "Dashboard" }) => {
+const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
@@ -33,6 +34,14 @@ const Header = ({ title = "Dashboard" }) => {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleToggle = () => {
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    } else {
+      window.dispatchEvent(new CustomEvent('toggle-admin-sidebar'));
     }
   };
 
@@ -65,35 +74,43 @@ const Header = ({ title = "Dashboard" }) => {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 select-none relative z-50">
+    <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 select-none relative z-40">
       
-      {/* 
-        FIX APPLIED HERE: 
-        Replaced 'text-slate-800' with '!text-[#1e293b]' to force the dark color
-        and override any conflicting global CSS. Added 'opacity-100' for safety.
-      */}
-      <h2 className="text-2xl font-bold !text-[#1e293b] opacity-100 m-0 tracking-tight">
-        {title}
-      </h2>
+      {/* Left Area: Hamburger + Title */}
+      <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
+        <button
+          type="button"
+          onClick={handleToggle}
+          aria-label="Open Navigation Menu"
+          className="admin-header-hamburger text-slate-700 hover:text-indigo-600 md:hidden bg-transparent border-0 cursor-pointer p-2 flex items-center justify-center text-lg focus:outline-none shrink-0"
+        >
+          <FontAwesomeIcon icon={faBars} />
+        </button>
 
-      <div className="flex items-center gap-6 relative">
+        <h2 className="admin-header-title text-xl md:text-2xl font-bold !text-[#1e293b] opacity-100 m-0 tracking-tight truncate">
+          {title}
+        </h2>
+      </div>
+
+      <div className="flex items-center gap-3 sm:gap-6 relative shrink-0">
         
         {/* Notifications */}
         <div className="relative">
           <button 
             onClick={() => { setIsNotifOpen(!isNotifOpen); setIsProfileOpen(false); }}
-            className="text-gray-500 hover:text-gray-700 transition-colors relative bg-transparent border-0 cursor-pointer p-1 outline-none"
+            className="admin-header-notif-btn text-gray-500 hover:text-gray-700 transition-colors relative bg-transparent border-0 cursor-pointer p-2 outline-none"
+            aria-label="Notifications"
           >
-            <FontAwesomeIcon icon={faBell} className="text-xl" />
+            <FontAwesomeIcon icon={faBell} className="text-lg sm:text-xl" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+              <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
                 {unreadCount}
               </span>
             )}
           </button>
           
           {isNotifOpen && (
-            <div className="absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-gray-200 overflow-hidden z-50 transform origin-top-right transition-all">
+            <div className="admin-header-notif-dropdown absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-gray-200 overflow-hidden z-50 transform origin-top-right transition-all">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center select-none">
                 <h3 className="text-sm font-semibold text-gray-700 m-0">Notifications</h3>
                 {unreadCount > 0 && (
@@ -133,16 +150,17 @@ const Header = ({ title = "Dashboard" }) => {
         <div className="relative">
           <div 
             onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotifOpen(false); }}
-            className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer text-sm hover:bg-indigo-700 transition-all border-2 border-transparent hover:border-indigo-200"
+            className="admin-header-avatar-btn w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer text-xs sm:text-sm hover:bg-indigo-700 transition-all border-2 border-transparent hover:border-indigo-200 select-none"
+            aria-label="Admin Profile Menu"
           >
             Ad
           </div>
 
           {isProfileOpen && (
-            <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-gray-200 py-2 z-50 transform origin-top-right transition-all">
+            <div className="admin-header-profile-dropdown absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-gray-200 py-2 z-50 transform origin-top-right transition-all">
               <div className="px-4 py-3 border-b border-gray-100 mb-2">
                 <p className="text-sm font-semibold text-gray-800 m-0">Admin Dashboard</p>
-                <p className="text-xs text-gray-500 m-0 mt-0.5">admin@system.com</p>
+                <p className="text-xs text-gray-500 m-0 mt-0.5 truncate">admin@system.com</p>
               </div>
               <button 
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-colors flex items-center gap-3 bg-transparent border-none cursor-pointer"

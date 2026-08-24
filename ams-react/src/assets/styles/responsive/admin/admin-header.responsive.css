@@ -1,0 +1,68 @@
+/* =====================================================
+   ADMIN DASHBOARD HEADER — admin-header.responsive.css
+   Domain: admin
+   Base: Tailwind utilities in AdminDashboardHeader.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .admin-header-root {
+    height: 4.25rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .admin-header-title {
+    font-size: 1.25rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .admin-header-hamburger {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .admin-header-notif-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .admin-header-avatar-btn {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  /* Responsive dropdown boundaries */
+  .admin-header-notif-dropdown {
+    width: calc(100vw - 2rem) !important;
+    max-width: 340px !important;
+    right: -3rem !important;
+  }
+
+  .admin-header-profile-dropdown {
+    width: calc(100vw - 2rem) !important;
+    max-width: 240px !important;
+    right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-header-root {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .admin-header-title {
+    font-size: 1.125rem !important;
+  }
+
+  .admin-header-notif-dropdown {
+    right: -3.5rem !important;
+    max-width: 300px !important;
+  }
+}
