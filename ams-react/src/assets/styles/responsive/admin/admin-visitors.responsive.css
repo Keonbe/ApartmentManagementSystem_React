@@ -1,0 +1,54 @@
+/* =====================================================
+   ADMIN VISITORS — admin-visitors.responsive.css
+   Domain: admin
+   Base: Tailwind utilities in AdminVisitors.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .admin-visitors-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .admin-visitors-filter-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  .admin-visitors-search-input {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+
+  .admin-visitors-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .admin-visitors-action-btn {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .admin-visitors-modal {
+    width: 95vw !important;
+    max-height: 90vh !important;
+    padding: 1.25rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-visitors-metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-visitors-pill-group {
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    padding-bottom: 0.25rem !important;
+  }
+}

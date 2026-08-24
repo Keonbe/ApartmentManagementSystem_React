@@ -1,0 +1,29 @@
+/* =====================================================
+   USER VISITORS — user-visitors.responsive.css
+   Domain: user
+   Base: Tailwind utilities in UserVisitors.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .user-visitors-hero-grid {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  .user-visitors-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .user-visitors-modal {
+    width: 95vw !important;
+    max-height: 90vh !important;
+    padding: 1.25rem !important;
+  }
+
+  .user-visitors-action-btn {
+    min-height: 48px !important;
+    width: 100% !important;
+  }
+}

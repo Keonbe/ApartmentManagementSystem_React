@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faParking, faWrench, faVideo, faListAlt, faBullhorn, faHistory, faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
+import { faFileInvoiceDollar, faParking, faWrench, faVideo, faListAlt, faBullhorn, faHistory, faHourglassHalf, faIdBadge } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 
 export default function Services() {
@@ -47,6 +47,15 @@ export default function Services() {
         },
         {
             id: 5,
+            key: 'service_visitor_management_active',
+            title: 'Visitor Management',
+            description: 'Log visiting guests, expected delivery drop-offs, and contractors visiting your unit.',
+            icon: faIdBadge,
+            buttonText: 'Manage Visitors',
+            path: '/visitor-management',
+        },
+        {
+            id: 6,
             key: null, //AlwaysActiveSystemUtility
             title: 'My Requests',
             description: 'Track the status and timeline of all your submitted service, parking, and CCTV requests.',
@@ -55,7 +64,7 @@ export default function Services() {
             path: '/my-requests',
         },
         {
-            id: 6,
+            id: 7,
             key: null, //AlwaysActiveSystemUtility
             title: 'Announcements',
             description: 'Read important memos, scheduled maintenance notices, and general building updates.',
@@ -64,7 +73,7 @@ export default function Services() {
             path: '/announcements',
         },
         {
-            id: 7,
+            id: 8,
             key: null, //AlwaysActiveSystemUtility
             title: 'Payment History',
             description: 'Review your past monthly billing invoices and download official payment receipts.',

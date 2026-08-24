@@ -25,6 +25,7 @@ import ViewContract from './UserPages/ViewContract';
 import UserMyRequests from './UserPages/UserMyRequests';
 import UserAnnouncements from './UserPages/UserAnnouncements';
 import UserPaymentHistory from './UserPages/UserPaymentHistory';
+import UserVisitors from './UserPages/UserVisitors';
 
 // Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -41,6 +42,9 @@ import AdminServicePage from './AdminPages/AdminServicePage';
 import AdminAccountSettings from './AdminPages/AdminAccountSettings';
 import AdminActivityLogs from './AdminPages/AdminActivityLogs';
 import AdminUsers from './AdminPages/AdminUsers';
+import AdminVisitors from './AdminPages/AdminVisitors';
+import AdminCctv from './AdminPages/AdminCctv';
+import AdminParking from './AdminPages/AdminParking';
 
 function ProtectedRoute({ children }) {
   const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
@@ -199,6 +203,7 @@ function AppContent() {
         <Route path="/my-requests" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/visitor-management" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserVisitors /></BaseAppLayout></TenantProtectedRoute>} />
         
         {/* AUTH PATHS */}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
@@ -209,8 +214,11 @@ function AppContent() {
         <Route path="/admin-applications" element={<AdminProtectedRoute><AdminApplications /></AdminProtectedRoute>} />
         <Route path="/admin-units" element={<AdminProtectedRoute><AdminUnits /></AdminProtectedRoute>} />
         <Route path="/admin-tenants" element={<AdminProtectedRoute><AdminTenants /></AdminProtectedRoute>} />
+        <Route path="/admin-visitors" element={<AdminProtectedRoute><AdminVisitors /></AdminProtectedRoute>} />
+        <Route path="/admin-parking" element={<AdminProtectedRoute><AdminParking /></AdminProtectedRoute>} />
         <Route path="/admin-payments" element={<AdminProtectedRoute><AdminPayments /></AdminProtectedRoute>} />
         <Route path="/admin-maintenance" element={<AdminProtectedRoute><AdminMaintenance /></AdminProtectedRoute>} />
+        <Route path="/admin-cctv" element={<AdminProtectedRoute><AdminCctv /></AdminProtectedRoute>} />
         <Route path="/admin-announcements" element={<AdminProtectedRoute><AdminAnnouncements /></AdminProtectedRoute>} />
         <Route path="/admin-reports" element={<AdminProtectedRoute><AdminReports /></AdminProtectedRoute>} />
         <Route path="/admin-notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />

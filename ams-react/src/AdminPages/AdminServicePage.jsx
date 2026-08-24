@@ -15,7 +15,9 @@ import {
   faSquareParking,
   faTools,
   faSync,
-  faFileInvoiceDollar
+  faFileInvoiceDollar,
+  faIdBadge,
+  faLock
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 
@@ -30,6 +32,7 @@ const initialServices = [
     icon: faFileInvoiceDollar,
     iconColor: 'text-indigo-600',
     isActive: true,
+    isLocked: true, // Core system service: always active
   },
   {
     id: 'parking',
@@ -64,6 +67,17 @@ const initialServices = [
     iconColor: 'text-[#3b4276]',
     isActive: true,
   },
+  {
+    id: 'visitor-management',
+    key: 'service_visitor_management_active',
+    title: 'Visitor Management',
+    description: 'Enable tenant self-registration of expected guests, delivery drop-offs, and visiting contractors.',
+    price: 'Free',
+    unit: '/ guest',
+    icon: faIdBadge,
+    iconColor: 'text-indigo-500',
+    isActive: true,
+  },
 ];
 
 const AdminServicePage = () => {
@@ -88,6 +102,7 @@ const AdminServicePage = () => {
         const sysSettings = settingsRes.data.settings;
         setServices(prev =>
           prev.map(s => {
+            if (s.isLocked) return { ...s, isActive: true };
             if (sysSettings[s.key] !== undefined) {
               return { ...s, isActive: sysSettings[s.key] === 'true' || sysSettings[s.key] === true };
             }
@@ -147,7 +162,7 @@ const AdminServicePage = () => {
   //3.ToggleServiceStateAndSaveToBackend
   const toggleService = async (serviceId) => {
     const targetService = services.find(s => s.id === serviceId);
-    if (!targetService) return;
+    if (!targetService || targetService.isLocked) return;
 
     const newActiveState = !targetService.isActive;
 
@@ -159,7 +174,10 @@ const AdminServicePage = () => {
         [targetService.key]: newActiveState ? 'true' : 'false'
       };
       const res = await api.post('update_system_settings.php', payload);
-      if (!res.data.success) {
+      if (res.data.success) {
+        // Dispatch event for instant sidebar synchronization
+        window.dispatchEvent(new CustomEvent('system-settings-updated', { detail: payload }));
+      } else {
         //RevertStateOnFailure
         setServices(prev => prev.map(s => s.id === serviceId ? { ...s, isActive: !newActiveState } : s));
         alert('Failed to update service setting in system configuration.');
@@ -461,20 +479,38 @@ const ServiceCard = ({ service, onToggle }) => {
           </div>
           <div>
             <h4 className="text-sm font-semibold text-slate-800 m-0">{service.title}</h4>
-            <div className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${service.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-              {service.isActive ? 'Active' : 'Disabled'}
+            <div className={`mt-1 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+              service.isLocked 
+                ? 'bg-indigo-100 text-indigo-700' 
+                : service.isActive 
+                  ? 'bg-emerald-100 text-emerald-700' 
+                  : 'bg-slate-200 text-slate-600'
+            }`}>
+              {service.isLocked && <FontAwesomeIcon icon={faLock} className="text-[9px]" />}
+              {service.isLocked ? 'Always On' : service.isActive ? 'Active' : 'Disabled'}
             </div>
           </div>
         </div>
 
-        {/*FunctionalToggleSwitchButton*/}
-        <button
-          type="button"
-          onClick={onToggle}
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
-        >
-          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${service.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
-        </button>
+        {/* Functional/Locked Toggle Switch Button */}
+        {service.isLocked ? (
+          <button
+            type="button"
+            disabled
+            title="Core module is always enabled"
+            className="relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center rounded-full border-2 border-transparent bg-indigo-600 opacity-80"
+          >
+            <span className="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 translate-x-5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggle}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
+          >
+            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${service.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        )}
       </div>
       <p className="mb-4 flex-1 text-xs text-slate-500 leading-relaxed m-0">{service.description}</p>
       <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">

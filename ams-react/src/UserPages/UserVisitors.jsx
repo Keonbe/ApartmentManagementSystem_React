@@ -1,0 +1,435 @@
+import React, { useState, useEffect } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+  faIdBadge, faUserPlus, faClock, faCheckCircle, 
+  faTimesCircle, faCar, faBuilding, faPhone, faTimes,
+  faDoorOpen, faSync, faInfoCircle, faArrowLeft
+} from '@fortawesome/free-solid-svg-icons';
+import { useNavigate } from 'react-router-dom';
+import api from '../api/axiosConfig';
+import '../assets/styles/responsive/user/user-visitors.responsive.css';
+
+export default function UserVisitors() {
+  const navigate = useNavigate();
+  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+
+  const [visitors, setVisitors] = useState([]);
+  const [tenantRoom, setTenantRoom] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registerForm, setRegisterForm] = useState({
+    visitorName: '',
+    contactNumber: '',
+    purpose: 'Personal Visit',
+    idType: 'National ID',
+    idNumber: '',
+    vehiclePlate: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchTenantData();
+  }, []);
+
+  const fetchTenantData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Get tenant's approved room
+      if (loggedInUser.email_address) {
+        const roomRes = await api.get(`/my_room.php?email=${encodeURIComponent(loggedInUser.email_address)}`);
+        if (roomRes.data.success && roomRes.data.data) {
+          setTenantRoom(roomRes.data.data.room_name || roomRes.data.data.id || '');
+        }
+      }
+
+      // 2. Get tenant's scoped visitor records
+      const res = await api.get(`get_visitors.php?userId=${loggedInUser.id}`);
+      if (res.data.success) {
+        setVisitors(res.data.visitors || []);
+      } else {
+        setError(res.data.message || 'Failed to fetch visitor records.');
+      }
+    } catch (err) {
+      console.error('Failed to load visitor records:', err);
+      setError('Unable to load visitor logs. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    if (!registerForm.visitorName || !registerForm.contactNumber) {
+      alert('Please fill in all required fields.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload = {
+        ...registerForm,
+        unit: tenantRoom || 'Unassigned',
+        userId: loggedInUser.id
+      };
+      const res = await api.post('check_in_visitor.php', payload);
+      if (res.data.success) {
+        setShowRegisterModal(false);
+        setRegisterForm({
+          visitorName: '',
+          contactNumber: '',
+          purpose: 'Personal Visit',
+          idType: 'National ID',
+          idNumber: '',
+          vehiclePlate: ''
+        });
+        fetchTenantData();
+      } else {
+        alert(res.data.message || 'Failed to register visitor.');
+      }
+    } catch (err) {
+      console.error('Registration failed:', err);
+      alert('Server error registering visitor.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCheckoutSelf = async (id) => {
+    if (!window.confirm('Mark this visitor as departed from your unit?')) return;
+    try {
+      const res = await api.post('update_visitor_status.php', {
+        id,
+        action: 'checked_out',
+        checkoutNotes: 'Tenant reported departure.'
+      });
+      if (res.data.success) {
+        fetchTenantData();
+      } else {
+        alert(res.data.message || 'Failed to update status.');
+      }
+    } catch (err) {
+      console.error('Failed to mark visitor departure:', err);
+    }
+  };
+
+  const activeVisitors = visitors.filter(v => v.status === 'checked_in' || v.status === 'overstayed');
+  const pendingVisitors = visitors.filter(v => v.status === 'pending_approval');
+  const pastVisitors = visitors.filter(v => v.status === 'checked_out' || v.status === 'denied');
+
+  return (
+    <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
+      <div className="w-full max-w-[1050px] space-y-6 text-left">
+
+        {/* Back Link & Header */}
+        <div>
+          <button
+            type="button"
+            onClick={() => navigate('/services')}
+            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-transparent border-0 cursor-pointer p-0 mb-3"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} />
+            <span>Back to Services</span>
+          </button>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold m-0 tracking-tight flex items-center gap-3" style={{ color: '#3b4276' }}>
+                <FontAwesomeIcon icon={faIdBadge} className="text-indigo-600" />
+                Visitor Management
+              </h1>
+              <p className="text-slate-500 text-xs sm:text-sm mt-1 m-0">
+                Log and track guest visits, deliveries, and contractors visiting {tenantRoom ? `Unit ${tenantRoom}` : 'your apartment'}.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={fetchTenantData}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                title="Refresh"
+              >
+                <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowRegisterModal(true)}
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white transition-all shadow-md active:scale-[0.98] border-0 cursor-pointer"
+              >
+                <FontAwesomeIcon icon={faUserPlus} />
+                <span>Log New Visitor</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Currently On-Premise / Active Visitors Section */}
+        {activeVisitors.length > 0 && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-emerald-900 m-0 flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                Active Visitors Currently Visiting ({activeVisitors.length})
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {activeVisitors.map(v => (
+                <div key={v.id} className="rounded-xl border border-emerald-200 bg-white p-4 flex items-center justify-between shadow-xs">
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
+                    <p className="text-xs text-slate-500 m-0">Purpose: <span className="font-semibold text-slate-700">{v.purpose}</span></p>
+                    <p className="text-[11px] text-slate-400 m-0">
+                      Arrived: {new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Duration: <span className="font-bold text-emerald-600">{v.duration}</span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckoutSelf(v.id)}
+                    className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
+                  >
+                    Mark Departed
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pending Review Visitors Section */}
+        {pendingVisitors.length > 0 && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm space-y-3">
+            <h3 className="text-sm font-bold text-amber-900 m-0 flex items-center gap-2">
+              <FontAwesomeIcon icon={faClock} className="text-amber-500" />
+              Pending Admin Verification ({pendingVisitors.length})
+            </h3>
+            <p className="text-xs text-amber-700 m-0">
+              You registered the following visitors. Management will verify their details upon arrival.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {pendingVisitors.map(v => (
+                <div key={v.id} className="rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
+                    <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5">Pending Review</span>
+                  </div>
+                  <p className="text-xs text-slate-500 m-0 mt-1">Contact: {v.contactNumber} • Purpose: {v.purpose}</p>
+                  {v.vehiclePlate && (
+                    <p className="text-[11px] text-indigo-600 font-mono font-bold m-0 mt-0.5">Vehicle: {v.vehiclePlate}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Full Visitor Logs History */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-slate-100 bg-slate-50 px-5 py-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 m-0">Visitor Log History</h3>
+              <p className="text-xs text-slate-500 m-0 mt-0.5">Complete record of guests, couriers, and contractors logged for Unit {tenantRoom || 'your unit'}.</p>
+            </div>
+          </div>
+
+          <div className="user-visitors-table-container overflow-x-auto">
+            <table className="w-full min-w-[700px] text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-5 py-3">Visitor Name</th>
+                  <th className="px-4 py-3">Purpose</th>
+                  <th className="px-4 py-3">Vehicle Plate</th>
+                  <th className="px-4 py-3">Check-In Time</th>
+                  <th className="px-4 py-3">Duration</th>
+                  <th className="px-5 py-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-10 text-center text-slate-400">Loading your visitor records...</td>
+                  </tr>
+                ) : visitors.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-12 text-center text-slate-400 italic">
+                      <FontAwesomeIcon icon={faIdBadge} className="text-3xl text-slate-200 mb-2 block mx-auto" />
+                      No visitor records logged yet for your unit.
+                    </td>
+                  </tr>
+                ) : (
+                  visitors.map(v => (
+                    <tr key={v.id} className="hover:bg-slate-50 transition-colors">
+                      
+                      <td className="px-5 py-3.5">
+                        <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
+                        <p className="text-xs text-slate-400 m-0">{v.contactNumber}</p>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-xs text-slate-600 font-medium">{v.purpose}</td>
+
+                      <td className="px-4 py-3.5 text-xs">
+                        {v.vehiclePlate ? (
+                          <span className="font-mono font-bold text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded text-[11px]">{v.vehiclePlate}</span>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-xs text-slate-600">
+                        {new Date(v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        <br />
+                        <span className="text-[10px] text-slate-400">{new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-xs font-mono font-bold text-slate-700">
+                        {v.status === 'pending_approval' ? '—' : v.duration}
+                      </td>
+
+                      <td className="px-5 py-3.5 text-center">
+                        {v.status === 'pending_approval' && (
+                          <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1">Pending Review</span>
+                        )}
+                        {v.status === 'checked_in' && (
+                          <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1">Active</span>
+                        )}
+                        {v.status === 'overstayed' && (
+                          <span className="rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold px-2.5 py-1">Overstayed</span>
+                        )}
+                        {v.status === 'checked_out' && (
+                          <span className="rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-1">Departed</span>
+                        )}
+                        {v.status === 'denied' && (
+                          <span className="rounded-full bg-red-100 text-red-700 text-[10px] font-bold px-2.5 py-1">Declined</span>
+                        )}
+                      </td>
+
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Log Visitor Modal */}
+      {showRegisterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowRegisterModal(false)}>
+          <div className="user-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <FontAwesomeIcon icon={faUserPlus} className="text-indigo-600" />
+                <h3 className="text-lg font-bold text-slate-800 m-0">Log / Register Visitor</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRegisterModal(false)}
+                className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
+              >
+                <FontAwesomeIcon icon={faTimes} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">
+              Enter your guest's information for <strong>Unit {tenantRoom || 'your apartment'}</strong>. Management will verify their entry.
+            </p>
+
+            <form onSubmit={handleRegisterSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Visitor Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Juan Dela Cruz"
+                  value={registerForm.visitorName}
+                  onChange={(e) => setRegisterForm({ ...registerForm, visitorName: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Contact Number *</label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="e.g. 0917 123 4567"
+                  value={registerForm.contactNumber}
+                  onChange={(e) => setRegisterForm({ ...registerForm, contactNumber: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Purpose of Visit *</label>
+                <select
+                  value={registerForm.purpose}
+                  onChange={(e) => setRegisterForm({ ...registerForm, purpose: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                >
+                  <option value="Personal Visit">Personal Visit / Friends / Family</option>
+                  <option value="Delivery / Courier">Food / Package Delivery</option>
+                  <option value="Maintenance / Contractor">Maintenance / Contractor / Repair</option>
+                  <option value="Official / Business">Official / Business</option>
+                  <option value="Short Stay Guest">Short Stay Guest</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID Type</label>
+                  <select
+                    value={registerForm.idType}
+                    onChange={(e) => setRegisterForm({ ...registerForm, idType: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
+                  >
+                    <option value="National ID">National ID</option>
+                    <option value="Driver's License">Driver's License</option>
+                    <option value="Passport">Passport</option>
+                    <option value="UMID / SSS">UMID / SSS</option>
+                    <option value="Student / Work ID">Student / Work ID</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. N02-1234"
+                    value={registerForm.vehiclePlate}
+                    onChange={(e) => setRegisterForm({ ...registerForm, vehiclePlate: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowRegisterModal(false)}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {submitting ? 'Submitting...' : 'Register Visitor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

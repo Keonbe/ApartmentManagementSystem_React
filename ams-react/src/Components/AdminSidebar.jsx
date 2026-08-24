@@ -4,11 +4,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
-  faHistory, faUsersCog, faTimes
+  faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo
 } from '@fortawesome/free-solid-svg-icons';
+import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
 
-const navSections = [
+const defaultNavSections = [
   {
     title: 'Main',
     items: [
@@ -17,13 +18,16 @@ const navSections = [
       { to: '/admin-units', icon: faBuilding, label: 'Units' },
       { to: '/admin-tenants', icon: faUsers, label: 'Tenants' },
       { to: '/admin-users', icon: faUsersCog, label: 'Users' },
-      { to: '/admin-payments', icon: faCreditCard, label: 'Payments' },
+      { to: '/admin-payments', icon: faCreditCard, label: 'Payments' }, // Core service: always visible
     ],
   },
   {
     title: 'Operations',
     items: [
-      { to: '/admin-maintenance', icon: faWrench, label: 'Maintenance' },
+      { to: '/admin-visitors', icon: faIdBadge, label: 'Visitors', serviceKey: 'service_visitor_management_active' },
+      { to: '/admin-parking', icon: faCar, label: 'Parking', serviceKey: 'service_parking_active' },
+      { to: '/admin-maintenance', icon: faWrench, label: 'Maintenance', serviceKey: 'service_maintenance_active' },
+      { to: '/admin-cctv', icon: faVideo, label: 'CCTV', serviceKey: 'service_cctv_active' },
       { to: '/admin-services', icon: faConciergeBell, label: 'Services' },
       { to: '/admin-announcements', icon: faBullhorn, label: 'Announcements' },
       { to: '/admin-notifications', icon: faBell, label: 'Notifications' },
@@ -41,6 +45,7 @@ const navSections = [
 
 const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const [settings, setSettings] = useState({});
   const location = useLocation();
 
   const isDrawerOpen = propIsOpen !== undefined ? propIsOpen : internalIsOpen;
@@ -48,6 +53,34 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     if (propOnClose) propOnClose();
     setInternalIsOpen(false);
   };
+
+  const fetchSettings = async () => {
+    try {
+      const res = await api.get('get_system_settings.php');
+      if (res.data.success && res.data.settings) {
+        setSettings(res.data.settings);
+      }
+    } catch (e) {
+      console.error('Failed to load system settings in sidebar:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+
+    const handleSettingsUpdate = (e) => {
+      if (e && e.detail) {
+        setSettings(prev => ({ ...prev, ...e.detail }));
+      } else {
+        fetchSettings();
+      }
+    };
+
+    window.addEventListener('system-settings-updated', handleSettingsUpdate);
+    return () => {
+      window.removeEventListener('system-settings-updated', handleSettingsUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     // Auto close mobile drawer on navigation
@@ -69,6 +102,12 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       window.removeEventListener('close-admin-sidebar', handleCloseEvent);
     };
   }, []);
+
+  const isItemVisible = (item) => {
+    if (!item.serviceKey) return true; // Always visible for core items
+    const val = settings[item.serviceKey];
+    return val === undefined || val === 'true' || val === true;
+  };
 
   const renderNavContent = (isMobile = false) => (
     <>
@@ -92,33 +131,38 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-8">
-        {navSections.map((section) => (
-          <div key={section.title}>
-            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2 m-0">{section.title}</h2>
-            <ul className="space-y-1 p-0 m-0 list-none">
-              {section.items.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    onClick={isMobile ? handleClose : undefined}
-                    className={({ isActive }) =>
-                      `admin-sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
-                        isActive
-                          ? 'bg-indigo-600 text-white font-semibold shadow-sm'
-                          : 'text-slate-300 hover:bg-slate-800'
-                      }`
-                    }
-                  >
-                    <div className="w-5 text-center flex items-center justify-center">
-                      <FontAwesomeIcon icon={item.icon} className="text-sm" />
-                    </div>
-                    <span>{item.label}</span>
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {defaultNavSections.map((section) => {
+          const visibleItems = section.items.filter(isItemVisible);
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={section.title}>
+              <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2 m-0">{section.title}</h2>
+              <ul className="space-y-1 p-0 m-0 list-none">
+                {visibleItems.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      onClick={isMobile ? handleClose : undefined}
+                      className={({ isActive }) =>
+                        `admin-sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
+                          isActive
+                            ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800'
+                        }`
+                      }
+                    >
+                      <div className="w-5 text-center flex items-center justify-center">
+                        <FontAwesomeIcon icon={item.icon} className="text-sm" />
+                      </div>
+                      <span>{item.label}</span>
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </nav>
     </>
   );
