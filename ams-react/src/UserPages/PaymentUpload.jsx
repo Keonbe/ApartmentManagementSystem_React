@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
+import '../assets/styles/responsive/user/payment-upload.responsive.css';
 
 export default function PaymentUpload() {
     const location = useLocation();
@@ -109,13 +110,13 @@ export default function PaymentUpload() {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start py-10 px-4 md:px-12 box-border text-left">
+        <div className="payment-upload-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start py-10 px-4 md:px-12 box-border text-left">
             <div className="absolute inset-0 z-0 hidden md:block">
                 <img src={ApartmentPic} alt="Background" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-900/90 to-slate-950/95"></div>
             </div>
 
-            <div className="w-full max-w-2xl z-10 space-y-8 relative bg-white md:bg-slate-900/60 md:backdrop-blur-md rounded-3xl md:border md:border-white/10 md:shadow-2xl p-6 md:p-10 text-slate-800 md:text-white">
+            <div className="payment-upload-card w-full max-w-2xl z-10 space-y-8 relative bg-white md:bg-slate-900/60 md:backdrop-blur-md rounded-3xl md:border md:border-white/10 md:shadow-2xl p-6 md:p-10 text-slate-800 md:text-white">
                 <button onClick={() => navigate(returnUrl || '/home')} className="flex items-center space-x-2 text-indigo-600 md:text-indigo-400 hover:underline bg-transparent border-0 p-0 font-semibold cursor-pointer">
                     <FontAwesomeIcon icon={faArrowLeft} /> <span>Back</span>
                 </button>
@@ -133,7 +134,7 @@ export default function PaymentUpload() {
                     </div>
                 )}
 
-                <div className="bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-2xl p-6 space-y-4 shadow-inner">
+                <div className="payment-info-box bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-2xl p-6 space-y-4 shadow-inner">
                     <div className="flex justify-between items-center">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400">Total Amount Due</span>
                         <span className="text-2xl font-black text-indigo-600 md:text-indigo-400">₱{amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -185,7 +186,7 @@ export default function PaymentUpload() {
                         <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Upload Receipt Image</label>
                         
                         {!previewUrl ? (
-                            <div className="relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
+                            <div className="payment-dropzone relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
                                 <input 
                                     type="file" 
                                     accept="image/jpeg,image/png,image/jpg" 
@@ -237,7 +238,7 @@ export default function PaymentUpload() {
                         <button 
                             type="submit" 
                             disabled={uploading}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-extrabold py-4 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="payment-submit-btn w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-extrabold py-4 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {uploading ? (
                                 <><FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" /> <span>Submitting...</span></>

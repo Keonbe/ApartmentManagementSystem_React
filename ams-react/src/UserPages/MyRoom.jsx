@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
+import '../assets/styles/responsive/user/my-room.responsive.css';
 
 export default function MyRoom() {
     const navigate = useNavigate();
@@ -277,7 +278,7 @@ export default function MyRoom() {
     }
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12">
+        <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12">
 
             <div className="absolute inset-0 z-0">
                 <img
@@ -304,7 +305,7 @@ export default function MyRoom() {
                     </div>
                 )}
 
-                <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="my-room-banner bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="space-y-1">
                         <div className="flex flex-wrap gap-2 items-center">
                             <span className={`text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none ${roomDetails.status === 'Approved' ? 'bg-[#10b981] text-white' : 'bg-[#6366f1] text-white'}`}>
@@ -330,9 +331,9 @@ export default function MyRoom() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="my-room-cards-grid grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                    <div className="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
+                    <div className="my-room-card bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
@@ -353,7 +354,7 @@ export default function MyRoom() {
                         </button>
                     </div>
 
-                    <div className="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
+                    <div className="my-room-card bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
                         <form onSubmit={handleUpdateOccupants} className="space-y-4 m-0 flex-grow flex flex-col justify-between">
                             <div className="space-y-4">
                                 <div className="flex items-center space-x-3">
@@ -392,7 +393,7 @@ export default function MyRoom() {
                         </form>
                     </div>
 
-                    <div className="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
+                    <div className="my-room-card bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
@@ -436,10 +437,10 @@ export default function MyRoom() {
 
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
+                <div className="my-room-operations-grid grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
 
                     <div className="md:col-span-8 bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 md:p-8">
-                        <form onSubmit={handleExtendRent} className="grid grid-cols-1 sm:grid-cols-3 gap-6 items-end m-0 text-left">
+                        <form onSubmit={handleExtendRent} className="my-room-extend-form grid grid-cols-1 sm:grid-cols-3 gap-6 items-end m-0 text-left">
                             <div className="sm:col-span-2 space-y-3">
                                 <div className="flex items-center space-x-3">
                                     <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
@@ -545,7 +546,7 @@ export default function MyRoom() {
             {/* ─── MOVE OUT SCHEDULING MODAL ─── */}
             {showMoveOutModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowMoveOutModal(false)}>
-                    <div className="bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <div className="my-room-modal-content bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20">
@@ -588,7 +589,7 @@ export default function MyRoom() {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-950/40 border-t border-white/10">
+                        <div className="my-room-modal-actions flex items-center justify-end gap-3 px-6 py-4 bg-slate-950/40 border-t border-white/10">
                             <button 
                                 onClick={() => setShowMoveOutModal(false)} 
                                 className="px-4 py-2 text-xs text-slate-400 font-bold hover:text-white rounded-xl border-0 bg-transparent cursor-pointer transition-all"

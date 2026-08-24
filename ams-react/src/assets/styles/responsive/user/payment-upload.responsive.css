@@ -1,0 +1,57 @@
+/* =====================================================
+   PAYMENT UPLOAD PAGE — payment-upload.responsive.css
+   Domain: user
+   Base: Tailwind utilities in PaymentUpload.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .payment-upload-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .payment-upload-card {
+    padding: 1.5rem 1.25rem !important;
+    border-radius: 1.5rem !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+  }
+
+  .payment-upload-card h1 {
+    font-size: 1.75rem !important;
+  }
+
+  .payment-info-box {
+    padding: 1.25rem !important;
+  }
+
+  /* Form inputs touch targets & iOS zoom prevention */
+  .payment-upload-card input[type="text"] {
+    font-size: 16px !important;
+    min-height: 48px !important;
+  }
+
+  .payment-dropzone {
+    min-height: 120px !important;
+    padding: 1.25rem !important;
+  }
+
+  /* Submit button full width */
+  .payment-submit-btn {
+    min-height: 48px !important;
+    font-size: 0.9375rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .payment-upload-root {
+    padding: 1rem 0.5rem !important;
+  }
+
+  .payment-upload-card {
+    padding: 1.25rem 1rem !important;
+  }
+
+  .payment-upload-card h1 {
+    font-size: 1.5rem !important;
+  }
+}

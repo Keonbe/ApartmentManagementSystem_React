@@ -4,6 +4,7 @@ import { faFileAlt, faKey, faSave, faCamera, faUpload, faTrash, faUndo, faUser }
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
+import '../assets/styles/responsive/user/profile-settings.responsive.css';
 
 export default function ProfileSettings() {
     const [loggedInUser, setLoggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
@@ -249,9 +250,9 @@ export default function ProfileSettings() {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
+        <div className="profile-settings-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
-                <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="profile-settings-header border-b border-slate-200 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
                             Profile Settings
@@ -330,7 +331,7 @@ export default function ProfileSettings() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8">
+                <div className="profile-settings-card bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8">
                     {/* Profile Photo Uploader with Camera Capture */}
                     <div className="space-y-3">
                         <h3 className="text-sm font-bold text-slate-700 m-0">Profile Avatar Photo</h3>
@@ -366,7 +367,7 @@ export default function ProfileSettings() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="profile-avatar-options grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {/* Local file selector */}
                                 <div className="border border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 relative cursor-pointer group transition-colors min-h-[110px]">
                                     <input
@@ -415,7 +416,7 @@ export default function ProfileSettings() {
                     <form className="space-y-8" onSubmit={handleFormSubmit}>
                         <div className="space-y-4">
                             <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Personal Details</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
                                     <label className="text-sm font-bold text-slate-700">First Name</label>
                                     <input
@@ -447,7 +448,7 @@ export default function ProfileSettings() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
                                     <label className="text-sm font-bold text-slate-700">Contact No.</label>
                                     <div className="w-full flex relative">
@@ -495,7 +496,7 @@ export default function ProfileSettings() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div className="profile-actions-grid grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                             <button type="button" onClick={() => setShowDocsModal(true)} className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
                                 <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                                     <FontAwesomeIcon icon={faFileAlt} className="text-base" />
@@ -519,7 +520,7 @@ export default function ProfileSettings() {
                         <div className="border-t border-slate-100 pt-6 flex justify-end">
                             <button
                                 type="submit"
-                                className="w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2"
+                                className="profile-save-btn w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2"
                             >
                                 <FontAwesomeIcon icon={faSave} />
                                 <span>Save Profile</span>

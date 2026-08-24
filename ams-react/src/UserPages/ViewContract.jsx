@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPrint, faArrowLeft, faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import '../assets/styles/responsive/user/view-contract.responsive.css';
 
 export default function ViewContract() {
     const navigate = useNavigate();
@@ -108,10 +109,10 @@ export default function ViewContract() {
     }
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] bg-slate-100 py-10 px-4 md:px-12 box-border flex flex-col items-center print:bg-white print:py-0 print:px-0">
+        <div className="view-contract-root w-full min-h-[calc(100vh-76px)] bg-slate-100 py-10 px-4 md:px-12 box-border flex flex-col items-center print:bg-white print:py-0 print:px-0">
             
             {/* Control Actions Toolbar Bar Panel Layout (Hidden on Print) */}
-            <div className="w-full max-w-3xl flex flex-wrap justify-between items-center gap-4 mb-6 print:hidden select-none">
+            <div className="view-contract-controls w-full max-w-3xl flex flex-wrap justify-between items-center gap-4 mb-6 print:hidden select-none">
                 <button
                     onClick={() => navigate(-1)}
                     className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-200 shadow-sm cursor-pointer transition-all"
@@ -120,9 +121,9 @@ export default function ViewContract() {
                     <span>Go Back</span>
                 </button>
 
-                <div className="flex items-center space-x-3">
+                <div className="flex flex-wrap items-center gap-3">
                     {/* Language Selector */}
-                    <div className="flex bg-slate-200/80 p-1 rounded-xl border border-slate-300">
+                    <div className="lang-selector flex bg-slate-200/80 p-1 rounded-xl border border-slate-300">
                         <button
                             onClick={() => setLanguage('tl')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${language === 'tl' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}

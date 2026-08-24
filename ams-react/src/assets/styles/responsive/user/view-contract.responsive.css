@@ -1,0 +1,70 @@
+/* =====================================================
+   VIEW CONTRACT PAGE — view-contract.responsive.css
+   Domain: user
+   Base: Tailwind utilities in ViewContract.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .view-contract-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .view-contract-controls {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  .view-contract-controls button,
+  .view-contract-controls .lang-selector {
+    width: 100% !important;
+    justify-content: center !important;
+    min-height: 44px !important;
+  }
+
+  .view-contract-controls .lang-selector {
+    display: flex !important;
+  }
+
+  .view-contract-controls .lang-selector button {
+    flex: 1 !important;
+  }
+
+  /* Non-print contract sheet: fluid height on mobile viewports */
+  .contract-page {
+    padding: 1.5rem 1.25rem !important;
+    border-radius: 1rem !important;
+    min-height: auto !important;
+    font-size: 0.8125rem !important;
+    line-height: 1.55 !important;
+  }
+
+  .contract-page h2 {
+    font-size: 1rem !important;
+  }
+
+  .contract-page h3 {
+    font-size: 0.875rem !important;
+  }
+
+  /* Signature blocks: stack vertically on phone screens */
+  .contract-signature-grid {
+    grid-template-columns: 1fr !important;
+    gap: 2rem !important;
+  }
+
+  .contract-signature-box {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .view-contract-root {
+    padding: 1rem 0.5rem !important;
+  }
+
+  .contract-page {
+    padding: 1.25rem 0.875rem !important;
+    font-size: 0.75rem !important;
+  }
+}

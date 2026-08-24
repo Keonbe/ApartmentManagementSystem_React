@@ -8,6 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
+import '../assets/styles/responsive/user/track-application.responsive.css';
 
 export default function TrackApplication() {
     const navigate = useNavigate();
@@ -18,6 +19,24 @@ export default function TrackApplication() {
     const [paying, setPaying] = useState(false);
     const [contractFile, setContractFile] = useState(null);
     const [uploadingContract, setUploadingContract] = useState(false);
+
+    const validateAndSetContractFile = (file) => {
+        if (!file) return;
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+            alert("The selected file is too large. The maximum limit is 5MB.");
+            return;
+        }
+        const isPdfType = file.type === 'application/pdf';
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        const isPdfExt = fileExtension === 'pdf';
+        
+        if (!isPdfType && !isPdfExt) {
+            alert("Invalid file format. Only PDF files are allowed.");
+            return;
+        }
+        setContractFile(file);
+    };
 
     const handleContractUpload = async (e) => {
         e.preventDefault();
@@ -172,7 +191,7 @@ export default function TrackApplication() {
     }
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12 text-left">
+        <div className="track-app-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12 text-left">
             {/* Background Image & Overlay */}
             <div className="absolute inset-0 z-0">
                 <img
@@ -195,7 +214,7 @@ export default function TrackApplication() {
                 </button>
 
                 {/* Page Title */}
-                <div className="border-b border-white/10 pb-4">
+                <div className="track-app-header border-b border-white/10 pb-4">
                     <h1 className="text-4xl font-sans font-extrabold m-0 text-white tracking-tight select-none">
                         Track Application
                     </h1>
@@ -215,7 +234,7 @@ export default function TrackApplication() {
                 {application ? (
                     <div className="space-y-8">
                         {/* Status Summary Banner */}
-                        <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="track-app-status-banner bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="space-y-2">
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColorClass} select-none`}>
                                     <span className="w-2 h-2 rounded-full bg-current mr-2 animate-pulse"></span>
@@ -235,7 +254,7 @@ export default function TrackApplication() {
 
                             {statusNormalized === 'approved' && (
                                 application.has_pending_first_payment ? (
-                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                    <div className="track-app-status-actions flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                                         <button
                                             onClick={() => navigate('/view-contract')}
                                             className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-semibold px-6 py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center"
@@ -328,7 +347,7 @@ export default function TrackApplication() {
                         {statusNormalized === 'approved' && application.has_pending_first_payment && (
                             <>
                                 {/* Step 1: Lease Contract Verification & Upload */}
-                                <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
+                                <div className="track-app-upload-box bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
                                         <div>
                                             <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
@@ -361,11 +380,11 @@ export default function TrackApplication() {
                                                 <span>Re-upload Contract</span>
                                                 <input 
                                                     type="file" 
-                                                    accept="application/pdf,image/*" 
+                                                    accept="application/pdf" 
                                                     className="hidden" 
                                                     onChange={(e) => {
                                                         if (e.target.files?.[0]) {
-                                                            setContractFile(e.target.files[0]);
+                                                            validateAndSetContractFile(e.target.files[0]);
                                                         }
                                                     }} 
                                                 />
@@ -375,16 +394,20 @@ export default function TrackApplication() {
                                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-3">
                                             <div className="flex items-center space-x-2.5 text-amber-400 font-bold text-sm">
                                                 <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
-                                                <span>Signed Contract Upload Required</span>
+                                                <span>Signed Contract Upload Required (Max 5MB PDF)</span>
                                             </div>
                                             <p className="text-slate-300 text-xs m-0">
-                                                You must upload your signed contract first before initial payment options are enabled.
+                                                You must upload your signed contract first (PDF format only; max 5MB) before initial payment options are enabled.
                                             </p>
-                                            <form onSubmit={handleContractUpload} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                                            <form onSubmit={handleContractUpload} className="track-app-upload-form flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
                                                 <input 
                                                     type="file" 
-                                                    accept="application/pdf,image/*"
-                                                    onChange={(e) => setContractFile(e.target.files[0])}
+                                                    accept="application/pdf"
+                                                    onChange={(e) => {
+                                                        if (e.target.files?.[0]) {
+                                                            validateAndSetContractFile(e.target.files[0]);
+                                                        }
+                                                    }}
                                                     className="flex-1 text-xs text-slate-300 bg-white/5 border border-white/10 rounded-xl p-2.5 outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
                                                 />
                                                 <button
@@ -410,34 +433,42 @@ export default function TrackApplication() {
                                 </div>
 
                                 {/* Step 2: Complete Initial Lease Payment */}
-                                <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-                                    <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
-                                        <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-indigo-400" />
-                                        Step 2: Complete Initial Lease Payment
-                                    </h3>
-                                    <p className="text-slate-300 text-sm m-0">
-                                        Your lease application is approved! Settle your initial 1-month advance rent and 1-month security deposit below:
-                                    </p>
+                                <div className="track-app-payment-box bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+                                    <div className="border-b border-white/10 pb-4">
+                                        <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-indigo-400" />
+                                            Step 2: Complete Initial Lease Payment
+                                        </h3>
+                                        <p className="text-slate-300 text-xs sm:text-sm m-0 mt-1.5 leading-relaxed">
+                                            Your lease application is approved! Settle your initial 1-month advance rent and 1-month security deposit below:
+                                        </p>
+                                    </div>
 
                                     {!application.signed_lease_path && (
-                                        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-4 rounded-2xl text-xs font-semibold flex items-center space-x-2">
-                                            <FontAwesomeIcon icon={faLock} className="text-rose-400 text-sm shrink-0" />
-                                            <span>Payment is locked. Please upload your signed lease contract in Step 1 above to enable initial payment.</span>
+                                        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-4 sm:p-5 rounded-2xl text-xs font-semibold flex items-center space-x-3 my-2">
+                                            <FontAwesomeIcon icon={faLock} className="text-rose-400 text-base shrink-0" />
+                                            <span className="leading-relaxed">Payment is locked. Please upload your signed lease contract in Step 1 above to enable initial payment.</span>
                                         </div>
                                     )}
 
-                                    <div className="space-y-3 bg-white/5 border border-white/10 rounded-2xl p-5 text-sm">
-                                        <div className="flex justify-between items-center text-slate-300">
-                                            <span>1-Month Advance Rent:</span>
-                                            <span className="font-semibold text-white">₱{parseFloat(application.pending_base_rent || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    <div className="track-app-payment-breakdown space-y-4 bg-white/5 border border-white/10 rounded-2xl p-6 sm:p-7 text-sm">
+                                        <div className="flex justify-between items-center py-1.5 px-1">
+                                            <span className="text-slate-200 font-medium text-sm">1-Month Advance Rent:</span>
+                                            <span className="font-bold text-white text-base tracking-wide">
+                                                ₱{parseFloat(application.pending_base_rent || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </span>
                                         </div>
-                                        <div className="flex justify-between items-center text-slate-300">
-                                            <span>1-Month Security Deposit:</span>
-                                            <span className="font-semibold text-white">₱{parseFloat(application.pending_security_deposit || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <div className="flex justify-between items-center py-1.5 px-1">
+                                            <span className="text-slate-200 font-medium text-sm">1-Month Security Deposit:</span>
+                                            <span className="font-bold text-white text-base tracking-wide">
+                                                ₱{parseFloat(application.pending_security_deposit || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </span>
                                         </div>
-                                        <div className="border-t border-white/10 pt-3 flex justify-between items-center font-bold">
-                                            <span className="text-slate-200">Total Initial Payment Due:</span>
-                                            <span className="text-2xl font-black text-indigo-400">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <div className="border-t border-white/10 pt-4 mt-2 px-1 flex justify-between items-center font-bold">
+                                            <span className="text-slate-100 text-sm font-semibold">Total Initial Payment Due:</span>
+                                            <span className="text-2xl font-black text-indigo-400">
+                                                ₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </span>
                                         </div>
                                     </div>
 
@@ -466,7 +497,7 @@ export default function TrackApplication() {
                                             {/* Payment Method Selector */}
                                             <div className={`space-y-3 ${!application.signed_lease_path ? 'opacity-40 pointer-events-none' : ''}`}>
                                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Payment Method</label>
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                <div className="track-app-payment-methods grid grid-cols-1 sm:grid-cols-3 gap-4">
                                                     {[
                                                         { id: 'gcash', label: 'GCash', icon: faWallet, disabled: !application.signed_lease_path },
                                                         { id: 'bank', label: 'Bank Transfer', icon: faUniversity, disabled: !application.signed_lease_path },
@@ -502,7 +533,7 @@ export default function TrackApplication() {
                                             <button
                                                 onClick={handleInitialPayment}
                                                 disabled={paying || !application.signed_lease_path}
-                                                className="w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-bold py-4 rounded-2xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="track-app-pay-btn w-full bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-bold py-4 rounded-2xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {paying ? (
                                                     <>
@@ -529,7 +560,7 @@ export default function TrackApplication() {
                             </h3>
                             
                             {statusNormalized === 'moved-out' ? (
-                                <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
+                                <div className="track-app-timeline relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
                                     {/* Timeline Line (Desktop) */}
                                     <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-indigo-500/80 hidden md:block z-0"></div>
 
@@ -567,7 +598,7 @@ export default function TrackApplication() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
+                                <div className="track-app-timeline relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
                                     {/* Timeline Line (Desktop) */}
                                     <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-slate-800 hidden md:block z-0"></div>
                                     <div 
@@ -632,7 +663,7 @@ export default function TrackApplication() {
                         <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
                             <h3 className="text-lg font-bold text-white m-0">Lease Details</h3>
                             
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                            <div className="track-app-details-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                                 <div className="flex items-center space-x-3.5">
                                     <div className="w-11 h-11 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
                                         <FontAwesomeIcon icon={faHome} className="text-lg" />

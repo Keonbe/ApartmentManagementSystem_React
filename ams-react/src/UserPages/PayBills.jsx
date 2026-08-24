@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useNavigate } from 'react-router-dom';
 
@@ -146,8 +146,13 @@ export default function PayBills() {
                     <div className="md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Statement Ledger</h3>
-                            <button type="button" className="text-xs font-bold text-indigo-600 hover:underline bg-transparent border-0 cursor-pointer p-0">
-                                View Previous Bill
+                            <button 
+                                type="button" 
+                                onClick={() => navigate('/payment-history')}
+                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-0 flex items-center gap-1.5"
+                            >
+                                <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
+                                <span>View Previous Bills</span>
                             </button>
                         </div>
 
