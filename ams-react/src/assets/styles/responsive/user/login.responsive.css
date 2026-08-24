@@ -1,0 +1,51 @@
+/* =====================================================
+   LOGIN PAGE — responsive.css
+   Base: Tailwind utility classes in Login.jsx
+   These rules override/supplement on small screens.
+   ===================================================== */
+
+/* Ensure form panel scrolls if the keyboard pushes content up on iOS */
+@media (max-width: 768px) {
+  .login-page-root {
+    min-height: 100svh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Right form panel: reduce lateral padding on narrow phones */
+  .login-form-panel {
+    padding: 2rem 1.25rem !important;
+  }
+
+  /* Mobile logo area: reduce bottom margin */
+  .login-mobile-logo {
+    margin-bottom: 1.5rem !important;
+  }
+
+  /* Heading scale */
+  .login-heading {
+    font-size: 1.75rem !important;
+  }
+
+  /* Inputs: enforce min-height for touch targets; prevent iOS auto-zoom */
+  .login-form-panel input[type="email"],
+  .login-form-panel input[type="password"],
+  .login-form-panel input[type="text"] {
+    font-size: 16px !important; /* prevents iOS Safari zoom on focus */
+    min-height: 48px !important;
+  }
+
+  /* Submit button: full width, enforce touch target */
+  .login-form-panel button[type="submit"] {
+    min-height: 48px !important;
+    font-size: 0.9375rem !important;
+  }
+
+  /* Password toggle button: grow hit area */
+  .login-form-panel .pw-toggle-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}

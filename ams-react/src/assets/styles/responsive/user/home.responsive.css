@@ -1,0 +1,78 @@
+/* =====================================================
+   HOME PAGE — responsive.css
+   Base: Tailwind utility classes in Home.jsx
+   These rules override/supplement on small screens.
+   ===================================================== */
+
+@media (max-width: 768px) {
+  /* Hero wrapper: center the content panel vertically and horizontally */
+  .home-hero {
+    min-height: calc(100svh - 60px) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1.5rem 0 !important;
+  }
+
+  /* Centered background image */
+  .home-bg-image {
+    object-position: 50% 35% !important;
+  }
+
+  /* Centered dark gradient for uniform readability on mobile screens */
+  .home-gradient-overlay {
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.7) 0%, rgba(15, 23, 42, 0.82) 40%, rgba(2, 6, 23, 0.9) 100%) !important;
+  }
+
+  /* Container wrapper */
+  .home-content-container {
+    padding: 0 1.25rem !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  /* Content panel: centered, full width within container gutters */
+  .home-content-panel {
+    padding: 1.5rem !important;
+    border-radius: 1.5rem !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .home-heading {
+    font-size: 1.875rem !important; /* 30px */
+    line-height: 1.25 !important;
+  }
+
+  .home-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  /* Stats + CTA row: stack neatly on phones */
+  .home-cta-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  .home-cta-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.875rem 1rem !important;
+    min-height: 48px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-heading {
+    font-size: 1.5rem !important; /* 24px — tightest phones */
+  }
+
+  .home-content-panel {
+    padding: 1.25rem !important;
+  }
+}
+

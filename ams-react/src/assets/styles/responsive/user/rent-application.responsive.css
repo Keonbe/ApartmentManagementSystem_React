@@ -1,0 +1,96 @@
+/* =====================================================
+   RENT APPLICATION PAGE — responsive.css
+   Base: Tailwind utility classes in RentApplication.jsx
+   These rules override/supplement on small screens.
+   ===================================================== */
+
+/* Page root: tighten side padding on mobile */
+@media (max-width: 768px) {
+  .rent-app-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  /* Page heading */
+  .rent-app-heading {
+    font-size: 1.75rem !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Header row: stack title + status badge vertically on phones */
+  .rent-app-header-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+  }
+
+  /* Form card: reduce padding */
+  .rent-app-form-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  /* Personal details 4-column grid → 1-column on phones */
+  .rent-app-personal-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Inputs & selects: prevent iOS auto-zoom, enforce touch height */
+  .rent-app-form-card input[type="text"],
+  .rent-app-form-card input[type="email"],
+  .rent-app-form-card input[type="tel"],
+  .rent-app-form-card input[type="number"],
+  .rent-app-form-card select,
+  .rent-app-form-card textarea {
+    font-size: 16px !important; /* prevents iOS Safari auto-zoom */
+    min-height: 44px !important;
+  }
+
+  /* File upload zones: reduce min-height for narrow screens */
+  .rent-app-upload-zone {
+    min-height: 100px !important;
+    padding: 1rem !important;
+  }
+
+  .rent-app-upload-zone p,
+  .rent-app-upload-zone span {
+    font-size: 0.75rem !important;
+  }
+
+  /* Submit button: full width, tall touch target */
+  .rent-app-submit-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    font-size: 0.9375rem !important;
+  }
+
+  /* Status card action buttons: stack on phones */
+  .rent-app-status-actions {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .rent-app-status-actions button {
+    width: 100% !important;
+    min-height: 48px !important;
+  }
+
+  /* Terms modal: full screen on mobile */
+  .rent-app-terms-modal {
+    width: 100vw !important;
+    height: 100svh !important;
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+}
+
+/* Tablet: 2-column personal grid (md range) */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .rent-app-personal-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .rent-app-root {
+    padding: 2rem 2rem !important;
+  }
+}

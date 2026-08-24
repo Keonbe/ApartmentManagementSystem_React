@@ -1,0 +1,55 @@
+/* =====================================================
+   REGISTRATION PAGE — responsive.css
+   Base: Tailwind utility classes in Registration.jsx
+   These rules override/supplement on small screens.
+   ===================================================== */
+
+/* Full-page scroll with natural SVH on mobile */
+@media (max-width: 768px) {
+  .registration-page-root {
+    min-height: 100svh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Form panel: reduce lateral padding on narrow phones */
+  .registration-form-panel {
+    padding: 1.5rem 1.25rem !important;
+  }
+
+  /* Reduce mobile logo bottom margin */
+  .registration-mobile-logo {
+    margin-bottom: 1.25rem !important;
+  }
+
+  /* Heading */
+  .registration-heading {
+    font-size: 1.75rem !important;
+  }
+
+  /* All name/password grids: force single column on phones */
+  .registration-name-grid,
+  .registration-password-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Prevent iOS auto-zoom on input focus */
+  .registration-form-panel input[type="text"],
+  .registration-form-panel input[type="email"],
+  .registration-form-panel input[type="password"] {
+    font-size: 16px !important;
+    min-height: 48px !important;
+  }
+
+  /* Submit button: full height touch target */
+  .registration-form-panel button[type="submit"] {
+    min-height: 48px !important;
+    font-size: 0.9375rem !important;
+  }
+}
+
+/* On very small phones (≤ 400px), tighten vertical spacing */
+@media (max-width: 400px) {
+  .registration-form-panel {
+    padding: 1.25rem 1rem !important;
+  }
+}

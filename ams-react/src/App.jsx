@@ -202,7 +202,7 @@ function AppContent() {
         
         {/* AUTH PATHS */}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
-        <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} />} />
+        <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} onHomeRedirect={() => navigate('/home')} />} />
 
         {/* ADMIN WORKSPACES */}
         <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />

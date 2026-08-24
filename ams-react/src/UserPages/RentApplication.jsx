@@ -4,6 +4,7 @@ import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import '../assets/styles/responsive/user/rent-application.responsive.css';
 
 export default function RentApplication() {
     const navigate = useNavigate();
@@ -239,12 +240,12 @@ export default function RentApplication() {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
+        <div className="rent-app-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
 
-                <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="rent-app-header-row border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
+                        <h1 className="rent-app-heading text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
                             Rent Application Form
                         </h1>
                         <p className="text-slate-500 text-sm mt-1 m-0">
@@ -332,11 +333,11 @@ export default function RentApplication() {
                         </div>
                     )
                 ) : (
-                    <form className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8" onSubmit={handleFormSubmit}>
+                    <form className="rent-app-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8" onSubmit={handleFormSubmit}>
                         
                         <div className="space-y-4">
                             <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Personal Details</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="rent-app-personal-grid grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div className="flex flex-col space-y-1.5">
                                     <label className="text-sm font-bold text-slate-700">First Name</label>
                                     <input

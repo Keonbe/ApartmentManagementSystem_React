@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faEyeSlash, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
 import ApartmentPic from "../assets/Apartment_Pic.png";
+import '../assets/styles/responsive/user/login.responsive.css';
 
 export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedirect }) {
     const [email, setEmail] = useState('');
@@ -37,7 +38,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     };
 
     return (
-        <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-slate-50 text-left">
+        <div className="login-page-root min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-slate-50 text-left">
             <style>
                 {`
           @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
@@ -68,11 +69,23 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
             </div>
 
             {/*RightFormPanel*/}
-            <div className="col-span-1 md:col-span-6 flex flex-col justify-center items-center p-8 sm:p-16 bg-white shadow-xl md:shadow-none">
+            <div className="login-form-panel col-span-1 md:col-span-6 flex flex-col justify-center items-center p-8 sm:p-16 bg-white shadow-xl md:shadow-none">
                 <div className="w-full max-w-md flex flex-col items-center">
 
+                    {/* Back to Home Action */}
+                    <div className="w-full flex justify-start mb-4">
+                        <button
+                            type="button"
+                            onClick={onHomeRedirect}
+                            className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
+                        >
+                            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+                            <span>Back to Home</span>
+                        </button>
+                    </div>
+
                     {/*MobileBrandingLogo*/}
-                    <div className="md:hidden flex flex-col items-center mb-8 select-none">
+                    <div className="login-mobile-logo md:hidden flex flex-col items-center mb-6 select-none">
                         <h1 className="custom-ams-logo text-6xl italic font-bold tracking-wider border-0 bg-transparent uppercase m-0" style={{ color: '#3b4276' }}>
                             AMS
                         </h1>
@@ -84,7 +97,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
                     <div className="w-full space-y-6">
                         <div className="text-center">
-                            <h2 className="text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
+                            <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
                                 Welcome Back
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">Please enter your credentials to access your account.</p>

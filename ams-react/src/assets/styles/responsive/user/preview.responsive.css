@@ -1,0 +1,71 @@
+/* =====================================================
+   PREVIEW PAGE — responsive.css
+   Base: Tailwind utility classes in Preview.jsx
+   These rules override/supplement on small screens.
+   ===================================================== */
+
+/* Root wrapper: remove fixed viewport height on tablet/mobile.
+   Preview.jsx uses `lg:h-[calc(100vh-76px)]`; let it be natural below lg. */
+@media (max-width: 1023px) {
+  .preview-page-root {
+    height: auto !important;
+    overflow: visible !important;
+    padding: 1rem !important;
+  }
+
+  /* Room card list: single column on phones, 2 columns on tablets */
+  .preview-room-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Map embed: reduce height on tablets */
+  .preview-map-wrapper {
+    height: 280px !important;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  /* 2-column room cards on portrait tablets */
+  .preview-room-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Map a bit taller on landscape tablets */
+  .preview-map-wrapper {
+    height: 360px !important;
+  }
+}
+
+/* Hero banner: stack image + text vertically on phones */
+@media (max-width: 639px) {
+  .preview-hero-banner {
+    flex-direction: column !important;
+  }
+
+  .preview-hero-image {
+    width: 100% !important;
+    min-height: 180px !important;
+  }
+
+  .preview-hero-content {
+    padding: 1.25rem !important;
+  }
+
+  .preview-hero-content h2 {
+    font-size: 1.375rem !important;
+  }
+}
+
+/* Room cards: ensure touch targets on action buttons */
+@media (max-width: 768px) {
+  .preview-room-card-actions button {
+    min-height: 44px !important;
+    font-size: 0.8125rem !important;
+  }
+
+  /* Room cards: remove max-height scroll limit — let page scroll instead */
+  .preview-room-list-scroll {
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+}

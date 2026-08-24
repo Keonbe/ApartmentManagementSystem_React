@@ -1,0 +1,40 @@
+/* =====================================================
+   NAVBAR / TOPBAR — navbar.responsive.css
+   Responsive overrides and animations for the user header
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .topbar-nav {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  .topbar-logo {
+    font-size: 1.5rem !important;
+  }
+
+  .topbar-mobile-menu-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .topbar-mobile-drawer {
+    animation: slideDownMobileNav 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes slideDownMobileNav {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

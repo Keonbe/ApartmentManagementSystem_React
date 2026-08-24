@@ -4,6 +4,7 @@ import { faEye } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import api from '../api/axiosConfig';
+import '../assets/styles/responsive/user/preview.responsive.css';
 
 export default function Preview({ onRentClick }) {
     const [selectedRoomId, setSelectedRoomId] = useState(null);
@@ -42,18 +43,18 @@ export default function Preview({ onRentClick }) {
     };
 
     return (
-        <div className="w-full h-auto lg:h-[calc(100vh-76px)] bg-slate-50 p-4 md:p-8 lg:overflow-hidden box-border">
+        <div className="preview-page-root w-full h-auto lg:h-[calc(100vh-76px)] bg-slate-50 p-4 md:p-8 lg:overflow-hidden box-border">
             <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-6 text-left items-stretch">
 
                 {/*Left Column Layout*/}
                 <div className="lg:col-span-7 flex flex-col min-h-0 space-y-6">
 
                     {/*Modern Dynamic Hero Banner*/}
-                    <div className="relative rounded-2xl overflow-hidden shadow-xl bg-gradient-to-r from-[#3b4276] via-[#4f46e5] to-[#6366f1] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
+                    <div className="preview-hero-banner relative rounded-2xl overflow-hidden shadow-xl bg-gradient-to-r from-[#3b4276] via-[#4f46e5] to-[#6366f1] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent)] pointer-events-none"></div>
                         
                         {/*Increased image wrapper dimensions to accurately reproduce the old landscape placeholder style heights*/}
-                        <div className="w-full sm:w-72 overflow-hidden relative min-h-[200px] sm:min-h-[240px]">
+                        <div className="preview-hero-image w-full sm:w-72 overflow-hidden relative min-h-[200px] sm:min-h-[240px]">
                             <img
                                 src={ApartmentPic}
                                 alt="Apartment"
@@ -62,7 +63,7 @@ export default function Preview({ onRentClick }) {
                             <div className="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-black/20 via-transparent to-transparent"></div>
                         </div>
                         
-                        <div className="p-8 text-white flex flex-col justify-center flex-grow relative z-10 space-y-3">
+                        <div className="preview-hero-content p-8 text-white flex flex-col justify-center flex-grow relative z-10 space-y-3">
                             <div>
                                 <span className="text-[10px] tracking-widest uppercase font-bold px-2.5 py-1 rounded-md bg-white/20 backdrop-blur-sm inline-block mb-2">Featured Listing</span>
                                 <h2 className="text-3xl font-bold text-white m-0 tracking-tight">Apartment in Silang</h2>
@@ -76,7 +77,7 @@ export default function Preview({ onRentClick }) {
                     </div>
 
                     {/*Scrollable Room Cards Track Container*/}
-                    <div className="w-full flex-grow overflow-y-auto pr-1 max-h-[450px] lg:max-h-none">
+                    <div className="preview-room-list-scroll w-full flex-grow overflow-y-auto pr-1 max-h-[450px] lg:max-h-none">
                         <h2 className="text-2xl font-extrabold tracking-tight mb-4 select-none" style={{ color: '#1e293b', fontWeight: '800' }}>
                             Available Rooms
                         </h2>
@@ -90,7 +91,7 @@ export default function Preview({ onRentClick }) {
                                 <p className="text-slate-500 font-medium text-sm m-0">No rooms are currently available for lease. Please check back later!</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="preview-room-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {rooms.map((room) => (
                                     <div key={room.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
                                         <div>
@@ -98,7 +99,7 @@ export default function Preview({ onRentClick }) {
                                             <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
                                             <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2 mt-4">
+                                        <div className="preview-room-card-actions grid grid-cols-2 gap-2 mt-4">
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenPreview(room.id)}
@@ -123,7 +124,7 @@ export default function Preview({ onRentClick }) {
                 </div>
 
                 {/*Right Column: Maps Embed*/}
-                <div className="lg:col-span-5 h-[400px] lg:h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex">
+                <div className="preview-map-wrapper lg:col-span-5 h-[400px] lg:h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex">
                     <iframe
                         src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
                         className="w-full h-full border-0 flex-grow min-h-0"

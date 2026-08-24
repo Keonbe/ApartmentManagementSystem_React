@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faEyeSlash, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
 import ApartmentPic from "../assets/Apartment_Pic.png";
+import '../assets/styles/responsive/user/registration.responsive.css';
 
-export default function Registration({ onLoginRedirect }) {
+export default function Registration({ onLoginRedirect, onHomeRedirect }) {
+    const navigate = useNavigate();
     const [firstname, setFirstName] = useState('');
     const [middlename, setMiddleName] = useState('');
     const [lastname, setLastName] = useState('');
@@ -15,6 +18,14 @@ export default function Registration({ onLoginRedirect }) {
     const [showPass, setShowPass] = useState(false);
     const [showConfirmPass, setShowConfirmPass] = useState(false);
     const [message, setMessage] = useState('');
+
+    const handleBackHome = () => {
+        if (onHomeRedirect) {
+            onHomeRedirect();
+        } else {
+            navigate('/home');
+        }
+    };
 
     const handleRegister = async (e) => {
         e.preventDefault();
@@ -45,7 +56,7 @@ export default function Registration({ onLoginRedirect }) {
     };
 
     return (
-        <div className="min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-slate-50 text-left">
+        <div className="registration-page-root min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-slate-50 text-left">
             <style>
                 {`
             @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
@@ -76,11 +87,23 @@ export default function Registration({ onLoginRedirect }) {
             </div>
 
             {/*RightFormPanel*/}
-            <div className="col-span-1 md:col-span-6 flex flex-col justify-center items-center p-6 sm:p-12 bg-white overflow-y-auto">
+            <div className="registration-form-panel col-span-1 md:col-span-6 flex flex-col justify-center items-center p-6 sm:p-12 bg-white overflow-y-auto">
                 <div className="w-full max-w-md flex flex-col items-center my-auto">
 
+                    {/* Back to Home Action */}
+                    <div className="w-full flex justify-start mb-3">
+                        <button
+                            type="button"
+                            onClick={handleBackHome}
+                            className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
+                        >
+                            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
+                            <span>Back to Home</span>
+                        </button>
+                    </div>
+
                     {/*MobileBrandingLogo*/}
-                    <div className="md:hidden flex flex-col items-center mb-6 select-none">
+                    <div className="registration-mobile-logo md:hidden flex flex-col items-center mb-6 select-none">
                         <h1 className="custom-ams-logo text-6xl italic font-bold tracking-wider border-0 bg-transparent uppercase m-0" style={{ color: '#3b4276' }}>
                             AMS
                         </h1>
@@ -92,7 +115,7 @@ export default function Registration({ onLoginRedirect }) {
 
                     <div className="w-full space-y-5">
                         <div className="text-center">
-                            <h2 className="text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
+                            <h2 className="registration-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
                                 Create Account
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">Register your personal details to begin leasing.</p>
@@ -100,7 +123,7 @@ export default function Registration({ onLoginRedirect }) {
 
                         <form className="space-y-4" onSubmit={handleRegister}>
                             {/*NameGroupFirstAndMiddle*/}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">First Name *</label>
                                     <input
@@ -125,7 +148,7 @@ export default function Registration({ onLoginRedirect }) {
                             </div>
 
                             {/*NameGroupLastAndSuffix*/}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Last Name *</label>
                                     <input
@@ -163,7 +186,7 @@ export default function Registration({ onLoginRedirect }) {
                             </div>
 
                             {/*PasswordFields*/}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="registration-password-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Password *</label>
                                     <div className="relative">
