@@ -398,7 +398,7 @@ const AdminServicePage = () => {
                                   <td className="px-4 py-3 text-center">
                                     {req.documentPath ? (
                                       <a
-                                        href={`http://localhost/ApartmentManagementSystem_React/backend/${req.documentPath.replace('../', '')}`}
+                                        href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${req.documentPath.replace('../', '')}`}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="mx-auto flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline no-underline"
