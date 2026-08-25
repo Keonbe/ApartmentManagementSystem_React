@@ -4,6 +4,7 @@ import { faEye } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/preview.responsive.css';
 
 export default function Preview({ onRentClick }) {
@@ -11,6 +12,7 @@ export default function Preview({ onRentClick }) {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { t } = useLang();
 
     useEffect(() => {
         const fetchAvailableRooms = async () => {
@@ -65,13 +67,13 @@ export default function Preview({ onRentClick }) {
                         
                         <div className="preview-hero-content p-8 text-white flex flex-col justify-center flex-grow relative z-10 space-y-3">
                             <div>
-                                <span className="text-[10px] tracking-widest uppercase font-bold px-2.5 py-1 rounded-md bg-white/20 backdrop-blur-sm inline-block mb-2">Featured Listing</span>
-                                <h2 className="text-3xl font-bold text-white m-0 tracking-tight">Apartment in Silang</h2>
-                                <p className="text-white/80 text-base m-0 font-medium mt-1">Maguyam Silang, Cavite</p>
+                                <span className="text-[10px] tracking-widest uppercase font-bold px-2.5 py-1 rounded-md bg-white/20 backdrop-blur-sm inline-block mb-2">{t('preview.featured')}</span>
+                                <h2 className="text-3xl font-bold text-white m-0 tracking-tight">{t('preview.title')}</h2>
+                                <p className="text-white/80 text-base m-0 font-medium mt-1">{t('preview.location')}</p>
                             </div>
                             <div className="pt-2 flex flex-wrap gap-2 text-xs">
-                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• Motorcycle Parking</span>
-                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• Bathroom per Room</span>
+                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• {t('preview.parking')}</span>
+                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• {t('preview.bathroom')}</span>
                             </div>
                         </div>
                     </div>
@@ -79,16 +81,16 @@ export default function Preview({ onRentClick }) {
                     {/*Scrollable Room Cards Track Container*/}
                     <div className="preview-room-list-scroll w-full flex-grow overflow-y-auto pr-1 max-h-[450px] lg:max-h-none">
                         <h2 className="text-2xl font-extrabold tracking-tight mb-4 select-none" style={{ color: '#1e293b', fontWeight: '800' }}>
-                            Available Rooms
+                            {t('preview.availableRooms')}
                         </h2>
 
                         {loading ? (
                             <div className="flex items-center justify-center py-12">
-                                <span className="text-slate-500 font-semibold text-sm">Loading available rooms...</span>
+                                <span className="text-slate-500 font-semibold text-sm">{t('preview.loading')}</span>
                             </div>
                         ) : rooms.length === 0 ? (
                             <div className="bg-slate-100/50 rounded-2xl p-8 border border-dashed border-slate-200 text-center">
-                                <p className="text-slate-500 font-medium text-sm m-0">No rooms are currently available for lease. Please check back later!</p>
+                                <p className="text-slate-500 font-medium text-sm m-0">{t('preview.noRooms')}</p>
                             </div>
                         ) : (
                             <div className="preview-room-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -106,13 +108,13 @@ export default function Preview({ onRentClick }) {
                                                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm"
                                             >
                                                 <FontAwesomeIcon icon={faEye} />
-                                                <span>View Layout</span>
+                                                <span>{t('preview.viewLayout')}</span>
                                             </button>
                                             <button
                                                 onClick={() => onRentClick(room.id)}
                                                 className="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center"
                                             >
-                                                Rent Now
+                                                {t('preview.rentNow')}
                                             </button>
                                         </div>
                                     </div>

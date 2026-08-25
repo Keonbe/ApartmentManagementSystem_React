@@ -3,10 +3,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowRight, faCircleNotch } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/home.responsive.css';
 
 export default function Home({ onCardClick, username }) {
     const [counts, setCounts] = useState({ total: 14, available: 4 });
+    const { t } = useLang();
 
     useEffect(() => {
         const fetchCounts = async () => {
@@ -43,33 +45,33 @@ export default function Home({ onCardClick, username }) {
                 <div className="home-content-panel max-w-2xl space-y-6 bg-slate-900/40 backdrop-blur-md p-8 md:p-10 rounded-3xl border border-white/10 shadow-2xl">
 
                     <span className="text-[10px] tracking-widest uppercase font-bold px-3 py-1.5 rounded-lg bg-[#6366f1] text-white inline-block select-none shadow-sm">
-                        Premium Rental Property
+                        {t('home.badge')}
                     </span>
 
                     <div className="space-y-2">
                         <h1 className="home-heading text-4xl md:text-5xl font-sans font-extrabold m-0 text-white tracking-tight leading-tight">
-                            {username ? `Welcome Back, ${username}` : "Renting, Made Easy"}
+                            {username ? `${t('home.welcomeBack')} ${username}` : t('home.heading')}
                         </h1>
                         <p className="text-indigo-200/90 font-semibold text-lg m-0">
-                            Maguyam Silang, Cavite
+                            {t('home.location')}
                         </p>
                     </div>
 
                     <p className="text-slate-300 text-sm md:text-base m-0 leading-relaxed font-medium">
-                        Convenient housing situated perfectly for your daily commute. Enjoy a restful, reliable utilities, and accessible support services designed around your shift schedule.
+                        {t('home.description')}
                     </p>
 
                     <div className="home-cta-row pt-4 flex flex-wrap gap-4 items-center justify-between border-t border-white/10 mt-2">
                         <div className="flex space-x-4 text-xs font-semibold text-white/80">
-                            <span>• {counts.total} Total Units</span>
-                            <span className="text-emerald-400">• {counts.available} Available Rooms</span>
+                            <span>• {counts.total} {t('home.totalUnits')}</span>
+                            <span className="text-emerald-400">• {counts.available} {t('home.availableRooms')}</span>
                         </div>
 
                         <button
                             onClick={onCardClick}
                             className="home-cta-btn bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-bold px-6 py-3 rounded-xl text-xs transition-all duration-200 shadow-lg shadow-emerald-950/30 border-0 cursor-pointer flex items-center space-x-2"
                         >
-                            <span>Explore Available Rooms</span>
+                            <span>{t('home.cta')}</span>
                             <FontAwesomeIcon icon={faArrowRight} />
                         </button>
                     </div>

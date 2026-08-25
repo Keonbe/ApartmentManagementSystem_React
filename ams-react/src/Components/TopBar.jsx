@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
     faBell, faCheck, faTrash, faInfoCircle, faExclamationTriangle, faFileContract, faCheckCircle, faHistory,
@@ -11,6 +12,7 @@ import '../assets/styles/responsive/components/navbar.responsive.css';
 
 export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginClick }) {
     const navigate = useNavigate();
+    const { lang, setLang, t } = useLang();
     const location = useLocation();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -156,21 +158,33 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     </div>
 
                     <div className="hidden md:flex items-center space-x-6">
-                        <button onClick={() => navigate('/home')} className={navItemClass('/home')}>Home</button>
+                        <button onClick={() => navigate('/home')} className={navItemClass('/home')}>{t('nav.home')}</button>
                         {isLoggedIn && !hasRentedRoom && (
-                            <button onClick={() => navigate('/track-application')} className={navItemClass('/track-application')}>Track Application</button>
+                            <button onClick={() => navigate('/track-application')} className={navItemClass('/track-application')}>{t('nav.trackApp')}</button>
                         )}
                         {isLoggedIn && hasRentedRoom && (
-                            <button onClick={() => navigate('/services')} className={navItemClass('/services')}>Services</button>
+                            <button onClick={() => navigate('/services')} className={navItemClass('/services')}>{t('nav.services')}</button>
                         )}
                         {isLoggedIn && hasRentedRoom && (
-                            <button onClick={() => navigate('/my-room')} className={navItemClass('/my-room')}>My Room</button>
+                            <button onClick={() => navigate('/my-room')} className={navItemClass('/my-room')}>{t('nav.myRoom')}</button>
                         )}
                     </div>
                 </div>
 
                 {/* Desktop Action Controls */}
                 <div className="hidden md:flex items-center space-x-4">
+                    {/* Language Toggle Pill */}
+                    <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-[11px] font-bold select-none">
+                        <button
+                            onClick={() => setLang('en')}
+                            className={`px-2.5 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
+                        >EN</button>
+                        <button
+                            onClick={() => setLang('fil')}
+                            className={`px-2.5 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
+                        >FIL</button>
+                    </div>
+
                     {isLoggedIn && (
                         <div className="relative" ref={notificationRef}>
                             <button
@@ -264,7 +278,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     ) : (
                         <button onClick={onLoginClick} className="bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all duration-150 flex items-center space-x-1.5">
                             <FontAwesomeIcon icon={faSignInAlt} />
-                            <span>Log In</span>
+                            <span>{t('nav.login')}</span>
                         </button>
                     )}
                 </div>
@@ -278,7 +292,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             className="bg-white/15 hover:bg-white/25 active:scale-95 text-white font-bold px-3.5 py-2 rounded-xl text-xs border-0 cursor-pointer transition-all flex items-center space-x-1.5 shadow-sm"
                         >
                             <FontAwesomeIcon icon={faSignInAlt} className="text-xs" />
-                            <span>Log In</span>
+                            <span>{t('nav.login')}</span>
                         </button>
                     )}
 
@@ -316,13 +330,28 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     className="topbar-mobile-drawer md:hidden absolute left-0 right-0 top-[100%] bg-[#2e3460] shadow-2xl border-b border-white/10 px-5 py-5 z-50 flex flex-col space-y-4 text-left backdrop-blur-md"
                 >
                     {/* Navigation Items */}
+                    {/* Mobile Language Toggle */}
+                    <div className="flex items-center justify-between px-2 pb-2">
+                        <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Language</span>
+                        <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-[11px] font-bold select-none">
+                            <button
+                                onClick={() => setLang('en')}
+                                className={`px-3 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
+                            >EN</button>
+                            <button
+                                onClick={() => setLang('fil')}
+                                className={`px-3 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
+                            >FIL</button>
+                        </div>
+                    </div>
+
                     <div className="flex flex-col space-y-1">
                         <button
                             onClick={() => { setIsMobileMenuOpen(false); navigate('/home'); }}
                             className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/home') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
                         >
                             <FontAwesomeIcon icon={faHome} className="text-xs w-4" />
-                            <span>Home</span>
+                            <span>{t('nav.home')}</span>
                         </button>
 
                         <button
@@ -330,7 +359,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/preview') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
                         >
                             <FontAwesomeIcon icon={faCompass} className="text-xs w-4" />
-                            <span>Explore Rooms</span>
+                            <span>{t('preview.availableRooms')}</span>
                         </button>
 
                         {isLoggedIn && !hasRentedRoom && (
@@ -339,7 +368,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/track-application') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
                             >
                                 <FontAwesomeIcon icon={faFileContract} className="text-xs w-4" />
-                                <span>Track Application</span>
+                                <span>{t('nav.trackApp')}</span>
                             </button>
                         )}
 
@@ -350,14 +379,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/services') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
                                 >
                                     <FontAwesomeIcon icon={faConciergeBell} className="text-xs w-4" />
-                                    <span>Services</span>
+                                    <span>{t('nav.services')}</span>
                                 </button>
                                 <button
                                     onClick={() => { setIsMobileMenuOpen(false); navigate('/my-room'); }}
                                     className={`flex items-center space-x-3 px-3 py-2.5 rounded-xl font-bold text-sm border-0 bg-transparent text-left cursor-pointer transition-colors ${isActive('/my-room') ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/5 hover:text-white'}`}
                                 >
                                     <FontAwesomeIcon icon={faBed} className="text-xs w-4" />
-                                    <span>My Room</span>
+                                    <span>{t('nav.myRoom')}</span>
                                 </button>
                             </>
                         )}

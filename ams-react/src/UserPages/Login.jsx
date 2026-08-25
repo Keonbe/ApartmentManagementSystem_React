@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
+import { useLang } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.png";
 import '../assets/styles/responsive/user/login.responsive.css';
 
@@ -10,6 +11,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [message, setMessage] = useState('');
+    const { t } = useLang();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -30,10 +32,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     onHomeRedirect();
                 }
             } else {
-                setMessage(res.data.message || "Incorrect email or password");
+                setMessage(res.data.message || t('login.error'));
             }
         } catch (error) {
-            setMessage("Unable to log in. Please try again.");
+            setMessage(t('login.error'));
         }
     };
 
@@ -63,7 +65,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     </h1>
                     <div className="w-48 border-t border-white/20 my-3"></div>
                     <p className="text-xs font-light uppercase tracking-widest text-white/70 m-0">
-                        Apartment Management System
+                        {t('login.tagline')}
                     </p>
                 </div>
             </div>
@@ -80,7 +82,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
                             <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
-                            <span>Back to Home</span>
+                            <span>{t('login.backHome')}</span>
                         </button>
                     </div>
 
@@ -91,22 +93,22 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                         </h1>
                         <div className="w-24 border-t my-1.5" style={{ borderColor: 'rgba(59, 66, 118, 0.2)' }}></div>
                         <p className="text-[9px] font-medium uppercase tracking-widest m-0 text-center text-slate-500">
-                            Apartment Management System
+                            {t('login.tagline')}
                         </p>
                     </div>
 
                     <div className="w-full space-y-6">
                         <div className="text-center">
                             <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                Welcome Back
+                                {t('login.heading')}
                             </h2>
-                            <p className="text-xs text-slate-500 mt-1 m-0">Please enter your credentials to access your account.</p>
+                            <p className="text-xs text-slate-500 mt-1 m-0">{t('login.subtitle')}</p>
                         </div>
 
                         <form className="space-y-5" onSubmit={handleSubmit}>
                             {/*EmailAddressField*/}
                             <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Email Address</label>
+                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('login.email')}</label>
                                 <input
                                     type="email"
                                     placeholder="JuanDelaCruz@email.com"
@@ -120,8 +122,8 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             {/*PasswordField*/}
                             <div className="space-y-1.5">
                                 <div className="flex justify-between items-center">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Password</label>
-                                    <a href="#forgot" className="text-xs text-indigo-600 hover:underline font-semibold no-underline">Forgot Password?</a>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('login.password')}</label>
+                                    <a href="#forgot" className="text-xs text-indigo-600 hover:underline font-semibold no-underline">{t('login.forgot')}</a>
                                 </div>
                                 <div className="relative">
                                     <input
@@ -149,15 +151,15 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             )}
 
                             <button type="submit" className="w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide">
-                                Sign In
+                                {t('login.submit')}
                             </button>
                         </form>
 
                         <div className="text-center pt-2 border-t border-slate-100">
                             <p className="text-xs text-slate-500 m-0">
-                                Don't have an account?{' '}
+                                {t('login.noAccount')}{' '}
                                 <button onClick={onRegisterRedirect} className="text-indigo-600 font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer">
-                                    Create Account
+                                    {t('login.createAccount')}
                                 </button>
                             </p>
                         </div>

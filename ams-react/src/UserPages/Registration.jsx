@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import api from "../api/axiosConfig";
+import { useLang } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.png";
 import '../assets/styles/responsive/user/registration.responsive.css';
 
@@ -18,6 +19,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
     const [showPass, setShowPass] = useState(false);
     const [showConfirmPass, setShowConfirmPass] = useState(false);
     const [message, setMessage] = useState('');
+    const { t } = useLang();
 
     const handleBackHome = () => {
         if (onHomeRedirect) {
@@ -81,7 +83,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                     </h1>
                     <div className="w-48 border-t border-white/20 my-3"></div>
                     <p className="text-xs font-light uppercase tracking-widest text-white/70 m-0">
-                        Apartment Management System
+                        {t('login.tagline')}
                     </p>
                 </div>
             </div>
@@ -98,7 +100,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
                             <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
-                            <span>Back to Home</span>
+                            <span>{t('reg.backHome')}</span>
                         </button>
                     </div>
 
@@ -109,23 +111,23 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                         </h1>
                         <div className="w-24 border-t my-1.5" style={{ borderColor: 'rgba(59, 66, 118, 0.2)' }}></div>
                         <p className="text-[9px] font-medium uppercase tracking-widest m-0 text-center text-slate-500">
-                            Apartment Management System
+                            {t('login.tagline')}
                         </p>
                     </div>
 
                     <div className="w-full space-y-5">
                         <div className="text-center">
                             <h2 className="registration-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                Create Account
+                                {t('reg.heading')}
                             </h2>
-                            <p className="text-xs text-slate-500 mt-1 m-0">Register your personal details to begin leasing.</p>
+                            <p className="text-xs text-slate-500 mt-1 m-0">{t('reg.subtitle')}</p>
                         </div>
 
                         <form className="space-y-4" onSubmit={handleRegister}>
                             {/*NameGroupFirstAndMiddle*/}
                             <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">First Name *</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.firstName')}</label>
                                     <input
                                         value={firstname}
                                         type="text"
@@ -136,7 +138,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Middle Name</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.middleName')}</label>
                                     <input
                                         value={middlename}
                                         type="text"
@@ -150,7 +152,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                             {/*NameGroupLastAndSuffix*/}
                             <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Last Name *</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.lastName')}</label>
                                     <input
                                         value={lastname}
                                         type="text"
@@ -161,7 +163,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Suffix</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.suffix')}</label>
                                     <input
                                         value={suffix}
                                         type="text"
@@ -174,7 +176,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
 
                             {/*EmailAddressField*/}
                             <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Email Address *</label>
+                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.email')}</label>
                                 <input
                                     value={email}
                                     type="email"
@@ -188,7 +190,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                             {/*PasswordFields*/}
                             <div className="registration-password-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Password *</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.password')}</label>
                                     <div className="relative">
                                         <input
                                             value={password}
@@ -209,7 +211,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Confirm Password *</label>
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.confirmPassword')}</label>
                                     <div className="relative">
                                         <input
                                             value={conPassword}
@@ -237,15 +239,15 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                             )}
 
                             <button type="submit" className="w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2">
-                                Register Account
+                                {t('reg.submit')}
                             </button>
                         </form>
 
                         <div className="text-center pt-2 border-t border-slate-100">
                             <p className="text-xs text-slate-500 m-0">
-                                Already have an account?{' '}
+                                {t('reg.hasAccount')}{' '}
                                 <button onClick={onLoginRedirect} className="text-indigo-600 font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer">
-                                    Sign In
+                                    {t('reg.signIn')}
                                 </button>
                             </p>
                         </div>
