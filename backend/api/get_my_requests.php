@@ -19,11 +19,11 @@ if (!$user_id) {
 }
 
 $requests = [];
-$query = "(SELECT id, 'Maintenance' as type, issue_category as title, status, created_at FROM maintenance_requests WHERE user_id = ?)
+$query = "(SELECT id, 'Maintenance' as type, issue_category as title, status, created_at, resolved_at, attachment_path, description FROM maintenance_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'CCTV' as type, location_details as title, status, created_at FROM cctv_requests WHERE user_id = ?)
+          (SELECT id, 'CCTV' as type, location_details as title, status, created_at, NULL as resolved_at, NULL as attachment_path, reason as description FROM cctv_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'Parking' as type, vehicle_type as title, status, created_at FROM parking_reservations WHERE user_id = ?)
+          (SELECT id, 'Parking' as type, vehicle_type as title, status, created_at, NULL as resolved_at, or_cr_attachment_path as attachment_path, vehicle_model as description FROM parking_reservations WHERE user_id = ?)
           ORDER BY created_at DESC";
 
 $stmt = $conn->prepare($query);

@@ -97,20 +97,45 @@ export default function UserMyRequests() {
                         <div className="divide-y divide-slate-100">
                             {requests.map((req, idx) => (
                                 <div key={idx} className="p-5 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                    <div className="flex items-start gap-4">
+                                    <div className="flex items-start gap-4 flex-1 min-w-0">
                                         <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-xl shrink-0">
                                             {getTypeIcon(req.type)}
                                         </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span className="text-xs font-bold tracking-wider uppercase text-slate-400">{req.type}</span>
                                                 <span className="text-xs text-slate-300">•</span>
-                                                <span className="text-xs font-medium text-slate-500">{new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                <span className="text-xs font-medium text-slate-500">
+                                                    Submitted: {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                                {req.resolved_at && (
+                                                    <>
+                                                        <span className="text-xs text-slate-300">•</span>
+                                                        <span className="text-xs font-semibold text-emerald-600">
+                                                            Resolved: {new Date(req.resolved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(req.resolved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </>
+                                                )}
                                             </div>
                                             <h3 className="text-base font-bold text-slate-800 m-0">{req.title}</h3>
+                                            {req.description && (
+                                                <p className="text-xs text-slate-600 m-0 mt-1 line-clamp-2">{req.description}</p>
+                                            )}
+                                            {req.attachment_path && (
+                                                <div className="mt-2">
+                                                    <a 
+                                                        href={`http://localhost/ApartmentManagementSystem_React/backend/${req.attachment_path.replace(/^(\.\.\/)+/, '')}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-semibold bg-indigo-50 px-2.5 py-1 rounded-md transition-colors"
+                                                    >
+                                                        View Attached Photo/Document
+                                                    </a>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                    <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0 pl-16 sm:pl-0">
+                                    <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0 pl-16 sm:pl-0 shrink-0">
                                         {getStatusBadge(req.status)}
                                         
                                         {req.status === 'Pending' && (

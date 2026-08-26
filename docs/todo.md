@@ -115,15 +115,17 @@
 ## Maintenance
 
 * [x] Maintenance request form with issue category, urgency, description, and preferred schedule.
-* [x] Attachment file upload on maintenance request.
+* [x] Attachment file upload on maintenance request (drag & drop, live preview, retake/remove, real API storage).
+* [x] Video & photo upload support for maintenance evidence.
+* [x] Date / Time tracking (creation timestamp and resolution timestamp `resolved_at`).
 * [x] `user_id` stored on maintenance request submission.
+* [x] Tenant can view submitted tickets with attached photos, submission date, and resolution timestamps in `/my-requests`.
 * [x] Tenant can cancel a `Pending` maintenance request from `/my-requests`.
-* [x] Admin `AdminMaintainance.jsx` Kanban board with approval workflow.
+* [x] Admin `AdminMaintainance.jsx` Kanban board with approval workflow, photo attachment viewing, and resolution timestamp tracking.
 * [x] **Wire `AdminMaintainance.jsx` to DB** (Priority A — Done):
   * Created `get_maintenance_requests.php` to fetch live requests.
-  * Created `update_maintenance_status.php` to persist status, assignee, cost, notes, and tenant responsibility.
-  * Wired to backend DB (`assigned_to`, `estimated_cost`, `work_notes`).
-* [ ] Video upload support for maintenance evidence.
+  * Created `update_maintenance_status.php` to persist status, assignee, cost, notes, tenant responsibility, and `resolved_at`.
+  * Wired to backend DB (`assigned_to`, `estimated_cost`, `work_notes`, `resolved_at`).
 * [ ] Tenant responsibility / discretion defined in Terms & Conditions.
 * [ ] Maintenance approval workflow — notify tenant when status changes (insert to `notifications`).
 

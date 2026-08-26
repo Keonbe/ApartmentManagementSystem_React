@@ -65,8 +65,9 @@ const AdminMaintainance = () => {
       if (res.data && res.data.success && Array.isArray(res.data.requests)) {
         setRequests(res.data.requests.map(r => {
           let normPriority = 'Medium';
-          if (r.urgency) {
-            const lowerUrg = r.urgency.toLowerCase();
+          const urgencyVal = r.urgency || r.priority;
+          if (urgencyVal) {
+            const lowerUrg = urgencyVal.toLowerCase();
             if (lowerUrg === 'low') normPriority = 'Low';
             else if (lowerUrg === 'medium') normPriority = 'Medium';
             else if (lowerUrg === 'high') normPriority = 'High';
@@ -74,13 +75,14 @@ const AdminMaintainance = () => {
           }
 
           let normIssueType = 'Plumbing';
-          if (r.issue_category) {
-            const lowerCat = r.issue_category.toLowerCase();
+          const categoryVal = r.category || r.issue_category;
+          if (categoryVal) {
+            const lowerCat = categoryVal.toLowerCase();
             if (lowerCat === 'plumbing') normIssueType = 'Plumbing';
             else if (lowerCat === 'electrical') normIssueType = 'Electrical';
             else if (lowerCat === 'appliance') normIssueType = 'Appliance';
             else if (lowerCat === 'structural' || lowerCat === 'carpentry') normIssueType = 'Carpentry';
-            else normIssueType = r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1);
+            else normIssueType = categoryVal.charAt(0).toUpperCase() + categoryVal.slice(1);
           }
 
           let displayStatus = 'Pending';
@@ -99,7 +101,7 @@ const AdminMaintainance = () => {
             const cleanPath = r.attachment_path.replace(/^(\.\.\/)+/, '');
             const baseUrl = cleanPath.startsWith('http') 
               ? cleanPath 
-              : `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`; // CHANGE THIS IF YOUR FOLDER IS DIFFERENT
+              : `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
             
             const fullUrl = encodeURI(baseUrl);
             const isVid = /\.(mp4|webm|ogg|mov|m4v)$/i.test(cleanPath);
@@ -107,29 +109,54 @@ const AdminMaintainance = () => {
             mediaFiles = [{ url: fullUrl, name: 'Attachment', isVideo: isVid }];
           }
 
+          const resolvedAtDate = r.resolved_at ? new Date(r.resolved_at) : null;
+          const createdAtDate = r.created_at ? new Date(r.created_at) : null;
+
+          const unitVal = r.unit || (r.room_name ? `Unit ${r.room_name}` : '—');
+          const tenantVal = r.tenant || r.tenant_name || 'Unknown Tenant';
+
+          const formattedReportedDate = createdAtDate ? createdAtDate.toISOString().slice(0, 10) : (r.dateSubmitted || '');
+          const formattedReportedTime = createdAtDate ? createdAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          
+          const formattedResolvedDate = resolvedAtDate ? resolvedAtDate.toISOString().slice(0, 10) : null;
+          const formattedResolvedTime = resolvedAtDate ? resolvedAtDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+
+          const statusHistoryArr = [
+            { status: 'Reported', timestamp: r.created_at ? `${formattedReportedDate} ${formattedReportedTime}` : new Date().toISOString() }
+          ];
+
+          if (displayStatus !== 'Pending') {
+            statusHistoryArr.push({
+              status: displayStatus,
+              timestamp: r.resolved_at || r.created_at || new Date().toISOString(),
+              assignee: r.assignedTo || r.assigned_to || undefined
+            });
+          }
+
           return {
             id: `REQ-${String(r.id || 0).padStart(3, '0')}`,
             _dbId: r.id,
-            title: r.issue_category ? (r.issue_category.charAt(0).toUpperCase() + r.issue_category.slice(1)) : 'Maintenance Request',
+            title: categoryVal ? (categoryVal.charAt(0).toUpperCase() + categoryVal.slice(1)) : 'Maintenance Request',
             issueType: normIssueType,
-            unit: r.room_name ? `Unit ${r.room_name}` : '—',
-            tenant: r.tenant_name || 'Unknown Tenant',
+            unit: unitVal.startsWith('Unit ') ? unitVal : `Unit ${unitVal}`,
+            tenant: tenantVal,
             priority: normPriority,
             status: displayStatus,
             description: r.description || '',
-            dateReported: r.created_at ? r.created_at.slice(0, 10) : '',
-            timeReported: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-            dateResolved: null,
-            timeResolved: null,
-            assignee: r.assigned_to || null,
+            dateReported: formattedReportedDate,
+            timeReported: formattedReportedTime,
+            dateResolved: formattedResolvedDate,
+            timeResolved: formattedResolvedTime,
+            resolvedAt: r.resolved_at || null,
+            assignee: r.assignedTo || r.assigned_to || null,
             photos: mediaFiles,
-            cost: r.estimated_cost ? parseFloat(r.estimated_cost) : null,
-            tenantResponsible: Number(r.tenant_responsible) === 1,
+            cost: (r.estimatedCost !== undefined && r.estimatedCost !== null) ? parseFloat(r.estimatedCost) : (r.estimated_cost ? parseFloat(r.estimated_cost) : null),
+            tenantResponsible: Number(r.tenantResponsible || r.tenant_responsible) === 1,
             budgetCategory: normIssueType,
             approvalStatus: (displayStatus === 'Approved' || displayStatus === 'In Progress' || displayStatus === 'Completed') ? 'Approved' : null,
             approvalHistory: [],
-            statusHistory: [{ status: displayStatus, timestamp: r.created_at || new Date().toISOString() }],
-            notes: r.work_notes ? [{ text: r.work_notes, author: 'Admin', timestamp: r.created_at }] : []
+            statusHistory: statusHistoryArr,
+            notes: (r.workNotes || r.work_notes) ? [{ text: (r.workNotes || r.work_notes), author: 'Admin', timestamp: r.created_at || formattedReportedDate }] : []
           };
         }));
       } else {
@@ -194,14 +221,21 @@ const AdminMaintainance = () => {
     return { totalSpent, tenantCharged, remaining, usedPct, isOverBudget, categories, perUnit, totalRequests: completedRequests.length };
   }, [requests, monthlyBudget]);
 
-  const handleSimulatePhotoUpload = () => {
-    setNewReq(prev => ({
-      ...prev,
-      photos: [...prev.photos, { url: `simulated-photo-${prev.photos.length + 1}.jpg`, name: `photo_${prev.photos.length + 1}.jpg`, isVideo: false }]
-    }));
+  const [isSubmittingNew, setIsSubmittingNew] = useState(false);
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState(null);
+
+  const handlePhotoFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedPhotoFile(file);
+      setNewReq(prev => ({
+        ...prev,
+        photos: [{ url: URL.createObjectURL(file), name: file.name, isVideo: file.type.startsWith('video/') }]
+      }));
+    }
   };
 
-  const handleCreateRequest = () => {
+  const handleCreateRequest = async () => {
     const errors = {};
     if (!newReq.title) errors.title = true;
     if (!newReq.unit) errors.unit = true;
@@ -212,17 +246,38 @@ const AdminMaintainance = () => {
       return;
     }
 
-    const timestamp = `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    const req = {
-      id: `REQ-00${requests.length + 1}`, title: newReq.title, issueType: newReq.issueType, unit: newReq.unit, tenant: newReq.tenant, priority: newReq.priority, status: 'Pending', description: newReq.description,
-      dateReported: new Date().toISOString().slice(0, 10), timeReported: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), dateResolved: null, timeResolved: null, assignee: null, photos: newReq.photos, cost: null,
-      tenantResponsible: false, budgetCategory: newReq.issueType, approvalStatus: null, approvalHistory: [],
-      statusHistory: [{ status: 'Pending', timestamp }], notes: []
-    };
-    setRequests([req, ...requests]);
-    setNewReq({ title: '', issueType: 'Plumbing', unit: '', tenant: '', priority: 'Medium', description: '', photos: [] });
-    setValidationErrors({});
-    setShowNewModal(false);
+    setIsSubmittingNew(true);
+    try {
+      const formData = new FormData();
+      formData.append('title', newReq.title);
+      formData.append('tenant', newReq.tenant);
+      formData.append('unit', newReq.unit);
+      formData.append('issueType', newReq.issueType);
+      formData.append('priority', newReq.priority);
+      formData.append('description', newReq.description);
+      if (selectedPhotoFile) {
+        formData.append('photo', selectedPhotoFile);
+      }
+
+      const res = await api.post('create_maintenance_request_admin.php', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data && res.data.success) {
+        await fetchRequests();
+        setNewReq({ title: '', issueType: 'Plumbing', unit: '', tenant: '', priority: 'Medium', description: '', photos: [] });
+        setSelectedPhotoFile(null);
+        setValidationErrors({});
+        setShowNewModal(false);
+      } else {
+        alert(res.data?.message || 'Failed to create maintenance request');
+      }
+    } catch (err) {
+      console.error('Error creating maintenance request:', err);
+      alert('Error creating maintenance request');
+    } finally {
+      setIsSubmittingNew(false);
+    }
   };
 
   const handleSubmitForApproval = (req) => {
@@ -636,26 +691,51 @@ const AdminMaintainance = () => {
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Photos</label>
-                <div onClick={handleSimulatePhotoUpload} className="w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:bg-slate-50 hover:border-indigo-400 transition-colors">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference Photo</label>
+                <div className="w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-center relative bg-slate-50 hover:bg-slate-100 hover:border-indigo-400 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handlePhotoFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
                   <FontAwesomeIcon icon={faUpload} className="text-slate-400 mb-2 text-lg" />
-                  <p className="text-xs text-slate-600 m-0">Click to attach photos (simulated)</p>
+                  <p className="text-xs text-slate-600 m-0">Click or drag photo here to attach</p>
+                  <p className="text-[10px] text-slate-400 m-0 mt-0.5">Supports PNG, JPG, JPEG, MP4</p>
                 </div>
                 {newReq.photos?.length > 0 && (
-                  <div className="flex gap-2 mt-2 overflow-x-auto pb-1">
-                    {newReq.photos.map((p, idx) => (
-                      <div key={idx} className="w-12 h-12 rounded bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
-                        <FontAwesomeIcon icon={faImage} className="text-indigo-400" />
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-3 mt-3 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
+                    <div className="w-12 h-12 rounded bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 overflow-hidden">
+                      {newReq.photos[0].isVideo ? (
+                        <span className="text-[10px] font-bold text-indigo-700">VIDEO</span>
+                      ) : (
+                        <img src={newReq.photos[0].url} alt="Thumbnail" className="w-full h-full object-cover" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-700 truncate m-0">{newReq.photos[0].name}</p>
+                      <p className="text-[10px] text-emerald-600 font-semibold m-0">Ready for upload</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPhotoFile(null);
+                        setNewReq(prev => ({ ...prev, photos: [] }));
+                      }}
+                      className="text-xs text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1"
+                    >
+                      Remove
+                    </button>
                   </div>
                 )}
               </div>
 
             </div>
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2">
-              <button onClick={() => setShowNewModal(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors">Cancel</button>
-              <button onClick={handleCreateRequest} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">Create Request</button>
+              <button onClick={() => setShowNewModal(false)} disabled={isSubmittingNew} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={handleCreateRequest} disabled={isSubmittingNew} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50">
+                {isSubmittingNew ? 'Creating...' : 'Create Request'}
+              </button>
             </div>
           </div>
         </div>
@@ -679,7 +759,17 @@ const AdminMaintainance = () => {
                     )}
                   </div>
                   <h2 className="text-xl font-bold text-slate-800 m-0 leading-tight">{selectedReq.title}</h2>
-                  <p className="text-sm text-slate-500 m-0 mt-1 flex items-center gap-2"><FontAwesomeIcon icon={faMapPin} /> {selectedReq.tenant} · {selectedReq.unit}</p>
+                  <div className="flex items-center gap-3 text-xs text-slate-500 mt-1.5 flex-wrap">
+                    <span className="flex items-center gap-1.5 font-medium"><FontAwesomeIcon icon={faMapPin} className="text-indigo-500" /> {selectedReq.tenant} · {selectedReq.unit}</span>
+                    <span className="text-slate-300">•</span>
+                    <span className="flex items-center gap-1.5"><FontAwesomeIcon icon={faClock} className="text-slate-400" /> Reported: {selectedReq.dateReported} {selectedReq.timeReported}</span>
+                    {selectedReq.dateResolved && (
+                      <>
+                        <span className="text-slate-300">•</span>
+                        <span className="flex items-center gap-1.5 text-emerald-600 font-semibold"><FontAwesomeIcon icon={faCheckCircle} /> Resolved: {selectedReq.dateResolved} {selectedReq.timeResolved}</span>
+                      </>
+                    )}
+                  </div>
                   {selectedReq.cost !== null && selectedReq.status === 'Completed' && (
                     <p className="text-sm font-bold text-emerald-600 m-0 mt-2 flex items-center gap-2">Final Cost: {formatCurrency(selectedReq.cost)}</p>
                   )}

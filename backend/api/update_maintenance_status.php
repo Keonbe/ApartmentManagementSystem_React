@@ -31,8 +31,13 @@ if (!$id || !$status) {
     exit;
 }
 
-$stmt = $conn->prepare("UPDATE maintenance_requests SET status = ?, assigned_to = ?, estimated_cost = ?, work_notes = ?, tenant_responsible = ? WHERE id = ?");
-$stmt->bind_param("ssdsii", $status, $assigned_to, $estimated_cost, $work_notes, $tenant_responsible, $id);
+if ($status === 'Completed') {
+    $stmt = $conn->prepare("UPDATE maintenance_requests SET status = ?, assigned_to = ?, estimated_cost = ?, work_notes = ?, tenant_responsible = ?, resolved_at = COALESCE(resolved_at, NOW()) WHERE id = ?");
+    $stmt->bind_param("ssdsii", $status, $assigned_to, $estimated_cost, $work_notes, $tenant_responsible, $id);
+} else {
+    $stmt = $conn->prepare("UPDATE maintenance_requests SET status = ?, assigned_to = ?, estimated_cost = ?, work_notes = ?, tenant_responsible = ?, resolved_at = NULL WHERE id = ?");
+    $stmt->bind_param("ssdsii", $status, $assigned_to, $estimated_cost, $work_notes, $tenant_responsible, $id);
+}
 
 if ($stmt->execute()) {
     log_activity($conn, $admin_id, 'maintenance', "Updated Maintenance Ticket #$id", "Status: $status, Assigned: $assigned_to");

@@ -93,9 +93,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 4.1 | Submit Maintenance Request | ✅ | Critical | `maintenance_request.php` |
 | 4.2 | Issue Categories | ✅ | Critical | `issue_category` field |
 | 4.3 | Priority Levels | ✅ | Critical | `urgency` field |
-| 4.4 | Photo Upload | 🔧 | High | Field exists; UI upload pending |
+| 4.4 | Photo Upload | ✅ | High | Implemented with drag & drop, live preview, video/photo support, and backend storage |
 | 4.5 | Status Tracking | ✅ | Critical | Pending → In Progress → Completed (`AdminMaintainance.jsx`) |
-| 4.6 | Date / Time Tracking | 🔧 | High | `created_at` exists; resolution timestamps pending |
+| 4.6 | Date / Time Tracking | ✅ | High | Tracks created_at and resolved_at resolution timestamps |
 | 4.7 | Admin Assignment | ✅ | Medium | `assigned_to` field |
 | 4.8 | Cost Estimation | ✅ | Medium | `estimated_cost`, `tenant_responsible` fields |
 | 4.9 | Work Notes | ✅ | Medium | `work_notes` field |
@@ -193,7 +193,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 1. Tenant Management | 7 | 6 | 0 | 1 | 0 |
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
 | 3. Payment & Billing | 10 | 7 | 1 | 2 | 0 |
-| 4. Maintenance Request | 10 | 7 | 3 | 0 | 0 |
+| 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
 | 5. Service Management | 4 | 3 | 1 | 0 | 0 |
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 6 | 0 | 0 | 6 | 0 |
@@ -202,7 +202,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **77** | **48** | **10** | **19** | **0** |
+| **TOTAL** | **77** | **50** | **8** | **19** | **0** |
 
 ### Core Functionality Coverage
 

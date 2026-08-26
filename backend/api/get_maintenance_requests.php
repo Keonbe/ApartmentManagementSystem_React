@@ -40,11 +40,14 @@ if ($result) {
             'preferredTime' => $row['preferred_time'],
             'description' => $row['description'],
             'permissionToEnter' => (bool)$row['permission_to_enter'],
+            'attachment_path' => $row['attachment_path'],
             'status' => $row['status'],
             'assignedTo' => $row['assigned_to'] ?? '',
             'estimatedCost' => (float)($row['estimated_cost'] ?? 0),
             'workNotes' => $row['work_notes'] ?? '',
             'tenantResponsible' => (bool)($row['tenant_responsible'] ?? false),
+            'created_at' => $row['created_at'],
+            'resolved_at' => $row['resolved_at'],
             'dateSubmitted' => date('Y-m-d', strtotime($row['created_at']))
         ];
     }
