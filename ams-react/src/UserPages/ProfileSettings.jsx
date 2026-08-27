@@ -4,9 +4,11 @@ import { faFileAlt, faKey, faSave, faCamera, faUpload, faTrash, faUndo, faUser }
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
 
 export default function ProfileSettings() {
+    const { t } = useLang();
     const [loggedInUser, setLoggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
 
     const [firstName, setFirstName] = useState(loggedInUser.first_name || '');
@@ -255,10 +257,10 @@ export default function ProfileSettings() {
                 <div className="profile-settings-header border-b border-slate-200 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
-                            Profile Settings
+                            {t('profile.heading')}
                         </h1>
                         <p className="text-slate-500 text-sm mt-1 m-0">
-                            Review and maintain your master identity records configuration details below.
+                            {t('profile.subtext')}
                         </p>
                     </div>
 
@@ -334,7 +336,7 @@ export default function ProfileSettings() {
                 <div className="profile-settings-card bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8">
                     {/* Profile Photo Uploader with Camera Capture */}
                     <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-slate-700 m-0">Profile Avatar Photo</h3>
+                        <h3 className="text-sm font-bold text-slate-700 m-0">{t('profile.avatarPhoto')}</h3>
 
                         {isCameraActive ? (
                             <div className="max-w-sm w-full bg-slate-900 rounded-2xl overflow-hidden aspect-square relative flex flex-col items-center justify-center border border-slate-800">
@@ -369,7 +371,7 @@ export default function ProfileSettings() {
                         ) : (
                             <div className="profile-avatar-options grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {/* Local file selector */}
-                                <div className="border border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 relative cursor-pointer group transition-colors min-h-[110px]">
+                                <div className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 relative cursor-pointer group transition-colors min-h-[110px]">
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -377,7 +379,7 @@ export default function ProfileSettings() {
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
                                     <FontAwesomeIcon icon={faUpload} className="text-slate-400 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
-                                    <span className="text-xs font-bold text-slate-700">Choose Image File</span>
+                                    <span className="text-xs font-bold text-slate-700">{t('profile.chooseFile')}</span>
                                     <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG or GIF up to 2MB</span>
                                 </div>
 
@@ -388,7 +390,7 @@ export default function ProfileSettings() {
                                     className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 cursor-pointer group transition-all min-h-[110px]"
                                 >
                                     <FontAwesomeIcon icon={faCamera} className="text-slate-400 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
-                                    <span className="text-xs font-bold text-slate-700">Take Snapshot Photo</span>
+                                    <span className="text-xs font-bold text-slate-700">{t('profile.takeSnapshot')}</span>
                                     <span className="text-[10px] text-slate-400 mt-0.5">Use your device webcam camera</span>
                                 </button>
                             </div>
@@ -415,10 +417,10 @@ export default function ProfileSettings() {
 
                     <form className="space-y-8" onSubmit={handleFormSubmit}>
                         <div className="space-y-4">
-                            <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>Personal Details</h3>
+                            <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>{t('profile.personalDetails')}</h3>
                             <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">First Name</label>
+                                    <label className="text-sm font-bold text-slate-700">{t('profile.firstName')}</label>
                                     <input
                                         type="text"
                                         value={firstName}
@@ -428,7 +430,7 @@ export default function ProfileSettings() {
                                     />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">Last Name</label>
+                                    <label className="text-sm font-bold text-slate-700">{t('profile.lastName')}</label>
                                     <input
                                         type="text"
                                         value={lastName}
@@ -438,7 +440,7 @@ export default function ProfileSettings() {
                                     />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">Suffix</label>
+                                    <label className="text-sm font-bold text-slate-700">{t('profile.suffix')}</label>
                                     <input
                                         type="text"
                                         value={suffix}
@@ -450,7 +452,7 @@ export default function ProfileSettings() {
 
                             <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">Contact No.</label>
+                                    <label className="text-sm font-bold text-slate-700">{t('profile.contactNumber')}</label>
                                     <div className="w-full flex relative">
                                         <div className="flex items-center space-x-1 px-3 bg-slate-100 border border-slate-200 rounded-l-xl text-slate-800 text-sm font-bold select-none border-r-0 pointer-events-none opacity-80 box-border">
                                             <span>🇵🇭</span>
@@ -470,7 +472,7 @@ export default function ProfileSettings() {
                                 </div>
 
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">Email Address</label>
+                                    <label className="text-sm font-bold text-slate-700">{t('profile.email')}</label>
                                     <input
                                         type="text"
                                         value={email}
@@ -480,7 +482,7 @@ export default function ProfileSettings() {
                                     />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">Gender</label>
+                                    <label className="text-sm font-bold text-slate-700">{t('profile.gender')}</label>
                                     <select
                                         value={gender}
                                         onChange={(e) => setGender(e.target.value)}
@@ -502,7 +504,7 @@ export default function ProfileSettings() {
                                     <FontAwesomeIcon icon={faFileAlt} className="text-base" />
                                 </div>
                                 <div>
-                                    <p className="m-0 text-sm font-bold text-slate-800">Verification Documents</p>
+                                    <p className="m-0 text-sm font-bold text-slate-800">{t('profile.verificationDocs')}</p>
                                     <p className="m-0 text-xs text-slate-400 mt-0.5">Manage Valid ID & NBI Clearance</p>
                                 </div>
                             </button>
@@ -511,7 +513,7 @@ export default function ProfileSettings() {
                                     <FontAwesomeIcon icon={faKey} className="text-base" />
                                 </div>
                                 <div>
-                                    <p className="m-0 text-sm font-bold text-slate-800">Account Security</p>
+                                    <p className="m-0 text-sm font-bold text-slate-800">{t('profile.accountSecurity')}</p>
                                     <p className="m-0 text-xs text-slate-400 mt-0.5">Update login credentials</p>
                                 </div>
                             </button>
@@ -523,7 +525,7 @@ export default function ProfileSettings() {
                                 className="profile-save-btn w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2"
                             >
                                 <FontAwesomeIcon icon={faSave} />
-                                <span>Save Profile</span>
+                                <span>{t('profile.saveProfile')}</span>
                             </button>
                         </div>
                     </form>

@@ -114,7 +114,7 @@ function BaseAppLayout({ children, hasRentedRoom }) {
         username={username || "Guest"} 
         onLoginClick={() => navigate('/login')} 
       />
-      <main className="w-full flex-grow flex flex-col justify-start">
+      <main className="w-full flex-grow flex flex-col justify-start overflow-x-hidden">
         {children}
       </main>
       <footer className="w-full bg-[#3b4276] py-5 text-center select-none shrink-0 border-t border-white/10">

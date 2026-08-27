@@ -7,10 +7,12 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-visitors.responsive.css';
 
 export default function UserVisitors() {
   const navigate = useNavigate();
+  const { t } = useLang();
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
 
   const [visitors, setVisitors] = useState([]);
@@ -149,17 +151,17 @@ export default function UserVisitors() {
             className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 bg-transparent border-0 cursor-pointer p-0 mb-3"
           >
             <FontAwesomeIcon icon={faArrowLeft} />
-            <span>Back to Services</span>
+            <span>{t('visitors.backToServices')}</span>
           </button>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-extrabold m-0 tracking-tight flex items-center gap-3" style={{ color: '#3b4276' }}>
                 <FontAwesomeIcon icon={faIdBadge} className="text-indigo-600" />
-                Visitor Management
+                {t('visitors.heading')}
               </h1>
               <p className="text-slate-500 text-xs sm:text-sm mt-1 m-0">
-                Log and track guest visits, deliveries, and contractors visiting {tenantRoom ? `Unit ${tenantRoom}` : 'your apartment'}.
+                {t('visitors.subtext')}
               </p>
             </div>
 
@@ -179,7 +181,7 @@ export default function UserVisitors() {
                 className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white transition-all shadow-md active:scale-[0.98] border-0 cursor-pointer"
               >
                 <FontAwesomeIcon icon={faUserPlus} />
-                <span>Log New Visitor</span>
+                <span>{t('visitors.logNewVisitor')}</span>
               </button>
             </div>
           </div>
@@ -194,7 +196,7 @@ export default function UserVisitors() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
-                Active Visitors Currently Visiting ({activeVisitors.length})
+                {t('visitors.activeVisitors')} ({activeVisitors.length})
               </h3>
             </div>
 
@@ -203,9 +205,9 @@ export default function UserVisitors() {
                 <div key={v.id} className="rounded-xl border border-emerald-200 bg-white p-4 flex items-center justify-between shadow-xs">
                   <div className="space-y-1">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
-                    <p className="text-xs text-slate-500 m-0">Purpose: <span className="font-semibold text-slate-700">{v.purpose}</span></p>
+                    <p className="text-xs text-slate-500 m-0">{t('visitors.colPurpose')}: <span className="font-semibold text-slate-700">{v.purpose}</span></p>
                     <p className="text-[11px] text-slate-400 m-0">
-                      Arrived: {new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Duration: <span className="font-bold text-emerald-600">{v.duration}</span>
+                      {new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {t('visitors.colDuration')}: <span className="font-bold text-emerald-600">{v.duration}</span>
                     </p>
                   </div>
                   <button
@@ -213,7 +215,7 @@ export default function UserVisitors() {
                     onClick={() => handleCheckoutSelf(v.id)}
                     className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
                   >
-                    Mark Departed
+                    {t('visitors.markDeparted')}
                   </button>
                 </div>
               ))}
@@ -226,10 +228,10 @@ export default function UserVisitors() {
           <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm space-y-3">
             <h3 className="text-sm font-bold text-amber-900 m-0 flex items-center gap-2">
               <FontAwesomeIcon icon={faClock} className="text-amber-500" />
-              Pending Admin Verification ({pendingVisitors.length})
+              {t('visitors.pendingVerification')} ({pendingVisitors.length})
             </h3>
             <p className="text-xs text-amber-700 m-0">
-              You registered the following visitors. Management will verify their details upon arrival.
+              {t('visitors.pendingVerificationDesc')}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -253,8 +255,8 @@ export default function UserVisitors() {
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="border-b border-slate-100 bg-slate-50 px-5 py-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-800 m-0">Visitor Log History</h3>
-              <p className="text-xs text-slate-500 m-0 mt-0.5">Complete record of guests, couriers, and contractors logged for Unit {tenantRoom || 'your unit'}.</p>
+              <h3 className="text-sm font-bold text-slate-800 m-0">{t('visitors.logHistory')}</h3>
+              <p className="text-xs text-slate-500 m-0 mt-0.5">{t('visitors.logHistoryDesc')}</p>
             </div>
           </div>
 
@@ -262,24 +264,24 @@ export default function UserVisitors() {
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-5 py-3">Visitor Name</th>
-                  <th className="px-4 py-3">Purpose</th>
-                  <th className="px-4 py-3">Vehicle Plate</th>
-                  <th className="px-4 py-3">Check-In Time</th>
-                  <th className="px-4 py-3">Duration</th>
-                  <th className="px-5 py-3 text-center">Status</th>
+                  <th className="px-5 py-3">{t('visitors.colName')}</th>
+                  <th className="px-4 py-3">{t('visitors.colPurpose')}</th>
+                  <th className="px-4 py-3">{t('visitors.colPlate')}</th>
+                  <th className="px-4 py-3">{t('visitors.colCheckIn')}</th>
+                  <th className="px-4 py-3">{t('visitors.colDuration')}</th>
+                  <th className="px-5 py-3 text-center">{t('visitors.colStatus')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="px-5 py-10 text-center text-slate-400">Loading your visitor records...</td>
+                    <td colSpan="6" className="px-5 py-10 text-center text-slate-400">{t('visitors.loading')}</td>
                   </tr>
                 ) : visitors.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="px-5 py-12 text-center text-slate-400 italic">
                       <FontAwesomeIcon icon={faIdBadge} className="text-3xl text-slate-200 mb-2 block mx-auto" />
-                      No visitor records logged yet for your unit.
+                      {t('visitors.noneLogged')}
                     </td>
                   </tr>
                 ) : (
@@ -346,7 +348,7 @@ export default function UserVisitors() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faUserPlus} className="text-indigo-600" />
-                <h3 className="text-lg font-bold text-slate-800 m-0">Log / Register Visitor</h3>
+                <h3 className="text-lg font-bold text-slate-800 m-0">{t('visitors.modalTitle')}</h3>
               </div>
               <button
                 type="button"
@@ -358,12 +360,12 @@ export default function UserVisitors() {
             </div>
 
             <p className="text-xs text-slate-500 leading-relaxed mb-4">
-              Enter your guest's information for <strong>Unit {tenantRoom || 'your apartment'}</strong>. Management will verify their entry.
+              {t('visitors.modalDesc')}
             </p>
 
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Visitor Full Name *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.visitorName')} *</label>
                 <input
                   type="text"
                   required
@@ -375,7 +377,7 @@ export default function UserVisitors() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Contact Number *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.contactNumber')} *</label>
                 <input
                   type="tel"
                   required
@@ -387,7 +389,7 @@ export default function UserVisitors() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Purpose of Visit *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.purpose')} *</label>
                 <select
                   value={registerForm.purpose}
                   onChange={(e) => setRegisterForm({ ...registerForm, purpose: e.target.value })}
@@ -403,7 +405,7 @@ export default function UserVisitors() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID Type</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idType')}</label>
                   <select
                     value={registerForm.idType}
                     onChange={(e) => setRegisterForm({ ...registerForm, idType: e.target.value })}
@@ -417,7 +419,7 @@ export default function UserVisitors() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID Number (Optional)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idNumber')}</label>
                   <input
                     type="text"
                     placeholder="e.g. D01-19-12345"
@@ -430,7 +432,7 @@ export default function UserVisitors() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.vehiclePlate')}</label>
                   <input
                     type="text"
                     placeholder="e.g. N02-1234"
@@ -440,7 +442,7 @@ export default function UserVisitors() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idPhoto')}</label>
                   <input
                     type="file"
                     accept="image/*,.pdf"
@@ -456,14 +458,14 @@ export default function UserVisitors() {
                   onClick={() => setShowRegisterModal(false)}
                   className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
                 >
-                  Cancel
+                  {t('visitors.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
                   className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
                 >
-                  {submitting ? 'Submitting...' : 'Register Visitor'}
+                  {submitting ? t('visitors.submitting') : t('visitors.submit')}
                 </button>
               </div>
             </form>

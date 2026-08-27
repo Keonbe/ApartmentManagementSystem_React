@@ -3,9 +3,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useNavigate } from 'react-router-dom';
+import { useLang } from '../config/i18n';
+import '../assets/styles/responsive/user/pay-bills.responsive.css';
 
 export default function PayBills() {
     const navigate = useNavigate();
+    const { t } = useLang();
     const [selectedMethod, setSelectedMethod] = useState('gcash');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isAutoPayEnabled, setIsAutoPayEnabled] = useState(false);
@@ -59,8 +62,8 @@ export default function PayBills() {
     {/*Available payment processing channels matrix*/}
     const paymentMethods = [
         { id: 'gcash', label: 'GCash', icon: faWallet, color: 'text-blue-600', isDigital: true },
-        { id: 'bank', label: 'Bank Transfer', icon: faUniversity, color: 'text-indigo-600', isDigital: true },
-        { id: 'cash', label: 'Cash on Hand', icon: faMoneyBillWave, color: 'text-emerald-600', isDigital: false }
+        { id: 'bank', label: t('payBills.bank'), icon: faUniversity, color: 'text-indigo-600', isDigital: true },
+        { id: 'cash', label: t('payBills.cash'), icon: faMoneyBillWave, color: 'text-emerald-600', isDigital: false }
     ];
 
     const currentMethodObj = paymentMethods.find(m => m.id === selectedMethod);
@@ -126,85 +129,85 @@ export default function PayBills() {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
+        <div className="pay-bills-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
+            <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
                 
                 {/*Header Summary Section displaying dynamic system calendar values*/}
                 <div className="border-b border-slate-200 pb-4">
-                    <h1 className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
-                        Current Bill: {currentMonthYear}
+                    <h1 className="pay-bills-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
+                        {t('payBills.heading')}: {currentMonthYear}
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1 m-0">
-                        Review your unit breakdown ledger utilities and authorize transaction clearings securely.
+                    <p className="pay-bills-subtext text-slate-500 text-sm mt-1 m-0">
+                        {t('payBills.subtext')}
                     </p>
                 </div>
 
                 {/*Main Workspace Content Segment Panel*/}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
                     
                     {/*Left Grid Parameter Block: Billing Items Statement Breakdown Ledger*/}
-                    <div className="md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
+                    <div className="pay-bills-card md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                            <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Statement Ledger</h3>
+                            <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
                             <button 
                                 type="button" 
                                 onClick={() => navigate('/payment-history')}
-                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-0 flex items-center gap-1.5"
+                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
                             >
                                 <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
-                                <span>View Previous Bills</span>
+                                <span>{t('payBills.viewPrevious')}</span>
                             </button>
                         </div>
 
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>Base Rent</span>
+                            <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                <span>{t('payBills.baseRent')}</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.baseRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                             {billDetails.securityDeposit > 0 && (
-                                <div className="flex justify-between items-center text-sm font-medium text-slate-600">
-                                    <span>Security Deposit (1 Month)</span>
+                                <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                    <span>{t('payBills.deposit')}</span>
                                     <span className="font-bold text-slate-900">₱{billDetails.securityDeposit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
                             )}
-                            <div className="flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>Water (Metered)</span>
+                            <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                <span>{t('payBills.water')}</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.water.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
-                            <div className="flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>Electricity (Metered)</span>
+                            <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                <span>{t('payBills.electricity')}</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.electricity.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
-                            <div className="flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>Parking Reservation</span>
+                            <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                <span>{t('payBills.parking')}</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.parking.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
                             {billDetails.lateFee > 0 && (
-                                <div className="flex justify-between items-center text-sm font-medium text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 font-bold">
-                                    <span>Late Fee Penalty (Overdue)</span>
+                                <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 font-bold">
+                                    <span>{t('payBills.lateFee')}</span>
                                     <span>₱{billDetails.lateFee.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
                             )}
                         </div>
 
                         <div className="border-t-2 border-slate-900 pt-4 mt-4 flex justify-between items-center">
-                            <span className="text-base font-extrabold text-slate-800">Total Amount Due:</span>
-                            <span className="text-2xl font-black text-indigo-600">₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <span className="text-base font-extrabold text-slate-800">{t('payBills.totalDue')}</span>
+                            <span className="pay-bills-total-due text-2xl font-black text-indigo-600">₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                     </div>
 
                     {/*Right Grid Parameter Block: Clearing Channel Allocation Panel Controls*/}
-                    <div className="md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-8 space-y-6">
-                        <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3" style={{ color: '#3b4276' }}>Payment Settings</h3>
+                    <div className="pay-bills-card md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
+                        <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3" style={{ color: '#3b4276' }}>{t('payBills.paymentSettings')}</h3>
                         
                         {/*Custom Selected Dropdown Trigger Wrapper*/}
                         <div className="space-y-2 relative">
-                            <label className="text-xs font-bold text-slate-700 block">Select Payment Method</label>
+                            <label className="text-xs font-bold text-slate-700 block">{t('payBills.selectMethod')}</label>
                             
                             <button
                                 type="button"
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
+                                className="pay-bills-method-trigger w-full min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
                             >
                                 <div className="flex items-center space-x-3 text-slate-800 font-semibold text-sm">
                                     {currentMethodObj.id === 'gcash' ? (
@@ -225,7 +228,7 @@ export default function PayBills() {
                                             key={method.id}
                                             type="button"
                                             onClick={() => handleMethodSelect(method.id)}
-                                            className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors border-0 bg-transparent cursor-pointer font-medium text-sm ${selectedMethod === method.id ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50'}`}
+                                            className={`pay-bills-dropdown-item w-full min-h-[48px] px-4 py-3 flex items-center justify-between text-left transition-colors border-0 bg-transparent cursor-pointer font-medium text-sm ${selectedMethod === method.id ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50'}`}
                                         >
                                             <div className="flex items-center space-x-3 font-semibold">
                                                 {method.id === 'gcash' ? (
@@ -248,25 +251,25 @@ export default function PayBills() {
                             <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        Reference / Transaction No. (Optional)
+                                        {t('payBills.refNo')}
                                     </label>
                                     <input 
                                         type="text" 
                                         placeholder="e.g. 1002 9382 1823"
                                         value={paymentReference}
                                         onChange={e => setPaymentReference(e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
+                                        className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        Proof of Payment (Screenshot)
+                                        {t('payBills.proofOfPayment')}
                                     </label>
                                     <input 
                                         type="file" 
                                         accept="image/*,.pdf"
                                         onChange={e => setProofFile(e.target.files[0])}
-                                        className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                        className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 min-h-[44px]"
                                     />
                                 </div>
                             </div>
@@ -277,15 +280,15 @@ export default function PayBills() {
                             <div className="space-y-0.5 pr-4 text-left">
                                 <div className="flex items-center space-x-2 text-slate-800 font-bold text-sm">
                                     <FontAwesomeIcon icon={faCreditCard} className="text-slate-400 text-xs" />
-                                    <span>Automatic Payment</span>
+                                    <span>{t('payBills.autoPay')}</span>
                                 </div>
                                 <p className="text-slate-400 text-[11px] m-0 leading-relaxed font-medium">
-                                    Deduct monthly bills automatically via digital balance profiles on statement release dates.
+                                    {t('payBills.autoPayDesc')}
                                 </p>
                             </div>
 
                             {/*Custom Blueprint-Compliant Checkbox Box Element Layer Context*/}
-                            <label className={`relative flex items-center justify-center w-5 h-5 rounded-md border-2 bg-transparent transition-all flex-shrink-0 ${!currentMethodObj.isDigital ? 'border-slate-300 cursor-not-allowed' : 'border-indigo-500 cursor-pointer'}`}>
+                            <label className={`relative flex items-center justify-center w-6 h-6 rounded-md border-2 bg-transparent transition-all flex-shrink-0 ${!currentMethodObj.isDigital ? 'border-slate-300 cursor-not-allowed' : 'border-indigo-500 cursor-pointer'}`}>
                                 <input
                                     type="checkbox"
                                     checked={isAutoPayEnabled}
@@ -304,9 +307,9 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                className="w-full bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center"
+                                className="pay-bills-submit-btn w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center"
                             >
-                                Proceed to Pay
+                                {t('payBills.proceedToPay')}
                             </button>
                         </div>
 

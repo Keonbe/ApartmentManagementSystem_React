@@ -1,0 +1,69 @@
+/* =====================================================
+   USER MY REQUESTS — user-my-requests.responsive.css
+   Domain: user
+   Base: Tailwind utilities in UserMyRequests.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .my-requests-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .my-requests-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .my-requests-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .my-requests-item {
+    padding: 1rem !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.875rem !important;
+  }
+
+  .my-requests-meta-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .my-requests-actions {
+    width: 100% !important;
+    padding-left: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    border-top: 1px solid #f1f5f9 !important;
+    padding-top: 0.75rem !important;
+    margin-top: 0.25rem !important;
+  }
+
+  .my-requests-cancel-btn {
+    min-height: 44px !important;
+    min-width: 80px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.8125rem !important;
+  }
+
+  .my-requests-attachment-link {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .my-requests-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .my-requests-heading {
+    font-size: 1.5rem !important;
+  }
+}

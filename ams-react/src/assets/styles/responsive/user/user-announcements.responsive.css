@@ -1,0 +1,52 @@
+/* =====================================================
+   USER ANNOUNCEMENTS — user-announcements.responsive.css
+   Domain: user
+   Base: Tailwind utilities in UserAnnouncements.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .user-announcements-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .user-announcements-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .user-announcements-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .user-announcements-card {
+    border-radius: 1.25rem !important;
+  }
+
+  .user-announcements-card-body {
+    padding: 1.25rem !important;
+  }
+
+  .user-announcements-item-title {
+    font-size: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .user-announcements-content {
+    font-size: 0.875rem !important;
+    line-height: 1.6 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-announcements-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .user-announcements-heading {
+    font-size: 1.5rem !important;
+  }
+
+  .user-announcements-card-body {
+    padding: 1rem !important;
+  }
+}

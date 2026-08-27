@@ -1,0 +1,59 @@
+/* =====================================================
+   MAINTENANCE REQUEST — maintenance-request.responsive.css
+   Domain: user
+   Base: Tailwind utilities in MaintenanceRequest.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .maintenance-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .maintenance-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .maintenance-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .maintenance-form-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .maintenance-input,
+  .maintenance-select {
+    min-height: 48px !important;
+    font-size: 16px !important; /* Prevents iOS auto-zoom */
+  }
+
+  .maintenance-textarea {
+    font-size: 16px !important;
+  }
+
+  .maintenance-upload-box {
+    min-height: 120px !important;
+    padding: 1rem !important;
+  }
+
+  .maintenance-submit-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .maintenance-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .maintenance-heading {
+    font-size: 1.5rem !important;
+  }
+}

@@ -1,0 +1,63 @@
+/* =====================================================
+   CCTV REQUEST — cctv-request.responsive.css
+   Domain: user
+   Base: Tailwind utilities in CctvRequest.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .cctv-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .cctv-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .cctv-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .cctv-status-widget {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .cctv-form-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .cctv-input,
+  .cctv-select {
+    min-height: 48px !important;
+    font-size: 16px !important; /* Prevents iOS auto-zoom */
+  }
+
+  .cctv-textarea {
+    font-size: 16px !important;
+  }
+
+  .cctv-consent-box {
+    padding: 0.875rem !important;
+  }
+
+  .cctv-submit-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .cctv-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .cctv-heading {
+    font-size: 1.5rem !important;
+  }
+}

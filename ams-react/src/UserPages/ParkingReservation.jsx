@@ -4,8 +4,11 @@ import { faCloudUploadAlt, faCheckCircle, faUndo, faFilePdf, faEye, faTimes, faE
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
+import { useLang } from '../config/i18n';
+import '../assets/styles/responsive/user/parking-reservation.responsive.css';
 
 export default function ParkingReservation() {
+    const { t } = useLang();
     const [vehicleType, setVehicleType] = useState('motorcycle');
     const [vehicleModel, setVehicleModel] = useState('');
     const [plateNumber, setPlateNumber] = useState('');
@@ -253,48 +256,48 @@ export default function ParkingReservation() {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
+        <div className="parking-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
+            <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
 
                 {/*TopHeaderRowWithDynamicSlotCounter*/}
                 <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1
-                            className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
+                            className="parking-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
                             style={{ color: '#3b4276' }}
                         >
-                            Reserve Parking
+                            {t('parking.heading')}
                         </h1>
-                        <p className="text-slate-500 text-sm mt-1 m-0">
-                            Complete the registration information grid below to acquire your allotted compound space stall.
+                        <p className="parking-subtext text-slate-500 text-sm mt-1 m-0">
+                            {t('parking.subtext')}
                         </p>
                     </div>
 
                     {/*DynamicAvailableSlotsCounterWidget*/}
-                    <div className="bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm flex items-center space-x-3 flex-shrink-0 select-none">
+                    <div className="parking-slots-widget bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm flex items-center space-x-3 flex-shrink-0 select-none">
                         <div className={`w-2.5 h-2.5 rounded-full ${availableSlots > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
                         <div>
-                            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">Available Spaces</span>
+                            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">{t('parking.availableSpaces')}</span>
                             <span className="text-xl font-black text-slate-800 tracking-tight">
-                                {loadingSlots ? '...' : `${availableSlots} / ${TOTAL_CAPACITY} Slots Free`}
+                                {loadingSlots ? '...' : `${availableSlots} / ${TOTAL_CAPACITY} ${t('parking.slotsFree')}`}
                             </span>
                         </div>
                     </div>
                 </div>
 
                 {/*FormInputsPanelLayout*/}
-                <form className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start" onSubmit={handleFormSubmit}>
+                <form className="parking-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start" onSubmit={handleFormSubmit}>
 
                     {/*VehicleTypeSelectorRestrictedToMotorcycle*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Vehicle Type</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleType')}</label>
                         <select
                             value={vehicleType}
                             onChange={(e) => setVehicleType(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="parking-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                         >
-                            <option value="motorcycle">Motorcycle</option>
+                            <option value="motorcycle">{t('parking.motorcycle')}</option>
                             <option value="sedan" disabled>Sedan (Only motorcycles are allowed)</option>
                             <option value="suv" disabled>SUV (Only motorcycles are allowed)</option>
                             <option value="pickup" disabled>Pickup Truck (Only motorcycles are allowed)</option>
@@ -304,14 +307,14 @@ export default function ParkingReservation() {
 
                     {/*VehicleModelInput*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Vehicle Model</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleModel')}</label>
                         <input
                             type="text"
                             placeholder="e.g. Yamaha Nmax / Honda Click"
                             value={vehicleModel}
                             required
                             onChange={(e) => setVehicleModel(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="parking-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                         />
                     </div>
@@ -319,7 +322,7 @@ export default function ParkingReservation() {
                     {/*PlateNumberInputFieldWithAlignedLabelAndHelperText*/}
                     <div className="flex flex-col space-y-2">
                         <label className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
-                            Plate / Sticker / MV File No.
+                            {t('parking.plateNo')}
                         </label>
                         <input
                             type="text"
@@ -328,7 +331,7 @@ export default function ParkingReservation() {
                             onChange={handlePlateNumberChange}
                             onBlur={() => setPhonePlateError(validatePhilippinePlate(plateNumber))}
                             required
-                            className={`w-full px-4 py-3 rounded-xl bg-slate-50 border text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors ${plateError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
+                            className={`parking-input w-full px-4 py-3 rounded-xl bg-slate-50 border text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px] ${plateError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
                             style={{ color: '#1e293b' }}
                         />
                         <span className="text-xs font-normal text-slate-400 leading-tight m-0">{getPlateHint()}</span>
@@ -342,26 +345,26 @@ export default function ParkingReservation() {
                     {/*TransmissionTypeSelector*/}
                     <div className="flex flex-col space-y-2">
                         <label className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
-                            Transmission System
+                            {t('parking.transmission')}
                         </label>
                         <select
                             value={transmission}
                             onChange={(e) => setTransmission(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="parking-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
                             <option value="" disabled hidden>Select transmission type...</option>
-                            <option value="automatic">Automatic</option>
-                            <option value="manual">Manual</option>
+                            <option value="automatic">{t('parking.automatic')}</option>
+                            <option value="manual">{t('parking.manual')}</option>
                         </select>
                     </div>
 
                     {/*RentalDurationInputCappedToMax6Months*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
                         <label className="text-sm font-bold text-slate-700 flex items-center justify-between" style={{ color: '#3b4276' }}>
-                            <span>Rental Duration (Months)</span>
-                            <span className="text-xs font-normal text-slate-400">(Max 6 months)</span>
+                            <span>{t('parking.duration')}</span>
+                            <span className="text-xs font-normal text-slate-400">{t('parking.maxMonths')}</span>
                         </label>
                         <input
                             type="number"
@@ -372,7 +375,7 @@ export default function ParkingReservation() {
                             value={durationMonths}
                             onChange={handleNumberInput}
                             required
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="parking-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                         />
                     </div>
@@ -435,24 +438,24 @@ export default function ParkingReservation() {
                     </div>
 
                     {/*PricingOverviewAndSubmitButton*/}
-                    <div className="md:col-span-2 border-t border-slate-100 pt-8 flex flex-col sm:flex-row justify-between items-center gap-6 mt-4">
-                        <div className="flex items-center space-x-12 select-none">
+                    <div className="parking-pricing-row md:col-span-2 border-t border-slate-100 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-6 mt-4">
+                        <div className="parking-pricing-items flex items-center justify-between sm:justify-start gap-6 sm:space-x-12 select-none">
                             <div>
-                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Monthly Cost</span>
-                                <span className="text-2xl font-black text-slate-800 tracking-tight">₱300.00</span>
+                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">{t('parking.monthlyCost')}</span>
+                                <span className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">₱300.00</span>
                             </div>
                             <div>
-                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Total Statement Cost</span>
-                                <span className="text-2xl font-black text-indigo-600 tracking-tight">₱{calculatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">{t('parking.totalCost')}</span>
+                                <span className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">₱{calculatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                         </div>
 
                         <button
                             type="submit"
                             disabled={availableSlots <= 0}
-                            className="w-full sm:w-auto bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="parking-submit-btn w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
-                            {availableSlots > 0 ? "Reserve Space" : "Fully Booked"}
+                            {availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
                         </button>
                     </div>
 
@@ -467,7 +470,7 @@ export default function ParkingReservation() {
                 >
                     <div 
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden"
+                        className="parking-pdf-modal bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden"
                     >
                         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                             <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
@@ -476,7 +479,7 @@ export default function ParkingReservation() {
                             </h3>
                             <button 
                                 onClick={() => setPdfModalUrl(null)}
-                                className="text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-lg"
+                                className="parking-pdf-modal-close-btn text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-lg p-2"
                             >
                                 <FontAwesomeIcon icon={faTimes} />
                             </button>
@@ -508,7 +511,7 @@ export default function ParkingReservation() {
                     setIsModalOpen(false); 
                     navigate('/home');
                 }}
-                message="Reservation Successfully Submitted"
+                message={t('parking.success')}
             />
         </div>
     );

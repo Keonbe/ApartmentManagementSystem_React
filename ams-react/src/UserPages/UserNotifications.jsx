@@ -7,6 +7,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
+import '../assets/styles/responsive/user/user-notifications.responsive.css';
 
 const typeConfig = {
   warning: { label: 'Alert', icon: faExclamationTriangle, color: 'bg-red-50 text-red-500 border-red-100', badge: 'bg-red-100 text-red-700' },
@@ -18,6 +20,7 @@ const typeConfig = {
 export default function UserNotifications() {
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
   const emailKey = loggedInUser.email_address || "default";
+  const { t } = useLang();
 
   // State to hold notifications
   const [notifications, setNotifications] = useState([]);
@@ -117,51 +120,51 @@ export default function UserNotifications() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const filterTabs = [
-    { key: 'all', label: 'All' },
-    { key: 'unread', label: 'Unread' },
-    { key: 'read', label: 'Read' },
-    { key: 'warning', label: 'Alerts' },
-    { key: 'success', label: 'Updates' },
-    { key: 'action', label: 'Action Items' },
+    { key: 'all', label: t('notifications.tabAll') },
+    { key: 'unread', label: t('notifications.tabUnread') },
+    { key: 'read', label: t('notifications.tabRead') },
+    { key: 'warning', label: t('notifications.tabAlerts') },
+    { key: 'success', label: t('notifications.tabUpdates') },
+    { key: 'action', label: t('notifications.tabActionItems') },
   ];
 
   return (
-    <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center select-none text-left animate-fade-in">
-      <div className="w-full max-w-[1400px] flex flex-col gap-8">
+    <div className="user-notif-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center select-none text-left animate-fade-in">
+      <div className="w-full max-w-[1400px] flex flex-col gap-6 sm:gap-8">
         
         {/* Page Title */}
         <div className="border-b border-slate-200 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1
-              className="text-4xl font-sans font-extrabold m-0 tracking-tight text-slate-800"
+              className="user-notif-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight text-slate-800"
               style={{ color: '#3b4276' }}
             >
-              Notifications
+              {t('notifications.heading')}
             </h1>
-            <p className="text-slate-500 text-sm mt-1 m-0">
-              Manage your alerts, system updates, and account requirements.
+            <p className="user-notif-subtext text-slate-500 text-sm mt-1 m-0">
+              {t('notifications.subtext')}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="user-notif-header-actions flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <button 
               onClick={handleMarkAllRead} 
               disabled={unreadCount === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#3b4276] bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-[#3b4276] bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
             >
-              <FontAwesomeIcon icon={faCheckDouble} /> Mark All Read
+              <FontAwesomeIcon icon={faCheckDouble} /> {t('notifications.markAllRead')}
             </button>
             <button 
               onClick={handleClearAll} 
               disabled={notifications.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
             >
-              <FontAwesomeIcon icon={faTrash} /> Clear All
+              <FontAwesomeIcon icon={faTrash} /> {t('notifications.clearAll')}
             </button>
             <button 
               onClick={() => setShowSettings(!showSettings)} 
-              className={`lg:hidden flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border shadow-sm ${showSettings ? 'bg-[#3b4276] text-white border-[#3b4276]' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
+              className={`lg:hidden flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border shadow-sm min-h-[40px] ${showSettings ? 'bg-[#3b4276] text-white border-[#3b4276]' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
             >
-              <FontAwesomeIcon icon={faCog} /> Preferences
+              <FontAwesomeIcon icon={faCog} /> {t('notifications.preferences')}
             </button>
           </div>
         </div>
@@ -175,14 +178,14 @@ export default function UserNotifications() {
             {/* Search and Tabs Header */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
               {/* Search Bar */}
-              <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm focus-within:border-indigo-500 transition-all flex-grow max-w-md">
+              <div className="user-notif-search-container flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm focus-within:border-indigo-500 transition-all flex-grow max-w-md">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
                 <input 
                   type="text" 
-                  placeholder="Search notifications..." 
+                  placeholder={t('notifications.searchPlaceholder')} 
                   value={searchQuery} 
                   onChange={e => setSearchQuery(e.target.value)} 
-                  className="flex-grow bg-transparent text-sm outline-none border-0 p-0 text-slate-800 placeholder-slate-400" 
+                  className="user-notif-search-input flex-grow bg-transparent text-sm outline-none border-0 p-0 text-slate-800 placeholder-slate-400" 
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery('')} className="bg-transparent border-0 text-slate-400 hover:text-slate-600 cursor-pointer p-0">
@@ -193,12 +196,12 @@ export default function UserNotifications() {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-2 p-1 bg-slate-200/50 rounded-xl overflow-x-auto select-none no-scrollbar">
+            <div className="user-notif-tabs-bar flex gap-2 p-1 bg-slate-200/50 rounded-xl overflow-x-auto select-none no-scrollbar">
               {filterTabs.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveFilter(tab.key)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap border-0 cursor-pointer transition-all duration-200 ${activeFilter === tab.key ? 'bg-[#3b4276] text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200/80 hover:text-slate-700'}`}
+                  className={`user-notif-tab-btn px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap border-0 cursor-pointer transition-all duration-200 ${activeFilter === tab.key ? 'bg-[#3b4276] text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200/80 hover:text-slate-700'}`}
                 >
                   {tab.label}
                   {tab.key === 'unread' && unreadCount > 0 && (
@@ -215,9 +218,9 @@ export default function UserNotifications() {
                   <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 text-[#3b4276]/30">
                     <FontAwesomeIcon icon={faBell} className="text-3xl" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-700 m-0">No notifications found</h3>
+                  <h3 className="text-base font-bold text-slate-700 m-0">{t('notifications.noFound')}</h3>
                   <p className="text-slate-400 text-xs mt-1 max-w-sm m-0">
-                    {searchQuery ? "Try checking your spelling or search terms." : "You are completely up to date!"}
+                    {searchQuery ? t('notifications.noFoundSearch') : t('notifications.noFoundDesc')}
                   </p>
                 </div>
               ) : (
@@ -226,7 +229,7 @@ export default function UserNotifications() {
                   return (
                     <div 
                       key={n.id} 
-                      className={`bg-white rounded-2xl border shadow-sm p-5 flex gap-4 items-start transition-all duration-200 hover:shadow-md group relative overflow-hidden ${n.read ? 'border-slate-200' : 'border-indigo-100 bg-indigo-50/10'}`}
+                      className={`user-notif-card bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex gap-3 sm:gap-4 items-start transition-all duration-200 hover:shadow-md group relative overflow-hidden ${n.read ? 'border-slate-200' : 'border-indigo-100 bg-indigo-50/10'}`}
                     >
                       {/* Read indicator bar */}
                       {!n.read && (
@@ -240,7 +243,7 @@ export default function UserNotifications() {
 
                       {/* Details */}
                       <div className="flex-grow min-w-0">
-                        <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap mb-1">
+                        <div className="flex items-start justify-between gap-2 sm:gap-3 flex-wrap sm:flex-nowrap mb-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className={`text-sm m-0 leading-snug ${!n.read ? 'text-slate-800 font-extrabold' : 'text-slate-700 font-bold'}`}>
                               {n.title}
@@ -254,19 +257,19 @@ export default function UserNotifications() {
                         <p className="text-xs text-slate-500 m-0 leading-relaxed mt-0.5">{n.message}</p>
                       </div>
 
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      {/* Action buttons - on mobile visible, on desktop hover */}
+                      <div className="user-notif-actions flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                         <button 
                           onClick={() => handleToggleRead(n.id)} 
                           title={n.read ? 'Mark as unread' : 'Mark as read'} 
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
+                          className="user-notif-action-btn w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
                         >
                           <FontAwesomeIcon icon={n.read ? faCircle : faCheck} className="text-[11px]" />
                         </button>
                         <button 
                           onClick={() => handleDelete(n.id)} 
                           title="Delete" 
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
+                          className="user-notif-action-btn w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
                         >
                           <FontAwesomeIcon icon={faTimes} className="text-xs" />
                         </button>
@@ -280,11 +283,11 @@ export default function UserNotifications() {
           </div>
 
           {/* Preferences Side Column */}
-          <div className={`w-full lg:w-[360px] shrink-0 sticky top-24 ${showSettings ? 'block' : 'hidden lg:block'}`}>
+          <div className={`user-notif-pref-panel w-full lg:w-[360px] shrink-0 sticky top-24 ${showSettings ? 'block' : 'hidden lg:block'}`}>
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-6">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
                 <FontAwesomeIcon icon={faCog} className="text-slate-400" />
-                <h3 className="text-sm font-bold text-slate-800 m-0">Notification Preferences</h3>
+                <h3 className="text-sm font-bold text-slate-800 m-0">{t('notifications.prefTitle')}</h3>
               </div>
 
               {/* Preference Item Blocks */}
@@ -294,8 +297,8 @@ export default function UserNotifications() {
                 {/* Pref 1 */}
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 pr-3">
-                    <p className="text-xs font-bold text-slate-700 m-0">Rent & Billing Reminders</p>
-                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">Receive alert updates on pending monthly statements.</p>
+                    <p className="text-xs font-bold text-slate-700 m-0">{t('notifications.prefRent')}</p>
+                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">{t('notifications.prefRentDesc')}</p>
                   </div>
                   <button onClick={() => togglePreference('rentReminders')} className="bg-transparent border-0 cursor-pointer text-2xl p-0 flex items-center">
                     <FontAwesomeIcon 
@@ -308,8 +311,8 @@ export default function UserNotifications() {
                 {/* Pref 2 */}
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 pr-3">
-                    <p className="text-xs font-bold text-slate-700 m-0">Maintenance Status Updates</p>
-                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">Get notified immediately on work order logs and schedules.</p>
+                    <p className="text-xs font-bold text-slate-700 m-0">{t('notifications.prefMaint')}</p>
+                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">{t('notifications.prefMaintDesc')}</p>
                   </div>
                   <button onClick={() => togglePreference('maintenanceUpdates')} className="bg-transparent border-0 cursor-pointer text-2xl p-0 flex items-center">
                     <FontAwesomeIcon 
@@ -322,8 +325,8 @@ export default function UserNotifications() {
                 {/* Pref 3 */}
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 pr-3">
-                    <p className="text-xs font-bold text-slate-700 m-0">Lease Documents & Contracts</p>
-                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">Get notified of contract approvals and lease renewals.</p>
+                    <p className="text-xs font-bold text-slate-700 m-0">{t('notifications.prefLease')}</p>
+                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">{t('notifications.prefLeaseDesc')}</p>
                   </div>
                   <button onClick={() => togglePreference('leaseAlerts')} className="bg-transparent border-0 cursor-pointer text-2xl p-0 flex items-center">
                     <FontAwesomeIcon 
@@ -342,7 +345,7 @@ export default function UserNotifications() {
                 {/* Channel 1 */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-slate-700 m-0">Email Notifications</p>
+                    <p className="text-xs font-bold text-slate-700 m-0">{t('notifications.prefEmail')}</p>
                     <p className="text-[10px] text-slate-400 m-0 mt-0.5">Forward alerts to {emailKey}.</p>
                   </div>
                   <button onClick={() => togglePreference('emailChannel')} className="bg-transparent border-0 cursor-pointer text-2xl p-0 flex items-center">
@@ -356,8 +359,8 @@ export default function UserNotifications() {
                 {/* Channel 2 */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-slate-700 m-0">SMS Mobile Texts</p>
-                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">Receive text messages on registered mobile number.</p>
+                    <p className="text-xs font-bold text-slate-700 m-0">{t('notifications.prefSms')}</p>
+                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">{t('notifications.prefSmsDesc')}</p>
                   </div>
                   <button onClick={() => togglePreference('smsChannel')} className="bg-transparent border-0 cursor-pointer text-2xl p-0 flex items-center">
                     <FontAwesomeIcon 
@@ -369,7 +372,7 @@ export default function UserNotifications() {
               </div>
 
               <button className="w-full py-3 bg-[#3b4276] hover:bg-[#2d325a] hover:scale-[1.02] active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all border-0 cursor-pointer shadow-sm">
-                Save Preferences
+                {t('notifications.savePref')}
               </button>
             </div>
           </div>

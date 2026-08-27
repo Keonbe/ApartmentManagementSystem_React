@@ -1,0 +1,96 @@
+/* =====================================================
+   PARKING RESERVATION — parking-reservation.responsive.css
+   Domain: user
+   Base: Tailwind utilities in ParkingReservation.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .parking-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .parking-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .parking-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .parking-slots-widget {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .parking-form-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .parking-input,
+  .parking-select {
+    min-height: 48px !important;
+    font-size: 16px !important; /* Prevents iOS auto-zoom */
+  }
+
+  .parking-upload-box {
+    min-height: 130px !important;
+    padding: 1rem !important;
+  }
+
+  /* Pricing overview & submit button row */
+  .parking-pricing-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 1.25rem !important;
+  }
+
+  .parking-pricing-items {
+    display: flex !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .parking-submit-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1rem !important;
+  }
+
+  /* PDF Preview Modal */
+  .parking-pdf-modal {
+    width: 100% !important;
+    height: 90svh !important;
+    max-width: 100% !important;
+    border-radius: 1rem !important;
+    margin: 0 !important;
+  }
+
+  .parking-pdf-modal-close-btn {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .parking-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .parking-heading {
+    font-size: 1.5rem !important;
+  }
+
+  .parking-pricing-items {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+}

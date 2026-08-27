@@ -4,8 +4,11 @@ import { faCloudUploadAlt, faCheckCircle, faUndo } from '@fortawesome/free-solid
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
+import { useLang } from '../config/i18n';
+import '../assets/styles/responsive/user/maintenance-request.responsive.css';
 
 export default function MaintenanceRequest() {
+    const { t } = useLang();
     const [issueType, setIssueType] = useState('');
     const [urgency, setUrgency] = useState('');
     const [preferredDate, setPreferredDate] = useState('');
@@ -107,71 +110,71 @@ export default function MaintenanceRequest() {
     };
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-8 flex flex-col justify-start text-left">
+        <div className="maintenance-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
+            <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
 
                 {/*Top Header Row*/}
                 <div className="border-b border-slate-200 pb-4">
                     <h1
-                        className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
+                        className="maintenance-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
                         style={{ color: '#3b4276' }}
                     >
-                        Maintenance Request
+                        {t('maintenance.heading')}
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1 m-0">
-                        Complete the technical service ticket grid below to schedule required unit fixes.
+                    <p className="maintenance-subtext text-slate-500 text-sm mt-1 m-0">
+                        {t('maintenance.subtext')}
                     </p>
                 </div>
 
                 {/*Form Inputs Panel Layout*/}
-                <form className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
+                <form className="maintenance-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
 
                     {/*Issue Category Selector*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Issue Category</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.category')}</label>
                         <select
                             value={issueType}
                             onChange={(e) => setIssueType(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
-                            <option value="" disabled hidden>Select an issue category...</option>
-                            <option value="plumbing">Plumbing (Leak, Clog, Drain)</option>
-                            <option value="electrical">Electrical (Sockets, Lights, Wiring)</option>
-                            <option value="appliance">Appliance Maintenance</option>
-                            <option value="structural">Structural (Doors, Windows, Walls)</option>
-                            <option value="others">Others</option>
+                            <option value="" disabled hidden>{t('maintenance.selectCategory')}</option>
+                            <option value="plumbing">{t('maintenance.plumbing')}</option>
+                            <option value="electrical">{t('maintenance.electrical')}</option>
+                            <option value="appliance">{t('maintenance.appliance')}</option>
+                            <option value="structural">{t('maintenance.structural')}</option>
+                            <option value="others">{t('maintenance.others')}</option>
                         </select>
                     </div>
 
                     {/*Priority Selector*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Priority / Urgency Level</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.priority')}</label>
                         <select
                             value={urgency}
                             onChange={(e) => setUrgency(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
-                            <option value="" disabled hidden>Select urgency rank...</option>
-                            <option value="low">Low (General Concern)</option>
-                            <option value="medium">Medium (Needs attention soon)</option>
-                            <option value="high">High (Disruptive issue)</option>
+                            <option value="" disabled hidden>{t('maintenance.selectPriority')}</option>
+                            <option value="low">{t('maintenance.low')}</option>
+                            <option value="medium">{t('maintenance.medium')}</option>
+                            <option value="high">{t('maintenance.high')}</option>
                         </select>
                     </div>
 
                     {/*Preferred Date Field*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Preferred Inspection Date</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefDate')}</label>
                         <input
                             type="date"
                             min={minDateString}
                             max={maxDateString}
                             value={preferredDate}
                             onChange={(e) => setPreferredDate(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="maintenance-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -179,29 +182,29 @@ export default function MaintenanceRequest() {
 
                     {/*Time Window Selector*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Preferred Time Window</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefTime')}</label>
                         <select
                             value={preferredTime}
                             onChange={(e) => setPreferredTime(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base"
+                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
-                            <option value="" disabled hidden>Select visiting hours...</option>
-                            <option value="morning">Morning (08:00 AM - 12:00 PM)</option>
-                            <option value="afternoon">Afternoon (12:00 PM - 05:00 PM)</option>
+                            <option value="" disabled hidden>{t('maintenance.selectTime')}</option>
+                            <option value="morning">{t('maintenance.morning')}</option>
+                            <option value="afternoon">{t('maintenance.afternoon')}</option>
                         </select>
                     </div>
 
                     {/*Problem Description Area*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Problem Description</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.description')}</label>
                         <textarea
                             rows={4}
-                            placeholder="Please provide specific details about the repair item (e.g., bathroom pipe slow leaks, faulty bedroom main switch)..."
+                            placeholder={t('maintenance.descPlaceholder')}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
+                            className="maintenance-textarea w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -209,12 +212,12 @@ export default function MaintenanceRequest() {
 
                     {/*File Upload Drag and Drop Area*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Reference Attachments (Photos of the Damaged Item)</label>
+                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.attachments')}</label>
                         <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
-                            className={`w-full border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[140px] ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'
+                            className={`maintenance-upload-box w-full border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[140px] ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'
                                 }`}
                         >
                             {!uploadedFile ? (
@@ -228,8 +231,8 @@ export default function MaintenanceRequest() {
                                     />
                                     <div className="space-y-2 pointer-events-none">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
-                                        <p className="text-sm font-medium text-slate-700 m-0">Drag and drop file paperwork assets here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                        <p className="text-slate-400 text-xs m-0">Supports PNGs, JPGs, and image logs</p>
+                                        <p className="text-sm font-medium text-slate-700 m-0">{t('maintenance.dropFile')} <span className="text-indigo-600 font-bold">{t('maintenance.browse')}</span></p>
+                                        <p className="text-slate-400 text-xs m-0">{t('maintenance.supports')}</p>
                                     </div>
                                 </>
                             ) : (
@@ -254,7 +257,7 @@ export default function MaintenanceRequest() {
                                         onClick={() => setUploadedFile(null)}
                                         className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer transition-colors shadow-sm flex items-center gap-1.5"
                                     >
-                                        <FontAwesomeIcon icon={faUndo} /> Remove / Retake
+                                        <FontAwesomeIcon icon={faUndo} /> {t('maintenance.removeRetake')}
                                     </button>
                                 </div>
                             )}
@@ -274,7 +277,7 @@ export default function MaintenanceRequest() {
                             htmlFor="permission-enter-checkbox"
                             className="text-sm font-medium text-slate-600 cursor-pointer hover:text-slate-800"
                         >
-                            Permission to enter if I am not at home
+                            {t('maintenance.permissionEnter')}
                         </label>
                     </div>
 
@@ -282,9 +285,9 @@ export default function MaintenanceRequest() {
                     <div className="md:col-span-2 border-t border-slate-100 pt-6 flex justify-end">
                         <button
                             type="submit"
-                            className="w-full sm:w-auto bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer"
+                            className="maintenance-submit-btn w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center"
                         >
-                            Submit Ticket
+                            {t('maintenance.submit')}
                         </button>
                     </div>
 
@@ -298,7 +301,7 @@ export default function MaintenanceRequest() {
                     setIsModalOpen(false);
                     navigate('/home');
                 }}
-                message="Request Submitted Successfully"
+                message={t('maintenance.success')}
             />
         </div>
     );

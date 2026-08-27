@@ -4,10 +4,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
 export default function MyRoom() {
     const navigate = useNavigate();
+    const { t } = useLang();
 
     const [loggedInUser] = useState(() => {
         const sessionData = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
@@ -309,7 +311,7 @@ export default function MyRoom() {
                     <div className="space-y-1">
                         <div className="flex flex-wrap gap-2 items-center">
                             <span className={`text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none ${roomDetails.status === 'Approved' ? 'bg-[#10b981] text-white' : 'bg-[#6366f1] text-white'}`}>
-                                {roomDetails.status === 'Approved' ? 'Active Tenancy' : `Status: ${roomDetails.status}`}
+                                {roomDetails.status === 'Approved' ? t('myRoom.activeTenancy') : `Status: ${roomDetails.status}`}
                             </span>
                             <span className="text-xs text-indigo-300 font-bold flex items-center space-x-1">
                                 <FontAwesomeIcon icon={faMapMarkerAlt} className="text-[10px]" />
@@ -322,11 +324,11 @@ export default function MyRoom() {
                         </h1>
 
                         <h2 className="text-xl font-sans font-bold m-0 text-indigo-200 tracking-tight pt-0.5">
-                            Current Assigned Unit: {roomDetails.name}
+                            {t('myRoom.assignedUnit')} {roomDetails.name}
                         </h2>
 
                         <p className="text-slate-300 text-xs sm:text-sm m-0 font-medium pt-1">
-                            {roomDetails.type} — Manage your ongoing tenancy parameters, dates, and contracts.
+                            {roomDetails.type} — {t('myRoom.subtext')}
                         </p>
                     </div>
                 </div>
@@ -339,7 +341,7 @@ export default function MyRoom() {
                                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
                                     <FontAwesomeIcon icon={faFileContract} className="text-lg" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white m-0">Lease Contract</h3>
+                                <h3 className="text-lg font-bold text-white m-0">{t('myRoom.leaseContract')}</h3>
                             </div>
                             <p className="text-slate-300 text-xs leading-relaxed m-0 font-medium">
                                 View legal bindings, rules, and document authentications associated with your rented room unit.
@@ -350,7 +352,7 @@ export default function MyRoom() {
                             onClick={handleSeeContract}
                             className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
                         >
-                            See Contract
+                            {t('myRoom.seeContract')}
                         </button>
                     </div>
 
@@ -361,7 +363,7 @@ export default function MyRoom() {
                                     <div className="w-10 h-10 rounded-xl bg-slate-500/10 text-slate-300 flex items-center justify-center shrink-0 border border-white/10">
                                         <FontAwesomeIcon icon={faUsers} className="text-lg" />
                                     </div>
-                                    <h3 className="text-lg font-bold text-white m-0">No. Occupants</h3>
+                                    <h3 className="text-lg font-bold text-white m-0">{t('myRoom.occupantsTitle')}</h3>
                                 </div>
                                 <div className="flex flex-col space-y-1.5 text-left">
                                     <div className="flex justify-between items-center">
@@ -388,7 +390,7 @@ export default function MyRoom() {
                                 type="submit"
                                 className="w-full bg-slate-800 hover:bg-slate-700 border border-white/10 text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
                             >
-                                Update Occupants
+                                {t('myRoom.updateOccupants')}
                             </button>
                         </form>
                     </div>
@@ -399,7 +401,7 @@ export default function MyRoom() {
                                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
                                     <FontAwesomeIcon icon={faHourglassHalf} className="text-lg animate-pulse" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white m-0">Next Bill Due</h3>
+                                <h3 className="text-lg font-bold text-white m-0">{t('myRoom.nextBillDue')}</h3>
                             </div>
                             <div className="space-y-2.5 pt-1 text-left">
                                 <div className="flex justify-between text-xs font-semibold text-slate-400">
@@ -431,7 +433,7 @@ export default function MyRoom() {
                             onClick={() => navigate('/pay-bills')}
                             className="w-full bg-[#10b981] hover:bg-[#059669] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
                         >
-                            Pay Rent Balance
+                            {t('myRoom.payRentBalance')}
                         </button>
                     </div>
 
@@ -446,7 +448,7 @@ export default function MyRoom() {
                                     <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
                                         <FontAwesomeIcon icon={faCalendarPlus} className="text-lg" />
                                     </div>
-                                    <h3 className="text-lg font-bold text-white m-0">Extend Lease Term</h3>
+                                    <h3 className="text-lg font-bold text-white m-0">{t('myRoom.extendLease')}</h3>
                                 </div>
                                 <p className="text-slate-300 text-xs leading-relaxed m-0 font-medium">
                                     Select a new prospective end date to file an official extension request to administration.
@@ -504,7 +506,7 @@ export default function MyRoom() {
                         <div className="space-y-2">
                             <div className="flex items-center space-x-2 text-rose-400 font-bold text-base">
                                 <FontAwesomeIcon icon={faSignOutAlt} className="text-sm" />
-                                <span>Terminate Tenancy</span>
+                                <span>{t('myRoom.terminateTenancy')}</span>
                             </div>
                             <p className="text-slate-300 text-xs leading-relaxed m-0 font-medium">
                                 Initiate standard check-out procedures to vacate the unit and close your balance statements.
@@ -519,7 +521,7 @@ export default function MyRoom() {
                                 : 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
                                 }`}
                         >
-                            {roomDetails.status === 'pending-move-out' ? 'Move-Out Pending' : 'End Rent Term'}
+                            {roomDetails.status === 'pending-move-out' ? t('myRoom.moveOutPending') : t('myRoom.endRentTerm')}
                         </button>
                         {roomDetails.status === 'pending-move-out' && (
                             <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-1.5 mt-2">

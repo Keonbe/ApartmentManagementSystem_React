@@ -3,15 +3,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPrint, faArrowLeft, faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/view-contract.responsive.css';
 
 export default function ViewContract() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { t, lang } = useLang();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [contractData, setContractData] = useState(null);
-    const [language, setLanguage] = useState('tl'); // 'tl' | 'en'
+    const [language, setLanguage] = useState(lang === 'fil' ? 'tl' : 'en'); // 'tl' | 'en'
 
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
     
@@ -118,7 +120,7 @@ export default function ViewContract() {
                     className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-200 shadow-sm cursor-pointer transition-all"
                 >
                     <FontAwesomeIcon icon={faArrowLeft} />
-                    <span>Go Back</span>
+                    <span>{t('contract.goBack')}</span>
                 </button>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -128,13 +130,13 @@ export default function ViewContract() {
                             onClick={() => setLanguage('tl')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${language === 'tl' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
                         >
-                            Tagalog
+                            {t('contract.tagalog')}
                         </button>
                         <button
                             onClick={() => setLanguage('en')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all ${language === 'en' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
                         >
-                            English
+                            {t('contract.english')}
                         </button>
                     </div>
 
@@ -143,7 +145,7 @@ export default function ViewContract() {
                         className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs border-0 shadow-md cursor-pointer transition-all"
                     >
                         <FontAwesomeIcon icon={faPrint} />
-                        <span>Print / Save as PDF</span>
+                        <span>{t('contract.printSave')}</span>
                     </button>
                 </div>
             </div>

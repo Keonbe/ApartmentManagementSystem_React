@@ -8,10 +8,12 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 
 export default function TrackApplication() {
     const navigate = useNavigate();
+    const { t } = useLang();
     const [loading, setLoading] = useState(true);
     const [application, setApplication] = useState(null);
     const [error, setError] = useState(null);
@@ -210,16 +212,16 @@ export default function TrackApplication() {
                     className="flex items-center space-x-2 text-white/70 hover:text-white transition-all bg-transparent border-0 cursor-pointer self-start p-0 outline-none"
                 >
                     <FontAwesomeIcon icon={faArrowLeft} />
-                    <span className="text-sm font-bold">Back to Home</span>
+                    <span className="text-sm font-bold">{t('trackApp.backHome')}</span>
                 </button>
 
                 {/* Page Title */}
                 <div className="track-app-header border-b border-white/10 pb-4">
                     <h1 className="text-4xl font-sans font-extrabold m-0 text-white tracking-tight select-none">
-                        Track Application
+                        {t('trackApp.heading')}
                     </h1>
                     <p className="text-slate-300 text-sm mt-1.5 m-0 font-medium">
-                        Monitor the live onboarding status of your studio lease request in real-time.
+                        {t('trackApp.subtext')}
                     </p>
                 </div>
 
@@ -259,7 +261,7 @@ export default function TrackApplication() {
                                             onClick={() => navigate('/view-contract')}
                                             className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-semibold px-6 py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center"
                                         >
-                                            View Lease Contract
+                                            {t('trackApp.viewContract')}
                                         </button>
                                         <div className="flex items-center space-x-2 text-amber-400 text-xs bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-500/20">
                                             <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400 animate-pulse" />
@@ -275,7 +277,7 @@ export default function TrackApplication() {
                                         onClick={() => navigate('/my-room')}
                                         className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
                                     >
-                                        <span>Proceed to My Room</span>
+                                        <span>{t('trackApp.proceedRoom')}</span>
                                         <FontAwesomeIcon icon={faArrowRight} />
                                     </button>
                                 )
@@ -305,7 +307,7 @@ export default function TrackApplication() {
                                     onClick={() => navigate('/rent-application', { state: { editApplication: application } })}
                                     className="bg-[#6366f1] hover:bg-[#4f46e5] active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
                                 >
-                                    <span>Fix & Resubmit Application</span>
+                                    <span>{t('trackApp.fixResubmit')}</span>
                                     <FontAwesomeIcon icon={faArrowRight} />
                                 </button>
                             )}
@@ -352,7 +354,7 @@ export default function TrackApplication() {
                                         <div>
                                             <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
                                                 <FontAwesomeIcon icon={faFileContract} className="text-indigo-400" />
-                                                Step 1: Sign & Upload Lease Contract
+                                                {t('trackApp.step1')}
                                             </h3>
                                             <p className="text-slate-300 text-xs m-0 mt-1">
                                                 Review your lease agreement, sign it, and upload the signed document below to unlock payment.
@@ -363,7 +365,7 @@ export default function TrackApplication() {
                                             className="bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 font-semibold px-4 py-2.5 rounded-xl text-xs transition-all shrink-0 cursor-pointer flex items-center gap-2"
                                         >
                                             <FontAwesomeIcon icon={faFileContract} />
-                                            <span>View / Print Contract</span>
+                                            <span>{t('trackApp.viewPrintContract')}</span>
                                         </button>
                                     </div>
 
@@ -377,7 +379,7 @@ export default function TrackApplication() {
                                                 </div>
                                             </div>
                                             <label className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition-all border border-white/10 shrink-0">
-                                                <span>Re-upload Contract</span>
+                                                <span>{t('trackApp.reupload')}</span>
                                                 <input 
                                                     type="file" 
                                                     accept="application/pdf" 
@@ -423,7 +425,7 @@ export default function TrackApplication() {
                                                     ) : (
                                                         <>
                                                             <FontAwesomeIcon icon={faUpload} />
-                                                            <span>Upload Contract</span>
+                                                            <span>{t('trackApp.uploadContract')}</span>
                                                         </>
                                                     )}
                                                 </button>
@@ -437,7 +439,7 @@ export default function TrackApplication() {
                                     <div className="border-b border-white/10 pb-4">
                                         <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
                                             <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-indigo-400" />
-                                            Step 2: Complete Initial Lease Payment
+                                            {t('trackApp.step2')}
                                         </h3>
                                         <p className="text-slate-300 text-xs sm:text-sm m-0 mt-1.5 leading-relaxed">
                                             Your lease application is approved! Settle your initial 1-month advance rent and 1-month security deposit below:

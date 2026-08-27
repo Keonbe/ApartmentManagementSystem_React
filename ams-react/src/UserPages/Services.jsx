@@ -3,82 +3,85 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileInvoiceDollar, faParking, faWrench, faVideo, faListAlt, faBullhorn, faHistory, faHourglassHalf, faIdBadge } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { useLang } from '../config/i18n';
+import '../assets/styles/responsive/user/services.responsive.css';
 
 export default function Services() {
     const navigate = useNavigate();
+    const { t } = useLang();
 
     //1.StaticBaseServicesListMappedToSystemSettingKeys
     const allServices = [
         {
             id: 1,
             key: 'service_pay_bills_active',
-            title: 'Bill Payments',
-            description: 'View outstanding apartment utility statement accounts and settle monthly balances securely.',
+            title: t('services.billPayments.title'),
+            description: t('services.billPayments.desc'),
             icon: faFileInvoiceDollar,
-            buttonText: 'Pay Now',
+            buttonText: t('services.billPayments.btn'),
             path: '/pay-bills',
         },
         {
             id: 2,
             key: 'service_parking_active',
-            title: 'Parking Reservation',
-            description: 'Check slot availability charts and reserve motorcycle or vehicle parking spaces.',
+            title: t('services.parking.title'),
+            description: t('services.parking.desc'),
             icon: faParking,
-            buttonText: 'Reserve Now',
+            buttonText: t('services.parking.btn'),
             path: '/parking-reservation',
         },
         {
             id: 3,
             key: 'service_maintenance_active',
-            title: 'Maintenance Request',
-            description: 'Submit technical service tickets for unit repairs, electrical fixtures, or plumbing issues.',
+            title: t('services.maintenance.title'),
+            description: t('services.maintenance.desc'),
             icon: faWrench,
-            buttonText: 'Request Now',
+            buttonText: t('services.maintenance.btn'),
             path: '/maintenance-request',
         },
         {
             id: 4,
             key: 'service_cctv_active',
-            title: 'CCTV Footage Request',
-            description: 'File formal security review logs to request administrative access to corridor camera recording archives.',
+            title: t('services.cctv.title'),
+            description: t('services.cctv.desc'),
             icon: faVideo,
-            buttonText: 'File Request',
+            buttonText: t('services.cctv.btn'),
             path: '/cctv-request',
         },
         {
             id: 5,
             key: 'service_visitor_management_active',
-            title: 'Visitor Management',
-            description: 'Log visiting guests, expected delivery drop-offs, and contractors visiting your unit.',
+            title: t('services.visitors.title'),
+            description: t('services.visitors.desc'),
             icon: faIdBadge,
-            buttonText: 'Manage Visitors',
+            buttonText: t('services.visitors.btn'),
             path: '/visitor-management',
         },
         {
             id: 6,
             key: null, //AlwaysActiveSystemUtility
-            title: 'My Requests',
-            description: 'Track the status and timeline of all your submitted service, parking, and CCTV requests.',
+            title: t('services.myRequests.title'),
+            description: t('services.myRequests.desc'),
             icon: faListAlt,
-            buttonText: 'View Requests',
+            buttonText: t('services.myRequests.btn'),
             path: '/my-requests',
         },
         {
             id: 7,
             key: null, //AlwaysActiveSystemUtility
-            title: 'Announcements',
-            description: 'Read important memos, scheduled maintenance notices, and general building updates.',
+            title: t('services.announcements.title'),
+            description: t('services.announcements.desc'),
             icon: faBullhorn,
-            buttonText: 'Read Memos',
+            buttonText: t('services.announcements.btn'),
             path: '/announcements',
         },
         {
             id: 8,
             key: null, //AlwaysActiveSystemUtility
-            title: 'Payment History',
-            description: 'Review your past monthly billing invoices and download official payment receipts.',
+            title: t('services.paymentHistory.title'),
+            description: t('services.paymentHistory.desc'),
             icon: faHistory,
-            buttonText: 'View History',
+            buttonText: t('services.paymentHistory.btn'),
             path: '/payment-history',
         },
     ];
@@ -119,49 +122,49 @@ export default function Services() {
             <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50">
                 <div className="flex flex-col items-center space-y-3 text-slate-500">
                     <FontAwesomeIcon icon={faHourglassHalf} className="text-3xl text-indigo-500 animate-spin" />
-                    <p className="text-sm font-semibold m-0">Loading Available Services...</p>
+                    <p className="text-sm font-semibold m-0">{t('services.loading')}</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-[1400px] space-y-8 flex flex-col justify-start text-left">
+        <div className="services-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
+            <div className="w-full max-w-[1400px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
 
                 {/*PageTitle*/}
                 <div className="border-b border-slate-200 pb-4">
                     <h1
-                        className="text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
+                        className="services-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none"
                         style={{ color: '#3b4276' }}
                     >
-                        Services
+                        {t('services.heading')}
                     </h1>
-                    <p className="text-slate-500 text-sm mt-1 m-0">
-                        Select an administrative action or utility assignment below to manage your tenancy requirements.
+                    <p className="services-subtext text-slate-500 text-sm mt-1 m-0">
+                        {t('services.subtext')}
                     </p>
                 </div>
 
                 {/*ServicesGrid*/}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 w-full">
                     {visibleServices.map((service) => (
                         <div
                             key={service.id}
-                            className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col sm:flex-row items-center sm:items-stretch space-y-4 sm:space-y-0 sm:space-x-6 hover:shadow-md hover:border-slate-200/80 transition-all duration-200 group"
+                            className="services-card bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col sm:flex-row items-center sm:items-stretch space-y-4 sm:space-y-0 sm:space-x-6 hover:shadow-md hover:border-slate-200/80 transition-all duration-200 group"
                         >
                             {/*LeftRoundedIconBox*/}
-                            <div className="w-24 h-24 sm:w-32 sm:h-auto rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm bg-slate-100 transition-transform duration-300 group-hover:scale-105">
+                            <div className="services-icon-box w-20 h-20 sm:w-32 sm:h-auto rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm bg-slate-100 transition-transform duration-300 group-hover:scale-105">
                                 <FontAwesomeIcon
                                     icon={service.icon}
-                                    className="text-3xl sm:text-4xl text-[#3b4276]"
+                                    className="text-2xl sm:text-4xl text-[#3b4276]"
                                 />
                             </div>
 
                             {/*RightMetadataRow*/}
-                            <div className="flex flex-col justify-between flex-grow text-center sm:text-left min-w-0 space-y-4">
+                            <div className="flex flex-col justify-between flex-grow text-center sm:text-left min-w-0 space-y-4 w-full">
                                 <div className="space-y-1">
                                     <h2
-                                        className="text-xl font-bold m-0 tracking-tight"
+                                        className="services-card-title text-lg sm:text-xl font-bold m-0 tracking-tight"
                                         style={{ color: '#1e293b' }}
                                     >
                                         {service.title}
@@ -175,7 +178,7 @@ export default function Services() {
                                 <div className="w-full sm:w-auto self-center sm:self-start">
                                     <button
                                         onClick={() => navigate(service.path)}
-                                        className="w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97] text-white font-semibold px-6 py-2 rounded-xl text-xs transition-all duration-200 shadow-sm hover:shadow-indigo-500/20 border-0 cursor-pointer"
+                                        className="services-action-btn w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97] text-white font-semibold px-6 py-2.5 sm:py-2 rounded-xl text-sm sm:text-xs transition-all duration-200 shadow-sm hover:shadow-indigo-500/20 border-0 cursor-pointer flex items-center justify-center"
                                     >
                                         {service.buttonText}
                                     </button>

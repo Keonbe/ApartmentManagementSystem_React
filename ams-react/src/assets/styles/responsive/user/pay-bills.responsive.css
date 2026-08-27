@@ -1,0 +1,70 @@
+/* =====================================================
+   PAY BILLS PAGE — pay-bills.responsive.css
+   Domain: user
+   Base: Tailwind utilities in PayBills.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .pay-bills-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .pay-bills-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .pay-bills-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .pay-bills-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .pay-bills-method-trigger {
+    min-height: 48px !important;
+    padding: 0.75rem 1rem !important;
+  }
+
+  .pay-bills-dropdown-item {
+    min-height: 48px !important;
+    padding: 0.75rem 1rem !important;
+  }
+
+  .pay-bills-input {
+    min-height: 48px !important;
+    font-size: 16px !important; /* Prevents iOS auto-zoom */
+  }
+
+  .pay-bills-submit-btn {
+    min-height: 48px !important;
+    font-size: 1rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .pay-bills-ledger-row {
+    font-size: 0.875rem !important;
+  }
+
+  .pay-bills-total-due {
+    font-size: 1.5rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .pay-bills-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .pay-bills-heading {
+    font-size: 1.375rem !important; /* 22px */
+  }
+
+  .pay-bills-total-due {
+    font-size: 1.25rem !important;
+  }
+}

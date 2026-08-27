@@ -1,0 +1,102 @@
+/* =====================================================
+   USER NOTIFICATIONS — user-notifications.responsive.css
+   Domain: user
+   Base: Tailwind utilities in UserNotifications.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .user-notif-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .user-notif-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .user-notif-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  /* Header action buttons row on mobile */
+  .user-notif-header-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+  }
+
+  .user-notif-header-actions button {
+    flex: 1 1 auto !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
+
+  /* Search input container */
+  .user-notif-search-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+
+  .user-notif-search-input {
+    font-size: 16px !important; /* Prevents iOS zoom */
+  }
+
+  /* Filter tabs bar with smooth horizontal scroll */
+  .user-notif-tabs-bar {
+    -webkit-overflow-scrolling: touch !important;
+    overflow-x: auto !important;
+    padding: 0.375rem !important;
+    display: flex !important;
+    gap: 0.375rem !important;
+  }
+
+  .user-notif-tab-btn {
+    min-height: 40px !important;
+    padding: 0.5rem 0.875rem !important;
+    white-space: nowrap !important;
+  }
+
+  /* Notification items on mobile: show action buttons without hover */
+  .user-notif-card {
+    padding: 1rem !important;
+    gap: 0.75rem !important;
+  }
+
+  .user-notif-actions {
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: flex !important;
+  }
+
+  .user-notif-action-btn {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Preferences panel when expanded on mobile */
+  .user-notif-pref-panel {
+    border-radius: 1.25rem !important;
+    padding: 1.25rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-notif-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .user-notif-heading {
+    font-size: 1.5rem !important;
+  }
+
+  .user-notif-card {
+    flex-wrap: wrap !important;
+  }
+}

@@ -1,0 +1,24 @@
+/* =====================================================
+   SHARED TABLES — tables.responsive.css
+   Domain: components
+   Universal mobile responsive styling for tables
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .responsive-table-container {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    display: block !important;
+  }
+
+  .responsive-table-container table {
+    min-width: 600px !important;
+  }
+
+  .responsive-table-card-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+}

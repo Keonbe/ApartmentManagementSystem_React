@@ -1,0 +1,58 @@
+/* =====================================================
+   SERVICES PAGE — services.responsive.css
+   Domain: user
+   Base: Tailwind utilities in Services.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .services-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .services-heading {
+    font-size: 1.875rem !important; /* 30px */
+    line-height: 1.25 !important;
+  }
+
+  .services-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .services-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .services-icon-box {
+    width: 4.5rem !important;
+    height: 4.5rem !important;
+    border-radius: 0.875rem !important;
+  }
+
+  .services-card-title {
+    font-size: 1.125rem !important;
+  }
+
+  .services-action-btn {
+    width: 100% !important;
+    min-height: 48px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .services-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+
+  .services-heading {
+    font-size: 1.5rem !important; /* 24px */
+  }
+
+  .services-card {
+    padding: 1rem !important;
+  }
+}

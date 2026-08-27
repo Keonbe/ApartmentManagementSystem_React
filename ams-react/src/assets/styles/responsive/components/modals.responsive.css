@@ -1,0 +1,47 @@
+/* =====================================================
+   SHARED MODALS — modals.responsive.css
+   Domain: components
+   Universal mobile responsive styling for modal dialogs
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    padding: 0.75rem !important;
+    align-items: center !important;
+  }
+
+  .modal-dialog-responsive,
+  .modal-content-responsive {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92svh !important;
+    margin: 0 !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .modal-close-btn-responsive {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .modal-action-btn-responsive {
+    width: 100% !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 0.5rem !important;
+  }
+
+  .modal-dialog-responsive,
+  .modal-content-responsive {
+    border-radius: 1rem !important;
+    max-height: 95svh !important;
+  }
+}

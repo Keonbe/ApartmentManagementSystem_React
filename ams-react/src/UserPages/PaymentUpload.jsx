@@ -4,11 +4,13 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
 
 export default function PaymentUpload() {
     const location = useLocation();
     const navigate = useNavigate();
+    const { t } = useLang();
     const state = location.state || {};
     const { invoiceId, amount, paymentMethod, returnUrl } = state;
 
@@ -118,13 +120,13 @@ export default function PaymentUpload() {
 
             <div className="payment-upload-card w-full max-w-2xl z-10 space-y-8 relative bg-white md:bg-slate-900/60 md:backdrop-blur-md rounded-3xl md:border md:border-white/10 md:shadow-2xl p-6 md:p-10 text-slate-800 md:text-white">
                 <button onClick={() => navigate(returnUrl || '/home')} className="flex items-center space-x-2 text-indigo-600 md:text-indigo-400 hover:underline bg-transparent border-0 p-0 font-semibold cursor-pointer">
-                    <FontAwesomeIcon icon={faArrowLeft} /> <span>Back</span>
+                    <FontAwesomeIcon icon={faArrowLeft} /> <span>{t('paymentUpload.back')}</span>
                 </button>
 
                 <div>
-                    <h1 className="text-3xl font-extrabold m-0">Upload Payment Proof</h1>
+                    <h1 className="text-3xl font-extrabold m-0">{t('paymentUpload.heading')}</h1>
                     <p className="text-sm text-slate-500 md:text-slate-300 mt-2 m-0 leading-relaxed">
-                        Complete your {paymentMethod} transaction by sending the amount to the details below and uploading the receipt.
+                        {t('paymentUpload.subtext')}
                     </p>
                 </div>
 
@@ -136,14 +138,14 @@ export default function PaymentUpload() {
 
                 <div className="payment-info-box bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-2xl p-6 space-y-4 shadow-inner">
                     <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400">Total Amount Due</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400">{t('paymentUpload.totalDue')}</span>
                         <span className="text-2xl font-black text-indigo-600 md:text-indigo-400">₱{amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="border-t border-slate-200 md:border-white/10 pt-4 mt-4">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400 block mb-3">{paymentMethod} Details</span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
                         <div className="flex flex-col gap-1.5 text-sm font-medium">
-                            <span><strong className="text-slate-400 mr-2">Account Name:</strong> {mockAccountName}</span>
-                            <span className="flex items-center"><strong className="text-slate-400 mr-2">Account No:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{mockAccountNo}</span></span>
+                            <span><strong className="text-slate-400 mr-2">{t('paymentUpload.accountName')}:</strong> {mockAccountName}</span>
+                            <span className="flex items-center"><strong className="text-slate-400 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{mockAccountNo}</span></span>
                         </div>
                     </div>
                 </div>
@@ -151,7 +153,7 @@ export default function PaymentUpload() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Sender Name</label>
+                            <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.senderName')}</label>
                             <input 
                                 type="text" 
                                 value={senderName} 
@@ -162,7 +164,7 @@ export default function PaymentUpload() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Reference No.</label>
+                            <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.refNo')}</label>
                             <input 
                                 type="text" 
                                 value={referenceNo} 
@@ -183,7 +185,7 @@ export default function PaymentUpload() {
 
                     {/*AdjustedReceiptPreviewContainerArea*/}
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Upload Receipt Image</label>
+                        <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.uploadReceipt')}</label>
                         
                         {!previewUrl ? (
                             <div className="payment-dropzone relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
@@ -210,7 +212,7 @@ export default function PaymentUpload() {
                                 <div className="flex items-center gap-3 w-full pt-1">
                                     <label className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} />
-                                        <span>Change Photo</span>
+                                        <span>{t('paymentUpload.changePhoto')}</span>
                                         <input 
                                             type="file" 
                                             accept="image/jpeg,image/png,image/jpg" 
@@ -227,7 +229,7 @@ export default function PaymentUpload() {
                                         className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold px-4 py-2.5 rounded-xl border border-rose-500/30 cursor-pointer transition-colors flex items-center gap-1.5"
                                     >
                                         <FontAwesomeIcon icon={faUndo} />
-                                        <span>Remove</span>
+                                        <span>{t('paymentUpload.remove')}</span>
                                     </button>
                                 </div>
                             </div>
@@ -241,9 +243,9 @@ export default function PaymentUpload() {
                             className="payment-submit-btn w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-extrabold py-4 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {uploading ? (
-                                <><FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" /> <span>Submitting...</span></>
+                                <><FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" /> <span>{t('paymentUpload.submitting')}</span></>
                             ) : (
-                                <><FontAwesomeIcon icon={faCheckCircle} /> <span>Submit Payment Proof</span></>
+                                <><FontAwesomeIcon icon={faCheckCircle} /> <span>{t('paymentUpload.submit')}</span></>
                             )}
                         </button>
                     </div>
