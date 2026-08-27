@@ -371,6 +371,40 @@ INSERT IGNORE INTO `rooms` (`id`, `type`, `floor`, `monthly_rent`, `status`, `te
 ('M', 'Studio', '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
 ('N', 'Studio',    '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0);
 
+--
+-- Table structure for table `visitor_logs`
+--
+
+DROP TABLE IF EXISTS `visitor_logs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `visitor_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `room_name` varchar(50) NOT NULL,
+  `visitor_name` varchar(150) NOT NULL,
+  `contact_number` varchar(30) NOT NULL,
+  `id_type` varchar(50) DEFAULT NULL,
+  `id_number` varchar(50) DEFAULT NULL,
+  `purpose` varchar(255) NOT NULL,
+  `vehicle_plate` varchar(30) DEFAULT NULL,
+  `status` enum('pending_approval','checked_in','checked_out','overstayed','denied') NOT NULL DEFAULT 'pending_approval',
+  `check_in_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `check_out_at` datetime DEFAULT NULL,
+  `checkout_notes` text DEFAULT NULL,
+  `admin_notes` text DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_visitor_user` (`user_id`),
+  KEY `idx_visitor_room` (`room_name`),
+  KEY `idx_visitor_status` (`status`),
+  KEY `idx_visitor_checkin` (`check_in_at`),
+  CONSTRAINT `fk_visitor_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
@@ -391,4 +425,6 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('payment_ch_maya', '1'),
 ('payment_ch_gcash_manual', '1'),
 ('payment_ch_bank_manual', '1'),
-('payment_ch_in_person', '1');
+('payment_ch_in_person', '1'),
+('visitor_overstay_hours', '24'),
+('service_visitor_management_active', 'true');
