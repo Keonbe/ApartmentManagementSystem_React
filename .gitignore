@@ -1,3 +1,4 @@
 backend/api/get_notifications.log
 /backend/api/migrations/seed_mock_data.sql
 /backend/api/migrations/seed_reset.sql
+backend/config.env.php

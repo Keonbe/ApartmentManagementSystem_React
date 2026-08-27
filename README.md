@@ -98,6 +98,8 @@ ApartmentManagementSystem_React/
 │   │   ├── get_report_data.php     # Financial and occupancy reporting engine
 │   │   └── ... (50+ dedicated REST endpoints)
 │   ├── config.php                  # Database connection, verify_admin(), and log_activity()
+│   ├── config.env.example.php      # Environment configuration template
+│   ├── config.env.php              # Local environment credentials (ignored by Git)
 │   └── uploads/                    # Server-side storage for uploaded documents and media
 │       ├── applications/           # IDs, NBI clearance files
 │       ├── maintenance/            # Ticket photo/video attachments
@@ -130,28 +132,28 @@ Place the project directory inside your local web server's root folder:
 
 ---
 
-### Step 2: Database Configuration
+### Step 2: Database & Environment Configuration
 
 1. Start **Apache** and **MySQL** via your XAMPP Control Panel.
 2. Open **phpMyAdmin** (`http://localhost/phpmyadmin`) or your preferred MySQL client.
 3. Import the master schema and seed data:
    - Import [backend/api/migrations/SetupDB.sql](backend/api/migrations/SetupDB.sql) to create the database `ams_db` and all tables.
    - *(Optional for testing)* Import [backend/api/migrations/seed_mock_data.sql](backend/api/migrations/seed_mock_data.sql) to populate sample units, tenants, invoices, and logs.
-4. Verify database credentials in [backend/config.php](backend/config.php):
-   ```php
-   <?php
-   $servername = "localhost";
-   $username   = "root";
-   $password   = "";
-   $dbname     = "ams_db";
-
-   $conn = new mysqli($servername, $username, $password, $dbname);
-
-   if ($conn->connect_error) {
-       die("Connection failed: " . $conn->connect_error);
-   }
-   ?>
-   ```
+4. Set up the environment configuration file:
+   - Copy `backend/config.env.example.php` to `backend/config.env.php` (if not already present):
+     ```bash
+     cp backend/config.env.example.php backend/config.env.php
+     ```
+   - Adjust your database credentials in `backend/config.env.php`:
+     ```php
+     <?php
+     define('DB_HOST', 'localhost');
+     define('DB_USER', 'root');
+     define('DB_PASS', '');
+     define('DB_NAME', 'ams_db');
+     define('APP_ENV', 'development'); // 'development' | 'production'
+     ```
+   - [backend/config.php](backend/config.php) will automatically load `config.env.php` to establish the database connection with fallback defaults.
 
 ---
 

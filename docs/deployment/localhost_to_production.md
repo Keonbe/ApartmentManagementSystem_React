@@ -153,7 +153,7 @@ No `.env` or `config.env.php` file exists. All credentials and URLs are embedded
 
 ### Phase B — PHP Backend
 
-- [ ] **Create `backend/config.env.php`** (add to `.gitignore`):
+- [x] **Create `backend/config.env.php`** and `backend/config.env.example.php` (added to `.gitignore`):
   ```php
   <?php
   define('DB_HOST', 'localhost');
@@ -163,10 +163,12 @@ No `.env` or `config.env.php` file exists. All credentials and URLs are embedded
   define('CORS_ORIGIN', 'https://yourdomain.com');
   define('APP_ENV', 'production');
   ```
-- [ ] **Rewrite `backend/config.php`** to use constants, lock CORS, silence errors:
+- [x] **Rewrite `backend/config.php`** to load `config.env.php`, use defined constants, lock CORS, and silence errors on production:
   ```php
   <?php
-  require_once __DIR__ . '/config.env.php';
+  if (file_exists(__DIR__ . '/config.env.php')) {
+      require_once __DIR__ . '/config.env.php';
+  }
 
   // CORS — locked to production domain
   $allowed_origins = [CORS_ORIGIN];

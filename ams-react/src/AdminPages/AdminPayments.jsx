@@ -57,9 +57,11 @@ const AdminPayments = () => {
           
           const t = grouped[inv.user_id];
           
-          if (inv.status === 'pending' || inv.status === 'overdue' || inv.status === 'pending-verification') {
+          if (inv.status === 'pending' || inv.status === 'overdue' || inv.status === 'pending-verification' || inv.status === 'scheduled') {
             t.status = inv.status;
             t.dueDate = inv.due_date;
+            t.scheduledDate = inv.scheduled_date;
+            t.scheduledTimeSlot = inv.scheduled_time_slot;
             t.billing.baseRent = parseFloat(inv.base_rent || 0);
             t.billing.water = parseFloat(inv.water || 0);
             t.billing.electricity = parseFloat(inv.electricity || 0);
@@ -143,6 +145,7 @@ const AdminPayments = () => {
                             (statusFilter === 'unpaid' && t.status !== 'paid') ||
                             (statusFilter === 'paid' && t.status === 'paid') ||
                             (statusFilter === 'pending-verification' && t.status === 'pending-verification') ||
+                            (statusFilter === 'scheduled' && t.status === 'scheduled') ||
                             (statusFilter === 'overdue' && t.status === 'overdue');
       return matchesSearch && matchesStatus;
     });
@@ -185,7 +188,7 @@ const AdminPayments = () => {
   // Summaries
   const totalCollected = tenants.reduce((sum, t) => sum + t.history.filter(h => h.status === 'paid').reduce((s, h) => s + h.amount, 0), 0);
   const overdueCount = tenants.filter(t => t.status === 'overdue').length;
-  const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification').length;
+  const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification' || t.status === 'scheduled').length;
   const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking)), 0);
 
   // Security Deposit Tracking summaries (Non-refundable)
@@ -350,7 +353,7 @@ const handleMarkAsPaid = async () => {
   const paginatedHistory = filteredHistory.slice((historyPage - 1) * recordsPerPage, historyPage * recordsPerPage);
 
   const activeDaysDue = activeTenant ? getDaysUntilDue(activeTenant.dueDate) : null;
-  const showBanner = activeTenant ? (activeTenant.status === 'overdue' || (activeTenant.status === 'pending' && activeDaysDue !== null && activeDaysDue <= 5) || activeTenant.status === 'pending-verification') : false;
+  const showBanner = activeTenant ? (activeTenant.status === 'overdue' || (activeTenant.status === 'pending' && activeDaysDue !== null && activeDaysDue <= 5) || activeTenant.status === 'pending-verification' || activeTenant.status === 'scheduled') : false;
 
   // SAFETY GUARD CLAUSE: Stops render tree compilation if async requests haven't completed
   if (loading) {
@@ -463,6 +466,7 @@ const handleMarkAsPaid = async () => {
                         <option value="unpaid">Unpaid</option>
                         <option value="paid">Paid</option>
                         <option value="pending-verification">Verify</option>
+                        <option value="scheduled">Scheduled</option>
                         <option value="overdue">Overdue</option>
                       </select>
                       <select 
@@ -491,7 +495,8 @@ const handleMarkAsPaid = async () => {
                             {t.name}
                             {t.status === 'overdue' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-red-500 animate-pulse" />}
                             {t.status === 'pending-verification' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-indigo-500 animate-pulse" />}
-                            {isDueSoon && t.status !== 'pending-verification' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-500" />}
+                            {t.status === 'scheduled' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-blue-500" />}
+                            {isDueSoon && t.status !== 'pending-verification' && t.status !== 'scheduled' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-500" />}
                           </p>
                           <p className="text-[11px] text-slate-500 m-0 mt-0.5">Unit {t.unit} · Due {t.dueDate}</p>
                         </div>
@@ -499,7 +504,8 @@ const handleMarkAsPaid = async () => {
                           <p className="text-xs font-bold text-slate-700 m-0 mb-1">{t.status !== 'paid' ? formatCurrency(tenantTotalDue) : '₱0'}</p>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-semibold text-center uppercase min-w-[75px] block ${
                             t.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 
-                            t.status === 'pending-verification' ? 'bg-indigo-100 text-indigo-800' : 'bg-red-100 text-red-800'
+                            t.status === 'pending-verification' ? 'bg-indigo-100 text-indigo-800' : 
+                            t.status === 'scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'
                           }`}>{t.status === 'pending-verification' ? 'VERIFY' : t.status}</span>
                         </div>
                       </div>
@@ -515,12 +521,15 @@ const handleMarkAsPaid = async () => {
                 {showBanner && (
                   <div className={`p-3 rounded-lg border flex items-center gap-3 text-sm font-semibold ${
                     activeTenant.status === 'pending-verification' ? 'bg-indigo-50 border-indigo-200 text-indigo-800' :
+                    activeTenant.status === 'scheduled' ? 'bg-blue-50 border-blue-200 text-blue-800' :
                     activeTenant.status === 'overdue' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'
                   }`}>
                     <FontAwesomeIcon icon={faExclamationTriangle} />
                     {activeTenant.status === 'pending-verification' 
                       ? "This tenant has uploaded proof of payment. Please verify the details below before processing."
-                      : activeTenant.status === 'overdue'
+                      : activeTenant.status === 'scheduled'
+                        ? `Tenant is scheduled for an in-person payment on ${activeTenant.scheduledDate}.`
+                        : activeTenant.status === 'overdue'
                         ? `This account is overdue. Due date was ${activeTenant.dueDate}.` 
                         : `Payment is due in ${activeDaysDue} days (${activeTenant.dueDate}).`}
                   </div>
@@ -645,6 +654,18 @@ const handleMarkAsPaid = async () => {
                               </a>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {activeTenant.status === 'scheduled' && (
+                        <div className="mt-2 p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+                          <h5 className="text-xs font-bold text-blue-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                            <FontAwesomeIcon icon={faCalendarAlt} /> In-Person Visit Scheduled
+                          </h5>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-blue-950 font-medium">
+                             <div><span className="text-blue-500 font-bold mr-1">Scheduled Date:</span> {activeTenant.scheduledDate || 'Not Captured'}</div>
+                             <div><span className="text-blue-500 font-bold mr-1">Time Slot:</span> <span className="font-bold text-slate-800">{activeTenant.scheduledTimeSlot === 'morning' ? 'Morning (9am-12pm)' : activeTenant.scheduledTimeSlot === 'afternoon' ? 'Afternoon (1pm-5pm)' : activeTenant.scheduledTimeSlot}</span></div>
+                          </div>
                         </div>
                       )}
                     </div>

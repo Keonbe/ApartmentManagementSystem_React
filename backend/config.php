@@ -1,13 +1,32 @@
 <?php
-    $servername = "localhost";
-    $username = "root";
-    $password = "";
-    $dbname = "ams_db";
+// Load environment configuration if available
+if (file_exists(__DIR__ . '/config.env.php')) {
+    require_once __DIR__ . '/config.env.php';
+}
 
-    $conn = new mysqli($servername, $username, $password, $dbname);
+// Fallback defaults if constants are not defined
+if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
+if (!defined('DB_USER')) define('DB_USER', 'root');
+if (!defined('DB_PASS')) define('DB_PASS', '');
+if (!defined('DB_NAME')) define('DB_NAME', 'ams_db');
+if (!defined('APP_ENV')) define('APP_ENV', 'development');
 
-    if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Error reporting settings based on environment
+if (APP_ENV === 'production') {
+    ini_set('display_errors', 0);
+    ini_set('log_errors', 1);
+}
+
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+
+if ($conn->connect_error) {
+    if (APP_ENV === 'production') {
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Database connection failed"]);
+        exit;
+    } else {
+        die("Connection failed: " . $conn->connect_error);
+    }
 }
 
 // Priority 4: Observability

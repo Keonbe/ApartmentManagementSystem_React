@@ -9,9 +9,12 @@ import '../assets/styles/responsive/user/pay-bills.responsive.css';
 export default function PayBills() {
     const navigate = useNavigate();
     const { t } = useLang();
-    const [selectedMethod, setSelectedMethod] = useState('gcash');
+    const [selectedMethod, setSelectedMethod] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isAutoPayEnabled, setIsAutoPayEnabled] = useState(false);
+    const [paymentChannels, setPaymentChannels] = useState([]);
+    const [scheduledDate, setScheduledDate] = useState('');
+    const [scheduledTimeSlot, setScheduledTimeSlot] = useState('morning');
 
     {/*Dynamically compute current calendar month and year variables*/}
     const currentDate = new Date();
@@ -54,25 +57,43 @@ export default function PayBills() {
                 }
             }
         };
+        const fetchChannels = async () => {
+            try {
+                const res = await api.get('/get_payment_channels.php');
+                if (res.data.success && res.data.channels) {
+                    const mapped = res.data.channels.map(ch => {
+                        let icon, color, isDigital;
+                        if (ch.icon === 'gcash') { icon = faWallet; color = 'text-blue-600'; isDigital = true; }
+                        else if (ch.icon === 'bank') { icon = faUniversity; color = 'text-indigo-600'; isDigital = true; }
+                        else if (ch.icon === 'qr') { icon = faMoneyBillWave; color = 'text-blue-500'; isDigital = true; }
+                        else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; isDigital = true; }
+                        else { icon = faMoneyBillWave; color = 'text-emerald-600'; isDigital = false; }
+                        
+                        return { ...ch, icon, color, isDigital };
+                    });
+                    setPaymentChannels(mapped);
+                    if (mapped.length > 0) {
+                        setSelectedMethod(mapped[0].id);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch payment channels:", error);
+            }
+        };
+        fetchChannels();
         fetchInvoice();
     }, []);
 
     const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.securityDeposit + billDetails.lateFee;
 
-    {/*Available payment processing channels matrix*/}
-    const paymentMethods = [
-        { id: 'gcash', label: 'GCash', icon: faWallet, color: 'text-blue-600', isDigital: true },
-        { id: 'bank', label: t('payBills.bank'), icon: faUniversity, color: 'text-indigo-600', isDigital: true },
-        { id: 'cash', label: t('payBills.cash'), icon: faMoneyBillWave, color: 'text-emerald-600', isDigital: false }
-    ];
-
-    const currentMethodObj = paymentMethods.find(m => m.id === selectedMethod);
+    const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
 
     const handleMethodSelect = (methodId) => {
         setSelectedMethod(methodId);
         setIsDropdownOpen(false);
-        {/*Block enrollment if cash protocol is requested*/}
-        if (methodId === 'cash') {
+        {/*Block enrollment if not digital*/}
+        const methodObj = paymentChannels.find(m => m.id === methodId);
+        if (methodObj && !methodObj.isDigital) {
             setIsAutoPayEnabled(false);
         }
     };
@@ -84,6 +105,32 @@ export default function PayBills() {
         e.preventDefault();
         if (!billDetails.invoiceId) {
             alert("No pending invoice found.");
+            return;
+        }
+
+        if (currentMethodObj.family === 'in_person') {
+            if (!scheduledDate) { alert('Please select a date.'); return; }
+            try {
+                const res = await api.post("/schedule_payment.php", {
+                    invoice_id: billDetails.invoiceId,
+                    scheduled_date: scheduledDate,
+                    scheduled_time_slot: scheduledTimeSlot
+                });
+                if (res.data.success) {
+                    alert("Payment scheduled successfully.");
+                    window.location.reload();
+                } else {
+                    alert(res.data.message);
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Failed to schedule payment.");
+            }
+            return;
+        }
+
+        if (currentMethodObj.family === 'sandbox') {
+            alert("Sandbox integration is planned for Phase 3.");
             return;
         }
 
@@ -221,9 +268,9 @@ export default function PayBills() {
                             </button>
 
                             {/*Custom Dropdown Selections Layer Menu*/}
-                            {isDropdownOpen && (
+                            {isDropdownOpen && paymentChannels.length > 0 && (
                                 <div className="absolute top-full left-0 w-full bg-white border border-slate-100 shadow-xl rounded-xl mt-1 overflow-hidden z-50 py-1 box-border">
-                                    {paymentMethods.map((method) => (
+                                    {paymentChannels.map((method) => (
                                         <button
                                             key={method.id}
                                             type="button"
@@ -231,7 +278,7 @@ export default function PayBills() {
                                             className={`pay-bills-dropdown-item w-full min-h-[48px] px-4 py-3 flex items-center justify-between text-left transition-colors border-0 bg-transparent cursor-pointer font-medium text-sm ${selectedMethod === method.id ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50'}`}
                                         >
                                             <div className="flex items-center space-x-3 font-semibold">
-                                                {method.id === 'gcash' ? (
+                                                {method.icon === 'gcash' ? (
                                                     <div className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center font-black text-[9px] tracking-tighter select-none px-0.5">GCash</div>
                                                 ) : (
                                                     <FontAwesomeIcon icon={method.icon} className={`text-base ${method.color}`} />
@@ -247,7 +294,7 @@ export default function PayBills() {
                             )}
                         </div>
 
-                        {currentMethodObj.isDigital && (
+                        {currentMethodObj.family === 'manual' && (
                             <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -271,6 +318,36 @@ export default function PayBills() {
                                         onChange={e => setProofFile(e.target.files[0])}
                                         className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 min-h-[44px]"
                                     />
+                                </div>
+                            </div>
+                        )}
+
+                        {currentMethodObj.family === 'in_person' && (
+                            <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Schedule Date
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        value={scheduledDate}
+                                        onChange={e => setScheduledDate(e.target.value)}
+                                        className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
+                                        min={new Date().toISOString().split('T')[0]}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                                        Time Slot
+                                    </label>
+                                    <select 
+                                        value={scheduledTimeSlot}
+                                        onChange={e => setScheduledTimeSlot(e.target.value)}
+                                        className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        <option value="morning">Morning (9am-12pm)</option>
+                                        <option value="afternoon">Afternoon (1pm-5pm)</option>
+                                    </select>
                                 </div>
                             </div>
                         )}

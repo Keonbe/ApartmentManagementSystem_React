@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 
 const AdminAccountSettings = () => {
@@ -322,6 +322,138 @@ const AdminAccountSettings = () => {
                             ? ' automatically flagged for eviction review on the Contracts page.' 
                             : ' shown as at-risk but will NOT be auto-flagged. Manual action required.'}
                         </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Channels Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                      <FontAwesomeIcon icon={faCreditCard} className="text-indigo-500 text-sm" />
+                      <h3 className="text-sm font-bold text-slate-700 m-0">Payment Channels & Gateway Settings</h3>
+                    </div>
+
+                    {/* Mode Selection */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                      <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
+                        Operating Payment Mode
+                      </label>
+                      <div className="flex flex-wrap items-center gap-5 pt-1">
+                        {[
+                          { value: 'manual', label: 'Manual Only (Proof Upload / In-Person)' },
+                          { value: 'sandbox', label: 'Sandbox Only (PayMongo Test Mode)' },
+                          { value: 'both', label: 'Hybrid (Both Sandbox & Manual)' },
+                        ].map(mode => (
+                          <label key={mode.value} className="flex items-center gap-2 text-sm text-slate-700 font-medium cursor-pointer">
+                            <input
+                              type="radio"
+                              name="paymentMode"
+                              value={mode.value}
+                              checked={settings.paymentMode === mode.value}
+                              onChange={(e) => updateSetting('paymentMode', e.target.value)}
+                              className="text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>{mode.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-400 m-0">Controls which channel types are surfaced to tenants during checkout.</p>
+                    </div>
+
+                    {/* Channel Groups */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Manual / Offline Channels */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Manual & In-Person Channels</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Offline / Verification</span>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                            <span className="text-xs font-medium text-slate-700">GCash (Receipt Upload)</span>
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentChGcashManual}
+                              onChange={(e) => updateSetting('paymentChGcashManual', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                            />
+                          </label>
+                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                            <span className="text-xs font-medium text-slate-700">Bank Transfer (Receipt Upload)</span>
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentChBankManual}
+                              onChange={(e) => updateSetting('paymentChBankManual', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                            />
+                          </label>
+                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                            <div>
+                              <span className="text-xs font-medium text-slate-700 block">In-Person Payment</span>
+                              <span className="text-[10px] text-slate-400">Scheduled management office visit</span>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentChInPerson}
+                              onChange={(e) => updateSetting('paymentChInPerson', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Sandbox / Digital Channels */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Sandbox Channels (PayMongo)</span>
+                          <label className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-600 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentSandboxEnabled}
+                              onChange={(e) => updateSetting('paymentSandboxEnabled', e.target.checked)}
+                              className="cursor-pointer"
+                            />
+                            Master Active
+                          </label>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                            <span className="text-xs font-medium text-slate-700">GCash Sandbox</span>
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentChGcashSandbox}
+                              onChange={(e) => updateSetting('paymentChGcashSandbox', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                            />
+                          </label>
+                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                            <span className="text-xs font-medium text-slate-700">Bank Transfer Sandbox</span>
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentChBankSandbox}
+                              onChange={(e) => updateSetting('paymentChBankSandbox', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                            />
+                          </label>
+                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                            <span className="text-xs font-medium text-slate-700">QR Ph Sandbox</span>
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentChQrph}
+                              onChange={(e) => updateSetting('paymentChQrph', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                            />
+                          </label>
+                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                            <span className="text-xs font-medium text-slate-700">Maya Sandbox</span>
+                            <input
+                              type="checkbox"
+                              checked={!!settings.paymentChMaya}
+                              onChange={(e) => updateSetting('paymentChMaya', e.target.checked)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                            />
+                          </label>
+                        </div>
                       </div>
                     </div>
                   </div>

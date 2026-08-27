@@ -73,7 +73,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'sender_name' => $row['sender_name'] ?? null,
                 'payment_reference' => $row['payment_reference'] ?? null,
                 'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null,
-                'billing_period' => $row['billing_period'] ?? null
+                'billing_period' => $row['billing_period'] ?? null,
+                'scheduled_date' => $row['scheduled_date'] ?? null,
+                'scheduled_time_slot' => $row['scheduled_time_slot'] ?? null,
+                'payment_gateway' => $row['payment_gateway'] ?? null
             ];
         }
 
