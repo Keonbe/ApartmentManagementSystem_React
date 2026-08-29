@@ -180,14 +180,14 @@ sequenceDiagram
 
 ```php
 // Input: invoice_id, channel (gcash|bank_transfer|qrph|paymaya)
-// 1. Fetch invoice from DB (amount, description, tenant info)
+// 1. Fetch invoice from DB (amount, description, tenant info) and JOIN users table (using email_address)
 // 2. Build PayMongo Checkout Session request:
 //    - line_items: [{ amount: invoice_total * 100, currency: 'PHP', name: 'Invoice #INV-xxx' }]
-//    - payment_method_types: [$channel]
-//    - success_url: frontend /pay-bills?status=success&invoice_id=xxx
-//    - cancel_url:  frontend /pay-bills?status=cancelled
+//    - payment_method_types: map frontend channel to valid PayMongo types (e.g. 'gcash', 'paymaya', 'qrph', 'dob', 'card')
+//    - success_url: passed dynamically from frontend (e.g. /#/pay-bills?status=success)
+//    - cancel_url: passed dynamically from frontend (e.g. /#/pay-bills?status=cancelled)
 //    - metadata: { invoice_id, user_id }
-// 3. cURL POST to https://api.paymongo.com/v1/checkout_sessions
+// 3. cURL POST to https://api.paymongo.com/v1/checkout_sessions (SSL verify disabled for localhost)
 // 4. Store checkout_session_id in invoices table (new column)
 // 5. Return checkout_url to frontend
 ```
@@ -347,12 +347,12 @@ flowchart LR
 
 ## 9. Implementation Priority
 
-| Phase | Scope | Depends On |
-|---|---|---|
-| **Phase 1** | `get_payment_channels.php` + admin settings UI + dynamic `PayBills.jsx` | Existing `system_settings` infrastructure |
-| **Phase 2** | In-person scheduling flow (new column + `schedule_payment.php` + UI) | Phase 1 |
-| **Phase 3** | PayMongo sandbox integration (checkout session + webhook + all 4 channels) | Phase 1 + PayMongo test account |
-| **Phase 4** | Production readiness (live keys, signature verification, error handling) | Phase 3 + PayMongo live approval |
+| Phase | Scope | Depends On | Status |
+|---|---|---|---|
+| **Phase 1** | `get_payment_channels.php` + admin settings UI + dynamic `PayBills.jsx` | Existing `system_settings` infrastructure | ✅ Completed |
+| **Phase 2** | In-person scheduling flow (new column + `schedule_payment.php` + UI) | Phase 1 | ✅ Completed |
+| **Phase 3** | PayMongo sandbox integration (checkout session + webhook + all 4 channels) | Phase 1 + PayMongo test account | ✅ Completed |
+| **Phase 4** | Production readiness (signature verification, error handling, locked live keys) | Phase 3 + PayMongo live approval | ✅ Completed (Live locked) |
 
 ---
 

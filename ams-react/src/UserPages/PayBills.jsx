@@ -82,7 +82,27 @@ export default function PayBills() {
         };
         fetchChannels();
         fetchInvoice();
-    }, []);
+
+        const params = new URLSearchParams(window.location.search);
+        // Wait, the router is using HashRouter, so the search might be after the hash like #/pay-bills?status=...
+        // Let's parse the hash string
+        const hash = window.location.hash;
+        if (hash.includes('?')) {
+            const queryParams = new URLSearchParams(hash.split('?')[1]);
+            const status = queryParams.get('status');
+            if (status === 'success') {
+                setTimeout(() => {
+                    alert("Payment successfully processed! Your invoice status is now updating.");
+                    navigate('/pay-bills', { replace: true });
+                }, 500);
+            } else if (status === 'cancelled') {
+                setTimeout(() => {
+                    alert("Payment was cancelled.");
+                    navigate('/pay-bills', { replace: true });
+                }, 500);
+            }
+        }
+    }, [navigate]);
 
     const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.securityDeposit + billDetails.lateFee;
 
@@ -130,7 +150,25 @@ export default function PayBills() {
         }
 
         if (currentMethodObj.family === 'sandbox') {
-            alert("Sandbox integration is planned for Phase 3.");
+            try {
+                const returnBase = `${window.location.origin}${window.location.pathname}`;
+                const res = await api.post("/create_checkout_session.php", {
+                    invoice_id: billDetails.invoiceId,
+                    channel: currentMethodObj.id,
+                    success_url: `${returnBase}#/pay-bills?status=success&invoice_id=${encodeURIComponent(billDetails.invoiceId)}`,
+                    cancel_url: `${returnBase}#/pay-bills?status=cancelled`
+                });
+                
+                if (res.data.success && res.data.checkout_url) {
+                    window.location.href = res.data.checkout_url;
+                } else {
+                    alert(res.data.message || "Failed to create checkout session.");
+                }
+            } catch (error) {
+                console.error("Error creating checkout session:", error);
+                const msg = error?.response?.data?.message || "Payment gateway error.";
+                alert(msg);
+            }
             return;
         }
 

@@ -17,7 +17,8 @@ export default function TrackApplication() {
     const [loading, setLoading] = useState(true);
     const [application, setApplication] = useState(null);
     const [error, setError] = useState(null);
-    const [selectedMethod, setSelectedMethod] = useState('cash');
+    const [paymentChannels, setPaymentChannels] = useState([]);
+    const [selectedMethod, setSelectedMethod] = useState('');
     const [paying, setPaying] = useState(false);
     const [contractFile, setContractFile] = useState(null);
     const [uploadingContract, setUploadingContract] = useState(false);
@@ -87,15 +88,38 @@ export default function TrackApplication() {
             return;
         }
 
-        const methodLabel = selectedMethod === 'gcash' ? 'GCash' : selectedMethod === 'bank' ? 'Bank Transfer' : 'Cash on Hand';
+        const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
         const totalAmount = parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0)));
 
-        if (methodLabel !== 'Cash on Hand') {
+        if (currentMethodObj.family === 'sandbox') {
+            try {
+                const returnBase = `${window.location.origin}${window.location.pathname}`;
+                const res = await api.post("/create_checkout_session.php", {
+                    invoice_id: application.pending_invoice_id,
+                    channel: currentMethodObj.id,
+                    success_url: `${returnBase}#/track-application?status=success&invoice_id=${encodeURIComponent(application.pending_invoice_id)}`,
+                    cancel_url: `${returnBase}#/track-application?status=cancelled`
+                });
+                
+                if (res.data.success && res.data.checkout_url) {
+                    window.location.href = res.data.checkout_url;
+                } else {
+                    alert(res.data.message || "Failed to create checkout session.");
+                }
+            } catch (error) {
+                console.error("Error creating checkout session:", error);
+                const msg = error?.response?.data?.message || "Payment gateway error.";
+                alert(msg);
+            }
+            return;
+        }
+
+        if (currentMethodObj.family !== 'in_person') {
             navigate('/upload-payment', { 
                 state: { 
                     invoiceId: application.pending_invoice_id, 
                     amount: totalAmount, 
-                    paymentMethod: methodLabel,
+                    paymentMethod: currentMethodObj.label,
                     returnUrl: '/track-application'
                 } 
             });
@@ -106,7 +130,7 @@ export default function TrackApplication() {
         try {
             const res = await api.post("/pay_bill.php", {
                 invoiceId: application.pending_invoice_id,
-                paymentMethod: methodLabel
+                paymentMethod: currentMethodObj.label
             });
 
             if (res.data.success) {
@@ -150,8 +174,49 @@ export default function TrackApplication() {
             }
         };
 
+        const fetchChannels = async () => {
+            try {
+                const res = await api.get('/get_payment_channels.php');
+                if (res.data.success && res.data.channels) {
+                    const mapped = res.data.channels.map(ch => {
+                        let icon, color, isDigital;
+                        if (ch.icon === 'gcash') { icon = faWallet; color = 'text-blue-600'; isDigital = true; }
+                        else if (ch.icon === 'bank') { icon = faUniversity; color = 'text-indigo-600'; isDigital = true; }
+                        else if (ch.icon === 'qr') { icon = faMoneyBillWave; color = 'text-blue-500'; isDigital = true; }
+                        else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; isDigital = true; }
+                        else { icon = faMoneyBillWave; color = 'text-emerald-600'; isDigital = false; }
+                        
+                        return { ...ch, icon, color, isDigital };
+                    });
+                    setPaymentChannels(mapped);
+                    if (mapped.length > 0) {
+                        setSelectedMethod(mapped[0].id);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch payment channels:", error);
+            }
+        };
+        fetchChannels();
         fetchApplicationStatus();
-    }, [activeEmail]);
+
+        const hash = window.location.hash;
+        if (hash.includes('?')) {
+            const queryParams = new URLSearchParams(hash.split('?')[1]);
+            const status = queryParams.get('status');
+            if (status === 'success') {
+                setTimeout(() => {
+                    alert("Payment successfully processed! Your initial payment status is now updating.");
+                    navigate('/track-application', { replace: true });
+                }, 500);
+            } else if (status === 'cancelled') {
+                setTimeout(() => {
+                    alert("Payment was cancelled.");
+                    navigate('/track-application', { replace: true });
+                }, 500);
+            }
+        }
+    }, [activeEmail, navigate]);
 
     if (loading) {
         return (
@@ -500,17 +565,13 @@ export default function TrackApplication() {
                                             <div className={`space-y-3 ${!application.signed_lease_path ? 'opacity-40 pointer-events-none' : ''}`}>
                                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Payment Method</label>
                                                 <div className="track-app-payment-methods grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                    {[
-                                                        { id: 'gcash', label: 'GCash', icon: faWallet, disabled: !application.signed_lease_path },
-                                                        { id: 'bank', label: 'Bank Transfer', icon: faUniversity, disabled: !application.signed_lease_path },
-                                                        { id: 'cash', label: 'Cash on Hand', icon: faMoneyBillWave, disabled: !application.signed_lease_path }
-                                                    ].map((method) => (
+                                                    {paymentChannels.length > 0 ? paymentChannels.map((method) => (
                                                         <button
                                                             key={method.id}
-                                                            disabled={method.disabled}
+                                                            disabled={!application.signed_lease_path}
                                                             onClick={() => setSelectedMethod(method.id)}
                                                             className={`flex items-center justify-between p-4 rounded-2xl border text-sm font-semibold transition-all ${
-                                                                method.disabled
+                                                                !application.signed_lease_path
                                                                     ? 'opacity-40 bg-white/5 border-white/5 text-slate-500 cursor-not-allowed'
                                                                     : selectedMethod === method.id 
                                                                         ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg cursor-pointer' 
@@ -527,7 +588,9 @@ export default function TrackApplication() {
                                                                 </div>
                                                             )}
                                                         </button>
-                                                    ))}
+                                                    )) : (
+                                                        <div className="col-span-3 text-slate-400 text-xs italic">Loading payment methods...</div>
+                                                    )}
                                                 </div>
                                             </div>
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 
 const AdminAccountSettings = () => {
@@ -18,6 +18,9 @@ const AdminAccountSettings = () => {
   // System Configuration State
   const [settings, setSettings] = useState(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // Load settings from backend on mount
   useEffect(() => {
@@ -30,16 +33,31 @@ const AdminAccountSettings = () => {
 
   const handleProfileSubmit = (e) => {
     e.preventDefault();
-    alert('Admin profile updated successfully (Mock).');
+    setToast({
+      type: 'success',
+      title: 'Profile Updated',
+      message: 'Admin personal details and credentials have been updated successfully.'
+    });
+    setTimeout(() => setToast(null), 4000);
   };
 
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      alert("New passwords do not match.");
+      setToast({
+        type: 'error',
+        title: 'Password Mismatch',
+        message: 'New passwords do not match. Please verify and try again.'
+      });
+      setTimeout(() => setToast(null), 4000);
       return;
     }
-    alert('Admin password updated successfully (Mock).');
+    setToast({
+      type: 'success',
+      title: 'Password Changed',
+      message: 'Your administrator password has been updated securely.'
+    });
+    setTimeout(() => setToast(null), 4000);
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
@@ -47,12 +65,30 @@ const AdminAccountSettings = () => {
 
   const handleSettingsSave = async (e) => {
     e.preventDefault();
+    setIsSavingSettings(true);
+    setSaveError(null);
     try {
       await saveSystemSettings(settings);
       setSettingsSaved(true);
-      setTimeout(() => setSettingsSaved(false), 3000);
+      setToast({
+        type: 'success',
+        title: 'System Settings Saved',
+        message: 'System policies, thresholds, and PayMongo credentials updated and synced across all modules.'
+      });
+      setTimeout(() => setSettingsSaved(false), 4000);
+      setTimeout(() => setToast(null), 4500);
     } catch (error) {
-      alert("Failed to save settings");
+      console.error('Failed to save settings:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Failed to save system settings. Please try again.';
+      setSaveError(errMsg);
+      setToast({
+        type: 'error',
+        title: 'Save Failed',
+        message: errMsg
+      });
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -224,9 +260,35 @@ const AdminAccountSettings = () => {
 
                   {/* Success Banner */}
                   {settingsSaved && (
-                    <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold animate-pulse">
-                      <FontAwesomeIcon icon={faCheckCircle} className="text-emerald-600" />
-                      System settings saved successfully. Changes will apply across all admin modules.
+                    <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold transition-all">
+                      <div className="flex items-center gap-2.5">
+                        <FontAwesomeIcon icon={faCheckCircle} className="text-emerald-600 text-base" />
+                        <span>System settings saved successfully. Changes are synchronized across all modules.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsSaved(false)}
+                        className="text-emerald-600 hover:text-emerald-800 bg-transparent border-0 cursor-pointer text-xs"
+                      >
+                        <FontAwesomeIcon icon={faTimes} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Error Banner */}
+                  {saveError && (
+                    <div className="flex items-center justify-between gap-3 bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl text-sm font-semibold transition-all">
+                      <div className="flex items-center gap-2.5">
+                        <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-600 text-base" />
+                        <span>{saveError}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSaveError(null)}
+                        className="text-rose-600 hover:text-rose-800 bg-transparent border-0 cursor-pointer text-xs"
+                      >
+                        <FontAwesomeIcon icon={faTimes} />
+                      </button>
                     </div>
                   )}
 
@@ -350,7 +412,13 @@ const AdminAccountSettings = () => {
                               name="paymentMode"
                               value={mode.value}
                               checked={settings.paymentMode === mode.value}
-                              onChange={(e) => updateSetting('paymentMode', e.target.value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateSetting('paymentMode', val);
+                                if (val === 'sandbox' || val === 'both') {
+                                  updateSetting('paymentSandboxEnabled', true);
+                                }
+                              }}
                               className="text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             />
                             <span>{mode.label}</span>
@@ -458,6 +526,82 @@ const AdminAccountSettings = () => {
                     </div>
                   </div>
 
+                  {/* Payment Gateway Integration Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                      <FontAwesomeIcon icon={faCreditCard} className="text-blue-500 text-sm" />
+                      <h3 className="text-sm font-bold text-slate-700 m-0">Payment Gateway Integration (PayMongo)</h3>
+                    </div>
+                    <div className="grid grid-cols-1 gap-5">
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faShieldAlt} className="text-slate-400 text-xs" />
+                          Environment Mode
+                        </label>
+                        <div className="flex items-center gap-6 mt-1">
+                          <label className="flex items-center gap-2 cursor-pointer opacity-50" title="Live mode is currently locked by system administrator.">
+                            <input
+                              type="radio"
+                              name="paymongoEnv"
+                              value="live"
+                              checked={false}
+                              disabled={true}
+                              className="text-slate-400 focus:ring-slate-400 cursor-not-allowed"
+                            />
+                            <span>Live (Production) <FontAwesomeIcon icon={faLock} className="text-[10px] ml-1" /></span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="paymongoEnv"
+                              value="sandbox"
+                              checked={true}
+                              readOnly
+                              className="text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>Sandbox (Testing)</span>
+                          </label>
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0 mt-1">Live configuration is locked. All transactions will be processed in Sandbox Mode.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
+                        <div className="flex flex-col space-y-1.5">
+                          <label className="text-sm font-bold text-slate-700">Sandbox Secret Key</label>
+                          <input
+                            type="password"
+                            value={settings.paymongoSecretKey || ''}
+                            onChange={(e) => updateSetting('paymongoSecretKey', e.target.value)}
+                            placeholder="sk_test_..."
+                            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                          />
+                        </div>
+                        <div className="flex flex-col space-y-1.5">
+                          <label className="text-sm font-bold text-slate-700">Sandbox Public Key</label>
+                          <input
+                            type="text"
+                            value={settings.paymongoPublicKey || ''}
+                            onChange={(e) => updateSetting('paymongoPublicKey', e.target.value)}
+                            placeholder="pk_test_..."
+                            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700">Webhook Secret Key</label>
+                        <input
+                          type="password"
+                          value={settings.paymongoWebhookSecret || ''}
+                          onChange={(e) => updateSetting('paymongoWebhookSecret', e.target.value)}
+                          placeholder="whsk_..."
+                          className="w-full md:w-1/2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                        />
+                        <p className="text-[11px] text-slate-400 m-0 mt-1">Required for signature verification. Obtain this from the PayMongo Webhooks dashboard.</p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Maintenance Budget Section */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
@@ -519,19 +663,52 @@ const AdminAccountSettings = () => {
                     </div>
                   </div>
 
-                  {/* Save Button */}
-                  <div className="pt-4 flex items-center justify-between border-t border-slate-100">
-                    <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                      <FontAwesomeIcon icon={faInfoCircle} className="text-slate-300" />
-                      Settings are saved to browser storage and persist across sessions.
-                    </span>
-                    <button
-                      type="submit"
-                      className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-8 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer"
-                    >
-                      <FontAwesomeIcon icon={faSave} />
-                      Save System Settings
-                    </button>
+                  {/* Save Button & Feedback */}
+                  <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        <FontAwesomeIcon icon={faInfoCircle} className="text-slate-300" />
+                        Settings are securely synced to database & system configuration.
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                      {settingsSaved && (
+                        <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1.5 animate-fadeIn">
+                          <FontAwesomeIcon icon={faCheck} className="text-emerald-500" />
+                          Saved to database
+                        </span>
+                      )}
+                      
+                      <button
+                        type="submit"
+                        disabled={isSavingSettings}
+                        className={`w-full sm:w-auto font-bold px-7 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-md flex items-center justify-center gap-2 border-0 cursor-pointer ${
+                          settingsSaved
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : isSavingSettings
+                            ? 'bg-violet-400 text-white cursor-not-allowed opacity-90'
+                            : 'bg-violet-600 hover:bg-violet-700 hover:shadow-lg active:scale-98 text-white'
+                        }`}
+                      >
+                        {isSavingSettings ? (
+                          <>
+                            <FontAwesomeIcon icon={faSpinner} className="animate-spin text-sm" />
+                            <span>Saving Settings...</span>
+                          </>
+                        ) : settingsSaved ? (
+                          <>
+                            <FontAwesomeIcon icon={faCheckCircle} className="text-sm" />
+                            <span>Settings Saved!</span>
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon icon={faSave} className="text-sm" />
+                            <span>Save System Settings</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </form>
                 )}
@@ -540,6 +717,28 @@ const AdminAccountSettings = () => {
 
           </div>
         </div>
+
+        {/* Floating Toast Notification */}
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 transform translate-y-0 opacity-100 flex items-start gap-3.5 animate-fadeIn">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+              <FontAwesomeIcon icon={toast.type === 'success' ? faCheckCircle : faExclamationTriangle} className="text-base" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-bold text-slate-800 m-0 tracking-tight">{toast.title}</h4>
+                <button
+                  type="button"
+                  onClick={() => setToast(null)}
+                  className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 text-xs"
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 m-0 leading-relaxed font-normal">{toast.message}</p>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

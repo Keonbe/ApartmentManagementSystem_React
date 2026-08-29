@@ -3,7 +3,7 @@ header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
-require_once "config.php";
+require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
@@ -26,7 +26,8 @@ if ($result) {
 }
 
 $mode = $settings['payment_mode'] ?? 'both'; 
-$sandbox_enabled = ($settings['payment_sandbox_enabled'] ?? '0') === '1';
+$sandbox_master = $settings['payment_sandbox_enabled'] ?? '1';
+$sandbox_enabled = ($sandbox_master === '1' || $sandbox_master === 'true' || $mode === 'sandbox');
 
 $all_channels = [
     [ "id" => "gcash_sandbox",  "label" => "GCash",          "family" => "sandbox", "icon" => "gcash", "key" => "payment_ch_gcash_sandbox" ],
@@ -41,11 +42,15 @@ $all_channels = [
 $active_channels = [];
 
 foreach ($all_channels as $ch) {
-    if ($ch['family'] === 'sandbox' && $mode === 'manual') continue;
-    if ($ch['family'] === 'manual' && $mode === 'sandbox') continue;
-    if ($ch['family'] === 'sandbox' && !$sandbox_enabled) continue;
+    if ($ch['family'] === 'sandbox') {
+        if ($mode === 'manual') continue;
+        if (!$sandbox_enabled) continue;
+    } else {
+        if ($mode === 'sandbox') continue;
+    }
 
-    if (isset($settings[$ch['key']]) && $settings[$ch['key']] === '1') {
+    $is_enabled = !isset($settings[$ch['key']]) || $settings[$ch['key']] === '1' || $settings[$ch['key']] === 'true';
+    if ($is_enabled) {
         $active_channels[] = [
             "id" => $ch['id'],
             "label" => $ch['label'],

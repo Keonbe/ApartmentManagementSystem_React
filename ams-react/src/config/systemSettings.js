@@ -15,14 +15,17 @@ const DEFAULTS = {
   tenantResponsibilityClause:
     'Per the Terms & Conditions of this lease agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the leased unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
   paymentMode: 'both',
-  paymentSandboxEnabled: false,
+  paymentSandboxEnabled: true,
   paymentChGcashSandbox: true,
   paymentChBankSandbox: true,
   paymentChQrph: true,
   paymentChMaya: true,
   paymentChGcashManual: true,
   paymentChBankManual: true,
-  paymentChInPerson: true
+  paymentChInPerson: true,
+  paymongoSecretKey: '',
+  paymongoPublicKey: '',
+  paymongoWebhookSecret: ''
 };
 
 
@@ -46,6 +49,9 @@ export const getSystemSettings = async () => {
         paymentChGcashManual: dbSettings.payment_ch_gcash_manual === '1' || dbSettings.payment_ch_gcash_manual === 1 || dbSettings.payment_ch_gcash_manual === true,
         paymentChBankManual: dbSettings.payment_ch_bank_manual === '1' || dbSettings.payment_ch_bank_manual === 1 || dbSettings.payment_ch_bank_manual === true,
         paymentChInPerson: dbSettings.payment_ch_in_person === '1' || dbSettings.payment_ch_in_person === 1 || dbSettings.payment_ch_in_person === true,
+        paymongoSecretKey: dbSettings.paymongo_secret_key || DEFAULTS.paymongoSecretKey,
+        paymongoPublicKey: dbSettings.paymongo_public_key || DEFAULTS.paymongoPublicKey,
+        paymongoWebhookSecret: dbSettings.paymongo_webhook_secret || DEFAULTS.paymongoWebhookSecret,
       };
     }
   } catch (e) {
@@ -71,6 +77,9 @@ export const saveSystemSettings = async (settings) => {
       payment_ch_gcash_manual: settings.paymentChGcashManual ? '1' : '0',
       payment_ch_bank_manual: settings.paymentChBankManual ? '1' : '0',
       payment_ch_in_person: settings.paymentChInPerson ? '1' : '0',
+      paymongo_secret_key: settings.paymongoSecretKey || '',
+      paymongo_public_key: settings.paymongoPublicKey || '',
+      paymongo_webhook_secret: settings.paymongoWebhookSecret || '',
     };
     await api.post('update_system_settings.php', payload);
   } catch (e) {
