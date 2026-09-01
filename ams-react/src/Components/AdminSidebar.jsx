@@ -112,10 +112,10 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   const renderNavContent = (isMobile = false) => (
     <>
       {/* Logo Area */}
-      <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800 shrink-0">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-wider italic font-serif m-0 uppercase">AMS</h1>
-          <p className="text-xs text-slate-400 m-0 mt-0.5">Apartment Management System</p>
+      <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800 shrink-0 bg-slate-900 z-10 select-none">
+        <div className="flex flex-col justify-center">
+          <h1 className="text-2xl font-bold text-white tracking-wider italic font-serif m-0 leading-none uppercase">AMS</h1>
+          <p className="text-[11px] font-medium text-slate-400 m-0 mt-1 whitespace-nowrap tracking-tight font-sans">Apartment Management System</p>
         </div>
         {isMobile && (
           <button
@@ -130,7 +130,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-8">
+      <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-8 min-h-0 admin-sidebar-nav-scroll">
         {defaultNavSections.map((section) => {
           const visibleItems = section.items.filter(isItemVisible);
           if (visibleItems.length === 0) return null;
@@ -170,7 +170,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex h-full text-left shrink-0 select-none">
+      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex h-full text-left shrink-0 select-none border-r border-slate-800">
         {renderNavContent(false)}
       </aside>
 
