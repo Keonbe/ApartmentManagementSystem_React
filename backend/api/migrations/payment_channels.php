@@ -11,7 +11,6 @@ $c->query("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUE
 ('paymongo_webhook_secret', ''), 
 ('payment_ch_gcash_sandbox', '1'), 
 ('payment_ch_bank_sandbox', '1'), 
-('payment_ch_qrph', '1'), 
 ('payment_ch_maya', '1'), 
 ('payment_ch_gcash_manual', '1'), 
 ('payment_ch_bank_manual', '1'), 

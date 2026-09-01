@@ -404,7 +404,6 @@ const AdminAccountSettings = () => {
                         {[
                           { value: 'manual', label: 'Manual Only (Proof Upload / In-Person)' },
                           { value: 'sandbox', label: 'Sandbox Only (PayMongo Test Mode)' },
-                          { value: 'both', label: 'Hybrid (Both Sandbox & Manual)' },
                         ].map(mode => (
                           <label key={mode.value} className="flex items-center gap-2 text-sm text-slate-700 font-medium cursor-pointer">
                             <input
@@ -415,7 +414,7 @@ const AdminAccountSettings = () => {
                               onChange={(e) => {
                                 const val = e.target.value;
                                 updateSetting('paymentMode', val);
-                                if (val === 'sandbox' || val === 'both') {
+                                if (val === 'sandbox') {
                                   updateSetting('paymentSandboxEnabled', true);
                                 }
                               }}
@@ -500,15 +499,6 @@ const AdminAccountSettings = () => {
                               type="checkbox"
                               checked={!!settings.paymentChBankSandbox}
                               onChange={(e) => updateSetting('paymentChBankSandbox', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                            />
-                          </label>
-                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <span className="text-xs font-medium text-slate-700">QR Ph Sandbox</span>
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentChQrph}
-                              onChange={(e) => updateSetting('paymentChQrph', e.target.checked)}
                               className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
                             />
                           </label>

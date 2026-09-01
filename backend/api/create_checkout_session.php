@@ -32,13 +32,12 @@ $paymongo_types = [
     'gcash' => ['gcash'],
     'paymaya' => ['paymaya'],
     'maya' => ['paymaya'],
-    'qrph' => ['qrph'],
     'bank_sandbox' => ['dob', 'card'],
     'bank' => ['dob', 'card'],
     'card' => ['card']
 ];
 
-$method_types = $paymongo_types[$channel] ?? ['gcash', 'card', 'paymaya', 'qrph'];
+$method_types = $paymongo_types[$channel] ?? ['gcash', 'card', 'paymaya'];
 
 // 1. Fetch invoice
 $stmt = $conn->prepare("SELECT i.*, u.first_name, u.last_name, u.email_address as email FROM invoices i JOIN users u ON i.user_id = u.id WHERE i.id = ? AND i.user_id = ?");

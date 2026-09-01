@@ -25,14 +25,13 @@ if ($result) {
     }
 }
 
-$mode = $settings['payment_mode'] ?? 'both'; 
+$mode = ($settings['payment_mode'] ?? 'manual') === 'sandbox' ? 'sandbox' : 'manual'; 
 $sandbox_master = $settings['payment_sandbox_enabled'] ?? '1';
 $sandbox_enabled = ($sandbox_master === '1' || $sandbox_master === 'true' || $mode === 'sandbox');
 
 $all_channels = [
     [ "id" => "gcash_sandbox",  "label" => "GCash",          "family" => "sandbox", "icon" => "gcash", "key" => "payment_ch_gcash_sandbox" ],
     [ "id" => "bank_sandbox",   "label" => "Bank Transfer",  "family" => "sandbox", "icon" => "bank",  "key" => "payment_ch_bank_sandbox" ],
-    [ "id" => "qrph",           "label" => "QR Ph",          "family" => "sandbox", "icon" => "qr",    "key" => "payment_ch_qrph" ],
     [ "id" => "paymaya",        "label" => "Maya",           "family" => "sandbox", "icon" => "maya",  "key" => "payment_ch_maya" ],
     [ "id" => "gcash_manual",   "label" => "GCash (Manual)", "family" => "manual",  "icon" => "gcash", "key" => "payment_ch_gcash_manual" ],
     [ "id" => "bank_manual",    "label" => "Bank Transfer (Manual)", "family" => "manual", "icon" => "bank", "key" => "payment_ch_bank_manual" ],
@@ -43,10 +42,10 @@ $active_channels = [];
 
 foreach ($all_channels as $ch) {
     if ($ch['family'] === 'sandbox') {
-        if ($mode === 'manual') continue;
+        if ($mode !== 'sandbox') continue;
         if (!$sandbox_enabled) continue;
     } else {
-        if ($mode === 'sandbox') continue;
+        if ($mode !== 'manual') continue;
     }
 
     $is_enabled = !isset($settings[$ch['key']]) || $settings[$ch['key']] === '1' || $settings[$ch['key']] === 'true';
