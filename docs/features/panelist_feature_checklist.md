@@ -151,11 +151,11 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 | # | Feature | Status | Priority | Notes |
 |---|---|---|---|---|
-| 9.1 | Lease Contract Generation | 🔧 | High | `create_contract.php` exists; template pending |
-| 9.2 | Contract Viewing | 🔧 | High | `ViewContract.jsx` exists; not wired to `lease_contracts` |
-| 9.3 | Contract Status Management | 🔧 | Medium | `update_contract_status.php` |
-| 9.4 | Contract Renewal | 📋 | Medium | Depends on extend_lease flow |
-| 9.5 | Downloadable / Printable | 📋 | Medium | PDF export pending |
+| 9.1 | Lease Contract Generation | ✅ | High | Implemented via `ViewContract.jsx` template and DB insertion |
+| 9.2 | Contract Viewing | ✅ | High | Fully wired to `lease_contracts` via `ViewContract.jsx` |
+| 9.3 | Contract Status Management | ✅ | Medium | `update_contract_status.php` and `AdminContracts.jsx` |
+| 9.4 | Contract Renewal | ✅ | Medium | DB logic added to `process_tenant_request.php` |
+| 9.5 | Downloadable / Printable | ✅ | Medium | High-fidelity `@media print` CSS built into `ViewContract.jsx` |
 
 ### Module 10 — Parking Reservation
 
@@ -198,11 +198,11 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 6 | 0 | 0 | 6 | 0 |
 | 8. Dashboard & Reports | 8 | 4 | 1 | 3 | 0 |
-| 9. Contracts | 5 | 0 | 3 | 2 | 0 |
+| 9. Contracts | 5 | 5 | 0 | 0 | 0 |
 | 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **77** | **50** | **8** | **19** | **0** |
+| **TOTAL** | **77** | **55** | **5** | **17** | **0** |
 
 ### Core Functionality Coverage
 
@@ -421,9 +421,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 |---|---|---|---|---|---|
 | 9.1 | **Lease Contract Generation** | Auto-fill contract template: tenant name, unit, rate, lease dates, deposit amounts, terms & conditions | Small+ | `create_contract.php`, `lease_contracts` table | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
 | 9.2 | **Contract Viewing** | Tenant can view their active contract in-app; admin can view any tenant's contract | Small+ | `get_contracts.php`, `ViewContract.jsx` | — |
-| 9.3 | **Contract Status Management** | Track: Draft → Active → Expired → Terminated. Auto-expire when lease end date passes | Small+ | `update_contract_status.php` | — |
-| 9.4 | **Contract Renewal** | On lease extension, generate updated contract with new end date and any rate changes | Medium | `extend_lease.php` → new contract row | — |
-| 9.5 | **Downloadable / Printable** | Export contract as PDF or printable HTML for tenant/admin records | Medium | React print view or PDF library | — |
+| 9.3 | **Contract Status Management** | Track: Draft → Active → Expired → Terminated. Auto-expire when lease end date passes | Small+ | `update_contract_status.php`, `AdminContracts.jsx` | — |
+| 9.4 | **Contract Renewal** | On lease extension, generate updated contract with new end date and any rate changes | Medium | `extend_lease.php`, `process_tenant_request.php` | — |
+| 9.5 | **Downloadable / Printable** | Export contract as PDF or printable HTML for tenant/admin records | Medium | `ViewContract.jsx` print layout | — |
 
 ---
 

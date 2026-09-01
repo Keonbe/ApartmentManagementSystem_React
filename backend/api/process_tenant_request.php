@@ -80,6 +80,28 @@ try {
             $updateStmt->bind_param("ii", $add_months, $target_user_id);
             $updateStmt->execute();
             $updateStmt->close();
+            
+            // Also update lease_contracts and rooms lease_end dates
+            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved'");
+            $appStmt->bind_param("i", $target_user_id);
+            $appStmt->execute();
+            $appRes = $appStmt->get_result();
+            if ($appRes->num_rows > 0) {
+                $app = $appRes->fetch_assoc();
+                $app_id = $app['id'];
+                $room_name = $app['room_name'];
+                
+                $ctrStmt = $conn->prepare("UPDATE lease_contracts SET lease_end = DATE_ADD(lease_end, INTERVAL ? MONTH) WHERE rent_application_id = ? AND status = 'active'");
+                $ctrStmt->bind_param("ii", $add_months, $app_id);
+                $ctrStmt->execute();
+                $ctrStmt->close();
+                
+                $roomStmt = $conn->prepare("UPDATE rooms SET lease_end = DATE_ADD(lease_end, INTERVAL ? MONTH) WHERE id = ?");
+                $roomStmt->bind_param("is", $add_months, $room_name);
+                $roomStmt->execute();
+                $roomStmt->close();
+            }
+            $appStmt->close();
 
             log_activity($conn, $admin_id, 'contract', "Approved Lease Extension", "User ID: $target_user_id extended by $add_months months");
         }
