@@ -151,9 +151,21 @@ if (isset($response_data['errors'])) {
 $checkout_session_id = $response_data['data']['id'];
 $checkout_url = $response_data['data']['attributes']['checkout_url'];
 
-// 5. Store checkout_session_id in invoices table
-$update = $conn->prepare("UPDATE invoices SET status = 'processing', checkout_session_id = ?, payment_gateway = 'paymongo_sandbox' WHERE id = ?");
-$update->bind_param("ss", $checkout_session_id, $invoice_id);
+// Map channel to human-readable payment method
+$channel_method_map = [
+    'gcash_sandbox' => 'GCash (Sandbox)',
+    'gcash' => 'GCash (Sandbox)',
+    'paymaya' => 'Maya (Sandbox)',
+    'maya' => 'Maya (Sandbox)',
+    'bank_sandbox' => 'Bank / Card (Sandbox)',
+    'bank' => 'Bank / Card (Sandbox)',
+    'card' => 'Card (Sandbox)'
+];
+$payment_method = $channel_method_map[$channel] ?? 'Online (Sandbox)';
+
+// 5. Store checkout_session_id and payment_method in invoices table
+$update = $conn->prepare("UPDATE invoices SET status = 'processing', checkout_session_id = ?, payment_gateway = 'paymongo_sandbox', payment_method = ? WHERE id = ?");
+$update->bind_param("sss", $checkout_session_id, $payment_method, $invoice_id);
 
 if ($update->execute()) {
     echo json_encode(["success" => true, "checkout_url" => $checkout_url]);

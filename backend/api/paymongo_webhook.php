@@ -77,8 +77,31 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
     $user_id = $metadata['user_id'] ?? null;
 
     if ($invoice_id) {
-        $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ?");
-        $stmt->bind_param("ss", $status, $invoice_id);
+        if ($status === 'paid') {
+            $source_type = $event_data['attributes']['payments'][0]['attributes']['source']['type'] ?? null;
+            $pm_label = null;
+            if ($source_type) {
+                $type_map = [
+                    'gcash' => 'GCash (Sandbox)',
+                    'paymaya' => 'Maya (Sandbox)',
+                    'card' => 'Card (Sandbox)',
+                    'dob' => 'Online Banking (Sandbox)'
+                ];
+                $pm_label = $type_map[$source_type] ?? (ucfirst($source_type) . ' (Sandbox)');
+            }
+
+            if ($pm_label) {
+                $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, paid_at = COALESCE(paid_at, NOW()) WHERE id = ?");
+                $stmt->bind_param("ss", $pm_label, $invoice_id);
+            } else {
+                $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = COALESCE(payment_method, 'PayMongo (Sandbox)'), paid_at = COALESCE(paid_at, NOW()) WHERE id = ?");
+                $stmt->bind_param("s", $invoice_id);
+            }
+        } else {
+            $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ?");
+            $stmt->bind_param("ss", $status, $invoice_id);
+        }
+
         if ($stmt->execute()) {
             if ($user_id) {
                 log_activity($conn, 1, 'Payment', 'Webhook ' . $status, "Invoice: $invoice_id"); // Assuming admin 1 for systemic logs

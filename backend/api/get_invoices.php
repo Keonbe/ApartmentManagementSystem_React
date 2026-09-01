@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'created_at' => $row['created_at'] ?? $row['issue_date'] ?? date('Y-m-d H:i:s'), 
                 'due_date' => $row['due_date'] ?? '',
                 'paid_at' => $row['paid_at'] ?? null,
-                'payment_method' => $row['payment_method'] ?? null,
+                'payment_method' => !empty($row['payment_method']) ? $row['payment_method'] : (!empty($row['payment_gateway']) && strpos($row['payment_gateway'], 'paymongo') !== false ? 'PayMongo (Sandbox)' : null),
                 'sender_name' => $row['sender_name'] ?? null,
                 'payment_reference' => $row['payment_reference'] ?? null,
                 'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null,

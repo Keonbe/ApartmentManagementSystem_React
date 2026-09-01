@@ -77,6 +77,7 @@ const AdminPayments = () => {
                t.preferredMethod = inv.payment_method;
             }
           } else if (inv.status === 'paid') {
+            const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
             t.history.push({
               id: inv.id, 
               period: inv.billing_period, 
@@ -84,7 +85,7 @@ const AdminPayments = () => {
               amount: parseFloat(inv.total_amount || 0), 
               datePaid: inv.paid_at, 
               status: 'paid', 
-              method: inv.payment_method,
+              method: methodDisplay,
               gateway: inv.payment_gateway
             });
           }
@@ -746,7 +747,7 @@ const handleMarkAsPaid = async () => {
                           <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="py-3 px-3 font-medium text-slate-800">{record.period}</td>
                             <td className="py-3 px-3 text-emerald-600 font-semibold">{formatCurrency(record.amount)}</td>
-                            <td className="py-3 px-3 text-slate-600"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs border border-slate-200">{record.method}</span></td>
+                            <td className="py-3 px-3 text-slate-600"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs border border-slate-200">{record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
                             <td className="py-3 px-3 text-slate-500 text-xs truncate max-w-[150px]" title={record.breakdown}>{record.breakdown}</td>
                             <td className="py-3 px-3 text-slate-500">{record.datePaid}</td>
                             <td className="py-3 px-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
