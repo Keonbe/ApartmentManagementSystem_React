@@ -86,29 +86,19 @@ export default function Services() {
         },
     ];
 
-    const [visibleServices, setVisibleServices] = useState([]);
+    const [settings, setSettings] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    //2.FetchActiveSystemSettingsOnLoad
+    // 2. Fetch Active System Settings On Load
     useEffect(() => {
         const loadServiceVisibility = async () => {
             try {
                 const res = await api.get('/get_system_settings.php');
                 if (res.data.success && res.data.settings) {
-                    const settings = res.data.settings;
-                    
-                    //FilterOnlyEnabledServices
-                    const filtered = allServices.filter(s => {
-                        if (!s.key) return true; //AlwaysShowUtilitiesLikeHistoryAndMyRequests
-                        return settings[s.key] === undefined || settings[s.key] === 'true' || settings[s.key] === true;
-                    });
-                    setVisibleServices(filtered);
-                } else {
-                    setVisibleServices(allServices);
+                    setSettings(res.data.settings);
                 }
             } catch (err) {
                 console.error("Failed to load modular service states:", err);
-                setVisibleServices(allServices);
             } finally {
                 setLoading(false);
             }
@@ -116,6 +106,13 @@ export default function Services() {
 
         loadServiceVisibility();
     }, []);
+
+    // Filter Only Enabled Services dynamically so language changes re-evaluate translations instantly
+    const visibleServices = allServices.filter(s => {
+        if (!s.key) return true; // Always show utilities like History and My Requests
+        if (!settings) return true;
+        return settings[s.key] === undefined || settings[s.key] === 'true' || settings[s.key] === true;
+    });
 
     if (loading) {
         return (

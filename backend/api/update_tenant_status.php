@@ -185,6 +185,30 @@ if ($id > 0 && !empty($status)) {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         }
 
+        if (in_array($status, ['Approved', 'Rejected', 'Declined'])) {
+            $u_stmt = $conn->prepare("SELECT user_id, room_name FROM rent_applications WHERE id = ?");
+            $u_stmt->bind_param("i", $id);
+            $u_stmt->execute();
+            $u_res = $u_stmt->get_result()->fetch_assoc();
+            $u_stmt->close();
+            
+            if ($u_res) {
+                $tenant_id = $u_res['user_id'];
+                $room = $u_res['room_name'];
+                
+                $notif_title = "Application " . ($status === 'Declined' ? 'Rejected' : $status);
+                $notif_msg = "Your rent application for Unit $room has been " . strtolower($notif_title) . ".";
+                if (!empty($rejection_reason)) {
+                    $notif_msg .= " Reason: $rejection_reason";
+                }
+                
+                $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'application_update', ?, ?, 'Resolved', 0)");
+                $notif_stmt->bind_param("iss", $tenant_id, $notif_title, $notif_msg);
+                $notif_stmt->execute();
+                $notif_stmt->close();
+            }
+        }
+
         $conn->commit();
         echo json_encode(["success" => true]);
         

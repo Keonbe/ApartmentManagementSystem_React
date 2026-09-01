@@ -64,6 +64,14 @@ $stmt = $conn->prepare("INSERT INTO parking_reservations (user_id, vehicle_type,
 $stmt->bind_param("isssssids", $user_id, $vehicle_type, $vehicle_model, $plate_number, $status, $transmission, $duration_months, $total_cost, $document_path);
 
 if ($stmt->execute()) {
+    // Notify Admin
+    $notif_title = "New Parking Reservation";
+    $notif_msg = "A new parking reservation request for plate $plate_number has been submitted.";
+    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'parking_reservation', ?, ?, 'Pending', 0)");
+    $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
+    $notif_stmt->execute();
+    $notif_stmt->close();
+
     echo json_encode(["success" => true, "message" => "Reservation created successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to create reservation", "error" => $stmt->error]);

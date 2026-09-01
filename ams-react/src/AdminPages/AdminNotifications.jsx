@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBell, faSearch, faTimes, faCheckDouble, faTrashAlt, faClock, faDollarSign,
   faWrench, faExclamationTriangle, faEnvelope, faMobileAlt, faToggleOn, faToggleOff,
-  faCog, faFilter, faCheck, faCircle, faUsers, faCalendarPlus, faCheckCircle, faTimesCircle
+  faCog, faFilter, faCheck, faCircle, faUsers, faCalendarPlus, faCheckCircle, faTimesCircle, faFileContract, faCar, faVideo, faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
@@ -16,11 +17,16 @@ const typeConfig = {
   maintenance: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700' },
   occupancy_request: { label: 'Occupancy Request', icon: faUsers, color: 'bg-purple-100 text-purple-600', badge: 'bg-purple-100 text-purple-700' },
   lease_extension_request: { label: 'Lease Extension', icon: faCalendarPlus, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  rent_application: { label: 'Rent Application', icon: faFileContract, color: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' },
+  maintenance_request: { label: 'Maintenance Request', icon: faWrench, color: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700' },
+  parking_reservation: { label: 'Parking', icon: faCar, color: 'bg-teal-100 text-teal-600', badge: 'bg-teal-100 text-teal-700' },
+  cctv_request: { label: 'CCTV Request', icon: faVideo, color: 'bg-slate-100 text-slate-600', badge: 'bg-slate-100 text-slate-700' },
   sms: { label: 'SMS', icon: faMobileAlt, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
   email: { label: 'Email', icon: faEnvelope, color: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' },
 };
 
 const AdminNotifications = () => {
+  const navigate = useNavigate();
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
   const emailKey = loggedInUser.email_address || "default_admin";
 
@@ -241,11 +247,26 @@ const AdminNotifications = () => {
                                 <FontAwesomeIcon icon={faTimesCircle} /> Reject
                               </button>
                             </div>
-                          ) : n.status !== 'Pending' && (n.type === 'occupancy_request' || n.type === 'lease_extension_request') && (
+                          ) : (n.type === 'rent_application' || n.type === 'maintenance_request' || n.type === 'parking_reservation' || n.type === 'cctv_request') && n.status === 'Pending' ? (
+                            <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
+                              <button 
+                                onClick={() => {
+                                  if (n.type === 'rent_application') navigate('/admin-applications');
+                                  if (n.type === 'maintenance_request') navigate('/admin-maintenance');
+                                  if (n.type === 'parking_reservation') navigate('/admin-parking');
+                                  if (n.type === 'cctv_request') navigate('/admin-cctv');
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg border-0 cursor-pointer flex items-center gap-1.5 shadow-sm transition-all"
+                              >
+                                <span>Review Request</span>
+                                <FontAwesomeIcon icon={faArrowRight} />
+                              </button>
+                            </div>
+                          ) : n.status !== 'Pending' && (n.type === 'occupancy_request' || n.type === 'lease_extension_request') ? (
                             <span className={`inline-block mt-2 text-[10px] font-extrabold px-2 py-0.5 rounded ${n.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                               Decision: {n.status}
                             </span>
-                          )}
+                          ) : null}
                         </div>
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">

@@ -41,6 +41,26 @@ if ($status === 'Completed') {
 
 if ($stmt->execute()) {
     log_activity($conn, $admin_id, 'maintenance', "Updated Maintenance Ticket #$id", "Status: $status, Assigned: $assigned_to");
+
+    // Fetch tenant user_id
+    $u_stmt = $conn->prepare("SELECT user_id, issue_category FROM maintenance_requests WHERE id = ?");
+    $u_stmt->bind_param("i", $id);
+    $u_stmt->execute();
+    $u_res = $u_stmt->get_result()->fetch_assoc();
+    $u_stmt->close();
+    
+    if ($u_res) {
+        $tenant_id = $u_res['user_id'];
+        $issue = $u_res['issue_category'];
+        
+        $notif_title = "Maintenance Update";
+        $notif_msg = "Your maintenance request for $issue is now: $status.";
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_update', ?, ?, 'Resolved', 0)");
+        $notif_stmt->bind_param("iss", $tenant_id, $notif_title, $notif_msg);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+    }
+
     echo json_encode(["success" => true, "message" => "Maintenance ticket updated successfully."]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to update maintenance ticket", "error" => $stmt->error]);

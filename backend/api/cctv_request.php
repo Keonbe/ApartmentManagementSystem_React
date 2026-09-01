@@ -33,6 +33,14 @@ $stmt = $conn->prepare("INSERT INTO cctv_requests (user_id, incident_date, incid
 $stmt->bind_param("issss", $user_id, $incident_date, $incident_time, $location_details, $reason_request);
 
 if ($stmt->execute()) {
+    // Notify Admin
+    $notif_title = "New CCTV Request";
+    $notif_msg = "A new CCTV footage request has been submitted for an incident at $location_details.";
+    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'cctv_request', ?, ?, 'Pending', 0)");
+    $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
+    $notif_stmt->execute();
+    $notif_stmt->close();
+
     echo json_encode(["success" => true, "message" => "CCTV request submitted successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to submit request", "error" => $stmt->error]);

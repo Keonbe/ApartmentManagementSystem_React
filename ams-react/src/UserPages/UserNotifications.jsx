@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBell, faSearch, faTimes, faCheckDouble, faTrash, faClock,
   faExclamationTriangle, faFileContract, faCheckCircle, faInfoCircle,
-  faCog, faToggleOn, faToggleOff, faCheck, faCircle
+  faCog, faToggleOn, faToggleOff, faCheck, faCircle, faWrench
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
@@ -15,6 +15,8 @@ const typeConfig = {
   success: { label: 'Update', icon: faCheckCircle, color: 'bg-emerald-50 text-emerald-500 border-emerald-100', badge: 'bg-emerald-100 text-emerald-700' },
   action: { label: 'Action Required', icon: faFileContract, color: 'bg-indigo-50 text-indigo-500 border-indigo-100', badge: 'bg-indigo-100 text-indigo-700' },
   info: { label: 'Info', icon: faInfoCircle, color: 'bg-blue-50 text-blue-500 border-blue-100', badge: 'bg-blue-100 text-blue-700' },
+  maintenance_update: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-50 text-amber-500 border-amber-100', badge: 'bg-amber-100 text-amber-700' },
+  application_update: { label: 'Application', icon: faFileContract, color: 'bg-indigo-50 text-indigo-500 border-indigo-100', badge: 'bg-indigo-100 text-indigo-700' },
 };
 
 export default function UserNotifications() {

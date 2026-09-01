@@ -78,6 +78,14 @@ $stmt = $conn->prepare("INSERT INTO maintenance_requests (user_id, issue_categor
 $stmt->bind_param("isssssis", $user_id, $issue_category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path);
 
 if ($stmt->execute()) {
+    // Notify Admin
+    $notif_title = "New Maintenance Request";
+    $notif_msg = "A new maintenance request ($issue_category - $urgency) has been submitted.";
+    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_request', ?, ?, 'Pending', 0)");
+    $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
+    $notif_stmt->execute();
+    $notif_stmt->close();
+
     echo json_encode(["success" => true, "message" => "Maintenance request submitted successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to submit request", "error" => $stmt->error]);
