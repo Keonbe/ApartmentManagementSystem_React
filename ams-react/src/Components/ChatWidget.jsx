@@ -177,6 +177,11 @@ const ChatWidget = () => {
                                                 <h4 className="text-sm font-semibold text-slate-900 truncate m-0">
                                                     {conv.other_user_name}
                                                 </h4>
+                                                {conv.last_message_time && (
+                                                    <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0 ml-3">
+                                                        {new Date(conv.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="text-xs text-slate-500 truncate m-0">
                                                 {conv.last_message || 'No messages yet'}
@@ -209,8 +214,10 @@ const ChatWidget = () => {
                                                 }`}
                                             >
                                                 <p className="m-0 break-words">{msg.message}</p>
-                                                <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
-                                                    {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                <div className={`mt-1 flex justify-end ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                                    <span className="text-[10px] leading-none whitespace-nowrap">
+                                                        {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
