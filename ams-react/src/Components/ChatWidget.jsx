@@ -29,6 +29,7 @@ const ChatWidget = () => {
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
     const chatWindowRef = useRef(null);
+    const totalUnreadCount = conversations.reduce((sum, conv) => sum + Number(conv.unread_count || 0), 0);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,6 +40,11 @@ const ChatWidget = () => {
         if (url.startsWith('http://') || url.startsWith('https://')) return url;
         const cleanPath = url.replace(/^\//, '');
         return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
+    };
+
+    const getSenderLabel = (senderId, otherUserName) => {
+        if (!senderId) return '';
+        return String(senderId) === String(userId) ? 'You' : (otherUserName || 'Admin');
     };
 
     useEffect(() => {
@@ -113,6 +119,11 @@ const ChatWidget = () => {
                     aria-label="Open Chat"
                 >
                     <FontAwesomeIcon icon={faComment} className="text-2xl" />
+                    {totalUnreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 min-w-6 h-6 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md border-2 border-white">
+                            {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
+                        </span>
+                    )}
                 </button>
             ) : (
                 /* Chat Container Window */
@@ -174,14 +185,21 @@ const ChatWidget = () => {
                                         }}
                                         className="flex items-center gap-3 p-4 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100"
                                     >
-                                        <img 
-                                            src={getFullAvatarUrl(conv.other_user_avatar) || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.other_user_name || 'User')} 
-                                            alt={conv.other_user_name}
-                                            className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
-                                        />
+                                        <div className="relative shrink-0">
+                                            <img 
+                                                src={getFullAvatarUrl(conv.other_user_avatar) || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.other_user_name || 'User')} 
+                                                alt={conv.other_user_name}
+                                                className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
+                                            />
+                                            {Number(conv.unread_count) > 0 && (
+                                                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm border-2 border-white">
+                                                    {conv.unread_count > 9 ? '9+' : conv.unread_count}
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-center mb-0.5">
-                                                <h4 className="text-sm font-semibold text-slate-900 truncate m-0">
+                                                <h4 className={`text-sm truncate m-0 ${Number(conv.unread_count) > 0 ? 'font-bold text-slate-900' : 'font-semibold text-slate-900'}`}>
                                                     {conv.other_user_name}
                                                 </h4>
                                                 {conv.last_message_time && (
@@ -190,8 +208,8 @@ const ChatWidget = () => {
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-slate-500 truncate m-0">
-                                                {conv.last_message || 'No messages yet'}
+                                            <p className={`text-xs truncate m-0 ${Number(conv.unread_count) > 0 ? 'font-semibold text-slate-700' : 'text-slate-500'}`}>
+                                                {conv.last_message ? `${String(conv.last_message_sender_id) === String(userId) ? 'You' : (conv.other_user_name || 'Admin')}: ${conv.last_message}` : 'No messages yet'}
                                             </p>
                                         </div>
                                     </div>
@@ -220,7 +238,12 @@ const ChatWidget = () => {
                                                         : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
                                                 }`}
                                             >
-                                                <p className="m-0 break-words">{msg.message}</p>
+                                                <p className="m-0 break-words">
+                                                    <span className="font-semibold mr-1">
+                                                        {getSenderLabel(msg.sender_id, activeChat?.other_user_name)}:
+                                                    </span>
+                                                    {msg.message}
+                                                </p>
                                                 <div className={`mt-1 flex justify-end ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                                                     <span className="text-[10px] leading-none whitespace-nowrap">
                                                         {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}

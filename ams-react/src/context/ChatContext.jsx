@@ -71,6 +71,15 @@ export const ChatProvider = ({ children }) => {
         return null;
     }, []);
 
+    const refreshChatState = useCallback(async () => {
+        await fetchConversations();
+
+        const currentChat = activeChatRef.current;
+        if (currentChat?.other_user_id) {
+            await fetchChatHistory(currentChat.other_user_id);
+        }
+    }, [fetchChatHistory, fetchConversations]);
+
     const openSupportChat = useCallback(async () => {
         if (!userId) return;
 
@@ -117,13 +126,13 @@ export const ChatProvider = ({ children }) => {
                 )));
             }
 
-            fetchConversations();
+            await refreshChatState();
         } catch (error) {
             console.error('Failed to send message:', error);
             setMessages((prev) => prev.filter((msg) => msg.id !== optimisticMessage.id));
             throw error;
         }
-    }, [fetchConversations, userId]);
+    }, [refreshChatState, userId]);
 
     const handleTyping = useCallback(() => {
         // Typing indicators are currently disabled because the chat now uses HTTP polling.
@@ -132,19 +141,40 @@ export const ChatProvider = ({ children }) => {
     useEffect(() => {
         if (!userId) return undefined;
 
-        fetchConversations();
+        refreshChatState();
 
         conversationsPollRef.current = window.setInterval(() => {
             fetchConversations();
-        }, 15000);
+        }, 6000);
+
+        const handleWindowFocus = () => {
+            refreshChatState();
+        };
+
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                refreshChatState();
+            }
+        };
+
+        const handlePageShow = () => {
+            refreshChatState();
+        };
+
+        window.addEventListener('focus', handleWindowFocus);
+        window.addEventListener('pageshow', handlePageShow);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             if (conversationsPollRef.current) {
                 window.clearInterval(conversationsPollRef.current);
                 conversationsPollRef.current = null;
             }
+            window.removeEventListener('focus', handleWindowFocus);
+            window.removeEventListener('pageshow', handlePageShow);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [fetchConversations, userId]);
+    }, [fetchConversations, refreshChatState, userId]);
 
     useEffect(() => {
         if (!activeChat?.other_user_id || !userId) {
@@ -163,7 +193,7 @@ export const ChatProvider = ({ children }) => {
             if (currentChat?.other_user_id) {
                 fetchChatHistory(currentChat.other_user_id);
             }
-        }, 4000);
+        }, 2500);
 
         return () => {
             if (historyPollRef.current) {
