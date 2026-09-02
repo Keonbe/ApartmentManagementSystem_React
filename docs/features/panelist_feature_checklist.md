@@ -1,9 +1,64 @@
 # AMS — Panelist Feature Checklist
 
-> **Project:** Apartment Management System  
-> **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)  
-> **Context:** Small-to-medium scale apartment building (15–100 units)  
-> **Last Updated:** August 2026
+> **Project:** Apartment Management System
+> **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
+> **Context:** Small-to-medium scale apartment building (15–100 units)
+> **Last Updated:** September 2026
+
+---
+
+## Combined Scope Table
+
+| Status | **Main Module / Area**                  | **Features / Included Functions**                                                                                                                                                                                                                                       |
+| :---: | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [x] | **Tenant Management**                   | [x] Tenant registration, [x] tenant profile, [x] ID/document upload, [x] occupancy records, [x] move-in/move-out tracking, [x] payment records                                                                                                                          |
+| [x] | **Apartment / Unit Management**         | [x] Room/unit availability, [x] set occupancy, [x] unit status monitoring, [x] occupancy tracking, [x] extended rent                                                                                                                                                  |
+| [x] | **Rental Payment & Billing**            | [x] Monthly billing, [x] payment recording, [x] payment history, [x] receipt generation, [x] balance monitoring, [ ] due-date reminders, [ ] extended rent, [x] term of payment, [x] security deposit, [x] base rent, [x] water, [x] electricity, [x] parking if applicable |
+| [x] | **Payment Methods**                     | [x] GCash, [x] cash, [x] bank transfer                                                                                                                                                                                                                                  |
+| [x] | **Maintenance Management**              | [x] Issue type: plumbing, electrical, structural/physical, water supply, general repair, others; [x] problem description, [x] location, [x] priority level: low/medium/high/urgent, [x] photo upload, [x] status: pending/in progress/completed, [x] date and time reported, [x] date and time resolved |
+| [ ] | **Service Management**                  | [ ] Cleaning, [ ] laundry, [ ] other services                                                                                                                                                                                                                           |
+| [ ] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [ ] two-way chat (admin ↔ tenant messaging)                                                                                                                                                                            |
+| [ ] | **Notification / Automation**           | [ ] Rent due reminders, [ ] overdue alerts, [x] maintenance updates (in-app), [ ] SMS notifications, [ ] email notifications, [ ] automated reports, [ ] notification preferences                                                                                      |
+| [ ] | **Inquiry & Reservation Management**    | [ ] Inquiry handling, [ ] reservation tracking, [x] room/unit availability tracking, [ ] reservation module                                                                                                                                                             |
+| [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [ ] slot assignment management, [ ] parking fee integration into billing                                                                                                                                            |
+| [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
+| [ ] | **Utility Usage**                       | [ ] Water usage, [ ] electricity usage, [ ] utility tracking per unit                                                                                                                                                                                                   |
+| [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [ ] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
+| [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management                                                                                                                                                     |
+| [ ] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [ ] admin approval/rejection, [ ] request status tracking                                                                                                                                                                              |
+| [x] | **Visitor Management**                  | [x] Visitor records / management, [x] tenant pre-authorization, [x] visitor history, [x] overstay alerts                                                                                                                                                                |
+| [x] | **Contract Management**                 | [x] Contract generation, [x] contract viewing, [x] status management (Draft → Active → Expired), [x] renewal, [x] downloadable/printable                                                                                                                              |
+
+---
+
+## Contrast Table: Panelist vs. Chair Panel
+
+| **Panelist**                                           | **Chair Panel**                     |
+| ------------------------------------------------------ | ----------------------------------- |
+| Payment Tracking & Billing                             | Tenant Management Module            |
+| Communication Management                               | Apartment / Unit Management Module  |
+| Maintenance Management                                 | Rental Payment Module               |
+| Inquiry & Reservation                                  | Maintenance Management Module       |
+| Report Generation                                      | Service Management Module           |
+| Modular Services                                       | Notification Module                 |
+| Revenue Stream                                         | Admin Dashboard                     |
+| Utility Usage                                          | Payment: GCash, Cash, Bank Transfer |
+| Improve Tracking Reservation Module                    | SMS & Email Notification            |
+| **Parking Reservation Module**                         | **Contract Management**             |
+| **CCTV Access Request Module**                         | **Visitor Management**              |
+| Security Deposit                                       |                                     |
+| Tenant Management: Profile, Payments                   |                                     |
+| Apartment Unit Management: Availability, Occupancy     |                                     |
+| Financial Tracking: Rent, Utilities, Invoices          |                                     |
+| Communication Tools: Announcement, Request, Complaints |                                     |
+| Two-Way Chat: Admin ↔ Tenant Messaging                 |                                     |
+| Automation: Reminders, Notifications, Reports          |                                     |
+| Role-Based Access                                      |                                     |
+| Online Payment: GCash, Cash, Bank                      |                                     |
+| Visitor Management                                     |                                     |
+| SMS Notification                                       |                                     |
+| Contract Generation                                    |                                     |
+
 ---
 
 ## System Context
@@ -15,24 +70,232 @@ This system manages the **day-to-day operations of a small-to-medium apartment b
 | **Small** | 5–20 | 10–40 | 1 admin | 20–80 payments |
 | **Medium** | 20–100 | 40–200 | 1–3 admins | 80–400 payments |
 
-### Core Operational Flow
+---
 
-```
-1. PROCESSING              2. ACCEPTANCE               3. PAYMENT & OCCUPANCY
-─────────────────          ─────────────────            ─────────────────────
-Tenant applies             Admin reviews:               Tenant pays:
-├── Personal info          ├── Valid ID verified         ├── 1 month advance rent
-├── Valid ID upload         ├── Employment/income        ├── 1 month deposit
-├── Contact details        ├── Background check         └── Security deposit
-└── Room preference        └── Room availability
-                                    │                          │
-                                    ▼                          ▼
-                               LEASE CONTRACT              MOVE-IN
-                            (auto-generated)           (occupancy recorded)
+## Core Operational Flow
+
+```mermaid
+flowchart LR
+    A["1. PROCESSING<br/>Tenant applies<br/>• Personal info<br/>• Valid ID upload<br/>• Contact details<br/>• Room preference"] --> B["2. ACCEPTANCE<br/>Admin reviews<br/>• Valid ID verified<br/>• Employment/income<br/>• Background check<br/>• Room availability"]
+    B --> C["LEASE CONTRACT<br/>(auto-generated)"]
+    B --> D["3. PAYMENT & OCCUPANCY<br/>Tenant pays<br/>• 1 month advance rent<br/>• 1 month deposit<br/>• Security deposit"]
+    C --> E["MOVE-IN<br/>(occupancy recorded)"]
+    D --> E
 ```
 
 ---
 
+## Operation Flow Diagrams
+
+### Tenant Application & Onboarding Flow
+
+```mermaid
+flowchart TD
+    A(["Tenant Visits System"]) --> B["Fill Registration Form<br/>personal info, contact, employment"]
+    B --> C["Upload Valid ID & Documents"]
+    C --> D["Select Room Preference"]
+    D --> E["Submit Rent Application"]
+    E --> F{"Admin Reviews<br/>Application"}
+    F -->|Reject| G["Notify Tenant: Rejected"]
+    F -->|Approve| H["Generate Lease Contract"]
+    H --> I["Tenant Pays<br/>1 Month Advance + Deposit + Security Deposit"]
+    I --> J["Admin Confirms Payment"]
+    J --> K["Set Room Status: Occupied"]
+    K --> L["Record Move-In Date"]
+    L --> M(["Tenant Actively Occupying Unit"])
+```
+
+### Move-Out Flow
+
+```mermaid
+flowchart TD
+    A(["Tenant Initiates Move-Out"]) --> B["Submit Move-Out Request"]
+    B --> C["Admin Reviews Request"]
+    C --> D["Schedule Unit Inspection"]
+    D --> E{"Inspection Result"}
+    E -->|Damage Found| F["Calculate Damage Deductions<br/>from Security Deposit"]
+    E -->|No Damage| G["Full Deposit Refund Calculated"]
+    F --> H["Settle Outstanding Invoices"]
+    G --> H
+    H --> I["Admin Records Move-Out<br/>record_move_out.php"]
+    I --> J["Set Room Status: Vacant"]
+    J --> K["Archive Tenant Record"]
+    K --> L(["Unit Available for Re-Rent"])
+```
+
+### Payment & Billing Flow
+
+```mermaid
+flowchart TD
+    A(["Monthly Billing Cycle"]) --> B["Admin Generates Invoice<br/>Base Rent + Water + Electricity + Parking"]
+    B --> C["Tenant Receives Invoice<br/>in-app notification"]
+    C --> D{"Tenant Payment Method"}
+    D -->|Cash| E["Pay at Admin Office"]
+    D -->|GCash| F["Transfer via GCash<br/>Upload Screenshot Proof"]
+    D -->|Bank Transfer| G["Bank Transfer<br/>Upload Proof + Reference No."]
+    E --> H["Admin Records Payment<br/>record_payment_admin.php"]
+    F --> I["Admin Verifies Proof<br/>upload_payment_proof.php"]
+    G --> I
+    I --> H
+    H --> J["Invoice Status: Paid"]
+    J --> K["Generate Printable Receipt"]
+    K --> L(["Payment Complete"])
+    B --> M{"Past Due Date?"}
+    M -->|Yes| N["Flag as Overdue"]
+    N --> O["Send Overdue Alert to Tenant"]
+    O --> P["Escalate to Admin Dashboard"]
+```
+
+### Maintenance Request Flow
+
+```mermaid
+flowchart TD
+    A(["Tenant Notices Issue"]) --> B["Submit Maintenance Request<br/>Category + Description + Location<br/>Priority Level + Photo Upload"]
+    B --> C["Request Status: Pending"]
+    C --> D["Admin Reviews Request"]
+    D --> E["Assign to Worker/Contractor<br/>assigned_to field"]
+    E --> F["Request Status: In Progress"]
+    F --> G["Worker Performs Repairs<br/>Add Work Notes + Cost Estimate"]
+    G --> H{"Tenant Responsible?"}
+    H -->|Yes| I["Flag Tenant-Caused Damage<br/>Add to Invoice"]
+    H -->|No| J["Building-Covered Repair"]
+    I --> K["Request Status: Completed"]
+    J --> K
+    K --> L["Record Resolution Timestamp"]
+    L --> M["Notify Tenant: Completed"]
+    M --> N(["Issue Resolved"])
+```
+
+### Notification & Alert Flow
+
+```mermaid
+flowchart LR
+    A(["Trigger Event"]) --> B{"Event Type"}
+    B -->|Rent Due in 3-5 days| C["Rent Due Reminder"]
+    B -->|Invoice Past Due Date| D["Overdue Alert"]
+    B -->|Maintenance Status Change| E["Maintenance Update"]
+    B -->|Admin Broadcast| F["Building Announcement"]
+    B -->|New Message| G["Chat Notification"]
+    C --> H{"Delivery Channel"}
+    D --> H
+    E --> H
+    F --> H
+    G --> H
+    H -->|Always| I["In-App Notification<br/>Bell Icon + Notification Center"]
+    H -->|If Enabled| J["Email<br/>PHPMailer + Gmail SMTP"]
+    H -->|If Enabled| K["SMS<br/>Semaphore API"]
+    I --> L(["Tenant/Admin Notified"])
+    J --> L
+    K --> L
+```
+
+### Visitor Management Flow
+
+```mermaid
+flowchart TD
+    A(["Expected Visitor"]) --> B{"Registration Method"}
+    B -->|Tenant Pre-Registers| C["Tenant Submits Visitor Info<br/>via UserVisitors.jsx"]
+    B -->|Walk-In| D["Admin Logs Visitor<br/>check_in_visitor.php"]
+    C --> E["Status: Pending Approval"]
+    E --> F["Admin Reviews and Approves"]
+    F --> G["Visitor Checked In<br/>ID Verified + Gov ID Photo"]
+    D --> G
+    G --> H["Record: Name, Contact, ID Type,<br/>ID Number, Host Room, Purpose, Timestamp"]
+    H --> I{"Visit Duration Check"}
+    I -->|Within Threshold| J["Normal Visit Log"]
+    I -->|Overstay Alert| K["Alert Admin of Overstay"]
+    K --> L["Admin Takes Action"]
+    J --> M["Visitor Checks Out"]
+    L --> M
+    M --> N["Update Visitor Log<br/>Checkout Timestamp"]
+    N --> O(["Audit Trail Complete"])
+```
+
+### Contract Generation Flow
+
+```mermaid
+flowchart TD
+    A(["Application Approved"]) --> B["Auto-Generate Lease Contract<br/>Tenant Name, Unit, Rate, Dates,<br/>Deposit Amounts, T&C"]
+    B --> C["Contract Status: Draft"]
+    C --> D["Admin Reviews Contract"]
+    D --> E["Contract Status: Active"]
+    E --> F{"Tenant Action"}
+    F -->|View Contract| G["ViewContract.jsx<br/>In-App Viewing"]
+    F -->|Print/Download| H["Print Layout<br/>@media print CSS"]
+    G --> I(["Contract Acknowledged"])
+    H --> I
+    E --> J{"Lease Approaching End?"}
+    J -->|Yes| K["Lease Extension / Renewal<br/>extend_lease.php"]
+    K --> L["Updated Contract Generated<br/>New End Date + Adjusted Rate"]
+    L --> E
+    J -->|Expired| M["Contract Status: Expired"]
+    M --> N["Archive or Terminate"]
+```
+
+### Parking Reservation Flow
+
+```mermaid
+flowchart TD
+    A(["Tenant Requests Parking"]) --> B["Submit Reservation<br/>parking_reservation.php"]
+    B --> C["Check Slot Availability<br/>get_available_parking_slots.php"]
+    C --> D{"Slots Available?"}
+    D -->|No| E["Notify Tenant: No Slots Available"]
+    D -->|Yes| F["Admin Reviews Request"]
+    F -->|Reject| G["Notify Tenant: Rejected"]
+    F -->|Approve + Assign Slot| H["Status: Assigned<br/>Specific Slot Allocated"]
+    H --> I["Parking Fee Added to Monthly Invoice"]
+    I --> J(["Tenant Using Assigned Slot"])
+    J --> K{"Tenant Moves Out?"}
+    K -->|Yes| L["Release Parking Slot<br/>Status: Available"]
+    L --> M(["Slot Available for Others"])
+```
+
+### Admin Dashboard & Reports Flow
+
+```mermaid
+flowchart TD
+    A(["Admin Logs In"]) --> B["Admin Dashboard<br/>dashboard_stats.php"]
+    B --> C{"Report Type"}
+    C -->|Overview| D["Dashboard Stats Cards<br/>Total Tenants, Occupancy Rate,<br/>Monthly Revenue, Pending Maintenance,<br/>Overdue Payments"]
+    C -->|Financial| E["Income Reports<br/>get_report_data.php<br/>Monthly/Quarterly Breakdown"]
+    C -->|Revenue| F["Revenue Stream Analysis<br/>Rent vs Utilities vs Parking vs Deposits<br/>6-Month Historical Trends"]
+    C -->|Tenants| G["Tenant Monitoring<br/>get_tenants.php<br/>Lease + Payment Status"]
+    C -->|Maintenance| H["Maintenance Monitoring<br/>Open Requests by Priority<br/>Avg Resolution Time"]
+    C -->|Activity| I["Activity Logs<br/>get_activity_logs.php<br/>Admin Audit Trail"]
+    C -->|Utilities| J["Utility Usage Tracking<br/>Water + Electricity per Unit"]
+    D --> K(["Insights for Decision-Making"])
+    E --> K
+    F --> K
+    G --> K
+    H --> K
+    I --> K
+    J --> K
+```
+
+### Role-Based Access & Authentication Flow
+
+```mermaid
+flowchart TD
+    A(["User Visits System"]) --> B["Login Page<br/>login.php"]
+    B --> C{"Credentials Valid?"}
+    C -->|No| D["Show Error Message"]
+    D --> B
+    C -->|Yes| E["Read Role from DB<br/>users.role"]
+    E --> F{"Role?"}
+    F -->|admin| G["Inject X-Admin-Id Header<br/>axiosConfig.js"]
+    F -->|tenant| H["Inject X-User-Id Header<br/>axiosConfig.js"]
+    G --> I["Route to Admin Pages<br/>AdminDashboard, AdminTenants, etc."]
+    H --> J["Route to Tenant Pages<br/>Home, PayBills, etc."]
+    I --> K{"API Request"}
+    K --> L["PHP: verify_admin<br/>checks X-Admin-Id"]
+    L -->|Valid| M["Process Request"]
+    L -->|Invalid| N["403 Forbidden"]
+    J --> O{"API Request"}
+    O --> P["PHP: checks X-User-Id<br/>scopes data to tenant"]
+    P --> M
+```
+
+---
 
 ## Master Checklist — Implementation Status
 
@@ -49,140 +312,180 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ### Module 1 — Tenant Management
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 1.1 | Tenant Registration | ✅ | Critical | `registration.php` + React form |
-| 1.2 | Tenant Profile | ✅ | Critical | `profile.php` with edit |
-| 1.3 | ID / Document Upload | ✅ | Critical | `upload_lease_document.php` |
-| 1.4 | Occupancy Record | ✅ | Critical | Via `rent_applications` approval |
-| 1.5 | Move-In / Move-Out Tracking | ✅ | High | Tenant initiates, admin inspects and approves (`record_move_out.php`) |
-| 1.6 | Application Processing Flow | ✅ | Critical | Pending → Approved/Rejected |
-| 1.7 | Acceptance Criteria Enforcement | ✅ | Medium | Terms verified in application approval flow |
+> Admin Pages: [AdminTenants.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminTenants.jsx) · [AdminApplications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminApplications.jsx)
+> Tenant Pages: [Registration.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Registration.jsx) · [RentApplication.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/RentApplication.jsx) · [TrackApplication.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/TrackApplication.jsx) · [ProfileSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ProfileSettings.jsx)
+
+- [x] **1.1 Tenant Registration** ✅ — `registration.php` + React form
+- [x] **1.2 Tenant Profile** ✅ — `profile.php` with edit
+- [x] **1.3 ID / Document Upload** ✅ — `upload_lease_document.php`
+- [x] **1.4 Occupancy Record** ✅ — Via `rent_applications` approval
+- [x] **1.5 Move-In / Move-Out Tracking** ✅ — Tenant initiates, admin inspects and approves (`record_move_out.php`)
+- [x] **1.6 Application Processing Flow** ✅ — Pending → Approved/Rejected
+- [x] **1.7 Acceptance Criteria Enforcement** ✅ — Terms verified in application approval flow
+- [ ] **1.8 Inquiry Handling & Reservation Tracking** 📋 — Manage pre-application inquiries and unit reservations
+
+---
 
 ### Module 2 — Apartment / Unit Management
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 2.1 | Room / Unit Listing | ✅ | Critical | `get_rooms.php` |
-| 2.2 | Unit Availability Dashboard | ✅ | Critical | Room status in admin panel |
-| 2.3 | Set Occupancy | ✅ | Critical | Via application approval |
-| 2.4 | Unit Status Monitoring | ✅ | Medium | DB-backed condition, furnishing, inspection logs & inline edit |
-| 2.5 | Occupancy Tracking | ✅ | Medium | Dynamic stay durations, active counts, and 6-mo trend points |
-| 2.6 | Extended Rent / Lease Renewal | ✅ | High | `extend_lease.php` |
-| 2.7 | Unit Rate Configuration | ✅ | High | `update_room.php` |
+> Admin Pages: [AdminUnits.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminUnits.jsx)
+> Tenant Pages: [MyRoom.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/MyRoom.jsx)
+
+- [x] **2.1 Room / Unit Listing** ✅ — `get_rooms.php`
+- [x] **2.2 Unit Availability Dashboard** ✅ — Room status in admin panel
+- [x] **2.3 Set Occupancy** ✅ — Via application approval
+- [x] **2.4 Unit Status Monitoring** ✅ — DB-backed condition, furnishing, inspection logs & inline edit
+- [x] **2.5 Occupancy Tracking** ✅ — Dynamic stay durations, active counts, and 6-mo trend points
+- [x] **2.6 Extended Rent / Lease Renewal** ✅ — `extend_lease.php`
+- [x] **2.7 Unit Rate Configuration** ✅ — `update_room.php`
+
+---
 
 ### Module 3 — Rental Payment & Billing
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 3.1 | Monthly Billing / Invoice Generation | ✅ | Critical | `invoices` table |
-| 3.2 | Payment Recording | ✅ | Critical | `record_payment_admin.php` |
-| 3.3 | Payment History | ✅ | Critical | `get_invoices.php` |
-| 3.4 | Receipt Generation | ✅ | High | Printable official receipts with admin signature placeholder |
-| 3.5 | Balance Monitoring | ✅ | High | Status filter select and full balance tracking metrics & aging ledger |
-| 3.6 | Due Date Reminders | 📋 | High | Depends on notification module |
-| 3.7 | Overdue Alerts | 📋 | High | Depends on notification module |
-| 3.8 | Payment Proof Upload | ✅ | High | `upload_payment_proof.php` |
-| 3.9 | Security Deposit Tracking | ✅ | Medium | Non-refundable deposit tracking applied to rent, bills, or damages |
-| 3.10 | Extended Rent Terms | 🔧 | Medium | Lease extension exists; billing adjustment pending |
+> Admin Pages: [AdminPayments.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminPayments.jsx)
+> Tenant Pages: [PayBills.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/PayBills.jsx) · [PaymentUpload.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/PaymentUpload.jsx) · [UserPaymentHistory.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserPaymentHistory.jsx)
+> Related Docs: [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md)
+
+- [x] **3.1 Monthly Billing / Invoice Generation** ✅ — `invoices` table
+- [x] **3.2 Payment Recording** ✅ — `record_payment_admin.php`
+- [x] **3.3 Payment History** ✅ — `get_invoices.php`
+- [x] **3.4 Receipt Generation** ✅ — Printable official receipts with admin signature placeholder
+- [x] **3.5 Balance Monitoring** ✅ — Status filter select and full balance tracking metrics & aging ledger
+- [ ] **3.6 Due Date Reminders** 📋 — Depends on notification module
+- [ ] **3.7 Overdue Alerts** 📋 — Depends on notification module
+- [x] **3.8 Payment Proof Upload** ✅ — `upload_payment_proof.php`
+- [x] **3.9 Security Deposit Tracking** ✅ — Non-refundable deposit tracking applied to rent, bills, or damages
+- [ ] **3.10 Extended Rent Terms** 🔧 — Lease extension exists; billing adjustment pending
+- [x] **3.11 Payment Methods (GCash, Cash, Bank)** ✅ — Online & offline payment method support
+- [x] **3.12 Term of Payment Rules** ✅ — Enforcement of payment terms (1 mo advance, 1 mo deposit, etc)
+
+---
 
 ### Module 4 — Maintenance Request
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 4.1 | Submit Maintenance Request | ✅ | Critical | `maintenance_request.php` |
-| 4.2 | Issue Categories | ✅ | Critical | `issue_category` field |
-| 4.3 | Priority Levels | ✅ | Critical | `urgency` field |
-| 4.4 | Photo Upload | ✅ | High | Implemented with drag & drop, live preview, video/photo support, and backend storage |
-| 4.5 | Status Tracking | ✅ | Critical | Pending → In Progress → Completed (`AdminMaintainance.jsx`) |
-| 4.6 | Date / Time Tracking | ✅ | High | Tracks created_at and resolved_at resolution timestamps |
-| 4.7 | Admin Assignment | ✅ | Medium | `assigned_to` field |
-| 4.8 | Cost Estimation | ✅ | Medium | `estimated_cost`, `tenant_responsible` fields |
-| 4.9 | Work Notes | ✅ | Medium | `work_notes` field |
-| 4.10 | Tenant Notification on Update | 🔧 | High | In-app works; external channels pending |
+> Admin Pages: [AdminMaintainance.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminMaintainance.jsx)
+> Tenant Pages: [MaintenanceRequest.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/MaintenanceRequest.jsx) · [UserMyRequests.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserMyRequests.jsx)
+> Related Docs: [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md)
+
+- [x] **4.1 Submit Maintenance Request** ✅ — `maintenance_request.php`
+- [x] **4.2 Issue Categories** ✅ — `issue_category` field (Plumbing, Electrical, Structural/Physical, Water Supply, General Repair, Others)
+- [x] **4.3 Priority Levels** ✅ — `urgency` field (Low / Medium / High / Urgent)
+- [x] **4.4 Photo Upload** ✅ — Drag & drop, live preview, video/photo support, backend storage
+- [x] **4.5 Status Tracking** ✅ — Pending → In Progress → Completed
+- [x] **4.6 Date / Time Tracking** ✅ — Tracks `created_at` and `resolved_at` resolution timestamps
+- [x] **4.7 Admin Assignment** ✅ — `assigned_to` field
+- [x] **4.8 Cost Estimation** ✅ — `estimated_cost`, `tenant_responsible` fields
+- [x] **4.9 Work Notes** ✅ — `work_notes` field
+- [ ] **4.10 Tenant Notification on Update** 🔧 — In-app works; external channels pending
+
+---
 
 ### Module 5 — Service Management
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 5.1 | Service Request Submission | 🔧 | Low | `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php` |
-| 5.2 | Service Catalog & Modular Controls | 🔧 | Low | `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked core Bill Payments |
-| 5.3 | Service Status Tracking | 🔧 | Low | `AdminServicePage.jsx`, `AdminCctv.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `AdminMaintainance.jsx` |
-| 5.4 | Service Billing Integration | 🔧 | Low | Parking & Maintenance billing integrated into `invoices` |
+> Admin Pages: [AdminServicePage.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminServicePage.jsx) · [AdminCctv.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminCctv.jsx) · [AdminParking.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminParking.jsx)
+> Tenant Pages: [Services.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Services.jsx) · [CctvRequest.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/CctvRequest.jsx) · [ParkingReservation.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ParkingReservation.jsx)
+
+- [ ] **5.1 Service Request Submission** 🔧 — `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php`
+- [ ] **5.2 Service Catalog & Modular Controls** 🔧 — `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked core Bill Payments
+- [ ] **5.3 Service Status Tracking** 🔧 — Per-service status views across admin pages
+- [ ] **5.4 Service Billing Integration** 🔧 — Parking & Maintenance billing integrated into `invoices`
+- [ ] **5.5 Cleaning & Laundry Services** 📋 — Modular add-on services for tenants
+
+---
 
 ### Module 6 — Notification Module
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 6.1 | In-App Notifications | ✅ | Critical | Bell icon + notification center |
-| 6.2 | Rent Due Reminders | 📋 | High | Architecture designed |
-| 6.3 | Overdue Alerts | 📋 | High | Architecture designed |
-| 6.4 | Maintenance Status Updates | 🔧 | High | In-app works; external channels pending |
-| 6.5 | Building Announcements | ✅ | Critical | `create_announcement.php` |
-| 6.6 | Email Notifications | 📋 | High | PHPMailer + Gmail SMTP designed |
-| 6.7 | SMS Notifications | 📋 | Medium | Semaphore API designed |
-| 6.8 | Notification Preferences | 📋 | Medium | Schema designed |
+> Admin Pages: [AdminNotifications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminNotifications.jsx) · [AdminAnnouncements.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAnnouncements.jsx)
+> Tenant Pages: [UserNotifications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) · [UserAnnouncements.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserAnnouncements.jsx)
+> Related Docs: [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md)
+
+- [x] **6.1 In-App Notifications** ✅ — Bell icon + notification center
+- [ ] **6.2 Rent Due Reminders** 📋 — Architecture designed
+- [ ] **6.3 Overdue Alerts** 📋 — Architecture designed
+- [ ] **6.4 Maintenance Status Updates** 🔧 — In-app works; external channels pending
+- [x] **6.5 Building Announcements** ✅ — `create_announcement.php`
+- [ ] **6.6 Email Notifications** 📋 — PHPMailer + Gmail SMTP designed
+- [ ] **6.7 SMS Notifications** 📋 — Semaphore API designed
+- [ ] **6.8 Notification Preferences** 📋 — Schema designed
+
+---
 
 ### Module 7 — Communication (Two-Way Chat)
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 7.1 | Admin → Tenant Messaging | 📋 | High | Design complete |
-| 7.2 | Tenant → Admin Messaging | 📋 | High | Design complete |
-| 7.3 | Conversation History | 📋 | High | Design complete |
-| 7.4 | Unread Message Badge | 📋 | High | Design complete |
-| 7.5 | Admin Inbox | 📋 | High | Design complete |
-| 7.6 | New Message Notification | 📋 | High | Design complete |
+> Related Docs: [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md)
+
+- [ ] **7.1 Admin → Tenant Messaging** 📋 — Design complete (`send_message.php`, `AdminChat.jsx`)
+- [ ] **7.2 Tenant → Admin Messaging** 📋 — Design complete (`TenantChat.jsx`, `start_conversation.php`)
+- [ ] **7.3 Conversation History** 📋 — Design complete (`get_messages.php`, `ChatWindow.jsx`)
+- [ ] **7.4 Unread Message Badge** 📋 — Design complete (`get_conversations.php` → unread_count)
+- [ ] **7.5 Admin Inbox** 📋 — Design complete (`AdminChat.jsx` sidebar)
+- [ ] **7.6 New Message Notification** 📋 — Design complete (triggers notification row on send)
+- [ ] **7.7 Complaints Management** 📋 — Dedicated channel for filing and tracking tenant complaints
+
+---
 
 ### Module 8 — Admin Dashboard & Reports
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 8.1 | Dashboard Statistics | ✅ | Critical | `dashboard_stats.php` |
-| 8.2 | Income Reports | ✅ | High | Financial income statement, unit income rankings, period comparisons, CSV/Print export (`get_report_data.php` + `AdminReports.jsx`) |
-| 8.3 | Revenue Stream Analysis | ✅ | Medium | Category stream breakdown (Rent, Utilities, Parking, Deposits), 100% database-backed 6-month historical trends (no mock data), and diversification index |
-| 8.4 | Tenant Monitoring | ✅ | Critical | `get_tenants.php` |
-| 8.5 | Maintenance Monitoring | ✅ | High | `get_maintenance_requests.php` |
-| 8.6 | System Activity Logs | ✅ | High | `activity_logs` table, `get_activity_logs.php`, `AdminActivityLogs.jsx` |
-| 8.7 | Utility Usage Tracking | 📋 | Low | Medium-scale feature |
-| 8.8 | Sampling Data / Demo Data | 📋 | High | Needed for demo |
+> Admin Pages: [AdminDashboard.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminDashboard.jsx) · [AdminReports.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminReports.jsx) · [AdminActivityLogs.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminActivityLogs.jsx)
+
+- [x] **8.1 Dashboard Statistics** ✅ — `dashboard_stats.php`
+- [x] **8.2 Income Reports** ✅ — Financial income statement, unit income rankings, period comparisons, CSV/Print export (`get_report_data.php` + `AdminReports.jsx`)
+- [x] **8.3 Revenue Stream Analysis** ✅ — Category stream breakdown (Rent, Utilities, Parking, Deposits), 100% DB-backed 6-month historical trends, diversification index
+- [x] **8.4 Tenant Monitoring** ✅ — `get_tenants.php`
+- [x] **8.5 Maintenance Monitoring** ✅ — `get_maintenance_requests.php`
+- [x] **8.6 System Activity Logs** ✅ — `activity_logs` table, `get_activity_logs.php`, `AdminActivityLogs.jsx`
+- [ ] **8.7 Utility Usage Tracking** 📋 — Medium-scale feature (new `utility_readings` table)
+- [ ] **8.8 Sampling Data / Demo Data** 📋 — Needed for demo (SQL seed script)
+
+---
 
 ### Module 9 — Contract & Document Generation
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 9.1 | Lease Contract Generation | ✅ | High | Implemented via `ViewContract.jsx` template and DB insertion |
-| 9.2 | Contract Viewing | ✅ | High | Fully wired to `lease_contracts` via `ViewContract.jsx` |
-| 9.3 | Contract Status Management | ✅ | Medium | `update_contract_status.php` and `AdminContracts.jsx` |
-| 9.4 | Contract Renewal | ✅ | Medium | DB logic added to `process_tenant_request.php` |
-| 9.5 | Downloadable / Printable | ✅ | Medium | High-fidelity `@media print` CSS built into `ViewContract.jsx` |
+> Admin Pages: [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx)
+> Tenant Pages: [ViewContract.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ViewContract.jsx)
+
+- [x] **9.1 Lease Contract Generation** ✅ — Implemented via `ViewContract.jsx` template and DB insertion
+- [x] **9.2 Contract Viewing** ✅ — Fully wired to `lease_contracts` via `ViewContract.jsx`
+- [x] **9.3 Contract Status Management** ✅ — `update_contract_status.php` and `AdminContracts.jsx`
+- [x] **9.4 Contract Renewal** ✅ — DB logic added to `process_tenant_request.php`
+- [x] **9.5 Downloadable / Printable** ✅ — High-fidelity `@media print` CSS built into `ViewContract.jsx`
+
+---
 
 ### Module 10 — Parking Reservation
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 10.1 | Parking Slot Listing | ✅ | High | `get_available_parking_slots.php` |
-| 10.2 | Reservation Request | ✅ | High | `parking_reservation.php` |
-| 10.3 | Parking Fee Integration | 🔧 | Medium | Linked to `invoices` breakdown |
-| 10.4 | Slot Assignment Management | 🔧 | High | `get_parking_reservations.php`, `update_parking_status.php`, `AdminParking.jsx` |
+> Admin Pages: [AdminParking.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminParking.jsx)
+> Tenant Pages: [ParkingReservation.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ParkingReservation.jsx)
+
+- [x] **10.1 Parking Slot Listing** ✅ — `get_available_parking_slots.php`
+- [x] **10.2 Reservation Request** ✅ — `parking_reservation.php`
+- [ ] **10.3 Parking Fee Integration** 🔧 — Linked to `invoices` breakdown
+- [ ] **10.4 Slot Assignment Management** 🔧 — `get_parking_reservations.php`, `update_parking_status.php`, `AdminParking.jsx`
+
+---
 
 ### Module 11 — Security & Access Control
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 11.1 | Role-Based Access Control | ✅ | Critical | Admin/tenant route guards |
-| 11.2 | Admin Authentication | ✅ | Critical | `login.php` |
-| 11.3 | Tenant Authentication | ✅ | Critical | `login.php` |
-| 11.4 | Password Management | ✅ | High | `change_password.php` |
-| 11.5 | CCTV Access Requests | 🔧 | Medium | `cctv_request.php`, `get_cctv_requests.php`, `update_cctv_status.php`, `AdminCctv.jsx` |
+> Admin Pages: [AdminUsers.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminUsers.jsx) · [AdminAccountSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAccountSettings.jsx) · [AdminCctv.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminCctv.jsx)
+> Tenant Pages: [Login.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Login.jsx) · [Registration.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Registration.jsx) · [ResetPassword.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ResetPassword.jsx) · [CctvRequest.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/CctvRequest.jsx)
+
+- [x] **11.1 Role-Based Access Control** ✅ — Admin/tenant route guards
+- [x] **11.2 Admin Authentication** ✅ — `login.php`
+- [x] **11.3 Tenant Authentication** ✅ — `login.php`
+- [x] **11.4 Password Management** ✅ — `change_password.php`
+- [ ] **11.5 CCTV Access Requests** 🔧 — `cctv_request.php`, `get_cctv_requests.php`, `update_cctv_status.php`, `AdminCctv.jsx`
+
+---
 
 ### Module 12 — Visitor Management
 
-| # | Feature | Status | Priority | Notes |
-|---|---|---|---|---|
-| 12.1 | Visitor Log Entry | ✅ | Low | `check_in_visitor.php`, `visitor_logs` table (with ID type, ID number & Gov ID photo upload), `AdminVisitors.jsx`, `UserVisitors.jsx` |
-| 12.2 | Tenant Pre-Authorization / Registration | ✅ | Low | `UserVisitors.jsx` tenant self-registration with `pending_approval` admin review |
-| 12.3 | Visitor History & Audit Trail | ✅ | Low | `get_visitors.php` role-scoped query, status/date/unit filters, overstay threshold alerts |
+> Admin Pages: [AdminVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminVisitors.jsx)
+> Tenant Pages: [UserVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserVisitors.jsx)
+
+- [x] **12.1 Visitor Log Entry** ✅ — `check_in_visitor.php`, `visitor_logs` table (with ID type, ID number & Gov ID photo upload)
+- [x] **12.2 Tenant Pre-Authorization / Registration** ✅ — Tenant self-registration with `pending_approval` admin review
+- [x] **12.3 Visitor History & Overstay Alerts** ✅ — `get_visitors.php` role-scoped query, status/date/unit filters, overstay threshold alerts
 
 ---
 
@@ -190,19 +493,19 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 | Module | Total Features | ✅ Done | 🔧 Partial | 📋 Designed | ❌ Not Started |
 |---|---|---|---|---|---|
-| 1. Tenant Management | 7 | 6 | 0 | 1 | 0 |
+| 1. Tenant Management | 8 | 7 | 0 | 1 | 0 |
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
-| 3. Payment & Billing | 10 | 7 | 1 | 2 | 0 |
+| 3. Payment & Billing | 12 | 9 | 1 | 2 | 0 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
-| 5. Service Management | 4 | 3 | 1 | 0 | 0 |
+| 5. Service Management | 5 | 0 | 4 | 1 | 0 |
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
-| 7. Communication | 6 | 0 | 0 | 6 | 0 |
-| 8. Dashboard & Reports | 8 | 4 | 1 | 3 | 0 |
+| 7. Communication | 7 | 0 | 0 | 7 | 0 |
+| 8. Dashboard & Reports | 8 | 6 | 0 | 2 | 0 |
 | 9. Contracts | 5 | 5 | 0 | 0 | 0 |
-| 10. Parking | 4 | 4 | 0 | 0 | 0 |
-| 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
+| 10. Parking | 4 | 2 | 2 | 0 | 0 |
+| 11. Security & Access | 5 | 4 | 1 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **77** | **55** | **5** | **17** | **0** |
+| **TOTAL** | **82** | **54** | **10** | **18** | **0** |
 
 ### Core Functionality Coverage
 
@@ -217,11 +520,11 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 1 — Tenant Management
+## Detailed Module Feature Tables
+
+### Module 1 — Tenant Management
 
 **Context:** In a small/medium apartment, the admin personally handles tenant screening. The system must track the full tenant lifecycle: application → screening → approval → occupancy → move-out.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -232,8 +535,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 1.5 | **Move-In / Move-Out Tracking** | Record move-in date on approval, move-out with unit inspection notes, deposit refund status, archive tenant record | Small+ | `record_move_out.php`, `archive_tenant.php`, `restore_tenant.php` | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) |
 | 1.6 | **Application Processing Flow** | Status pipeline: Pending → Reviewed → Approved/Rejected. Admin sees pending applications, reviews documents, sets acceptance criteria | Small+ | `rent_application.php`, `get_applications.php` | — |
 | 1.7 | **Acceptance Criteria Enforcement** | Before approval: verify valid ID uploaded, confirm payment terms agreed (1 month advance + 1 month deposit + security deposit) | Medium | Terms stored in `lease_contracts` or `system_settings` | — |
+| 1.8 | **Inquiry Handling & Reservation Tracking** | Manage prospective tenant inquiries, track room reservations before full application, waitlist handling | Small+ | `inquiries` table, Reservation UI module | — |
 
-### Acceptance Terms (Small/Medium Scale)
+#### Acceptance Terms (Small/Medium Scale)
 
 | Term | Amount | When Due | Purpose |
 |---|---|---|---|
@@ -243,11 +547,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 2 — Apartment / Unit Management
+### Module 2 — Apartment / Unit Management
 
 **Context:** Small/medium apartments have a fixed number of units with varying types (studio, 1BR, 2BR). The admin needs a real-time view of which units are occupied, vacant, or under maintenance.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -259,7 +561,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 2.6 | **Extended Rent / Lease Renewal** | Admin extends lease end date, generates updated contract, adjusts rent if rate changed | Small+ | `extend_lease.php` | — |
 | 2.7 | **Unit Rate Configuration** | Set per-unit pricing: base rent, water allocation, electricity allocation, parking fee (if applicable) | Small+ | `update_room.php`, room rate fields | — |
 
-### Room Status Values
+#### Room Status Values
 
 | Status | Meaning | Trigger |
 |---|---|---|
@@ -270,11 +572,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 3 — Rental Payment & Billing
+### Module 3 — Rental Payment & Billing
 
 **Context:** In a small/medium apartment, billing is monthly. Each tenant's total rent includes base rent plus utilities and optional charges. The admin needs to track who has paid, who is overdue, and generate receipts.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -288,8 +588,10 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 3.8 | **Payment Proof Upload** | Tenant uploads screenshot/photo of GCash/bank transfer receipt for admin verification | Small+ | `upload_payment_proof.php` | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
 | 3.9 | **Security Deposit Tracking** | Record deposit on move-in, track deductions (damages, unpaid rent), calculate refund on move-out | Medium | Deposit fields in `lease_contracts` or `invoices` | — |
 | 3.10 | **Extended Rent Terms** | Handle lease extension billing: prorated amounts, adjusted rates, updated payment schedule | Medium | `extend_lease.php` + new invoice generation | — |
+| 3.11 | **Payment Methods (GCash, Cash, Bank)** | Support and track multiple payment channels; verify online transfer references | Small+ | `record_payment_admin.php`, `upload_payment_proof.php` | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) |
+| 3.12 | **Term of Payment Rules** | System enforcement of payment terms including advance rent and multi-month deposit requirements | Small+ | DB validation rules | — |
 
-### Billing Breakdown Structure
+#### Billing Breakdown Structure
 
 | Line Item | Source | Frequency | Notes |
 |---|---|---|---|
@@ -299,7 +601,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | **Parking** | Assigned slot fee | Monthly | Optional — only if tenant has parking |
 | **Late Fee** | System-calculated | On overdue | Configurable % or flat amount |
 
-### Payment Methods
+#### Payment Methods
 
 | Method | How It Works | Verification |
 |---|---|---|
@@ -309,11 +611,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 4 — Maintenance Request
+### Module 4 — Maintenance Request
 
 **Context:** Tenants in a small/medium apartment report issues (plumbing, electrical, structural) through the system rather than informal messages. The admin tracks resolution from report to completion.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -328,7 +628,7 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 4.9 | **Work Notes** | Admin/worker adds resolution notes: what was done, materials used, follow-up needed | Medium | `work_notes` field | — |
 | 4.10 | **Tenant Notification on Update** | When status changes, tenant receives in-app notification (+ optional SMS/email) | Small+ | `process_tenant_request.php` → notification dispatch | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 
-### Issue Category Reference
+#### Issue Category Reference
 
 | Category | Examples |
 |---|---|
@@ -341,11 +641,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 5 — Service Management
+### Module 5 — Service Management
 
 **Context:** Some small/medium apartments offer add-on services (cleaning, laundry). These are separate from maintenance — they're optional paid services tenants can request.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -353,19 +651,18 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 5.2 | **Service Catalog & Modular Controls** | Admin configures service catalog availability via dynamic system settings toggles; Core Bill Payments is locked always-on | Small+ | `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked Bill Payments | — |
 | 5.3 | **Service Status Tracking** | Pipeline: Pending → Approved/Active/Assigned/Completed. Dedicated status views per service | Small+ | `AdminServicePage.jsx`, `AdminCctv.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `AdminMaintainance.jsx` | — |
 | 5.4 | **Service Billing Integration** | Completed/assigned services link to tenant invoices (parking slot monthly fees & maintenance costs) | Medium | Parking & Maintenance billing integrated in `invoices` generation | — |
+| 5.5 | **Cleaning & Laundry Services** | Optional modular requests for cleaning, laundry, or other miscellaneous services from tenants | Medium | Modular expansion | — |
 
 ---
 
-## Module 6 — Notification Module
+### Module 6 — Notification Module
 
 **Context:** Tenants need to be informed about rent due dates, overdue payments, maintenance updates, and building announcements. The system supports three channels: in-app, email, and SMS.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
 | 6.1 | **In-App Notifications** | Bell icon with unread count; notification center listing all notifications with read/unread status | Small+ | `notifications` table, `get_notifications.php`, TopBar bell | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 6.2 | **Rent Due Reminders** | Automatic notification 3–5 days before rent due date: "Your ₱12,500 rent for Unit H is due on Aug 15" | Small+ | Cron job or manual trigger → `send_notification.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.2 | **Rent Due Reminders** | Automatic notification 3-5 days before rent due date: "Your rent for Unit H is due soon" | Small+ | Cron job or manual trigger → `send_notification.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.3 | **Overdue Alerts** | When invoice passes due date: "Your rent payment is overdue. Please settle immediately." | Small+ | Invoice status check → notification | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.4 | **Maintenance Status Updates** | When admin changes maintenance request status: "Your request REQ-003 is now In Progress" | Small+ | `process_tenant_request.php` triggers notification | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.5 | **Building Announcements** | Admin broadcasts to all tenants: building maintenance schedule, policy updates, emergency alerts | Small+ | `create_announcement.php` → creates notification per tenant | — |
@@ -375,11 +672,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 7 — Communication (Two-Way Chat)
+### Module 7 — Communication (Two-Way Chat)
 
 **Context:** Instead of tenants calling or texting the admin's personal phone, the system provides a built-in messaging feature. Admin can message individual tenants; tenants can message admin.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -389,14 +684,13 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 7.4 | **Unread Message Badge** | Nav shows unread message count; updates on poll cycle | Small+ | `get_conversations.php` → unread_count | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
 | 7.5 | **Admin Inbox** | Admin sees list of all tenant conversations, sorted by most recent, with unread badges | Small+ | `AdminChat.jsx` sidebar | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
 | 7.6 | **New Message Notification** | When a message arrives, the recipient gets an in-app notification | Small+ | `send_message.php` creates notification row | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.7 | **Complaints Management** | Dedicated process/tagging for tracking tenant complaints separate from general chat | Medium | Complaint category in chat/requests | — |
 
 ---
 
-## Module 8 — Admin Dashboard & Reports
+### Module 8 — Admin Dashboard & Reports
 
 **Context:** The admin needs a single-screen overview of building operations: occupancy, income, pending maintenance, and recent activity. Reports support decision-making for a small/medium apartment.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -407,15 +701,13 @@ Tenant applies             Admin reviews:               Tenant pays:
 | 8.5 | **Maintenance Monitoring** | Overview: open requests by priority, average resolution time, requests by category | Small+ | `get_maintenance_requests.php` with aggregation | — |
 | 8.6 | **System Activity Logs** | Audit trail: who did what, when. Admin actions logged (tenant approved, payment recorded, settings changed) | Small+ | `get_activity_logs.php`, `activity_logs` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 | 8.7 | **Utility Usage Tracking** | Track water/electricity consumption per unit over time; identify unusual usage patterns | Medium | New `utility_readings` table or extend `invoices` | — |
-| 8.8 | **Sampling Data / Demo Data** | Pre-populated realistic data for demo: 10–20 tenants, 6 months of payment history, maintenance records | Small+ | SQL seed script in `backend/api/migrations/` | — |
+| 8.8 | **Sampling Data / Demo Data** | Pre-populated realistic data for demo: 10-20 tenants, 6 months of payment history, maintenance records | Small+ | SQL seed script in `backend/api/migrations/` | — |
 
 ---
 
-## Module 9 — Contract & Document Generation
+### Module 9 — Contract & Document Generation
 
 **Context:** When a tenant is approved, the system auto-generates a lease contract with terms, rates, and duration. This replaces manual Word document editing.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -427,11 +719,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 10 — Parking Reservation
+### Module 10 — Parking Reservation
 
 **Context:** Small/medium apartments with limited parking spaces need a system to fairly assign and manage parking slots.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -442,11 +732,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 11 — Security & Access Control
+### Module 11 — Security & Access Control
 
 **Context:** The system has two roles (admin and tenant) with strict separation of what each can see and do.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -458,11 +746,9 @@ Tenant applies             Admin reviews:               Tenant pays:
 
 ---
 
-## Module 12 — Visitor Management
+### Module 12 — Visitor Management
 
 **Context:** Track visitors to the apartment building for security purposes.
-
-### Features
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -477,6 +763,8 @@ Tenant applies             Admin reviews:               Tenant pays:
 | Document | Path | Content |
 |---|---|---|
 | System Design | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) | DB schema, API inventory, auth design |
-| Todo / Backlog | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) | Prioritized backlog (A–E priorities) |
+| Todo / Backlog | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) | Prioritized backlog (A-E priorities) |
 | Chat Design | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) | Two-way chat architecture, schema, endpoints, React components |
 | Notification Services | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) | SMS/email provider comparison, architecture, implementation plan |
+| Payment System Design | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) | Payment flow, GCash/bank/cash handling, proof upload |
+| Move-In / Move-Out | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) | Move-in/move-out lifecycle, inspection, archiving |
