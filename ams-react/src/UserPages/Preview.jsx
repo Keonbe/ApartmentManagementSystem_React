@@ -7,7 +7,7 @@ import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/preview.responsive.css';
 
-export default function Preview({ onRentClick }) {
+export default function Preview({ onRentClick, hasRentedRoom = false }) {
     const [selectedRoomId, setSelectedRoomId] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [rooms, setRooms] = useState([]);
@@ -111,10 +111,16 @@ export default function Preview({ onRentClick }) {
                                                 <span>{t('preview.viewLayout')}</span>
                                             </button>
                                             <button
-                                                onClick={() => onRentClick(room.id)}
-                                                className="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center"
+                                                onClick={() => {
+                                                    if (!hasRentedRoom) {
+                                                        onRentClick(room.id);
+                                                    }
+                                                }}
+                                                disabled={hasRentedRoom}
+                                                title={hasRentedRoom ? 'You already have an active room' : ''}
+                                                className={`w-full font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 text-center ${hasRentedRoom ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white cursor-pointer'}`}
                                             >
-                                                {t('preview.rentNow')}
+                                                {hasRentedRoom ? 'Already Rented' : t('preview.rentNow')}
                                             </button>
                                         </div>
                                     </div>

@@ -30,15 +30,20 @@ $user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
 $app_id = $_POST['appId'] ?? null;
 
 if (empty($app_id) && !empty($user_id)) {
-    $dup_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1");
+    $dup_stmt = $conn->prepare("SELECT id, status, room_name FROM rent_applications WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1");
     $dup_stmt->bind_param("i", $user_id);
     $dup_stmt->execute();
     $dup_res = $dup_stmt->get_result();
     if ($dup_res->num_rows > 0) {
         $dup_row = $dup_res->fetch_assoc();
         $st = strtolower($dup_row['status']);
-        if ($st === 'pending' || $st === 'approved' || $st === 'active' || $st === 'pending-move-out') {
-            echo json_encode(["success" => false, "message" => "You already have an active or pending lease application. You cannot submit another one unless it is rejected."]);
+        $blocked_statuses = ['pending', 'pending review', 'approved', 'active', 'pending-move-out'];
+        if (in_array($st, $blocked_statuses, true)) {
+            $room_label = !empty($dup_row['room_name']) ? $dup_row['room_name'] : 'a room';
+            echo json_encode([
+                "success" => false,
+                "message" => "You already have an existing application for {$room_label}. Please finish that tenancy first before applying for another room."
+            ]);
             exit;
         }
     }
@@ -112,12 +117,17 @@ foreach ($required_files as $fileKey) {
     }
 }
 
-$upload_dir = "../uploads/applications/"; 
-if (!is_dir($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
+$upload_dir_fs = __DIR__ . "/../uploads/applications/";
+$upload_dir_db = "../uploads/applications/";
+if (!is_dir($upload_dir_fs)) {
+    if (!mkdir($upload_dir_fs, 0777, true) && !is_dir($upload_dir_fs)) {
+        echo json_encode(["success" => false, "message" => "Failed to create upload directory for applications."]);
+        exit;
+    }
 }
+
 // Update the uploadFile function definition
-function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
+function uploadFile($fileInputName, $upload_dir_fs, $upload_dir_db, $user_name_prefix) {
     if (isset($_FILES[$fileInputName]) && $_FILES[$fileInputName]['error'] === UPLOAD_ERR_OK) {
         $file_name = basename($_FILES[$fileInputName]['name']);
         $file_tmp = $_FILES[$fileInputName]['tmp_name'];
@@ -128,10 +138,11 @@ function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
         
         // Format: Name_Type_Timestamp_Random.ext
         $unique_file_name = $safe_name . "_" . $fileInputName . "_" . time() . "_" . uniqid() . "." . $extension;
-        $destination = $upload_dir . $unique_file_name;
+        $destination_fs = $upload_dir_fs . $unique_file_name;
+        $destination_db = $upload_dir_db . $unique_file_name;
         
-        if (move_uploaded_file($file_tmp, $destination)) {
-            return $destination;
+        if (move_uploaded_file($file_tmp, $destination_fs)) {
+            return $destination_db;
         }
     }
     return null;
@@ -141,9 +152,9 @@ function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
 $user_name_prefix = $first_name . "_" . $last_name;
 
 // Update these lines to pass the new argument
-$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir, $user_name_prefix) ?: $existing_front;
-$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir, $user_name_prefix) ?: $existing_back;
-$nbi_clearance_path = uploadFile('nbiFile', $upload_dir, $user_name_prefix) ?: $existing_nbi;
+$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir_fs, $upload_dir_db, $user_name_prefix) ?: $existing_front;
+$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir_fs, $upload_dir_db, $user_name_prefix) ?: $existing_back;
+$nbi_clearance_path = uploadFile('nbiFile', $upload_dir_fs, $upload_dir_db, $user_name_prefix) ?: $existing_nbi;
 
 if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     echo json_encode(["success" => false, "message" => "Valid ID (Front & Back) and NBI Clearance documents are all required."]);

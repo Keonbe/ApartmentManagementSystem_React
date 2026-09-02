@@ -183,8 +183,8 @@ function AppContent() {
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
-        <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} /></BaseAppLayout>} />
+        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home hasRentedRoom={hasRentedRoom} onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
+        <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} hasRentedRoom={hasRentedRoom} /></BaseAppLayout>} />
         
         {/* SECURED TENANT DASHBOARDS */}
         <Route path="/services" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></TenantProtectedRoute>} />
