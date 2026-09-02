@@ -279,9 +279,11 @@ export default function UserVisitors() {
                   </tr>
                 ) : visitors.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-5 py-12 text-center text-slate-400 italic">
-                      <FontAwesomeIcon icon={faIdBadge} className="text-3xl text-slate-200 mb-2 block mx-auto" />
-                      {t('visitors.noneLogged')}
+                    <td colSpan="6" className="px-5 py-12 text-center">
+                      <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                        <FontAwesomeIcon icon={faIdBadge} className="text-xl text-slate-300 shrink-0" />
+                        <span className="text-sm italic">{t('visitors.noneLogged')}</span>
+                      </div>
                     </td>
                   </tr>
                 ) : (

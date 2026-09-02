@@ -491,12 +491,8 @@ const AdminReports = () => {
                 </div>
               </div>
 
-              {/* Status Engine Label */}
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
-                  Live Database Feed Active
-                </span>
+              {/* Summary Stats Line */}
+              <div className="flex items-center justify-end border-t border-slate-100 pt-3">
                 <span className="text-[10px] text-slate-400">
                   Gross: {formatCurrency(data.payments.totalCollected)} • {data.payments.records.length} paid invoices • {data.unitIncome?.length || 0} revenue-generating units
                 </span>

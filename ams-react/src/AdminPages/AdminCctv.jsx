@@ -198,9 +198,11 @@ export default function AdminCctv() {
                       </tr>
                     ) : filteredRequests.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="px-5 py-12 text-center text-slate-400 italic">
-                          <FontAwesomeIcon icon={faVideo} className="text-3xl text-slate-300 mb-2 block mx-auto" />
-                          No CCTV requests found.
+                        <td colSpan="6" className="px-5 py-12 text-center">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                            <FontAwesomeIcon icon={faVideo} className="text-xl text-slate-300 shrink-0" />
+                            <span className="text-sm italic">No CCTV footage requests found.</span>
+                          </div>
                         </td>
                       </tr>
                     ) : (

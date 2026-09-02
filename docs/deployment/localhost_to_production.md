@@ -35,20 +35,20 @@ Error details visible in browser   Errors logged, never displayed
 > [!CAUTION]
 > These will **silently break** on production. Every one must be updated.
 
-| File | Line(s) | Current Value | Fix |
-|---|---|---|---|
-| [config.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/config.php) | 2–4 | `localhost`, `root`, `""` (no password) | Use env config file |
-| [axiosConfig.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/api/axiosConfig.js) | 5 | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `VITE_API_BASE_URL` env var |
-| [vite.config.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/vite.config.js) | 11 | `http://localhost:8080` proxy target | Dev-only, not bundled — OK as-is |
-| [AdminApplications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminApplications.jsx) | 48, 309, 316, 323 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx) | 661, 702 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminMaintainance.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminMaintainance.jsx) | 102 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminPayments.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminPayments.jsx) | 576 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminServicePage.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminServicePage.jsx) | 401 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminTenants.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminTenants.jsx) | 554–556 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [TopBar.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/Components/TopBar.jsx) | 53 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ProfileSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ProfileSettings.jsx) | 242 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [UserPaymentHistory.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserPaymentHistory.jsx) | 202 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| Status | File | Line(s) | Current Value | Fix |
+|---|---|---|---|---|
+| [x] | [config.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/config.php) | 2–4 | `localhost`, `root`, `""` (no password) | Use env config file (`config.env.php` loader implemented) |
+| [ ] | [axiosConfig.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/api/axiosConfig.js) | 5 | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `VITE_API_BASE_URL` env var |
+| [x] | [vite.config.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/vite.config.js) | 11 | `http://localhost:8080` proxy target | Dev-only, not bundled — OK as-is |
+| [ ] | [AdminApplications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminApplications.jsx) | 48, 309, 316, 323 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx) | 661, 702 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminMaintainance.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminMaintainance.jsx) | 102 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminPayments.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminPayments.jsx) | 576 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminServicePage.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminServicePage.jsx) | 401 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminTenants.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminTenants.jsx) | 554–556 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [TopBar.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/Components/TopBar.jsx) | 53 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [ProfileSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ProfileSettings.jsx) | 242 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [UserPaymentHistory.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserPaymentHistory.jsx) | 202 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
 
 > [!WARNING]
 > Two different ports are hardcoded — some files use bare `http://localhost` (port 80) and others use `http://localhost:8080`. Both happen to resolve on XAMPP but are inconsistent. Consolidate to one `VITE_BACKEND_BASE_URL` env var.
@@ -106,9 +106,10 @@ error_log = /var/log/php/ams_errors.log
 
 `rent_application.php` and `upload_payment_proof.php` read MIME type from `$_FILES[...]['type']` — this is **client-supplied** and easily spoofed. Use `finfo_file()` to detect the actual file type server-side.
 
-### 1.7 No Environment Configuration
+### 1.7 Environment Configuration
 
-No `.env` or `config.env.php` file exists. All credentials and URLs are embedded in source code. This must change before production.
+- [x] **Backend**: `backend/config.env.php` and `backend/config.env.example.php` created and ignored in `.gitignore`.
+- [ ] **Frontend**: `ams-react/.env.production` not yet created. All credentials and URLs in React currently rely on hardcoded strings.
 
 ---
 
@@ -139,11 +140,11 @@ No `.env` or `config.env.php` file exists. All credentials and URLs are embedded
     // server.proxy block is dev-only — vite ignores it during build
   })
   ```
-- [ ] **Run production build**:
+- [x] **Run production build**:
   ```bash
   cd ams-react
   npm run build
-  # Output written to ams-react/dist/
+  # Output written to ams-react/dist/ (verified functional)
   ```
 - [ ] **Verify no localhost strings** survived bundling:
   ```bash
@@ -286,7 +287,7 @@ No `.env` or `config.env.php` file exists. All credentials and URLs are embedded
 - [ ] Change **MySQL root password** on production server
 - [ ] Change **admin account password** in `ams_db.users` (the default demo password)
 - [ ] Add **rate limiting** to login endpoint to prevent brute force (`mod_ratelimit` or fail2ban)
-- [ ] Ensure `config.env.php` is in `.gitignore` — verify with `git status`
+- [x] Ensure `config.env.php` is in `.gitignore` — verify with `git status` / `.gitignore`
 - [ ] Remove any debug `var_dump()`, `print_r()`, or `echo` statements left in PHP files
 
 ### Phase F — Monitoring & Ops
@@ -434,7 +435,7 @@ BACKEND
 [ ] CORS: no console errors when React SPA calls the API
 
 FRONTEND
-[ ] npm run build completes with no errors
+[x] npm run build completes with no errors
 [ ] index.html loads at https://yourdomain.com
 [ ] Navigating directly to /admin/dashboard doesn't 404 (SPA routing works)
 [ ] DevTools Network: zero requests going to localhost
@@ -448,7 +449,7 @@ SECURITY
 [ ] HTTPS works; HTTP redirects to HTTPS
 [ ] config.env.php is NOT visible at https://yourdomain.com/backend/config.env.php (should 403/404)
 [ ] Admin default password changed
-[ ] DB credentials not in Git (git log --all -- backend/config.env.php returns nothing)
+[x] DB credentials not in Git (git log --all -- backend/config.env.php returns nothing / added to .gitignore)
 ```
 
 ---
