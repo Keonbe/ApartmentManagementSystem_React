@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+ensure_notifications_audience_column($conn);
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(["success" => false, "message" => "Invalid request method"]);
     exit;
@@ -81,7 +83,7 @@ if ($stmt->execute()) {
     // Notify Admin
     $notif_title = "New Maintenance Request";
     $notif_msg = "A new maintenance request ($issue_category - $urgency) has been submitted.";
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_request', ?, ?, 'Pending', 0)");
+    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, audience, title, message, status, is_read) VALUES (?, 'maintenance_request', 'admin', ?, ?, 'Pending', 0)");
     $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
     $notif_stmt->execute();
     $notif_stmt->close();

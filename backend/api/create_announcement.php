@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+ensure_notifications_audience_column($conn);
+
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);
@@ -58,7 +60,7 @@ try {
     }
 
     if ($recipient_count > 0) {
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)");
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, audience) VALUES (?, ?, ?, ?, 'tenant')");
         foreach ($recipients as $uid) {
             $notif_stmt->bind_param("isss", $uid, $title, $body, $notif_type);
             $notif_stmt->execute();

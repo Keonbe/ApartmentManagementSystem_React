@@ -11,20 +11,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+ensure_notifications_audience_column($conn);
+
 $input = json_decode(file_get_contents("php://input"), true);
 
 $user_id = $input['userId'] ?? null;
 $title = $input['title'] ?? '';
 $message = $input['message'] ?? '';
 $type = $input['type'] ?? 'info';
+$audience = $input['audience'] ?? 'tenant';
 
 if (!$user_id || empty($title) || empty($message)) {
     echo json_encode(["success" => false, "message" => "User ID, title, and message are required."]);
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)");
-$stmt->bind_param("isss", $user_id, $title, $message, $type);
+$stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, audience) VALUES (?, ?, ?, ?, ?)");
+$stmt->bind_param("issss", $user_id, $title, $message, $type, $audience);
 
 if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "Notification created successfully"]);

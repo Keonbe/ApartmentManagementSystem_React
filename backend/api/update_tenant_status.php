@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+ensure_notifications_audience_column($conn);
+
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if (!verify_admin($conn, $admin_id)) {
     http_response_code(403);
@@ -202,7 +204,7 @@ if ($id > 0 && !empty($status)) {
                     $notif_msg .= " Reason: $rejection_reason";
                 }
                 
-                $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, is_read) VALUES (?, 'application_update', ?, ?, 0)");
+                $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, audience, title, message, is_read) VALUES (?, 'application_update', 'tenant', ?, ?, 0)");
                 $notif_stmt->bind_param("iss", $tenant_id, $notif_title, $notif_msg);
                 $notif_stmt->execute();
                 $notif_stmt->close();

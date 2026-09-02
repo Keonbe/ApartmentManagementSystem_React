@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(); 
 }
 
+ensure_notifications_audience_column($conn);
+
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 $is_admin = verify_admin($conn, $admin_id);
 
@@ -26,7 +28,11 @@ try {
     } else {
         // TENANT VIEW: Only fetch notifications meant for this specific tenant
         $user_id = $_GET['userId'] ?? 0;
-        $query = "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50";
+        $query = "SELECT * FROM notifications 
+                  WHERE user_id = ? 
+                    AND COALESCE(audience, 'tenant') = 'tenant'
+                    AND type NOT IN ('rent_application', 'maintenance_request', 'parking_reservation', 'cctv_request', 'occupancy_request', 'lease_extension_request', 'maintenance')
+                  ORDER BY created_at DESC LIMIT 50";
         $stmt = $conn->prepare($query);
         $stmt->bind_param("i", $user_id);
     }

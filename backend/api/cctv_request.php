@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
 }
+
+ensure_notifications_audience_column($conn);
 $input = json_decode(file_get_contents("php://input"), true);
 
 if (!$input) {
@@ -36,7 +38,7 @@ if ($stmt->execute()) {
     // Notify Admin
     $notif_title = "New CCTV Request";
     $notif_msg = "A new CCTV footage request has been submitted for an incident at $location_details.";
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'cctv_request', ?, ?, 'Pending', 0)");
+    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, audience, title, message, status, is_read) VALUES (?, 'cctv_request', 'admin', ?, ?, 'Pending', 0)");
     $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
     $notif_stmt->execute();
     $notif_stmt->close();

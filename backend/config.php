@@ -50,4 +50,20 @@ function verify_admin($conn, $admin_id) {
     }
     return false;
 }
+
+function ensure_notifications_audience_column($conn) {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+
+    $check = $conn->query("SHOW COLUMNS FROM notifications LIKE 'audience'");
+    if ($check && $check->num_rows === 0) {
+        $conn->query("ALTER TABLE notifications ADD COLUMN audience varchar(20) NOT NULL DEFAULT 'tenant' AFTER type");
+    }
+    if ($check) {
+        $check->close();
+    }
+
+    $conn->query("UPDATE notifications SET audience = CASE WHEN type IN ('rent_application', 'maintenance_request', 'parking_reservation', 'cctv_request', 'occupancy_request', 'lease_extension_request', 'maintenance') THEN 'admin' ELSE 'tenant' END WHERE audience IS NULL OR audience = ''");
+}
 ?>
