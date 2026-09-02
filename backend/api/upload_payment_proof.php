@@ -11,10 +11,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$invoice_id = $_POST['invoice_id'] ?? null;
-$payment_reference = $_POST['payment_reference'] ?? null;
-$payment_method = $_POST['payment_method'] ?? 'GCash';
-$sender_name = $_POST['sender_name'] ?? null;
+$user_id = $_SERVER['HTTP_X_USER_ID'] ?? $_POST['userId'] ?? $_POST['user_id'] ?? null;
+
+// Support both snake_case and camelCase keys
+$invoice_id = $_POST['invoice_id'] ?? $_POST['invoiceId'] ?? null;
+$payment_reference = $_POST['payment_reference'] ?? $_POST['referenceNo'] ?? $_POST['paymentReference'] ?? null;
+$payment_method = $_POST['payment_method'] ?? $_POST['paymentMethod'] ?? 'GCash';
+$sender_name = $_POST['sender_name'] ?? $_POST['senderName'] ?? null;
+
+// Fallback: lookup latest pending invoice if invoice_id was not explicitly sent
+if (empty($invoice_id) && !empty($user_id)) {
+    $inv_stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND status IN ('pending', 'overdue') ORDER BY id DESC LIMIT 1");
+    $inv_stmt->bind_param("i", $user_id);
+    $inv_stmt->execute();
+    $inv_res = $inv_stmt->get_result();
+    if ($inv_row = $inv_res->fetch_assoc()) {
+        $invoice_id = $inv_row['id'];
+    }
+    $inv_stmt->close();
+}
 
 if (empty($invoice_id)) {
     echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
@@ -22,17 +37,20 @@ if (empty($invoice_id)) {
 }
 
 $proof_path = null;
-if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
+// Support both 'proof' and 'proofImage' file keys
+$file_key = isset($_FILES['proofImage']) ? 'proofImage' : (isset($_FILES['proof']) ? 'proof' : null);
+
+if ($file_key && $_FILES[$file_key]['error'] === UPLOAD_ERR_OK) {
     $upload_dir = '../uploads/payment_proofs/';
     if (!file_exists($upload_dir)) {
         mkdir($upload_dir, 0777, true);
     }
     
-    $file_extension = pathinfo($_FILES['proof']['name'], PATHINFO_EXTENSION);
+    $file_extension = strtolower(pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION));
     $file_name = 'proof_' . uniqid() . '.' . $file_extension;
     $target_file = $upload_dir . $file_name;
     
-    if (move_uploaded_file($_FILES['proof']['tmp_name'], $target_file)) {
+    if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_file)) {
         $proof_path = 'uploads/payment_proofs/' . $file_name;
     }
 }

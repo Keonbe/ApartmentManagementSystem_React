@@ -202,7 +202,7 @@ if ($id > 0 && !empty($status)) {
                     $notif_msg .= " Reason: $rejection_reason";
                 }
                 
-                $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'application_update', ?, ?, 'Resolved', 0)");
+                $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, is_read) VALUES (?, 'application_update', ?, ?, 0)");
                 $notif_stmt->bind_param("iss", $tenant_id, $notif_title, $notif_msg);
                 $notif_stmt->execute();
                 $notif_stmt->close();

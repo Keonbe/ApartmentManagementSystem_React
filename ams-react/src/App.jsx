@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import api from './api/axiosConfig';
+import { ChatProvider } from './context/ChatContext';
+import ChatWidget from './Components/ChatWidget';
 
 // Components
 import TopBar from './Components/TopBar';
@@ -70,7 +72,6 @@ function AdminProtectedRoute({ children }) {
   return children;
 }
 
-// FIXED: Added isCheckingRoom check to prevent premature redirecting on refresh
 function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
   const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   
@@ -83,7 +84,6 @@ function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
     return children;
   }
 
-  // Hold off on redirecting until the backend room check completes!
   if (isCheckingRoom) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-slate-900 text-white font-bold">
@@ -131,12 +131,11 @@ function AppContent() {
   const location = useLocation();
   
   const [hasRentedRoom, setHasRentedRoom] = useState(false);
-  // NEW: Track status loading to hold route evaluation
   const [isCheckingRoom, setIsCheckingRoom] = useState(true);
 
   useEffect(() => {
     const checkRoomStatus = async () => {
-      setIsCheckingRoom(true); // Begin check
+      setIsCheckingRoom(true);
       const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
       
       if (!loggedInUserStr) {
@@ -163,7 +162,7 @@ function AppContent() {
         console.error("Error checking room status:", err);
         setHasRentedRoom(false);
       } finally {
-        setIsCheckingRoom(false); // Complete check
+        setIsCheckingRoom(false);
       }
     };
     checkRoomStatus();
@@ -180,7 +179,7 @@ function AppContent() {
   };
 
   return (
-    <>
+    <ChatProvider>
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -225,10 +224,11 @@ function AppContent() {
         <Route path="/admin-contracts" element={<AdminProtectedRoute><AdminContracts /></AdminProtectedRoute>} />
         <Route path="/admin-services" element={<AdminProtectedRoute><AdminServicePage /></AdminProtectedRoute>} />
         <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
-        <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
         <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
+        <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
       </Routes>
-    </>
+      <ChatWidget />
+    </ChatProvider>
   );
 }
 
