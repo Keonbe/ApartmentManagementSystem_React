@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import api from '../api/axiosConfig';
+import { io } from 'socket.io-client';
 
 const ChatContext = createContext();
 
@@ -15,6 +16,92 @@ export const ChatProvider = ({ children }) => {
     const activeChatRef = useRef(null);
     const historyPollRef = useRef(null);
     const conversationsPollRef = useRef(null);
+    const socketRef = useRef(null);
+
+    const ensureSocketConnection = useCallback(() => {
+        if (!userId || socketRef.current) return;
+
+        const socket = io('http://localhost:3001', {
+            transports: ['websocket'],
+            autoConnect: true,
+            reconnection: true,
+            reconnectionAttempts: 5,
+        });
+
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            socket.emit('join', userId);
+        });
+
+        socket.on('receive_message', (incomingMessage) => {
+            if (!incomingMessage) return;
+            const normalizedMessage = {
+                ...incomingMessage,
+                sender_id: Number(incomingMessage.sender_id),
+                receiver_id: Number(incomingMessage.receiver_id),
+            };
+
+            const currentChat = activeChatRef.current;
+            const isRelevantChat = currentChat?.other_user_id && (
+                Number(currentChat.other_user_id) === Number(normalizedMessage.sender_id) ||
+                Number(currentChat.other_user_id) === Number(normalizedMessage.receiver_id)
+            );
+
+            if (isRelevantChat) {
+                setMessages((prev) => {
+                    const exists = prev.some((msg) => msg.id && normalizedMessage.id && String(msg.id) === String(normalizedMessage.id));
+                    if (exists) {
+                        return prev.map((msg) => (String(msg.id) === String(normalizedMessage.id) ? normalizedMessage : msg));
+                    }
+                    return [...prev, normalizedMessage];
+                });
+            }
+
+            setConversations((prev) => {
+                const otherUserId = Number(normalizedMessage.sender_id) === Number(userId)
+                    ? Number(normalizedMessage.receiver_id)
+                    : Number(normalizedMessage.sender_id);
+
+                if (!otherUserId) return prev;
+
+                let matched = false;
+                const updated = prev.map((conv) => {
+                    if (Number(conv.other_user_id) !== otherUserId) return conv;
+                    matched = true;
+                    const incrementUnread = Number(normalizedMessage.sender_id) !== Number(userId)
+                        && (!currentChat?.other_user_id || Number(currentChat.other_user_id) !== otherUserId);
+
+                    return {
+                        ...conv,
+                        last_message: normalizedMessage.message,
+                        last_message_sender_id: Number(normalizedMessage.sender_id),
+                        last_message_time: normalizedMessage.created_at,
+                        unread_count: incrementUnread ? Number(conv.unread_count || 0) + 1 : Number(conv.unread_count || 0),
+                    };
+                });
+
+                return matched ? updated : prev;
+            });
+        });
+
+        socket.on('user_typing', ({ sender_id }) => {
+            setIsTyping((prev) => ({ ...prev, [sender_id]: true }));
+        });
+
+        socket.on('user_stop_typing', ({ sender_id }) => {
+            setIsTyping((prev) => {
+                if (!prev[sender_id]) return prev;
+                const next = { ...prev };
+                delete next[sender_id];
+                return next;
+            });
+        });
+
+        socket.on('disconnect', () => {
+            // Keep the ref so reconnects can happen automatically.
+        });
+    }, [userId]);
 
     useEffect(() => {
         activeChatRef.current = activeChat;
@@ -80,6 +167,61 @@ export const ChatProvider = ({ children }) => {
         }
     }, [fetchChatHistory, fetchConversations]);
 
+    const mergeIncomingMessage = useCallback((incomingMessage) => {
+        if (!incomingMessage) return;
+
+        setMessages((prev) => {
+            const exists = prev.some((msg) => msg.id && incomingMessage.id && String(msg.id) === String(incomingMessage.id));
+            if (exists) {
+                return prev.map((msg) => (String(msg.id) === String(incomingMessage.id) ? incomingMessage : msg));
+            }
+            return [...prev, incomingMessage];
+        });
+
+        setConversations((prev) => {
+            const otherUserId = Number(incomingMessage.sender_id) === Number(userId)
+                ? Number(incomingMessage.receiver_id)
+                : Number(incomingMessage.sender_id);
+
+            if (!otherUserId) return prev;
+
+            const currentChat = activeChatRef.current;
+            const isActiveChat = currentChat?.other_user_id && Number(currentChat.other_user_id) === otherUserId;
+            const unreadDelta = Number(incomingMessage.sender_id) === Number(userId) || isActiveChat ? 0 : 1;
+
+            let matched = false;
+            const updated = prev.map((conv) => {
+                if (Number(conv.other_user_id) !== otherUserId) return conv;
+                matched = true;
+                return {
+                    ...conv,
+                    last_message: incomingMessage.message,
+                    last_message_sender_id: Number(incomingMessage.sender_id),
+                    last_message_time: incomingMessage.created_at,
+                    unread_count: Number(incomingMessage.sender_id) === Number(userId)
+                        ? Number(conv.unread_count || 0)
+                        : (isActiveChat ? 0 : Number(conv.unread_count || 0) + 1),
+                };
+            });
+
+            if (!matched) {
+                return prev;
+            }
+
+            return updated;
+        });
+
+        const currentChat = activeChatRef.current;
+        if (currentChat?.other_user_id && Number(currentChat.other_user_id) === Number(incomingMessage.sender_id)) {
+            setMessages((prev) => {
+                if (prev.some((msg) => msg.id && incomingMessage.id && String(msg.id) === String(incomingMessage.id))) {
+                    return prev;
+                }
+                return [...prev, incomingMessage];
+            });
+        }
+    }, [userId]);
+
     const openSupportChat = useCallback(async () => {
         if (!userId) return;
 
@@ -115,15 +257,24 @@ export const ChatProvider = ({ children }) => {
         setMessages((prev) => [...prev, optimisticMessage]);
 
         try {
-            const response = await api.post('send_message.php', {
-                receiver_id: receiver,
-                message: message.trim(),
-            });
+            const socket = socketRef.current;
+            if (socket && socket.connected) {
+                socket.emit('send_message', {
+                    sender_id: userId,
+                    receiver_id: receiver,
+                    message: message.trim(),
+                });
+            } else {
+                const response = await api.post('send_message.php', {
+                    receiver_id: receiver,
+                    message: message.trim(),
+                });
 
-            if (response.data?.success && response.data.message) {
-                setMessages((prev) => prev.map((msg) => (
-                    msg.id === optimisticMessage.id ? response.data.message : msg
-                )));
+                if (response.data?.success && response.data.message) {
+                    setMessages((prev) => prev.map((msg) => (
+                        msg.id === optimisticMessage.id ? response.data.message : msg
+                    )));
+                }
             }
 
             await refreshChatState();
@@ -134,13 +285,21 @@ export const ChatProvider = ({ children }) => {
         }
     }, [refreshChatState, userId]);
 
-    const handleTyping = useCallback(() => {
-        // Typing indicators are currently disabled because the chat now uses HTTP polling.
-    }, []);
+    const handleTyping = useCallback((receiverId, isTypingNow) => {
+        const socket = socketRef.current;
+        if (socket && socket.connected && userId && receiverId) {
+            socket.emit('typing', {
+                sender_id: userId,
+                receiver_id: receiverId,
+                is_typing: Boolean(isTypingNow),
+            });
+        }
+    }, [userId]);
 
     useEffect(() => {
         if (!userId) return undefined;
 
+        ensureSocketConnection();
         refreshChatState();
 
         conversationsPollRef.current = window.setInterval(() => {
@@ -173,8 +332,14 @@ export const ChatProvider = ({ children }) => {
             window.removeEventListener('focus', handleWindowFocus);
             window.removeEventListener('pageshow', handlePageShow);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+            if (socketRef.current) {
+                socketRef.current.removeAllListeners();
+                socketRef.current.disconnect();
+                socketRef.current = null;
+            }
         };
-    }, [fetchConversations, refreshChatState, userId]);
+    }, [ensureSocketConnection, fetchConversations, refreshChatState, userId]);
 
     useEffect(() => {
         if (!activeChat?.other_user_id || !userId) {
