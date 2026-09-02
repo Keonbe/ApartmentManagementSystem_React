@@ -106,23 +106,72 @@ code {
 
 /* @media print formatting rules */
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  .printable-receipt, .printable-receipt * {
-    visibility: visible;
-  }
-  .printable-receipt {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+  /* Reset document and viewport layout constraints */
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
     margin: 0 !important;
+    padding: 0 !important;
+    font-size: 12pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Universal hide rules for interactive elements */
+  .print-hide,
+  .print\:hidden,
+  button:not(.print\:inline-block),
+  nav:not(.print\:block),
+  aside:not(.print\:block) {
+    display: none !important;
+  }
+
+  /* Standalone modal printable cards (receipts, invoices) */
+  .printable-modal-overlay {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    inset: auto !important;
+  }
+
+  .printable-receipt,
+  .printable-invoice,
+  .printable-document {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
-  .print-hide {
-    display: none !important;
+
+  /* Page break helpers */
+  .print\:break-inside-avoid,
+  .print-card,
+  tr,
+  .contract-page {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  @page {
+    margin: 12mm 12mm 12mm 12mm;
+    size: auto;
   }
 }

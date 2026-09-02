@@ -514,22 +514,62 @@ $stmt->close();
 
 // 1. tenantList (Occupancy)
 $data['tenantList'] = [];
-$stmt = $conn->prepare("SELECT r.id as unit, u.first_name, u.last_name, u.email_address, u.contact_no, ra.created_at, r.monthly_rent, r.lease_end, r.status FROM rooms r LEFT JOIN rent_applications ra ON r.id = ra.room_name AND ra.status = 'Approved' LEFT JOIN users u ON ra.user_id = u.id WHERE r.status = 'Occupied'");
+$stmt = $conn->prepare("SELECT 
+    ra.id as application_id,
+    ra.user_id,
+    COALESCE(ra.room_name, r.id, 'Unassigned') as unit,
+    COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), TRIM(CONCAT(COALESCE(ra.first_name, ''), ' ', COALESCE(ra.last_name, ''))), 'Active Tenant') as tenant_name,
+    COALESCE(u.email_address, ra.email, '') as email_address,
+    COALESCE(u.contact_no, ra.contact_no, '') as contact_no,
+    ra.created_at,
+    COALESCE(r.monthly_rent, ra.monthly_rent, 4000) as monthly_rent,
+    COALESCE(r.lease_end, '') as lease_end,
+    ra.status
+FROM rent_applications ra
+LEFT JOIN users u ON ra.user_id = u.id
+LEFT JOIN rooms r ON ra.room_name = r.id
+WHERE ra.status = 'Approved'
+ORDER BY ra.room_name ASC");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     $data['tenantList'][] = [
         'unit' => $row['unit'],
-        'name' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
-        'email' => $row['email_address'] ?? '',
-        'phone' => $row['contact_no'] ?? '',
+        'name' => $row['tenant_name'],
+        'email' => $row['email_address'],
+        'phone' => $row['contact_no'],
         'moveIn' => $row['created_at'] ? date('Y-m-d', strtotime($row['created_at'])) : '',
         'rent' => (float)$row['monthly_rent'],
-        'leaseEnd' => $row['lease_end'] ?? '',
+        'leaseEnd' => $row['lease_end'],
+        'userId' => $row['user_id'] ? (int)$row['user_id'] : null,
+        'appId' => $row['application_id'],
         'status' => 'active'
     ];
 }
 $stmt->close();
+
+// Fallback if rent_applications had no approved entries yet: check occupied rooms
+if (empty($data['tenantList'])) {
+    $stmt = $conn->prepare("SELECT r.id as unit, u.id as user_id, u.first_name, u.last_name, u.email_address, u.contact_no, r.monthly_rent, r.lease_end FROM rooms r LEFT JOIN rent_applications ra ON r.id = ra.room_name LEFT JOIN users u ON ra.user_id = u.id WHERE r.status = 'Occupied'");
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+        $data['tenantList'][] = [
+            'unit' => $row['unit'],
+            'name' => !empty($name) ? $name : "Unit {$row['unit']} Tenant",
+            'email' => $row['email_address'] ?? '',
+            'phone' => $row['contact_no'] ?? '',
+            'moveIn' => date('Y-m-d'),
+            'rent' => (float)($row['monthly_rent'] ?? 4000),
+            'leaseEnd' => $row['lease_end'] ?? '',
+            'userId' => $row['user_id'] ? (int)$row['user_id'] : null,
+            'appId' => null,
+            'status' => 'active'
+        ];
+    }
+    $stmt->close();
+}
 
 // 2. methodsBreakdown & payment records
 $data['methodsBreakdown'] = ['Cash' => 0, 'GCash' => 0, 'Bank Transfer' => 0];

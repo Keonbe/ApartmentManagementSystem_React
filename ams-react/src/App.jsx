@@ -10,6 +10,7 @@ import Home from './UserPages/Home';
 import Preview from './UserPages/Preview';
 import Login from './UserPages/Login';
 import Registration from './UserPages/Registration';
+import ResetPassword from './UserPages/ResetPassword';
 import Services from './UserPages/Services';
 import PayBills from './UserPages/PayBills';
 import ParkingReservation from './UserPages/ParkingReservation';
@@ -208,6 +209,7 @@ function AppContent() {
         {/* AUTH PATHS */}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} onHomeRedirect={() => navigate('/home')} />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* ADMIN WORKSPACES */}
         <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />

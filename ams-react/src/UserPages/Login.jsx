@@ -11,6 +11,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [message, setMessage] = useState('');
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
+    const [forgotMessage, setForgotMessage] = useState('');
+    const [forgotToken, setForgotToken] = useState('');
+    const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
     const { t } = useLang();
 
     const handleSubmit = async (e) => {
@@ -36,6 +40,25 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
             }
         } catch (error) {
             setMessage(t('login.error'));
+        }
+    };
+
+    const handleForgotSubmit = async (e) => {
+        e.preventDefault();
+        setForgotMessage('');
+        setForgotToken('');
+        setIsSubmittingForgot(true);
+
+        try {
+            const res = await api.post("/forgot_password.php", { email: email.trim() });
+            setForgotMessage(res.data.message);
+            if (res.data.dev_token) {
+                setForgotToken(res.data.dev_token);
+            }
+        } catch (error) {
+            setForgotMessage("Failed to send reset link.");
+        } finally {
+            setIsSubmittingForgot(false);
         }
     };
 
@@ -100,11 +123,14 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     <div className="w-full space-y-6">
                         <div className="text-center">
                             <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                {t('login.heading')}
+                                {isForgotPassword ? "Reset Password" : t('login.heading')}
                             </h2>
-                            <p className="text-xs text-slate-500 mt-1 m-0">{t('login.subtitle')}</p>
+                            <p className="text-xs text-slate-500 mt-1 m-0">
+                                {isForgotPassword ? "Enter your email to receive a reset link" : t('login.subtitle')}
+                            </p>
                         </div>
 
+                        {!isForgotPassword ? (
                         <form className="space-y-5" onSubmit={handleSubmit}>
                             {/*EmailAddressField*/}
                             <div className="space-y-1.5">
@@ -123,7 +149,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             <div className="space-y-1.5">
                                 <div className="flex justify-between items-center">
                                     <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('login.password')}</label>
-                                    <a href="#forgot" className="text-xs text-indigo-600 hover:underline font-semibold no-underline">{t('login.forgot')}</a>
+                                    <button type="button" onClick={() => { setIsForgotPassword(true); setMessage(''); setForgotMessage(''); }} className="text-xs text-indigo-600 hover:underline font-semibold bg-transparent border-0 p-0 cursor-pointer">{t('login.forgot')}</button>
                                 </div>
                                 <div className="relative">
                                     <input
@@ -154,15 +180,64 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 {t('login.submit')}
                             </button>
                         </form>
+                        ) : (
+                        <form className="space-y-5" onSubmit={handleForgotSubmit}>
+                            {forgotMessage && (
+                                <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs rounded-xl flex items-center justify-between">
+                                    <span>{forgotMessage}</span>
+                                </div>
+                            )}
+                            
+                            {forgotToken && (
+                                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex flex-col space-y-2">
+                                    <p className="m-0 font-semibold">[DEV MODE] Email delivery simulated.</p>
+                                    <a href={`/#/reset-password?email=${encodeURIComponent(email)}&token=${forgotToken}`} className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg text-center no-underline hover:bg-emerald-700 transition-colors block">
+                                        Click here to reset password
+                                    </a>
+                                </div>
+                            )}
 
-                        <div className="text-center pt-2 border-t border-slate-100">
-                            <p className="text-xs text-slate-500 m-0">
-                                {t('login.noAccount')}{' '}
-                                <button onClick={onRegisterRedirect} className="text-indigo-600 font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer">
-                                    {t('login.createAccount')}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('login.email')}</label>
+                                <input
+                                    type="email"
+                                    placeholder="JuanDelaCruz@email.com"
+                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="pt-2 flex flex-col space-y-3">
+                                <button
+                                    type="submit"
+                                    disabled={isSubmittingForgot}
+                                    className="w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70 box-border"
+                                >
+                                    {isSubmittingForgot ? 'Sending...' : 'Send Reset Link'}
                                 </button>
-                            </p>
-                        </div>
+                                <button
+                                    type="button"
+                                    onClick={() => { setIsForgotPassword(false); setForgotMessage(''); setForgotToken(''); }}
+                                    className="w-full bg-white text-slate-600 py-3 px-4 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors focus:outline-none border border-slate-200 cursor-pointer box-border"
+                                >
+                                    Back to Login
+                                </button>
+                            </div>
+                        </form>
+                        )}
+
+                        {!isForgotPassword && (
+                            <div className="text-center pt-2 border-t border-slate-100">
+                                <p className="text-xs text-slate-500 m-0">
+                                    {t('login.noAccount')}{' '}
+                                    <button onClick={onRegisterRedirect} className="text-indigo-600 font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer">
+                                        {t('login.createAccount')}
+                                    </button>
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                 </div>

@@ -9,7 +9,7 @@ import {
   faWrench, faSquareParking, faChevronRight, faUserFriends, faClipboardList,
   faFilePdf, faCalendarCheck, faCheck, faTools, faSlidersH, faInfoCircle,
   faShieldAlt, faGavel, faHandshake, faFileUpload, faLayerGroup, faReceipt,
-  faChartPie
+  faChartPie, faSave, faSpinner, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 
@@ -41,8 +41,26 @@ const AdminReports = () => {
 
   // Modal Invoice Generation States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({ tenant: '', unit: '', rent: '', water: '', electric: '', dueDate: '' });
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  const [issuingInvoice, setIssuingInvoice] = useState(false);
+  const [invoiceSuccessMsg, setInvoiceSuccessMsg] = useState('');
+  const [invoiceForm, setInvoiceForm] = useState({
+    invoiceNumber: '',
+    tenant: '',
+    unit: '',
+    userId: null,
+    appId: null,
+    email: '',
+    phone: '',
+    rent: 4000,
+    water: 300,
+    electric: 800,
+    parking: 0,
+    lateFee: 0,
+    billingPeriod: '',
+    dueDate: '',
+    notes: 'Please settle on or before the due date to avoid late charges.'
+  });
 
   const [data, setData] = useState(null);
   const [trendPoints, setTrendPoints] = useState([]);
@@ -157,21 +175,106 @@ const AdminReports = () => {
     return maxVal > 0 ? maxVal * 1.15 : 10000;
   }, [trendPoints]);
 
-  const tenantInvoiceOptions = data?.occupancy?.tenantList?.map(t => ({ name: t.name, unit: t.unit, rent: t.rent })) || [];
+  const tenantInvoiceOptions = useMemo(() => {
+    return data?.occupancy?.tenantList?.map(t => ({
+      name: t.name,
+      unit: t.unit,
+      rent: t.rent || 4000,
+      userId: t.userId || t.user_id || null,
+      appId: t.appId || t.application_id || null,
+      email: t.email || '',
+      phone: t.phone || ''
+    })) || [];
+  }, [data]);
+
+  const openGenerateInvoiceModal = () => {
+    const defaultPeriod = `${monthsList.find(m => m.value === selectedMonth)?.label || 'Current Month'} ${selectedYear}`;
+    const defaultDue = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-15`;
+    const defaultInvId = `INV-${selectedYear}${String(selectedMonth).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    
+    const firstTenant = tenantInvoiceOptions[0];
+    setInvoiceForm({
+      invoiceNumber: defaultInvId,
+      tenant: firstTenant?.name || '',
+      unit: firstTenant?.unit || '',
+      userId: firstTenant?.userId || null,
+      appId: firstTenant?.appId || null,
+      email: firstTenant?.email || '',
+      phone: firstTenant?.phone || '',
+      rent: firstTenant?.rent || 4000,
+      water: 300,
+      electric: 800,
+      parking: 0,
+      lateFee: 0,
+      billingPeriod: defaultPeriod,
+      dueDate: defaultDue,
+      notes: 'Please settle on or before the due date to avoid late charges.'
+    });
+    setShowInvoicePreview(false);
+    setInvoiceSuccessMsg('');
+    setShowInvoiceModal(true);
+  };
 
   const handleTenantSelect = (e) => {
     const selected = tenantInvoiceOptions.find(t => t.name === e.target.value);
     if (selected) {
-      const waterSeed = 300;
-      const elecSeed = 800;
-      setInvoiceForm({
+      setInvoiceForm(prev => ({
+        ...prev,
         tenant: selected.name,
         unit: selected.unit,
-        rent: selected.rent,
-        water: waterSeed,
-        electric: elecSeed,
-        dueDate: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-15`
-      });
+        userId: selected.userId,
+        appId: selected.appId,
+        email: selected.email,
+        phone: selected.phone,
+        rent: selected.rent || 4000,
+      }));
+    } else {
+      setInvoiceForm(prev => ({
+        ...prev,
+        tenant: e.target.value,
+        unit: '',
+        userId: null,
+        appId: null,
+        email: '',
+        phone: ''
+      }));
+    }
+  };
+
+  const handleSaveAndIssueInvoice = async () => {
+    if (!invoiceForm.tenant || !invoiceForm.unit) {
+      alert('Please select a tenant and specify the unit.');
+      return;
+    }
+    setIssuingInvoice(true);
+    setInvoiceSuccessMsg('');
+    try {
+      const payload = {
+        invoiceNumber: invoiceForm.invoiceNumber,
+        userId: invoiceForm.userId,
+        appId: invoiceForm.appId,
+        tenantName: invoiceForm.tenant,
+        unit: invoiceForm.unit,
+        baseRent: Number(invoiceForm.rent) || 0,
+        water: Number(invoiceForm.water) || 0,
+        electricity: Number(invoiceForm.electric) || 0,
+        parking: Number(invoiceForm.parking) || 0,
+        lateFee: Number(invoiceForm.lateFee) || 0,
+        billingPeriod: invoiceForm.billingPeriod,
+        dueDate: invoiceForm.dueDate
+      };
+      const response = await api.post('create_invoice.php', payload);
+      if (response.data.success) {
+        setInvoiceSuccessMsg(`Invoice ${response.data.invoice_id} successfully saved & issued to ${invoiceForm.tenant}!`);
+        fetchReportData();
+      } else {
+        alert(response.data.message || 'Failed to issue invoice.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error issuing invoice. Please verify connection and inputs.');
+    } finally {
+      setIssuingInvoice(false);
     }
   };
 
@@ -180,60 +283,62 @@ const AdminReports = () => {
   };
 
   const exportCSV = (moduleType) => {
-    let csvContent = "data:text/csv;charset=utf-8,";
+    let csvContent = "";
     
     if (moduleType === 'income' || activeModule === 'income') {
       csvContent += "Unit,Room Type,Floor,Base Rent,Water,Electricity,Parking,Deposits,Total Collected,% Gross Contribution,Invoices Count\r\n";
-      (data.unitIncome || []).forEach(u => {
-        csvContent += `"${u.unit}","${u.roomType}",${u.floor},${u.rent},${u.water},${u.electric},${u.parking},${u.deposit},${u.total},"${u.pct}%",${u.invoicesCount}\r\n`;
+      (data?.unitIncome || []).forEach(u => {
+        csvContent += `"${u.unit}","${u.roomType || 'Standard'}",${u.floor || 1},${u.rent || 0},${u.water || 0},${u.electric || 0},${u.parking || 0},${u.deposit || 0},${u.total || 0},"${u.pct || 0}%",${u.invoicesCount || 0}\r\n`;
       });
       csvContent += "\r\n--- Income Statement Summary ---\r\n";
-      csvContent += `Gross Revenue,${data.incomeStatement.grossRevenue}\r\n`;
-      csvContent += `Rental Revenue,${data.incomeStatement.rentalRevenue}\r\n`;
-      csvContent += `Utility Recovery,${data.incomeStatement.utilityRevenue}\r\n`;
-      csvContent += `Operating Expenses,${data.incomeStatement.operatingExpenses}\r\n`;
-      csvContent += `Net Operating Income,${data.incomeStatement.netOperatingIncome}\r\n`;
-      csvContent += `Net Margin,${data.incomeStatement.netMarginPct}%\r\n`;
-      csvContent += `Collection Efficiency,${data.incomeStatement.collectionEfficiency}%\r\n`;
-      csvContent += `Outstanding Arrears,${data.incomeStatement.totalOutstanding}\r\n`;
+      csvContent += `Gross Revenue,${data?.incomeStatement?.grossRevenue || 0}\r\n`;
+      csvContent += `Rental Revenue,${data?.incomeStatement?.rentalRevenue || 0}\r\n`;
+      csvContent += `Utility Recovery,${data?.incomeStatement?.utilityRevenue || 0}\r\n`;
+      csvContent += `Operating Expenses,${data?.incomeStatement?.operatingExpenses || 0}\r\n`;
+      csvContent += `Net Operating Income,${data?.incomeStatement?.netOperatingIncome || 0}\r\n`;
+      csvContent += `Net Margin,${data?.incomeStatement?.netMarginPct || 0}%\r\n`;
+      csvContent += `Collection Efficiency,${data?.incomeStatement?.collectionEfficiency || 0}%\r\n`;
+      csvContent += `Outstanding Arrears,${data?.incomeStatement?.totalOutstanding || 0}\r\n`;
     } else if (moduleType === 'streams' || activeModule === 'streams') {
       csvContent += "Revenue Stream Category,Amount Collected,Percentage Share,Prior Period Amount,Period Growth (%)\r\n";
-      (data.revenueStreams || []).forEach(s => {
+      (data?.revenueStreams || []).forEach(s => {
         csvContent += `"${s.category}",${s.amount},"${s.pct}%",${s.prevAmount},"${s.growthPct}%"\r\n`;
       });
     } else if (moduleType === 'occupancy' || activeModule === 'occupancy') {
       csvContent += "Unit,Tenant Name,Email,Phone,Rent,Move-In Date,Lease End,Status\r\n";
-      data.occupancy.tenantList.forEach(t => {
+      (data?.occupancy?.tenantList || []).forEach(t => {
         csvContent += `"${t.unit}","${t.name}","${t.email}","${t.phone}",${t.rent},"${t.moveIn}","${t.leaseEnd}","${t.status}"\r\n`;
       });
     } else if (moduleType === 'payments' || activeModule === 'payments') {
       csvContent += "Receipt ID,Tenant,Unit,Billing Period,Total Amount Paid,Date Paid,Payment Method,Details\r\n";
-      data.payments.records.forEach(r => {
+      (data?.payments?.records || []).forEach(r => {
         csvContent += `"${r.id}","${r.tenant}","${r.unit}","${r.period}",${r.amount},"${r.datePaid}","${r.method}","${r.breakdown}"\r\n`;
       });
     } else if (moduleType === 'maintenance' || activeModule === 'maintenance') {
       csvContent += "Request ID,Unit,Tenant,Category,Urgency,Date Submitted,Status,Description,Cost\r\n";
-      data.maintenance.records.forEach(r => {
-        csvContent += `"${r.id}","${r.unit}","${r.tenant}","${r.category}","${r.urgency}","${r.dateSubmitted}","${r.status}","${r.description}",${r.cost || 0}\r\n`;
+      (data?.maintenance?.records || []).forEach(m => {
+        csvContent += `"${m.id}","${m.unit}","${m.tenant}","${m.category}","${m.urgency}","${m.dateSubmitted}","${m.status}","${m.description}",${m.cost || 0}\r\n`;
       });
     } else {
       csvContent += "ID,Type,Name,Unit/Vehicle,Amount,Duration (Months),Date,Status\r\n";
-      data.reservations.roomList.forEach(r => {
-        csvContent += `"${r.id}","Room Application","${r.name}","${r.unit}",${r.rent},${r.duration},"${r.dateSubmitted}","${r.status}"\r\n`;
+      (data?.reservations?.roomList || []).forEach(r => {
+        csvContent += `"${r.id}","Room Application","${r.name}","${r.unit}",${r.rent},${r.duration || 6},"${r.dateSubmitted}","${r.status}"\r\n`;
       });
-      data.reservations.parkingList.forEach(p => {
-        csvContent += `"${p.id}","Parking reservation","${p.tenant}","${p.vehicleModel}",${p.totalCost},${p.duration},"${p.dateSubmitted}","${p.status}"\r\n`;
+      (data?.reservations?.parkingList || []).forEach(p => {
+        csvContent += `"${p.id}","Parking reservation","${p.tenant}","${p.vehicleModel || 'Vehicle'}",${p.totalCost},${p.duration || 1},"${p.dateSubmitted}","${p.status}"\r\n`;
       });
     }
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.setAttribute("href", url);
     const filename = `AMS_Report_${timeframe}_${selectedYear}${timeframe === 'monthly' ? '_' + selectedMonth : timeframe === 'quarterly' ? '_Q' + selectedQuarter : ''}_${activeModule}.csv`;
     link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   if (loading || !data) {
@@ -258,21 +363,21 @@ const AdminReports = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+    <div className={`flex min-h-screen bg-slate-50 font-sans text-slate-900 ${showInvoiceModal ? 'print:h-auto print:overflow-visible print:bg-white' : 'h-screen overflow-hidden print:h-auto print:overflow-visible print:bg-white'}`}>
       {/* Sidebar (Hidden on Print) */}
       <div className="print:hidden">
         <Sidebar />
       </div>
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50 print:bg-white print:overflow-visible">
+      <main className={`flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50 print:bg-white print:overflow-visible print:h-auto ${showInvoiceModal ? 'print:hidden' : ''}`}>
         {/* Header (Hidden on Print) */}
         <div className="print:hidden">
           <Header title="Reports & Analytics" />
         </div>
 
         {/* Dashboard Workspace */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 print:p-0 print:overflow-visible">
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 print:p-0 print:overflow-visible print:h-auto">
           <div className="max-w-7xl mx-auto space-y-6 print:space-y-4 print:max-w-none print:w-full">
             
             {/* PRINT-ONLY BUSINESS REPORT HEADER */}
@@ -378,7 +483,7 @@ const AdminReports = () => {
                   </button>
 
                   <button
-                    onClick={() => setShowInvoiceModal(true)}
+                    onClick={openGenerateInvoiceModal}
                     className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-sm border-0 cursor-pointer"
                   >
                     <FontAwesomeIcon icon={faFileInvoiceDollar} /> Generate Invoice
@@ -1719,65 +1824,379 @@ const AdminReports = () => {
         </div>
       </main>
 
-      {/* Invoice Generation Modal */}
+      {/* Invoice Generation & Preview Modal */}
       {showInvoiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-800 m-0">{showInvoicePreview ? 'Invoice Preview' : 'Generate Invoice'}</h2>
-              <button onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print:static print:p-0 print:bg-transparent print:block print:overflow-visible" onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }}>
+          <div className={`bg-white rounded-2xl shadow-2xl w-full ${showInvoicePreview ? 'max-w-3xl' : 'max-w-xl'} mx-auto overflow-hidden transition-all duration-200 print:shadow-none print:border-none print:max-w-none print:w-full`} onClick={e => e.stopPropagation()}>
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center print:hidden">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <FontAwesomeIcon icon={faFileInvoiceDollar} />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-800 m-0">
+                    {showInvoicePreview ? 'Official Rental Invoice Preview' : 'Generate Tenant Invoice'}
+                  </h2>
+                  <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                    {showInvoicePreview ? 'Review line items, totals, and print or issue to database' : 'Select tenant, set billing period & customize itemized charges'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }} 
+                className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1 rounded-lg hover:bg-slate-200/50 transition-colors"
+              >
+                <FontAwesomeIcon icon={faTimes} className="text-base" />
+              </button>
             </div>
 
+            {/* Notification alert banner */}
+            {invoiceSuccessMsg && (
+              <div className="mx-6 mt-4 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3 text-emerald-800 text-xs print:hidden">
+                <div className="flex items-center gap-2 font-semibold">
+                  <FontAwesomeIcon icon={faCheckCircle} className="text-emerald-600 text-sm" />
+                  <span>{invoiceSuccessMsg}</span>
+                </div>
+                <button onClick={() => setInvoiceSuccessMsg('')} className="text-emerald-600 hover:text-emerald-800 border-0 bg-transparent cursor-pointer text-xs font-bold">✕</button>
+              </div>
+            )}
+
+            {/* FORM VIEW */}
             {!showInvoicePreview ? (
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 text-left">
+                {/* Select Tenant */}
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant *</label>
-                  <select value={invoiceForm.tenant} onChange={handleTenantSelect} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
-                    <option value="">Choose tenant...</option>
-                    {tenantInvoiceOptions.map(t => <option key={t.name} value={t.name}>{t.name} — Unit {t.unit}</option>)}
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+                    Select Active Tenant <span className="text-indigo-600">*</span>
+                  </label>
+                  <select 
+                    value={invoiceForm.tenant} 
+                    onChange={handleTenantSelect} 
+                    className="w-full px-3.5 py-2.5 text-xs font-medium border border-slate-300 rounded-xl outline-none text-slate-800 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  >
+                    <option value="">-- Select Registered Tenant --</option>
+                    {tenantInvoiceOptions.map((t, idx) => (
+                      <option key={idx} value={t.name}>
+                        {t.name} — Unit {t.unit} (₱{Number(t.rent).toLocaleString()}/mo)
+                      </option>
+                    ))}
                   </select>
                 </div>
-                {invoiceForm.tenant && (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent</label><input type="number" value={invoiceForm.rent} onChange={e => setInvoiceForm(p => ({ ...p, rent: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none" /></div>
-                      <div><label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Due Date</label><input type="date" value={invoiceForm.dueDate} onChange={e => setInvoiceForm(p => ({ ...p, dueDate: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none" /></div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1"><FontAwesomeIcon icon={faTint} className="text-blue-400" /> Water</label><input type="number" value={invoiceForm.water} onChange={e => setInvoiceForm(p => ({ ...p, water: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none" /></div>
-                      <div><label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1"><FontAwesomeIcon icon={faBolt} className="text-amber-400" /> Electric</label><input type="number" value={invoiceForm.electric} onChange={e => setInvoiceForm(p => ({ ...p, electric: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none" /></div>
-                    </div>
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-sm">
-                      <span className="font-bold text-indigo-800">Total: {formatCurrency(Number(invoiceForm.rent) + Number(invoiceForm.water) + Number(invoiceForm.electric))}</span>
-                    </div>
-                  </>
-                )}
-                <button onClick={() => setShowInvoicePreview(true)} disabled={!invoiceForm.tenant} className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50 shadow-sm">
-                  Preview Invoice
-                </button>
-              </div>
-            ) : (
-              <div className="p-6">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
-                  <div className="text-center border-b border-slate-200 pb-4">
-                    <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
-                    <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Monthly Invoice</p>
+
+                {/* Tenant & Unit Info */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Tenant Name</label>
+                    <input 
+                      type="text" 
+                      value={invoiceForm.tenant} 
+                      onChange={e => setInvoiceForm(p => ({ ...p, tenant: e.target.value }))}
+                      placeholder="e.g. John Doe"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                    />
                   </div>
-                  <div className="space-y-2 text-xs text-slate-700">
-                    <div className="flex justify-between"><span className="text-slate-400">Tenant:</span><span className="font-semibold">{invoiceForm.tenant}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Unit:</span><span className="font-semibold">{invoiceForm.unit}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Due Date:</span><span className="font-semibold">{invoiceForm.dueDate || 'N/A'}</span></div>
-                    <hr className="border-slate-200" />
-                    <div className="flex justify-between"><span>Monthly Rent</span><span>{formatCurrency(invoiceForm.rent)}</span></div>
-                    <div className="flex justify-between"><span>Water Bill</span><span>{formatCurrency(invoiceForm.water)}</span></div>
-                    <div className="flex justify-between"><span>Electricity Bill</span><span>{formatCurrency(invoiceForm.electric)}</span></div>
-                    <hr className="border-slate-200" />
-                    <div className="flex justify-between font-bold text-sm text-slate-800"><span>Total Due</span><span>{formatCurrency(Number(invoiceForm.rent) + Number(invoiceForm.water) + Number(invoiceForm.electric))}</span></div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Room / Unit</label>
+                    <input 
+                      type="text" 
+                      value={invoiceForm.unit} 
+                      onChange={e => setInvoiceForm(p => ({ ...p, unit: e.target.value }))}
+                      placeholder="e.g. 101 or A"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                    />
                   </div>
                 </div>
-                <div className="flex gap-2 mt-4">
-                  <button onClick={() => setShowInvoicePreview(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors">Back</button>
-                  <button onClick={handlePrint} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} /> Print Invoice</button>
+
+                {/* Billing Period & Due Date */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Invoice #</label>
+                    <input 
+                      type="text" 
+                      value={invoiceForm.invoiceNumber} 
+                      onChange={e => setInvoiceForm(p => ({ ...p, invoiceNumber: e.target.value }))}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none font-mono focus:border-indigo-500 text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Billing Period</label>
+                    <input 
+                      type="text" 
+                      value={invoiceForm.billingPeriod} 
+                      onChange={e => setInvoiceForm(p => ({ ...p, billingPeriod: e.target.value }))}
+                      placeholder="e.g. September 2026"
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Due Date</label>
+                    <input 
+                      type="date" 
+                      value={invoiceForm.dueDate} 
+                      onChange={e => setInvoiceForm(p => ({ ...p, dueDate: e.target.value }))}
+                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Itemized Line Items */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                    <FontAwesomeIcon icon={faReceipt} className="text-indigo-600" />
+                    Itemized Charges Breakdown
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Base Rent (₱)</label>
+                      <input 
+                        type="number" 
+                        value={invoiceForm.rent} 
+                        onChange={e => setInvoiceForm(p => ({ ...p, rent: e.target.value }))}
+                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                        <FontAwesomeIcon icon={faTint} className="text-blue-500" /> Water (₱)
+                      </label>
+                      <input 
+                        type="number" 
+                        value={invoiceForm.water} 
+                        onChange={e => setInvoiceForm(p => ({ ...p, water: e.target.value }))}
+                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                        <FontAwesomeIcon icon={faBolt} className="text-amber-500" /> Electric (₱)
+                      </label>
+                      <input 
+                        type="number" 
+                        value={invoiceForm.electric} 
+                        onChange={e => setInvoiceForm(p => ({ ...p, electric: e.target.value }))}
+                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                        <FontAwesomeIcon icon={faSquareParking} className="text-pink-500" /> Parking (₱)
+                      </label>
+                      <input 
+                        type="number" 
+                        value={invoiceForm.parking} 
+                        onChange={e => setInvoiceForm(p => ({ ...p, parking: e.target.value }))}
+                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Late / Arrears (₱)</label>
+                      <input 
+                        type="number" 
+                        value={invoiceForm.lateFee} 
+                        onChange={e => setInvoiceForm(p => ({ ...p, lateFee: e.target.value }))}
+                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="bg-indigo-50/70 border border-indigo-100 rounded-lg p-2 flex flex-col justify-center">
+                      <span className="text-[10px] uppercase font-bold text-indigo-700">Calculated Total</span>
+                      <span className="text-sm font-extrabold text-indigo-900">
+                        {formatCurrency(
+                          (Number(invoiceForm.rent) || 0) + 
+                          (Number(invoiceForm.water) || 0) + 
+                          (Number(invoiceForm.electric) || 0) + 
+                          (Number(invoiceForm.parking) || 0) + 
+                          (Number(invoiceForm.lateFee) || 0)
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Memo */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Payment Instructions / Memo</label>
+                  <textarea 
+                    rows="2"
+                    value={invoiceForm.notes} 
+                    onChange={e => setInvoiceForm(p => ({ ...p, notes: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-700 resize-none"
+                  ></textarea>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setShowInvoiceModal(false)}
+                    className="flex-1 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => setShowInvoicePreview(true)} 
+                    disabled={!invoiceForm.tenant || !invoiceForm.unit} 
+                    className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-md cursor-pointer border-0"
+                  >
+                    Preview Official Invoice <FontAwesomeIcon icon={faChevronRight} className="ml-1 text-[10px]" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* PREVIEW DOCUMENT VIEW */
+              <div className="p-6 space-y-6 text-left">
+                
+                {/* Official Printable Statement Sheet */}
+                <div className="printable-invoice bg-white border border-slate-300 rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm print:border-none print:shadow-none print:p-0">
+                  
+                  {/* Top Invoice Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b-2 border-slate-800 pb-5 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold font-serif text-sm">
+                          AMS
+                        </div>
+                        <div>
+                          <h1 className="text-lg font-extrabold text-slate-900 tracking-tight uppercase m-0">APARTMENT MANAGEMENT SYSTEM</h1>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold m-0">Property Leasing & Financial Administration</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-2 m-0">Unit 101 Management Office, Metro Manila • Tel: +63 912 345 6789</p>
+                    </div>
+
+                    <div className="sm:text-right">
+                      <span className="inline-block px-2.5 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-extrabold uppercase tracking-wider mb-1.5">
+                        Statement / Invoice
+                      </span>
+                      <p className="text-xs font-mono font-bold text-slate-800 m-0">{invoiceForm.invoiceNumber}</p>
+                      <p className="text-[11px] text-slate-500 m-0 mt-0.5">Date Issued: <strong>{new Date().toISOString().split('T')[0]}</strong></p>
+                    </div>
+                  </div>
+
+                  {/* Billed To & Account Summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Billed To (Tenant)</span>
+                      <p className="font-extrabold text-slate-800 text-sm m-0">{invoiceForm.tenant}</p>
+                      <p className="text-slate-600 font-semibold m-0 mt-0.5">Assigned Unit: <span className="text-indigo-600 font-bold">{invoiceForm.unit}</span></p>
+                      {invoiceForm.email && <p className="text-slate-500 m-0 mt-0.5">Email: {invoiceForm.email}</p>}
+                      {invoiceForm.phone && <p className="text-slate-500 m-0 mt-0.5">Phone: {invoiceForm.phone}</p>}
+                    </div>
+                    <div className="sm:text-right">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Billing Overview</span>
+                      <p className="text-slate-700 m-0">Billing Period: <strong className="text-slate-900">{invoiceForm.billingPeriod}</strong></p>
+                      <p className="text-rose-600 font-bold m-0 mt-0.5">Due Date: {invoiceForm.dueDate || 'Upon Receipt'}</p>
+                      <p className="text-slate-500 m-0 mt-0.5">Status: <span className="font-bold text-amber-600">Pending Payment</span></p>
+                    </div>
+                  </div>
+
+                  {/* Itemized Charges Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b-2 border-slate-300 text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100">
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">Item Description</th>
+                          <th className="py-2.5 px-3">Period / Scope</th>
+                          <th className="py-2.5 px-3 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        <tr>
+                          <td className="py-2.5 px-3 text-slate-400 font-mono">01</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-800">Monthly Apartment Base Rent</td>
+                          <td className="py-2.5 px-3 text-slate-500">{invoiceForm.billingPeriod}</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatCurrency(invoiceForm.rent)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 px-3 text-slate-400 font-mono">02</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-800">Water Utility Consumption</td>
+                          <td className="py-2.5 px-3 text-slate-500">Submeter Reading</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatCurrency(invoiceForm.water)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 px-3 text-slate-400 font-mono">03</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-800">Electricity Utility Consumption</td>
+                          <td className="py-2.5 px-3 text-slate-500">Submeter Reading</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatCurrency(invoiceForm.electric)}</td>
+                        </tr>
+                        {Number(invoiceForm.parking) > 0 && (
+                          <tr>
+                            <td className="py-2.5 px-3 text-slate-400 font-mono">04</td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-800">Allocated Parking Slot Rental</td>
+                            <td className="py-2.5 px-3 text-slate-500">{invoiceForm.billingPeriod}</td>
+                            <td className="py-2.5 px-3 text-right font-bold text-slate-800">{formatCurrency(invoiceForm.parking)}</td>
+                          </tr>
+                        )}
+                        {Number(invoiceForm.lateFee) > 0 && (
+                          <tr>
+                            <td className="py-2.5 px-3 text-slate-400 font-mono">05</td>
+                            <td className="py-2.5 px-3 font-semibold text-rose-700">Late Administrative Fee / Prior Arrears</td>
+                            <td className="py-2.5 px-3 text-slate-500">Account Overdue</td>
+                            <td className="py-2.5 px-3 text-right font-bold text-rose-700">{formatCurrency(invoiceForm.lateFee)}</td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-800 bg-slate-50 font-bold text-sm">
+                          <td colSpan="3" className="py-3 px-3 text-right uppercase text-slate-700">Total Balance Due:</td>
+                          <td className="py-3 px-3 text-right text-indigo-700 font-extrabold text-base">
+                            {formatCurrency(
+                              (Number(invoiceForm.rent) || 0) + 
+                              (Number(invoiceForm.water) || 0) + 
+                              (Number(invoiceForm.electric) || 0) + 
+                              (Number(invoiceForm.parking) || 0) + 
+                              (Number(invoiceForm.lateFee) || 0)
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Payment Instructions & Authorization Footer */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-xs">
+                    <div className="space-y-1 text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                      <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wide m-0 mb-1">Payment Instructions</p>
+                      <p className="m-0">• <strong>GCash:</strong> 0912-345-6789 (AMS Leasing)</p>
+                      <p className="m-0">• <strong>BDO Bank:</strong> 1234-5678-9012 (Apartment AMS)</p>
+                      <p className="m-0">• <strong>Office Cashier:</strong> 8:00 AM – 5:00 PM Mon–Sat</p>
+                      <p className="m-0 text-[10px] text-slate-500 pt-1 italic">Please reference <strong>{invoiceForm.invoiceNumber}</strong> upon payment.</p>
+                    </div>
+
+                    <div className="flex flex-col justify-end items-end text-right space-y-1">
+                      <div className="w-44 border-b border-slate-400 mb-1"></div>
+                      <p className="font-bold text-slate-800 text-[11px] m-0">Authorized Property Administrator</p>
+                      <p className="text-[10px] text-slate-400 m-0 uppercase tracking-widest">Financial Operations Management</p>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Action Buttons (Print-hidden) */}
+                <div className="flex flex-wrap gap-2.5 pt-2 print:hidden">
+                  <button 
+                    onClick={() => setShowInvoicePreview(false)} 
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <FontAwesomeIcon icon={faArrowLeft} /> Back to Edit
+                  </button>
+
+                  <button 
+                    onClick={handleSaveAndIssueInvoice}
+                    disabled={issuingInvoice}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors shadow-sm cursor-pointer border-0 disabled:opacity-50"
+                  >
+                    <FontAwesomeIcon icon={issuingInvoice ? faSpinner : faSave} className={issuingInvoice ? 'animate-spin' : ''} />
+                    {issuingInvoice ? 'Saving Invoice...' : 'Save & Issue to Tenant'}
+                  </button>
+
+                  <button 
+                    onClick={handlePrint} 
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer border-0"
+                  >
+                    <FontAwesomeIcon icon={faPrint} /> Print / Save as PDF
+                  </button>
                 </div>
               </div>
             )}
