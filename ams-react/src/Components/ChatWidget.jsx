@@ -34,6 +34,13 @@ const ChatWidget = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
+    const getFullAvatarUrl = (url) => {
+        if (!url) return null;
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        const cleanPath = url.replace(/^\//, '');
+        return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
+    };
+
     useEffect(() => {
         if (isChatOpen && activeChat) {
             scrollToBottom();
@@ -168,7 +175,7 @@ const ChatWidget = () => {
                                         className="flex items-center gap-3 p-4 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100"
                                     >
                                         <img 
-                                            src={conv.other_user_avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.other_user_name || 'User')} 
+                                            src={getFullAvatarUrl(conv.other_user_avatar) || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.other_user_name || 'User')} 
                                             alt={conv.other_user_name}
                                             className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
                                         />
