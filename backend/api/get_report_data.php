@@ -11,6 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+if (!verify_admin($conn, $admin_id)) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    exit;
+}
+
 $timeframe = $_GET['timeframe'] ?? 'monthly';
 $month = isset($_GET['month']) ? (int)$_GET['month'] : date('n');
 $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');

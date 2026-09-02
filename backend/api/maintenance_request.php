@@ -52,6 +52,19 @@ if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] !== UPLOA
         exit;
     }
 
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file_tmp);
+    finfo_close($finfo);
+
+    $allowed_mimes = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v', 'video/ogg'
+    ];
+    if (!in_array($mime, $allowed_mimes)) {
+        echo json_encode(["success" => false, "message" => "File content does not match allowed image or video format."]);
+        exit;
+    }
+
     $upload_dir = "../uploads/maintenance/"; 
     
     if (!is_dir($upload_dir)) {

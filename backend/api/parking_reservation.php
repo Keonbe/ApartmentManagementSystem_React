@@ -16,15 +16,22 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$vehicle_type = $_POST['vehicleType'] ?? '';
-$vehicle_model = $_POST['vehicleModel'] ?? '';
-$plate_number = $_POST['plateNumber'] ?? '';
-$transmission = $_POST['transmission'] ?? '';
-$duration_months = $_POST['durationMonths'] ?? '';
+$vehicle_type = trim($_POST['vehicleType'] ?? '');
+$vehicle_model = trim($_POST['vehicleModel'] ?? '');
+$plate_number = strtoupper(trim($_POST['plateNumber'] ?? ''));
+$transmission = trim($_POST['transmission'] ?? '');
+$duration_months = trim($_POST['durationMonths'] ?? '');
 $user_id = $_POST['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
 
 if (empty($vehicle_type) || empty($vehicle_model) || empty($plate_number) || empty($transmission) || empty($duration_months) || empty($user_id)) {
     echo json_encode(["success" => false, "message" => "All fields are required."]);
+    exit;
+}
+
+// ── Plate Number Validation (F-2) ──
+if (!preg_match('/^[A-Z0-9\s\-]{3,10}$/', $plate_number)) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Invalid plate number. Must be 3-10 alphanumeric characters (e.g. ABC 1234)."]);
     exit;
 }
 
@@ -33,16 +40,32 @@ $total_cost = intval($duration_months) * $base_price;
 
 $document_path = null;
 if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] === UPLOAD_ERR_OK) {
+    $file_name = basename($_FILES['uploadedFile']['name']);
+    $file_tmp = $_FILES['uploadedFile']['tmp_name'];
+    $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
 
-    // Set your upload directory. Make sure this folder exists and has write permissions!
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'pdf'];
+    if (!in_array($file_ext, $allowed_extensions)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Invalid document format. Allowed formats: JPG, PNG, PDF."]);
+        exit;
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file_tmp);
+    finfo_close($finfo);
+
+    $allowed_mimes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (!in_array($mime, $allowed_mimes)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "File content does not match allowed Image or PDF format."]);
+        exit;
+    }
+
     $upload_dir = "../uploads/documents/";
-
     if (!is_dir($upload_dir)) {
         mkdir($upload_dir, 0777, true);
     }
-
-    $file_name = basename($_FILES['uploadedFile']['name']);
-    $file_tmp = $_FILES['uploadedFile']['tmp_name'];
 
     $unique_file_name = time() . "_" . uniqid() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", $file_name);
     $destination = $upload_dir . $unique_file_name;

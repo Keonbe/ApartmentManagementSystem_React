@@ -11,11 +11,15 @@ if (!defined('DB_PASS')) define('DB_PASS', '');
 if (!defined('DB_NAME')) define('DB_NAME', 'ams_db');
 if (!defined('APP_ENV')) define('APP_ENV', 'development');
 
-// Error reporting settings based on environment
+// Error reporting & resource limits (D-1, D-6)
 if (APP_ENV === 'production') {
-    ini_set('display_errors', 0);
-    ini_set('log_errors', 1);
+    @ini_set('display_errors', '0');
+    @ini_set('log_errors', '1');
 }
+
+@ini_set('upload_max_filesize', '10M');
+@ini_set('post_max_size', '12M');
+@ini_set('memory_limit', '128M');
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 

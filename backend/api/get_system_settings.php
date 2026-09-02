@@ -21,6 +21,23 @@ if ($result) {
     }
 }
 
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+$is_admin = verify_admin($conn, $admin_id);
+
+$sensitive_keys = [
+    'paymongo_secret_key',
+    'paymongo_webhook_secret',
+    'semaphore_api_key',
+    'smtp_pass',
+    'smtp_user'
+];
+
+if (!$is_admin) {
+    foreach ($sensitive_keys as $s_key) {
+        unset($settings[$s_key]);
+    }
+}
+
 // Ensure numeric values are converted properly
 if(isset($settings['minLeaseDuration'])) $settings['minLeaseDuration'] = (int)$settings['minLeaseDuration'];
 if(isset($settings['overdueThresholdDays'])) $settings['overdueThresholdDays'] = (int)$settings['overdueThresholdDays'];

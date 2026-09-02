@@ -23,12 +23,31 @@ if (empty($invoice_id)) {
 
 $proof_path = null;
 if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
+    $file_extension = strtolower(pathinfo($_FILES['proof']['name'], PATHINFO_EXTENSION));
+    $allowed_extensions = ['jpg', 'jpeg', 'png'];
+
+    if (!in_array($file_extension, $allowed_extensions)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Invalid payment proof file format. Only JPG, JPEG, and PNG images are allowed."]);
+        exit;
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $_FILES['proof']['tmp_name']);
+    finfo_close($finfo);
+
+    $allowed_mimes = ['image/jpeg', 'image/png'];
+    if (!in_array($mime, $allowed_mimes)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "File content does not match allowed image formats."]);
+        exit;
+    }
+
     $upload_dir = '../uploads/payment_proofs/';
     if (!file_exists($upload_dir)) {
         mkdir($upload_dir, 0777, true);
     }
     
-    $file_extension = pathinfo($_FILES['proof']['name'], PATHINFO_EXTENSION);
     $file_name = 'proof_' . uniqid() . '.' . $file_extension;
     $target_file = $upload_dir . $file_name;
     

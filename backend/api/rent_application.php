@@ -101,11 +101,11 @@ foreach ($required_files as $fileKey) {
         exit;
     }
     
-    // Check MIME type
-    $mime = $_FILES[$fileKey]['type'];
-    if (function_exists('mime_content_type')) {
-        $mime = mime_content_type($file_tmp);
-    }
+    // Check MIME type using server-side finfo_file (B-4)
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file_tmp);
+    finfo_close($finfo);
+
     if (!in_array($mime, $allowed_mime_types)) {
         echo json_encode(["success" => false, "message" => "Invalid file format for '" . htmlspecialchars($file_name) . "'. Only JPEG, PNG, and PDF are allowed."]);
         exit;

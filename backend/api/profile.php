@@ -55,9 +55,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
     
     $file_extension = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
     
-    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     if (!in_array($file_extension, $allowed_extensions)) {
-        echo json_encode(["success" => false, "message" => "Invalid extension. Image formats allowed: JPG, PNG, GIF"]);
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Invalid extension. Image formats allowed: JPG, PNG, GIF, WEBP"]);
+        exit;
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $_FILES['avatar']['tmp_name']);
+    finfo_close($finfo);
+
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!in_array($mime, $allowed_mimes)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Invalid image file format."]);
         exit;
     }
 
@@ -123,6 +135,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($old_email) || empty($new_email) || empty($first_name) || empty($last_name)) {
         echo json_encode(["success" => false, "message" => "Required profile detail text inputs are missing"]);
         exit;
+    }
+
+    // ── Contact Number Validation (F-1) ──
+    if (!empty($contact_no)) {
+        $clean_contact = preg_replace('/[\s\-]/', '', $contact_no);
+        if (!preg_match('/^(\+63|0)?9\d{9}$/', $clean_contact)) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "Invalid Philippine mobile contact format (e.g. +63 912 345 6789 or 09123456789)."]);
+            exit;
+        }
     }
 
     $conn->begin_transaction();

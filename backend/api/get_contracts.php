@@ -11,10 +11,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+$logged_user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+$is_admin = verify_admin($conn, $admin_id);
+
 $user_id = $_GET['userId'] ?? null;
 $email = $_GET['email'] ?? null;
 
 if (!empty($user_id)) {
+    if (!$is_admin && $logged_user_id && (int)$user_id !== (int)$logged_user_id) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Forbidden: Access denied to other user's contract"]);
+        exit;
+    }
+
     $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at 
                             FROM rent_applications ra 
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
@@ -41,6 +51,13 @@ if (!empty($user_id)) {
     $stmt->close();
     echo json_encode(["success" => !empty($contract), "contract" => $contract, "contracts" => $contract ? [$contract] : []]);
 } else {
+    // Admin-only global contract list
+    if (!$is_admin) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+        exit;
+    }
+
     $query = "SELECT c.*, r.first_name, r.last_name, r.email, r.room_name, r.monthly_rent, rm.type 
               FROM lease_contracts c 
               LEFT JOIN rent_applications r ON c.rent_application_id = r.id

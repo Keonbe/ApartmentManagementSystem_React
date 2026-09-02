@@ -17,19 +17,19 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | A-1 | Change the default admin password in the database | Admin account takeover by anyone who knows the demo password | `[ ]` |
 | A-2 | Change MySQL `root` password on the production server | Full database access with no credentials | `[ ]` |
 | A-3 | Create a least-privilege DB user (`ams_user`) instead of `root` | A PHP breach exposes the entire DB server | `[ ]` |
-| A-4 | Verify every admin API endpoint calls `verify_admin($conn, $admin_id)` | Tenants can call admin-only APIs directly | `[ ]` |
-| A-5 | Add rate limiting to `login.php` (e.g., via `mod_ratelimit` or fail2ban) | Unlimited brute-force login attempts | `[ ]` |
-| A-6 | Remove dead `$_SESSION` code in `login.php` (lines 41-49) | Dead code creates false security assumptions | `[ ]` |
+| A-4 | Verify every admin API endpoint calls `verify_admin($conn, $admin_id)` | Tenants can call admin-only APIs directly | `[x]` |
+| A-5 | Add rate limiting to `login.php` (e.g., via `mod_ratelimit` or fail2ban) | Unlimited brute-force login attempts | `[x]` |
+| A-6 | Remove dead `$_SESSION` code in `login.php` (lines 41-49) | Dead code creates false security assumptions | `[x]` |
 
 ### SECTION 2 — File Uploads
 
 | # | Check | Risk if Missed | Status |
 |---|---|---|---|
-| B-1 | Validate file **extension** in `parking_reservation.php` (allow: jpg, jpeg, png, pdf) | Attacker uploads `.php` web shell - Remote Code Execution | `[ ]` |
-| B-2 | Validate file **extension** in `upload_lease_document.php` (allow: pdf, jpg, jpeg, png) | Same RCE risk | `[ ]` |
-| B-3 | Validate file **extension** in `upload_payment_proof.php` (allow: jpg, jpeg, png) | Same RCE risk | `[ ]` |
-| B-4 | Switch all MIME detection to `finfo_file()` — never trust `$_FILES['type']` (client-supplied) | Spoofed MIME bypasses extension-based guards | `[ ]` |
-| B-5 | Add `backend/uploads/.htaccess` blocking PHP execution and directory listing | Even if PHP is uploaded, it can be executed from the URL | `[ ]` |
+| B-1 | Validate file **extension** in `parking_reservation.php` (allow: jpg, jpeg, png, pdf) | Attacker uploads `.php` web shell - Remote Code Execution | `[x]` |
+| B-2 | Validate file **extension** in `upload_lease_document.php` (allow: pdf, jpg, jpeg, png) | Same RCE risk | `[x]` |
+| B-3 | Validate file **extension** in `upload_payment_proof.php` (allow: jpg, jpeg, png) | Same RCE risk | `[x]` |
+| B-4 | Switch all MIME detection to `finfo_file()` — never trust `$_FILES['type']` (client-supplied) | Spoofed MIME bypasses extension-based guards | `[x]` |
+| B-5 | Add `backend/uploads/.htaccess` blocking PHP execution and directory listing | Even if PHP is uploaded, it can be executed from the URL | `[x]` |
 | B-6 | Set upload directory permissions: `chown www-data` + `chmod 755` | World-writable uploads are a server foothold | `[ ]` |
 
 ### SECTION 3 — Network & Transport
@@ -46,11 +46,11 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | # | Check | Risk if Missed | Status |
 |---|---|---|---|
 | D-1 | Set `display_errors = Off` and `log_errors = On` in `php.ini` | Stack traces, file paths, and DB structure exposed in browser | `[ ]` |
-| D-2 | Disable Apache directory listing (`Options -Indexes`) globally | Browsing to `/backend/uploads/` lists all tenant documents | `[ ]` |
+| D-2 | Disable Apache directory listing (`Options -Indexes`) globally | Browsing to `/backend/uploads/` lists all tenant documents | `[x]` |
 | D-3 | Move all credentials to `config.env.php` (not committed to Git) | Credentials in version history are permanently compromised | `[ ]` |
-| D-4 | Add `config.env.php` to `.gitignore` and verify with `git status` | Accidental push exposes DB password publicly on GitHub | `[ ]` |
-| D-5 | Remove all debug `var_dump()`, `print_r()`, and bare `echo` in PHP files | Internal data structures leaked to any user who triggers an error | `[ ]` |
-| D-6 | Set `php.ini` limits: `upload_max_filesize=10M`, `post_max_size=12M` | Uploads silently fail or exceed memory on production | `[ ]` |
+| D-4 | Add `config.env.php` to `.gitignore` and verify with `git status` | Accidental push exposes DB password publicly on GitHub | `[x]` |
+| D-5 | Remove all debug `var_dump()`, `print_r()`, and bare `echo` in PHP files | Internal data structures leaked to any user who triggers an error | `[x]` |
+| D-6 | Set `php.ini` limits: `upload_max_filesize=10M`, `post_max_size=12M` | Uploads silently fail or exceed memory on production | `[x]` |
 
 ### SECTION 5 — Frontend / React
 
@@ -67,9 +67,9 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 
 | # | Check | Risk if Missed | Status |
 |---|---|---|---|
-| F-1 | Add backend format validation for `contact_no` in `profile.php` (PH mobile pattern) | Garbage data stored; client-only validation bypassed via direct API calls | `[ ]` |
-| F-2 | Add plate number length + alphanumeric check in `parking_reservation.php` | Raw untrusted strings stored directly in the DB | `[ ]` |
-| F-3 | Confirm all SQL queries use `bind_param` prepared statements — no string interpolation | SQL injection | `[ ]` |
+| F-1 | Add backend format validation for `contact_no` in `profile.php` (PH mobile pattern) | Garbage data stored; client-only validation bypassed via direct API calls | `[x]` |
+| F-2 | Add plate number length + alphanumeric check in `parking_reservation.php` | Raw untrusted strings stored directly in the DB | `[x]` |
+| F-3 | Confirm all SQL queries use `bind_param` prepared statements — no string interpolation | SQL injection | `[x]` |
 
 ---
 

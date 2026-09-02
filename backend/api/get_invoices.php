@@ -14,8 +14,18 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
+        $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+        $logged_user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+        $is_admin = verify_admin($conn, $admin_id);
+
         $user_id_param = $_GET['userId'] ?? null;
         if ($user_id_param) {
+            if (!$is_admin && $logged_user_id && (int)$user_id_param !== (int)$logged_user_id) {
+                http_response_code(403);
+                echo json_encode(["success" => false, "message" => "Forbidden: Access denied to other user's invoices"]);
+                exit;
+            }
+
             $stmt = $conn->prepare("SELECT 
                         i.*, 
                         u.first_name, 
@@ -30,6 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $stmt->execute();
             $result = $stmt->get_result();
         } else {
+            // Admin-only global invoice list
+            if (!$is_admin) {
+                http_response_code(403);
+                echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+                exit;
+            }
+
             $query = "SELECT 
                         i.*, 
                         u.first_name, 

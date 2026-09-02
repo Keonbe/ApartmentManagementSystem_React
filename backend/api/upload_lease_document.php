@@ -75,13 +75,33 @@ if ($action === 'remove') {
 }
 
 if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
+    $file_name = basename($_FILES['file']['name']);
+    $file_tmp = $_FILES['file']['tmp_name'];
+    $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+
+    $allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png'];
+    if (!in_array($file_ext, $allowed_extensions)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Invalid file extension. Allowed formats: PDF, JPG, PNG."]);
+        exit;
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file_tmp);
+    finfo_close($finfo);
+
+    $allowed_mimes = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!in_array($mime, $allowed_mimes)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "File content does not match allowed PDF or Image format."]);
+        exit;
+    }
+
     $upload_dir = "../uploads/documents/";
     if (!is_dir($upload_dir)) {
         mkdir($upload_dir, 0777, true);
     }
 
-    $file_name = basename($_FILES['file']['name']);
-    $file_tmp = $_FILES['file']['tmp_name'];
     $unique_file_name = time() . "_" . uniqid() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", $file_name);
     $destination = $upload_dir . $unique_file_name;
 
