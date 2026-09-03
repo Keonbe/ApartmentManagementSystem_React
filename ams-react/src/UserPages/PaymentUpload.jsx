@@ -87,10 +87,15 @@ export default function PaymentUpload() {
         const formData = new FormData();
         formData.append('userId', userId);
         formData.append('invoiceId', invoiceId);
+        formData.append('invoice_id', invoiceId);
         formData.append('paymentMethod', paymentMethod);
+        formData.append('payment_method', paymentMethod);
         formData.append('senderName', senderName);
+        formData.append('sender_name', senderName);
         formData.append('referenceNo', referenceNo);
+        formData.append('payment_reference', referenceNo);
         formData.append('proofImage', proofImage);
+        formData.append('proof', proofImage);
 
         try {
             const res = await api.post("/upload_payment_proof.php", formData, {

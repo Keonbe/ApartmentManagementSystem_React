@@ -11,42 +11,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-if (empty($user_id)) {
+$user_id = $_SERVER['HTTP_X_USER_ID'] ?? $_POST['userId'] ?? null;
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+$is_admin = verify_admin($conn, $admin_id);
+
+if (empty($user_id) && !$is_admin) {
     http_response_code(401);
     echo json_encode(["success" => false, "message" => "Unauthorized"]);
     exit;
 }
 
-$invoice_id = $_POST['invoice_id'] ?? null;
-$payment_reference = $_POST['payment_reference'] ?? null;
-$payment_method = $_POST['payment_method'] ?? 'GCash';
-$sender_name = $_POST['sender_name'] ?? null;
+$invoice_id = $_POST['invoice_id'] ?? $_POST['invoiceId'] ?? null;
+$payment_reference = $_POST['payment_reference'] ?? $_POST['referenceNo'] ?? null;
+$payment_method = $_POST['payment_method'] ?? $_POST['paymentMethod'] ?? 'GCash';
+$sender_name = $_POST['sender_name'] ?? $_POST['senderName'] ?? null;
 
 if (empty($invoice_id)) {
     echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
     exit;
 }
 
-$proof_path = null;
+$proof_file = null;
 if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
-    $file_extension = strtolower(pathinfo($_FILES['proof']['name'], PATHINFO_EXTENSION));
-    $allowed_extensions = ['jpg', 'jpeg', 'png'];
+    $proof_file = $_FILES['proof'];
+} else if (isset($_FILES['proofImage']) && $_FILES['proofImage']['error'] === UPLOAD_ERR_OK) {
+    $proof_file = $_FILES['proofImage'];
+}
+
+$proof_path = null;
+if ($proof_file) {
+    $file_extension = strtolower(pathinfo($proof_file['name'], PATHINFO_EXTENSION));
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
 
     if (!in_array($file_extension, $allowed_extensions)) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Invalid payment proof file format. Only JPG, JPEG, and PNG images are allowed."]);
+        echo json_encode(["success" => false, "message" => "Invalid payment proof file format. Allowed: JPG, PNG, WEBP, PDF."]);
         exit;
     }
 
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $_FILES['proof']['tmp_name']);
+    $mime = finfo_file($finfo, $proof_file['tmp_name']);
     finfo_close($finfo);
 
-    $allowed_mimes = ['image/jpeg', 'image/png'];
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     if (!in_array($mime, $allowed_mimes)) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "File content does not match allowed image formats."]);
+        echo json_encode(["success" => false, "message" => "File content does not match allowed formats."]);
         exit;
     }
 
@@ -58,7 +68,7 @@ if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
     $file_name = 'proof_' . uniqid() . '.' . $file_extension;
     $target_file = $upload_dir . $file_name;
     
-    if (move_uploaded_file($_FILES['proof']['tmp_name'], $target_file)) {
+    if (move_uploaded_file($proof_file['tmp_name'], $target_file)) {
         $proof_path = 'uploads/payment_proofs/' . $file_name;
     }
 }
@@ -73,10 +83,16 @@ if ($proof_path) {
     $types .= "s";
 }
 
-$query .= " WHERE id = ? AND user_id = ?";
-$params[] = $invoice_id;
-$params[] = $user_id;
-$types .= "si";
+if ($is_admin) {
+    $query .= " WHERE id = ?";
+    $params[] = $invoice_id;
+    $types .= "s";
+} else {
+    $query .= " WHERE id = ? AND user_id = ?";
+    $params[] = $invoice_id;
+    $params[] = $user_id;
+    $types .= "si";
+}
 
 $stmt = $conn->prepare($query);
 $stmt->bind_param($types, ...$params);

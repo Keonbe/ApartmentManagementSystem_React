@@ -38,8 +38,13 @@ if (empty($invoice_id) || empty($payment_method)) {
 $status = ($payment_method === 'Cash on Hand') ? 'pending' : 'pending-verification';
 $paid_at = null;
 
-$stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, proof_of_payment_path = ?, status = ?, paid_at = ? WHERE id = ? AND user_id = ?");
-$stmt->bind_param("ssssssi", $payment_method, $payment_reference, $proof_path, $status, $paid_at, $invoice_id, $user_id);
+if (!empty($proof_path)) {
+    $stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, proof_of_payment_path = ?, status = ?, paid_at = ? WHERE id = ? AND user_id = ?");
+    $stmt->bind_param("ssssssi", $payment_method, $payment_reference, $proof_path, $status, $paid_at, $invoice_id, $user_id);
+} else {
+    $stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, status = ?, paid_at = ? WHERE id = ? AND user_id = ?");
+    $stmt->bind_param("sssssi", $payment_method, $payment_reference, $status, $paid_at, $invoice_id, $user_id);
+}
 
 if ($stmt->execute()) {
     log_activity($conn, null, 'payment', "Tenant payment action", "Invoice ID: $invoice_id, Method: $payment_method, Status: $status, Ref: $payment_reference");

@@ -5,12 +5,19 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faUser, faCalendarAlt, 
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
-  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight, faShieldAlt
+  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight, faShieldAlt, faEye, faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+
+const getBackendAssetUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const clean = path.replace(/^(\.\.\/)+/, '').replace(/^\//, '');
+  return `http://localhost:8080/ApartmentManagementSystem_React/backend/${clean}`;
+};
 
 const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
@@ -21,6 +28,7 @@ const AdminPayments = () => {
   const [contracts, setContracts] = useState([]);
   const [activeTab, setActiveTab] = useState('billing');
   const [loading, setLoading] = useState(true);
+  const [previewProof, setPreviewProof] = useState(null);
   
   useEffect(() => {
     fetchInvoices();
@@ -69,10 +77,10 @@ const AdminPayments = () => {
             t.billing.securityDeposit = parseFloat(inv.security_deposit || 0);
             t.outstandingBalance += parseFloat(inv.total_amount || 0);
             t.pendingInvoiceId = inv.id;
-            t.proofOfPaymentPath = inv.proof_of_payment_path;
-            t.paymentReference = inv.payment_reference;
-            t.senderName = inv.sender_name;
-            t.paymentGateway = inv.payment_gateway;
+            if (inv.proof_of_payment_path) t.proofOfPaymentPath = inv.proof_of_payment_path;
+            if (inv.payment_reference) t.paymentReference = inv.payment_reference;
+            if (inv.sender_name) t.senderName = inv.sender_name;
+            if (inv.payment_gateway) t.paymentGateway = inv.payment_gateway;
             if (inv.payment_method) {
                t.preferredMethod = inv.payment_method;
             }
@@ -86,8 +94,16 @@ const AdminPayments = () => {
               datePaid: inv.paid_at, 
               status: 'paid', 
               method: methodDisplay,
-              gateway: inv.payment_gateway
+              gateway: inv.payment_gateway,
+              proofOfPaymentPath: inv.proof_of_payment_path,
+              paymentReference: inv.payment_reference,
+              senderName: inv.sender_name
             });
+            if (!t.proofOfPaymentPath && inv.proof_of_payment_path) {
+              t.proofOfPaymentPath = inv.proof_of_payment_path;
+              if (inv.payment_reference) t.paymentReference = inv.payment_reference;
+              if (inv.sender_name) t.senderName = inv.sender_name;
+            }
           }
         });
         
@@ -649,24 +665,41 @@ const handleMarkAsPaid = async () => {
                         </div>
                       </div>
                       
-                      {activeTenant.status === 'pending-verification' && (
+                      {(activeTenant.status === 'pending-verification' || activeTenant.proofOfPaymentPath) && (
                         <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3">
-                          <h5 className="text-xs font-bold text-indigo-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
-                            <FontAwesomeIcon icon={faInfoCircle} /> E-Receipt Metadata Verification
-                          </h5>
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-xs font-bold text-indigo-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                              <FontAwesomeIcon icon={faInfoCircle} /> E-Receipt Metadata Verification
+                            </h5>
+                            {activeTenant.status === 'pending-verification' && (
+                              <span className="text-[10px] bg-indigo-200/70 text-indigo-900 px-2 py-0.5 rounded-full font-bold">Verification Needed</span>
+                            )}
+                          </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-indigo-950 font-medium">
                              <div><span className="text-indigo-500 font-bold mr-1">Sender Profile Name:</span> {activeTenant.senderName || 'Not Captured'}</div>
                              <div><span className="text-indigo-500 font-bold mr-1">Network Reference No:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200/60 font-bold text-slate-800">{activeTenant.paymentReference || '—'}</span></div>
                           </div>
                           {activeTenant.proofOfPaymentPath && (
-                            <div className="pt-1.5">
+                            <div className="pt-2 flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewProof({
+                                  url: getBackendAssetUrl(activeTenant.proofOfPaymentPath),
+                                  title: `Proof of Payment — ${activeTenant.name} (${activeTenant.unit})`,
+                                  reference: activeTenant.paymentReference,
+                                  sender: activeTenant.senderName
+                                })}
+                                className="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all border-0 cursor-pointer shadow-sm"
+                              >
+                                <FontAwesomeIcon icon={faEye} /> Preview Proof in Modal
+                              </button>
                               <a 
-                                href={`http://localhost/ApartmentManagementSystem_React/backend/${activeTenant.proofOfPaymentPath}`} 
+                                href={getBackendAssetUrl(activeTenant.proofOfPaymentPath)} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all no-underline shadow-sm"
+                                className="inline-flex items-center gap-1.5 bg-white text-indigo-700 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-all no-underline shadow-sm"
                               >
-                                <FontAwesomeIcon icon={faFileAlt} /> View Uploaded Receipt Document Asset
+                                <FontAwesomeIcon icon={faExternalLinkAlt} /> Open Full Asset in New Tab
                               </a>
                             </div>
                           )}
@@ -738,6 +771,7 @@ const handleMarkAsPaid = async () => {
                           <th className="py-2 px-3">Method</th>
                           <th className="py-2 px-3">Breakdown</th>
                           <th className="py-2 px-3">Date Paid</th>
+                          <th className="py-2 px-3 text-center">Proof</th>
                           <th className="py-2 px-3 text-right">Receipt</th>
                           <th className="py-2 px-3 text-right">Actions</th>
                         </tr>
@@ -750,6 +784,24 @@ const handleMarkAsPaid = async () => {
                             <td className="py-3 px-3 text-slate-600"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs border border-slate-200">{record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
                             <td className="py-3 px-3 text-slate-500 text-xs truncate max-w-[150px]" title={record.breakdown}>{record.breakdown}</td>
                             <td className="py-3 px-3 text-slate-500">{record.datePaid}</td>
+                            <td className="py-3 px-3 text-center">
+                              {record.proofOfPaymentPath ? (
+                                <button
+                                  onClick={() => setPreviewProof({
+                                    url: getBackendAssetUrl(record.proofOfPaymentPath),
+                                    title: `Proof of Payment — ${record.period}`,
+                                    reference: record.paymentReference,
+                                    sender: record.senderName
+                                  })}
+                                  className="text-xs inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md border border-indigo-200 cursor-pointer font-semibold transition-colors"
+                                  title="View Uploaded Payment Proof"
+                                >
+                                  <FontAwesomeIcon icon={faEye} /> Proof
+                                </button>
+                              ) : (
+                                <span className="text-slate-300 text-xs">—</span>
+                              )}
+                            </td>
                             <td className="py-3 px-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
                             <td className="py-3 px-3 text-right">
                               <div className="flex items-center justify-end gap-1">
@@ -759,7 +811,7 @@ const handleMarkAsPaid = async () => {
                             </td>
                           </tr>
                         )) : (
-                          <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
+                          <tr><td colSpan="8" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1071,6 +1123,61 @@ const handleMarkAsPaid = async () => {
             <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">
               <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
               <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proof of Payment Preview Modal */}
+      {previewProof && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPreviewProof(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 m-0">{previewProof.title || 'Uploaded Proof of Payment'}</h3>
+                {(previewProof.reference || previewProof.sender) && (
+                  <p className="text-xs text-slate-500 m-0 mt-0.5">
+                    {previewProof.sender ? `Sender: ${previewProof.sender} ` : ''}
+                    {previewProof.reference ? `· Ref: ${previewProof.reference}` : ''}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewProof.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors no-underline inline-flex items-center gap-1"
+                >
+                  <FontAwesomeIcon icon={faExternalLinkAlt} /> Open in New Tab
+                </a>
+                <button
+                  onClick={() => setPreviewProof(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-auto flex items-center justify-center bg-slate-900/5 min-h-[300px]">
+              {previewProof.url.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={previewProof.url} title="Payment Proof PDF" className="w-full h-[500px] border-0 rounded-lg shadow" />
+              ) : (
+                <img
+                  src={previewProof.url}
+                  alt="Proof of Payment"
+                  className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md border border-slate-200 bg-white"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                  }}
+                />
+              )}
+              <div style={{ display: 'none' }} className="text-center p-8 text-slate-500">
+                <p className="font-bold text-sm">Image could not be rendered directly.</p>
+                <p className="text-xs mt-1">Please use the "Open in New Tab" link above to view or download.</p>
+              </div>
             </div>
           </div>
         </div>
