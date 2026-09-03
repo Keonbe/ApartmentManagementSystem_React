@@ -8,6 +8,13 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
+$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+if (empty($user_id)) {
+    http_response_code(401);
+    echo json_encode(["success" => false, "message" => "Unauthorized"]);
+    exit;
+}
+
 try {
     $input = json_decode(file_get_contents("php://input"), true);
     $email = $input['email'] ?? '';
@@ -17,8 +24,8 @@ try {
         throw new Exception("Invalid request: Extension must be between 1 and 12 months.");
     }
 
-    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.room_name FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id WHERE u.email_address = ?");
-    $userQuery->bind_param("s", $email);
+    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.room_name FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id WHERE u.email_address = ? AND u.id = ?");
+    $userQuery->bind_param("si", $email, $user_id);
     $userQuery->execute();
     $user = $userQuery->get_result()->fetch_assoc();
     $userQuery->close();

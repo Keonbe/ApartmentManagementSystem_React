@@ -78,8 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'electricity' => $row['electricity'] ?? 0,
                 'parking' => $row['parking'] ?? 0,
                 'security_deposit' => $row['security_deposit'] ?? 0,
-                'late_fee' => ($row['status'] === 'pending' && !empty($row['due_date']) && strtotime($row['due_date']) < strtotime(date('Y-m-d'))) ? 500.00 : 0.00,
-                'total_amount' => ($row['base_rent'] ?? 0) + ($row['water'] ?? 0) + ($row['electricity'] ?? 0) + ($row['parking'] ?? 0) + ($row['security_deposit'] ?? 0) + (($row['status'] === 'pending' && !empty($row['due_date']) && strtotime($row['due_date']) < strtotime(date('Y-m-d'))) ? 500.00 : 0.00),
+                'late_fee' => 0.00, // Late fee should be managed via DB if implemented properly
+                'total_amount' => $row['total_amount'] ?? 0.00,
                 'status' => $row['status'],
                 
                 // FIX FOR INVALID DATE: Send created_at or issue_date timestamp

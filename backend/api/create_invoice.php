@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $parking = (float)($input['parking'] ?? 0);
         $late_fee = (float)($input['lateFee'] ?? 0);
         $due_date = !empty($input['dueDate']) ? $input['dueDate'] : date('Y-m-d', strtotime('+15 days'));
-        $billing_period = trim($input['billingPeriod'] ?? date('F Y'));
+        $billing_period = trim($input['billingPeriod'] ?? date('Y-m'));
         $invoice_id = !empty($input['invoiceNumber']) ? trim($input['invoiceNumber']) : ('INV-' . date('Ym') . '-' . rand(1000, 9999));
 
         $total_amount = $base_rent + $water + $electricity + $parking + $late_fee;
@@ -39,7 +39,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // If user_id wasn't provided directly, look it up by unit / active application
         $rent_app_id = !empty($input['appId']) ? (int)$input['appId'] : null;
         if (!$user_id && !empty($unit)) {
-            $lookup = $conn->prepare("SELECT user_id, id FROM rent_applications WHERE room_name = ? AND status = 'Approved' ORDER BY id DESC LIMIT 1");
+            $lookup = $conn->prepare("
+                SELECT ra.user_id, ra.id 
+                FROM rent_applications ra 
+                WHERE ra.room_name = ? 
+                  AND ra.status IN ('Approved', 'pending-move-out')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM invoices i 
+                      WHERE i.rent_application_id = ra.id 
+                        AND i.status IN ('pending', 'pending-verification')
+                        AND i.security_deposit > 0
+                  )
+                ORDER BY ra.id DESC LIMIT 1");
             $lookup->bind_param("s", $unit);
             $lookup->execute();
             if ($row = $lookup->get_result()->fetch_assoc()) {

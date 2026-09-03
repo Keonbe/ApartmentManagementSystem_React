@@ -11,6 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+if (empty($user_id)) {
+    http_response_code(401);
+    echo json_encode(["success" => false, "message" => "Unauthorized"]);
+    exit;
+}
+
 $input = json_decode(file_get_contents("php://input"), true);
 
 if (!$input) {
@@ -31,8 +38,8 @@ if (empty($invoice_id) || empty($payment_method)) {
 $status = ($payment_method === 'Cash on Hand') ? 'pending' : 'pending-verification';
 $paid_at = null;
 
-$stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, proof_of_payment_path = ?, status = ?, paid_at = ? WHERE id = ?");
-$stmt->bind_param("ssssss", $payment_method, $payment_reference, $proof_path, $status, $paid_at, $invoice_id);
+$stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, proof_of_payment_path = ?, status = ?, paid_at = ? WHERE id = ? AND user_id = ?");
+$stmt->bind_param("ssssssi", $payment_method, $payment_reference, $proof_path, $status, $paid_at, $invoice_id, $user_id);
 
 if ($stmt->execute()) {
     log_activity($conn, null, 'payment', "Tenant payment action", "Invoice ID: $invoice_id, Method: $payment_method, Status: $status, Ref: $payment_reference");

@@ -11,6 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+if (empty($user_id)) {
+    http_response_code(401);
+    echo json_encode(["success" => false, "message" => "Unauthorized"]);
+    exit;
+}
+
 $invoice_id = $_POST['invoice_id'] ?? null;
 $payment_reference = $_POST['payment_reference'] ?? null;
 $payment_method = $_POST['payment_method'] ?? 'GCash';
@@ -66,9 +73,10 @@ if ($proof_path) {
     $types .= "s";
 }
 
-$query .= " WHERE id = ?";
+$query .= " WHERE id = ? AND user_id = ?";
 $params[] = $invoice_id;
-$types .= "s";
+$params[] = $user_id;
+$types .= "si";
 
 $stmt = $conn->prepare($query);
 $stmt->bind_param($types, ...$params);

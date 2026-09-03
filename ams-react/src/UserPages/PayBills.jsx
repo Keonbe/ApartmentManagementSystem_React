@@ -234,14 +234,24 @@ export default function PayBills() {
                     <div className="pay-bills-card md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
-                            <button 
-                                type="button" 
-                                onClick={() => navigate('/payment-history')}
-                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
-                            >
-                                <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
-                                <span>{t('payBills.viewPrevious')}</span>
-                            </button>
+                            <div className="flex gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={() => navigate('/user-utilities')}
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
+                                >
+                                    <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
+                                    <span>Meter Readings</span>
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => navigate('/payment-history')}
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
+                                >
+                                    <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
+                                    <span>{t('payBills.viewPrevious')}</span>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-4">
