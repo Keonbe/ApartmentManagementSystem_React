@@ -22,8 +22,8 @@
 | [ ] | **Inquiry & Reservation Management**    | [ ] Inquiry handling, [ ] reservation tracking, [x] room/unit availability tracking, [ ] reservation module                                                                                                                                                             |
 | [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [ ] slot assignment management, [ ] parking fee integration into billing                                                                                                                                            |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
-| [ ] | **Utility Usage**                       | [ ] Water usage, [ ] electricity usage, [ ] utility tracking per unit                                                                                                                                                                                                   |
-| [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [ ] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
+| [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit                                                                                                                                                                                                   |
+| [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [x] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
 | [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management                                                                                                                                                     |
 | [ ] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [ ] admin approval/rejection, [ ] request status tracking                                                                                                                                                                              |
 | [x] | **Visitor Management**                  | [x] Visitor records / management, [x] tenant pre-authorization, [x] visitor history, [x] overstay alerts                                                                                                                                                                |
@@ -435,7 +435,7 @@ flowchart TD
 - [x] **8.4 Tenant Monitoring** ✅ — `get_tenants.php`
 - [x] **8.5 Maintenance Monitoring** ✅ — `get_maintenance_requests.php`
 - [x] **8.6 System Activity Logs** ✅ — `activity_logs` table, `get_activity_logs.php`, `AdminActivityLogs.jsx`
-- [ ] **8.7 Utility Usage Tracking** 📋 — Medium-scale feature (new `utility_readings` table)
+- [x] **8.7 Utility Usage Tracking** ✅ — `utility_readings` table, `AdminUtilities.jsx`, `UserUtilities.jsx`
 - [ ] **8.8 Sampling Data / Demo Data** 📋 — Needed for demo (SQL seed script)
 
 ---
