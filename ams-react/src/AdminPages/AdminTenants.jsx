@@ -368,14 +368,15 @@ const AdminTenants = () => {
 
   const getOccupancyBadge = (status) => {
     const map = {
-      'Pending Review': { style: 'bg-blue-100 text-blue-800', label: '○ Pending' },
-      active: { style: 'bg-emerald-100 text-emerald-800', label: '● Active' },
+      'Pending Review': { style: 'bg-blue-100 text-blue-800', label: '○ Pending Review' },
+      'Approved':       { style: 'bg-sky-100 text-sky-800',     label: '◑ Approved (Pending Move-In)' },
+      'active':         { style: 'bg-emerald-100 text-emerald-800', label: '● Active' },
       'pending-move-out': { style: 'bg-amber-100 text-amber-800', label: '◔ Pending Move-Out' },
-      'moved-out': { style: 'bg-slate-100 text-slate-500', label: '○ Moved Out' },
-      archived: { style: 'bg-violet-100 text-violet-700', label: '◇ Archived' },
+      'moved-out':      { style: 'bg-slate-100 text-slate-500', label: '○ Moved Out' },
+      'archived':       { style: 'bg-violet-100 text-violet-700', label: '◇ Archived' },
     };
-    const { style, label } = map[status] || map.active;
-    return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${style}`}>{label}</span>;
+    const entry = map[status] || { style: 'bg-slate-100 text-slate-500', label: `○ ${status || 'Unknown'}` };
+    return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${entry.style}`}>{entry.label}</span>;
   };
 
   const openProfile = (tenant) => {
@@ -502,6 +503,8 @@ const AdminTenants = () => {
                           </div>
                         ) : t.status === 'Pending Review' ? (
                           <span className="text-slate-400">Move-in date pending</span>
+                        ) : t.status === 'Approved' ? (
+                          <span className="text-sky-600 font-semibold">Pending move-in payment</span>
                         ) : t.leaseEnd ? (
                           <div>
                             <div>Lease ends: {t.leaseEnd}</div>
@@ -550,7 +553,7 @@ const AdminTenants = () => {
                               <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Restore Tenant
                             </button>
                           )}
-                          {(t.status === 'active' || t.status === 'Approved') && (
+                          {t.status === 'active' && (
                             <button 
                               onClick={() => handleInitiateMoveOutClick(t)}
                               className="flex items-center gap-1.5 text-amber-600 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
@@ -588,9 +591,11 @@ const AdminTenants = () => {
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md ${
                   selectedTenant.status === 'archived' 
                     ? 'bg-gradient-to-br from-violet-500 to-violet-700' 
-                    : selectedTenant.status === 'active' 
-                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' 
-                      : 'bg-gradient-to-br from-amber-400 to-amber-600'
+                    : selectedTenant.status === 'active'
+                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-700'
+                      : selectedTenant.status === 'Approved'
+                        ? 'bg-gradient-to-br from-sky-500 to-sky-700'
+                        : 'bg-gradient-to-br from-amber-400 to-amber-600'
                 }`}>
                   {(selectedTenant.name || '').charAt(0)}
                 </div>

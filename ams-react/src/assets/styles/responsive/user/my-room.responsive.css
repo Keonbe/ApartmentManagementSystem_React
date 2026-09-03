@@ -4,6 +4,14 @@
    Base: Tailwind utilities in MyRoom.jsx
    ===================================================== */
 
+/* Hardware acceleration to prevent scroll repainting & lag */
+.my-room-banner,
+.my-room-card,
+.my-room-operations-grid > div {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
 @media (max-width: 768px) {
   .my-room-root {
     padding: 1.5rem 1rem !important;

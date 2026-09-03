@@ -21,7 +21,7 @@ if (empty($email) || $occupants < 1) {
 $userQuery = $conn->prepare("
     SELECT u.id, u.first_name, u.last_name, ra.room_name, ra.occupants as current_occupants 
     FROM users u 
-    LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status = 'Approved'
+    LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out')
     WHERE u.email_address = ?
 ");
 $userQuery->bind_param("s", $email);

@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'rent' => '₱' . number_format($row['monthly_rent']),
             'moveIn' => $row['status'] === 'Pending Review' ? null : $row['created_at'], 
             'leaseEnd' => date('Y-m-d', strtotime($row['created_at'] . ' + ' . $row['months_of_rent'] . ' months')),
-            'status' => $row['status'] ?? 'active',
+            'status' => $row['status'],
             'paymentStatus' => 'paid',
             'documents' => [],
             'valid_id_front_path' => $row['valid_id_front_path'] ?? null,

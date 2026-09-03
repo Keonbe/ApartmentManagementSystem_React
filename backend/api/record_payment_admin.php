@@ -65,6 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $room_stmt->bind_param("sssss", $tenant_name, $lease_start, $lease_end, $occupants, $room_name);
                 $room_stmt->execute();
                 $room_stmt->close();
+                
+                // Activate rent application
+                $app_activate = $conn->prepare("UPDATE rent_applications SET status = 'active' WHERE id = ? AND status = 'Approved'");
+                $app_activate->bind_param("i", $app_id);
+                $app_activate->execute();
+                $app_activate->close();
 
                 // Ensure lease contract is registered
                 $ctr_check = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ?");

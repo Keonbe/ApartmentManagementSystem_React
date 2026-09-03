@@ -39,7 +39,7 @@ if (empty($user_id)) {
 }
 
 // Find the latest approved/active rent application for this user
-$stmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND (status = 'Approved' OR status = 'active') ORDER BY created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -95,7 +95,7 @@ $update_stmt = $conn->prepare("UPDATE rent_applications SET status = 'pending-mo
 $update_stmt->bind_param("si", $move_out_date, $app_id);
 
 if ($update_stmt->execute()) {
-    log_activity($conn, $user_id, 'tenant', "Requested Move Out", "Application ID: $app_id, Room: $room_name, Scheduled: $move_out_date");
+    log_activity($conn, null, 'tenant', "Requested Move Out", "Application ID: $app_id, Room: $room_name, Scheduled: $move_out_date, Requested by User ID: $user_id");
     echo json_encode(["success" => true, "message" => "Move-out request recorded successfully."]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to submit move-out request."]);

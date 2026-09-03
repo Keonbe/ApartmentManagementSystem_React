@@ -37,8 +37,8 @@ if ($result->num_rows > 0) {
     $room_data = $result->fetch_assoc();
     $app_id = $room_data['id'];
     
-    // Check if there is a pending invoice for this application
-    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification') LIMIT 1");
+    // Check if there is a pending move-in invoice (security_deposit > 0) for this application
+    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification') AND security_deposit > 0 LIMIT 1");
     $inv_stmt->bind_param("i", $app_id);
     $inv_stmt->execute();
     $inv_res = $inv_stmt->get_result();

@@ -39,8 +39,8 @@ if ($id > 0) {
         $stmt->execute();
         $stmt->close();
 
-        // Cancel any remaining pending invoices for this application
-        $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
+        // Cancel any remaining unpaid invoices for this application
+        $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'scheduled')");
         $cancel_inv->bind_param("i", $id);
         $cancel_inv->execute();
         $cancel_inv->close();

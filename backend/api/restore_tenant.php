@@ -43,8 +43,8 @@ if ($id > 0) {
 
     $conn->begin_transaction();
     try {
-        // 1. Restore rent application status to Approved
-        $upd_stmt = $conn->prepare("UPDATE rent_applications SET status = 'Approved', archive_date = NULL, archive_reason = NULL, archive_notes = NULL WHERE id = ?");
+        // 1. Restore rent application status to active
+        $upd_stmt = $conn->prepare("UPDATE rent_applications SET status = 'active', archive_date = NULL, archive_reason = NULL, archive_notes = NULL WHERE id = ?");
         $upd_stmt->bind_param("i", $id);
         $upd_stmt->execute();
         $upd_stmt->close();

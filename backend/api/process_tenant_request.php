@@ -47,7 +47,7 @@ try {
         if ($type === 'occupancy_request') {
             $new_occupants = (int) $notif['metadata_value']; 
             
-            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved' ORDER BY id DESC LIMIT 1");
+            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
             $appStmt->bind_param("i", $target_user_id);
             $appStmt->execute();
             $app_res = $appStmt->get_result()->fetch_assoc();
@@ -57,7 +57,7 @@ try {
             if ($app_res) {
                 $room_name = $app_res['room_name'];
                 $clean_room = strtoupper(trim(str_ireplace('Room', '', $room_name)));
-                $base_room_rent = in_array($clean_room, ['E', 'F']) ? 3500 : 4000;
+                $base_room_rent = in_array($clean_room, ['K', 'L', 'M', 'N']) ? 3500 : 4000;
                 $new_monthly_rent = $base_room_rent + ($new_occupants > 4 ? ($new_occupants - 4) * 1000 : 0);
 
                 $updateStmt = $conn->prepare("UPDATE rent_applications SET occupants = ?, monthly_rent = ? WHERE id = ?");
@@ -76,13 +76,13 @@ try {
         } else if ($type === 'lease_extension_request') {
             $add_months = (int) $notif['metadata_value'];
 
-            $updateStmt = $conn->prepare("UPDATE rent_applications SET months_of_rent = months_of_rent + ? WHERE user_id = ? AND status = 'Approved'");
+            $updateStmt = $conn->prepare("UPDATE rent_applications SET months_of_rent = months_of_rent + ? WHERE user_id = ? AND status IN ('Approved', 'active')");
             $updateStmt->bind_param("ii", $add_months, $target_user_id);
             $updateStmt->execute();
             $updateStmt->close();
             
             // Also update lease_contracts and rooms lease_end dates
-            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved'");
+            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active')");
             $appStmt->bind_param("i", $target_user_id);
             $appStmt->execute();
             $appRes = $appStmt->get_result();

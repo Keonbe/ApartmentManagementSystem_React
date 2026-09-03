@@ -95,13 +95,15 @@ if ($id > 0 && !empty($status)) {
                 $check_res = $check_inv->get_result();
                 if ($check_res->num_rows === 0) {
                     $invoice_id = 'INV-' . uniqid();
-                    $billing_period = date('F Y');
+                    $billing_period = date('Y-m'); // Must be YYYY-MM to fit VARCHAR(7)
                     $due_date = date('Y-m-d', strtotime('+7 days'));
-                    $total_amount = $monthly_rent * 2;
+                    $total_amount = $monthly_rent * 2; // 1st month + 1 month deposit
                     
                     $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
                     $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
-                    $inv_stmt->execute();
+                    if (!$inv_stmt->execute()) {
+                        throw new Exception("Failed to create move-in invoice: " . $inv_stmt->error);
+                    }
                     $inv_stmt->close();
                 }
                 $check_inv->close();
