@@ -13,12 +13,12 @@
 | :---: | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [x] | **Tenant Management**                   | [x] Tenant registration, [x] tenant profile, [x] ID/document upload, [x] occupancy records, [x] move-in/move-out tracking, [x] payment records                                                                                                                          |
 | [x] | **Apartment / Unit Management**         | [x] Room/unit availability, [x] set occupancy, [x] unit status monitoring, [x] occupancy tracking, [x] extended rent                                                                                                                                                  |
-| [x] | **Rental Payment & Billing**            | [x] Monthly billing, [x] payment recording, [x] payment history, [x] receipt generation, [x] balance monitoring, [ ] due-date reminders, [ ] extended rent, [x] term of payment, [x] security deposit, [x] base rent, [x] water, [x] electricity, [x] parking if applicable |
+| [x] | **Rental Payment & Billing**            | [x] Monthly billing, [x] payment recording, [x] payment history, [x] receipt generation, [x] balance monitoring, [x] due-date reminders, [ ] extended rent, [x] term of payment, [x] security deposit, [x] base rent, [x] water, [x] electricity, [x] parking if applicable |
 | [x] | **Payment Methods**                     | [x] GCash, [x] cash, [x] bank transfer                                                                                                                                                                                                                                  |
 | [x] | **Maintenance Management**              | [x] Issue type: plumbing, electrical, structural/physical, water supply, general repair, others; [x] problem description, [x] location, [x] priority level: low/medium/high/urgent, [x] photo upload, [x] status: pending/in progress/completed, [x] date and time reported, [x] date and time resolved |
 | [ ] | **Service Management**                  | [ ] Cleaning, [ ] laundry, [ ] other services                                                                                                                                                                                                                           |
 | [ ] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [ ] two-way chat (admin ↔ tenant messaging)                                                                                                                                                                            |
-| [ ] | **Notification / Automation**           | [ ] Rent due reminders, [ ] overdue alerts, [x] maintenance updates (in-app), [ ] SMS notifications, [ ] email notifications, [ ] automated reports, [ ] notification preferences                                                                                      |
+| [ ] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [ ] SMS notifications, [ ] email notifications, [ ] automated reports, [ ] notification preferences                                                                                      |
 | [ ] | **Inquiry & Reservation Management**    | [ ] Inquiry handling, [ ] reservation tracking, [x] room/unit availability tracking, [ ] reservation module                                                                                                                                                             |
 | [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [ ] slot assignment management, [ ] parking fee integration into billing                                                                                                                                            |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
@@ -352,8 +352,8 @@ flowchart TD
 - [x] **3.3 Payment History** ✅ — `get_invoices.php`
 - [x] **3.4 Receipt Generation** ✅ — Printable official receipts with admin signature placeholder
 - [x] **3.5 Balance Monitoring** ✅ — Status filter select and full balance tracking metrics & aging ledger
-- [ ] **3.6 Due Date Reminders** 📋 — Depends on notification module
-- [ ] **3.7 Overdue Alerts** 📋 — Depends on notification module
+- [x] **3.6 Due Date Reminders** ✅ — Automatic countdown alerts + `check_due_date_reminders.php` + manual admin dispatch
+- [x] **3.7 Overdue Alerts** ✅ — Auto-overdue status + `overdue` notification dispatch + banner in `PayBills.jsx`
 - [x] **3.8 Payment Proof Upload** ✅ — `upload_payment_proof.php`
 - [x] **3.9 Security Deposit Tracking** ✅ — Non-refundable deposit tracking applied to rent, bills, or damages
 - [ ] **3.10 Extended Rent Terms** 🔧 — Lease extension exists; billing adjustment pending
@@ -401,8 +401,8 @@ flowchart TD
 > Related Docs: [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md)
 
 - [x] **6.1 In-App Notifications** ✅ — Bell icon + notification center
-- [ ] **6.2 Rent Due Reminders** 📋 — Architecture designed
-- [ ] **6.3 Overdue Alerts** 📋 — Architecture designed
+- [x] **6.2 Rent Due Reminders** ✅ — Implemented via `check_due_date_reminders.php` and `send_payment_reminder.php`
+- [x] **6.3 Overdue Alerts** ✅ — Implemented with overdue status transitions & recurring in-app alerts
 - [ ] **6.4 Maintenance Status Updates** 🔧 — In-app works; external channels pending
 - [x] **6.5 Building Announcements** ✅ — `create_announcement.php`
 - [ ] **6.6 Email Notifications** 📋 — PHPMailer + Gmail SMTP designed
@@ -583,8 +583,8 @@ flowchart TD
 | 3.3 | **Payment History** | Tenant views their payment history; admin views all payments with filters by date, tenant, status | Small+ | `get_invoices.php` | — |
 | 3.4 | **Receipt Generation** | Generate printable/downloadable receipt after payment confirmation: invoice #, amount, date, method, admin signature | Small+ | React print/PDF component from invoice data | — |
 | 3.5 | **Balance Monitoring** | Dashboard showing: total receivables, overdue amounts, per-tenant balance summary | Small+ | `get_invoices.php` (filter by status: Pending) | — |
-| 3.6 | **Due Date Reminders** | Automatic in-app notification before rent due date (e.g., 3 days before). Optional SMS/email | Small+ | Notification trigger or cron job | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 3.7 | **Overdue Alerts** | Flag overdue invoices, notify tenant, escalate to admin dashboard. Optional late fee calculation | Small+ | Invoice status check + notification dispatch | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 3.6 | **Due Date Reminders** | Automatic in-app notification before rent due date (e.g., 3 days before). Optional SMS/email | Small+ | `check_due_date_reminders.php`, `send_payment_reminder.php`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 3.7 | **Overdue Alerts** | Flag overdue invoices, notify tenant, escalate to admin dashboard. Optional late fee calculation | Small+ | `check_due_date_reminders.php`, `AdminPayments.jsx`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 3.8 | **Payment Proof Upload** | Tenant uploads screenshot/photo of GCash/bank transfer receipt for admin verification | Small+ | `upload_payment_proof.php` | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
 | 3.9 | **Security Deposit Tracking** | Record deposit on move-in, track deductions (damages, unpaid rent), calculate refund on move-out | Medium | Deposit fields in `lease_contracts` or `invoices` | — |
 | 3.10 | **Extended Rent Terms** | Handle lease extension billing: prorated amounts, adjusted rates, updated payment schedule | Medium | `extend_lease.php` + new invoice generation | — |
@@ -662,8 +662,8 @@ flowchart TD
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
 | 6.1 | **In-App Notifications** | Bell icon with unread count; notification center listing all notifications with read/unread status | Small+ | `notifications` table, `get_notifications.php`, TopBar bell | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 6.2 | **Rent Due Reminders** | Automatic notification 3-5 days before rent due date: "Your rent for Unit H is due soon" | Small+ | Cron job or manual trigger → `send_notification.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 6.3 | **Overdue Alerts** | When invoice passes due date: "Your rent payment is overdue. Please settle immediately." | Small+ | Invoice status check → notification | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.2 | **Rent Due Reminders** | Automatic notification 3-5 days before rent due date: "Your rent for Unit H is due soon" | Small+ | `check_due_date_reminders.php`, `send_payment_reminder.php`, `AdminPayments.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.3 | **Overdue Alerts** | When invoice passes due date: "Your rent payment is overdue. Please settle immediately." | Small+ | `check_due_date_reminders.php`, `AdminPayments.jsx`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.4 | **Maintenance Status Updates** | When admin changes maintenance request status: "Your request REQ-003 is now In Progress" | Small+ | `process_tenant_request.php` triggers notification | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.5 | **Building Announcements** | Admin broadcasts to all tenants: building maintenance schedule, policy updates, emergency alerts | Small+ | `create_announcement.php` → creates notification per tenant | — |
 | 6.6 | **Email Notifications** | Send email via PHPMailer + Gmail SMTP for important events (payment receipt, lease expiry, announcements) | Small+ | `send_email.php`, PHPMailer + Gmail SMTP | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |

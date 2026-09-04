@@ -75,6 +75,21 @@ const AdminNotifications = () => {
     localStorage.setItem(`admin_notif_settings_${emailKey}`, JSON.stringify(settings));
   }, [settings, emailKey]);
 
+  const handleSaveSettings = async () => {
+    try {
+      await api.post('update_system_settings.php', {
+        rent_due_reminders_enabled: settings.rentDueEnabled ? 'true' : 'false',
+        rent_due_reminder_days: settings.rentDueDays || '3',
+        overdue_reminders_enabled: settings.overdueEnabled ? 'true' : 'false',
+        overdue_reminder_interval_days: settings.overdueDays || '3'
+      });
+      alert('Notification settings saved successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Notification settings saved to local session.');
+    }
+  };
+
   const filters = [
     { key: 'all', label: 'All' },
     { key: 'occupancy_request', label: 'Occupancy Requests' },
@@ -314,7 +329,7 @@ const AdminNotifications = () => {
                     </div>
                   </div>
 
-                  <button onClick={() => alert('Settings saved successfully!')} className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm">
+                  <button onClick={handleSaveSettings} className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm">
                     Save Settings
                   </button>
                 </div>

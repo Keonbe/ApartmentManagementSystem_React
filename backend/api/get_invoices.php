@@ -18,6 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $logged_user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
         $is_admin = verify_admin($conn, $admin_id);
 
+        // Auto-mark pending invoices whose due_date has passed as 'overdue'
+        $conn->query("UPDATE invoices SET status = 'overdue' WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < CURDATE()");
+
         $user_id_param = $_GET['userId'] ?? null;
         if ($user_id_param) {
             if (!$is_admin && $logged_user_id && (int)$user_id_param !== (int)$logged_user_id) {
@@ -93,7 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'billing_period' => $row['billing_period'] ?? null,
                 'scheduled_date' => $row['scheduled_date'] ?? null,
                 'scheduled_time_slot' => $row['scheduled_time_slot'] ?? null,
-                'payment_gateway' => $row['payment_gateway'] ?? null
+                'payment_gateway' => $row['payment_gateway'] ?? null,
+                'last_reminder_date' => $row['last_reminder_date'] ?? null,
+                'reminder_count' => (int)($row['reminder_count'] ?? 0)
             ];
         }
 

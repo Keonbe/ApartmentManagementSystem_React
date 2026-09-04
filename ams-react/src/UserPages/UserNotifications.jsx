@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBell, faSearch, faTimes, faCheckDouble, faTrash, faClock,
   faExclamationTriangle, faFileContract, faCheckCircle, faInfoCircle,
-  faCog, faToggleOn, faToggleOff, faCheck, faCircle, faWrench
+  faCog, faToggleOn, faToggleOff, faCheck, faCircle, faWrench, faArrowRight
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
@@ -17,9 +18,13 @@ const typeConfig = {
   info: { label: 'Info', icon: faInfoCircle, color: 'bg-blue-50 text-blue-500 border-blue-100', badge: 'bg-blue-100 text-blue-700' },
   maintenance_update: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-50 text-amber-500 border-amber-100', badge: 'bg-amber-100 text-amber-700' },
   application_update: { label: 'Application', icon: faFileContract, color: 'bg-indigo-50 text-indigo-500 border-indigo-100', badge: 'bg-indigo-100 text-indigo-700' },
+  rent_due: { label: 'Rent Due', icon: faClock, color: 'bg-blue-50 text-blue-600 border-blue-100', badge: 'bg-blue-100 text-blue-800' },
+  overdue: { label: 'Overdue Alert', icon: faExclamationTriangle, color: 'bg-rose-50 text-rose-600 border-rose-100', badge: 'bg-rose-100 text-rose-800' },
+  billing: { label: 'Billing', icon: faFileContract, color: 'bg-indigo-50 text-indigo-600 border-indigo-100', badge: 'bg-indigo-100 text-indigo-800' },
 };
 
 export default function UserNotifications() {
+  const navigate = useNavigate();
   const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
   const emailKey = loggedInUser.email_address || "default";
   const { t } = useLang();
@@ -112,6 +117,7 @@ export default function UserNotifications() {
       const matchesFilter = activeFilter === 'all' || 
                             (activeFilter === 'unread' && !n.read) ||
                             (activeFilter === 'read' && n.read) ||
+                            (activeFilter === 'rent_due' && ['rent_due', 'overdue', 'billing'].includes(n.type)) ||
                             (n.type === activeFilter);
       const matchesSearch = n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             n.message.toLowerCase().includes(searchQuery.toLowerCase());
@@ -124,7 +130,7 @@ export default function UserNotifications() {
   const filterTabs = [
     { key: 'all', label: t('notifications.tabAll') },
     { key: 'unread', label: t('notifications.tabUnread') },
-    { key: 'read', label: t('notifications.tabRead') },
+    { key: 'rent_due', label: 'Rent & Billing' },
     { key: 'warning', label: t('notifications.tabAlerts') },
     { key: 'success', label: t('notifications.tabUpdates') },
     { key: 'action', label: t('notifications.tabActionItems') },
@@ -257,6 +263,16 @@ export default function UserNotifications() {
                           <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">{n.time}</span>
                         </div>
                         <p className="text-xs text-slate-500 m-0 leading-relaxed mt-0.5">{n.message}</p>
+                        {['rent_due', 'overdue', 'billing'].includes(n.type) && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); navigate('/pay-bills'); }}
+                            className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer transition-colors"
+                          >
+                            <span>Pay Bill</span>
+                            <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
+                          </button>
+                        )}
                       </div>
 
                       {/* Action buttons - on mobile visible, on desktop hover */}

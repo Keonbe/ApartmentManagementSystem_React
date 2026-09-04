@@ -5,7 +5,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faUser, faCalendarAlt, 
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
-  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight, faShieldAlt, faEye, faExternalLinkAlt
+  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight, faShieldAlt, faEye, faExternalLinkAlt,
+  faBell, faClock
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
@@ -29,11 +30,53 @@ const AdminPayments = () => {
   const [activeTab, setActiveTab] = useState('billing');
   const [loading, setLoading] = useState(true);
   const [previewProof, setPreviewProof] = useState(null);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [batchSending, setBatchSending] = useState(false);
   
   useEffect(() => {
+    // Run automated reminder check silently in the background on load
+    api.get('/check_due_date_reminders.php').catch(() => {});
     fetchInvoices();
     fetchContracts();
   }, []);
+
+  const handleSendReminder = async (invoiceId) => {
+    if (!invoiceId) return;
+    setSendingReminder(true);
+    try {
+      const res = await api.post('/send_payment_reminder.php', { invoice_id: invoiceId });
+      if (res.data.success) {
+        alert(res.data.message || 'Payment reminder sent successfully!');
+        fetchInvoices();
+      } else {
+        alert(res.data.message || 'Failed to send reminder.');
+      }
+    } catch (err) {
+      console.error('Failed to send reminder:', err);
+      alert(err.response?.data?.message || 'Error sending payment reminder.');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
+  const handleBatchReminders = async () => {
+    if (!window.confirm('Send in-app due date reminders to all tenants with pending or overdue bills?')) return;
+    setBatchSending(true);
+    try {
+      const res = await api.post('/send_payment_reminder.php', { all: true });
+      if (res.data.success) {
+        alert(res.data.message || 'Batch reminders dispatched successfully!');
+        fetchInvoices();
+      } else {
+        alert(res.data.message || 'Failed to send batch reminders.');
+      }
+    } catch (err) {
+      console.error('Batch reminders error:', err);
+      alert(err.response?.data?.message || 'Error sending batch reminders.');
+    } finally {
+      setBatchSending(false);
+    }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -59,7 +102,9 @@ const AdminPayments = () => {
               history: [],
               settlements: [],
               outstandingBalance: 0,
-              pendingInvoiceId: null
+              pendingInvoiceId: null,
+              lastReminderDate: inv.last_reminder_date || null,
+              reminderCount: inv.reminder_count || 0
             };
           }
           
@@ -70,6 +115,9 @@ const AdminPayments = () => {
             t.dueDate = inv.due_date;
             t.scheduledDate = inv.scheduled_date;
             t.scheduledTimeSlot = inv.scheduled_time_slot;
+            t.billingPeriod = inv.billing_period;
+            t.lastReminderDate = inv.last_reminder_date;
+            t.reminderCount = inv.reminder_count;
             t.billing.baseRent = parseFloat(inv.base_rent || 0);
             t.billing.water = parseFloat(inv.water || 0);
             t.billing.electricity = parseFloat(inv.electricity || 0);
@@ -441,10 +489,24 @@ const handleMarkAsPaid = async () => {
               </div>
             </div>
             
-            {/* Due Date Indicator Bar */}
-            {dueWithin5DaysCount > 0 && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                <FontAwesomeIcon icon={faExclamationTriangle} /> <strong>{dueWithin5DaysCount}</strong> tenant(s) have payments due within the next 5 days.
+            {/* Due Date Indicator Bar with Batch Reminder Button */}
+            {(dueWithin5DaysCount > 0 || overdueCount > 0) && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600 text-base" />
+                  <span>
+                    <strong>{overdueCount}</strong> overdue account(s) and <strong>{dueWithin5DaysCount}</strong> bill(s) due within 5 days.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBatchReminders}
+                  disabled={batchSending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer border-0 shrink-0 self-start sm:self-auto disabled:opacity-50"
+                >
+                  <FontAwesomeIcon icon={faBell} />
+                  {batchSending ? 'Sending Reminders...' : 'Send Due Reminders to All'}
+                </button>
               </div>
             )}
 
@@ -568,11 +630,35 @@ const handleMarkAsPaid = async () => {
                 )}
 
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                  <div className="flex justify-between items-start mb-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                     <div>
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faFileAlt} className="text-indigo-600" /> Billing Details</h3>
                       <p className="text-sm text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
                     </div>
+
+                    {/* Due Date & Reminder Controls */}
+                    {activeTenant.status !== 'paid' && activeTenant.pendingInvoiceId && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {activeTenant.lastReminderDate ? (
+                          <span className="text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-medium border border-slate-200">
+                            Last Reminded: <strong className="text-slate-700">{new Date(activeTenant.lastReminderDate).toLocaleDateString()}</strong> {activeTenant.reminderCount > 1 ? `(${activeTenant.reminderCount}x)` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                            No reminders sent yet
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleSendReminder(activeTenant.pendingInvoiceId)}
+                          disabled={sendingReminder}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer transition-colors disabled:opacity-50"
+                        >
+                          <FontAwesomeIcon icon={faBell} />
+                          {sendingReminder ? 'Sending...' : 'Send Due Reminder'}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">

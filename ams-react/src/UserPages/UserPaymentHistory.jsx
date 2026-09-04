@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint } from '@fortawesome/free-solid-svg-icons';
+import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint, faArrowRight, faExclamationTriangle, faClock } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
 export default function UserPaymentHistory() {
+    const navigate = useNavigate();
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
     const { t } = useLang();
@@ -144,11 +146,23 @@ export default function UserPaymentHistory() {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="payment-history-actions flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
+                                        <div className="payment-history-actions flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
                                             {isPaid ? (
                                                 <span className="px-3 py-1 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">{t('paymentHistory.paid')}</span>
                                             ) : (
-                                                <span className="px-3 py-1 text-xs font-bold bg-amber-100 text-amber-700 rounded-full">{t('paymentHistory.unpaid')}</span>
+                                                <>
+                                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${inv.status === 'overdue' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>
+                                                        {inv.status === 'overdue' ? 'Overdue' : 'Unpaid'}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate('/pay-bills')}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg border-0 cursor-pointer transition-colors"
+                                                    >
+                                                        <span>Pay Now</span>
+                                                        <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
+                                                    </button>
+                                                </>
                                             )}
                                             
                                             {isPaid && (
