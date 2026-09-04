@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -33,11 +34,19 @@ const yearsList = [2024, 2025, 2026];
 const formatCurrency = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 const AdminReports = () => {
+  const location = useLocation();
   const [timeframe, setTimeframe] = useState('monthly'); // 'monthly' | 'quarterly' | 'yearly'
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // Current month
   const [selectedQuarter, setSelectedQuarter] = useState(Math.ceil((new Date().getMonth() + 1) / 3)); // Current quarter
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Current year
-  const [activeModule, setActiveModule] = useState('all'); // 'all', 'income', 'streams', 'occupancy', 'payments', 'maintenance', 'reservations', 'gaps'
+  const [activeModule, setActiveModule] = useState('all'); // 'all', 'income', 'streams', 'occupancy', 'payments', 'maintenance', 'reservations', 'gaps', 'utilities'
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab') === 'utilities') {
+      setActiveModule('utilities');
+    }
+  }, [location.search]);
 
   // Modal Invoice Generation States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -63,6 +72,7 @@ const AdminReports = () => {
   });
 
   const [data, setData] = useState(null);
+  const [utilityData, setUtilityData] = useState(null);
   const [trendPoints, setTrendPoints] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -161,6 +171,11 @@ const AdminReports = () => {
         });
 
         setTrendPoints(bd.trendPoints || []);
+      }
+      
+      const utilResponse = await api.get(`get_utilities_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`);
+      if (utilResponse.data.success) {
+        setUtilityData(utilResponse.data.data);
       }
     } catch (e) {
       console.error(e);
@@ -319,6 +334,18 @@ const AdminReports = () => {
       (data?.maintenance?.records || []).forEach(m => {
         csvContent += `"${m.id}","${m.unit}","${m.tenant}","${m.category}","${m.urgency}","${m.dateSubmitted}","${m.status}","${m.description}",${m.cost || 0}\r\n`;
       });
+    } else if (moduleType === 'utilities' || activeModule === 'utilities') {
+      csvContent += "Unit,Water (m3),Electricity (kWh),Total Utility Cost\r\n";
+      (utilityData?.topUnits || []).forEach(u => {
+        csvContent += `"${u.unit}",${u.waterM3},${u.electricKwh},${u.totalCost}\r\n`;
+      });
+      csvContent += `\r\n--- Utilities Summary ---\r\n`;
+      csvContent += `Total Water,${utilityData?.water?.totalM3} m3\r\n`;
+      csvContent += `Avg Water/Unit,${utilityData?.water?.avgM3} m3\r\n`;
+      csvContent += `Total Electricity,${utilityData?.electric?.totalKwh} kWh\r\n`;
+      csvContent += `Avg Electricity/Unit,${utilityData?.electric?.avgKwh} kWh\r\n`;
+      csvContent += `Total Utility Billed,${utilityData?.financials?.totalBilled}\r\n`;
+      csvContent += `Total Utility Collected,${utilityData?.financials?.totalCollected}\r\n`;
     } else {
       csvContent += "ID,Type,Name,Unit/Vehicle,Amount,Duration (Months),Date,Status\r\n";
       (data?.reservations?.roomList || []).forEach(r => {
@@ -510,6 +537,7 @@ const AdminReports = () => {
                   { id: 'payments', label: 'Payments & Bills', icon: faDollarSign },
                   { id: 'maintenance', label: 'Maintenance', icon: faWrench },
                   { id: 'reservations', label: 'Reservations', icon: faSquareParking },
+                  { id: 'utilities', label: 'Utilities Analytics', icon: faTint },
                   { id: 'gaps', label: 'Management Gaps', icon: faShieldAlt }
                 ].map(tab => (
                   <button
@@ -770,6 +798,51 @@ const AdminReports = () => {
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Parking Revenue</p>
                     <p className="text-xl font-bold text-emerald-600 m-0 mt-1">{formatCurrency(data.reservations.parkingRevenue)}</p>
                     <span className="text-[9px] text-slate-500 mt-2 block">Collected from vehicle permits</span>
+                  </div>
+                </>
+              )}
+
+              {/* Utilities Module Cards */}
+              {activeModule === 'utilities' && utilityData && (
+                <>
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><FontAwesomeIcon icon={faTint} /></div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Water Consumed</p>
+                        <p className="text-lg font-bold text-slate-800 m-0">{utilityData.water.totalM3} m³</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 flex items-center gap-1 w-fit">
+                      Avg: {utilityData.water.avgM3} m³ / unit • Billed: {formatCurrency(utilityData.water.totalBilled)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center"><FontAwesomeIcon icon={faBolt} /></div>
+                      <div>
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Electricity Consumed</p>
+                        <p className="text-lg font-bold text-slate-800 m-0">{utilityData.electric.totalKwh} kWh</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 flex items-center gap-1 w-fit">
+                      Avg: {utilityData.electric.avgKwh} kWh / unit • Billed: {formatCurrency(utilityData.electric.totalBilled)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Financial Recovery</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{utilityData.financials.recoveryRate}%</p>
+                    <span className={`text-[9px] font-semibold w-fit mt-2 block px-1.5 py-0.5 rounded ${utilityData.financials.recoveryRate >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      Collected {formatCurrency(utilityData.financials.totalCollected)} of {formatCurrency(utilityData.financials.totalBilled)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active Utility Units</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{utilityData.water.totalUnits}</p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Tracked active sub-meters</span>
                   </div>
                 </>
               )}
@@ -1703,6 +1776,50 @@ const AdminReports = () => {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Utilities Table / Top Rankings */}
+            {(activeModule === 'all' || activeModule === 'utilities') && utilityData && (
+              <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden print:border-slate-300 print:shadow-none print:break-inside-avoid mb-6">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white">
+                  <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2 m-0">
+                    <FontAwesomeIcon icon={faTint} className="text-blue-500" />
+                    Top Consuming Units Ranking
+                  </h3>
+                </div>
+                <div className="overflow-x-auto p-4">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-100/75 border-b border-slate-200">
+                      <tr className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="py-2.5 px-3">Unit</th>
+                        <th className="py-2.5 px-3">Water (m³)</th>
+                        <th className="py-2.5 px-3">Electricity (kWh)</th>
+                        <th className="py-2.5 px-3">Total Utility Cost</th>
+                        <th className="py-2.5 px-3 w-1/4">Relative Consumption</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {utilityData.topUnits.slice(0, activeModule === 'all' ? 5 : 20).map((u, idx) => (
+                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                          <td className="py-2.5 px-3 font-bold text-indigo-600">{u.unit}</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-700">{u.waterM3.toFixed(1)}</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-700">{u.electricKwh.toFixed(1)}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-900">{formatCurrency(u.totalCost)}</td>
+                          <td className="py-2.5 px-3">
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden flex">
+                              <div className="bg-blue-500 h-1.5" style={{ width: `${Math.min((u.waterM3 / (utilityData.water.avgM3 * 2 || 1)) * 100, 100) / 2}%` }}></div>
+                              <div className="bg-amber-500 h-1.5" style={{ width: `${Math.min((u.electricKwh / (utilityData.electric.avgKwh * 2 || 1)) * 100, 100) / 2}%` }}></div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {utilityData.topUnits.length === 0 && (
+                        <tr><td colSpan="5" className="text-center py-6 text-slate-400">No utility data found.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

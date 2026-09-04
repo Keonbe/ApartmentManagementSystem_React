@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faBolt, faTint, faPlus, faSync, faSearch, faCheckCircle, 
-  faExclamationTriangle, faFileInvoiceDollar, faClock,
-  faTimes, faCalendarAlt
+  faReceipt, faFileInvoiceDollar, faClock,
+  faTimes, faCalendarAlt, faChartLine
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 
@@ -18,6 +19,7 @@ function formatBillingPeriod(periodStr) {
 }
 
 export default function AdminUtilities() {
+  const navigate = useNavigate();
   const [readings, setReadings] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +34,7 @@ export default function AdminUtilities() {
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
+  const [syncTargetId, setSyncTargetId] = useState(null);
 
   // Hidden month picker ref for calendar dialog
   const monthInputRef = useRef(null);
@@ -148,20 +151,24 @@ export default function AdminUtilities() {
 
 
 
-  const handleSync = async (id) => {
-    if (!window.confirm("Sync this utility reading into the tenant's pending invoice?")) return;
+  const handleSync = async (id, mode, dueDate) => {
     setSyncingId(id);
     try {
-      const res = await api.post('/sync_utility_to_invoice.php', { id });
+      const payload = { id, sync_mode: mode };
+      if (mode === 'separate' && dueDate) {
+        payload.due_date = dueDate;
+      }
+      const res = await api.post('/sync_utility_to_invoice.php', payload);
       if (res?.data?.success) {
-        alert(res.data.message || "Synced to invoice successfully!");
+        alert(res.data.message || "Synced successfully!");
+        setSyncTargetId(null);
         reloadData();
       } else {
-        alert(res?.data?.message || "Failed to sync to invoice.");
+        alert(res?.data?.message || "Failed to sync.");
       }
     } catch (err) {
-      console.error("Sync invoice error:", err);
-      alert(err?.response?.data?.message || "Failed to sync utility to invoice.");
+      console.error("Sync error:", err);
+      alert(err?.response?.data?.message || "Failed to sync utility.");
     } finally {
       setSyncingId(null);
     }
@@ -169,21 +176,21 @@ export default function AdminUtilities() {
 
   // KPI Calculations
   const stats = useMemo(() => {
-    if (!Array.isArray(readings)) return { waterM3: '0.0', waterPHP: '0.00', elecKWh: '0.0', elecPHP: '0.00', pendingSyncCount: 0, spikeCount: 0 };
+    if (!Array.isArray(readings)) return { waterM3: '0.0', waterPHP: '0.00', elecKWh: '0.0', elecPHP: '0.00', totalUtilityPHP: '0.00', pendingSyncCount: 0 };
     const totalWaterM3 = readings.reduce((acc, r) => acc + (parseFloat(r.water_consumption) || 0), 0);
     const totalWaterPHP = readings.reduce((acc, r) => acc + (parseFloat(r.water_amount) || 0) + (parseFloat(r.water_other_fees) || 0), 0);
     const totalElecKWh = readings.reduce((acc, r) => acc + (parseFloat(r.electric_consumption) || 0), 0);
     const totalElecPHP = readings.reduce((acc, r) => acc + (parseFloat(r.electric_amount) || 0) + (parseFloat(r.electric_other_fees) || 0), 0);
+    const totalUtilityPHP = totalWaterPHP + totalElecPHP;
     const pendingSyncCount = readings.filter(r => !r.is_invoiced || r.is_invoiced == 0).length;
-    const spikeCount = readings.filter(r => r.has_spike).length;
 
     return {
       waterM3: totalWaterM3.toFixed(1),
-      waterPHP: totalWaterPHP.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+      waterPHP: totalWaterPHP.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       elecKWh: totalElecKWh.toFixed(1),
-      elecPHP: totalElecPHP.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-      pendingSyncCount,
-      spikeCount
+      elecPHP: totalElecPHP.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      totalUtilityPHP: totalUtilityPHP.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      pendingSyncCount
     };
   }, [readings]);
 
@@ -218,7 +225,6 @@ export default function AdminUtilities() {
       let matchStatus = true;
       if (statusFilter === 'pending') matchStatus = !r.is_invoiced || r.is_invoiced == 0;
       else if (statusFilter === 'invoiced') matchStatus = r.is_invoiced == 1;
-      else if (statusFilter === 'spike') matchStatus = !!r.has_spike;
 
       return matchSearch && matchRoom && matchPeriod && matchStatus;
     });
@@ -275,16 +281,15 @@ export default function AdminUtilities() {
                 </div>
               </div>
 
-              {/* Spikes Card */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500"></div>
-                <div className="w-12 h-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 text-xl">
-                  <FontAwesomeIcon icon={faExclamationTriangle} />
+              {/* Total Utility Card */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 text-xl">
+                  <FontAwesomeIcon icon={faReceipt} />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Usage Spikes (&gt;30%)</p>
-                  <p className="text-xl lg:text-2xl font-black text-rose-600 m-0 mt-0.5">{stats.spikeCount}</p>
-                  <p className="text-xs font-semibold text-slate-500 m-0 mt-0.5">Alerts flagged</p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Total Utility (₱)</p>
+                  <p className="text-xl lg:text-2xl font-black text-slate-800 m-0 mt-0.5">₱{stats.totalUtilityPHP}</p>
+                  <p className="text-xs font-semibold text-emerald-600 m-0 mt-0.5">Combined Billed</p>
                 </div>
               </div>
 
@@ -441,6 +446,15 @@ export default function AdminUtilities() {
                     <FontAwesomeIcon icon={faPlus} />
                     <span>Record Reading</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/admin-reports?tab=utilities')}
+                    className="flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-bold text-white transition-all shadow-sm hover:shadow-emerald-200 active:scale-[0.98] border-0 cursor-pointer ml-2"
+                  >
+                    <FontAwesomeIcon icon={faChartLine} />
+                    <span>View Analytics</span>
+                  </button>
                 </div>
 
               </div>
@@ -450,8 +464,7 @@ export default function AdminUtilities() {
                 {[
                   { key: 'all', label: 'All Records', count: readings.length },
                   { key: 'pending', label: 'Pending Sync', count: stats.pendingSyncCount },
-                  { key: 'invoiced', label: 'Invoiced', count: Math.max(0, readings.length - stats.pendingSyncCount) },
-                  { key: 'spike', label: 'Spike Alerts', count: stats.spikeCount }
+                  { key: 'invoiced', label: 'Invoiced', count: Math.max(0, readings.length - stats.pendingSyncCount) }
                 ].map(pill => (
                   <button
                     key={pill.key}
@@ -595,11 +608,6 @@ export default function AdminUtilities() {
                               <span className="text-xs font-extrabold text-slate-900 block">
                                 ₱{totalCost.toFixed(2)}
                               </span>
-                              {r.has_spike && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded mt-1" title="Usage is >30% higher than previous period!">
-                                  <FontAwesomeIcon icon={faExclamationTriangle} /> Spike Alert
-                                </span>
-                              )}
                             </td>
 
                             {/* Status */}
@@ -619,12 +627,12 @@ export default function AdminUtilities() {
                               {!isInvoiced ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleSync(r.id)}
+                                  onClick={() => setSyncTargetId(r.id)}
                                   disabled={syncingId === r.id}
                                   className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer border border-indigo-200 hover:border-indigo-600 disabled:opacity-50"
                                 >
                                   <FontAwesomeIcon icon={faSync} className={syncingId === r.id ? 'animate-spin' : ''} />
-                                  <span>Sync to Invoice</span>
+                                  <span>Sync Options</span>
                                 </button>
                               ) : (
                                 <span className="text-xs font-medium text-slate-400">Synced</span>
@@ -655,6 +663,99 @@ export default function AdminUtilities() {
         readings={readings}
       />
 
+      {/* Sync Options Modal */}
+      {syncTargetId && (
+        <SyncOptionsModal 
+          readingId={syncTargetId}
+          onClose={() => setSyncTargetId(null)}
+          onSync={handleSync}
+        />
+      )}
+
+    </div>
+  );
+}
+
+// Subcomponent: Sync Options Modal
+function SyncOptionsModal({ readingId, onClose, onSync }) {
+  const [syncMode, setSyncMode] = useState('merge');
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 10);
+    return d.toISOString().split('T')[0];
+  });
+
+  const maxDateStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 10);
+    return d.toISOString().split('T')[0];
+  }, []);
+  
+  const minDateStr = useMemo(() => {
+    return new Date().toISOString().split('T')[0];
+  }, []);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSync(readingId, syncMode, dueDate);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 className="font-bold text-slate-800 m-0 text-sm">Sync Utility to Invoice</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-lg">
+            <FontAwesomeIcon icon={faTimes} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="radio" name="syncMode" value="merge" checked={syncMode === 'merge'} onChange={() => setSyncMode('merge')} className="mt-1" />
+              <div>
+                <p className="font-bold text-slate-800 m-0 text-sm">Merge with Monthly Rent</p>
+                <p className="text-xs text-slate-500 m-0">Adds utility amount to the pending rent invoice.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="radio" name="syncMode" value="separate" checked={syncMode === 'separate'} onChange={() => setSyncMode('separate')} className="mt-1" />
+              <div>
+                <p className="font-bold text-slate-800 m-0 text-sm">Issue Separate Invoice</p>
+                <p className="text-xs text-slate-500 m-0">Generates a separate pending invoice only for this utility.</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="radio" name="syncMode" value="paid" checked={syncMode === 'paid'} onChange={() => setSyncMode('paid')} className="mt-1" />
+              <div>
+                <p className="font-bold text-slate-800 m-0 text-sm">Mark as Paid (Cash/Direct)</p>
+                <p className="text-xs text-slate-500 m-0">Marks utility as fully paid immediately via cash/direct.</p>
+              </div>
+            </label>
+          </div>
+
+          {syncMode === 'separate' && (
+            <div className="pt-2 border-t border-slate-100">
+              <label className="block text-xs font-bold text-slate-700 mb-1">Due Date</label>
+              <input 
+                type="date" 
+                value={dueDate} 
+                min={minDateStr}
+                max={maxDateStr}
+                onChange={e => setDueDate(e.target.value)} 
+                required 
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+              />
+              <p className="text-[10px] text-slate-500 mt-1">Due date cannot exceed 10 days from today.</p>
+            </div>
+          )}
+
+          <div className="pt-4 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg bg-transparent border-0 cursor-pointer">Cancel</button>
+            <button type="submit" className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm border-0 cursor-pointer">Confirm Sync</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
