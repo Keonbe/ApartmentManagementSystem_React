@@ -19,7 +19,7 @@
 | [ ] | **Service Management**                  | [ ] Cleaning, [ ] laundry, [ ] other services                                                                                                                                                                                                                           |
 | [ ] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [ ] two-way chat (admin ↔ tenant messaging)                                                                                                                                                                            |
 | [ ] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [ ] SMS notifications, [ ] email notifications, [ ] automated reports, [ ] notification preferences                                                                                      |
-| [ ] | **Inquiry & Reservation Management**    | [ ] Inquiry handling, [ ] reservation tracking, [x] room/unit availability tracking, [ ] reservation module                                                                                                                                                             |
+| [x] | **Inquiry & Reservation Management**    | [x] Inquiry handling, [x] reservation tracking, [x] room/unit availability tracking, [x] reservation module                                                                                                                                                             |
 | [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [ ] slot assignment management, [ ] parking fee integration into billing                                                                                                                                            |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
 | [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit                                                                                                                                                                                                   |
@@ -31,33 +31,78 @@
 
 ---
 
-## Contrast Table: Panelist vs. Chair Panel
+## Contrast Table: Panelist 3 vs. Chair Panel & Panel 2
 
-| **Panelist**                                           | **Chair Panel**                     |
-| ------------------------------------------------------ | ----------------------------------- |
-| Payment Tracking & Billing                             | Tenant Management Module            |
-| Communication Management                               | Apartment / Unit Management Module  |
-| Maintenance Management                                 | Rental Payment Module               |
-| Inquiry & Reservation                                  | Maintenance Management Module       |
-| Report Generation                                      | Service Management Module           |
-| Modular Services                                       | Notification Module                 |
-| Revenue Stream                                         | Admin Dashboard                     |
-| Utility Usage                                          | Payment: GCash, Cash, Bank Transfer |
-| Improve Tracking Reservation Module                    | SMS & Email Notification            |
-| **Parking Reservation Module**                         | **Contract Management**             |
-| **CCTV Access Request Module**                         | **Visitor Management**              |
-| Security Deposit                                       |                                     |
-| Tenant Management: Profile, Payments                   |                                     |
-| Apartment Unit Management: Availability, Occupancy     |                                     |
-| Financial Tracking: Rent, Utilities, Invoices          |                                     |
-| Communication Tools: Announcement, Request, Complaints |                                     |
-| Two-Way Chat: Admin ↔ Tenant Messaging                 |                                     |
-| Automation: Reminders, Notifications, Reports          |                                     |
-| Role-Based Access                                      |                                     |
-| Online Payment: GCash, Cash, Bank                      |                                     |
-| Visitor Management                                     |                                     |
-| SMS Notification                                       |                                     |
-| Contract Generation                                    |                                     |
+### Panelist 3 — Suggested Features
+
+| # | **Panelist 3 Feature / Module**                                    | **Mapped to Combined Scope**                          |
+| :-: | ------------------------------------------------------------------ | ----------------------------------------------------- |
+| 1 | Payment Tracking & Billing                                         | Module 3 — Rental Payment & Billing                   |
+| 2 | Communication Management                                           | Module 7 — Communication (Two-Way Chat)               |
+| 3 | Maintenance Management                                             | Module 4 — Maintenance Request                        |
+| 4 | Inquiry & Reservation                                              | Module 1.8 — Inquiry & Reservation Management         |
+| 5 | Report Generation                                                  | Module 8 — Admin Dashboard & Reports                  |
+| 6 | Modular Services                                                   | Module 5 — Service Management                         |
+| 7 | Revenue Stream                                                     | Module 8.3 — Revenue Stream Analysis                  |
+| 8 | Utility Usage                                                      | Utility Usage row — Module 8.7                        |
+| 9 | Improve Tracking Reservation Module                                | Module 1.8 — Reservation Tracking (enhanced)          |
+| 10 | Security Deposit                                                   | Module 3.9 — Security Deposit Tracking               |
+| 11 | Tenant Management (Profile, Payments)                              | Module 1 — Tenant Management                         |
+| 12 | Apartment Unit Management (Availability, Occupancy)                | Module 2 — Apartment / Unit Management               |
+| 13 | Financial Tracking (Rent, Utilities, Invoices)                     | Financial Tracking row — Modules 3 & 8               |
+| 14 | Communication Tools (Announcements, Requests, Complaints)          | Module 6.5 & Module 7.7 — Announcements & Complaints |
+| 15 | Automation (Reminders, Notifications, Reports)                     | Module 6 — Notification / Automation                 |
+| 16 | Role-Based Access                                                  | Module 11 — Security & Access Control                |
+| 17 | Online Payment → GCash, Cash, Bank                                 | Module 3.11 — Payment Methods                        |
+| 18 | Visitor Management                                                 | Module 12 — Visitor Management                       |
+| 19 | SMS Notification                                                   | Module 6.7 — SMS Notifications                       |
+| 20 | Contract Generation                                                | Module 9 — Contract & Document Generation            |
+
+---
+
+### Chair Panel & Panel 2 — Suggested Modules & Features
+
+| # | **Module**                         | **Features Suggested**                                                                                                                                                                                       | **Mapped to Combined Scope**                         |
+| :-: | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| 1 | Tenant Management Module           | Tenant Registration, Tenant Profile, ID/Document Upload, Occupancy Records, Move-In/Move-Out Tracking                                                                                                        | Module 1 — Tenant Management                        |
+| 2 | Apartment / Unit Management Module | Room/Unit Availability, Set Occupancy, Unit Status Monitoring, Occupancy Tracking, Extended Rent                                                                                                             | Module 2 — Apartment / Unit Management              |
+| 3 | Rental Payment Module              | Monthly Billing, Payment Recording, Payment History, Receipt Generation, Balance Monitoring, Due Date Reminders, Extended Rent, Term of Payment, Deposit, Base Rent, Water, Electricity, Parking if applies  | Module 3 — Rental Payment & Billing                 |
+| 4 | Maintenance Management Module      | Issue type (plumbing, electrical, structural/physical, water supply, general repair, others), problem description, location, priority level (low/medium/high/urgent), photo upload, status (pending/in progress/completed), date & time reported, date & time resolved | Module 4 — Maintenance Request |
+| 5 | Service Management Module          | Cleaning, Laundry, Others                                                                                                                                                                                    | Module 5 — Service Management                       |
+| 6 | Notification Module                | Rent due reminder, overdue alerts, maintenance updates, SMS/email notifications                                                                                                                              | Module 6 — Notification / Automation               |
+| 7 | Admin Dashboard                    | Occupancy statistics, income reports, tenant monitoring, maintenance monitoring, system activity logs, contract generation                                                                                    | Module 8 — Admin Dashboard & Reports + Module 9    |
+| 8 | Payment Methods                    | GCash, Cash, Bank Transfer                                                                                                                                                                                   | Module 3.11 — Payment Methods                       |
+| 9 | SMS & Email Notifications          | SMS and email notification delivery channels                                                                                                                                                                 | Module 6.6 & 6.7 — Email & SMS Notifications        |
+| 10 | Contract Management                | Auto-generated contracts on approval                                                                                                                                                                         | Module 9 — Contract & Document Generation           |
+| 11 | Visitor Management                 | Visitor records, pre-authorization by tenants, visitor history, overstay alerts                                                                                                                              | Module 12 — Visitor Management                      |
+
+---
+
+### Feature Alignment Summary — Panelist 3 vs. Chair Panel & Panel 2
+
+| **Panelist 3**                                             | **Chair Panel & Panel 2**                                  | **In Combined Scope?** |
+| ---------------------------------------------------------- | ---------------------------------------------------------- | :--------------------: |
+| Payment Tracking & Billing                                 | Rental Payment Module (billing, history, receipt, balance) | ✅ Module 3            |
+| Communication Management                                   | *(implicit — Admin Dashboard messaging)*                   | ✅ Module 7            |
+| Maintenance Management                                     | Maintenance Management Module                              | ✅ Module 4            |
+| Inquiry & Reservation / Improve Tracking Reservation       | *(not explicitly mentioned)*                               | ✅ Module 1.8          |
+| Report Generation                                          | Admin Dashboard (occupancy stats, income, logs)            | ✅ Module 8            |
+| Modular Services                                           | Service Management Module (cleaning, laundry, others)      | ✅ Module 5            |
+| Revenue Stream                                             | *(not explicitly mentioned)*                               | ✅ Module 8.3          |
+| Utility Usage                                              | *(not explicitly mentioned)*                               | ✅ Utility Usage row   |
+| Security Deposit                                           | Deposit (under Rental Payment Module)                      | ✅ Module 3.9          |
+| Tenant Management (Profile, Payments)                      | Tenant Management Module                                   | ✅ Module 1            |
+| Apartment Unit Management (Availability, Occupancy)        | Apartment / Unit Management Module                         | ✅ Module 2            |
+| Financial Tracking (Rent, Utilities, Invoices)             | Base Rent, Water, Electricity under Rental Payment         | ✅ Financial Tracking  |
+| Communication Tools (Announcements, Requests, Complaints)  | *(Notification Module covers announcements)*               | ✅ Module 6 & 7        |
+| Automation (Reminders, Notifications, Reports)             | Notification Module                                        | ✅ Module 6            |
+| Role-Based Access                                          | *(not explicitly mentioned)*                               | ✅ Module 11           |
+| Online Payment → GCash, Cash, Bank                         | Payment: GCash, Cash, Bank Transfer                        | ✅ Module 3.11         |
+| Visitor Management                                         | Visitor Management                                         | ✅ Module 12           |
+| SMS Notification                                           | SMS & Email Notifications                                  | ✅ Module 6.7          |
+| Contract Generation                                        | Contract Generation (under Admin Dashboard)                | ✅ Module 9            |
+| *(CCTV Access Request — unique to system)*                 | *(not mentioned)*                                          | ✅ Module 11.5         |
+| *(Parking Reservation — unique to system)*                 | *(not mentioned)*                                          | ✅ Module 10           |
 
 ---
 
@@ -322,7 +367,7 @@ flowchart TD
 - [x] **1.5 Move-In / Move-Out Tracking** ✅ — Tenant initiates, admin inspects and approves (`record_move_out.php`)
 - [x] **1.6 Application Processing Flow** ✅ — Pending → Approved/Rejected
 - [x] **1.7 Acceptance Criteria Enforcement** ✅ — Terms verified in application approval flow
-- [ ] **1.8 Inquiry Handling & Reservation Tracking** 📋 — Manage pre-application inquiries and unit reservations
+- [x] **1.8 Inquiry Handling & Reservation Tracking** ✅ — Public inquiry form (guest or prefilled), admin triage pipeline, and unit reservations that hold a room with an auto-expiring hold (`inquiries` + `unit_reservations` tables, `AdminInquiries.jsx`, `InquiryForm.jsx`)
 
 ---
 
@@ -493,7 +538,7 @@ flowchart TD
 
 | Module | Total Features | ✅ Done | 🔧 Partial | 📋 Designed | ❌ Not Started |
 |---|---|---|---|---|---|
-| 1. Tenant Management | 8 | 7 | 0 | 1 | 0 |
+| 1. Tenant Management | 8 | 8 | 0 | 0 | 0 |
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
 | 3. Payment & Billing | 12 | 9 | 1 | 2 | 0 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
@@ -505,7 +550,7 @@ flowchart TD
 | 10. Parking | 4 | 2 | 2 | 0 | 0 |
 | 11. Security & Access | 5 | 4 | 1 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **82** | **54** | **10** | **18** | **0** |
+| **TOTAL** | **82** | **55** | **10** | **17** | **0** |
 
 ### Core Functionality Coverage
 
@@ -514,7 +559,7 @@ flowchart TD
 | Payment Tracking & Billing | Module 3 (10 features) |
 | Communication Management | Module 7 (6 features) + Module 6 (8 features) |
 | Maintenance Request | Module 4 (10 features) |
-| Inquiry and Reservation | Module 1.6, Module 10, Module 11.5, Module 12 |
+| Inquiry and Reservation | Module 1.8 (inquiries + unit reservations), Module 10, Module 11.5, Module 12 |
 | Report Generation | Module 8 (8 features) |
 | Modular Services | Module 5 (4 features) + Module 12 (3 features) |
 
@@ -535,7 +580,7 @@ flowchart TD
 | 1.5 | **Move-In / Move-Out Tracking** | Record move-in date on approval, move-out with unit inspection notes, deposit refund status, archive tenant record | Small+ | `record_move_out.php`, `archive_tenant.php`, `restore_tenant.php` | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) |
 | 1.6 | **Application Processing Flow** | Status pipeline: Pending → Reviewed → Approved/Rejected. Admin sees pending applications, reviews documents, sets acceptance criteria | Small+ | `rent_application.php`, `get_applications.php` | — |
 | 1.7 | **Acceptance Criteria Enforcement** | Before approval: verify valid ID uploaded, confirm payment terms agreed (1 month advance + 1 month deposit + security deposit) | Medium | Terms stored in `lease_contracts` or `system_settings` | — |
-| 1.8 | **Inquiry Handling & Reservation Tracking** | Manage prospective tenant inquiries, track room reservations before full application, waitlist handling | Small+ | `inquiries` table, Reservation UI module | — |
+| 1.8 | **Inquiry Handling & Reservation Tracking** | Prospective tenants (guest or logged in) submit inquiries from `/preview` or `/home`; admin triages New → Contacted → Scheduled → Reserved → Converted/Closed, places an auto-expiring hold on a unit, and converts an inquiry into a rent application | Small+ | `inquiries` + `unit_reservations` tables, `submit_inquiry.php`, `get_inquiries.php`, `update_inquiry_status.php`, `create_reservation.php`, `update_reservation_status.php`, `expire_reservations.php`, `AdminInquiries.jsx`, `InquiryForm.jsx` | [inquiry_reservation_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/inquiry_reservation_design.md) |
 
 #### Acceptance Terms (Small/Medium Scale)
 
@@ -568,7 +613,7 @@ flowchart TD
 | **Vacant** | No tenant assigned, ready to rent | After move-out + inspection |
 | **Occupied** | Active tenant with valid lease | After application approval + payment |
 | **Under Maintenance** | Temporarily unavailable for occupancy | Admin sets during repairs |
-| **Reserved** | Approved application, awaiting move-in payment | After application approval, before payment |
+| **Reserved** | Held for a prospect from an inquiry; hidden from the public listing | Admin places a hold via `create_reservation.php`; auto-released when `hold_expires_at` passes |
 
 ---
 
@@ -768,3 +813,4 @@ flowchart TD
 | Notification Services | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) | SMS/email provider comparison, architecture, implementation plan |
 | Payment System Design | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) | Payment flow, GCash/bank/cash handling, proof upload |
 | Move-In / Move-Out | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) | Move-in/move-out lifecycle, inspection, archiving |
+| Inquiry & Reservation | [inquiry_reservation_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/inquiry_reservation_design.md) | Inquiry funnel, unit reservation holds, expiry, conflict checks |

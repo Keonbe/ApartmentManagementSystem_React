@@ -405,6 +405,84 @@ CREATE TABLE `visitor_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `inquiries`
+--
+-- Module 1.8. status: New -> Contacted -> Scheduled -> Reserved -> Converted / Closed
+-- room_name references rooms.id but is intentionally not an FK, so an inquiry
+-- can be filed without naming a specific unit.
+--
+
+CREATE TABLE IF NOT EXISTS `inquiries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `full_name` varchar(150) NOT NULL,
+  `email` varchar(150) NOT NULL,
+  `contact_no` varchar(30) NOT NULL,
+  `room_name` varchar(50) DEFAULT NULL,
+  `occupants` int(11) DEFAULT NULL,
+  `preferred_move_in` date DEFAULT NULL,
+  `message` text DEFAULT NULL,
+  `source` varchar(20) NOT NULL DEFAULT 'web',
+  `status` varchar(20) NOT NULL DEFAULT 'New',
+  `viewing_date` datetime DEFAULT NULL,
+  `admin_notes` text DEFAULT NULL,
+  `closed_reason` varchar(255) DEFAULT NULL,
+  `handled_by` int(11) DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_inquiry_status` (`status`),
+  KEY `idx_inquiry_room` (`room_name`),
+  KEY `fk_inquiry_user` (`user_id`),
+  CONSTRAINT `fk_inquiry_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `unit_reservations`
+--
+-- status: Active -> Converted / Expired / Cancelled
+-- "One Active hold per room" is enforced in create_reservation.php inside a
+-- transaction with SELECT ... FOR UPDATE (MySQL has no partial unique index).
+--
+
+CREATE TABLE IF NOT EXISTS `unit_reservations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `inquiry_id` int(11) DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `room_name` varchar(50) NOT NULL,
+  `reserved_for_name` varchar(150) NOT NULL,
+  `contact_no` varchar(30) DEFAULT NULL,
+  `email` varchar(150) DEFAULT NULL,
+  `hold_expires_at` date NOT NULL,
+  `reservation_fee` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `status` varchar(20) NOT NULL DEFAULT 'Active',
+  `notes` text DEFAULT NULL,
+  `released_at` datetime DEFAULT NULL,
+  `released_reason` varchar(255) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_res_status` (`status`),
+  KEY `idx_res_room` (`room_name`),
+  KEY `fk_res_inquiry` (`inquiry_id`),
+  KEY `fk_res_user` (`user_id`),
+  CONSTRAINT `fk_res_inquiry` FOREIGN KEY (`inquiry_id`) REFERENCES `inquiries` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_res_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Notifications columns relied on by the API but absent from the dump above.
+-- Every notification INSERT writes `status`; get_notifications.php filters on
+-- it. `metadata_value` is used by extend_lease / update_occupants /
+-- process_tenant_request.
+--
+
+ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `status` varchar(20) DEFAULT 'Pending';
+ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `metadata_value` varchar(255) DEFAULT NULL;
+
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
@@ -426,4 +504,5 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('payment_ch_bank_manual', '1'),
 ('payment_ch_in_person', '1'),
 ('visitor_overstay_hours', '24'),
-('service_visitor_management_active', 'true');
+('service_visitor_management_active', 'true'),
+('reservation_hold_days', '7');

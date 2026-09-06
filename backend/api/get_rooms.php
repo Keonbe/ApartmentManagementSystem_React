@@ -11,6 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once '../config.php';
 
+// Release lapsed unit reservations before listing, so a hold that expired
+// frees the unit for browsing visitors without needing an admin present.
+release_expired_reservations($conn);
+
 try {
     $stmt = $conn->prepare("SELECT * FROM rooms ORDER BY id");
     $stmt->execute();

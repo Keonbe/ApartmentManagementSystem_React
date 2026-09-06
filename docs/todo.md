@@ -51,9 +51,9 @@
 
 * [x] Lease extension via `extend_lease.php` from `MyRoom.jsx`.
 * [x] Admin can extend lease from `AdminUnits` detail modal.
-* [ ] Handle lease extension conflicts:
-  * When current tenant requests extension but room is already reserved.
-  * Backend should check for a pending `rent_application` for the same room.
+* [x] Handle lease extension conflicts:
+  * `create_reservation.php` rejects a hold when the room is not `vacant`, already has an `Active` reservation, or has a `Pending Review` rent application for the same room.
+* [x] Inquiry & reservation module — see [inquiry_reservation_design.md](features/inquiry_reservation_design.md).
 * [ ] Send lease expiration reminders:
   * Check lease end date on login; insert a notification if < 30 days remaining.
   * Display a reminder banner on `MyRoom.jsx` when lease is expiring soon.

@@ -41,6 +41,8 @@ if (!$is_admin) {
 // Ensure numeric values are converted properly
 if(isset($settings['minLeaseDuration'])) $settings['minLeaseDuration'] = (int)$settings['minLeaseDuration'];
 if(isset($settings['overdueThresholdDays'])) $settings['overdueThresholdDays'] = (int)$settings['overdueThresholdDays'];
+if(isset($settings['reservation_hold_days'])) $settings['reservation_hold_days'] = (int)$settings['reservation_hold_days'];
+if(isset($settings['reservationHoldDays'])) $settings['reservationHoldDays'] = (int)$settings['reservationHoldDays'];
 if(isset($settings['maintenanceMonthlyBudget'])) $settings['maintenanceMonthlyBudget'] = (float)$settings['maintenanceMonthlyBudget'];
 if(isset($settings['autoFlagEviction'])) $settings['autoFlagEviction'] = filter_var($settings['autoFlagEviction'], FILTER_VALIDATE_BOOLEAN);
 

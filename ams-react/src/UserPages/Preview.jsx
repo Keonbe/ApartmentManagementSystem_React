@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faEnvelopeOpenText } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/preview.responsive.css';
 
-export default function Preview({ onRentClick }) {
+export default function Preview({ onRentClick, onInquireClick }) {
     const [selectedRoomId, setSelectedRoomId] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [rooms, setRooms] = useState([]);
@@ -101,7 +101,7 @@ export default function Preview({ onRentClick }) {
                                             <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
                                             <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
                                         </div>
-                                        <div className="preview-room-card-actions grid grid-cols-2 gap-2 mt-4">
+                                        <div className="preview-room-card-actions grid grid-cols-3 gap-2 mt-4">
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenPreview(room.id)}
@@ -109,6 +109,14 @@ export default function Preview({ onRentClick }) {
                                             >
                                                 <FontAwesomeIcon icon={faEye} />
                                                 <span>{t('preview.viewLayout')}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onInquireClick(room.id)}
+                                                className="w-full bg-white hover:bg-slate-50 text-[#3b4276] border border-[#3b4276]/30 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5"
+                                            >
+                                                <FontAwesomeIcon icon={faEnvelopeOpenText} />
+                                                <span>{t('preview.inquire')}</span>
                                             </button>
                                             <button
                                                 onClick={() => onRentClick(room.id)}

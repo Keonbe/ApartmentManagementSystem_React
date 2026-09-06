@@ -10,6 +10,7 @@ import api from '../api/axiosConfig';
 const DEFAULTS = {
   minLeaseDuration: 3,             // months
   overdueThresholdDays: 15,        // days before eviction flag
+  reservationHoldDays: 7,          // days a unit reservation holds a room
   autoFlagEviction: true,          // auto-flag when threshold exceeded
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
@@ -36,6 +37,7 @@ export const getSystemSettings = async () => {
       return {
         minLeaseDuration: parseInt(dbSettings.min_lease_duration || dbSettings.minLeaseDuration || DEFAULTS.minLeaseDuration),
         overdueThresholdDays: parseInt(dbSettings.overdue_threshold_days || dbSettings.overdueThresholdDays || DEFAULTS.overdueThresholdDays),
+        reservationHoldDays: parseInt(dbSettings.reservation_hold_days || dbSettings.reservationHoldDays || DEFAULTS.reservationHoldDays),
         autoFlagEviction: (dbSettings.auto_flag_eviction === 1 || dbSettings.auto_flag_eviction === true || dbSettings.auto_flag_eviction === '1' || dbSettings.autoFlagEviction === true),
         maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || dbSettings.maintenanceMonthlyBudget || DEFAULTS.maintenanceMonthlyBudget),
         tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || dbSettings.tenantResponsibilityClause || DEFAULTS.tenantResponsibilityClause,
@@ -63,6 +65,7 @@ export const saveSystemSettings = async (settings) => {
     const payload = {
       min_lease_duration: settings.minLeaseDuration,
       overdue_threshold_days: settings.overdueThresholdDays,
+      reservation_hold_days: settings.reservationHoldDays,
       auto_flag_eviction: settings.autoFlagEviction ? 1 : 0,
       maintenance_monthly_budget: settings.maintenanceMonthlyBudget,
       tenant_responsibility_clause: settings.tenantResponsibilityClause,

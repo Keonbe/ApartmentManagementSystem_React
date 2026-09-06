@@ -88,6 +88,15 @@ if ($id > 0 && !empty($status)) {
                 $room_stmt->execute();
                 $room_stmt->close();
 
+                // Close out any active hold on this unit — the applicant has
+                // moved in, so the reservation has served its purpose.
+                $res_stmt = $conn->prepare("UPDATE unit_reservations SET status = 'Converted', released_at = NOW(), released_reason = 'Application approved' WHERE room_name = ? AND status = 'Active'");
+                if ($res_stmt) {
+                    $res_stmt->bind_param("s", $room_name);
+                    $res_stmt->execute();
+                    $res_stmt->close();
+                }
+
                 // Check if invoice already exists for this application
                 $check_inv = $conn->prepare("SELECT id FROM invoices WHERE rent_application_id = ?");
                 $check_inv->bind_param("i", $id);

@@ -317,6 +317,25 @@ const AdminAccountSettings = () => {
                         </div>
                         <p className="text-[11px] text-slate-400 m-0">Tenants cannot sign leases shorter than this duration.</p>
                       </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-400 text-xs" />
+                          Reservation Hold Period
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="1"
+                            max="90"
+                            value={settings.reservationHoldDays}
+                            onChange={(e) => updateSetting('reservationHoldDays', Number(e.target.value))}
+                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
+                          />
+                          <span className="text-sm text-slate-500">days</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0">Default number of days a reserved unit is held before the hold expires and the unit is released.</p>
+                      </div>
                     </div>
                   </div>
 

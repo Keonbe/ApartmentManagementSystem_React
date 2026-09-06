@@ -100,6 +100,7 @@ const AdminUnits = () => {
     all: units.length,
     occupied: units.filter(u => u.status === 'occupied').length,
     vacant: units.filter(u => u.status === 'vacant').length,
+    reserved: units.filter(u => u.status === 'reserved').length,
     repair: units.filter(u => u.status === 'repair').length,
   };
 
@@ -107,6 +108,7 @@ const AdminUnits = () => {
     { key: 'all', label: `All (${counts.all})` },
     { key: 'occupied', label: `Occupied (${counts.occupied})` },
     { key: 'vacant', label: `Vacant (${counts.vacant})` },
+    { key: 'reserved', label: `Reserved (${counts.reserved})` },
     { key: 'repair', label: `Under Repair (${counts.repair})` },
   ];
 
@@ -122,6 +124,7 @@ const AdminUnits = () => {
     const map = {
       occupied: { style: 'bg-emerald-100 text-emerald-800', label: '● Occupied' },
       vacant: { style: 'bg-amber-100 text-amber-800', label: '○ Vacant' },
+      reserved: { style: 'bg-violet-100 text-violet-800', label: '◐ Reserved' },
       repair: { style: 'bg-red-100 text-red-800', label: '✕ Under Repair' },
     };
     const { style, label } = map[status] || map.vacant;

@@ -8,6 +8,7 @@ import TopBar from './Components/TopBar';
 // User Pages
 import Home from './UserPages/Home';
 import Preview from './UserPages/Preview';
+import InquiryForm from './UserPages/InquiryForm';
 import Login from './UserPages/Login';
 import Registration from './UserPages/Registration';
 import ResetPassword from './UserPages/ResetPassword';
@@ -48,6 +49,7 @@ import AdminVisitors from './AdminPages/AdminVisitors';
 import AdminCctv from './AdminPages/AdminCctv';
 import AdminParking from './AdminPages/AdminParking';
 import AdminUtilities from './AdminPages/AdminUtilities';
+import AdminInquiries from './AdminPages/AdminInquiries';
 
 function ProtectedRoute({ children }) {
   const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
@@ -172,6 +174,11 @@ function AppContent() {
     checkRoomStatus();
   }, [location.pathname]);
 
+  // Inquiries are open to guests, so this needs no login gate — unlike renting.
+  const handleInquireTrigger = (roomId) => {
+    navigate('/inquire', { state: { selectedRoomId: roomId } });
+  };
+
   const handleRentActionTrigger = (roomId) => {
     const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
     
@@ -188,7 +195,8 @@ function AppContent() {
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
-        <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} /></BaseAppLayout>} />
+        <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} onInquireClick={handleInquireTrigger} /></BaseAppLayout>} />
+        <Route path="/inquire" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout>} />
         
         {/* SECURED TENANT DASHBOARDS */}
         <Route path="/services" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></TenantProtectedRoute>} />
@@ -216,6 +224,7 @@ function AppContent() {
 
         {/* ADMIN WORKSPACES */}
         <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+        <Route path="/admin-inquiries" element={<AdminProtectedRoute><AdminInquiries /></AdminProtectedRoute>} />
         <Route path="/admin-applications" element={<AdminProtectedRoute><AdminApplications /></AdminProtectedRoute>} />
         <Route path="/admin-units" element={<AdminProtectedRoute><AdminUnits /></AdminProtectedRoute>} />
         <Route path="/admin-tenants" element={<AdminProtectedRoute><AdminTenants /></AdminProtectedRoute>} />

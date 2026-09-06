@@ -4,7 +4,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
-  faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt
+  faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt,
+  faEnvelopeOpenText
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
@@ -14,6 +15,7 @@ const defaultNavSections = [
     title: 'Main',
     items: [
       { to: '/admin-dashboard', icon: faHome, label: 'Dashboard' },
+      { to: '/admin-inquiries', icon: faEnvelopeOpenText, label: 'Inquiries' },
       { to: '/admin-applications', icon: faFileAlt, label: 'Applications' },
       { to: '/admin-units', icon: faBuilding, label: 'Units' },
       { to: '/admin-tenants', icon: faUsers, label: 'Tenants' },
