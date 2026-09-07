@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock } from '@fortawesome/free-solid-svg-icons';
+import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-my-requests.responsive.css';
@@ -54,15 +54,18 @@ export default function UserMyRequests() {
             case 'Maintenance': return <FontAwesomeIcon icon={faTools} className="text-amber-500" />;
             case 'CCTV': return <FontAwesomeIcon icon={faVideo} className="text-blue-500" />;
             case 'Parking': return <FontAwesomeIcon icon={faCar} className="text-emerald-500" />;
+            case 'Service': return <FontAwesomeIcon icon={faBroom} className="text-indigo-500" />;
             default: return null;
         }
     };
 
     const getStatusBadge = (status) => {
-        const statusLabel = t(`status.${status.toLowerCase()}`) || status;
+        const statusLabel = t(`status.${status.toLowerCase().replace(/s+/g, '')}`) || status;
         switch (status) {
             case 'Pending':
                 return <span className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-700 rounded-full flex items-center gap-1"><FontAwesomeIcon icon={faClock} /> {statusLabel}</span>;
+            case 'In Progress':
+                return <span className="px-2.5 py-1 text-xs font-bold bg-indigo-100 text-indigo-700 rounded-full flex items-center gap-1"><FontAwesomeIcon icon={faSpinner} /> {statusLabel}</span>;
             case 'Approved':
             case 'Completed':
             case 'Resolved':
@@ -124,6 +127,11 @@ export default function UserMyRequests() {
                                             <h3 className="text-base font-bold text-slate-800 m-0">{req.title}</h3>
                                             {req.description && (
                                                 <p className="text-xs text-slate-600 m-0 mt-1 line-clamp-2">{req.description}</p>
+                                            )}
+                                            {req.total_cost !== null && req.total_cost !== undefined && (
+                                                <p className="text-xs font-bold text-indigo-600 m-0 mt-1">
+                                                    {t('myRequests.serviceCost')}: ₱{Number(req.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </p>
                                             )}
                                             {req.attachment_path && (
                                                 <div className="mt-2">

@@ -80,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'water' => $row['water'] ?? 0,
                 'electricity' => $row['electricity'] ?? 0,
                 'parking' => $row['parking'] ?? 0,
+                'services' => $row['services'] ?? 0,
                 'security_deposit' => $row['security_deposit'] ?? 0,
                 'late_fee' => 0.00, // Late fee should be managed via DB if implemented properly
                 'total_amount' => $row['total_amount'] ?? 0.00,

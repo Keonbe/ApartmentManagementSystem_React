@@ -82,6 +82,7 @@ $data = [
     'waterCollected' => 0,
     'electricCollected' => 0,
     'parkingCollected' => 0,
+    'servicesCollected' => 0,
     'depositCollected' => 0,
     'expenses' => 0,
     'totalMaintenance' => 0,
@@ -118,10 +119,11 @@ $stmt = $conn->prepare("SELECT
     SUM(base_rent) as rent, 
     SUM(water) as water, 
     SUM(electricity) as electric, 
-    SUM(parking) as parking, 
-    SUM(COALESCE(security_deposit, 0)) as deposit, 
-    SUM(total_amount) as total 
-FROM invoices 
+    SUM(parking) as parking,
+    SUM(COALESCE(services, 0)) as services,
+    SUM(COALESCE(security_deposit, 0)) as deposit,
+    SUM(total_amount) as total
+FROM invoices
 WHERE status = 'paid' AND $paidDateCondition");
 $stmt->execute();
 $res = $stmt->get_result();
@@ -131,6 +133,7 @@ if ($row = $res->fetch_assoc()) {
     $data['waterCollected'] = (float)($row['water'] ?? 0);
     $data['electricCollected'] = (float)($row['electric'] ?? 0);
     $data['parkingCollected'] = (float)($row['parking'] ?? 0);
+    $data['servicesCollected'] = (float)($row['services'] ?? 0);
     $data['depositCollected'] = (float)($row['deposit'] ?? 0);
     $grossRevenue = (float)($row['total'] ?? 0);
 }
@@ -141,6 +144,7 @@ $prevRent = 0.0;
 $prevWater = 0.0;
 $prevElectric = 0.0;
 $prevParking = 0.0;
+$prevServices = 0.0;
 $prevDeposit = 0.0;
 $prevGrossRevenue = 0.0;
 
@@ -148,10 +152,11 @@ $stmt = $conn->prepare("SELECT
     SUM(base_rent) as rent, 
     SUM(water) as water, 
     SUM(electricity) as electric, 
-    SUM(parking) as parking, 
-    SUM(COALESCE(security_deposit, 0)) as deposit, 
-    SUM(total_amount) as total 
-FROM invoices 
+    SUM(parking) as parking,
+    SUM(COALESCE(services, 0)) as services,
+    SUM(COALESCE(security_deposit, 0)) as deposit,
+    SUM(total_amount) as total
+FROM invoices
 WHERE status = 'paid' AND $prevPaidCondition");
 if ($stmt) {
     $stmt->execute();
@@ -161,6 +166,7 @@ if ($stmt) {
         $prevWater = (float)($row['water'] ?? 0);
         $prevElectric = (float)($row['electric'] ?? 0);
         $prevParking = (float)($row['parking'] ?? 0);
+        $prevServices = (float)($row['services'] ?? 0);
         $prevDeposit = (float)($row['deposit'] ?? 0);
         $prevGrossRevenue = (float)($row['total'] ?? 0);
     }
@@ -231,6 +237,7 @@ $data['incomeStatement'] = [
     'grossRevenue' => $grossRevenue,
     'rentalRevenue' => $data['rentCollected'] + $data['parkingCollected'],
     'utilityRevenue' => $data['waterCollected'] + $data['electricCollected'],
+    'serviceRevenue' => $data['servicesCollected'],
     'depositRevenue' => $data['depositCollected'],
     'maintenanceExpenses' => $actualMaintExpenses,
     'operatingOverhead' => $operatingOverhead,
@@ -288,6 +295,16 @@ $streams = [
         'icon' => 'faSquareParking'
     ],
     [
+        'id' => 'services',
+        'category' => 'Add-On Services',
+        'amount' => $data['servicesCollected'],
+        'pct' => $grossRevenue > 0 ? round(($data['servicesCollected'] / $grossRevenue) * 100, 1) : 0,
+        'prevAmount' => $prevServices,
+        'growthPct' => $prevServices > 0 ? round((($data['servicesCollected'] - $prevServices) / $prevServices) * 100, 1) : 0,
+        'color' => '#8b5cf6',
+        'icon' => 'faConciergeBell'
+    ],
+    [
         'id' => 'deposit',
         'category' => 'Security Deposits & Fees',
         'amount' => $data['depositCollected'],
@@ -304,7 +321,7 @@ $data['revenueStreams'] = $streams;
 $data['diversification'] = [
     'coreRentPct' => $grossRevenue > 0 ? round(($data['rentCollected'] / $grossRevenue) * 100, 1) : 0,
     'utilitiesPct' => $grossRevenue > 0 ? round((($data['waterCollected'] + $data['electricCollected']) / $grossRevenue) * 100, 1) : 0,
-    'ancillaryPct' => $grossRevenue > 0 ? round((($data['parkingCollected'] + $data['depositCollected']) / $grossRevenue) * 100, 1) : 0,
+    'ancillaryPct' => $grossRevenue > 0 ? round((($data['parkingCollected'] + $data['servicesCollected'] + $data['depositCollected']) / $grossRevenue) * 100, 1) : 0,
     'utilityRecoveryRatio' => ($data['waterCollected'] + $data['electricCollected']) > 0 ? 100 : 0
 ];
 
@@ -318,6 +335,7 @@ $stmt = $conn->prepare("SELECT
     SUM(i.water) as water_total,
     SUM(i.electricity) as electric_total,
     SUM(i.parking) as parking_total,
+    SUM(COALESCE(i.services, 0)) as services_total,
     SUM(COALESCE(i.security_deposit, 0)) as deposit_total,
     SUM(i.total_amount) as total_collected,
     COUNT(i.id) as invoice_count
@@ -340,6 +358,7 @@ if ($stmt) {
             'water' => (float)$row['water_total'],
             'electric' => (float)$row['electric_total'],
             'parking' => (float)$row['parking_total'],
+            'services' => (float)$row['services_total'],
             'deposit' => (float)$row['deposit_total'],
             'total' => $uTotal,
             'pct' => $grossRevenue > 0 ? round(($uTotal / $grossRevenue) * 100, 1) : 0,
@@ -400,6 +419,7 @@ for ($i = 5; $i >= 0; $i--) {
         SUM(electricity) as electric,
         SUM(water) as water,
         SUM(parking) as parking,
+        SUM(COALESCE(services, 0)) as services,
         SUM(COALESCE(security_deposit, 0)) as deposit,
         SUM(total_amount) as total
     FROM invoices 
@@ -412,10 +432,11 @@ for ($i = 5; $i >= 0; $i--) {
     $monthElectric = (float)($rev_res['electric'] ?? 0);
     $monthWater = (float)($rev_res['water'] ?? 0);
     $monthParking = (float)($rev_res['parking'] ?? 0);
+    $monthServices = (float)($rev_res['services'] ?? 0);
     $monthDeposit = (float)($rev_res['deposit'] ?? 0);
     $monthRevenue = (float)($rev_res['total'] ?? 0);
-    if ($monthRevenue == 0 && ($monthRent > 0 || $monthElectric > 0 || $monthWater > 0 || $monthParking > 0 || $monthDeposit > 0)) {
-        $monthRevenue = $monthRent + $monthElectric + $monthWater + $monthParking + $monthDeposit;
+    if ($monthRevenue == 0 && ($monthRent > 0 || $monthElectric > 0 || $monthWater > 0 || $monthParking > 0 || $monthServices > 0 || $monthDeposit > 0)) {
+        $monthRevenue = $monthRent + $monthElectric + $monthWater + $monthParking + $monthServices + $monthDeposit;
     }
     $rev_stmt->close();
     

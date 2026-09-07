@@ -483,6 +483,115 @@ CREATE TABLE IF NOT EXISTS `unit_reservations` (
 ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `status` varchar(20) DEFAULT 'Pending';
 ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `metadata_value` varchar(255) DEFAULT NULL;
 
+--
+-- Table structure for table `service_catalog`
+--
+-- Module 5.5. Admin-managed priced add-on services offered to tenants.
+-- category: cleaning | laundry | other -- must match the `service_<category>_active`
+--   system_settings keys, which gate the whole category in the tenant portal.
+-- pricing_unit: session | kg | hour | item -- drives whether the booking form asks
+--   for a quantity (kg/hour/item) or fixes it at 1 (session).
+-- is_active = 0 hides an item from the tenant catalog without deleting the
+--   historical service_requests rows that snapshot it.
+--
+
+CREATE TABLE IF NOT EXISTS `service_catalog` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `category` varchar(20) NOT NULL DEFAULT 'other',
+  `name` varchar(150) NOT NULL,
+  `description` text DEFAULT NULL,
+  `price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `pricing_unit` varchar(20) NOT NULL DEFAULT 'session',
+  `min_quantity` decimal(10,2) NOT NULL DEFAULT 1.00,
+  `max_quantity` decimal(10,2) DEFAULT NULL,
+  `lead_time_days` int(11) NOT NULL DEFAULT 1,
+  `icon` varchar(50) DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_service_cat_name` (`category`,`name`),
+  KEY `idx_service_active` (`is_active`),
+  KEY `idx_service_category` (`category`),
+  KEY `fk_service_creator` (`created_by`),
+  CONSTRAINT `fk_service_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `service_requests`
+--
+-- Module 5.5. status: Pending -> Approved -> In Progress -> Completed,
+--   plus Rejected / Cancelled. One-off bookings only (no recurring plans).
+-- service_name / category / unit_price / pricing_unit are SNAPSHOTTED at booking
+--   time so re-pricing the catalog never rewrites history; service_id is
+--   ON DELETE SET NULL for the same reason.
+-- total_cost = unit_price * quantity, computed in PHP at booking time.
+-- is_invoiced / invoice_id / billing_period mirror utility_readings.is_invoiced:
+--   post_service_charge() in config.php claims the row atomically with
+--   UPDATE service_requests SET is_invoiced = 1 WHERE id = ? AND is_invoiced = 0
+--   BEFORE touching invoices, so a double-click cannot double-bill.
+-- room_name references rooms.id but is intentionally not an FK, matching the
+--   convention used by inquiries / unit_reservations.
+--
+
+CREATE TABLE IF NOT EXISTS `service_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `service_id` int(11) DEFAULT NULL,
+  `room_name` varchar(50) DEFAULT NULL,
+  `service_name` varchar(150) NOT NULL,
+  `category` varchar(20) NOT NULL DEFAULT 'other',
+  `unit_price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `pricing_unit` varchar(20) NOT NULL DEFAULT 'session',
+  `quantity` decimal(10,2) NOT NULL DEFAULT 1.00,
+  `total_cost` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `preferred_date` date NOT NULL,
+  `preferred_time_slot` varchar(50) NOT NULL,
+  `notes` text DEFAULT NULL,
+  `attachment_path` varchar(255) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'Pending',
+  `admin_notes` text DEFAULT NULL,
+  `assigned_to` varchar(100) DEFAULT NULL,
+  `is_invoiced` tinyint(1) NOT NULL DEFAULT 0,
+  `invoice_id` varchar(50) DEFAULT NULL,
+  `billing_period` varchar(50) DEFAULT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  `cancelled_reason` varchar(255) DEFAULT NULL,
+  `handled_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_svcreq_status` (`status`),
+  KEY `idx_svcreq_date` (`preferred_date`),
+  KEY `idx_svcreq_invoiced` (`is_invoiced`),
+  KEY `idx_svcreq_invoice` (`invoice_id`),
+  KEY `fk_svcreq_user` (`user_id`),
+  KEY `fk_svcreq_service` (`service_id`),
+  CONSTRAINT `fk_svcreq_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_svcreq_service` FOREIGN KEY (`service_id`) REFERENCES `service_catalog` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Service charges roll into the tenant's monthly invoice the same way `parking`
+-- does, so they inherit due-date reminders and overdue flags from
+-- check_due_date_reminders.php for free. Unlike `water` / `electricity` (which
+-- sync_utility_to_invoice.php overwrites), `services` ACCUMULATES: several
+-- completed requests in the same billing period add into the one column.
+--
+
+ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `services` decimal(10,2) NOT NULL DEFAULT 0.00 AFTER `parking`;
+
+-- Seed catalog entries. Admin can re-price, deactivate or add more from /admin-services.
+INSERT IGNORE INTO `service_catalog`
+  (`category`, `name`, `description`, `price`, `pricing_unit`, `min_quantity`, `max_quantity`, `lead_time_days`, `icon`, `is_active`, `sort_order`) VALUES
+('cleaning', 'Standard Unit Cleaning', 'General sweeping, mopping, dusting and bathroom sanitation for a studio or one-bedroom unit.', 500.00, 'session', 1, 1, 1, 'faBroom', 1, 10),
+('cleaning', 'Deep Cleaning', 'Intensive scrubbing of kitchen, bathroom grout, appliances and hard-to-reach fixtures.', 1200.00, 'session', 1, 1, 2, 'faBroom', 1, 20),
+('laundry', 'Wash & Fold', 'Machine wash, dry and fold of regular garments, billed per kilogram.', 60.00, 'kg', 1, 20, 1, 'faTshirt', 1, 30),
+('laundry', 'Dry Cleaning', 'Professional dry cleaning for suits, gowns and delicate fabrics, billed per item.', 250.00, 'item', 1, 15, 2, 'faTshirt', 1, 40),
+('other', 'Pest Control Treatment', 'Scheduled unit-level pest control and follow-up inspection.', 900.00, 'session', 1, 1, 3, 'faConciergeBell', 1, 50);
+
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
@@ -505,4 +614,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('payment_ch_in_person', '1'),
 ('visitor_overstay_hours', '24'),
 ('service_visitor_management_active', 'true'),
+('service_cleaning_active', 'true'),
+('service_laundry_active', 'true'),
+('service_other_active', 'true'),
 ('reservation_hold_days', '7');

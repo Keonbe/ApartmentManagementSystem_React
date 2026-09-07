@@ -29,6 +29,8 @@ import UserAnnouncements from './UserPages/UserAnnouncements';
 import UserPaymentHistory from './UserPages/UserPaymentHistory';
 import UserVisitors from './UserPages/UserVisitors';
 import UserUtilities from './UserPages/UserUtilities';
+import ServiceBooking from './UserPages/ServiceBooking';
+import ServiceCatalog from './UserPages/ServiceCatalog';
 
 // Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -203,6 +205,8 @@ function AppContent() {
         <Route path="/pay-bills" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/parking-reservation" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/cctv-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/service-catalog" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceCatalog /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/service-booking" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceBooking /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/maintenance-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/track-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><TrackApplication /></BaseAppLayout></ProtectedRoute>} />

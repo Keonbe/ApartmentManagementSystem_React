@@ -16,7 +16,7 @@
 | [x] | **Rental Payment & Billing**            | [x] Monthly billing, [x] payment recording, [x] payment history, [x] receipt generation, [x] balance monitoring, [x] due-date reminders, [ ] extended rent, [x] term of payment, [x] security deposit, [x] base rent, [x] water, [x] electricity, [x] parking if applicable |
 | [x] | **Payment Methods**                     | [x] GCash, [x] cash, [x] bank transfer                                                                                                                                                                                                                                  |
 | [x] | **Maintenance Management**              | [x] Issue type: plumbing, electrical, structural/physical, water supply, general repair, others; [x] problem description, [x] location, [x] priority level: low/medium/high/urgent, [x] photo upload, [x] status: pending/in progress/completed, [x] date and time reported, [x] date and time resolved |
-| [ ] | **Service Management**                  | [ ] Cleaning, [ ] laundry, [ ] other services                                                                                                                                                                                                                           |
+| [x] | **Service Management**                  | [x] Cleaning, [x] laundry, [x] other services                                                                                                                                                                                                                           |
 | [ ] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [ ] two-way chat (admin ↔ tenant messaging)                                                                                                                                                                            |
 | [ ] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [ ] SMS notifications, [ ] email notifications, [ ] automated reports, [ ] notification preferences                                                                                      |
 | [x] | **Inquiry & Reservation Management**    | [x] Inquiry handling, [x] reservation tracking, [x] room/unit availability tracking, [x] reservation module                                                                                                                                                             |
@@ -434,8 +434,8 @@ flowchart TD
 - [ ] **5.1 Service Request Submission** 🔧 — `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php`
 - [ ] **5.2 Service Catalog & Modular Controls** 🔧 — `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked core Bill Payments
 - [ ] **5.3 Service Status Tracking** 🔧 — Per-service status views across admin pages
-- [ ] **5.4 Service Billing Integration** 🔧 — Parking & Maintenance billing integrated into `invoices`
-- [ ] **5.5 Cleaning & Laundry Services** 📋 — Modular add-on services for tenants
+- [x] **5.4 Service Billing Integration** ✅ — Completed add-on services post to `invoices.services` via `post_service_charge()`; parking & maintenance costs still tracked on their own tables
+- [x] **5.5 Cleaning & Laundry Services** ✅ — `service_catalog` + `service_requests` tables, `ServiceBooking.jsx`, catalog CRUD and booking queue on `AdminServicePage.jsx`, charges posted to `invoices.services`
 
 ---
 
@@ -542,7 +542,7 @@ flowchart TD
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
 | 3. Payment & Billing | 12 | 9 | 1 | 2 | 0 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
-| 5. Service Management | 5 | 0 | 4 | 1 | 0 |
+| 5. Service Management | 5 | 2 | 3 | 0 | 0 |
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
 | 8. Dashboard & Reports | 8 | 6 | 0 | 2 | 0 |
@@ -695,8 +695,8 @@ flowchart TD
 | 5.1 | **Service Request Submission** | Tenant requests add-on/special services (CCTV footage, Parking, Maintenance, Visitor check-in) | Small+ | `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 | 5.2 | **Service Catalog & Modular Controls** | Admin configures service catalog availability via dynamic system settings toggles; Core Bill Payments is locked always-on | Small+ | `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked Bill Payments | — |
 | 5.3 | **Service Status Tracking** | Pipeline: Pending → Approved/Active/Assigned/Completed. Dedicated status views per service | Small+ | `AdminServicePage.jsx`, `AdminCctv.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `AdminMaintainance.jsx` | — |
-| 5.4 | **Service Billing Integration** | Completed/assigned services link to tenant invoices (parking slot monthly fees & maintenance costs) | Medium | Parking & Maintenance billing integrated in `invoices` generation | — |
-| 5.5 | **Cleaning & Laundry Services** | Optional modular requests for cleaning, laundry, or other miscellaneous services from tenants | Medium | Modular expansion | — |
+| 5.4 | **Service Billing Integration** | Completing an add-on service posts its cost to the tenant invoice for the delivery month, accumulating in `invoices.services`. Reversible while the invoice is unpaid. | Medium | `post_service_charge()` / `reverse_service_charge()` in `config.php`, `update_service_status.php`, `sync_service_to_invoice.php` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
+| 5.5 | **Cleaning & Laundry Services** | Admin-managed priced catalog (cleaning / laundry / other) that tenants book with a date, time slot and quantity. Lifecycle: Pending → Approved → In Progress → Completed, plus Rejected / Cancelled. | Medium | `service_catalog` + `service_requests`, `get_service_catalog.php`, `manage_service_catalog.php`, `service_request.php`, `get_service_requests.php`, `update_service_status.php`, `ServiceBooking.jsx`, `ServiceCatalogModal.jsx` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
 
 ---
 

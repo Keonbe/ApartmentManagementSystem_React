@@ -34,7 +34,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $billing_period = trim($input['billingPeriod'] ?? date('Y-m'));
         $invoice_id = !empty($input['invoiceNumber']) ? trim($input['invoiceNumber']) : ('INV-' . date('Ym') . '-' . rand(1000, 9999));
 
-        $total_amount = $base_rent + $water + $electricity + $parking + $late_fee;
+        // Re-issuing an existing invoice must not drop service charges already
+        // posted onto it by post_service_charge(), since the UPDATE below
+        // rewrites total_amount wholesale.
+        $existing_services = 0.00;
+        $svc_lookup = $conn->prepare("SELECT services FROM invoices WHERE id = ?");
+        $svc_lookup->bind_param("s", $invoice_id);
+        $svc_lookup->execute();
+        if ($svc_row = $svc_lookup->get_result()->fetch_assoc()) {
+            $existing_services = (float)$svc_row['services'];
+        }
+        $svc_lookup->close();
+
+        $total_amount = $base_rent + $water + $electricity + $parking + $late_fee + $existing_services;
 
         // If user_id wasn't provided directly, look it up by unit / active application
         $rent_app_id = !empty($input['appId']) ? (int)$input['appId'] : null;

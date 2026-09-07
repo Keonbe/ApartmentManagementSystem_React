@@ -90,7 +90,8 @@ $electric_total = $reading['electric_amount'] + $reading['electric_other_fees'];
 if ($sync_mode === 'merge') {
     // Original merge logic
     // Find pending invoice for this user and billing period
-    $inv_query = "SELECT id, base_rent, parking, security_deposit FROM invoices WHERE user_id = ? AND billing_period = ? AND status = 'pending' LIMIT 1";
+    // `services` is carried through so a posted service charge survives this recompute
+    $inv_query = "SELECT id, base_rent, parking, security_deposit, services FROM invoices WHERE user_id = ? AND billing_period = ? AND status = 'pending' LIMIT 1";
     $stmt = $conn->prepare($inv_query);
     $stmt->bind_param("is", $reading['user_id'], $reading['billing_period']);
     $stmt->execute();
@@ -140,11 +141,12 @@ if ($sync_mode === 'merge') {
             'id' => $inv_id,
             'base_rent' => $base_rent,
             'parking' => $parking,
-            'security_deposit' => $sec_dep
+            'security_deposit' => $sec_dep,
+            'services' => 0.00
         ];
     }
 
-    $new_total = $invoice['base_rent'] + $invoice['parking'] + $invoice['security_deposit'] + $water_total + $electric_total;
+    $new_total = $invoice['base_rent'] + $invoice['parking'] + $invoice['security_deposit'] + $invoice['services'] + $water_total + $electric_total;
     $update_inv = "UPDATE invoices SET water = ?, electricity = ?, total_amount = ? WHERE id = ?";
     $stmt = $conn->prepare($update_inv);
     $stmt->bind_param("ddds", $water_total, $electric_total, $new_total, $invoice['id']);

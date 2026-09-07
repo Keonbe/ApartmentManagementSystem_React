@@ -7,7 +7,7 @@ import {
   faDownload, faFileInvoiceDollar, faChartBar, faChartLine, faBuilding,
   faDollarSign, faExclamationTriangle, faTimes, faUser, faCalendarAlt,
   faBolt, faTint, faCheckCircle, faClock, faPrint, faArrowUp, faArrowDown,
-  faWrench, faSquareParking, faChevronRight, faUserFriends, faClipboardList,
+  faWrench, faSquareParking, faChevronRight, faUserFriends, faClipboardList, faConciergeBell,
   faFilePdf, faCalendarCheck, faCheck, faTools, faSlidersH, faInfoCircle,
   faShieldAlt, faGavel, faHandshake, faFileUpload, faLayerGroup, faReceipt,
   faChartPie, faSave, faSpinner, faArrowLeft
@@ -137,7 +137,8 @@ const AdminReports = () => {
             { id: 'rent', category: 'Base Room Rent', amount: bd.rentCollected || 0, pct: 75, prevAmount: 0, growthPct: 0, color: '#6366f1', icon: 'faBuilding' },
             { id: 'electric', category: 'Electricity Utility', amount: bd.electricCollected || 0, pct: 12, prevAmount: 0, growthPct: 0, color: '#f59e0b', icon: 'faBolt' },
             { id: 'water', category: 'Water Utility', amount: bd.waterCollected || 0, pct: 6, prevAmount: 0, growthPct: 0, color: '#3b82f6', icon: 'faTint' },
-            { id: 'parking', category: 'Parking Space', amount: bd.parkingCollected || 0, pct: 7, prevAmount: 0, growthPct: 0, color: '#ec4899', icon: 'faSquareParking' }
+            { id: 'parking', category: 'Parking Space', amount: bd.parkingCollected || 0, pct: 7, prevAmount: 0, growthPct: 0, color: '#ec4899', icon: 'faSquareParking' },
+            { id: 'services', category: 'Add-On Services', amount: bd.servicesCollected || 0, pct: 0, prevAmount: 0, growthPct: 0, color: '#8b5cf6', icon: 'faConciergeBell' }
           ],
           unitIncome: bd.unitIncome || [],
           diversification: bd.diversification || {
@@ -301,13 +302,14 @@ const AdminReports = () => {
     let csvContent = "";
     
     if (moduleType === 'income' || activeModule === 'income') {
-      csvContent += "Unit,Room Type,Floor,Base Rent,Water,Electricity,Parking,Deposits,Total Collected,% Gross Contribution,Invoices Count\r\n";
+      csvContent += "Unit,Room Type,Floor,Base Rent,Water,Electricity,Services,Parking,Deposits,Total Collected,% Gross Contribution,Invoices Count\r\n";
       (data?.unitIncome || []).forEach(u => {
-        csvContent += `"${u.unit}","${u.roomType || 'Standard'}",${u.floor || 1},${u.rent || 0},${u.water || 0},${u.electric || 0},${u.parking || 0},${u.deposit || 0},${u.total || 0},"${u.pct || 0}%",${u.invoicesCount || 0}\r\n`;
+        csvContent += `"${u.unit}","${u.roomType || 'Standard'}",${u.floor || 1},${u.rent || 0},${u.water || 0},${u.electric || 0},${u.services || 0},${u.parking || 0},${u.deposit || 0},${u.total || 0},"${u.pct || 0}%",${u.invoicesCount || 0}\r\n`;
       });
       csvContent += "\r\n--- Income Statement Summary ---\r\n";
       csvContent += `Gross Revenue,${data?.incomeStatement?.grossRevenue || 0}\r\n`;
       csvContent += `Rental Revenue,${data?.incomeStatement?.rentalRevenue || 0}\r\n`;
+      csvContent += `Add-On Service Revenue,${data?.incomeStatement?.serviceRevenue || 0}\r\n`;
       csvContent += `Utility Recovery,${data?.incomeStatement?.utilityRevenue || 0}\r\n`;
       csvContent += `Operating Expenses,${data?.incomeStatement?.operatingExpenses || 0}\r\n`;
       csvContent += `Net Operating Income,${data?.incomeStatement?.netOperatingIncome || 0}\r\n`;
@@ -969,6 +971,7 @@ const AdminReports = () => {
                             <th className="py-3 px-4 text-right">Rent</th>
                             <th className="py-3 px-4 text-right">Water</th>
                             <th className="py-3 px-4 text-right">Electricity</th>
+                            <th className="py-3 px-4 text-right">Services</th>
                             <th className="py-3 px-4 text-right">Parking / Dep</th>
                             <th className="py-3 px-4 text-right font-extrabold text-indigo-900">Total Income</th>
                             <th className="py-3 px-4 text-center">% Share</th>
@@ -985,6 +988,7 @@ const AdminReports = () => {
                               <td className="py-3 px-4 text-right text-slate-700 font-semibold">{formatCurrency(u.rent)}</td>
                               <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.water)}</td>
                               <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.electric)}</td>
+                              <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.services || 0)}</td>
                               <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.parking + u.deposit)}</td>
                               <td className="py-3 px-4 text-right font-extrabold text-emerald-600">{formatCurrency(u.total)}</td>
                               <td className="py-3 px-4 text-center">
@@ -1165,7 +1169,7 @@ const AdminReports = () => {
                             <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                               <td className="py-3 px-4 font-semibold text-slate-800 flex items-center gap-2.5">
                                 <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px]" style={{ backgroundColor: s.color }}>
-                                  <FontAwesomeIcon icon={s.id === 'rent' ? faBuilding : s.id === 'electric' ? faBolt : s.id === 'water' ? faTint : s.id === 'parking' ? faSquareParking : faShieldAlt} />
+                                  <FontAwesomeIcon icon={s.id === 'rent' ? faBuilding : s.id === 'electric' ? faBolt : s.id === 'water' ? faTint : s.id === 'parking' ? faSquareParking : s.id === 'services' ? faConciergeBell : faShieldAlt} />
                                 </div>
                                 {s.category}
                               </td>

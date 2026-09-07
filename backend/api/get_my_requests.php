@@ -19,15 +19,22 @@ if (!$user_id) {
 }
 
 $requests = [];
-$query = "(SELECT id, 'Maintenance' as type, issue_category as title, status, created_at, resolved_at, attachment_path, description FROM maintenance_requests WHERE user_id = ?)
+// Column names below must match the schema in migrations/SetupDB.sql exactly:
+// maintenance_requests has no resolved_at, cctv_requests stores the reason in
+// reason_request, and parking_reservations stores the OR/CR in document_path.
+// total_cost is NULL for the three request types that carry no fee, so every
+// branch projects the same column list.
+$query = "(SELECT id, 'Maintenance' as type, issue_category as title, status, created_at, NULL as resolved_at, attachment_path, description, NULL as total_cost FROM maintenance_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'CCTV' as type, location_details as title, status, created_at, NULL as resolved_at, NULL as attachment_path, reason as description FROM cctv_requests WHERE user_id = ?)
+          (SELECT id, 'CCTV' as type, location_details as title, status, created_at, NULL as resolved_at, NULL as attachment_path, reason_request as description, NULL as total_cost FROM cctv_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'Parking' as type, vehicle_type as title, status, created_at, NULL as resolved_at, or_cr_attachment_path as attachment_path, vehicle_model as description FROM parking_reservations WHERE user_id = ?)
+          (SELECT id, 'Parking' as type, vehicle_type as title, status, created_at, NULL as resolved_at, document_path as attachment_path, vehicle_model as description, NULL as total_cost FROM parking_reservations WHERE user_id = ?)
+          UNION ALL
+          (SELECT id, 'Service' as type, service_name as title, status, created_at, completed_at as resolved_at, attachment_path, notes as description, total_cost FROM service_requests WHERE user_id = ?)
           ORDER BY created_at DESC";
 
 $stmt = $conn->prepare($query);
-$stmt->bind_param("iii", $user_id, $user_id, $user_id);
+$stmt->bind_param("iiii", $user_id, $user_id, $user_id, $user_id);
 $stmt->execute();
 $res = $stmt->get_result();
 

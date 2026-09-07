@@ -461,13 +461,38 @@ Partially implemented. CCTV and parking admin views wired. Cleaning/laundry serv
 
 ---
 
-### 5.4 Cleaning and Laundry Services (Planned)
+### 5.4 Cleaning and Laundry Services (Implemented)
 
-Not yet built. Modular add-on services; UI and backend not implemented.
+Admin-managed catalog of priced add-on services in three categories: cleaning,
+laundry and other. Admin creates, re-prices, activates or removes catalog entries
+from the Service Catalog section of `/admin-services`. Each entry carries a price
+and a pricing unit (session, kg, hour or item), a quantity range, and a lead time.
+
+Tenants book from `/services` → `/service-booking`, choosing a date, time slot,
+quantity and an optional reference photo. Bookings move through
+Pending → Approved → In Progress → Completed (plus Rejected / Cancelled) from the
+Service Bookings tab on `/admin-services`.
+
+Marking a booking Completed posts its cost to the tenant invoice for the month of
+delivery, accumulating in `invoices.services`. Because the charge lives on a real
+invoice it inherits due-date reminders, overdue flags and revenue reporting.
+Charges can be reversed while that invoice is still unpaid.
+
+A service is bookable only when both its category toggle
+(`service_<category>_active`) and its own `is_active` flag are on.
+
+See `docs/features/service_management_design.md`.
 
 ### Acceptance Criteria
 - CCTV and parking status changes persist to DB and survive page refresh
 - Service toggles persist to `system_settings` and immediately affect tenant portal visibility
+- Catalog entries can be created, re-priced, deactivated and removed; removal soft-deletes when bookings reference the entry
+- Booking price is re-derived server-side from the catalog; a forged client price is ignored
+- Bookings inside a service lead time are rejected
+- Completing a booking adds its cost to `invoices.services` exactly once, even if the request is replayed
+- Multiple completed bookings in one month accumulate on a single invoice
+- Completing with no active lease leaves the booking unbilled and retryable, never partially billed
+- Reversal is refused once the invoice is paid, and the status change is refused with it
 
 ---
 
@@ -917,11 +942,13 @@ Fully implemented and DB-backed.
 | `users` | Auth and profile | `id`, `email_address` (UNIQUE), `password` (bcrypt), `role`, `avatar_url`, `is_archived` |
 | `rent_applications` | Tenant lifecycle | `user_id` FK (nullable), `room_name` string ref to `rooms.id`, `status`, `rejection_reason`, `archive_*`, `requested_move_out_date` |
 | `rooms` | Unit inventory | `id` (varchar letter-coded), `status`, `room_condition`, `furnishing_status`, `last_inspection_date`, `maintenance_flag` |
-| `invoices` | Billing records | `id` (varchar `INV-...`), `user_id` FK, `rent_application_id` FK, `payment_reference`, `proof_of_payment_path`, `sender_name`, `status` (`pending`, `paid`, `overdue`, `pending-verification`), `late_fee` |
+| `invoices` | Billing records | `id` (varchar `INV-...`), `user_id` FK, `rent_application_id` FK, `payment_reference`, `proof_of_payment_path`, `sender_name`, `status` (`pending`, `paid`, `overdue`, `pending-verification`), `late_fee`, `services` (add-on charges; accumulates, unlike `water`/`electricity` which are overwritten) |
 | `lease_contracts` | Signed lease storage | `id` (varchar `LC-...`), `rent_application_id` FK, `deposit_status`, `damage_deduction`, `utility_deduction`, `refund_amount`, `refund_date`, `signed_lease_path`, `notarized_lease_path` |
 | `maintenance_requests` | Repair tickets | `assigned_to`, `estimated_cost`, `work_notes`, `tenant_responsible`, `permission_to_enter`, `attachment_path` — all columns present in production schema |
 | `cctv_requests` | CCTV footage requests | `user_id` FK nullable, `incident_date`, `incident_time`, `location_details`, `reason_request`, `status` |
 | `parking_reservations` | Parking slots | `user_id` FK nullable, `vehicle_type`, `vehicle_model`, `plate_number`, `status` (`Pending`, `Assigned`, `Rejected`, `Cancelled`), `document_path` |
+| `service_catalog` | Priced add-on services | `category` (`cleaning`, `laundry`, `other`), `name`, `price`, `pricing_unit` (`session`, `kg`, `hour`, `item`), `min_quantity`/`max_quantity`, `lead_time_days`, `is_active`, `sort_order` |
+| `service_requests` | Add-on service bookings | `user_id` FK, `service_id` FK (`ON DELETE SET NULL`), snapshotted `service_name`/`category`/`unit_price`/`pricing_unit`, `quantity`, `total_cost`, `preferred_date`, `preferred_time_slot`, `status` (`Pending`, `Approved`, `In Progress`, `Completed`, `Rejected`, `Cancelled`), `is_invoiced`/`invoice_id`/`billing_period` |
 | `announcements` | Broadcasts | `tag`, `channels` (JSON as longtext), `status`, `scheduled_date`, `recipient_count` |
 | `notifications` | In-app alerts | `user_id` FK NOT NULL, `type` (`info`, `success`, `warning`, `action`), `is_read` |
 | `activity_logs` | Admin audit trail | `category`, `action`, `details`, `performed_by` FK nullable |
@@ -938,7 +965,7 @@ Fully implemented and DB-backed.
 | 2. Unit Management | 7 | 7 | 0 | 0 | 7 |
 | 3. Payment & Billing | 12 | 10 | 1 | 1 | 12 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 10 |
-| 5. Service Management | 5 | 0 | 4 | 1 | 5 |
+| 5. Service Management | 5 | 2 | 3 | 0 | 5 |
 | 6. Notification | 8 | 5 | 1 | 2 | 8 |
 | 7. Communication (Chat) | 7 | 0 | 0 | 7 | 7 |
 | 8. Dashboard & Reports | 8 | 7 | 0 | 1 | 8 |

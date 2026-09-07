@@ -77,6 +77,170 @@ function release_expired_reservations($conn) {
     return $released;
 }
 
+// Posts a completed service request's cost onto the tenant's invoice for the
+// current billing period, mirroring how sync_utility_to_invoice.php merges
+// utility amounts. Unlike water/electricity the `services` column ACCUMULATES,
+// so several completed requests in one month add up on the same invoice.
+//
+// The is_invoiced flag is claimed FIRST, inside the transaction, so a repeated
+// call (double-click, replayed request) can never bill twice. A rollback
+// un-claims it, leaving the request billable again via sync_service_to_invoice.php.
+//
+// Returns ['ok' => bool, 'invoice_id' => string|null, 'message' => string].
+function post_service_charge($conn, $service_request_id) {
+    $conn->begin_transaction();
+
+    try {
+        //1.ClaimTheRowBeforeTouchingAnyMoney
+        $claim = $conn->prepare("UPDATE service_requests SET is_invoiced = 1 WHERE id = ? AND is_invoiced = 0");
+        $claim->bind_param("i", $service_request_id);
+        $claim->execute();
+        $claimed = $claim->affected_rows;
+        $claim->close();
+
+        if ($claimed === 0) {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => 'This service request has already been billed.'];
+        }
+
+        //2.LoadTheClaimedRequest
+        $stmt = $conn->prepare("SELECT user_id, total_cost, service_name FROM service_requests WHERE id = ? FOR UPDATE");
+        $stmt->bind_param("i", $service_request_id);
+        $stmt->execute();
+        $request = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$request) {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => 'Service request not found.'];
+        }
+
+        $user_id = (int)$request['user_id'];
+        $amount = (float)$request['total_cost'];
+
+        //FreeServicesStayClaimedButNeverReachAnInvoice
+        if ($amount <= 0) {
+            $conn->commit();
+            return ['ok' => true, 'invoice_id' => null, 'message' => 'No charge for this service.'];
+        }
+
+        //3.BillingPeriodIsTheMonthOfDelivery,InManilaTime
+        $period = (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m');
+
+        //4.FindThisTenantsOpenInvoiceForThePeriod
+        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period = ? AND status = 'pending' LIMIT 1");
+        $stmt->bind_param("is", $user_id, $period);
+        $stmt->execute();
+        $invoice = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $invoice_id = $invoice ? $invoice['id'] : null;
+
+        //5.NoOpenInvoiceYet-AutoGenerateOneFromTheActiveLease
+        if (!$invoice_id) {
+            $lease_q = "SELECT id AS rent_application_id, monthly_rent
+                        FROM rent_applications
+                        WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')
+                        ORDER BY id DESC LIMIT 1";
+            $stmt = $conn->prepare($lease_q);
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $lease = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if (!$lease) {
+                //RollbackUnclaimsTheRowSoTheChargeCanBePostedLater
+                $conn->rollback();
+                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved lease — cannot post service charge.'];
+            }
+
+            $invoice_id = "INV-" . strtoupper(uniqid());
+            $base_rent = (float)$lease['monthly_rent'];
+            $due_date = date('Y-m-d', strtotime($period . '-01 +1 month +4 days'));
+
+            $insert = "INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
+                       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)";
+            $stmt = $conn->prepare($insert);
+            $stmt->bind_param("siiddss", $invoice_id, $user_id, $lease['rent_application_id'], $base_rent, $base_rent, $period, $due_date);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                throw new Exception("Failed to auto-generate invoice: " . $conn->error);
+            }
+            $stmt->close();
+        }
+
+        //6.AccumulateOntoTheServicesColumn,NeverOverwrite
+        $stmt = $conn->prepare("UPDATE invoices SET services = services + ?, total_amount = total_amount + ? WHERE id = ?");
+        $stmt->bind_param("dds", $amount, $amount, $invoice_id);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception("Failed to post service charge: " . $conn->error);
+        }
+        $stmt->close();
+
+        //7.LinkTheRequestBackToTheInvoiceItLandedOn
+        $stmt = $conn->prepare("UPDATE service_requests SET invoice_id = ?, billing_period = ? WHERE id = ?");
+        $stmt->bind_param("ssi", $invoice_id, $period, $service_request_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Charge posted to invoice $invoice_id ($period)."];
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['ok' => false, 'invoice_id' => null, 'message' => $e->getMessage()];
+    }
+}
+
+// Backs a service charge out of its invoice. Only possible while that invoice is
+// still unpaid — once settled the money has changed hands, so the admin must
+// issue a manual credit instead.
+//
+// Returns ['ok' => bool, 'message' => string].
+function reverse_service_charge($conn, $service_request_id) {
+    $conn->begin_transaction();
+
+    try {
+        $stmt = $conn->prepare("SELECT total_cost, invoice_id, is_invoiced FROM service_requests WHERE id = ? FOR UPDATE");
+        $stmt->bind_param("i", $service_request_id);
+        $stmt->execute();
+        $request = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$request || !(int)$request['is_invoiced'] || !$request['invoice_id']) {
+            $conn->rollback();
+            return ['ok' => true, 'message' => 'Nothing to reverse.'];
+        }
+
+        $amount = (float)$request['total_cost'];
+
+        //TheStatusGuardIsWhatMakesThisSafe:APaidInvoiceMatchesNoRows
+        $stmt = $conn->prepare("UPDATE invoices SET services = GREATEST(services - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status = 'pending'");
+        $stmt->bind_param("dds", $amount, $amount, $request['invoice_id']);
+        $stmt->execute();
+        $reversed = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($reversed === 0) {
+            $conn->rollback();
+            return ['ok' => false, 'message' => 'Invoice ' . $request['invoice_id'] . ' is already paid; issue a manual credit instead.'];
+        }
+
+        $stmt = $conn->prepare("UPDATE service_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
+        $stmt->bind_param("i", $service_request_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        return ['ok' => true, 'message' => 'Service charge reversed from invoice ' . $request['invoice_id'] . '.'];
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['ok' => false, 'message' => $e->getMessage()];
+    }
+}
+
 // Priority 5: Security
 function verify_admin($conn, $admin_id) {
     if (!$admin_id) return false;
