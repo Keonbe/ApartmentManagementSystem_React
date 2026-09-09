@@ -26,6 +26,30 @@ if (!$rawId || !in_array($status, ['Assigned', 'Approved', 'Rejected', 'Pending'
     exit;
 }
 
+// ── Slot Capacity Re-check (admin-configurable) ──
+if ($status === 'Assigned' || $status === 'Approved') {
+    $max_slots = 3;
+    $max_slots_stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'max_parking_slots'");
+    $max_slots_stmt->execute();
+    $max_slots_row = $max_slots_stmt->get_result()->fetch_assoc();
+    $max_slots_stmt->close();
+    if ($max_slots_row && is_numeric($max_slots_row['setting_value'])) {
+        $max_slots = (int)$max_slots_row['setting_value'];
+    }
+
+    $occupied_stmt = $conn->prepare("SELECT COUNT(*) AS occupied FROM parking_reservations WHERE status IN ('Pending', 'Assigned', 'Approved', 'Active') AND id != ?");
+    $occupied_stmt->bind_param("i", $rawId);
+    $occupied_stmt->execute();
+    $occupied_count = (int)$occupied_stmt->get_result()->fetch_assoc()['occupied'];
+    $occupied_stmt->close();
+
+    if ($occupied_count >= $max_slots) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "Cannot approve — parking slot capacity ($max_slots) already reached."]);
+        exit;
+    }
+}
+
 try {
     $stmt = $conn->prepare("UPDATE parking_reservations SET status = ? WHERE id = ?");
     $stmt->bind_param("si", $status, $rawId);

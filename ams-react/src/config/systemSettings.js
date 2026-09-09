@@ -25,7 +25,9 @@ const DEFAULTS = {
   paymentChInPerson: true,
   paymongoSecretKey: '',
   paymongoPublicKey: '',
-  paymongoWebhookSecret: ''
+  paymongoWebhookSecret: '',
+  maxParkingSlots: 3,                          // total parking slots available
+  parkingAllowedVehicleTypes: ['motorcycle']   // vehicle types eligible for parking reservations
 };
 
 
@@ -52,6 +54,18 @@ export const getSystemSettings = async () => {
         paymongoSecretKey: dbSettings.paymongo_secret_key || DEFAULTS.paymongoSecretKey,
         paymongoPublicKey: dbSettings.paymongo_public_key || DEFAULTS.paymongoPublicKey,
         paymongoWebhookSecret: dbSettings.paymongo_webhook_secret || DEFAULTS.paymongoWebhookSecret,
+        maxParkingSlots: parseInt(dbSettings.max_parking_slots || DEFAULTS.maxParkingSlots),
+        parkingAllowedVehicleTypes: (() => {
+          const raw = dbSettings.parking_allowed_vehicle_types;
+          if (Array.isArray(raw)) return raw;
+          if (typeof raw === 'string') {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) return parsed;
+            } catch (e) { /* fall through to default */ }
+          }
+          return DEFAULTS.parkingAllowedVehicleTypes;
+        })(),
       };
     }
   } catch (e) {
@@ -80,6 +94,8 @@ export const saveSystemSettings = async (settings) => {
       paymongo_secret_key: settings.paymongoSecretKey || '',
       paymongo_public_key: settings.paymongoPublicKey || '',
       paymongo_webhook_secret: settings.paymongoWebhookSecret || '',
+      max_parking_slots: settings.maxParkingSlots,
+      parking_allowed_vehicle_types: JSON.stringify(settings.parkingAllowedVehicleTypes || []),
     };
     await api.post('update_system_settings.php', payload);
   } catch (e) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck, faCar } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 
 const AdminAccountSettings = () => {
@@ -335,6 +335,75 @@ const AdminAccountSettings = () => {
                           <span className="text-sm text-slate-500">days</span>
                         </div>
                         <p className="text-[11px] text-slate-400 m-0">Default number of days a reserved unit is held before the hold expires and the unit is released.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Parking Policy Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                      <FontAwesomeIcon icon={faCar} className="text-indigo-500 text-sm" />
+                      <h3 className="text-sm font-bold text-slate-700 m-0">Parking Policy</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
+                          Max Parking Slots
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="1"
+                            max="500"
+                            value={settings.maxParkingSlots}
+                            onChange={(e) => updateSetting('maxParkingSlots', Number(e.target.value))}
+                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
+                          />
+                          <span className="text-sm text-slate-500">slots</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0">Total number of parking slots that can be reserved at once. New reservations are blocked once this cap is reached.</p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
+                          Allowed Vehicle Types
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { value: 'motorcycle', label: 'Motorcycle' },
+                            { value: 'sedan', label: 'Sedan' },
+                            { value: 'suv', label: 'SUV' },
+                            { value: 'pickup', label: 'Pickup Truck' },
+                            { value: 'van', label: 'Van' },
+                            { value: 'ebike', label: 'E-Bike' },
+                          ].map((vt) => {
+                            const isChecked = settings.parkingAllowedVehicleTypes.includes(vt.value);
+                            return (
+                              <button
+                                key={vt.value}
+                                type="button"
+                                onClick={() => {
+                                  const current = settings.parkingAllowedVehicleTypes;
+                                  const next = isChecked
+                                    ? current.filter((t) => t !== vt.value)
+                                    : [...current, vt.value];
+                                  updateSetting('parkingAllowedVehicleTypes', next);
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors duration-200 cursor-pointer ${
+                                  isChecked
+                                    ? 'bg-indigo-500 border-indigo-500 text-white'
+                                    : 'bg-slate-50 border-slate-200 text-slate-500'
+                                }`}
+                              >
+                                {isChecked && <FontAwesomeIcon icon={faCheck} className="mr-1.5 text-[10px]" />}
+                                {vt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0">Only selected vehicle types can be submitted in a parking reservation request.</p>
                       </div>
                     </div>
                   </div>

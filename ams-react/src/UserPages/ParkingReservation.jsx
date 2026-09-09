@@ -5,6 +5,7 @@ import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
+import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/parking-reservation.responsive.css';
 
 export default function ParkingReservation() {
@@ -20,8 +21,9 @@ export default function ParkingReservation() {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     //1.DynamicSlotCounterAndPDFModalStates
-    const TOTAL_CAPACITY = 3; //TotalMotorcycleParkingSlots
-    const [availableSlots, setAvailableSlots] = useState(TOTAL_CAPACITY);
+    const [totalCapacity, setTotalCapacity] = useState(3); //AdminConfigurableTotalParkingSlots
+    const [allowedVehicleTypes, setAllowedVehicleTypes] = useState(['motorcycle']); //AdminConfigurableAllowedTypes
+    const [availableSlots, setAvailableSlots] = useState(3);
     const [loadingSlots, setLoadingSlots] = useState(true);
     
     const [pdfModalUrl, setPdfModalUrl] = useState(null);
@@ -33,6 +35,17 @@ export default function ParkingReservation() {
     useEffect(() => {
         const fetchAvailableSlots = async () => {
             try {
+                const { maxParkingSlots, parkingAllowedVehicleTypes } = await getSystemSettings();
+                const capacity = maxParkingSlots || 3;
+                const allowedTypes = (parkingAllowedVehicleTypes && parkingAllowedVehicleTypes.length > 0)
+                    ? parkingAllowedVehicleTypes
+                    : ['motorcycle'];
+                setTotalCapacity(capacity);
+                setAllowedVehicleTypes(allowedTypes);
+                if (!allowedTypes.includes(vehicleType)) {
+                    setVehicleType(allowedTypes[0]);
+                }
+
                 let reservationsList = [];
 
                 //TryFetchingFromGetEndpointFirst
@@ -67,7 +80,7 @@ export default function ParkingReservation() {
                     return ['assigned', 'approved', 'pending', 'active'].includes(st);
                 }).length;
                 
-                const freeSlots = Math.max(0, TOTAL_CAPACITY - occupiedCount);
+                const freeSlots = Math.max(0, capacity - occupiedCount);
                 setAvailableSlots(freeSlots);
 
             } catch (err) {
@@ -251,7 +264,8 @@ export default function ParkingReservation() {
             }
         } catch (error) {
             console.error("Error submitting reservation:", error);
-            alert("A network error occurred.");
+            const serverMessage = error.response?.data?.message;
+            alert(serverMessage || "A network error occurred.");
         }
     };
 
@@ -279,7 +293,7 @@ export default function ParkingReservation() {
                         <div>
                             <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">{t('parking.availableSpaces')}</span>
                             <span className="text-xl font-black text-slate-800 tracking-tight">
-                                {loadingSlots ? '...' : `${availableSlots} / ${TOTAL_CAPACITY} ${t('parking.slotsFree')}`}
+                                {loadingSlots ? '...' : `${availableSlots} / ${totalCapacity} ${t('parking.slotsFree')}`}
                             </span>
                         </div>
                     </div>
@@ -297,11 +311,21 @@ export default function ParkingReservation() {
                             className="parking-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                         >
-                            <option value="motorcycle">{t('parking.motorcycle')}</option>
-                            <option value="sedan" disabled>Sedan (Only motorcycles are allowed)</option>
-                            <option value="suv" disabled>SUV (Only motorcycles are allowed)</option>
-                            <option value="pickup" disabled>Pickup Truck (Only motorcycles are allowed)</option>
-                            <option value="van" disabled>Van (Only motorcycles are allowed)</option>
+                            {[
+                                { value: 'motorcycle', label: t('parking.motorcycle') },
+                                { value: 'sedan', label: 'Sedan' },
+                                { value: 'suv', label: 'SUV' },
+                                { value: 'pickup', label: 'Pickup Truck' },
+                                { value: 'van', label: 'Van' },
+                                { value: 'ebike', label: 'E-Bike' },
+                            ].map((vt) => {
+                                const isAllowed = allowedVehicleTypes.includes(vt.value);
+                                return (
+                                    <option key={vt.value} value={vt.value} disabled={!isAllowed}>
+                                        {vt.label}{!isAllowed ? ' (Not currently accepted)' : ''}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
 

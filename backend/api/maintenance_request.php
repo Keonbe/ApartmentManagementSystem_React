@@ -92,12 +92,16 @@ $stmt->bind_param("isssssis", $user_id, $issue_category, $urgency, $preferred_da
 
 if ($stmt->execute()) {
     // Notify Admin
-    $notif_title = "New Maintenance Request";
-    $notif_msg = "A new maintenance request ($issue_category - $urgency) has been submitted.";
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_request', ?, ?, 'Pending', 0)");
-    $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
-    $notif_stmt->execute();
-    $notif_stmt->close();
+    $admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
+    if ($admin_row) {
+        $notif_admin_id = (int)$admin_row['id'];
+        $notif_title = "New Maintenance Request";
+        $notif_msg = "A new maintenance request ($issue_category - $urgency) has been submitted.";
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_request', ?, ?, 'Pending', 0)");
+        $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+    }
 
     echo json_encode(["success" => true, "message" => "Maintenance request submitted successfully"]);
 } else {

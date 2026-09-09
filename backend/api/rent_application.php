@@ -175,13 +175,17 @@ try {
     }
 
     // 3. Notify Admin
-    $is_update = !empty($app_id) && $existing_front;
-    $notif_title = $is_update ? "Updated Rent Application" : "New Rent Application";
-    $notif_msg = "$first_name $last_name " . ($is_update ? "updated their" : "submitted a") . " rent application for Unit $room_name.";
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'rent_application', ?, ?, 'Pending', 0)");
-    $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
-    $notif_stmt->execute();
-    $notif_stmt->close();
+    $admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
+    if ($admin_row) {
+        $notif_admin_id = (int)$admin_row['id'];
+        $is_update = !empty($app_id) && $existing_front;
+        $notif_title = $is_update ? "Updated Rent Application" : "New Rent Application";
+        $notif_msg = "$first_name $last_name " . ($is_update ? "updated their" : "submitted a") . " rent application for Unit $room_name.";
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'rent_application', ?, ?, 'Pending', 0)");
+        $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+    }
 
     $conn->commit();
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);

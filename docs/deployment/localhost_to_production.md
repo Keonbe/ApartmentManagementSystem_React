@@ -445,6 +445,10 @@ BACKEND
 [ ] /backend/uploads/test.php returns 403 (PHP blocked in uploads)
 [ ] PHP error log shows no warnings after login + navigation test
 [ ] CORS: no console errors when React SPA calls the API
+[ ] PayMongo Live webhook created and pointed at https://yourdomain.com/backend/api/paymongo_webhook.php
+    (see paymongo_integration_guide.md §3.4) — the sandbox/ngrok webhook does not carry over
+[ ] Push a ₱1.00 sandbox-mode payment through and confirm the invoice flips to "paid" via the
+    webhook alone (not just checkout redirect) — this is the only proof the webhook is actually firing
 
 FRONTEND
 [x] npm run build completes with no errors
@@ -493,3 +497,5 @@ SECURITY
 | Feature Checklist | [panelist_feature_checklist.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/panelist_feature_checklist.md) |
 | Notification Services | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | Chat Design | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| PayMongo Integration | [paymongo_integration_guide.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/paymongo_integration_guide.md) |
+| SaaS Fallback Strategy | [saas_fallback_strategy.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/deployment/saas_fallback_strategy.md) |

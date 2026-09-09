@@ -639,4 +639,6 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('service_cleaning_active', 'true'),
 ('service_laundry_active', 'true'),
 ('service_other_active', 'true'),
-('reservation_hold_days', '7');
+('reservation_hold_days', '7'),
+('max_parking_slots', '3'),
+('parking_allowed_vehicle_types', '["motorcycle"]');

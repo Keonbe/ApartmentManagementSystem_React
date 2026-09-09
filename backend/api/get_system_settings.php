@@ -45,6 +45,11 @@ if(isset($settings['reservation_hold_days'])) $settings['reservation_hold_days']
 if(isset($settings['reservationHoldDays'])) $settings['reservationHoldDays'] = (int)$settings['reservationHoldDays'];
 if(isset($settings['maintenanceMonthlyBudget'])) $settings['maintenanceMonthlyBudget'] = (float)$settings['maintenanceMonthlyBudget'];
 if(isset($settings['autoFlagEviction'])) $settings['autoFlagEviction'] = filter_var($settings['autoFlagEviction'], FILTER_VALIDATE_BOOLEAN);
+if(isset($settings['max_parking_slots'])) $settings['max_parking_slots'] = (int)$settings['max_parking_slots'];
+if(isset($settings['parking_allowed_vehicle_types'])) {
+    $decoded = json_decode($settings['parking_allowed_vehicle_types'], true);
+    $settings['parking_allowed_vehicle_types'] = is_array($decoded) ? $decoded : ['motorcycle'];
+}
 
 echo json_encode(["success" => true, "settings" => $settings]);
 $conn->close();

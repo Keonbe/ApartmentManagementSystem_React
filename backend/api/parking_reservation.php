@@ -35,6 +35,47 @@ if (!preg_match('/^[A-Z0-9\s\-]{3,10}$/', $plate_number)) {
     exit;
 }
 
+// ── Vehicle Type Restriction (admin-configurable) ──
+$allowed_vehicle_types = ['motorcycle'];
+$setting_stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'parking_allowed_vehicle_types'");
+$setting_stmt->execute();
+$setting_row = $setting_stmt->get_result()->fetch_assoc();
+$setting_stmt->close();
+if ($setting_row) {
+    $decoded_types = json_decode($setting_row['setting_value'], true);
+    if (is_array($decoded_types) && count($decoded_types) > 0) {
+        $allowed_vehicle_types = $decoded_types;
+    }
+}
+$allowed_vehicle_types = array_map('strtolower', $allowed_vehicle_types);
+
+if (!in_array(strtolower($vehicle_type), $allowed_vehicle_types)) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "This vehicle type is not currently accepted for parking reservations."]);
+    exit;
+}
+
+// ── Slot Capacity Enforcement (admin-configurable) ──
+$max_slots = 3;
+$max_slots_stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'max_parking_slots'");
+$max_slots_stmt->execute();
+$max_slots_row = $max_slots_stmt->get_result()->fetch_assoc();
+$max_slots_stmt->close();
+if ($max_slots_row && is_numeric($max_slots_row['setting_value'])) {
+    $max_slots = (int)$max_slots_row['setting_value'];
+}
+
+$occupied_stmt = $conn->prepare("SELECT COUNT(*) AS occupied FROM parking_reservations WHERE status IN ('Pending', 'Assigned', 'Approved', 'Active')");
+$occupied_stmt->execute();
+$occupied_count = (int)$occupied_stmt->get_result()->fetch_assoc()['occupied'];
+$occupied_stmt->close();
+
+if ($occupied_count >= $max_slots) {
+    http_response_code(409);
+    echo json_encode(["success" => false, "message" => "No parking slots available at this time."]);
+    exit;
+}
+
 $base_price = 300;
 $total_cost = intval($duration_months) * $base_price;
 
@@ -88,12 +129,16 @@ $stmt->bind_param("isssssids", $user_id, $vehicle_type, $vehicle_model, $plate_n
 
 if ($stmt->execute()) {
     // Notify Admin
-    $notif_title = "New Parking Reservation";
-    $notif_msg = "A new parking reservation request for plate $plate_number has been submitted.";
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'parking_reservation', ?, ?, 'Pending', 0)");
-    $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
-    $notif_stmt->execute();
-    $notif_stmt->close();
+    $admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
+    if ($admin_row) {
+        $notif_admin_id = (int)$admin_row['id'];
+        $notif_title = "New Parking Reservation";
+        $notif_msg = "A new parking reservation request for plate $plate_number has been submitted.";
+        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'parking_reservation', ?, ?, 'Pending', 0)");
+        $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
+        $notif_stmt->execute();
+        $notif_stmt->close();
+    }
 
     echo json_encode(["success" => true, "message" => "Reservation created successfully"]);
 } else {

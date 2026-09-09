@@ -16,11 +16,14 @@ $is_admin = verify_admin($conn, $admin_id);
 
 try {
     if ($is_admin) {
-        // ADMIN VIEW: Exclude tenant-facing confirmation receipts ('Resolved' or 'Request Approved/Declined')
-        $query = "SELECT * FROM notifications 
-                  WHERE status != 'Resolved' 
-                  AND title NOT IN ('Request Approved', 'Request Declined')
-                  ORDER BY CASE WHEN status = 'Pending' THEN 1 ELSE 2 END, created_at DESC 
+        // ADMIN VIEW: Only notification types that represent an admin action queue,
+        // and only while still awaiting that action (status = 'Pending'). This excludes
+        // tenant-specific notices (rent_due, overdue, billing, maintenance_update, etc.)
+        // even though several of them also default to status = 'Pending'.
+        $query = "SELECT * FROM notifications
+                  WHERE status = 'Pending'
+                  AND type IN ('rent_application', 'maintenance_request', 'cctv_request', 'parking_reservation', 'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request')
+                  ORDER BY created_at DESC
                   LIMIT 100";
         $stmt = $conn->prepare($query);
     } else {
