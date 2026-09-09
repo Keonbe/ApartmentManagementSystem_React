@@ -3,7 +3,7 @@
 > **Project:** Apartment Management System
 > **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
 > **Context:** Small-to-medium scale apartment building (15–100 units)
-> **Last Updated:** September 2026
+> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code)
 
 ---
 
@@ -16,16 +16,16 @@
 | [x] | **Rental Payment & Billing**            | [x] Monthly billing, [x] payment recording, [x] payment history, [x] receipt generation, [x] balance monitoring, [x] due-date reminders, [ ] extended rent, [x] term of payment, [x] security deposit, [x] base rent, [x] water, [x] electricity, [x] parking if applicable |
 | [x] | **Payment Methods**                     | [x] GCash, [x] cash, [x] bank transfer                                                                                                                                                                                                                                  |
 | [x] | **Maintenance Management**              | [x] Issue type: plumbing, electrical, structural/physical, water supply, general repair, others; [x] problem description, [x] location, [x] priority level: low/medium/high/urgent, [x] photo upload, [x] status: pending/in progress/completed, [x] date and time reported, [x] date and time resolved |
-| [x] | **Service Management**                  | [x] Cleaning, [x] laundry, [x] other services                                                                                                                                                                                                                           |
+| [x] | **Service Management**                  | [x] Cleaning, [x] laundry, [x] other services, [x] priced catalog, [x] tenant booking, [x] billing integration                                                                                                                                                          |
 | [ ] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [ ] two-way chat (admin ↔ tenant messaging)                                                                                                                                                                            |
 | [ ] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [ ] SMS notifications, [ ] email notifications, [ ] automated reports, [ ] notification preferences                                                                                      |
 | [x] | **Inquiry & Reservation Management**    | [x] Inquiry handling, [x] reservation tracking, [x] room/unit availability tracking, [x] reservation module                                                                                                                                                             |
-| [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [ ] slot assignment management, [ ] parking fee integration into billing                                                                                                                                            |
+| [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [~] slot assignment management (status-based, no numbered slots), [~] parking fee integration into billing (manual admin entry, not auto-synced)                                                                   |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
 | [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit                                                                                                                                                                                                   |
 | [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [x] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
 | [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management                                                                                                                                                     |
-| [ ] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [ ] admin approval/rejection, [ ] request status tracking                                                                                                                                                                              |
+| [x] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [x] admin approval/rejection, [x] request status tracking                                                                                                                                                                              |
 | [x] | **Visitor Management**                  | [x] Visitor records / management, [x] tenant pre-authorization, [x] visitor history, [x] overstay alerts                                                                                                                                                                |
 | [x] | **Contract Management**                 | [x] Contract generation, [x] contract viewing, [x] status management (Draft → Active → Expired), [x] renewal, [x] downloadable/printable                                                                                                                              |
 
@@ -429,13 +429,14 @@ flowchart TD
 ### Module 5 — Service Management
 
 > Admin Pages: [AdminServicePage.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminServicePage.jsx) · [AdminCctv.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminCctv.jsx) · [AdminParking.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminParking.jsx)
-> Tenant Pages: [Services.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Services.jsx) · [CctvRequest.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/CctvRequest.jsx) · [ParkingReservation.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ParkingReservation.jsx)
+> Tenant Pages: [Services.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Services.jsx) · [ServiceBooking.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ServiceBooking.jsx) · [CctvRequest.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/CctvRequest.jsx) · [ParkingReservation.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ParkingReservation.jsx)
+> Related Docs: [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md)
 
-- [ ] **5.1 Service Request Submission** 🔧 — `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php`
-- [ ] **5.2 Service Catalog & Modular Controls** 🔧 — `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked core Bill Payments
-- [ ] **5.3 Service Status Tracking** 🔧 — Per-service status views across admin pages
-- [x] **5.4 Service Billing Integration** ✅ — Completed add-on services post to `invoices.services` via `post_service_charge()`; parking & maintenance costs still tracked on their own tables
-- [x] **5.5 Cleaning & Laundry Services** ✅ — `service_catalog` + `service_requests` tables, `ServiceBooking.jsx`, catalog CRUD and booking queue on `AdminServicePage.jsx`, charges posted to `invoices.services`
+- [x] **5.1 Service Request Submission** ✅ — Priced add-on booking via `service_request.php` (multipart, re-derives price server-side), plus `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php`
+- [x] **5.2 Service Catalog & Modular Controls** ✅ — Two-level gating: `system_settings.service_<category>_active` toggles a whole category, `service_catalog.is_active` toggles an individual priced item; full CRUD via `manage_service_catalog.php` + `ServiceCatalogModal.jsx` on `AdminServicePage.jsx`
+- [x] **5.3 Service Status Tracking** ✅ — `Pending → Approved → In Progress → Completed`, plus `Rejected`/`Cancelled`; booking queue on `AdminServicePage.jsx` (`get_service_requests.php`), tenant-side cancel via `cancel_request.php`, mirrored per-service status views on `AdminCctv.jsx`/`AdminParking.jsx`
+- [x] **5.4 Service Billing Integration** ✅ — Completed add-on services post to `invoices.services` via `post_service_charge()` (claim-then-bill, anti-double-billing), accumulating across bookings in a month; reversible via `reverse_service_charge()` while the invoice is unpaid; manual retry via `sync_service_to_invoice.php` when no active lease was found at completion time
+- [x] **5.5 Cleaning & Laundry Services** ✅ — `service_catalog` (price, unit, quantity range, lead time) + `service_requests` (snapshots price/name at booking time) tables; `ServiceBooking.jsx` booking form; catalog CRUD and booking queue on `AdminServicePage.jsx`; charges posted to `invoices.services`
 
 ---
 
@@ -505,8 +506,8 @@ flowchart TD
 
 - [x] **10.1 Parking Slot Listing** ✅ — `get_available_parking_slots.php`
 - [x] **10.2 Reservation Request** ✅ — `parking_reservation.php`
-- [ ] **10.3 Parking Fee Integration** 🔧 — Linked to `invoices` breakdown
-- [ ] **10.4 Slot Assignment Management** 🔧 — `get_parking_reservations.php`, `update_parking_status.php`, `AdminParking.jsx`
+- [ ] **10.3 Parking Fee Integration** 🔧 — `invoices.parking` column exists and flows through billing/reporting, but the amount is still typed in manually on `create_invoice.php`; nothing auto-copies a reservation's `total_cost` onto the tenant's invoice
+- [ ] **10.4 Slot Assignment Management** 🔧 — `update_parking_status.php` lets admin move a reservation to `Assigned`/`Approved`/`Rejected` and notifies the tenant, but there is no numbered-slot column — "assignment" is a status change, not allocation of a specific physical slot
 
 ---
 
@@ -519,7 +520,7 @@ flowchart TD
 - [x] **11.2 Admin Authentication** ✅ — `login.php`
 - [x] **11.3 Tenant Authentication** ✅ — `login.php`
 - [x] **11.4 Password Management** ✅ — `change_password.php`
-- [ ] **11.5 CCTV Access Requests** 🔧 — `cctv_request.php`, `get_cctv_requests.php`, `update_cctv_status.php`, `AdminCctv.jsx`
+- [x] **11.5 CCTV Access Requests** ✅ — Tenant submits via `cctv_request.php`; admin approves/rejects via `update_cctv_status.php` (`AdminCctv.jsx`), which also notifies the tenant and logs the action; queue and counts via `get_cctv_requests.php`
 
 ---
 
@@ -542,15 +543,15 @@ flowchart TD
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
 | 3. Payment & Billing | 12 | 9 | 1 | 2 | 0 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
-| 5. Service Management | 5 | 2 | 3 | 0 | 0 |
+| 5. Service Management | 5 | 5 | 0 | 0 | 0 |
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
 | 8. Dashboard & Reports | 8 | 6 | 0 | 2 | 0 |
 | 9. Contracts | 5 | 5 | 0 | 0 | 0 |
 | 10. Parking | 4 | 2 | 2 | 0 | 0 |
-| 11. Security & Access | 5 | 4 | 1 | 0 | 0 |
+| 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **82** | **55** | **10** | **17** | **0** |
+| **TOTAL** | **82** | **59** | **6** | **17** | **0** |
 
 ### Core Functionality Coverage
 
@@ -561,7 +562,7 @@ flowchart TD
 | Maintenance Request | Module 4 (10 features) |
 | Inquiry and Reservation | Module 1.8 (inquiries + unit reservations), Module 10, Module 11.5, Module 12 |
 | Report Generation | Module 8 (8 features) |
-| Modular Services | Module 5 (4 features) + Module 12 (3 features) |
+| Modular Services | Module 5 (5 features) + Module 12 (3 features) |
 
 ---
 
@@ -692,11 +693,11 @@ flowchart TD
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 5.1 | **Service Request Submission** | Tenant requests add-on/special services (CCTV footage, Parking, Maintenance, Visitor check-in) | Small+ | `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 5.2 | **Service Catalog & Modular Controls** | Admin configures service catalog availability via dynamic system settings toggles; Core Bill Payments is locked always-on | Small+ | `AdminServicePage.jsx`, `Services.jsx`, `system_settings` dynamic toggles, locked Bill Payments | — |
-| 5.3 | **Service Status Tracking** | Pipeline: Pending → Approved/Active/Assigned/Completed. Dedicated status views per service | Small+ | `AdminServicePage.jsx`, `AdminCctv.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `AdminMaintainance.jsx` | — |
-| 5.4 | **Service Billing Integration** | Completing an add-on service posts its cost to the tenant invoice for the delivery month, accumulating in `invoices.services`. Reversible while the invoice is unpaid. | Medium | `post_service_charge()` / `reverse_service_charge()` in `config.php`, `update_service_status.php`, `sync_service_to_invoice.php` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
-| 5.5 | **Cleaning & Laundry Services** | Admin-managed priced catalog (cleaning / laundry / other) that tenants book with a date, time slot and quantity. Lifecycle: Pending → Approved → In Progress → Completed, plus Rejected / Cancelled. | Medium | `service_catalog` + `service_requests`, `get_service_catalog.php`, `manage_service_catalog.php`, `service_request.php`, `get_service_requests.php`, `update_service_status.php`, `ServiceBooking.jsx`, `ServiceCatalogModal.jsx` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
+| 5.1 | **Service Request Submission** | Tenant books a priced add-on (date, time slot, quantity, optional photo) or requests other special services (CCTV footage, Parking, Maintenance, Visitor check-in) | Small+ | `service_request.php`, `cctv_request.php`, `parking_reservation.php`, `maintenance_request.php`, `check_in_visitor.php` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
+| 5.2 | **Service Catalog & Modular Controls** | Two independent switches per item: `system_settings.service_<category>_active` turns a whole category on/off (also hides tenant cards); `service_catalog.is_active` turns an individual priced item on/off. Full admin CRUD on price, unit, quantity range, lead time, icon | Small+ | `AdminServicePage.jsx`, `ServiceCatalogModal.jsx`, `manage_service_catalog.php`, `get_service_catalog.php`, `system_settings` toggles | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
+| 5.3 | **Service Status Tracking** | Pipeline: Pending → Approved → In Progress → Completed, plus Rejected / Cancelled. Dedicated status views per service, tenant self-cancel while Pending | Small+ | `update_service_status.php`, `get_service_requests.php`, `cancel_request.php`, `AdminServicePage.jsx`, `AdminCctv.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `AdminMaintainance.jsx` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
+| 5.4 | **Service Billing Integration** | Completing an add-on service posts its cost to the tenant invoice for the delivery month, accumulating in `invoices.services`. Row is claimed (`is_invoiced`) before money moves to prevent double-billing; a missing active lease leaves it unbilled with a manual retry button. Reversible while the invoice is unpaid, refused once paid. | Medium | `post_service_charge()` / `reverse_service_charge()` in `config.php`, `update_service_status.php`, `sync_service_to_invoice.php` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
+| 5.5 | **Cleaning & Laundry Services** | Admin-managed priced catalog (cleaning / laundry / other; price + unit + quantity range + lead time) that tenants book with a date, time slot and quantity. Price is re-derived server-side from the catalog, never trusted from the client; catalog rows are snapshotted onto the booking so re-pricing never rewrites history | Medium | `service_catalog` + `service_requests`, `get_service_catalog.php`, `manage_service_catalog.php`, `service_request.php`, `get_service_requests.php`, `update_service_status.php`, `ServiceBooking.jsx`, `ServiceCatalogModal.jsx` | [service_management_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/service_management_design.md) |
 
 ---
 
@@ -772,8 +773,8 @@ flowchart TD
 |---|---|---|---|---|---|
 | 10.1 | **Parking Slot Listing** | View all parking slots with status: Available / Assigned / Reserved / Under Maintenance | Small+ | `get_available_parking_slots.php` | — |
 | 10.2 | **Reservation Request** | Tenant requests a parking slot; admin approves/rejects based on availability | Small+ | `parking_reservation.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 10.3 | **Parking Fee Integration** | Assigned parking adds a monthly line item to tenant's invoice | Small+ | Parking fee in invoice generation | — |
-| 10.4 | **Slot Assignment Management** | Admin assigns specific slot to tenant; handles transfers when tenants move out | Small+ | `parking_reservations` table (status: Assigned) | — |
+| 10.3 | **Parking Fee Integration** | `invoices.parking` line item exists and flows through billing/reporting/reversal like other charges, but the amount is a manual field on invoice creation — a reservation's `total_cost` is not auto-copied onto the invoice | Small+ | `create_invoice.php` (`parking` input field), `sync_utility_to_invoice.php` (carries it forward) | — |
+| 10.4 | **Slot Assignment Management** | Admin moves a reservation to Assigned/Approved/Rejected and the tenant is notified; there is no numbered-slot column, so a specific physical slot is not tracked or transferred on move-out | Small+ | `parking_reservations` table (status field only, no `slot_number`), `update_parking_status.php`, `AdminParking.jsx` | — |
 
 ---
 
@@ -787,7 +788,7 @@ flowchart TD
 | 11.2 | **Admin Authentication** | Admin login with email/password; session-based auth via `sessionStorage` | Small+ | `login.php`, `axiosConfig.js` (X-Admin-Id header) | — |
 | 11.3 | **Tenant Authentication** | Tenant login with email/password; same auth mechanism, different role | Small+ | `login.php`, `axiosConfig.js` (X-User-Id header) | — |
 | 11.4 | **Password Management** | Change password functionality for both roles | Small+ | `change_password.php` | — |
-| 11.5 | **CCTV Access Requests** | Tenant requests to view CCTV footage; admin approves/rejects with conditions | Medium | `cctv_request.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 11.5 | **CCTV Access Requests** | Tenant requests to view CCTV footage; admin approves/rejects, tenant is notified either way, queue shows live approved/rejected counts | Medium | `cctv_request.php`, `get_cctv_requests.php`, `update_cctv_status.php`, `AdminCctv.jsx` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 
 ---
 
