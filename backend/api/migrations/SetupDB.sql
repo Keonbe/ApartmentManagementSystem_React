@@ -592,6 +592,28 @@ INSERT IGNORE INTO `service_catalog`
 ('laundry', 'Dry Cleaning', 'Professional dry cleaning for suits, gowns and delicate fabrics, billed per item.', 250.00, 'item', 1, 15, 2, 'faTshirt', 1, 40),
 ('other', 'Pest Control Treatment', 'Scheduled unit-level pest control and follow-up inspection.', 900.00, 'session', 1, 1, 3, 'faConciergeBell', 1, 50);
 
+--
+-- Table structure for table `password_resets`
+--
+-- Used by forgot_password.php / reset_password.php. This table previously had
+-- its own dedicated migration file (backend/api/migrations/create_password_resets_table.php)
+-- which was removed in a later cleanup without being folded in here — a fresh
+-- database built only from this file was missing it entirely, causing
+-- forgot_password.php's INSERT to hard-fail. Restored here as the single
+-- source of truth (docs/documentation/external_services.md § "Verified against
+-- the repo (Sept 2026)").
+--
+
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `email` varchar(255) NOT NULL,
+  `token_hash` varchar(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),

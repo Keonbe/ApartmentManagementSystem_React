@@ -2,9 +2,11 @@
 
 > **Document:** Infrastructure Options & Service Comparison
 > **Project:** Apartment Management System (AMS)
-> **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
+> **Stack:** React 19 + Vite 8 → PHP 8 → MySQL/MariaDB (XAMPP)
 > **Last Updated:** September 2026
 > **Status:** Planning & Decision Reference
+>
+> ⚠️ **Verified against the repo (Sept 2026):** this document's §2 architecture diagram bundled Supabase (PostgreSQL) as the SaaS database, but §3.1's own warning, §6's migration runbook, and §7's recommended stack all correctly steer *away* from Supabase-as-database toward Railway MySQL/PlanetScale to avoid a Postgres dialect rewrite. §2 has been corrected below to match the document's own conclusion — Supabase remains a valid choice for *file storage only* (§3.7), never as the database.
 
 ---
 
@@ -58,7 +60,8 @@ Tenant / Admin Browser
         ▼
  Railway / Render (PHP API)
         │
- ├── Supabase (PostgreSQL DB + File Storage)
+ ├── Railway MySQL / PlanetScale (Database — MySQL-compatible, no dialect rewrite)
+ ├── Supabase Storage / Cloudinary (File Storage only — NOT Supabase's Postgres DB)
  ├── Resend / Mailgun (email)
  ├── Semaphore / Vonage (SMS)
  └── PayMongo (payment gateway — unchanged)
@@ -70,26 +73,26 @@ Tenant / Admin Browser
 
 ### 3.1 Database — MySQL / MariaDB
 
-| Attribute | Self-Hosted (XAMPP MySQL) | SaaS (Supabase PostgreSQL) |
+| Attribute | Self-Hosted (XAMPP MySQL) | SaaS (Railway MySQL / PlanetScale) |
 |---|---|---|
-| **Provider** | MariaDB 10.x on localhost | Supabase (PostgreSQL 15) |
-| **Schema changes** | Direct SQL migration scripts | Same migration scripts via Supabase SQL editor |
-| **Connection** | `$conn = new mysqli('localhost', ...)` | `$conn = new PDO('pgsql:...')` — driver change required |
+| **Provider** | MariaDB 10.x on localhost | Railway MySQL plugin or PlanetScale (MySQL-compatible) |
+| **Schema changes** | Direct SQL migration scripts | Same migration scripts via the platform's SQL console |
+| **Connection** | `$conn = new mysqli('localhost', ...)` | Same `mysqli` driver — only host/credentials change |
 | **Auth headers** | No change | No change |
-| **File storage** | Local `/uploads/` directory | Supabase Storage bucket (S3-compatible) |
-| **Cost (Free tier)** | Free (own hardware) | Free up to 500 MB DB + 1 GB storage |
-| **Backup** | Manual | Daily automatic backups (free tier) |
-| **Migration effort** | None | Medium — MySQL → PostgreSQL dialect differences |
+| **File storage** | Local `/uploads/` directory | See §3.7 — Supabase Storage or Cloudinary (storage only, not the database) |
+| **Cost (Free tier)** | Free (own hardware) | Railway: included in $5/mo hobby plan · PlanetScale: free up to 5 GB |
+| **Backup** | Manual | Railway: daily snapshots · PlanetScale: automatic |
+| **Migration effort** | None | **Low** — export with `mysqldump`, import to Railway MySQL. No dialect change needed |
 
 > [!WARNING]
-> Supabase uses PostgreSQL, not MySQL. This is the biggest migration cost. Key differences that will break existing PHP queries:
+> **Do not use Supabase as the database.** Supabase's DB is PostgreSQL, not MySQL, and this codebase's `mysqli` driver + hand-written SQL would need a rewrite. Key differences that would break existing PHP queries if you went this route anyway:
 > - `AUTO_INCREMENT` → `SERIAL` or `GENERATED ALWAYS AS IDENTITY`
 > - `TINYINT(1)` for booleans → native `BOOLEAN`
 > - String concatenation: `CONCAT()` → `||` operator
 > - `DATE_FORMAT()` → `TO_CHAR()`
 > - JSON validation: `CHECK (json_valid(...))` → `jsonb` type
 >
-> **Alternative:** Use **PlanetScale** (MySQL-compatible, no schema change required) or **Railway** with a MySQL container.
+> Use **Railway MySQL** or **PlanetScale** instead — both are MySQL-compatible and need zero query changes. Supabase is still a fine choice for *file storage* (§3.7); just don't route the database through it.
 
 ---
 
