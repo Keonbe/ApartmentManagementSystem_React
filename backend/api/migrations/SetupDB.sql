@@ -153,6 +153,28 @@ CREATE TABLE `lease_contracts` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `lease_renewals`
+-- Audit trail of lease-extension approvals. lease_contracts itself is
+-- extended in place (single row per rent_application_id, matching every
+-- consumer query's assumption); this table is the renewal history for that
+-- row rather than a new contract version.
+--
+
+CREATE TABLE IF NOT EXISTS `lease_renewals` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `contract_id` varchar(50) NOT NULL,
+  `added_months` int(11) NOT NULL,
+  `previous_lease_end` date DEFAULT NULL,
+  `new_lease_end` date DEFAULT NULL,
+  `rent_at_renewal` decimal(10,2) DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `fk_renewal_contract` (`contract_id`),
+  CONSTRAINT `fk_renewal_contract` FOREIGN KEY (`contract_id`) REFERENCES `lease_contracts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
 -- Table structure for table `maintenance_requests`
 --
 

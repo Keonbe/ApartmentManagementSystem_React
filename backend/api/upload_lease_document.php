@@ -31,6 +31,26 @@ $rent_app_id = $_POST['rentApplicationId'] ?? '';
 $doc_type = $_POST['docType'] ?? 'signedLease'; // 'signedLease' or 'notarizedLease'
 $action = $_POST['action'] ?? 'upload'; // 'upload' or 'remove'
 
+// Ownership check: a non-admin caller may only touch a contract/rent
+// application that belongs to them. Resolve the owning tenant from whichever
+// identifier was supplied and compare it against X-User-Id before any lookup,
+// auto-create, upload, or removal happens below.
+if (!$is_admin) {
+    if (!empty($contract_id)) {
+        $owner_id = get_contract_owner($conn, $contract_id);
+    } elseif (!empty($rent_app_id)) {
+        $owner_id = get_rent_application_owner($conn, $rent_app_id);
+    } else {
+        $owner_id = null;
+    }
+
+    if ($owner_id === null || $owner_id !== (int)$user_id) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Forbidden: You do not own this contract."]);
+        exit;
+    }
+}
+
 if (empty($contract_id) && !empty($rent_app_id)) {
     // Lookup or auto-create lease contract for this rent application
     $stmt = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ? LIMIT 1");

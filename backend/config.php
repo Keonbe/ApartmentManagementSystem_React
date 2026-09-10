@@ -77,6 +77,20 @@ function release_expired_reservations($conn) {
     return $released;
 }
 
+// Expires lease contracts whose lease_end has passed. Only 'active' contracts
+// are affected — a 'draft' contract was never activated so it has nothing to
+// expire, and 'terminated'/'eviction-pending' are already terminal states.
+// UPDATE-only (no DDL) and safe to call opportunistically, same pattern as
+// release_expired_reservations() above.
+function expire_lapsed_contracts($conn) {
+    $stmt = $conn->prepare("UPDATE lease_contracts SET status = 'expired' WHERE status = 'active' AND lease_end IS NOT NULL AND lease_end < CURDATE()");
+    if (!$stmt) return 0; // column/table not migrated yet
+    $stmt->execute();
+    $count = $stmt->affected_rows;
+    $stmt->close();
+    return $count;
+}
+
 // Posts a completed service request's cost onto the tenant's invoice for the
 // current billing period, mirroring how sync_utility_to_invoice.php merges
 // utility amounts. Unlike water/electricity the `services` column ACCUMULATES,
@@ -253,5 +267,28 @@ function verify_admin($conn, $admin_id) {
         return $user['role'] === 'admin';
     }
     return false;
+}
+
+// Returns the owning tenant's user_id for a rent application, or null if the
+// application does not exist. Used to check a non-admin caller's X-User-Id
+// against the tenant that actually owns a rent_application/lease_contract
+// row before letting them read or modify it.
+function get_rent_application_owner($conn, $rent_application_id) {
+    $stmt = $conn->prepare("SELECT user_id FROM rent_applications WHERE id = ?");
+    $stmt->bind_param("i", $rent_application_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res->num_rows === 0) return null;
+    return (int)$res->fetch_assoc()['user_id'];
+}
+
+// Same, but resolved from a lease_contracts.id.
+function get_contract_owner($conn, $contract_id) {
+    $stmt = $conn->prepare("SELECT ra.user_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.id = ?");
+    $stmt->bind_param("s", $contract_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res->num_rows === 0) return null;
+    return (int)$res->fetch_assoc()['user_id'];
 }
 ?>

@@ -64,8 +64,24 @@ if ($action === 'edit') {
         echo json_encode(["success" => false, "message" => "Failed to activate contract"]);
     }
 } else if ($action === 'flag' || $action === 'clear') {
-    $status = $action === 'flag' ? 'eviction-pending' : 'active';
     $eviction_status = $action === 'flag' ? 'flagged' : null;
+
+    if ($action === 'flag') {
+        $status = 'eviction-pending';
+    } else {
+        // Clearing the flag restores whatever status the lease's own dates
+        // imply, rather than always forcing 'active' — a contract whose
+        // lease_end has already lapsed should go back to 'expired', not be
+        // reactivated as a side effect of clearing an eviction flag.
+        $dateStmt = $conn->prepare("SELECT lease_end FROM lease_contracts WHERE id = ?");
+        $dateStmt->bind_param("s", $contract_id);
+        $dateStmt->execute();
+        $row = $dateStmt->get_result()->fetch_assoc();
+        $dateStmt->close();
+
+        $lease_end = $row ? $row['lease_end'] : null;
+        $status = ($lease_end !== null && $lease_end < date('Y-m-d')) ? 'expired' : 'active';
+    }
 
     $stmt = $conn->prepare("UPDATE lease_contracts SET status = ?, eviction_status = ? WHERE id = ?");
     $stmt->bind_param("sss", $status, $eviction_status, $contract_id);

@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+expire_lapsed_contracts($conn);
+
 $user_id = $_GET['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
 if (empty($user_id) && !empty($_GET['email'])) {
     $u_stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ? LIMIT 1");

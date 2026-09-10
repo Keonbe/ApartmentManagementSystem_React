@@ -27,7 +27,7 @@
 | [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management                                                                                                                                                     |
 | [x] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [x] admin approval/rejection, [x] request status tracking                                                                                                                                                                              |
 | [x] | **Visitor Management**                  | [x] Visitor records / management, [x] tenant pre-authorization, [x] visitor history, [x] overstay alerts                                                                                                                                                                |
-| [ ] | **Contract Management**                 | [x] Contract generation (auto on approval, as Draft), [x] contract viewing, [~] status management (Draft → Active done; auto-expire pending), [~] renewal (extends end date only), [x] printable (PDF via browser print dialog)                                        |
+| [x] | **Contract Management**                 | [x] Contract generation (auto on approval, as Draft), [x] contract viewing, [x] status management (Draft → Active → Expired, auto-expiring), [x] renewal (extends contract + audit trail in `lease_renewals`), [x] printable (PDF via browser print dialog)             |
 
 ---
 
@@ -493,9 +493,10 @@ flowchart TD
 
 - [x] **9.1 Lease Contract Generation** ✅ — Auto-generated on application approval (`update_tenant_status.php`), created as `draft`; rent, security deposit, lease start/end and tenant details all bound to real DB values in `ViewContract.jsx`; landlord identity comes from `system_settings`
 - [x] **9.2 Contract Viewing** ✅ — Fully wired to `lease_contracts` via `ViewContract.jsx`, scoped to the logged-in tenant (`?userId=` + `X-User-Id`); `?email=` lookup is admin-only
-- [x] **9.3 Contract Status Management** 🔧 — `Draft → Active` implemented (`update_contract_status.php` `activate` action + Activate button in `AdminContracts.jsx`); `Terminated` is a valid state but has no admin action yet, and **auto-expiry on lease end is still not implemented** — no cron/sweep exists, so a lapsed contract keeps reporting `active`
-- [ ] **9.4 Contract Renewal** 🔧 — `process_tenant_request.php` bumps `lease_contracts.lease_end` on an approved extension, but does not generate a new contract version or adjust the rate, and silently skips contracts that are not `active`
+- [x] **9.3 Contract Status Management** ✅ — `Draft → Active → Expired`, plus `Eviction Pending`, all implemented; auto-expiry via `expire_lapsed_contracts()` (`backend/config.php`), run opportunistically from `get_contracts.php`/`my_room.php` and on-demand via `expire_contracts.php`, same pattern as `release_expired_reservations()`. `Terminated` is a valid ENUM state but still has no admin action to reach it.
+- [x] **9.4 Contract Renewal** ✅ — `process_tenant_request.php` extends the tenant's existing `lease_contracts` row (transaction-wrapped, resolves the application once instead of two divergent queries, reactivates an `expired` contract on renewal) and records every extension in the new `lease_renewals` audit table (added months, previous/new end date, rent at time of renewal). Renewal still amends the one contract row per application rather than creating a separate versioned document — the schema has no per-contract rate column to version in the first place (rate is always read live from `rent_applications.monthly_rent`).
 - [x] **9.5 Printable** ✅ — High-fidelity 4-page `@media print` CSS in `ViewContract.jsx`. **Note:** "Downloadable" is via the browser's *Save as PDF* in the print dialog; there is no PDF library or server-side PDF export in the project
+- [x] **9.6 Eviction Monitoring** ✅ — `AdminContracts.jsx`'s overdue-payment banner, per-contract eviction panel, and Flag/Clear actions were previously unreachable dead UI (`overdueInfo` was hardcoded `null`). `get_contracts.php` now computes real per-tenant overdue totals and days-overdue from `invoices`, so the eviction workflow is fully wired end to end.
 
 ---
 
@@ -547,11 +548,11 @@ flowchart TD
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
 | 8. Dashboard & Reports | 8 | 6 | 0 | 2 | 0 |
-| 9. Contracts | 5 | 3 | 2 | 0 | 0 |
+| 9. Contracts | 6 | 6 | 0 | 0 | 0 |
 | 10. Parking | 4 | 2 | 2 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **82** | **57** | **8** | **17** | **0** |
+| **TOTAL** | **83** | **60** | **6** | **17** | **0** |
 
 ### Core Functionality Coverage
 

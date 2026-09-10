@@ -65,7 +65,13 @@ const AdminContracts = () => {
           signedLease: { uploaded: !!c.signed_lease_path, fileName: c.signed_lease_path ? c.signed_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.signed_lease_path },
           notarizedLease: { uploaded: !!c.notarized_lease_path, fileName: c.notarized_lease_path ? c.notarized_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.notarized_lease_path },
           evictionStatus: c.eviction_status,
-          overdueInfo: null
+          overdueInfo: c.overdueInfo ? {
+            daysOverdue: c.overdueInfo.daysOverdue,
+            oldestDueDate: c.overdueInfo.oldestDueDate,
+            outstandingAmount: Number(c.overdueInfo.outstandingAmount),
+            invoiceCount: c.overdueInfo.invoiceCount,
+            lastPaymentDate: c.overdueInfo.lastPaymentDate
+          } : null
         }));
         setContracts(fetched);
       }

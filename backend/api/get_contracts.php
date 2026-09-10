@@ -11,6 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+// Expire any contract whose lease_end has already passed before reading, so a
+// lapsed lease never reports 'active' just because no admin has looked at it.
+expire_lapsed_contracts($conn);
+
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 $logged_user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
 $is_admin = verify_admin($conn, $admin_id);
@@ -68,8 +72,8 @@ if (!empty($user_id)) {
         exit;
     }
 
-    $query = "SELECT c.*, r.first_name, r.last_name, r.email, r.room_name, r.monthly_rent, rm.type 
-              FROM lease_contracts c 
+    $query = "SELECT c.*, r.user_id, r.first_name, r.last_name, r.email, r.room_name, r.monthly_rent, rm.type
+              FROM lease_contracts c
               LEFT JOIN rent_applications r ON c.rent_application_id = r.id
               LEFT JOIN rooms rm ON r.room_name = rm.id
               ORDER BY c.generated_at DESC";
@@ -80,6 +84,48 @@ if (!empty($user_id)) {
             $contracts[] = $row;
         }
     }
+
+    // Attach overdue-payment info per tenant so the admin eviction-monitoring
+    // UI (banner/panel/stat card in AdminContracts.jsx) has real data instead
+    // of always-null. Same 'oldest unpaid invoice' definition already used by
+    // check_due_date_reminders.php / get_invoices.php.
+    $conn->query("UPDATE invoices SET status = 'overdue' WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < CURDATE()");
+    $overdue_by_user = [];
+    $overdue_res = $conn->query("SELECT user_id, MIN(due_date) AS oldest_due_date, SUM(total_amount) AS outstanding_amount, COUNT(*) AS invoice_count FROM invoices WHERE status = 'overdue' GROUP BY user_id");
+    if ($overdue_res) {
+        while ($row = $overdue_res->fetch_assoc()) {
+            $overdue_by_user[(int)$row['user_id']] = $row;
+        }
+    }
+
+    $last_payment_by_user = [];
+    $paid_res = $conn->query("SELECT user_id, MAX(paid_at) AS last_paid_at FROM invoices WHERE status = 'paid' GROUP BY user_id");
+    if ($paid_res) {
+        while ($row = $paid_res->fetch_assoc()) {
+            $last_payment_by_user[(int)$row['user_id']] = $row['last_paid_at'];
+        }
+    }
+
+    $today = new DateTime(date('Y-m-d'));
+    foreach ($contracts as &$c) {
+        $uid = isset($c['user_id']) ? (int)$c['user_id'] : null;
+        if ($uid !== null && isset($overdue_by_user[$uid])) {
+            $info = $overdue_by_user[$uid];
+            $daysOverdue = (int)$today->diff(new DateTime($info['oldest_due_date']))->format('%a');
+            $last_paid_at = $last_payment_by_user[$uid] ?? null;
+            $c['overdueInfo'] = [
+                'daysOverdue' => $daysOverdue,
+                'oldestDueDate' => $info['oldest_due_date'],
+                'outstandingAmount' => (float)$info['outstanding_amount'],
+                'invoiceCount' => (int)$info['invoice_count'],
+                'lastPaymentDate' => $last_paid_at ? substr($last_paid_at, 0, 10) : 'Never',
+            ];
+        } else {
+            $c['overdueInfo'] = null;
+        }
+    }
+    unset($c);
+
     echo json_encode(["success" => true, "contracts" => $contracts]);
 }
 $conn->close();
