@@ -27,7 +27,11 @@ const DEFAULTS = {
   paymongoPublicKey: '',
   paymongoWebhookSecret: '',
   maxParkingSlots: 3,                          // total parking slots available
-  parkingAllowedVehicleTypes: ['motorcycle']   // vehicle types eligible for parking reservations
+  parkingAllowedVehicleTypes: ['motorcycle'],  // vehicle types eligible for parking reservations
+  landlordName: 'Elizabeth Angcanan',          // shown as the Owner/Lessor on the lease contract
+  landlordAddress: 'Tamak, Maguyam, Silang, Cavite',
+  landlordContact: '*********** (Smart)',
+  propertyAddress: 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite'
 };
 
 
@@ -66,6 +70,10 @@ export const getSystemSettings = async () => {
           }
           return DEFAULTS.parkingAllowedVehicleTypes;
         })(),
+        landlordName: dbSettings.landlord_name || DEFAULTS.landlordName,
+        landlordAddress: dbSettings.landlord_address || DEFAULTS.landlordAddress,
+        landlordContact: dbSettings.landlord_contact || DEFAULTS.landlordContact,
+        propertyAddress: dbSettings.property_address || DEFAULTS.propertyAddress,
       };
     }
   } catch (e) {
@@ -96,6 +104,10 @@ export const saveSystemSettings = async (settings) => {
       paymongo_webhook_secret: settings.paymongoWebhookSecret || '',
       max_parking_slots: settings.maxParkingSlots,
       parking_allowed_vehicle_types: JSON.stringify(settings.parkingAllowedVehicleTypes || []),
+      landlord_name: settings.landlordName || '',
+      landlord_address: settings.landlordAddress || '',
+      landlord_contact: settings.landlordContact || '',
+      property_address: settings.propertyAddress || '',
     };
     await api.post('update_system_settings.php', payload);
   } catch (e) {

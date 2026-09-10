@@ -408,6 +408,70 @@ const AdminAccountSettings = () => {
                     </div>
                   </div>
 
+                  {/* Lease Contract / Landlord Details Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                      <FontAwesomeIcon icon={faFileContract} className="text-indigo-500 text-sm" />
+                      <h3 className="text-sm font-bold text-slate-700 m-0">Lease Contract Details</h3>
+                    </div>
+                    <p className="text-[11px] text-slate-400 m-0 -mt-2">These appear as the Owner / Lessor on every generated lease contract.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faUserShield} className="text-slate-400 text-xs" />
+                          Owner / Landlord Name
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.landlordName}
+                          onChange={(e) => updateSetting('landlordName', e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        />
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faUserShield} className="text-slate-400 text-xs" />
+                          Owner's Address
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.landlordAddress}
+                          onChange={(e) => updateSetting('landlordAddress', e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        />
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faBuilding} className="text-slate-400 text-xs" />
+                          Apartment / Property Address
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.propertyAddress}
+                          onChange={(e) => updateSetting('propertyAddress', e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        />
+                        <p className="text-[11px] text-slate-400 m-0">The building's location, shown under "Description of the Apartment".</p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faInfoCircle} className="text-slate-400 text-xs" />
+                          Owner Contact Number
+                        </label>
+                        <input
+                          type="text"
+                          value={settings.landlordContact}
+                          onChange={(e) => updateSetting('landlordContact', e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        />
+                        <p className="text-[11px] text-slate-400 m-0">Shown on the contract exactly as entered — mask it if it should not be public.</p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Payment & Eviction Policy Section */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 pb-2 border-b border-slate-100">

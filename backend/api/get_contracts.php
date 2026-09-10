@@ -19,7 +19,8 @@ $user_id = $_GET['userId'] ?? null;
 $email = $_GET['email'] ?? null;
 
 if (!empty($user_id)) {
-    if (!$is_admin && $logged_user_id && (int)$user_id !== (int)$logged_user_id) {
+    // A non-admin may only read their own contract, and must identify themselves.
+    if (!$is_admin && (empty($logged_user_id) || (int)$user_id !== (int)$logged_user_id)) {
         http_response_code(403);
         echo json_encode(["success" => false, "message" => "Forbidden: Access denied to other user's contract"]);
         exit;
@@ -38,11 +39,20 @@ if (!empty($user_id)) {
     $stmt->close();
     echo json_encode(["success" => !empty($contract), "contract" => $contract, "contracts" => $contract ? [$contract] : []]);
 } else if (!empty($email)) {
-    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at 
-                            FROM rent_applications ra 
-                            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
+    // Lookup by email exists only for the admin contract preview. Tenants read
+    // their own contract through the ?userId= branch above, which is scoped to
+    // the X-User-Id header.
+    if (!$is_admin) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+        exit;
+    }
+
+    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
+                            FROM rent_applications ra
+                            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
                             LEFT JOIN rooms rm ON ra.room_name = rm.id
-                            WHERE ra.email = ? AND ra.status = 'Approved' 
+                            WHERE ra.email = ? AND ra.status = 'Approved'
                             ORDER BY ra.created_at DESC LIMIT 1");
     $stmt->bind_param("s", $email);
     $stmt->execute();

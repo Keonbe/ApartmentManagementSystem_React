@@ -27,7 +27,7 @@
 | [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management                                                                                                                                                     |
 | [x] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [x] admin approval/rejection, [x] request status tracking                                                                                                                                                                              |
 | [x] | **Visitor Management**                  | [x] Visitor records / management, [x] tenant pre-authorization, [x] visitor history, [x] overstay alerts                                                                                                                                                                |
-| [x] | **Contract Management**                 | [x] Contract generation, [x] contract viewing, [x] status management (Draft → Active → Expired), [x] renewal, [x] downloadable/printable                                                                                                                              |
+| [ ] | **Contract Management**                 | [x] Contract generation (auto on approval, as Draft), [x] contract viewing, [~] status management (Draft → Active done; auto-expire pending), [~] renewal (extends end date only), [x] printable (PDF via browser print dialog)                                        |
 
 ---
 
@@ -491,11 +491,11 @@ flowchart TD
 > Admin Pages: [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx)
 > Tenant Pages: [ViewContract.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ViewContract.jsx)
 
-- [x] **9.1 Lease Contract Generation** ✅ — Implemented via `ViewContract.jsx` template and DB insertion
-- [x] **9.2 Contract Viewing** ✅ — Fully wired to `lease_contracts` via `ViewContract.jsx`
-- [x] **9.3 Contract Status Management** ✅ — `update_contract_status.php` and `AdminContracts.jsx`
-- [x] **9.4 Contract Renewal** ✅ — DB logic added to `process_tenant_request.php`
-- [x] **9.5 Downloadable / Printable** ✅ — High-fidelity `@media print` CSS built into `ViewContract.jsx`
+- [x] **9.1 Lease Contract Generation** ✅ — Auto-generated on application approval (`update_tenant_status.php`), created as `draft`; rent, security deposit, lease start/end and tenant details all bound to real DB values in `ViewContract.jsx`; landlord identity comes from `system_settings`
+- [x] **9.2 Contract Viewing** ✅ — Fully wired to `lease_contracts` via `ViewContract.jsx`, scoped to the logged-in tenant (`?userId=` + `X-User-Id`); `?email=` lookup is admin-only
+- [x] **9.3 Contract Status Management** 🔧 — `Draft → Active` implemented (`update_contract_status.php` `activate` action + Activate button in `AdminContracts.jsx`); `Terminated` is a valid state but has no admin action yet, and **auto-expiry on lease end is still not implemented** — no cron/sweep exists, so a lapsed contract keeps reporting `active`
+- [ ] **9.4 Contract Renewal** 🔧 — `process_tenant_request.php` bumps `lease_contracts.lease_end` on an approved extension, but does not generate a new contract version or adjust the rate, and silently skips contracts that are not `active`
+- [x] **9.5 Printable** ✅ — High-fidelity 4-page `@media print` CSS in `ViewContract.jsx`. **Note:** "Downloadable" is via the browser's *Save as PDF* in the print dialog; there is no PDF library or server-side PDF export in the project
 
 ---
 
@@ -547,11 +547,11 @@ flowchart TD
 | 6. Notification | 8 | 2 | 1 | 5 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
 | 8. Dashboard & Reports | 8 | 6 | 0 | 2 | 0 |
-| 9. Contracts | 5 | 5 | 0 | 0 | 0 |
+| 9. Contracts | 5 | 3 | 2 | 0 | 0 |
 | 10. Parking | 4 | 2 | 2 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **82** | **59** | **6** | **17** | **0** |
+| **TOTAL** | **82** | **57** | **8** | **17** | **0** |
 
 ### Core Functionality Coverage
 

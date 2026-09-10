@@ -136,7 +136,7 @@ CREATE TABLE `lease_contracts` (
   `deposit_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
   `lease_start` date DEFAULT NULL,
   `lease_end` date DEFAULT NULL,
-  `status` varchar(50) NOT NULL DEFAULT 'active',
+  `status` enum('draft','active','expired','terminated','eviction-pending') NOT NULL DEFAULT 'draft',
   `signed_lease_path` varchar(255) DEFAULT NULL,
   `notarized_lease_path` varchar(255) DEFAULT NULL,
   `eviction_status` varchar(50) DEFAULT NULL,
@@ -641,4 +641,8 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('service_other_active', 'true'),
 ('reservation_hold_days', '7'),
 ('max_parking_slots', '3'),
-('parking_allowed_vehicle_types', '["motorcycle"]');
+('parking_allowed_vehicle_types', '["motorcycle"]'),
+('landlord_name', 'Elizabeth Angcanan'),
+('landlord_address', 'Tamak, Maguyam, Silang, Cavite'),
+('landlord_contact', '*********** (Smart)'),
+('property_address', 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite');

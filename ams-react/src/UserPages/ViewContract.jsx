@@ -1,10 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPrint, faArrowLeft, faHourglassHalf } from '@fortawesome/free-solid-svg-icons';
+import { faPrint, faArrowLeft, faHourglassHalf, faFileSignature, faDownload } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
+import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/view-contract.responsive.css';
+
+const BLANK_LINE = '____________________';
+const BLANK_FIELD = '_________________________________________';
+
+const formatPeso = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) return null;
+    return `₱${num.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const formatLongDate = (raw) => {
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+};
 
 export default function ViewContract() {
     const navigate = useNavigate();
@@ -12,31 +30,52 @@ export default function ViewContract() {
     const { t, lang } = useLang();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isEmpty, setIsEmpty] = useState(false);
     const [contractData, setContractData] = useState(null);
+    const [landlord, setLandlord] = useState({ name: '', address: '', contact: '', propertyAddress: '' });
     const [language, setLanguage] = useState(lang === 'fil' ? 'tl' : 'en'); // 'tl' | 'en'
 
+    // Keep the contract body in step with the global language switcher (TopBar).
+    useEffect(() => {
+        setLanguage(lang === 'fil' ? 'tl' : 'en');
+    }, [lang]);
+
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
-    
-    // Read email from query parameters (e.g. for admin preview), fallback to logged in user email
+
+    // ?email= is the admin preview path only; tenants read their own contract
+    // through ?userId=, which the backend scopes to the X-User-Id header.
     const queryParams = new URLSearchParams(location.search);
-    const queryEmail = queryParams.get('email');
-    const activeEmail = queryEmail || (loggedInUser ? loggedInUser.email_address : "");
+    const previewEmail = queryParams.get('email');
+    const activeEmail = previewEmail || (loggedInUser ? loggedInUser.email_address : "");
+
+    useEffect(() => {
+        getSystemSettings().then((s) => setLandlord({
+            name: s.landlordName || '',
+            address: s.landlordAddress || '',
+            contact: s.landlordContact || '',
+            propertyAddress: s.propertyAddress || ''
+        }));
+    }, []);
 
     useEffect(() => {
         const fetchContractDetails = async () => {
-            if (!activeEmail) {
-                setError("No active user session found.");
+            if (!previewEmail && !loggedInUser?.id) {
+                setError(t('contract.errNoSession'));
                 setLoading(false);
                 return;
             }
 
             try {
-                let contractRes = await api.get(`/get_contracts.php?email=${encodeURIComponent(activeEmail)}`);
+                const contractQuery = previewEmail
+                    ? `/get_contracts.php?email=${encodeURIComponent(previewEmail)}`
+                    : `/get_contracts.php?userId=${encodeURIComponent(loggedInUser.id)}`;
+
+                let contractRes = await api.get(contractQuery);
                 let data = null;
-                
+
                 if (contractRes.data.success && contractRes.data.contract) {
                     data = contractRes.data.contract;
-                } else {
+                } else if (activeEmail) {
                     const fallbackRes = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
                     if (fallbackRes.data.success && fallbackRes.data.data) {
                         data = fallbackRes.data.data;
@@ -46,37 +85,46 @@ export default function ViewContract() {
                 if (data) {
                     const isTentative = !data.lease_start;
                     const entryDateRaw = data.lease_start || data.created_at || data.app_created_at;
-                    const creationDate = new Date(entryDateRaw);
-                    const startDateString = creationDate.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
-                    
-                    const rentDay = creationDate.getDate();
-                    const cleanRoomName = data.room_name ? data.room_name.replace(/^Room\s+/i, '') : 'C';
+                    const startDate = entryDateRaw ? new Date(entryDateRaw) : null;
+                    const hasValidStart = startDate && !isNaN(startDate.getTime());
+
+                    const cleanRoomName = data.room_name ? data.room_name.replace(/^Room\s+/i, '') : null;
+                    const monthlyRent = formatPeso(data.monthly_rent);
 
                     setContractData({
                         tenantName: `${data.first_name || ""} ${data.last_name || ""}`.trim() || `${loggedInUser?.first_name || ""} ${loggedInUser?.last_name || ""}`.trim(),
                         tenantEmail: activeEmail,
-                        tenantPhone: data.contact_no || "____________________",
+                        tenantPhone: data.contact_no || BLANK_LINE,
                         roomName: cleanRoomName,
-                        monthlyRent: parseFloat(data.monthly_rent),
-                        entryDate: startDateString,
-                        dueDateDay: rentDay,
+                        monthlyRent,
+                        // Security deposit is one month's rent; fall back to the rent
+                        // figure when the contract row has not recorded one yet.
+                        depositAmount: formatPeso(data.deposit_amount) || monthlyRent,
+                        advanceRent: monthlyRent,
+                        entryDate: hasValidStart ? formatLongDate(startDate) : null,
+                        leaseEndDate: formatLongDate(data.lease_end),
+                        dueDateDay: hasValidStart ? startDate.getDate() : null,
                         isTentative: isTentative,
                         signedLeasePath: data.signed_lease_path || null,
                         notarizedLeasePath: data.notarized_lease_path || null
                     });
                 } else {
-                    setError("No active room lease agreements found for this account.");
+                    setIsEmpty(true);
                 }
             } catch (err) {
                 console.error("Failed to fetch contract details:", err);
-                setError("Failed to connect to the server.");
+                if (err.response?.status === 403) {
+                    setError(t('contract.errForbidden'));
+                } else {
+                    setError(t('contract.errConnect'));
+                }
             } finally {
                 setLoading(false);
             }
         };
 
         fetchContractDetails();
-    }, [activeEmail]);
+    }, [activeEmail, previewEmail]);
 
     const handlePrintAction = () => {
         window.print();
@@ -87,7 +135,25 @@ export default function ViewContract() {
             <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-900 text-white">
                 <div className="flex flex-col items-center space-y-4">
                     <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-500 animate-spin" />
-                    <h2 className="text-xl font-bold">Loading Contract Details...</h2>
+                    <h2 className="text-xl font-bold">{t('contract.loading')}</h2>
+                </div>
+            </div>
+        );
+    }
+
+    if (isEmpty) {
+        return (
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-900 text-white">
+                <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 text-center max-w-md space-y-4 shadow-2xl">
+                    <FontAwesomeIcon icon={faFileSignature} className="text-4xl text-slate-500" />
+                    <h2 className="text-xl font-bold text-slate-200">{t('contract.emptyTitle')}</h2>
+                    <p className="text-slate-400 text-sm">{t('contract.emptyBody')}</p>
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all border-0 cursor-pointer text-xs"
+                    >
+                        {t('contract.goBack')}
+                    </button>
                 </div>
             </div>
         );
@@ -97,13 +163,13 @@ export default function ViewContract() {
         return (
             <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-900 text-white">
                 <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 text-center max-w-md space-y-4 shadow-2xl">
-                    <h2 className="text-2xl font-bold text-rose-500">Error</h2>
+                    <h2 className="text-2xl font-bold text-rose-500">{t('contract.errTitle')}</h2>
                     <p className="text-slate-400 text-sm">{error}</p>
                     <button
                         onClick={() => navigate(-1)}
                         className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all border-0 cursor-pointer text-xs"
                     >
-                        Go Back
+                        {t('contract.goBack')}
                     </button>
                 </div>
             </div>
@@ -149,6 +215,37 @@ export default function ViewContract() {
                     </button>
                 </div>
             </div>
+
+            {/* Executed copies the tenant has already uploaded */}
+            {(contractData.signedLeasePath || contractData.notarizedLeasePath) && (
+                <div className="w-full max-w-3xl mb-6 print:hidden bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs font-bold text-slate-700 m-0 mb-2">{t('contract.signedCopies')}</p>
+                    <div className="flex flex-wrap gap-3">
+                        {contractData.signedLeasePath && (
+                            <a
+                                href={fileUrl(contractData.signedLeasePath)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-2 rounded-xl no-underline"
+                            >
+                                <FontAwesomeIcon icon={faDownload} />
+                                {t('contract.signedLease')}
+                            </a>
+                        )}
+                        {contractData.notarizedLeasePath && (
+                            <a
+                                href={fileUrl(contractData.notarizedLeasePath)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-2 rounded-xl no-underline"
+                            >
+                                <FontAwesomeIcon icon={faDownload} />
+                                {t('contract.notarizedLease')}
+                            </a>
+                        )}
+                    </div>
+                </div>
+            )}
 
             <style>
                 {`
@@ -208,14 +305,14 @@ export default function ViewContract() {
                                 <div className="space-y-3">
                                     <p className="m-0 font-bold text-slate-900">SA PAGITAN NG:</p>
                                     <div className="space-y-1 text-sm pl-2">
-                                        <p className="m-0"><strong>Pangalan ng May-ari ng Apartment:</strong> Elizabeth Angcanan</p>
-                                        <p className="m-0"><strong>Tirahan ng May-ari:</strong> Tamak, Maguyam, Silang, Cavite</p>
-                                        <p className="m-0"><strong>Telepono ng May-ari:</strong> *********** (Smart)</p>
+                                        <p className="m-0"><strong>Pangalan ng May-ari ng Apartment:</strong> {landlord.name || BLANK_FIELD}</p>
+                                        <p className="m-0"><strong>Tirahan ng May-ari:</strong> {landlord.address || BLANK_FIELD}</p>
+                                        <p className="m-0"><strong>Telepono ng May-ari:</strong> {landlord.contact || BLANK_FIELD}</p>
                                         <p className="m-0 font-bold py-1">AT</p>
-                                        <p className="m-0"><strong>Pangalan ng Nangungupahan:</strong> <span className="underline font-semibold">{contractData.tenantName || '_________________________________________'}</span></p>
-                                        <p className="m-0"><strong>Tirahan ng Nangungupahan:</strong> <span className="underline font-semibold">Sitio Engkanto, Brgy. Maguyam, Silang, Cavite</span></p>
-                                        <p className="m-0"><strong>Telepono ng Nangungupahan:</strong> <span className="underline font-semibold">{contractData.tenantPhone || '_________________________________________'}</span></p>
-                                        <p className="m-0"><strong>Letra ng Napiling Kwarto:</strong> <span className="underline font-semibold">Room {contractData.roomName || '______'}</span></p>
+                                        <p className="m-0"><strong>Pangalan ng Nangungupahan:</strong> <span className="underline font-semibold">{contractData.tenantName || BLANK_FIELD}</span></p>
+                                        <p className="m-0"><strong>Tirahan ng Nangungupahan:</strong> <span className="underline font-semibold">{BLANK_FIELD}</span></p>
+                                        <p className="m-0"><strong>Telepono ng Nangungupahan:</strong> <span className="underline font-semibold">{contractData.tenantPhone || BLANK_FIELD}</span></p>
+                                        <p className="m-0"><strong>Letra ng Itinalagang Kwarto:</strong> <span className="underline font-semibold">Room {contractData.roomName || '______'}</span></p>
                                     </div>
 
                                     <hr className="my-4 border-t border-slate-300" />
@@ -228,23 +325,20 @@ export default function ViewContract() {
                                     <div className="space-y-2 pt-2">
                                         <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">I. PAGLALARAWAN NG APARTMENT</h3>
                                         <div className="pl-4 space-y-2">
-                                            <p className="m-0"><strong>1. Lokalidad at Adres ng Apartment:</strong><br />Sitio Engkanto, Brgy. Maguyam, Silang, Cavite</p>
+                                            <p className="m-0"><strong>1. Lokasyon at Adres ng Apartment:</strong><br />{landlord.propertyAddress || BLANK_FIELD}</p>
                                             <p className="m-0"><strong>2. Deskripsyon ng Apartment:</strong><br />Ang apartment ay may isang (1) kwarto, isang (1) palikuran, at may sapat na espasyo para sa kusina at sala. Ang unit ay may tamang laki para sa isang maliit na pamilya, grupo, o indibidwal na naghahanap ng simpleng tirahan. May mga bintana na nagbibigay liwanag at hangin, at ang apartment ay nasa maayos na kondisyon.</p>
-                                            <p className="m-0"><strong>3. Maximum Capacity ng Apartment:</strong><br />Ang maximum kapasidad ng apartment ay 4 na tao lamang. Kung sakaling lalagpas sa apat (4) na tao, kinakailangan ng Nangungupahan na magbayad ng karagdagang ₱1,000 kada tao na lalagpas sa itinakdang kapasidad. Ang mga dagdag na bayad na ito ay dapat bayaran kasama ng buwanang upa at hindi maaaring gamitin bilang parte ng security deposit.</p>
-                                            <p className="m-0"><strong>4. Petsa ng Pagpasok:</strong> <span className="underline font-semibold">{contractData.entryDate || '______________________________________________'}</span> {contractData.isTentative && '(Tentative - Not Final)'}</p>
+                                            <p className="m-0"><strong>3. Pinakamataas na Kapasidad ng Apartment:</strong><br />Ang pinakamataas na kapasidad ng apartment ay apat (4) na tao lamang. Kung sakaling lalagpas sa apat (4) na tao, kinakailangan ng Nangungupahan na magbayad ng karagdagang ₱1,000 kada tao na lalagpas sa itinakdang kapasidad. Ang mga dagdag na bayad na ito ay dapat bayaran kasama ng buwanang upa at hindi maaaring kunin mula sa security deposit.</p>
+                                            <p className="m-0"><strong>4. Petsa ng Pagpasok:</strong> <span className="underline font-semibold">{contractData.entryDate || '______________________________________________'}</span> {contractData.isTentative && <span className="text-rose-600 font-semibold">(Panimula — Hindi pa Pinal)</span>}</p>
+                                            <p className="m-0"><strong>5. Panahon ng Pag-upa:</strong> <span className="underline font-semibold">{contractData.entryDate || '____________________'}</span> hanggang <span className="underline font-semibold">{contractData.leaseEndDate || '____________________'}</span></p>
                                         </div>
                                     </div>
 
                                     <hr className="my-4 border-t border-slate-300" />
 
                                     <div className="space-y-2 pt-2">
-                                        <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">II. HATING SA PAGBAYAD NG UPANG</h3>
+                                        <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">II. MGA TUNTUNIN SA PAGBABAYAD NG UPA</h3>
                                         <div className="pl-4 space-y-2">
-                                            <p className="m-0"><strong>1. Halaga ng Buwanang Upa:</strong><br />Ang buwanang halaga ng upa ay nakadepende sa lokasyon ng unit:</p>
-                                            <ul className="list-disc pl-6 m-0 space-y-1">
-                                                <li>Para sa unit na matatagpuan sa <strong>3rd floor</strong>, ang buwanang renta ay <strong>₱3,500</strong>.</li>
-                                                <li>Para sa unit na matatagpuan sa <strong>1st at 2nd floor</strong>, ang buwanang renta ay <strong>₱4,000</strong>.</li>
-                                            </ul>
+                                            <p className="m-0"><strong>1. Halaga ng Buwanang Upa:</strong><br />Ang buwanang upa para sa Room <strong>{contractData.roomName || '__'}</strong> ay <strong className="underline">{contractData.monthlyRent || '____________'}</strong> kada buwan.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -255,7 +349,7 @@ export default function ViewContract() {
                                 <span className="text-slate-500 font-semibold">Page 1 of 4</span>
                                 <div className="flex flex-col items-center">
                                     <div className="w-64 border-b border-slate-400 mb-1"></div>
-                                    <span className="font-semibold text-slate-800 text-[10px]">Panagalan at Pirma ng Nangungupahan</span>
+                                    <span className="font-semibold text-slate-800 text-[10px]">Pangalan at Pirma ng Nangungupahan</span>
                                 </div>
                             </div>
                         </div>
@@ -273,7 +367,7 @@ export default function ViewContract() {
                                     <div className="pl-4 space-y-3">
                                         <p className="m-0"><strong>2. Pangunahing Paraan ng Pagbabayad:</strong><br />Ang pagbabayad ng renta ay maaaring gawin sa alinman sa mga sumusunod na paraan:</p>
                                         <ul className="list-disc pl-6 m-0 space-y-1">
-                                            <li><strong>GCash:</strong> *********** (Elizabeth A.)</li>
+                                            <li><strong>GCash:</strong> *********** ({landlord.name || '—'})</li>
                                             <li><strong>Banko</strong>
                                                 <ul className="list-none pl-4 space-y-0.5">
                                                     <li>✓ <strong>BDO:</strong> ************ (Savings account)</li>
@@ -283,16 +377,18 @@ export default function ViewContract() {
                                             <li><strong>Cash:</strong> Maaaring iabot nang direkta sa May-ari ng apartment.</li>
                                         </ul>
 
-                                        <p className="m-0 mt-2"><strong>3. Hulog ng Security Deposit:</strong><br />Ang Nangungupahan ay magbabayad ng isang <strong>hindi refundable</strong> security deposit na nagkakahalaga ng <strong>isang buwan na renta</strong>. Halimbawa, kung ang renta ng unit ay ₱3,500 o ₱4,000, ang security deposit ay katumbas ng halaga ng isang buwan na renta. Ang deposito ay magsisilbing garantiya para sa mga posibleng pagkasira o hindi pagkakabayad sa mga gastusin.</p>
-                                        
-                                        <p className="m-0"><strong>Pagtukoy sa Paggamit ng Security Deposit:</strong><br />Ang security deposit ay <strong>maaaring gamitin</strong> para sa huling buwan ng pagrenta, <strong>sa kondisyon na ang lahat ng utility bills (kuryente at tubig) ay bayad na</strong>, at walang pinsala o sira sa mga gamit o kagamitan sa apartment. Kung may mga hindi nabayarang utility bills o may sira sa mga kagamitan, ang May-ari ay may karapatang ibawas ang kaukulang halaga mula sa security deposit bago ito gamitin para sa huling buwan ng renta.</p>
+                                        <p className="m-0 mt-2"><strong>3. Paunang Bayad sa Upa (Advance Rent):</strong><br />Bago pumasok sa unit, ang Nangungupahan ay magbabayad ng paunang upa para sa unang buwan na nagkakahalaga ng <strong className="underline">{contractData.advanceRent || '____________'}</strong>. Ito ay ibinibilang sa upa ng unang buwan ng pananatili at hindi bahagi ng security deposit.</p>
 
-                                        <p className="m-0 mt-2"><strong>4. Due Date Reminder:</strong><br />Ang bayad sa renta ay dapat maibigay bago o sa huling araw ng bawat buwan. Ang buwanang due date para sa pagbabayad ng renta ay <span className="underline font-semibold">{contractData.dueDateDay}</span>.<br />
+                                        <p className="m-0 mt-2"><strong>4. Security Deposit:</strong><br />Bukod sa paunang upa, ang Nangungupahan ay magbabayad ng security deposit na nagkakahalaga ng <strong className="underline">{contractData.depositAmount || '____________'}</strong>, katumbas ng isang buwang upa. Ang deposito ay magsisilbing garantiya para sa mga posibleng pinsala o hindi nabayarang gastusin.</p>
+
+                                        <p className="m-0"><strong>Paggamit ng Security Deposit:</strong><br />Ang security deposit ay <strong>hindi ibinabalik bilang cash</strong>. Sa halip, ito ay <strong>ikinakaltas sa mga hindi nabayarang upa, singil sa kuryente at tubig, o pinsala</strong> sa unit at mga kagamitan nito. Kung wala nang natitirang kaltas sa pagtatapos ng kontrata, maaari itong ipambayad sa huling buwan ng pag-upa.</p>
+
+                                        <p className="m-0 mt-2"><strong>5. Paalala sa Takdang Araw ng Bayad:</strong><br />Ang bayad sa upa ay dapat maibigay bago o sa takdang araw ng bawat buwan. Ang buwanang takdang araw ng pagbabayad ay ang ika-<span className="underline font-semibold">{contractData.dueDateDay || '__'}</span> ng buwan.<br />
                                         <strong>Tandaan:</strong> Kung sakaling hindi makapagbayad bago ang itinakdang due date, hinihikayat ang Nangungupahan na agad makipag-ugnayan sa May-ari upang mapag-usapan ang posibilidad ng palugit o alternatibong paraan ng pagbabayad.</p>
 
-                                        <p className="m-0"><strong>5. Payo sa Pagbabayad ng Renta:</strong><br />Walang multa ang ipinapataw sa huling araw ng pagbabayad ng renta. Subalit, <strong>hinihikayat ang Nangungupahan na magbayad sa tamang oras at araw</strong> ng bawat buwan upang maiwasan ang mga aberya na maaaring magresulta sa <strong>pagpapawalang bisa ng kontrata o pagpapalayas sa apartment</strong>.<br />Kung sakaling nahirapan sa pagbabayad, <strong>maaaring makipag-ugnayan sa May-ari</strong> upang humiling ng <strong>palugit sa pagbabayad</strong>. Ang May-ari ay may konsiderasyon at maaaring magbigay ng palugit batay sa sitwasyon ng Nangungupahan.</p>
+                                        <p className="m-0"><strong>6. Payo sa Pagbabayad ng Upa:</strong><br />Walang multang ipinapataw kung magbabayad sa mismong takdang araw. Subalit, <strong>hinihikayat ang Nangungupahan na magbayad sa tamang oras at araw</strong> ng bawat buwan upang maiwasan ang mga aberya na maaaring magresulta sa <strong>pagpapawalang-bisa ng kontrata o pagpapaalis sa apartment</strong>.<br />Kung sakaling nahirapan sa pagbabayad, <strong>maaaring makipag-ugnayan sa May-ari</strong> upang humiling ng <strong>palugit sa pagbabayad</strong>. Ang May-ari ay may konsiderasyon at maaaring magbigay ng palugit batay sa sitwasyon ng Nangungupahan.</p>
 
-                                        <p className="m-0"><strong>6. Pagpapatunay ng Pagbabayad:</strong><br />Kung ang Nangungupahan ay nagbayad sa <strong>GCash o Bank transfer</strong>, kinakailangan nilang magpadala ng <strong>screenshot</strong> ng kanilang pagbabayad sa May-ari sa pamamagitan ng <strong>Facebook Messenger</strong> sa account na <strong>Elizabeth Angcanan</strong>. Ang screenshot ng pagbabayad ay</p>
+                                        <p className="m-0"><strong>7. Pagpapatunay ng Pagbabayad:</strong><br />Kung ang Nangungupahan ay nagbayad sa pamamagitan ng <strong>GCash o bank transfer</strong>, kinakailangan nilang magpadala ng <strong>larawan ng resibo (screenshot)</strong> ng kanilang pagbabayad sa May-ari sa pamamagitan ng <strong>Facebook Messenger</strong> sa account na <strong>{landlord.name || '—'}</strong>. Ang larawang ito ng pagbabayad ay</p>
                                     </div>
                                 </div>
                             </div>
@@ -302,7 +398,7 @@ export default function ViewContract() {
                                 <span className="text-slate-500 font-semibold">Page 2 of 4</span>
                                 <div className="flex flex-col items-center">
                                     <div className="w-64 border-b border-slate-400 mb-1"></div>
-                                    <span className="font-semibold text-slate-800 text-[10px]">Panagalan at Pirma ng Nangungupahan</span>
+                                    <span className="font-semibold text-slate-800 text-[10px]">Pangalan at Pirma ng Nangungupahan</span>
                                 </div>
                             </div>
                         </div>
@@ -317,7 +413,7 @@ export default function ViewContract() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <p className="m-0">magsisilbing patunay ng kanilang obligasyon sa pagbabayad ng renta para sa kasalukuyang buwan</p>
+                                    <p className="m-0">magsisilbing patunay ng kanilang obligasyon sa pagbabayad ng upa para sa kasalukuyang buwan.</p>
 
                                     <hr className="my-4 border-t border-slate-300" />
 
@@ -335,9 +431,9 @@ export default function ViewContract() {
                                         <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">IV. MGA RESPONSIBILIDAD NG NANGUNGUPAHAN</h3>
                                         <div className="pl-4 space-y-2">
                                             <p className="m-0"><strong>1. Pag-aalaga ng Apartment:</strong><br />Ang Nangungupahan ay dapat mag-ingat at mag-maintain ng kalinisan at kaayusan ng apartment, pati na ang mga gamit at kagamitan na kasama sa unit.</p>
-                                            <p className="m-0"><strong>2. Hindi Pagpapabago NG Estruktura:</strong><br />Hindi maaaring baguhin, sirain, o gawing permanenteng gamit ang anumang bahagi ng apartment (halimbawa, magbutas ng pader, magdikit sa pader gamit ang pandikit na mahirap alisin) nang walang pahintulot ng May-ari.</p>
-                                            <p className="m-0"><strong>3. Pagbabayad ng Utility Bills:</strong><br />Ang Nangungupahan ay mananagot sa lahat ng mga gastusin sa kuryente, tubig, internet, at iba pang utility services maliban kung magkakaroon ng ibang kasunduan.</p>
-                                            <p className="m-0"><strong>4. Hindi Pagbabayad ng Kuryente at Tubig:</strong><br />Kung sakaling maputulan ng <strong>kuryente at tubig</strong> ang apartment dahil sa hindi pagbabayad ng mga utility bills, hindi magiging <strong>responsibilidad</strong> ng May-ari ang pagbabayad para sa muling pagkonekta sa mga serbisyong ito. Ang Nangungupahan ay <strong>dapat magbayad</strong> ng mga overdue bills at tiyakin ang agarang pagbabayad upang maiwasan ang pagkaantala sa mga serbisyong ito. Ang May-ari ay hindi mananagot para sa anumang abala o inconvenience dulot ng hindi pagkakaroon ng kuryente at tubig.</p>
+                                            <p className="m-0"><strong>2. Hindi Pagpapabago ng Estruktura:</strong><br />Hindi maaaring baguhin, sirain, o gawing permanenteng gamit ang anumang bahagi ng apartment (halimbawa, magbutas ng pader, magdikit sa pader gamit ang pandikit na mahirap alisin) nang walang pahintulot ng May-ari.</p>
+                                            <p className="m-0"><strong>3. Pagbabayad ng mga Singil sa Serbisyo:</strong><br />Ang Nangungupahan ay mananagot sa lahat ng mga gastusin sa kuryente, tubig, internet, at iba pang serbisyo maliban kung magkakaroon ng ibang kasunduan.</p>
+                                            <p className="m-0"><strong>4. Hindi Pagbabayad ng Kuryente at Tubig:</strong><br />Kung sakaling maputulan ng <strong>kuryente at tubig</strong> ang apartment dahil sa hindi pagbabayad ng mga singil, hindi magiging <strong>responsibilidad</strong> ng May-ari ang pagbabayad para sa muling pagkonekta sa mga serbisyong ito. Ang Nangungupahan ay <strong>dapat magbayad</strong> ng mga nakaraang singil at tiyakin ang agarang pagbabayad upang maiwasan ang pagkaantala sa mga serbisyong ito. Ang May-ari ay hindi mananagot para sa anumang abala o istorbong dulot ng hindi pagkakaroon ng kuryente at tubig.</p>
                                             <p className="m-0"><strong>5. Pagtanggap sa Pagsusuri ng Unit:</strong><br />Ang Nangungupahan ay papayag na magsagawa ng pagsusuri o inspeksyon ang May-ari sa unit para tiyakin na ito ay nasa tamang kondisyon at walang sira o pinsala sa mga kagamitan.</p>
                                         </div>
                                     </div>
@@ -351,7 +447,7 @@ export default function ViewContract() {
                                 <span className="text-slate-500 font-semibold">Page 3 of 4</span>
                                 <div className="flex flex-col items-center">
                                     <div className="w-64 border-b border-slate-400 mb-1"></div>
-                                    <span className="font-semibold text-slate-800 text-[10px]">Panagalan at Pirma ng Nangungupahan</span>
+                                    <span className="font-semibold text-slate-800 text-[10px]">Pangalan at Pirma ng Nangungupahan</span>
                                 </div>
                             </div>
                         </div>
@@ -379,7 +475,7 @@ export default function ViewContract() {
                                     <div className="space-y-2">
                                         <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">VI. IBA PANG MGA TUNTUNIN</h3>
                                         <div className="pl-4 space-y-2">
-                                            <p className="m-0"><strong>1. Pagpapamana ng Karapatan:</strong><br />Hindi maaaring ipamana ng Nangungupahan ang mga karapatan o responsibilidad na nakasaad sa kontratang ito sa iba nang walang pahintulot mula sa May-ari.</p>
+                                            <p className="m-0"><strong>1. Paglilipat ng Karapatan:</strong><br />Hindi maaaring ilipat, isalin, o ipaupa muli ng Nangungupahan sa iba ang mga karapatan o responsibilidad na nakasaad sa kontratang ito nang walang nakasulat na pahintulot mula sa May-ari.</p>
                                             <p className="m-0"><strong>2. Pagbabago ng Kasunduan:</strong><br />Ang anumang pagbabago o karagdagan sa kontratang ito ay magiging epektibo lamang kapag nakasulat at pinirmahan ng parehong partido.</p>
                                         </div>
                                     </div>
@@ -395,14 +491,14 @@ export default function ViewContract() {
 
                                         <p className="m-0 font-semibold text-slate-900">Pinirmahan ng:</p>
 
-                                        <div className="grid grid-cols-2 gap-8 text-sm font-sans pt-1">
-                                            <div className="space-y-3">
+                                        <div className="contract-signature-grid grid grid-cols-2 gap-8 text-sm font-sans pt-1">
+                                            <div className="contract-signature-box space-y-3">
                                                 <p className="m-0 font-bold">May-ari ng Apartment:</p>
                                                 <p className="m-0">Pirma: ___________________________</p>
-                                                <p className="m-0">Pangalan: Elizabeth Angcanan</p>
+                                                <p className="m-0">Pangalan: {landlord.name || '________________________'}</p>
                                                 <p className="m-0">Petsa: ___________________________</p>
                                             </div>
-                                            <div className="space-y-3">
+                                            <div className="contract-signature-box space-y-3">
                                                 <p className="m-0 font-bold">Nangungupahan:</p>
                                                 <p className="m-0">Pirma: ___________________________</p>
                                                 <p className="m-0">Pangalan: {contractData.tenantName || '________________________'}</p>
@@ -422,7 +518,7 @@ export default function ViewContract() {
                                 <span className="text-slate-500 font-semibold">Page 4 of 4</span>
                                 <div className="flex flex-col items-center">
                                     <div className="w-64 border-b border-slate-400 mb-1"></div>
-                                    <span className="font-semibold text-slate-800 text-[10px]">Panagalan at Pirma ng Nangungupahan</span>
+                                    <span className="font-semibold text-slate-800 text-[10px]">Pangalan at Pirma ng Nangungupahan</span>
                                 </div>
                             </div>
                         </div>
@@ -441,13 +537,13 @@ export default function ViewContract() {
                                 <div className="space-y-3">
                                     <p className="m-0 font-bold text-slate-900">BETWEEN:</p>
                                     <div className="space-y-1 text-sm pl-2">
-                                        <p className="m-0"><strong>Name of Apartment Owner:</strong> Elizabeth Angcanan</p>
-                                        <p className="m-0"><strong>Owner's Address:</strong> Tamak, Maguyam, Silang, Cavite</p>
-                                        <p className="m-0"><strong>Owner's Phone Number:</strong> *********** (Smart)</p>
+                                        <p className="m-0"><strong>Name of Apartment Owner:</strong> {landlord.name || BLANK_FIELD}</p>
+                                        <p className="m-0"><strong>Owner's Address:</strong> {landlord.address || BLANK_FIELD}</p>
+                                        <p className="m-0"><strong>Owner's Phone Number:</strong> {landlord.contact || BLANK_FIELD}</p>
                                         <p className="m-0 font-bold py-1">AND</p>
-                                        <p className="m-0"><strong>Name of Tenant:</strong> <span className="underline font-semibold">{contractData.tenantName || '_________________________________________'}</span></p>
-                                        <p className="m-0"><strong>Tenant's Address:</strong> <span className="underline font-semibold">Sitio Engkanto, Brgy. Maguyam, Silang, Cavite</span></p>
-                                        <p className="m-0"><strong>Tenant's Phone Number:</strong> <span className="underline font-semibold">{contractData.tenantPhone || '_________________________________________'}</span></p>
+                                        <p className="m-0"><strong>Name of Tenant:</strong> <span className="underline font-semibold">{contractData.tenantName || BLANK_FIELD}</span></p>
+                                        <p className="m-0"><strong>Tenant's Address:</strong> <span className="underline font-semibold">{BLANK_FIELD}</span></p>
+                                        <p className="m-0"><strong>Tenant's Phone Number:</strong> <span className="underline font-semibold">{contractData.tenantPhone || BLANK_FIELD}</span></p>
                                         <p className="m-0"><strong>Assigned Room Letter:</strong> <span className="underline font-semibold">Room {contractData.roomName || '______'}</span></p>
                                     </div>
 
@@ -461,10 +557,11 @@ export default function ViewContract() {
                                     <div className="space-y-2 pt-2">
                                         <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">I. DESCRIPTION OF THE APARTMENT</h3>
                                         <div className="pl-4 space-y-2">
-                                            <p className="m-0"><strong>1. Location and Address of the Apartment:</strong><br />Sitio Engkanto, Brgy. Maguyam, Silang, Cavite</p>
+                                            <p className="m-0"><strong>1. Location and Address of the Apartment:</strong><br />{landlord.propertyAddress || BLANK_FIELD}</p>
                                             <p className="m-0"><strong>2. Description of the Apartment:</strong><br />The apartment has one (1) bedroom, one (1) bathroom, and sufficient space for a kitchen and living room. The unit is an appropriate size for a small family, group, or individual looking for simple housing. It has windows that provide light and air, and the apartment is in good condition.</p>
-                                            <p className="m-0"><strong>3. Maximum Capacity of the Apartment:</strong><br />The maximum capacity of the apartment is 4 people only. Should the number of occupants exceed four (4) people, the Tenant is required to pay an additional ₱1,000 per person exceeding the set capacity. These additional fees must be paid together with the monthly rent and cannot be used as part of the security deposit.</p>
-                                            <p className="m-0"><strong>4. Move-in Date:</strong> <span className="underline font-semibold">{contractData.entryDate || '______________________________________________'}</span> {contractData.isTentative && '(Tentative - Not Final)'}</p>
+                                            <p className="m-0"><strong>3. Maximum Capacity of the Apartment:</strong><br />The maximum capacity of the apartment is four (4) people only. Should the number of occupants exceed four (4) people, the Tenant is required to pay an additional ₱1,000 per person exceeding the set capacity. These additional fees must be paid together with the monthly rent and cannot be deducted from the security deposit.</p>
+                                            <p className="m-0"><strong>4. Move-in Date:</strong> <span className="underline font-semibold">{contractData.entryDate || '______________________________________________'}</span> {contractData.isTentative && <span className="text-rose-600 font-semibold">(Tentative — Not Final)</span>}</p>
+                                            <p className="m-0"><strong>5. Term of Lease:</strong> <span className="underline font-semibold">{contractData.entryDate || '____________________'}</span> to <span className="underline font-semibold">{contractData.leaseEndDate || '____________________'}</span></p>
                                         </div>
                                     </div>
 
@@ -473,11 +570,7 @@ export default function ViewContract() {
                                     <div className="space-y-2 pt-2">
                                         <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">II. RENT PAYMENT TERMS</h3>
                                         <div className="pl-4 space-y-2">
-                                            <p className="m-0"><strong>1. Amount of Monthly Rent:</strong><br />The monthly rent amount depends on the location of the unit:</p>
-                                            <ul className="list-disc pl-6 m-0 space-y-1">
-                                                <li>For a unit located on the <strong>3rd floor</strong>, the monthly rent is <strong>₱3,500</strong>.</li>
-                                                <li>For a unit located on the <strong>1st and 2nd floor</strong>, the monthly rent is <strong>₱4,000</strong>.</li>
-                                            </ul>
+                                            <p className="m-0"><strong>1. Amount of Monthly Rent:</strong><br />The monthly rent for Room <strong>{contractData.roomName || '__'}</strong> is <strong className="underline">{contractData.monthlyRent || '____________'}</strong> per month.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -506,7 +599,7 @@ export default function ViewContract() {
                                     <div className="pl-4 space-y-3">
                                         <p className="m-0"><strong>2. Primary Payment Methods:</strong><br />Rent payment may be made through any of the following methods:</p>
                                         <ul className="list-disc pl-6 m-0 space-y-1">
-                                            <li><strong>GCash:</strong> *********** (Elizabeth A.)</li>
+                                            <li><strong>GCash:</strong> *********** ({landlord.name || '—'})</li>
                                             <li><strong>Bank</strong>
                                                 <ul className="list-none pl-4 space-y-0.5">
                                                     <li>✓ <strong>BDO:</strong> ************ (Savings account)</li>
@@ -516,16 +609,18 @@ export default function ViewContract() {
                                             <li><strong>Cash:</strong> May be handed directly to the apartment Owner.</li>
                                         </ul>
 
-                                        <p className="m-0 mt-2"><strong>3. Security Deposit:</strong><br />The Tenant shall pay a <strong>non-refundable</strong> security deposit equivalent to <strong>one month's rent</strong>. For example, if the unit's rent is ₱3,500 or ₱4,000, the security deposit shall be equal to the amount of one month's rent. The deposit shall serve as a guarantee against possible damages or unpaid expenses.</p>
-                                        
-                                        <p className="m-0"><strong>Use of the Security Deposit:</strong><br />The security deposit <strong>may be used</strong> for the last month of the lease, <strong>provided that all utility bills (electricity and water) have been paid</strong>, and there is no damage to the items or fixtures in the apartment. If there are unpaid utility bills or damage to fixtures, the Owner has the right to deduct the corresponding amount from the security deposit before it is applied to the last month's rent.</p>
+                                        <p className="m-0 mt-2"><strong>3. Advance Rent:</strong><br />Before moving in, the Tenant shall pay one (1) month's advance rent amounting to <strong className="underline">{contractData.advanceRent || '____________'}</strong>. This is credited to the rent for the first month of occupancy and is separate from the security deposit.</p>
 
-                                        <p className="m-0 mt-2"><strong>4. Due Date Reminder:</strong><br />Rent payment must be given on or before the last day of each month. The monthly due date for rent payment is <span className="underline font-semibold">{contractData.dueDateDay}</span>.<br />
+                                        <p className="m-0 mt-2"><strong>4. Security Deposit:</strong><br />In addition to the advance rent, the Tenant shall pay a security deposit amounting to <strong className="underline">{contractData.depositAmount || '____________'}</strong>, equivalent to one month's rent. The deposit shall serve as a guarantee against possible damages or unpaid expenses.</p>
+
+                                        <p className="m-0"><strong>Use of the Security Deposit:</strong><br />The security deposit is <strong>not refunded in cash</strong>. It is instead <strong>applied against unpaid rent, unpaid electricity and water bills, or damage</strong> to the unit and its fixtures. If no deductions remain at the end of the lease, it may be applied to the last month's rent.</p>
+
+                                        <p className="m-0 mt-2"><strong>5. Due Date Reminder:</strong><br />Rent payment must be given on or before the due date each month. The monthly due date for rent payment is the <span className="underline font-semibold">{contractData.dueDateDay || '__'}</span> of the month.<br />
                                         <strong>Note:</strong> Should the Tenant be unable to pay before the set due date, the Tenant is encouraged to immediately contact the Owner to discuss the possibility of an extension or alternative payment arrangement.</p>
 
-                                        <p className="m-0"><strong>5. Advice on Rent Payment:</strong><br />No penalty is imposed for payment made on the last allowable day. However, <strong>the Tenant is encouraged to pay on the correct time and day</strong> each month to avoid issues that could result in the <strong>voiding of the contract or eviction from the apartment</strong>.<br />Should the Tenant experience difficulty in payment, <strong>they may contact the Owner</strong> to request an <strong>extension</strong>. The Owner is considerate and may grant an extension based on the Tenant's situation.</p>
+                                        <p className="m-0"><strong>6. Advice on Rent Payment:</strong><br />No penalty is imposed for payment made on the due date itself. However, <strong>the Tenant is encouraged to pay on the correct time and day</strong> each month to avoid issues that could result in the <strong>voiding of the contract or eviction from the apartment</strong>.<br />Should the Tenant experience difficulty in payment, <strong>they may contact the Owner</strong> to request an <strong>extension</strong>. The Owner is considerate and may grant an extension based on the Tenant's situation.</p>
 
-                                        <p className="m-0"><strong>6. Proof of Payment:</strong><br />If the Tenant pays via <strong>GCash or bank transfer</strong>, they are required to send a <strong>screenshot</strong> of their payment to the Owner via <strong>Facebook Messenger</strong> to the account of <strong>Elizabeth Angcanan</strong>. The payment screenshot shall serve as proof of their rent payment obligation for the current month.</p>
+                                        <p className="m-0"><strong>7. Proof of Payment:</strong><br />If the Tenant pays via <strong>GCash or bank transfer</strong>, they are required to send a <strong>screenshot</strong> of their payment to the Owner via <strong>Facebook Messenger</strong> to the account of <strong>{landlord.name || '—'}</strong>. The payment screenshot shall</p>
                                     </div>
                                 </div>
                             </div>
@@ -550,7 +645,7 @@ export default function ViewContract() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <p className="m-0">shall serve as proof of their rent payment obligation for the current month</p>
+                                    <p className="m-0">serve as proof of their rent payment obligation for the current month.</p>
 
                                     <hr className="my-4 border-t border-slate-300" />
 
@@ -612,7 +707,7 @@ export default function ViewContract() {
                                     <div className="space-y-2">
                                         <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">VI. OTHER TERMS</h3>
                                         <div className="pl-4 space-y-2">
-                                            <p className="m-0"><strong>1. Transfer of Rights:</strong><br />The Tenant may not transfer the rights or responsibilities stated in this contract to another person without the Owner's permission.</p>
+                                            <p className="m-0"><strong>1. Transfer of Rights:</strong><br />The Tenant may not transfer, assign, or sublease to another person the rights or responsibilities stated in this contract without the Owner's written permission.</p>
                                             <p className="m-0"><strong>2. Amendment of the Agreement:</strong><br />Any change or addition to this contract shall only take effect once it is put in writing and signed by both parties.</p>
                                         </div>
                                     </div>
@@ -628,14 +723,14 @@ export default function ViewContract() {
 
                                         <p className="m-0 font-semibold text-slate-900">Signed by:</p>
 
-                                        <div className="grid grid-cols-2 gap-8 text-sm font-sans pt-1">
-                                            <div className="space-y-3">
+                                        <div className="contract-signature-grid grid grid-cols-2 gap-8 text-sm font-sans pt-1">
+                                            <div className="contract-signature-box space-y-3">
                                                 <p className="m-0 font-bold">Apartment Owner:</p>
                                                 <p className="m-0">Signature: ___________________________</p>
-                                                <p className="m-0">Name: Elizabeth Angcanan</p>
+                                                <p className="m-0">Name: {landlord.name || '________________________'}</p>
                                                 <p className="m-0">Date: ___________________________</p>
                                             </div>
-                                            <div className="space-y-3">
+                                            <div className="contract-signature-box space-y-3">
                                                 <p className="m-0 font-bold">Tenant:</p>
                                                 <p className="m-0">Signature: ___________________________</p>
                                                 <p className="m-0">Name: {contractData.tenantName || '________________________'}</p>

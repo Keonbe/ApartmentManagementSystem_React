@@ -124,9 +124,13 @@ if ($id > 0 && !empty($status)) {
                 $ctr_res = $check_ctr->get_result();
                 if ($ctr_res->num_rows === 0) {
                     $contract_id = 'CTR-' . uniqid();
-                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'active')");
-                    $ctr_stmt->bind_param("sidss", $contract_id, $id, $monthly_rent, $lease_start, $lease_end);
-                    $ctr_stmt->execute();
+                    // Security deposit is one month's rent — matches invoices.security_deposit above.
+                    $security_deposit = $monthly_rent;
+                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'draft')");
+                    $ctr_stmt->bind_param("sidss", $contract_id, $id, $security_deposit, $lease_start, $lease_end);
+                    if (!$ctr_stmt->execute()) {
+                        throw new Exception("Failed to create lease contract: " . $ctr_stmt->error);
+                    }
                     $ctr_stmt->close();
                 }
                 $check_ctr->close();

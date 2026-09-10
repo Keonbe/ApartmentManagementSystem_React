@@ -48,7 +48,22 @@ if ($action === 'edit') {
     } else {
         echo json_encode(["success" => false, "message" => "Failed to update contract dates", "error" => $stmt->error]);
     }
-} else {
+} else if ($action === 'activate') {
+    // Draft -> Active, after the admin has reviewed the generated contract.
+    $stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE id = ? AND status = 'draft'");
+    $stmt->bind_param("s", $contract_id);
+
+    if ($stmt->execute()) {
+        if ($stmt->affected_rows === 0) {
+            echo json_encode(["success" => false, "message" => "Contract not found or is not a draft."]);
+        } else {
+            log_activity($conn, $admin_id, 'tenant', "Activated Contract", "Contract: $contract_id");
+            echo json_encode(["success" => true, "message" => "Contract activated successfully"]);
+        }
+    } else {
+        echo json_encode(["success" => false, "message" => "Failed to activate contract"]);
+    }
+} else if ($action === 'flag' || $action === 'clear') {
     $status = $action === 'flag' ? 'eviction-pending' : 'active';
     $eviction_status = $action === 'flag' ? 'flagged' : null;
 
@@ -56,13 +71,21 @@ if ($action === 'edit') {
     $stmt->bind_param("sss", $status, $eviction_status, $contract_id);
 
     if ($stmt->execute()) {
-        log_activity($conn, $admin_id, 'tenant', "Updated Contract Eviction Status", "Contract: $contract_id, Action: $action");
-        echo json_encode(["success" => true, "message" => "Eviction status updated successfully"]);
+        if ($stmt->affected_rows === 0) {
+            echo json_encode(["success" => false, "message" => "Contract not found."]);
+        } else {
+            log_activity($conn, $admin_id, 'tenant', "Updated Contract Eviction Status", "Contract: $contract_id, Action: $action");
+            echo json_encode(["success" => true, "message" => "Eviction status updated successfully"]);
+        }
     } else {
-        echo json_encode(["success" => false, "message" => "Failed to update eviction status", "error" => $stmt->error]);
+        echo json_encode(["success" => false, "message" => "Failed to update eviction status"]);
     }
+} else {
+    echo json_encode(["success" => false, "message" => "Unknown action: $action"]);
 }
 
-$stmt->close();
+if (isset($stmt) && $stmt instanceof mysqli_stmt) {
+    $stmt->close();
+}
 $conn->close();
 ?>
