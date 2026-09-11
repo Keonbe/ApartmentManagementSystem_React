@@ -8,23 +8,27 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
+// This queues an occupancy-change request that, on admin approval, alters
+// the tenant's billed rent — it must always be filed as the caller's own
+// verified identity, never a client-supplied email.
+$auth = require_user($conn);
+
 $input = json_decode(file_get_contents("php://input"), true);
-$email = $input['email'] ?? '';
 $occupants = (int)($input['occupants'] ?? 0);
 
-if (empty($email) || $occupants < 1) {
-    echo json_encode(["success" => false, "message" => "Email and a valid occupant count are required."]);
+if ($occupants < 1) {
+    echo json_encode(["success" => false, "message" => "A valid occupant count is required."]);
     exit;
 }
 
 // Fetch current active occupancy count from rent_applications
 $userQuery = $conn->prepare("
-    SELECT u.id, u.first_name, u.last_name, ra.room_name, ra.occupants as current_occupants 
-    FROM users u 
+    SELECT u.id, u.first_name, u.last_name, ra.room_name, ra.occupants as current_occupants
+    FROM users u
     LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out')
-    WHERE u.email_address = ?
+    WHERE u.id = ?
 ");
-$userQuery->bind_param("s", $email);
+$userQuery->bind_param("i", $auth['id']);
 $userQuery->execute();
 $user = $userQuery->get_result()->fetch_assoc();
 $userQuery->close();

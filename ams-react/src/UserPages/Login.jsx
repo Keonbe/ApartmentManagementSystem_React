@@ -29,7 +29,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
             if (res.data.valid) {
                 sessionStorage.setItem("loggedInUser", JSON.stringify(res.data.user));
-                
+                if (res.data.sessionToken) {
+                    sessionStorage.setItem("sessionToken", res.data.sessionToken);
+                }
+
                 if (res.data.role === 'admin') {
                     onAdminRedirect();
                 } else {

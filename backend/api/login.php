@@ -96,12 +96,19 @@ if (password_verify($password, $user["password"])) {
         "role" => $user["role"]
     ];
 
+    // Issue a real server-side session token. This — not the X-User-Id /
+    // X-Admin-Id headers the client also sends — is what every endpoint
+    // should trust as proof of identity (see get_authenticated_user() /
+    // require_admin() / require_user() in config.php).
+    $sessionToken = create_session($conn, (int)$user["id"], $user["role"]);
+
     echo json_encode([
         "message" => "Login successful",
         "email" => $user["email_address"],
         "user" => $userData,
         "valid" => true,
-        "role" => $user["role"]
+        "role" => $user["role"],
+        "sessionToken" => $sessionToken
     ]);
 } else {
     // Record failed attempt

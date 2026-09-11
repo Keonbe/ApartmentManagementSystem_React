@@ -16,6 +16,13 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const location = useLocation();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const handleLogout = () => {
+        api.post('/logout.php').catch(() => {}); // invalidate the server-side session; fire-and-forget
+        sessionStorage.removeItem("loggedInUser");
+        sessionStorage.removeItem("sessionToken");
+        navigate('/login');
+    };
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     
     const dropdownRef = useRef(null);
@@ -268,7 +275,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         </button>
                                     )}
                                     <div className="border-t border-slate-100 my-1"></div>
-                                    <button onClick={() => { sessionStorage.removeItem("loggedInUser"); setIsDropdownOpen(false); navigate('/login'); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
+                                    <button onClick={() => { setIsDropdownOpen(false); handleLogout(); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
                                         <FontAwesomeIcon icon={faSignOutAlt} className="text-xs" />
                                         <span>Logout</span>
                                     </button>
@@ -443,9 +450,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
                                 <button
                                     onClick={() => {
-                                        sessionStorage.removeItem("loggedInUser");
                                         setIsMobileMenuOpen(false);
-                                        navigate('/login');
+                                        handleLogout();
                                     }}
                                     className="w-full bg-rose-600 hover:bg-rose-700 active:scale-98 text-white py-3 rounded-xl font-bold text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-sm transition-all mt-1"
                                 >

@@ -256,17 +256,139 @@ function reverse_service_charge($conn, $service_request_id) {
 }
 
 // Priority 5: Security
-function verify_admin($conn, $admin_id) {
-    if (!$admin_id) return false;
-    $stmt = $conn->prepare("SELECT role FROM users WHERE id = ?");
-    $stmt->bind_param("i", $admin_id);
+//
+// Session-token authentication. X-User-Id / X-Admin-Id headers are plain
+// values read from sessionStorage with nothing to stop a caller from simply
+// sending a different id — they identify a claimed role for convenience
+// (e.g. picking which branch of a dual-role endpoint to take) but must never
+// be trusted as proof of identity. get_authenticated_user() is the only
+// function that actually proves who is calling, via the random token
+// login.php issues into the `sessions` table.
+
+// Creates a session row for a freshly-authenticated user and returns the
+// opaque token to hand back to the client. Tokens last 7 days.
+function create_session($conn, $user_id, $role) {
+    $token = bin2hex(random_bytes(32));
+    $stmt = $conn->prepare("INSERT INTO sessions (token, user_id, role, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))");
+    $stmt->bind_param("sis", $token, $user_id, $role);
+    $stmt->execute();
+    $stmt->close();
+    return $token;
+}
+
+// Reads the bearer session token out of the current request, or null if
+// none was sent. Apache does not reliably populate
+// $_SERVER['HTTP_AUTHORIZATION'] for mod_php/CGI setups (this project's
+// XAMPP default included) — the Authorization header only shows up via
+// getallheaders(). Check that first, case-insensitively, before falling
+// back to $_SERVER. Every function that needs the caller's token (not just
+// get_authenticated_user()) must go through this one, so this quirk is
+// handled in exactly one place.
+function get_bearer_token() {
+    $header = null;
+    if (function_exists('getallheaders')) {
+        foreach (getallheaders() as $name => $value) {
+            if (strcasecmp($name, 'Authorization') === 0 || strcasecmp($name, 'X-Session-Token') === 0) {
+                $header = $value;
+                break;
+            }
+        }
+    }
+    if (!$header) {
+        $header = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? $_SERVER['HTTP_X_SESSION_TOKEN'] ?? null;
+    }
+    if (!$header) return null;
+
+    $token = $header;
+    if (stripos($header, 'Bearer ') === 0) {
+        $token = substr($header, 7);
+    }
+    $token = trim($token);
+    return $token === '' ? null : $token;
+}
+
+// Resolves the caller's real identity from a bearer session token. Returns
+// ['id' => int, 'role' => string] or null if there is no valid, unexpired
+// session. This is the only source of truth for "who is making this
+// request" — nothing else in this codebase should be treated as identity.
+function get_authenticated_user($conn) {
+    $token = get_bearer_token();
+    if (!$token) return null;
+
+    $stmt = $conn->prepare("SELECT user_id, role FROM sessions WHERE token = ? AND expires_at > NOW()");
+    $stmt->bind_param("s", $token);
     $stmt->execute();
     $res = $stmt->get_result();
-    if ($res->num_rows > 0) {
-        $user = $res->fetch_assoc();
-        return $user['role'] === 'admin';
+    if ($res->num_rows === 0) {
+        $stmt->close();
+        return null;
     }
-    return false;
+    $row = $res->fetch_assoc();
+    $stmt->close();
+
+    $touch = $conn->prepare("UPDATE sessions SET last_seen_at = NOW() WHERE token = ?");
+    $touch->bind_param("s", $token);
+    $touch->execute();
+    $touch->close();
+
+    return ['id' => (int)$row['user_id'], 'role' => $row['role']];
+}
+
+// Hard gate for admin-only endpoints: ends the request with 401/403 if the
+// caller isn't a genuinely authenticated admin. Returns the admin's real id
+// on success. Use this (not verify_admin()) in any new admin-only endpoint.
+function require_admin($conn) {
+    $user = get_authenticated_user($conn);
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(["success" => false, "message" => "Authentication required"]);
+        exit;
+    }
+    if ($user['role'] !== 'admin') {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+        exit;
+    }
+    return $user['id'];
+}
+
+// Hard gate for any authenticated user (tenant or admin). Ends the request
+// with 401 if there is no valid session. Returns ['id'=>, 'role'=>].
+function require_user($conn) {
+    $user = get_authenticated_user($conn);
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(["success" => false, "message" => "Authentication required"]);
+        exit;
+    }
+    return $user;
+}
+
+// Hard gate for "the resource owner, or any admin". Ends the request with
+// 403 if the caller is neither. Use this in place of trusting a client-
+// supplied user id/email whenever an endpoint reads or writes one person's
+// own data (profile, documents, occupancy requests, move-out, etc).
+function require_owner_or_admin($conn, $owner_id) {
+    $user = require_user($conn);
+    if ($user['role'] !== 'admin' && $user['id'] !== (int)$owner_id) {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "Forbidden: You do not own this resource"]);
+        exit;
+    }
+    return $user;
+}
+
+// Legacy shape kept for the ~50 existing call sites that do
+// `$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null; if (!verify_admin($conn, $admin_id)) {...}`
+// or the dual-role branch `$is_admin = verify_admin($conn, $admin_id); if ($is_admin) {...} else {...}`.
+// The $admin_id parameter is now IGNORED — admin-ness is decided purely by
+// the caller's real session token, never by a client-supplied id. This
+// function still never exits on its own (some callers use it to choose a
+// branch for a legitimate non-admin caller, not to reject the request), so
+// it stays a plain boolean check rather than calling require_admin().
+function verify_admin($conn, $admin_id = null) {
+    $user = get_authenticated_user($conn);
+    return $user !== null && $user['role'] === 'admin';
 }
 
 // Returns the owning tenant's user_id for a rent application, or null if the

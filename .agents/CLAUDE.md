@@ -105,6 +105,10 @@ Changes to these ripple across the whole app, so double-check call sites before 
 - `users` table schema — login/auth depends on its exact columns.
 - Any existing `status` column's allowed values (frontend badge logic is string-matched, see above).
 
+## Commit workflow
+
+When creating git commit messages or committing changes, use a single commit that covers the entire changeset, but clearly organize and separate the commit message body into distinct categories (e.g., Backend, Frontend, Docs/Meta) covering the affected areas.
+
 ## Documentation map
 
 `docs/` has authoritative design docs worth consulting before large changes:

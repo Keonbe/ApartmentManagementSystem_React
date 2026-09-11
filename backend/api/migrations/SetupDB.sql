@@ -630,6 +630,27 @@ INSERT IGNORE INTO `service_catalog`
 -- the repo (Sept 2026)").
 --
 
+--
+-- Table structure for table `sessions`
+-- Server-issued session tokens. login.php creates a row here and hands the
+-- token back to the client; get_authenticated_user()/require_admin()/
+-- require_user()/require_owner_or_admin() (backend/config.php) are the only
+-- functions that should ever be trusted to say who is calling -- never a
+-- client-supplied X-User-Id/X-Admin-Id header on its own.
+--
+
+CREATE TABLE IF NOT EXISTS `sessions` (
+  `token` char(64) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `role` varchar(20) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `expires_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `last_seen_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`token`),
+  KEY `fk_session_user` (`user_id`),
+  CONSTRAINT `fk_session_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE IF NOT EXISTS `password_resets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `email` varchar(255) NOT NULL,

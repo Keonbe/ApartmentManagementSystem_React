@@ -13,21 +13,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 expire_lapsed_contracts($conn);
 
-$user_id = $_GET['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
-if (empty($user_id) && !empty($_GET['email'])) {
-    $u_stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ? LIMIT 1");
-    $u_stmt->bind_param("s", $_GET['email']);
-    $u_stmt->execute();
-    $u_res = $u_stmt->get_result();
-    if ($u_row = $u_res->fetch_assoc()) {
-        $user_id = $u_row['id'];
-    }
-    $u_stmt->close();
-}
+// A non-admin caller may only ever read their own room — ?userId=/?email=
+// are honoured only for a genuinely authenticated admin (e.g. the contract
+// preview in ViewContract.jsx, opened from AdminContracts.jsx). Anyone else
+// passing a different id/email is redirected back to their own.
+$auth = require_user($conn);
+$is_admin = $auth['role'] === 'admin';
 
-if (empty($user_id)) {
-    echo json_encode(["success" => false, "message" => "User ID is required."]);
-    exit;
+$user_id = $auth['id'];
+if ($is_admin) {
+    $requested_id = $_GET['userId'] ?? null;
+    if (!empty($requested_id)) {
+        $user_id = $requested_id;
+    } elseif (!empty($_GET['email'])) {
+        $u_stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ? LIMIT 1");
+        $u_stmt->bind_param("s", $_GET['email']);
+        $u_stmt->execute();
+        $u_res = $u_stmt->get_result();
+        if ($u_row = $u_res->fetch_assoc()) {
+            $user_id = $u_row['id'];
+        }
+        $u_stmt->close();
+    }
 }
 
 $stmt = $conn->prepare("SELECT ra.id, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");

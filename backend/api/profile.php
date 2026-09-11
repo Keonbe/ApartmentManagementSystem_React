@@ -13,15 +13,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // ─── 1. FETCH PROFILE RECORDS (GET) ───
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $email = $_GET['email'] ?? '';
+    // A profile is always fetched for the caller's own verified session —
+    // an ?email= query string is no longer trusted as identity.
+    $auth = require_user($conn);
 
-    if (empty($email)) {
-        echo json_encode(["success" => false, "message" => "Email is required"]);
-        exit;
-    }
-
-    $stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender, avatar_url FROM users WHERE email_address = ?");
-    $stmt->bind_param("s", $email);
+    $stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender, avatar_url FROM users WHERE id = ?");
+    $stmt->bind_param("i", $auth['id']);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -39,14 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 // ─── 2. AVATAR MULTIPART FILE UPLOAD (POST with $_FILES) ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
-    $old_email = $_POST['oldEmail'] ?? '';
-    
-    if (empty($old_email)) {
-        echo json_encode(["success" => false, "message" => "Email identifier required for file routing"]);
-        exit;
-    }
-    
-    $base_path = dirname(__DIR__); 
+    // The uploaded avatar always belongs to the caller's own verified
+    // session — the old "oldEmail" body field is no longer trusted for
+    // routing, since it let anyone overwrite anyone else's avatar.
+    $auth = require_user($conn);
+
+    $base_path = dirname(__DIR__);
     $upload_dir = $base_path . "/uploads/avatars/";
     
     if (!is_dir($upload_dir)) {
@@ -79,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
     $relative_path = "uploads/avatars/" . $file_name;
     
     if (move_uploaded_file($_FILES['avatar']['tmp_name'], $server_path)) {
-        $stmt = $conn->prepare("UPDATE users SET avatar_url = ? WHERE email_address = ?");
-        $stmt->bind_param("ss", $relative_path, $old_email);
+        $stmt = $conn->prepare("UPDATE users SET avatar_url = ? WHERE id = ?");
+        $stmt->bind_param("si", $relative_path, $auth['id']);
         
         if ($stmt->execute()) {
             echo json_encode([
@@ -102,17 +97,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
 
 // ─── 3. TEXT UPDATES & AVATAR CLEARING (POST with JSON Payload) ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Every write in this branch targets the caller's own account — this
+    // used to be keyed on a client-supplied "oldEmail" with no re-auth,
+    // which allowed reassigning any account's login email to an attacker's
+    // address (an account-takeover primitive). The authenticated session's
+    // own id is now the only thing that can ever be updated.
+    $auth = require_user($conn);
+
     $input = json_decode(file_get_contents("php://input"), true);
-    
-    // Normalize data inputs from either JSON payloads or raw fallback Form data
-    $old_email = $input['oldEmail'] ?? $_POST['oldEmail'] ?? '';
     $clear_avatar = $input['clearAvatar'] ?? false;
 
     // INTERCEPT LOGIC: Handle the delete avatar signal before updating other details
-    if ($clear_avatar && !empty($old_email)) {
-        $stmt = $conn->prepare("UPDATE users SET avatar_url = '' WHERE email_address = ?");
-        $stmt->bind_param("s", $old_email);
-        
+    if ($clear_avatar) {
+        $stmt = $conn->prepare("UPDATE users SET avatar_url = '' WHERE id = ?");
+        $stmt->bind_param("i", $auth['id']);
+
         if ($stmt->execute()) {
             echo json_encode(["success" => true, "message" => "Avatar path removed successfully"]);
         } else {
@@ -132,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $contact_no = $input['contactNo'] ?? $_POST['contactNo'] ?? '';
     $gender = $input['gender'] ?? $_POST['gender'] ?? '';
 
-    if (empty($old_email) || empty($new_email) || empty($first_name) || empty($last_name)) {
+    if (empty($new_email) || empty($first_name) || empty($last_name)) {
         echo json_encode(["success" => false, "message" => "Required profile detail text inputs are missing"]);
         exit;
     }
@@ -149,13 +148,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $conn->begin_transaction();
     try {
-        $stmt1 = $conn->prepare("UPDATE users SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, gender = ?, email_address = ? WHERE email_address = ?");
-        $stmt1->bind_param("ssssssss", $first_name, $middle_name, $last_name, $suffix, $contact_no, $gender, $new_email, $old_email);
+        $stmt1 = $conn->prepare("UPDATE users SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, gender = ?, email_address = ? WHERE id = ?");
+        $stmt1->bind_param("sssssssi", $first_name, $middle_name, $last_name, $suffix, $contact_no, $gender, $new_email, $auth['id']);
         $stmt1->execute();
         $stmt1->close();
 
-        $stmt2 = $conn->prepare("UPDATE rent_applications SET first_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ? WHERE email = ?");
-        $stmt2->bind_param("ssssss", $first_name, $last_name, $suffix, $contact_no, $new_email, $old_email);
+        $stmt2 = $conn->prepare("UPDATE rent_applications SET first_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ? WHERE user_id = ?");
+        $stmt2->bind_param("sssssi", $first_name, $last_name, $suffix, $contact_no, $new_email, $auth['id']);
         $stmt2->execute();
         $stmt2->close();
 

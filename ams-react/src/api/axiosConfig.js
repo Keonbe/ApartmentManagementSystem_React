@@ -23,6 +23,16 @@ api.interceptors.request.use((config) => {
             console.error(e);
         }
     }
+
+    // The real proof of identity. X-User-Id / X-Admin-Id above are kept only
+    // for endpoints not yet migrated to the session-token gate — the backend
+    // never trusts them on their own once an endpoint uses require_admin()/
+    // require_user()/require_owner_or_admin() or the updated verify_admin().
+    const sessionToken = sessionStorage.getItem("sessionToken") || localStorage.getItem("sessionToken");
+    if (sessionToken) {
+        config.headers['Authorization'] = `Bearer ${sessionToken}`;
+    }
+
     return config;
 }, (error) => {
     return Promise.reject(error);

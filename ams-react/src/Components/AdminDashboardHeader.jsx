@@ -46,7 +46,9 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   };
 
   const handleLogout = () => {
+    api.post('/logout.php').catch(() => {}); // invalidate the server-side session; fire-and-forget
     sessionStorage.removeItem("loggedInUser");
+    sessionStorage.removeItem("sessionToken");
     navigate('/login');
   };
 
