@@ -11,12 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+$admin_id = require_admin($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -31,9 +26,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $conn->begin_transaction();
 
-        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, paid_at = NOW() WHERE id = ?");
+        // Only a still-payable invoice can be settled — without this guard,
+        // a bogus/already-settled invoice id still returned {"success":true}
+        // and a replayed call could re-run the whole activation cascade below.
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, paid_at = NOW() WHERE id = ? AND status IN ('pending', 'pending-verification', 'overdue')");
         $stmt->bind_param("ss", $payment_method, $invoice_id);
         $stmt->execute();
+        if ($stmt->affected_rows === 0) {
+            throw new Exception("Invoice not found or already settled.");
+        }
         $stmt->close();
 
         // Check if invoice belongs to a rent application to activate occupancy & contract
@@ -62,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Activate room occupancy
                 $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ?");
-                $room_stmt->bind_param("sssss", $tenant_name, $lease_start, $lease_end, $occupants, $room_name);
+                $room_stmt->bind_param("sssis", $tenant_name, $lease_start, $lease_end, $occupants, $room_name);
                 $room_stmt->execute();
                 $room_stmt->close();
                 
@@ -84,7 +85,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $ctr_stmt->execute();
                     $ctr_stmt->close();
                 } else {
-                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE rent_application_id = ?");
+                    // Only promote a contract that's still in a "not yet
+                    // fully active" state (draft, or lapsed and now
+                    // resuming). A contract in 'eviction-pending' must not
+                    // be silently reactivated to plain 'active' just because
+                    // a payment landed — that would clear the eviction flag
+                    // as a side effect instead of an explicit admin action.
+                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE rent_application_id = ? AND status IN ('draft', 'expired')");
                     $ctr_upd->bind_param("i", $app_id);
                     $ctr_upd->execute();
                     $ctr_upd->close();

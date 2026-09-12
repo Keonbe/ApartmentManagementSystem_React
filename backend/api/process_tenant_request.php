@@ -41,6 +41,23 @@ try {
         throw new Exception("Notification request not found.");
     }
 
+    // Claim the request atomically before doing anything else: only a
+    // notification still 'Pending' can be claimed, and this UPDATE can only
+    // ever succeed once. Replaying the same approve/reject call (double
+    // click, retried request) after the first call already claimed it now
+    // hits affected_rows = 0 and aborts, instead of re-running the whole
+    // rent-hike / lease-extension logic a second time.
+    $statusText = ($action === 'approve') ? 'Approved' : 'Rejected';
+    $claimStmt = $conn->prepare("UPDATE notifications SET is_read = 1, status = ? WHERE id = ? AND status = 'Pending'");
+    $claimStmt->bind_param("si", $statusText, $notification_id);
+    $claimStmt->execute();
+    $claimed = $claimStmt->affected_rows > 0;
+    $claimStmt->close();
+
+    if (!$claimed) {
+        throw new Exception("This request has already been processed.");
+    }
+
     $target_user_id = $notif['user_id'];
     $type = $notif['type'];
 
@@ -59,16 +76,31 @@ try {
             if ($app_res) {
                 $room_name = $app_res['room_name'];
                 $clean_room = strtoupper(trim(str_ireplace('Room', '', $room_name)));
-                $base_room_rent = in_array($clean_room, ['K', 'L', 'M', 'N']) ? 3500 : 4000;
-                $new_monthly_rent = $base_room_rent + ($new_occupants > 4 ? ($new_occupants - 4) * 1000 : 0);
+
+                // Base rate is read live from rooms.monthly_rent (the admin-
+                // configurable rate), not a hardcoded per-letter table.
+                $room_rate_stmt = $conn->prepare("SELECT monthly_rent FROM rooms WHERE id = ?");
+                $room_rate_stmt->bind_param("s", $clean_room);
+                $room_rate_stmt->execute();
+                $room_rate_row = $room_rate_stmt->get_result()->fetch_assoc();
+                $room_rate_stmt->close();
+                $base_room_rent = $room_rate_row ? (float)$room_rate_row['monthly_rent'] : 4000;
+
+                $occupant_surcharge_setting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'occupant_surcharge_per_person'")->fetch_assoc();
+                $occupant_surcharge = $occupant_surcharge_setting ? (float)$occupant_surcharge_setting['setting_value'] : 1000;
+                $new_monthly_rent = $base_room_rent + ($new_occupants > 4 ? ($new_occupants - 4) * $occupant_surcharge : 0);
 
                 $updateStmt = $conn->prepare("UPDATE rent_applications SET occupants = ?, monthly_rent = ? WHERE id = ?");
                 $updateStmt->bind_param("idi", $new_occupants, $new_monthly_rent, $app_res['id']);
                 $updateStmt->execute();
                 $updateStmt->close();
 
-                $roomStmt = $conn->prepare("UPDATE rooms SET occupants = ?, monthly_rent = ? WHERE id = ?");
-                $roomStmt->bind_param("ids", $new_occupants, $new_monthly_rent, $room_name);
+                // Only the occupant count belongs on rooms — rooms.monthly_rent is the
+                // unit's catalog rate and must only ever be changed via update_room.php.
+                // Writing this tenant's surcharged rent here used to permanently inflate
+                // the room's base rate for every future applicant.
+                $roomStmt = $conn->prepare("UPDATE rooms SET occupants = ? WHERE id = ?");
+                $roomStmt->bind_param("is", $new_occupants, $room_name);
                 $roomStmt->execute();
                 $roomStmt->close();
             }
@@ -158,12 +190,7 @@ try {
         log_activity($conn, $admin_id, 'tenant', "Rejected " . str_replace('_', ' ', $type), "User ID: $target_user_id");
     }
 
-    // 3. Mark the original Admin notification as resolved
-    $markStmt = $conn->prepare("UPDATE notifications SET is_read = 1, status = ? WHERE id = ?");
-    $statusText = ($action === 'approve') ? 'Approved' : 'Rejected';
-    $markStmt->bind_param("si", $statusText, $notification_id);
-    $markStmt->execute();
-    $markStmt->close();
+    // 3. (Notification already marked resolved by the claim step above.)
 
     // 4. Notify Tenant of decision
     // FIX APPLIED HERE: We explicitly insert 'Resolved' into the status column so it doesn't trigger the action buttons again.

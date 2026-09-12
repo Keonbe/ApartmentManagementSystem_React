@@ -32,7 +32,7 @@ try {
                 c.created_at
             FROM cctv_requests c
             LEFT JOIN users u ON c.user_id = u.id
-            LEFT JOIN rent_applications ra ON ra.user_id = c.user_id AND ra.status = 'Approved'
+            LEFT JOIN rent_applications ra ON ra.user_id = c.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
             ORDER BY c.id DESC";
 
     $res = $conn->query($sql);

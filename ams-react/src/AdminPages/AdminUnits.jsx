@@ -33,7 +33,7 @@ const openAssignTenant = (unit, setSelectedUnit, setAssignForm, emptyAssignForm,
 };
 
 const emptyUnitForm = { id: '', type: 'Studio', floor: '1F', rent: '' };
-const emptyAssignForm = { userId: '', tenantName: '', moveIn: '', leaseEnd: '', rent: '' };
+const emptyAssignForm = { userId: '', tenantName: '', moveIn: '', leaseEnd: '', rent: '', identityVerified: false };
 
 const AdminUnits = () => {
   const [units, setUnits] = useState([]);
@@ -51,6 +51,8 @@ const AdminUnits = () => {
   const [assignForm, setAssignForm] = useState(emptyAssignForm);
   const [extendForm, setExtendForm] = useState({ newLeaseEnd: '', newRent: '' });
   const [leaseError, setLeaseError] = useState('');
+  const [addUnitError, setAddUnitError] = useState('');
+  const [addUnitSubmitting, setAddUnitSubmitting] = useState(false);
   
   const minLeaseDuration = 6;
 
@@ -75,13 +77,13 @@ const AdminUnits = () => {
       const response = await api.get('get_rooms.php');
       if (response.data.success) {
         console.log("Fetched rooms from DB:", response.data.rooms);
-        // Hydrate empty arrays for UI elements that expect them but aren't in DB yet
+        // get_rooms.php now returns real maintenanceHistory/occupancyHistory/
+        // leaseHistory per room — only hydrate the fields it genuinely has no
+        // source for yet (history/paymentHistory), instead of clobbering the
+        // real arrays with [] the way this used to.
         const hydratedRooms = response.data.rooms.map(room => ({
           ...room,
           history: [],
-          occupancyHistory: [],
-          leaseHistory: [],
-          maintenanceHistory: [],
           paymentHistory: []
         }));
         setUnits(hydratedRooms);
@@ -155,23 +157,34 @@ const AdminUnits = () => {
     return '';
   };
 
-  const handleAddUnit = () => {
+  const handleAddUnit = async () => {
     if (!unitForm.id || !unitForm.floor || !unitForm.rent) return;
-    const newUnit = {
-      id: unitForm.id, type: unitForm.type, floor: unitForm.floor, status: 'vacant', tenant: null, rent: Number(unitForm.rent), leaseStart: null, leaseEnd: null, lastTenant: null, maintenanceFlag: false,
-      history: [{ event: 'Unit created', detail: `${unitForm.type} on ${unitForm.floor}`, date: new Date().toISOString().slice(0, 10) }],
-      occupancyHistory: [],
-      leaseHistory: [],
-      maintenanceHistory: [],
-      paymentHistory: []
-    };
-    setUnits(prev => [...prev, newUnit]);
-    setUnitForm(emptyUnitForm);
-    setShowAddModal(false);
+    setAddUnitError('');
+    setAddUnitSubmitting(true);
+    try {
+      const response = await api.post('create_room.php', {
+        id: unitForm.id,
+        type: unitForm.type,
+        floor: unitForm.floor,
+        rent: Number(unitForm.rent)
+      });
+      if (response.data.success) {
+        await fetchRooms();
+        setUnitForm(emptyUnitForm);
+        setShowAddModal(false);
+      } else {
+        setAddUnitError(response.data.message || 'Failed to create unit.');
+      }
+    } catch (err) {
+      setAddUnitError(err.response?.data?.message || 'Failed to create unit.');
+    } finally {
+      setAddUnitSubmitting(false);
+    }
   };
 
   const handleAssignTenant = async () => {
     if (!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd || !selectedUnit) return;
+    if (!assignForm.identityVerified) { setLeaseError('Please confirm identity verification before assigning a tenant.'); return; }
     const error = validateLeaseDuration(assignForm.moveIn, assignForm.leaseEnd);
     if (error) { setLeaseError(error); return; }
     setLeaseError('');
@@ -184,7 +197,8 @@ const AdminUnits = () => {
         tenant_name: assignForm.tenantName,
         lease_start: assignForm.moveIn,
         lease_end: assignForm.leaseEnd,
-        monthly_rent: Number(assignForm.rent) || selectedUnit.rent
+        monthly_rent: Number(assignForm.rent) || selectedUnit.rent,
+        identity_verified: assignForm.identityVerified
       };
       
       const response = await api.post('update_room.php', payload);
@@ -365,7 +379,7 @@ const AdminUnits = () => {
 
       {/* Add New Unit Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddModal(false); setAddUnitError(''); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
@@ -375,9 +389,12 @@ const AdminUnits = () => {
                   <p className="text-xs text-slate-400 m-0 mt-0.5">Create a new apartment unit</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button onClick={() => { setShowAddModal(false); setAddUnitError(''); }} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
+              {addUnitError && (
+                <div className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{addUnitError}</div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Unit Number *</label>
@@ -404,8 +421,8 @@ const AdminUnits = () => {
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button onClick={handleAddUnit} disabled={!unitForm.id || !unitForm.floor || !unitForm.rent} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">Add Unit</button>
+              <button onClick={() => { setShowAddModal(false); setAddUnitError(''); }} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+              <button onClick={handleAddUnit} disabled={!unitForm.id || !unitForm.floor || !unitForm.rent || addUnitSubmitting} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{addUnitSubmitting ? 'Adding...' : 'Add Unit'}</button>
             </div>
           </div>
         </div>
@@ -467,10 +484,19 @@ const AdminUnits = () => {
                   {leaseError}
                 </div>
               )}
+              <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={assignForm.identityVerified || false}
+                  onChange={e => setAssignForm({ ...assignForm, identityVerified: e.target.checked })}
+                  className="mt-0.5"
+                />
+                <span>I confirm this tenant's valid ID and NBI clearance have been verified in person, and they have agreed to the Terms &amp; Conditions.</span>
+              </label>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
               <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button onClick={handleAssignTenant} disabled={!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">Assign Tenant</button>
+              <button onClick={handleAssignTenant} disabled={!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd || !assignForm.identityVerified} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">Assign Tenant</button>
             </div>
           </div>
         </div>

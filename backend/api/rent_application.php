@@ -28,6 +28,7 @@ $room_name = $_POST['roomName'] ?? '';
 $monthly_rent = $_POST['monthlyRent'] ?? '';
 $user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
 $app_id = $_POST['appId'] ?? null;
+$agree_terms = filter_var($_POST['agreeTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
 if (empty($app_id) && !empty($user_id)) {
     $dup_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1");
@@ -37,7 +38,7 @@ if (empty($app_id) && !empty($user_id)) {
     if ($dup_res->num_rows > 0) {
         $dup_row = $dup_res->fetch_assoc();
         $st = strtolower($dup_row['status']);
-        if ($st === 'pending' || $st === 'approved' || $st === 'active' || $st === 'pending-move-out') {
+        if ($st === 'pending review' || $st === 'approved' || $st === 'active' || $st === 'pending-move-out') {
             echo json_encode(["success" => false, "message" => "You already have an active or pending lease application. You cannot submit another one unless it is rejected."]);
             exit;
         }
@@ -65,6 +66,11 @@ if (!empty($app_id) && !empty($user_id)) {
 
 if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($email) || empty($gender) || empty($occupants) || empty($months_of_rent)) {
     echo json_encode(["success" => false, "message" => "Please fill in all required personal details."]);
+    exit;
+}
+
+if (!$agree_terms) {
+    echo json_encode(["success" => false, "message" => "You must agree to the Terms & Conditions before submitting your application."]);
     exit;
 }
 
@@ -154,13 +160,13 @@ $conn->begin_transaction();
 try {
     if (!empty($app_id) && $existing_front) {
         // Update existing application and set status to 'Pending Review' and clear rejection_reason
-        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL WHERE id = ? AND user_id = ?");
+        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ?");
         $stmt->bind_param("sssssssiisssssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path, $app_id, $user_id);
         $stmt->execute();
         $stmt->close();
     } else {
         // Insert new application
-        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
         $stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
         $stmt->execute();
         $stmt->close();

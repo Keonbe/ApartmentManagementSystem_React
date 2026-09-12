@@ -8,6 +8,7 @@ import {
   faFileAlt, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 
 const AdminApplications = () => {
   const [applications, setApplications] = useState([]);
@@ -39,14 +40,6 @@ const AdminApplications = () => {
     }
   };
 
-  // Maps database avatar paths cleanly to your Apache local server url structures
-  const getFullAvatarUrl = (url) => {
-    if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    
-    const cleanPath = url.replace(/^\//, ''); 
-    return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
-  };
 
   const updateStatus = async (id, status, rejectionReason = null) => {
     try {
@@ -95,7 +88,7 @@ const AdminApplications = () => {
           {/* Kanban Avatar Block Indicator */}
           {app.avatar_url ? (
             <img 
-              src={getFullAvatarUrl(app.avatar_url)} 
+              src={fileUrl(app.avatar_url)} 
               alt="Applicant Avatar" 
               className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 shadow-inner"
             />
@@ -235,7 +228,7 @@ const AdminApplications = () => {
                 {/* Modal Window Profile Avatar Display */}
                 {selectedApp.avatar_url ? (
                   <img 
-                    src={getFullAvatarUrl(selectedApp.avatar_url)} 
+                    src={fileUrl(selectedApp.avatar_url)} 
                     alt="Modal Profile Avatar" 
                     className="w-16 h-16 rounded-2xl object-cover border-2 border-white/20 shadow-md bg-white/10 shrink-0"
                   />
@@ -306,21 +299,21 @@ const AdminApplications = () => {
               <div>
                  <h4 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wide border-b border-slate-200 pb-2">Submitted Documents</h4>
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                   <a href={`http://localhost/ApartmentManagementSystem_React/backend/uploads/applications/${selectedApp.valid_id_front_path?.split('/').pop()}`} target="_blank" rel="noreferrer" 
+                   <a href={fileUrl(selectedApp.valid_id_front_path) || '#'} target="_blank" rel="noreferrer"
                       className={`flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 transition-all ${selectedApp.valid_id_front_path ? 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md text-slate-700' : 'border-dashed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none'}`}>
                      <FontAwesomeIcon icon={faFileAlt} className={`text-2xl ${selectedApp.valid_id_front_path ? 'text-indigo-500' : 'text-slate-300'}`} /> 
                      <span className="font-semibold text-center mt-1">Valid ID (Front)</span>
                      {!selectedApp.valid_id_front_path && <span className="text-[10px] uppercase">Missing</span>}
                    </a>
                    
-                   <a href={`http://localhost/ApartmentManagementSystem_React/backend/uploads/applications/${selectedApp.valid_id_back_path?.split('/').pop()}`} target="_blank" rel="noreferrer" 
+                   <a href={fileUrl(selectedApp.valid_id_back_path) || '#'} target="_blank" rel="noreferrer"
                       className={`flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 transition-all ${selectedApp.valid_id_back_path ? 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md text-slate-700' : 'border-dashed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none'}`}>
                      <FontAwesomeIcon icon={faFileAlt} className={`text-2xl ${selectedApp.valid_id_back_path ? 'text-indigo-500' : 'text-slate-300'}`} /> 
                      <span className="font-semibold text-center mt-1">Valid ID (Back)</span>
                      {!selectedApp.valid_id_back_path && <span className="text-[10px] uppercase">Missing</span>}
                    </a>
 
-                   <a href={`http://localhost/ApartmentManagementSystem_React/backend/uploads/applications/${selectedApp.nbi_clearance_path?.split('/').pop()}`} target="_blank" rel="noreferrer" 
+                   <a href={fileUrl(selectedApp.nbi_clearance_path) || '#'} target="_blank" rel="noreferrer"
                       className={`flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 transition-all ${selectedApp.nbi_clearance_path ? 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md text-slate-700' : 'border-dashed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none'}`}>
                      <FontAwesomeIcon icon={faFileAlt} className={`text-2xl ${selectedApp.nbi_clearance_path ? 'text-indigo-500' : 'text-slate-300'}`} /> 
                      <span className="font-semibold text-center mt-1">NBI Clearance</span>

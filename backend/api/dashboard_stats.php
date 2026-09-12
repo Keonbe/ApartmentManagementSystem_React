@@ -89,7 +89,7 @@ try {
     // 3. Total Active Tenants & Pending Applications
     $stmt = $conn->prepare("
         SELECT 
-            SUM(CASE WHEN status = 'Approved' THEN 1 ELSE 0 END) as active_tenants,
+            SUM(CASE WHEN status IN ('Approved', 'active', 'pending-move-out') THEN 1 ELSE 0 END) as active_tenants,
             SUM(CASE WHEN status IN ('Pending Review', 'Pending') THEN 1 ELSE 0 END) as pending_apps
         FROM rent_applications
     ");
@@ -212,9 +212,9 @@ try {
     $stmt = $conn->prepare("
         SELECT u.first_name, u.last_name, ra.room_name, ra.created_at 
         FROM rent_applications ra 
-        JOIN users u ON ra.user_id = u.id 
-        WHERE ra.status = 'Approved' 
-        ORDER BY ra.created_at DESC 
+        JOIN users u ON ra.user_id = u.id
+        WHERE ra.status IN ('Approved', 'active', 'pending-move-out')
+        ORDER BY ra.created_at DESC
         LIMIT 5
     ");
     $stmt->execute();
@@ -261,7 +261,7 @@ try {
         SELECT i.id, u.first_name, u.last_name, ra.room_name, i.total_amount, i.status, i.due_date, i.billing_period 
         FROM invoices i
         LEFT JOIN users u ON i.user_id = u.id
-        LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved'
+        LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
         WHERE LOWER(i.status) IN ('pending', 'pending-verification', 'unpaid', 'overdue')
         ORDER BY CASE WHEN LOWER(i.status) = 'pending-verification' THEN 1 WHEN i.due_date < CURRENT_DATE() THEN 2 ELSE 3 END, i.created_at DESC
         LIMIT 4
@@ -287,7 +287,7 @@ try {
         SELECT m.id, u.first_name, u.last_name, ra.room_name, m.issue_category, m.urgency, m.status, m.created_at 
         FROM maintenance_requests m
         LEFT JOIN users u ON m.user_id = u.id
-        LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved'
+        LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
         WHERE m.status IN ('Pending', 'In Progress')
         ORDER BY CASE WHEN LOWER(m.urgency) IN ('emergency', 'urgent', 'high') THEN 1 ELSE 2 END, m.created_at DESC
         LIMIT 4

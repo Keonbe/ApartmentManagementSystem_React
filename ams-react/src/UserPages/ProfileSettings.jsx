@@ -4,6 +4,7 @@ import { faFileAlt, faKey, faSave, faCamera, faUpload, faTrash, faUndo, faUser }
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
 
@@ -235,16 +236,6 @@ export default function ProfileSettings() {
         }
     };
 
-    // Replace your getFullAvatarUrl helper to prevent backslash/path errors
-    const getFullAvatarUrl = (url) => {
-        if (!url) return null;
-        if (url.startsWith('http://') || url.startsWith('https://')) return url;
-
-        // Ensure relative paths match your backend asset framework endpoint
-        const cleanPath = url.replace(/^\//, '');
-        return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
-    };
-
     const getInitials = () => {
         const firstLetter = firstName ? firstName.charAt(0) : '';
         const lastLetter = lastName ? lastName.charAt(0) : '';
@@ -269,7 +260,7 @@ export default function ProfileSettings() {
                         <div className="relative group select-none">
                             {tempAvatar || avatarUrl ? (
                                 <img
-                                    src={tempAvatar || getFullAvatarUrl(avatarUrl)}
+                                    src={tempAvatar || fileUrl(avatarUrl)}
                                     alt="Avatar"
                                     className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-md"
                                     onError={(e) => {

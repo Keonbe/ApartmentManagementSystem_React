@@ -35,7 +35,7 @@ try {
                 p.created_at
             FROM parking_reservations p
             LEFT JOIN users u ON p.user_id = u.id
-            LEFT JOIN rent_applications ra ON ra.user_id = p.user_id AND ra.status = 'Approved'
+            LEFT JOIN rent_applications ra ON ra.user_id = p.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
             ORDER BY p.id DESC";
 
     $res = $conn->query($sql);

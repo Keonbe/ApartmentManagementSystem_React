@@ -9,6 +9,7 @@ import {
   faSignOutAlt, faBoxOpen, faUserSlash, faChevronDown, faChevronUp, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
@@ -153,15 +154,6 @@ const AdminTenants = () => {
       }
     } catch (err) {
       console.error("Error fetching tenants:", err);
-    }
-  };
-
-  const updateStatus = async (id, status) => {
-    try {
-      await api.post('/update_tenant_status.php', { id, status });
-      fetchTenants();
-    } catch (err) {
-      console.error("Error updating status:", err);
     }
   };
 
@@ -669,13 +661,19 @@ const AdminTenants = () => {
                   </div>
 
                   {/* Verification Documents */}
-                  {selectedTenant.valid_id_front_path && (
+                  {(selectedTenant.valid_id_front_path || selectedTenant.valid_id_back_path || selectedTenant.nbi_clearance_path) && (
                     <div className="mt-4 border-t border-slate-100 pt-4">
                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Verification Documents</p>
                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                         <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.valid_id_front_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Front)</a>
-                         <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.valid_id_back_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Back)</a>
-                         <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.nbi_clearance_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> NBI Clearance</a>
+                         {selectedTenant.valid_id_front_path && (
+                           <a href={fileUrl(selectedTenant.valid_id_front_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Front)</a>
+                         )}
+                         {selectedTenant.valid_id_back_path && (
+                           <a href={fileUrl(selectedTenant.valid_id_back_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Back)</a>
+                         )}
+                         {selectedTenant.nbi_clearance_path && (
+                           <a href={fileUrl(selectedTenant.nbi_clearance_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> NBI Clearance</a>
+                         )}
                        </div>
                     </div>
                   )}
@@ -698,23 +696,10 @@ const AdminTenants = () => {
                     </div>
                   )}
 
-                  {/* Actions for non-archived tenants */}
-                  {selectedTenant.status === 'Pending Review' && (
-                    <div className="flex gap-3 mt-4">
-                      <button 
-                        onClick={() => { updateStatus(selectedTenant.id, 'active'); setShowProfileModal(false); }} 
-                        className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-emerald-600 transition-colors"
-                      >
-                        <FontAwesomeIcon icon={faCheckCircle} /> Approve Application
-                      </button>
-                      <button 
-                        onClick={() => { updateStatus(selectedTenant.id, 'rejected'); setShowProfileModal(false); }} 
-                        className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-red-600 transition-colors"
-                      >
-                        <FontAwesomeIcon icon={faTimes} /> Reject
-                      </button>
-                    </div>
-                  )}
+                  {/* Actions for non-archived tenants. Pending Review applications are
+                      handled on the Applications page (AdminApplications.jsx) — this
+                      page's tenant list already excludes that status (see the filter
+                      above), so no approve/reject action exists here. */}
                   {selectedTenant.status !== 'archived' && (selectedTenant.status === 'active' || selectedTenant.status === 'Approved') && (
                     <button 
                       onClick={() => handleInitiateMoveOutClick(selectedTenant)} 

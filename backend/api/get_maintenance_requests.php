@@ -21,7 +21,7 @@ if (!verify_admin($conn, $admin_id)) {
 $query = "SELECT m.*, u.first_name, u.last_name, u.contact_no, r.id as room_name 
           FROM maintenance_requests m 
           LEFT JOIN users u ON m.user_id = u.id 
-          LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved'
+          LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
           LEFT JOIN rooms r ON ra.room_name = r.id 
           ORDER BY m.created_at DESC";
 

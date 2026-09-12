@@ -30,9 +30,7 @@ try {
         $m_stmt = $conn->prepare("
             SELECT m.issue_category as issue, m.status, m.estimated_cost as cost, DATE(m.created_at) as date
             FROM maintenance_requests m
-            JOIN users u ON m.user_id = u.id
-            JOIN rent_applications ra ON u.id = ra.user_id
-            WHERE ra.room_name = ?
+            WHERE m.room_name = ?
             ORDER BY m.created_at DESC
         ");
         $m_stmt->bind_param("s", $roomId);
@@ -49,6 +47,61 @@ try {
         }
         $m_stmt->close();
 
+        // Every tenant who has ever occupied this unit (current + past),
+        // backing the "Occupancy History" tab which used to be hardcoded []
+        // regardless of what data existed.
+        $occ_stmt = $conn->prepare("
+            SELECT ra.first_name, ra.last_name, ra.status, ra.monthly_rent, ra.archive_reason,
+                   lc.lease_start, lc.lease_end
+            FROM rent_applications ra
+            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
+            WHERE ra.room_name = ? AND ra.status IN ('Approved', 'active', 'pending-move-out', 'moved-out', 'archived')
+            ORDER BY ra.created_at ASC
+        ");
+        $occ_stmt->bind_param("s", $roomId);
+        $occ_stmt->execute();
+        $occ_res = $occ_stmt->get_result();
+        $occupancyHistory = [];
+        while ($row = $occ_res->fetch_assoc()) {
+            $tenantFullName = trim($row['first_name'] . ' ' . $row['last_name']);
+            $isCurrent = in_array($row['status'], ['Approved', 'active', 'pending-move-out'], true) && $room['tenant_name'] === $tenantFullName;
+            $occupancyHistory[] = [
+                'tenant' => $tenantFullName,
+                'status' => $isCurrent ? 'current' : 'ended',
+                'leaseStart' => $row['lease_start'],
+                'leaseEnd' => $row['lease_end'],
+                'rent' => (float) $row['monthly_rent'],
+                'moveOutReason' => $row['archive_reason'] ?: null
+            ];
+        }
+        $occ_stmt->close();
+
+        // Lease-extension events recorded for this unit's applications,
+        // backing the "Lease History" tab (and the "Previous Extensions"
+        // list) which used to be hardcoded [] regardless of what data existed.
+        $lh_stmt = $conn->prepare("
+            SELECT lr.added_months, lr.previous_lease_end, lr.new_lease_end, lr.created_at
+            FROM lease_renewals lr
+            JOIN lease_contracts lc ON lc.id = lr.contract_id
+            JOIN rent_applications ra ON ra.id = lc.rent_application_id
+            WHERE ra.room_name = ?
+            ORDER BY lr.created_at ASC
+        ");
+        $lh_stmt->bind_param("s", $roomId);
+        $lh_stmt->execute();
+        $lh_res = $lh_stmt->get_result();
+        $leaseHistory = [];
+        while ($row = $lh_res->fetch_assoc()) {
+            $leaseHistory[] = [
+                'event' => 'Lease Extended',
+                'date' => $row['created_at'] ? substr($row['created_at'], 0, 10) : null,
+                'detail' => "Extended by {$row['added_months']} month(s)",
+                'oldEnd' => $row['previous_lease_end'],
+                'newEnd' => $row['new_lease_end']
+            ];
+        }
+        $lh_stmt->close();
+
         return [
             'id' => $room['id'],
             'type' => $room['type'],
@@ -64,7 +117,9 @@ try {
             'roomCondition' => $room['room_condition'] ?? 'Good',
             'furnishingStatus' => $room['furnishing_status'] ?? 'Unfurnished',
             'lastInspectionDate' => $room['last_inspection_date'],
-            'maintenanceHistory' => $maintHistory
+            'maintenanceHistory' => $maintHistory,
+            'occupancyHistory' => $occupancyHistory,
+            'leaseHistory' => $leaseHistory
         ];
     }, $rooms);
 

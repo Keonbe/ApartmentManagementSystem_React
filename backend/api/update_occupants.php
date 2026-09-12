@@ -33,26 +33,27 @@ $userQuery->execute();
 $user = $userQuery->get_result()->fetch_assoc();
 $userQuery->close();
 
-if ($user) {
+if ($user && $user['room_name']) {
     $userId = $user['id'];
     $tenantName = $user['first_name'] . ' ' . $user['last_name'];
-    $roomName = $user['room_name'] ?? 'Unassigned';
+    $roomName = $user['room_name'];
     $currentOccupants = (int)($user['current_occupants'] ?? 0);
 
     // SERVER-SIDE VALIDATION: Rejects request if new occupants equals current count
     if ($occupants === $currentOccupants) {
         echo json_encode([
-            "success" => false, 
+            "success" => false,
             "message" => "Your room is already registered with $occupants occupant(s)."
         ]);
         exit;
     }
 
-    // Cooldown check for pending requests within 24 hours
+    // Any still-open request blocks a new one, regardless of age — a request
+    // pending for more than 24 hours used to stop blocking, letting a tenant
+    // stack multiple independently-approvable occupancy changes.
     $checkStmt = $conn->prepare("
-        SELECT id FROM notifications 
-        WHERE user_id = ? AND type = 'occupancy_request' AND status = 'Pending' 
-        AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        SELECT id FROM notifications
+        WHERE user_id = ? AND type = 'occupancy_request' AND status = 'Pending'
     ");
     $checkStmt->bind_param("i", $userId);
     $checkStmt->execute();
@@ -61,8 +62,8 @@ if ($user) {
 
     if ($hasRecent) {
         echo json_encode([
-            "success" => false, 
-            "message" => "You have already submitted an occupancy request within the last 24 hours. Please wait for admin approval."
+            "success" => false,
+            "message" => "You have already submitted an occupancy request. Please wait for admin approval."
         ]);
         exit;
     }
@@ -81,7 +82,7 @@ if ($user) {
     }
     $stmt->close();
 } else {
-    echo json_encode(["success" => false, "message" => "User record not found."]);
+    echo json_encode(["success" => false, "message" => "No active room assignment found for this account."]);
 }
 
 $conn->close();

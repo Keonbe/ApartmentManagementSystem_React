@@ -22,11 +22,14 @@ export default function RentApplication() {
     const editApp = location.state?.editApplication;
     const passedRoomId = location.state?.selectedRoomId || editApp?.room_name || 'C';
 
-    const getRoomPrice = (id) => {
+    // Fallback only, used until the room's real rooms.monthly_rent loads below —
+    // this used to be the permanent source of truth, silently ignoring any rate
+    // an admin configured via update_room.php.
+    const getRoomPriceFallback = (id) => {
         if (['K', 'L', 'M', 'N'].includes(id)) return 3500;
-        return 4000;                
+        return 4000;
     };
-    
+
     const [applicationStatus, setApplicationStatus] = useState('none');
 
     const [firstName, setFirstName] = useState(editApp?.first_name || defaultFirstName);
@@ -70,8 +73,25 @@ export default function RentApplication() {
     const [occupants, setOccupants] = useState(editApp?.occupants || '');
     const [monthsOfRent, setMonthsOfRent] = useState(editApp?.months_of_rent || '');
     const [roomName] = useState(`Room ${passedRoomId}`);
-    const [monthlyRent] = useState(getRoomPrice(passedRoomId));
-    
+    const [monthlyRent, setMonthlyRent] = useState(editApp?.monthly_rent || getRoomPriceFallback(passedRoomId));
+
+    useEffect(() => {
+        if (editApp) return; // editing an existing application already has its own rate
+        const fetchRoomRate = async () => {
+            try {
+                const res = await api.get('/get_rooms.php');
+                const rooms = res.data?.rooms || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+                const match = rooms.find(r => r.id === passedRoomId);
+                if (match && match.rent != null) {
+                    setMonthlyRent(Number(match.rent));
+                }
+            } catch (err) {
+                console.error("Failed to fetch room rate, using fallback pricing:", err);
+            }
+        };
+        fetchRoomRate();
+    }, [passedRoomId, editApp]);
+
     const [validIdFrontFile, setValidIdFrontFile] = useState(null);
     const [validIdBackFile, setValidIdBackFile] = useState(null);
     const [nbiFile, setNbiFile] = useState(null);
@@ -221,6 +241,7 @@ export default function RentApplication() {
         formData.append('monthsOfRent', monthsOfRent);
         formData.append('roomName', passedRoomId);
         formData.append('monthlyRent', finalMonthlyRent);
+        formData.append('agreeTerms', agreePrivacy);
         if (validIdFrontFile) formData.append('validIdFrontFile', validIdFrontFile);
         if (validIdBackFile) formData.append('validIdBackFile', validIdBackFile);
         if (nbiFile) formData.append('nbiFile', nbiFile);

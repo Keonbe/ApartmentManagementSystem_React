@@ -39,12 +39,13 @@ The backend has no build step — PHP files under `backend/api/` are executed di
 
 ### Auth model
 
-There is no server-side session/token auth — identity travels via custom headers set on every axios request:
+Server-issued session tokens are the real authorization boundary (migrated 2026-09 from pure header trust):
 
-- Frontend stores the logged-in user as JSON under `sessionStorage`/`localStorage` key `loggedInUser` (`{ id, role, first_name, ... }`).
-- `axiosConfig.js`'s request interceptor reads that and injects `X-User-Id` (always) and `X-Admin-Id` (only when `role === 'admin'`) into every request.
-- PHP endpoints read `$_SERVER['HTTP_X_USER_ID']` / `$_SERVER['HTTP_X_ADMIN_ID']`. Admin-only endpoints must call `verify_admin($conn, $admin_id)` (defined in `backend/config.php`), which re-checks the role against the DB rather than trusting the header alone.
-- Frontend route guards in `ams-react/src/App.jsx` (`ProtectedRoute`, `AdminProtectedRoute`, `TenantProtectedRoute`) mirror this: they gate on the same `loggedInUser` object and, for tenants, also gate on live room status fetched from `my_room.php`. These are convenience UX guards only — the real authorization boundary is server-side `verify_admin`, since anyone can forge client-side state.
+- On login, `login.php` creates a row in the `sessions` table (token, user_id, role, expires_at) and returns `sessionToken` in the response.
+- `axiosConfig.js`'s request interceptor sends `Authorization: Bearer <sessionToken>`. The legacy `X-User-Id`/`X-Admin-Id` headers are still sent alongside it for backward compatibility during the transition, but endpoints should not trust them alone.
+- `backend/config.php` provides `get_authenticated_user($conn)` (resolves the bearer token to `{id, role}` or null), and the guards built on it: `require_admin($conn)` (401/403 + exit, returns the real admin id), `require_user($conn)` (any authenticated user), `require_owner_or_admin($conn, $owner_id)` (self or admin only). New/updated endpoints should call these directly.
+- `verify_admin($conn, $admin_id)` still exists as a **deprecated thin wrapper** around `require_admin()` — it ignores the `$admin_id` argument now and just checks the real session. Existing call sites using this old signature keep working, but treat it as legacy; prefer `require_admin()`/`require_user()` in new code and when touching a file for other reasons.
+- Frontend route guards in `ams-react/src/App.jsx` (`ProtectedRoute`, `AdminProtectedRoute`, `TenantProtectedRoute`) gate on the `loggedInUser` object in storage and, for tenants, also on live room status fetched from `my_room.php`. These remain convenience UX guards only — the real authorization boundary is the server-side session check, since anyone can forge client-side state.
 
 ### Backend endpoint pattern
 
@@ -59,20 +60,16 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-
 require_once "../config.php";
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-// Admin-only guard (omit for tenant-facing endpoints):
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden"]);
-    exit;
-}
+// Admin-only guard (omit for tenant-facing endpoints; use require_user()/
+// require_owner_or_admin() instead for tenant-facing ones that need auth):
+$admin_id = require_admin($conn); // 401/403 + exit if not a real admin session; returns the true id
 
 // ... query logic using $conn (mysqli) with prepared statements ...
 echo json_encode(["success" => true, "data" => $result]);
 $conn->close();
 ```
 
-`backend/config.php` is the shared entry point: it establishes `$conn` (mysqli), and defines `verify_admin($conn, $admin_id)` and `log_activity($conn, $performed_by, $category, $action, $details)`. Any state-changing endpoint should call `log_activity()` to write to `activity_logs` for the admin audit trail.
+`backend/config.php` is the shared entry point: it establishes `$conn` (mysqli), and defines the session-auth guards (`require_admin`, `require_user`, `require_owner_or_admin`, `get_authenticated_user`, the deprecated `verify_admin` wrapper — see Auth model above) and `log_activity($conn, $performed_by, $category, $action, $details)`. Any state-changing endpoint should call `log_activity()` to write to `activity_logs` for the admin audit trail.
 
 Use mysqli prepared statements (`$conn->prepare(...)->bind_param(...)`) for all queries touching request input — this is the established SQL-injection defense throughout the codebase (see `docs/security_audit.md`).
 
@@ -108,6 +105,17 @@ Changes to these ripple across the whole app, so double-check call sites before 
 ## Commit workflow
 
 When creating git commit messages or committing changes, use a single commit that covers the entire changeset, but clearly organize and separate the commit message body into distinct categories (e.g., Backend, Frontend, Docs/Meta) covering the affected areas.
+
+At the end of a task/prompt that changed code, draft a commit message summarizing the change (following the categorization above) and present it to the user — do not run `git commit` yourself unless the user explicitly asks you to commit. This is a draft-only habit, not an auto-commit habit.
+
+## Docs upkeep
+
+When a fix or change makes an existing markdown doc's claims stale or inaccurate, update that doc as part of the same task rather than leaving it to drift — this applies broadly, not just to one file:
+- `docs/features/panelist_feature_checklist.md` — if a fix changes whether a checklist item is actually implemented, correct its checkbox/description rather than leaving an overstated "✅ done" claim standing (see the 2026-09 tenant/unit management audit for the pattern: check both the summary bullet list and the detailed feature table, they can drift independently).
+- `docs/security_audit.md` — update when auth model, validation, or upload-sanitization behavior changes (e.g. the header-trust → session-token migration should be reflected here).
+- Any other `docs/**/*.md` whose described behavior (schema, flow, endpoint list) the change invalidates.
+
+Prefer correcting an inaccurate claim over deleting it silently — note briefly why it changed if it's non-obvious (e.g. "no such column exists" vs "removed in this pass").
 
 ## Documentation map
 

@@ -11,13 +11,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once '../config.php';
 
-// Verify admin for state-changing operations
-$adminId = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $adminId)) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Unauthorized. Admin access required.']);
-    exit();
-}
+// Verify admin for state-changing operations. Uses the real verified
+// session id (not a client-supplied header) both for the gate and for
+// activity-log attribution below.
+$adminId = require_admin($conn);
 
 try {
     $data = json_decode(file_get_contents("php://input"), true);
@@ -72,59 +69,91 @@ try {
 
     $params[] = $id;
     $sql = "UPDATE rooms SET " . implode(", ", $updateFields) . " WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    
-    // Bind parameters dynamically for mysqli
-    $types = str_repeat('s', count($params)); // Assuming all are strings/castable to string for simplicity, id is string
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $stmt->close();
 
-    $user_id = $data['user_id'] ?? $data['userId'] ?? null;
-    $status = $data['status'] ?? null;
-    if ($status === 'occupied' && !empty($user_id)) {
-        // Fetch user info
-        $u_stmt = $conn->prepare("SELECT first_name, last_name, email_address, contact_no, gender FROM users WHERE id = ?");
-        $u_stmt->bind_param("i", $user_id);
-        $u_stmt->execute();
-        $u_res = $u_stmt->get_result();
-        if ($u_res->num_rows > 0) {
-            $user_info = $u_res->fetch_assoc();
-            $first_name = $user_info['first_name'];
-            $last_name = $user_info['last_name'];
-            $email = $user_info['email_address'];
-            $contact_no = $user_info['contact_no'] ?? '';
-            $gender = $user_info['gender'] ?? 'Not Specified';
+    // Both the room update and the possible synthetic-application insert
+    // below must succeed together — a failure partway through used to be
+    // able to leave the room marked "occupied" with no application backing
+    // it (or vice versa).
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare($sql);
 
-            $lease_start = $data['lease_start'] ?? $data['leaseStart'] ?? date('Y-m-d');
-            $lease_end = $data['lease_end'] ?? $data['leaseEnd'] ?? date('Y-m-d', strtotime('+6 months'));
-            $monthly_rent = (double)($data['monthly_rent'] ?? $data['monthlyRent'] ?? $currentRoom['monthly_rent'] ?? 4000);
-            
-            // Calculate months of rent
-            $ts1 = strtotime($lease_start);
-            $ts2 = strtotime($lease_end);
-            $year1 = date('Y', $ts1);
-            $year2 = date('Y', $ts2);
-            $month1 = date('m', $ts1);
-            $month2 = date('m', $ts2);
-            $months = (($year2 - $year1) * 12) + ($month2 - $month1);
-            if ($months <= 0) $months = 6;
-
-            // Check if there is already an approved application for this room and user
-            $app_check = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND room_name = ? AND status = 'Approved' LIMIT 1");
-            $app_check->bind_param("is", $user_id, $id);
-            $app_check->execute();
-            $check_res = $app_check->get_result();
-            if ($check_res->num_rows === 0) {
-                // Insert a dummy approved application so the user can access the room
-                $ins_app = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, status) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'placeholder', 'placeholder', 'placeholder', 'Approved')");
-                $ins_app->bind_param("isssssisd", $user_id, $first_name, $last_name, $contact_no, $email, $gender, $months, $id, $monthly_rent);
-                $ins_app->execute();
-                $ins_app->close();
-            }
-            $app_check->close();
+        // Bind parameters dynamically for mysqli
+        $types = str_repeat('s', count($params)); // Assuming all are strings/castable to string for simplicity, id is string
+        $stmt->bind_param($types, ...$params);
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to update room: " . $stmt->error);
         }
-        $u_stmt->close();
+        $stmt->close();
+
+        $user_id = $data['user_id'] ?? $data['userId'] ?? null;
+        $status = $data['status'] ?? null;
+        if ($status === 'occupied' && !empty($user_id)) {
+            // Fetch user info
+            $u_stmt = $conn->prepare("SELECT first_name, last_name, email_address, contact_no, gender FROM users WHERE id = ?");
+            $u_stmt->bind_param("i", $user_id);
+            $u_stmt->execute();
+            $u_res = $u_stmt->get_result();
+            if ($u_res->num_rows > 0) {
+                $user_info = $u_res->fetch_assoc();
+                $first_name = $user_info['first_name'];
+                $last_name = $user_info['last_name'];
+                $email = $user_info['email_address'];
+                $contact_no = $user_info['contact_no'] ?? '';
+                $gender = $user_info['gender'] ?? 'Not Specified';
+
+                $lease_start = $data['lease_start'] ?? $data['leaseStart'] ?? date('Y-m-d');
+                $lease_end = $data['lease_end'] ?? $data['leaseEnd'] ?? date('Y-m-d', strtotime('+6 months'));
+                $monthly_rent = (double)($data['monthly_rent'] ?? $data['monthlyRent'] ?? $currentRoom['monthly_rent'] ?? 4000);
+
+                // Calculate months of rent
+                $ts1 = strtotime($lease_start);
+                $ts2 = strtotime($lease_end);
+                $year1 = date('Y', $ts1);
+                $year2 = date('Y', $ts2);
+                $month1 = date('m', $ts1);
+                $month2 = date('m', $ts2);
+                $months = (($year2 - $year1) * 12) + ($month2 - $month1);
+                if ($months <= 0) $months = 6;
+
+                // Manual admin assignment (no self-service application on file) still
+                // has to satisfy checklist 1.7's acceptance criteria — since there's no
+                // uploaded ID/NBI in this flow, the admin must explicitly attest the
+                // documents were checked in person before this synthetic record is
+                // created as already 'Approved'.
+                $identity_verified = filter_var($data['identity_verified'] ?? $data['identityVerified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                if (!$identity_verified) {
+                    throw new Exception("Cannot assign tenant: identity verification must be confirmed first.");
+                }
+
+                // Check if there is already an approved/active application for this room and user
+                $app_check = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND room_name = ? AND status IN ('Approved', 'active', 'pending-move-out') LIMIT 1");
+                $app_check->bind_param("is", $user_id, $id);
+                $app_check->execute();
+                $check_res = $app_check->get_result();
+                if ($check_res->num_rows === 0) {
+                    // Insert an admin-attested approved application so the user can access
+                    // the room. Documents stay 'placeholder' (none were uploaded through
+                    // this in-person flow) but terms_agreed_at is stamped now, recording
+                    // the admin's attestation above rather than leaving it permanently NULL.
+                    $ins_app = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, status, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'placeholder', 'placeholder', 'placeholder', 'Approved', NOW())");
+                    $ins_app->bind_param("isssssisd", $user_id, $first_name, $last_name, $contact_no, $email, $gender, $months, $id, $monthly_rent);
+                    if (!$ins_app->execute()) {
+                        throw new Exception("Failed to create application record for the assigned tenant: " . $ins_app->error);
+                    }
+                    $ins_app->close();
+                }
+                $app_check->close();
+            }
+            $u_stmt->close();
+        }
+
+        $conn->commit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        exit();
     }
 
     // Log the activity

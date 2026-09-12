@@ -48,7 +48,7 @@ if ($reading['is_invoiced']) {
 
 if (!$reading['user_id']) {
     // Attempt fallback lookup from rent_applications
-    $tenant_query = "SELECT user_id FROM rent_applications WHERE room_name = ? AND status IN ('Approved', 'pending-move-out') ORDER BY id DESC LIMIT 1";
+    $tenant_query = "SELECT user_id FROM rent_applications WHERE room_name = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1";
     $stmt = $conn->prepare($tenant_query);
     $stmt->bind_param("s", $reading['room_name']);
     $stmt->execute();
@@ -73,7 +73,7 @@ if (!$reading['user_id']) {
 $rent_app_id = 0;
 $room_q = "SELECT ra.id as rent_application_id 
            FROM rent_applications ra 
-           WHERE ra.user_id = ? AND ra.status IN ('Approved', 'pending-move-out') 
+           WHERE ra.user_id = ? AND ra.status IN ('Approved', 'active', 'pending-move-out') 
            ORDER BY ra.id DESC LIMIT 1";
 $stmt = $conn->prepare($room_q);
 $stmt->bind_param("i", $reading['user_id']);

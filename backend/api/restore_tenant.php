@@ -17,10 +17,13 @@ $input = json_decode(file_get_contents("php://input"), true);
 $id = $input['id'] ?? 0;
 
 if ($id > 0) {
-    // Get application details
-    $stmt = $conn->prepare("SELECT ra.user_id, ra.room_name, ra.first_name, ra.last_name, ra.monthly_rent, ra.occupants, ra.months_of_rent, lc.lease_start, lc.lease_end 
-                            FROM rent_applications ra 
-                            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
+    // Get application details, including the contract (if any) so its
+    // move-out settlement can be undone, and the status recorded at
+    // archive time so we restore to THAT instead of assuming 'active'.
+    $stmt = $conn->prepare("SELECT ra.user_id, ra.room_name, ra.first_name, ra.last_name, ra.monthly_rent, ra.occupants, ra.months_of_rent, ra.pre_archive_status,
+                                    lc.id as contract_id, lc.status as contract_status, lc.lease_start, lc.lease_end
+                            FROM rent_applications ra
+                            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
                             WHERE ra.id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
@@ -35,18 +38,23 @@ if ($id > 0) {
     $user_id = $app['user_id'] ? (int)$app['user_id'] : 0;
     $room_name = $app['room_name'];
     $full_name = $app['first_name'] . ' ' . $app['last_name'];
-    $rent = $app['monthly_rent'];
     $months = (int)($app['months_of_rent'] ?? 6);
     $lease_start = $app['lease_start'] ?? date('Y-m-d');
     $lease_end = $app['lease_end'] ?? date('Y-m-d', strtotime("+$months months"));
     $occupants = (int)($app['occupants'] ?? 1);
+    // Older archived rows predate pre_archive_status — fall back to 'active'
+    // rather than fail, since that was the only behavior before this fix.
+    $restore_status = $app['pre_archive_status'] ?: 'active';
 
     $conn->begin_transaction();
     try {
-        // 1. Restore rent application status to active
-        $upd_stmt = $conn->prepare("UPDATE rent_applications SET status = 'active', archive_date = NULL, archive_reason = NULL, archive_notes = NULL WHERE id = ?");
-        $upd_stmt->bind_param("i", $id);
+        // 1. Restore rent application to its actual pre-archive status
+        $upd_stmt = $conn->prepare("UPDATE rent_applications SET status = ?, pre_archive_status = NULL, archive_date = NULL, archive_reason = NULL, archive_notes = NULL WHERE id = ? AND status = 'archived'");
+        $upd_stmt->bind_param("si", $restore_status, $id);
         $upd_stmt->execute();
+        if ($upd_stmt->affected_rows === 0) {
+            throw new Exception("Tenant could not be restored — this application is no longer archived.");
+        }
         $upd_stmt->close();
 
         // 2. Unarchive corresponding user
@@ -57,7 +65,32 @@ if ($id > 0) {
             $user_stmt->close();
         }
 
-        // 3. Try to reoccupy the room if it is currently vacant
+        // 3. Undo the move-out settlement on the lease contract, if one
+        // exists and was actually settled (archive_tenant.php doesn't touch
+        // lease_contracts itself, but update_tenant_status.php's move-out
+        // branch sets it to 'expired' with deposit/refund fields before the
+        // tenant is later archived — that settlement needs to be reversed
+        // too, or the restored tenant comes back to an already-refunded,
+        // expired lease).
+        if (!empty($app['contract_id']) && $app['contract_status'] === 'expired') {
+            $ctr_stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active', deposit_status = 'Held', damage_deduction = 0.00, utility_deduction = 0.00, refund_amount = 0.00, refund_date = NULL WHERE id = ?");
+            $ctr_stmt->bind_param("s", $app['contract_id']);
+            $ctr_stmt->execute();
+            $ctr_stmt->close();
+        }
+
+        // 4. Restore invoices archive_tenant.php cancelled back to pending —
+        // we don't retain each invoice's exact prior sub-state (some may
+        // have been 'pending-verification' or 'scheduled'), so 'pending' is
+        // the closest safe default: it puts the balance back as owed without
+        // falsely claiming a payment proof is already under review.
+        $inv_stmt = $conn->prepare("UPDATE invoices SET status = 'pending' WHERE rent_application_id = ? AND status = 'cancelled'");
+        $inv_stmt->bind_param("i", $id);
+        $inv_stmt->execute();
+        $invoices_restored = $inv_stmt->affected_rows;
+        $inv_stmt->close();
+
+        // 5. Try to reoccupy the room if it is currently vacant
         $room_check = $conn->prepare("SELECT status FROM rooms WHERE id = ?");
         $room_check->bind_param("s", $room_name);
         $room_check->execute();
@@ -66,15 +99,15 @@ if ($id > 0) {
 
         $room_restored = false;
         if ($room_res && $room_res['status'] === 'vacant') {
-            $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ?");
+            $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND status = 'vacant'");
             $room_stmt->bind_param("sssis", $full_name, $lease_start, $lease_end, $occupants, $room_name);
             $room_stmt->execute();
+            $room_restored = $room_stmt->affected_rows > 0;
             $room_stmt->close();
-            $room_restored = true;
         }
 
         $conn->commit();
-        log_activity($conn, $admin_id, 'Tenant Management', 'Restore Tenant', "Restored archived tenant $full_name (ID $id)");
+        log_activity($conn, $admin_id, 'Tenant Management', 'Restore Tenant', "Restored archived tenant $full_name (ID $id) to status '$restore_status'" . ($invoices_restored > 0 ? ", $invoices_restored invoice(s) reinstated" : ""));
         echo json_encode([
             "success" => true,
             "room_restored" => $room_restored,

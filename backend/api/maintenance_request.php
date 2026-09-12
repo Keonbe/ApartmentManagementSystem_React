@@ -86,9 +86,25 @@ if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] !== UPLOA
     }
 }
 
-$stmt = $conn->prepare("INSERT INTO maintenance_requests (user_id, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+// Snapshot the tenant's current room so this ticket stays attributed to the
+// right unit even if they later move rooms or file another application.
+$room_name = null;
+$room_stmt = $conn->prepare("
+    SELECT room_name FROM rent_applications
+    WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')
+    ORDER BY id DESC LIMIT 1
+");
+$room_stmt->bind_param("i", $user_id);
+$room_stmt->execute();
+$room_res = $room_stmt->get_result();
+if ($room_row = $room_res->fetch_assoc()) {
+    $room_name = $room_row['room_name'];
+}
+$room_stmt->close();
 
-$stmt->bind_param("isssssis", $user_id, $issue_category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path);
+$stmt = $conn->prepare("INSERT INTO maintenance_requests (user_id, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path, room_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+$stmt->bind_param("isssssiss", $user_id, $issue_category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path, $room_name);
 
 if ($stmt->execute()) {
     // Notify Admin

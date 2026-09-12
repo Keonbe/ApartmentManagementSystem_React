@@ -368,8 +368,11 @@ if ($stmt) {
     $stmt->close();
 }
 
-// Move-ins (Approved applications in period)
-$stmt = $conn->prepare("SELECT COUNT(*) as count FROM rent_applications WHERE status = 'Approved' AND $dateCondition");
+// Move-ins (Approved applications in period). Includes 'active'/'pending-move-out'
+// too — those are tenants who were approved (moved in) during this period and
+// have simply progressed since; a later status change shouldn't erase the
+// historical move-in.
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM rent_applications WHERE status IN ('Approved', 'active', 'pending-move-out') AND $dateCondition");
 $stmt->execute();
 if ($row = $stmt->get_result()->fetch_assoc()) {
     $data['moveIns'] = (int)$row['count'];
@@ -386,7 +389,7 @@ if ($row = $stmt->get_result()->fetch_assoc()) {
 $stmt->close();
 
 // Average lease stay duration
-$stmt = $conn->prepare("SELECT IFNULL(AVG(months_of_rent), 6.0) as avg_duration FROM rent_applications WHERE status IN ('Approved', 'moved-out')");
+$stmt = $conn->prepare("SELECT IFNULL(AVG(months_of_rent), 6.0) as avg_duration FROM rent_applications WHERE status IN ('Approved', 'active', 'pending-move-out', 'moved-out')");
 $stmt->execute();
 $data['avgStayDuration'] = 6.0;
 if ($row = $stmt->get_result()->fetch_assoc()) {
@@ -463,13 +466,20 @@ for ($i = 5; $i >= 0; $i--) {
               AND lc.lease_start <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
               AND (lc.lease_end IS NULL OR lc.lease_end = '' OR lc.lease_end >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
             UNION
-            SELECT ra2.room_name 
+            SELECT ra2.room_name
             FROM rent_applications ra2
-            WHERE ra2.status IN ('Approved', 'occupied')
+            -- Fallback for applications with no matching lease_contracts row
+            -- (or one with no lease_start yet). Bounded on both ends using the
+            -- application's own dates, same as the first branch: without the
+            -- lower bound here, any still-Approved/active application counted
+            -- as occupied in every month since its creation forever, making
+            -- the trend line monotonically non-decreasing by construction.
+            WHERE ra2.status IN ('Approved', 'active', 'pending-move-out')
               AND ra2.created_at <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
+              AND DATE_ADD(ra2.created_at, INTERVAL ra2.months_of_rent MONTH) >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d')
         ) as occ
     ");
-    $occ_stmt->bind_param("iiiiii", $target_year, $target_month, $target_year, $target_month, $target_year, $target_month);
+    $occ_stmt->bind_param("iiiiiiii", $target_year, $target_month, $target_year, $target_month, $target_year, $target_month, $target_year, $target_month);
     $occ_stmt->execute();
     $occ_res = $occ_stmt->get_result()->fetch_assoc();
     $occupied = (int)($occ_res['count'] ?? 0);

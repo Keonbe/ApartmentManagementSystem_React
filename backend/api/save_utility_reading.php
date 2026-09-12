@@ -45,7 +45,7 @@ $tenant_query = "
     SELECT ra.user_id 
     FROM rent_applications ra 
     WHERE ra.room_name = ? 
-      AND ra.status IN ('Approved', 'pending-move-out')
+      AND ra.status IN ('Approved', 'active', 'pending-move-out')
       AND NOT EXISTS (
           SELECT 1 FROM invoices i 
           WHERE i.rent_application_id = ra.id 

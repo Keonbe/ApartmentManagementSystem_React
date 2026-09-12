@@ -362,11 +362,11 @@ flowchart TD
 
 - [x] **1.1 Tenant Registration** ✅ — `registration.php` + React form
 - [x] **1.2 Tenant Profile** ✅ — `profile.php` with edit
-- [x] **1.3 ID / Document Upload** ✅ — `upload_lease_document.php`
-- [x] **1.4 Occupancy Record** ✅ — Via `rent_applications` approval
+- [x] **1.3 ID / Document Upload** ✅ — Valid ID (front/back) + NBI clearance via `rent_application.php`/`upload_lease_document.php`. No "proof of income" field exists — not part of this system's application flow.
+- [x] **1.4 Occupancy Record** ✅ — Via `rent_applications` approval. No dedicated `move_in_date` column; the application's `created_at` (or lease_contracts.lease_start once approved) stands in for it.
 - [x] **1.5 Move-In / Move-Out Tracking** ✅ — Tenant initiates, admin inspects and approves (`record_move_out.php`)
-- [x] **1.6 Application Processing Flow** ✅ — Pending → Approved/Rejected
-- [x] **1.7 Acceptance Criteria Enforcement** ✅ — Terms verified in application approval flow
+- [x] **1.6 Application Processing Flow** ✅ — Pending Review → Approved/Rejected
+- [x] **1.7 Acceptance Criteria Enforcement** ✅ — `update_tenant_status.php` rejects approval unless valid ID (front/back), NBI clearance, and a recorded `terms_agreed_at` (checked at submission via a required Terms & Conditions checkbox in `RentApplication.jsx`) are all present.
 - [x] **1.8 Inquiry Handling & Reservation Tracking** ✅ — Public inquiry form (guest or prefilled), admin triage pipeline, and unit reservations that hold a room with an auto-expiring hold (`inquiries` + `unit_reservations` tables, `AdminInquiries.jsx`, `InquiryForm.jsx`)
 
 ---
@@ -376,13 +376,13 @@ flowchart TD
 > Admin Pages: [AdminUnits.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminUnits.jsx)
 > Tenant Pages: [MyRoom.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/MyRoom.jsx)
 
-- [x] **2.1 Room / Unit Listing** ✅ — `get_rooms.php`
+- [x] **2.1 Room / Unit Listing** ✅ — `get_rooms.php`, `create_room.php`. No `capacity`/`max_occupants` column on `rooms` — occupant count is capped only implicitly via the per-excess-occupant surcharge.
 - [x] **2.2 Unit Availability Dashboard** ✅ — Room status in admin panel
-- [x] **2.3 Set Occupancy** ✅ — Via application approval
+- [x] **2.3 Set Occupancy** ✅ — Via application approval. There is no per-unit "max occupants" cap; the ₱1,000/excess-occupant surcharge (configurable in `system_settings`) is the only occupancy-related rule enforced.
 - [x] **2.4 Unit Status Monitoring** ✅ — DB-backed condition, furnishing, inspection logs & inline edit
-- [x] **2.5 Occupancy Tracking** ✅ — Dynamic stay durations, active counts, and 6-mo trend points
+- [x] **2.5 Occupancy Tracking** ✅ — Dynamic stay durations, active counts, and a 6-month occupancy trend (`get_report_data.php`). No dedicated "vacancy rate" metric — occupancy and vacancy are complementary, so this is covered by the same trend data rather than a separate figure.
 - [x] **2.6 Extended Rent / Lease Renewal** ✅ — `extend_lease.php`
-- [x] **2.7 Unit Rate Configuration** ✅ — `update_room.php`
+- [x] **2.7 Unit Rate Configuration** ✅ — `update_room.php` sets base monthly rent per unit. There are no separate water/electricity/parking *rate* columns on `rooms` — those utilities are billed per-reading/per-reservation (`save_utility_reading.php`, parking reservations), not configured as a fixed per-unit allocation.
 
 ---
 
@@ -575,22 +575,25 @@ flowchart TD
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 1.1 | **Tenant Registration** | Online application form: personal info (name, contact, email), emergency contact, employment/income details | Small+ | `registration.php`, `rent_application.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 1.1 | **Tenant Registration** | Online application form: personal info (name, contact, email). No emergency-contact or employment/income fields exist in this system | Small+ | `registration.php`, `rent_application.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 | 1.2 | **Tenant Profile** | View/edit tenant details, profile photo, contact info, lease status, room assignment | Small+ | `profile.php`, `get_tenants.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 1.3 | **ID / Document Upload** | Upload valid government ID (front/back), proof of income, other supporting docs; stored securely on server | Small+ | `upload_lease_document.php`, `get_documents.php` | — |
-| 1.4 | **Occupancy Record** | Track which tenant occupies which unit, move-in date, expected stay duration, number of occupants | Small+ | `rent_applications` table (status: Approved), `update_occupants.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 1.3 | **ID / Document Upload** | Upload valid government ID (front/back) and NBI clearance; stored securely on server. No "proof of income" field exists | Small+ | `rent_application.php`, `upload_lease_document.php`, `get_documents.php` | — |
+| 1.4 | **Occupancy Record** | Track which tenant occupies which unit, expected stay duration, number of occupants. No dedicated `move_in_date` column — `created_at`/`lease_start` stand in for it | Small+ | `rent_applications` table (status: Approved/active), `update_occupants.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 | 1.5 | **Move-In / Move-Out Tracking** | Record move-in date on approval, move-out with unit inspection notes, deposit refund status, archive tenant record | Small+ | `record_move_out.php`, `archive_tenant.php`, `restore_tenant.php` | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) |
-| 1.6 | **Application Processing Flow** | Status pipeline: Pending → Reviewed → Approved/Rejected. Admin sees pending applications, reviews documents, sets acceptance criteria | Small+ | `rent_application.php`, `get_applications.php` | — |
-| 1.7 | **Acceptance Criteria Enforcement** | Before approval: verify valid ID uploaded, confirm payment terms agreed (1 month advance + 1 month deposit + security deposit) | Medium | Terms stored in `lease_contracts` or `system_settings` | — |
+| 1.6 | **Application Processing Flow** | Status pipeline: Pending Review → Approved/Rejected. Admin sees pending applications, reviews documents, sets acceptance criteria | Small+ | `rent_application.php`, `get_applications.php` | — |
+| 1.7 | **Acceptance Criteria Enforcement** | Before approval: verify valid ID (front/back) and NBI clearance are real uploads (not placeholders), and the applicant recorded a Terms & Conditions agreement (`terms_agreed_at`). Manual admin unit-assignment (`update_room.php`) requires an explicit in-person identity-verification attestation instead, since no self-service upload exists in that flow | Medium | `update_tenant_status.php`, `rent_application.php` (captures `terms_agreed_at` on submit), `rent_applications.terms_agreed_at` column | — |
 | 1.8 | **Inquiry Handling & Reservation Tracking** | Prospective tenants (guest or logged in) submit inquiries from `/preview` or `/home`; admin triages New → Contacted → Scheduled → Reserved → Converted/Closed, places an auto-expiring hold on a unit, and converts an inquiry into a rent application | Small+ | `inquiries` + `unit_reservations` tables, `submit_inquiry.php`, `get_inquiries.php`, `update_inquiry_status.php`, `create_reservation.php`, `update_reservation_status.php`, `expire_reservations.php`, `AdminInquiries.jsx`, `InquiryForm.jsx` | [inquiry_reservation_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/inquiry_reservation_design.md) |
 
 #### Acceptance Terms (Small/Medium Scale)
 
+`update_tenant_status.php` actually bills two components on approval, not three — the move-in invoice's `total_amount` is `monthly_rent * 2`:
+
 | Term | Amount | When Due | Purpose |
 |---|---|---|---|
-| **1 Month Advance Rent** | Base rent amount | Before move-in | First month payment |
-| **1 Month Deposit** | Base rent amount | Before move-in | Damage/unpaid rent coverage |
-| **Security Deposit** | Configurable (typically 1 month) | Before move-in | Property damage guarantee |
+| **1 Month Advance Rent** | Base rent amount (`invoices.base_rent`) | Before move-in | First month payment |
+| **Security Deposit** | One month's rent (`invoices.security_deposit`, same value as `lease_contracts.deposit_amount`) | Before move-in | Property damage guarantee |
+
+There is no separate "1 month deposit" line distinct from the security deposit — that was a documentation-only discrepancy, not a missing feature.
 
 ---
 
@@ -600,13 +603,13 @@ flowchart TD
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 2.1 | **Room / Unit Listing** | List all units with: room ID, type, floor, capacity, monthly rate, current status | Small+ | `get_rooms.php`, `rooms` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 2.1 | **Room / Unit Listing** | List all units with: room ID, type, floor, monthly rate, current status. No `capacity`/`max_occupants` column exists on `rooms` | Small+ | `get_rooms.php`, `create_room.php`, `rooms` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 | 2.2 | **Unit Availability Dashboard** | Visual overview: which rooms are Vacant / Occupied / Under Maintenance / Reserved | Small+ | `get_rooms.php` returns status per room | — |
-| 2.3 | **Set Occupancy** | Assign tenant to unit on approval, update room status to Occupied, record max occupants allowed | Small+ | `rent_application.php` (approval flow), `update_room.php` | — |
-| 2.4 | **Unit Status Monitoring** | Track room condition, last inspection date, maintenance history per unit, furnishing status | Medium | `rooms` table + `maintenance_requests` join | — |
-| 2.5 | **Occupancy Tracking** | Dashboard: occupancy rate, average stay duration, vacancy rate trends per month | Medium | `get_report_data.php` | — |
+| 2.3 | **Set Occupancy** | Assign tenant to unit on approval, update room status to Occupied. There is no per-unit "max occupants" cap column — occupancy is only implicitly bounded by a ₱1,000-per-excess-occupant surcharge (configurable via `system_settings.occupant_surcharge_per_person`) applied above 4 occupants | Small+ | `update_tenant_status.php` (approval flow), `update_room.php` (manual admin assignment) | — |
+| 2.4 | **Unit Status Monitoring** | Track room condition, last inspection date, maintenance history per unit, furnishing status | Medium | `rooms` table + `maintenance_requests` join (via `maintenance_requests.room_name`) | — |
+| 2.5 | **Occupancy Tracking** | Dashboard: occupancy rate, average stay duration, and a 6-month occupancy trend. No separate "vacancy rate" metric exists — occupancy and vacancy are complementary (vacancy = 100% − occupancy), so this is covered by the same trend data rather than a distinct figure | Medium | `get_report_data.php` | — |
 | 2.6 | **Extended Rent / Lease Renewal** | Admin extends lease end date, generates updated contract, adjusts rent if rate changed | Small+ | `extend_lease.php` | — |
-| 2.7 | **Unit Rate Configuration** | Set per-unit pricing: base rent, water allocation, electricity allocation, parking fee (if applicable) | Small+ | `update_room.php`, room rate fields | — |
+| 2.7 | **Unit Rate Configuration** | Set per-unit base monthly rent. No separate water/electricity/parking *rate* columns exist on `rooms` — those utilities are billed per-reading or per-reservation (`save_utility_reading.php`, parking reservations), not configured as a fixed per-unit allocation | Small+ | `update_room.php`, `rooms.monthly_rent` | — |
 
 #### Room Status Values
 

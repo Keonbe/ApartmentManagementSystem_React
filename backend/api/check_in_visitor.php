@@ -48,7 +48,7 @@ if (isset($_FILES['idPhoto']) && $_FILES['idPhoto']['error'] === UPLOAD_ERR_OK) 
 
 // If tenant user_id is missing, look up approved tenant for room_name
 if (!$target_user_id) {
-    $u_stmt = $conn->prepare("SELECT user_id FROM rent_applications WHERE room_name = ? AND status = 'Approved' ORDER BY id DESC LIMIT 1");
+    $u_stmt = $conn->prepare("SELECT user_id FROM rent_applications WHERE room_name = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
     $u_stmt->bind_param("s", $room_name);
     $u_stmt->execute();
     $u_res = $u_stmt->get_result()->fetch_assoc();

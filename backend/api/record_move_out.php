@@ -76,15 +76,19 @@ try {
     exit;
 }
 
-// Update status to 'pending-move-out' and record move-out date
-$update_stmt = $conn->prepare("UPDATE rent_applications SET status = 'pending-move-out', requested_move_out_date = ? WHERE id = ?");
+// Update status to 'pending-move-out' and record move-out date. The status
+// guard + affected_rows check catches the case where the application's
+// status changed between the SELECT above and this UPDATE (e.g. it was
+// concurrently moved-out/archived already).
+$update_stmt = $conn->prepare("UPDATE rent_applications SET status = 'pending-move-out', requested_move_out_date = ? WHERE id = ? AND status IN ('Approved', 'active')");
 $update_stmt->bind_param("si", $move_out_date, $app_id);
+$update_stmt->execute();
 
-if ($update_stmt->execute()) {
+if ($update_stmt->affected_rows > 0) {
     log_activity($conn, $user_id, 'tenant', "Requested Move Out", "Application ID: $app_id, Room: $room_name, Scheduled: $move_out_date");
     echo json_encode(["success" => true, "message" => "Move-out request recorded successfully."]);
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to submit move-out request."]);
+    echo json_encode(["success" => false, "message" => "Failed to submit move-out request — your application may have already changed status."]);
 }
 
 

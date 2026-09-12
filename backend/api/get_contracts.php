@@ -34,7 +34,7 @@ if (!empty($user_id)) {
                             FROM rent_applications ra 
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
                             LEFT JOIN rooms rm ON ra.room_name = rm.id
-                            WHERE ra.user_id = ? AND ra.status = 'Approved' 
+                            WHERE ra.user_id = ? AND ra.status IN ('Approved', 'active', 'pending-move-out')
                             ORDER BY ra.created_at DESC LIMIT 1");
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
@@ -56,7 +56,7 @@ if (!empty($user_id)) {
                             FROM rent_applications ra
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
                             LEFT JOIN rooms rm ON ra.room_name = rm.id
-                            WHERE ra.email = ? AND ra.status = 'Approved'
+                            WHERE ra.email = ? AND ra.status IN ('Approved', 'active', 'pending-move-out')
                             ORDER BY ra.created_at DESC LIMIT 1");
     $stmt->bind_param("s", $email);
     $stmt->execute();

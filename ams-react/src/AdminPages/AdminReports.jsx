@@ -1288,8 +1288,13 @@ const AdminReports = () => {
                         const step = width / (trendPoints.length - 1 || 1);
                         const points = trendPoints.map((p, i) => {
                           const x = 40 + i * step;
-                          const y = 175 - ((p.occupancyRate || 80) / 100) * height;
-                          return { x, y, label: p.label, rate: p.occupancyRate || 80 };
+                          // `?? 0`, not `|| 80` — a genuinely empty building (0%
+                          // occupied) must render as 0%, not a fake 80% line.
+                          // `||` treated the real value 0 as "missing" and
+                          // substituted 80 for it.
+                          const rate = p.occupancyRate ?? 0;
+                          const y = 175 - (rate / 100) * height;
+                          return { x, y, label: p.label, rate };
                         });
                         
                         const pathD = points.reduce((acc, p, i) => {

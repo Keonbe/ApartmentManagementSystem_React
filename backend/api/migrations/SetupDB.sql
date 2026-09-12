@@ -609,6 +609,22 @@ CREATE TABLE IF NOT EXISTS `service_requests` (
 
 ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `services` decimal(10,2) NOT NULL DEFAULT 0.00 AFTER `parking`;
 
+-- Lets restore_tenant.php put an archived application back to the status it
+-- actually had before archiving (Approved / active / pending-move-out /
+-- moved-out), instead of hardcoding 'active' regardless of history.
+ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `pre_archive_status` varchar(20) DEFAULT NULL;
+
+-- Snapshotted at ticket creation so get_rooms.php can join maintenance
+-- history directly on the unit instead of via "any application this user
+-- has ever filed" (which mis-attributed tickets after a tenant moved rooms
+-- and duplicated rows for a user with more than one application).
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `room_name` varchar(50) DEFAULT NULL;
+
+-- Records when the applicant checked the Terms & Conditions box at submission.
+-- update_tenant_status.php requires this to be set (along with real ID/NBI
+-- uploads) before an application can be approved (checklist item 1.7).
+ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `terms_agreed_at` timestamp NULL DEFAULT NULL;
+
 -- Seed catalog entries. Admin can re-price, deactivate or add more from /admin-services.
 INSERT IGNORE INTO `service_catalog`
   (`category`, `name`, `description`, `price`, `pricing_unit`, `min_quantity`, `max_quantity`, `lead_time_days`, `icon`, `is_active`, `sort_order`) VALUES
@@ -692,4 +708,5 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('landlord_name', 'Elizabeth Angcanan'),
 ('landlord_address', 'Tamak, Maguyam, Silang, Cavite'),
 ('landlord_contact', '*********** (Smart)'),
-('property_address', 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite');
+('property_address', 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite'),
+('occupant_surcharge_per_person', '1000');

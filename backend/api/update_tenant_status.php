@@ -11,17 +11,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+$admin_id = require_admin($conn);
 
 $input = json_decode(file_get_contents("php://input"), true);
 $id = $input['id'] ?? 0;
 $status = $input['status'] ?? '';
 $rejection_reason = $input['rejection_reason'] ?? null;
+
+// Every status this endpoint actually knows how to handle below. Anything
+// else used to be written to rent_applications.status verbatim with no
+// validation, which could silently park a tenant in a value no filter
+// anywhere in the app matches.
+$allowed_statuses = ['Approved', 'Rejected', 'Declined', 'pending-move-out', 'moved-out'];
+if (!empty($status) && !in_array($status, $allowed_statuses, true)) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Invalid status: $status"]);
+    exit;
+}
 
 if ($id > 0 && !empty($status)) {
     // Start transaction to ensure data integrity
@@ -58,12 +64,26 @@ if ($id > 0 && !empty($status)) {
         
         if ($status === 'Approved') {
             // Get application details to update the room and generate invoice
-            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, user_id, monthly_rent, occupants FROM rent_applications WHERE id = ?");
+            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, user_id, monthly_rent, occupants, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at FROM rent_applications WHERE id = ?");
             $app_stmt->bind_param("i", $id);
             $app_stmt->execute();
             $app_res = $app_stmt->get_result();
             if ($app_res->num_rows > 0) {
                 $app = $app_res->fetch_assoc();
+
+                // Acceptance-criteria enforcement (checklist 1.7): an application
+                // cannot be approved without real ID/NBI documents on file and a
+                // recorded Terms & Conditions agreement from the applicant.
+                $doc_fields = [$app['valid_id_front_path'], $app['valid_id_back_path'], $app['nbi_clearance_path']];
+                foreach ($doc_fields as $doc_path) {
+                    if (empty($doc_path) || $doc_path === 'placeholder') {
+                        throw new Exception("Cannot approve: this application is missing a required verification document (Valid ID or NBI Clearance).");
+                    }
+                }
+                if (empty($app['terms_agreed_at'])) {
+                    throw new Exception("Cannot approve: the applicant has not agreed to the Terms & Conditions.");
+                }
+
                 $tenant_name = $app['first_name'] . ' ' . $app['last_name'];
                 $room_name = $app['room_name'];
                 $months = (int)$app['months_of_rent'];
@@ -71,10 +91,20 @@ if ($id > 0 && !empty($status)) {
                 $monthly_rent = (double)$app['monthly_rent'];
                 $occupants = (int)$app['occupants'];
                 
-                // Enforce the occupant capacity surcharge of ₱1,000/person exceeding 4 occupants
+                // Enforce the occupant capacity surcharge of ₱1,000/person exceeding 4 occupants.
+                // The base rate is read live from rooms.monthly_rent (the admin-configurable
+                // rate set via update_room.php) rather than a hardcoded per-letter table, so
+                // this floor always tracks whatever the admin has actually priced the unit at.
                 $room_id_clean = trim(str_replace('Room', '', $room_name));
-                $base_room_rent = in_array(strtoupper($room_id_clean), ['K', 'L', 'M', 'N']) ? 3500.00 : 4000.00;
-                $expected_rent = $base_room_rent + ($occupants > 4 ? ($occupants - 4) * 1000 : 0);
+                $room_rate_stmt = $conn->prepare("SELECT monthly_rent FROM rooms WHERE id = ?");
+                $room_rate_stmt->bind_param("s", $room_id_clean);
+                $room_rate_stmt->execute();
+                $room_rate_row = $room_rate_stmt->get_result()->fetch_assoc();
+                $room_rate_stmt->close();
+                $base_room_rent = $room_rate_row ? (float)$room_rate_row['monthly_rent'] : 4000.00;
+                $occupant_surcharge_setting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'occupant_surcharge_per_person'")->fetch_assoc();
+                $occupant_surcharge = $occupant_surcharge_setting ? (float)$occupant_surcharge_setting['setting_value'] : 1000.00;
+                $expected_rent = $base_room_rent + ($occupants > 4 ? ($occupants - 4) * $occupant_surcharge : 0);
                 if ($monthly_rent < $expected_rent) {
                     $monthly_rent = $expected_rent;
                 }
@@ -83,10 +113,19 @@ if ($id > 0 && !empty($status)) {
                 $lease_end = date('Y-m-d', strtotime("+$months months"));
                 $room_status = 'occupied';
                 
-                $room_stmt = $conn->prepare("UPDATE rooms SET status = ?, tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ?");
+                // Guard against a race between two pending applications for the same
+                // room: only claim it if it's still vacant/reserved. If a concurrent
+                // approval already took it, affected_rows is 0 and this approval fails
+                // instead of silently overwriting the other tenant's occupancy.
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = ?, tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND status IN ('vacant', 'reserved')");
                 $room_stmt->bind_param("ssssis", $room_status, $tenant_name, $lease_start, $lease_end, $app['occupants'], $room_name);
                 $room_stmt->execute();
+                $room_claimed = $room_stmt->affected_rows > 0;
                 $room_stmt->close();
+
+                if (!$room_claimed) {
+                    throw new Exception("Room $room_name is no longer available — it may have just been assigned to another tenant.");
+                }
 
                 // Close out any active hold on this unit — the applicant has
                 // moved in, so the reservation has served its purpose.

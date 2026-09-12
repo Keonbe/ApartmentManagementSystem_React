@@ -41,7 +41,7 @@ if (!empty($unit)) {
     $u_stmt = $conn->prepare("
         SELECT ra.user_id 
         FROM rent_applications ra 
-        WHERE ra.room_name = ? AND ra.status = 'Approved' 
+        WHERE ra.room_name = ? AND ra.status IN ('Approved', 'active', 'pending-move-out')
         LIMIT 1
     ");
     $u_stmt->bind_param("s", $unit);
@@ -82,12 +82,14 @@ if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE)
     }
 }
 
+$room_name = $unit !== '' ? $unit : null;
+
 $stmt = $conn->prepare("
-    INSERT INTO maintenance_requests 
-    (user_id, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path, status) 
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'Pending')
+    INSERT INTO maintenance_requests
+    (user_id, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path, status, room_name)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?, 'Pending', ?)
 ");
-$stmt->bind_param("issssss", $user_id, $issue_category, $priority, $preferred_date, $preferred_time, $full_desc, $attachment_path);
+$stmt->bind_param("isssssss", $user_id, $issue_category, $priority, $preferred_date, $preferred_time, $full_desc, $attachment_path, $room_name);
 
 if ($stmt->execute()) {
     $inserted_id = $conn->insert_id;
