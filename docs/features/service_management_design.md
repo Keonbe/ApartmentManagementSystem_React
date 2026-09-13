@@ -53,22 +53,32 @@ flowchart TD
     D --> E{"Admin triage"}
     E -->|Not viable| F["Status: Rejected"]
     E -->|Accepted| G["Status: Approved"]
-    D -->|Tenant changes mind| H["Status: Cancelled<br/>via /my-requests, Pending only"]
+    D -->|Tenant changes mind| H["Status: Cancelled<br/>via /my-requests, own Pending only"]
+    G -->|Reject| F
+    G -->|Cancel| H
     G --> I["Status: In Progress"]
+    I -->|Cancel| H
     I --> J["Status: Completed"]
     J --> K{"post_service_charge()"}
-    K -->|Active lease found| L["invoices.services += total_cost<br/>is_invoiced = 1, invoice_id linked"]
+    K -->|Adjustable invoice for the month| L["invoices.services += total_cost<br/>is_invoiced = 1, invoice_id linked"]
+    K -->|No adjustable invoice, or month already paid| S["Services-only invoice<br/>base_rent = 0"]
+    S --> L
     K -->|No active lease| M["billed = false + warning<br/>is_invoiced stays 0"]
     M -->|Admin retries later| N["Post charge button<br/>sync_service_to_invoice.php"]
-    N --> L
-    L --> O{"Reverse?"}
-    O -->|Invoice still pending| P["Cancelled + charge backed out"]
-    O -->|Invoice already paid| Q["Refused — issue a manual credit"]
+    N --> K
+    L --> O{"Cancel a Completed booking?"}
+    O -->|Invoice pending / overdue / scheduled / payment-failed| P["Cancelled + charge backed out"]
+    O -->|Paid, under verification, or mid-checkout| Q["Refused — issue a manual credit"]
 ```
 
 **Status vocabulary:** `Pending → Approved → In Progress → Completed`, plus
 `Rejected` and `Cancelled`. These strings are matched in React badge maps, so
 changing them means grepping first.
+
+Allowed moves are enforced by `SERVICE_TRANSITIONS` in `backend/config.php` and
+mirrored in `AdminServicePage.jsx`. `Rejected` and `Cancelled` are terminal, and
+`Completed` can only become `Cancelled`, so a booking a tenant cancelled or an
+admin rejected can never be completed or billed.
 
 ---
 
@@ -86,6 +96,18 @@ charges inherit due-date reminders and overdue flags from
 Unlike `water` / `electricity` — which `sync_utility_to_invoice.php` **overwrites**
 — `services` **accumulates**. Several completed bookings in one month add into
 the same column on the same invoice.
+
+The invoice is found by **billing-period label** — the `"September 2026"` form
+every invoice writer uses (`billing_period_label()` in `config.php`); the legacy
+`YYYY-MM` form is also matched. It must still be adjustable: `pending`, `unpaid`,
+`overdue`, `scheduled` or `payment-failed`. If there is no such invoice —
+including when that month's rent invoice is already paid, under verification or
+mid-checkout — a **services-only invoice** (`base_rent = 0`) is created. The
+service path never bills rent.
+
+> Until September 2026 the lookup used `YYYY-MM`, never matched a real invoice,
+> and auto-created a new one carrying a full month's `base_rent` — so every
+> completed paid service billed that month's rent a second time.
 
 ### Billing period is the month of *delivery*
 
@@ -112,13 +134,15 @@ billable and the admin queue shows a **Post charge** retry button.
 
 ### Reversal
 
-`reverse_service_charge()` only succeeds while the invoice is unpaid — the
-`AND status = 'pending'` guard means a paid invoice matches zero rows:
+`reverse_service_charge()` only succeeds while the invoice can still change —
+the same `SERVICE_ADJUSTABLE_INVOICE_STATUSES` set used when posting. A paid
+invoice, one under payment verification, or one with an online checkout in
+progress matches zero rows, and the refusal message says which:
 
 ```php
 UPDATE invoices SET services = GREATEST(services - ?, 0),
                     total_amount = GREATEST(total_amount - ?, 0)
-WHERE id = ? AND status = 'pending'
+WHERE id = ? AND status IN ('pending', 'unpaid', 'overdue', 'scheduled', 'payment-failed')
 ```
 
 If reversal fails, `update_service_status.php` **aborts the whole transition**.
@@ -171,12 +195,12 @@ Additive only, per `.agents/CLAUDE.md`.
 | File | Auth | Role |
 |---|---|---|
 | `get_service_catalog.php` | tenant / admin | `?active=1` for tenants; admins also see inactive rows |
-| `manage_service_catalog.php` | `verify_admin` | `create` / `update` / `toggle` / `delete` (soft-delete when referenced) |
-| `service_request.php` | tenant | Multipart booking; re-derives price, clamps quantity, enforces lead time and both availability switches |
-| `get_service_requests.php` | `verify_admin` | Booking queue with tenant name and unit |
-| `update_service_status.php` | `verify_admin` | The state machine; bills on Completed, reverses on Cancelled |
-| `sync_service_to_invoice.php` | `verify_admin` | Manual retry for a completed-but-unbilled booking |
-| `cancel_request.php` | tenant | Tenant cancellation for all four request types (**new file — the UI had been calling a 404**) |
+| `manage_service_catalog.php` | `require_admin` | `create` / `update` / `toggle` / `delete` (soft-delete when referenced) |
+| `service_request.php` | `require_user` + active lease | Multipart booking; re-derives price, clamps quantity, enforces lead time and both availability switches; identity comes only from the session |
+| `get_service_requests.php` | `require_admin` | Booking queue with tenant name and unit |
+| `update_service_status.php` | `require_admin` | The state machine (`SERVICE_TRANSITIONS`, atomic status claim); bills on Completed, reverses on Cancelled |
+| `sync_service_to_invoice.php` | `require_admin` | Manual retry for a completed-but-unbilled booking |
+| `cancel_request.php` | `require_user` | Tenant cancellation of their own Pending request, for all four request types; resolves the admin intake notification for services |
 
 Helpers `post_service_charge()` and `reverse_service_charge()` live in
 `backend/config.php` beside `log_activity` and `verify_admin`.

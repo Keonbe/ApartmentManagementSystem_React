@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $parking = (float)($input['parking'] ?? 0);
         $late_fee = (float)($input['lateFee'] ?? 0);
         $due_date = !empty($input['dueDate']) ? $input['dueDate'] : date('Y-m-d', strtotime('+15 days'));
-        $billing_period = trim($input['billingPeriod'] ?? date('Y-m'));
+        $billing_period = trim($input['billingPeriod'] ?? '') ?: billing_period_label(new DateTime('now', new DateTimeZone('Asia/Manila')));
         // rand(1000,9999) gave only 9000 ids per month, and the statement below
         // uses ON DUPLICATE KEY UPDATE — so a collision silently rewrote an
         // existing invoice's amounts instead of failing.

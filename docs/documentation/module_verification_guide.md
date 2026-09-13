@@ -28,9 +28,19 @@
    - 6.2 [API Diagrams](#62-api-diagrams)
    - 6.3 [Step-by-Step Workflow](#63-step-by-step-workflow)
    - 6.4 [Test Conditions](#64-test-conditions)
-7. [Date-Dependent Testing](#7-date-dependent-testing)
-8. [Known Issues & Blocked Tests](#8-known-issues--blocked-tests)
-9. [Appendix — Recipes & Reference](#9-appendix--recipes--reference)
+7. [Module 4 — Maintenance Request](#7-module-4--maintenance-request)
+   - 7.1 [API Contract](#71-api-contract)
+   - 7.2 [API Diagrams](#72-api-diagrams)
+   - 7.3 [Step-by-Step Workflow](#73-step-by-step-workflow)
+   - 7.4 [Test Conditions](#74-test-conditions)
+8. [Module 5 — Service Management](#8-module-5--service-management)
+   - 8.1 [API Contract](#81-api-contract)
+   - 8.2 [API Diagrams](#82-api-diagrams)
+   - 8.3 [Step-by-Step Workflow](#83-step-by-step-workflow)
+   - 8.4 [Test Conditions](#84-test-conditions)
+9. [Date-Dependent Testing](#9-date-dependent-testing)
+10. [Known Issues & Blocked Tests](#10-known-issues--blocked-tests)
+11. [Appendix — Recipes & Reference](#11-appendix--recipes--reference)
 
 ---
 
@@ -151,7 +161,7 @@ SELECT room_name, status FROM unit_reservations WHERE room_name='I';
 SELECT id, status FROM rooms WHERE id IN ('I','J','N');"
 ```
 
-Expected baseline: all counts `0`, `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. See [§9.3](#93-standard-restore) for the full restore snippet.
+Expected baseline: all counts `0`, `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. See [§11.3](#113-standard-restore) for the full restore snippet.
 
 > The reservation and the free rooms are the two fixtures most easily consumed without noticing — approving an application for room I converts Katrina's hold, and the room stays occupied even after the test application is deleted.
 
@@ -161,7 +171,7 @@ Expected baseline: all counts `0`, `late_fee_enabled` = `false`, room I's reserv
 
 > **📌 Standing instruction — read this before adding to the document.**
 >
-> **This guide covers only modules that have been audited end-to-end.** After auditing any further module, **append a new section here** for it, following the same four-part template used by §4–§6. Then update the coverage table below and the Table of Contents.
+> **This guide covers only modules that have been audited end-to-end.** After auditing any further module, **append a new section here** for it, following the same four-part template used by §4–§8. Then update the coverage table below and the Table of Contents.
 >
 > Do not document a module before it has been audited. An unverified procedure in a testing guide is worse than no procedure, because a reader cannot tell which parts were actually confirmed.
 
@@ -172,8 +182,8 @@ Expected baseline: all counts `0`, `late_fee_enabled` = `false`, room I's reserv
 | 1 | Tenant Management | ✅ Documented | [§4](#4-module-1--tenant-management) |
 | 2 | Apartment / Unit Management | ✅ Documented | [§5](#5-module-2--unit-management) |
 | 3 | Rental Payment & Billing | ✅ Documented | [§6](#6-module-3--rental-payment--billing) |
-| 4 | Maintenance Request | ⬜ Not yet audited | — |
-| 5 | Service Management | ⬜ Not yet audited | — |
+| 4 | Maintenance Request | ✅ Documented | [§7](#7-module-4--maintenance-request) |
+| 5 | Service Management | ✅ Documented (add-on catalog, bookings, billing, CCTV) | [§8](#8-module-5--service-management) |
 | 6 | Notification Module | ⬜ Not yet audited | — |
 | 7 | Communication (Two-Way Chat) | ⬜ Not yet audited | — |
 | 8 | Admin Dashboard & Reports | ⬜ Not yet audited | — |
@@ -239,7 +249,7 @@ Helpers in `backend/config.php`:
 | `require_owner_or_admin($conn, $owner_id)` | Hard gate for self-or-admin. |
 | `verify_admin($conn, $admin_id)` | **Legacy shape, still session-backed.** The `$admin_id` argument is *ignored* — admin-ness is decided purely by the session. Returns a boolean and never exits, so dual-role endpoints can branch on it. |
 
-> The legacy `X-User-Id` / `X-Admin-Id` headers are still *sent* by the frontend, but the endpoints covered in this guide no longer trust them. Forging them achieves nothing. Some endpoints outside this guide's scope still do trust them — see [§8.2](#82-endpoints-still-on-legacy-header-trust).
+> The legacy `X-User-Id` / `X-Admin-Id` headers are still *sent* by the frontend, but the endpoints covered in this guide no longer trust them. Forging them achieves nothing. Some endpoints outside this guide's scope still do trust them — see [§10.2](#102-endpoints-still-on-legacy-header-trust).
 
 ### 3.2 Getting a token
 
@@ -822,7 +832,7 @@ All rows below were executed against the live stack during the September 2026 au
 | **M3-14** | Negative | Second concurrent checkout | Invoice already `processing` | `create_checkout_session.php` again | Refused — *"already in progress"* | Prevents double payment |
 | **M3-15** | Happy | Abandoned checkout released | Invoice `processing`, due date in the future | `release_checkout_session.php` | `released:true` → back to `pending`, session id cleared | `SELECT status, checkout_session_id FROM invoices WHERE id='<id>';` |
 | **M3-16** | Sec | Cross-tenant release | Maria's token, Ben's `processing` invoice | `release_checkout_session.php` | `released:false` — no-op | Ben's invoice still `processing` |
-| **M3-17** | Boundary | Stranded invoice rescued | Invoice `processing` **past** its due date | Any invoice listing | Promoted to `overdue`, stale session id cleared | Safety net for M3-15 when the return URL fails (§8.1 #5) |
+| **M3-17** | Boundary | Stranded invoice rescued | Invoice `processing` **past** its due date | Any invoice listing | Promoted to `overdue`, stale session id cleared | Safety net for M3-15 when the return URL fails (§10.1 #4) |
 | **M3-18** | Negative | Past scheduling date | Open invoice | `schedule_payment.php` date `2020-01-01` | `422 "cannot be in the past"` | — |
 | **M3-19** | Negative | Invalid time slot | Open invoice | slot `"midnight"` | `422 "Invalid time slot."` | Allowed: `morning`, `afternoon`, `evening` |
 | **M3-20** | Negative | Re-issuing a paid invoice | A `paid` invoice id | `create_invoice.php` with that id | `409` — create a new invoice instead | Amounts unchanged |
@@ -862,7 +872,374 @@ DELETE FROM invoices WHERE id LIKE 'INV-TEST%';
 
 ---
 
-## 7. Date-Dependent Testing
+## 7. Module 4 — Maintenance Request
+
+> Audited September 2026. Remediation fixed a missing `resolved_at` column that made every status update fail, partial edits that overwrote each other, a local-only approval flow, an unauthenticated request-history endpoint, and category/urgency drift between the tenant form and the admin board. It also added the four-stamp timeline. §7.4 was verified live.
+>
+> **Updated September 2026:** priority is now an admin decision, not a tenant self-declaration. The tenant form no longer offers a priority field; every submission is server-side forced to `Needs Triage` regardless of anything sent in the request body, and only `update_maintenance_status.php` (admin-only) can move it to a real priority.
+
+Seed fixtures used below: ticket **#6** (Unit L, Pending, Low), **#7** (Unit H, Pending, Medium), **#5** (Unit D, In Progress). Tenant fixtures: Ana (user 12, Unit K) has an active lease; Gloria (user 8) does not.
+
+### 7.1 API Contract
+
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `maintenance_request.php` | POST (multipart) | `require_user` + active lease | `issueType`, `preferredDate`, `preferredTime` (`morning`/`afternoon`), `description`, `permissionToEnter`; file `uploadedFile`. No priority field — any `urgency` sent is ignored | `success`, `id` | `401` · `403` no active lease · `422` bad category, date or file |
+| `get_maintenance_requests.php` | GET | `require_admin` | — | `success`, `requests[]` incl. `acknowledgedAt`, `startedAt`, `resolvedAt`, `resolutionHours` | `401` / `403` |
+| `update_maintenance_status.php` | POST | `require_admin` | `id`, plus any of `status`, `urgency`, `assignedTo`, `estimatedCost`, `actualCost`, `workNotes`, `tenantResponsible`, `rejectionReason` | `success`, `message` | `400` nothing to update · `404` · `409` invalid transition or concurrent change · `422` reject without reason, negative cost, or `urgency` not one of the four real priorities |
+| `create_maintenance_request_admin.php` | POST (multipart) | `require_admin` | `title`, `unit`, `issueType`, `priority`, `description`; file `photo` | `success`, `id` | `422` unknown unit, bad category or file |
+| `get_my_requests.php` | GET | `require_user` (an admin may pass `userId`) | — | `success`, `requests[]` across maintenance, CCTV, parking and services | `401` |
+| `cancel_request.php` | POST | `require_user` | `id`, `type` (`Maintenance` / `CCTV` / `Parking` / `Service`) | `success` | `409` not your own Pending request · `422` unknown type |
+
+**Vocabulary** — defined once in `backend/config.php` and mirrored for the UI in `ams-react/src/config/maintenanceOptions.js`:
+
+| Constant | Values |
+|---|---|
+| `MAINTENANCE_CATEGORIES` | Plumbing · Electrical · Structural/Physical · Water Supply · General Maintenance · Others |
+| `MAINTENANCE_URGENCIES` | Low · Medium · High · Urgent — **admin-settable only**, via `update_maintenance_status.php` |
+| `MAINTENANCE_DEFAULT_URGENCY` | `Needs Triage` — the value every tenant-submitted ticket starts with. Not a member of `MAINTENANCE_URGENCIES`, so it can never be selected again once an admin assigns a real priority; `normalize_maintenance_urgency()` rejects it if sent back |
+| `MAINTENANCE_TRANSITIONS` | `Pending → In Progress \| Rejected` · `In Progress → Completed \| Pending` · `Completed → In Progress` (reopen) · `Rejected`, `Cancelled` terminal |
+
+Legacy spellings are normalised rather than rejected: `appliance` and `pest control` become General Maintenance, `structural` and `carpentry` become Structural/Physical, and `emergency` becomes Urgent.
+
+`Needs Triage` sorts **above** Urgent in `urgencyWeight()` (`ams-react/src/config/maintenanceOptions.js`), so untriaged tickets surface at the top of each Kanban column instead of reading as low priority.
+
+### 7.2 API Diagrams
+
+Lifecycle, with the timestamp each move records:
+
+```mermaid
+flowchart LR
+    P[Pending] -->|Start work<br/>acknowledged_at, started_at| IP[In Progress]
+    P -->|Reject with reason<br/>acknowledged_at| R[Rejected]
+    P -->|Tenant cancels| C[Cancelled]
+    IP -->|Complete + actual cost<br/>resolved_at| D[Completed]
+    IP -->|Back to Pending| P
+    D -->|Reopen<br/>resolved_at cleared| IP
+
+    classDef open fill:#fff3cd,stroke:#c69500
+    classDef done fill:#d4edda,stroke:#28a745
+    classDef dead fill:#f8d7da,stroke:#dc3545
+    class P,IP open
+    class D done
+    class R,C dead
+```
+
+Submission through a status change:
+
+```mermaid
+sequenceDiagram
+    actor T as Tenant
+    participant MR as MaintenanceRequest.jsx
+    participant MP as maintenance_request.php
+    participant DB as ams_db
+    actor A as Admin
+    participant AM as AdminMaintainance.jsx
+    participant UM as update_maintenance_status.php
+
+    T->>MR: Category, preferred slot, photo or video (no priority field)
+    MR->>MP: POST multipart (Bearer token)
+    MP->>DB: get_active_tenancy(user)
+    alt No active lease
+        MP-->>MR: 403
+    else
+        MP->>MP: Normalise category, validate date and file
+        MP->>DB: INSERT maintenance_requests<br/>urgency = MAINTENANCE_DEFAULT_URGENCY ("Needs Triage"), room_name snapshot, Pending
+        MP->>DB: INSERT notifications (admin)
+        MP-->>MR: {success, id}
+    end
+
+    A->>AM: Open board (Needs Triage first, then Urgent to Low, then age)
+    A->>UM: POST {id, urgency: "High"}
+    UM->>UM: normalize_maintenance_urgency() — only the 4 real levels accepted
+    UM->>DB: UPDATE urgency
+    AM->>UM: POST {id, status: "In Progress", assignedTo, estimatedCost}
+    UM->>DB: SELECT current status
+    UM->>UM: Check MAINTENANCE_TRANSITIONS
+    UM->>DB: UPDATE only the sent fields + stamps WHERE status = current
+    Note over UM,DB: 0 rows changed means someone else moved it → 409
+    UM->>DB: INSERT notifications (tenant), only when status changed
+    UM-->>AM: {success}
+    AM->>AM: Refetch the board
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        MR[MaintenanceRequest.jsx]
+        MY[UserMyRequests.jsx]
+        AM[AdminMaintainance.jsx]
+    end
+    subgraph Endpoints
+        E1[maintenance_request.php]
+        E2[get_maintenance_requests.php]
+        E3[update_maintenance_status.php]
+        E4[create_maintenance_request_admin.php]
+        E5[get_my_requests.php]
+        E6[cancel_request.php]
+        E7[get_rooms.php]
+    end
+    subgraph Tables
+        T1[(maintenance_requests)]
+        T2[(rent_applications)]
+        T3[(notifications)]
+        T4[(rooms)]
+    end
+    MR --> E1
+    MY --> E5 & E6
+    AM --> E2 & E3 & E4 & E7
+    E1 --> T1 & T2 & T3
+    E2 --> T1 & T2
+    E3 --> T1 & T3
+    E4 --> T1 & T2 & T4
+    E5 --> T1
+    E6 --> T1
+    E7 --> T4
+```
+
+### 7.3 Step-by-Step Workflow
+
+1. **Tenant — report** · `/maintenance-request` → `maintenance_request.php` → Pending ticket stamped with the tenant's unit and priority `Needs Triage`; admin notified. Tenants without an active lease are refused. There is no priority field on this form — the tenant does not set urgency.
+2. **Admin — triage** · `/admin-maintenance` → `get_maintenance_requests.php`. Columns are Pending, In Progress, Completed, and Rejected / Cancelled; each is ordered Needs Triage first, then Urgent → Low, oldest first. Opening a ticket's detail modal shows a **Priority** selector (Low/Medium/High/Urgent) — this is the only way a real priority gets set, and it saves immediately on change.
+3. **Admin — start work** · *Start Work* (assignee, optional estimate) → `In Progress`; `acknowledged_at` and `started_at` stamped; tenant notified. Setting a priority first is optional — an admin can start work on a still-`Needs Triage` ticket.
+4. **Admin — edit details** · Assignee (saved on blur or Enter), estimated cost, work notes and the tenant-responsible toggle each save on their own and notify nobody.
+5. **Admin — complete** · *Mark Completed* with the actual cost → `resolved_at` stamped; the detail modal shows total resolution time; tenant notified.
+6. **Admin — reject** (from Pending) · requires a reason → `Rejected`; tenant notified with the reason.
+7. **Admin — correct a mistake** · *Back to Pending* (from In Progress) or *Reopen* (from Completed; clears `resolved_at`).
+8. **Tenant — cancel** · `/my-requests` → `cancel_request.php` while the ticket is still Pending.
+9. **Tenant — follow up** · `/my-requests` → `get_my_requests.php`: status, resolved time and any rejection reason.
+
+### 7.4 Test Conditions
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M4-01** | Happy | Board loads, correctly ordered | Seed data | `GET get_maintenance_requests.php` (admin) | Valid JSON; Pending, then In Progress, then Completed; within each, `Needs Triage` first, then Urgent → Low | Seed order `7, 6, 5, 1, 3, 2, 4` (no seeded `Needs Triage` rows). `FIELD(urgency, 'Urgent','High','Medium','Low')` returns `0` for `Needs Triage`, which sorts before `1` — confirmed live 2026-09 with a throwaway row. Before the `resolved_at` fix, PHP warnings corrupted this response entirely |
+| **M4-02** | Sec | Request history with no token | — | `GET get_my_requests.php?userId=12` | `401 "Authentication required"` | Previously returned Ana's history to anyone |
+| **M4-03** | Sec | Tenant asks for another tenant's history | Ana's token | `GET get_my_requests.php?userId=6` | Only Ana's own rows | `userId` is ignored for non-admins |
+| **M4-04** | Happy | Partial edits keep other fields | #7 Pending | `{"id":7,"workNotes":"…"}`, then `{"id":7,"assignedTo":"Juan Tech"}` | Both `200`; row keeps both values; `tenant_responsible` unchanged | Each edit used to overwrite all five fields |
+| **M4-05** | Negative | Skipping a stage | #7 Pending | `{"id":7,"status":"Completed"}` | `409 "A Pending request cannot be moved to Completed."` | — |
+| **M4-06** | Negative | Reject without a reason | #7 Pending | `{"id":7,"status":"Rejected"}` | `422 "A reason is required to reject a request."` | — |
+| **M4-07** | Happy | Start work | #7 Pending | `{"id":7,"status":"In Progress","estimatedCost":1200}` | `acknowledged_at` and `started_at` set; user 11 notified | `SELECT acknowledged_at, started_at FROM maintenance_requests WHERE id=7;` |
+| **M4-08** | Happy | Complete with actual cost | #7 In Progress | `{"id":7,"status":"Completed","actualCost":1350}` | `resolved_at` set; `estimated_cost` stays `1200.00`, `actual_cost` `1350.00`; board returns `resolutionHours` | The final cost no longer overwrites the estimate |
+| **M4-09** | Happy | Reopen | #7 Completed | `{"id":7,"status":"In Progress"}` | `resolved_at` cleared | — |
+| **M4-10** | Happy | Reject with a reason | #6 Pending | `{"id":6,"status":"Rejected","rejectionReason":"…"}` | `rejection_reason` stored; user 13 notified with the reason | `SELECT message FROM notifications WHERE type='maintenance_update' ORDER BY id DESC LIMIT 1;` |
+| **M4-11** | Sec | Priority is ignored from the tenant, identity comes from the session | Ana's token | Submit with body `userId=6`, `Water Supply`, `urgency=Urgent` | Stored with `user_id=12`, `room_name='K'`, `urgency='Needs Triage'` | Spoofed identity **and** spoofed priority both refused — verified live 2026-09 |
+| **M4-12** | Negative | Unknown category | Ana's token | `issueType=Roofing` | `422` | — |
+| **M4-13** | Sec | No active lease | Gloria's token | Submit | `403 "Only tenants with an active lease can submit maintenance requests."` | — |
+| **M4-14** | Sec | Upload filtering; no token | Ana's token | Attach `shell.php`; attach a `.pdf`; submit with no token | `422`, `422`, `401` | Images and MP4/WEBM/MOV only, 10MB max |
+| **M4-15** | Sec | Cancelling someone else's ticket | Ana's new Pending ticket | Ben cancels; then Ana cancels | `409`, then `200` | — |
+| **M4-16** | Negative | Admin create validates the unit | Admin token | `unit=ZZ`; then `unit=K` | `422 "Unit ZZ does not exist."`; then created, linked to Ana, title stored | — |
+| **M4-17** | Happy | Admin assigns a priority | A `Needs Triage` Pending ticket | `{"id":<id>,"urgency":"High"}` | `200`; `urgency='High'`; ticket now sorts below any remaining `Needs Triage` ticket and above Medium/Low | Verified live 2026-09 against the sort function |
+| **M4-18** | Negative | Invalid or sentinel priority rejected | Any ticket | `{"id":<id>,"urgency":"Whenever"}`, then `{"id":<id>,"urgency":"Needs Triage"}` | Both `422 "Invalid priority level."` | An admin cannot manually revert a ticket back to `Needs Triage` |
+
+**Restore:**
+
+```sql
+UPDATE maintenance_requests
+SET status='Pending', assigned_to=NULL, estimated_cost=NULL, actual_cost=NULL, work_notes=NULL,
+    tenant_responsible=0, acknowledged_at=NULL, started_at=NULL, resolved_at=NULL, rejection_reason=NULL
+WHERE id IN (6, 7);
+DELETE FROM maintenance_requests WHERE id > 7;
+DELETE FROM notifications WHERE created_at >= NOW() - INTERVAL 1 HOUR;
+```
+
+---
+
+## 8. Module 5 — Service Management
+
+> Audited September 2026. Remediation fixed two defects: completing a paid service billed a second month of rent (a billing-period format mismatch), and missing transition rules let cancelled or rejected bookings be billed. It also covered unauthenticated booking, cancel and CCTV endpoints; reversal refusing unpaid invoices; and hardcoded attachment URLs. §8.4 was verified live.
+>
+> Scope: the priced add-on catalog, bookings, billing and CCTV requests. Parking and visitor flows, which the checklist also lists under 5.1/5.3, are audited with Modules 10 and 12.
+
+### 8.1 API Contract
+
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `get_service_catalog.php` | GET | `verify_admin` branch (admins also see inactive rows) | `active=1` | `success`, `services[]` | — |
+| `manage_service_catalog.php` | POST | `require_admin` | `action` = `create` / `update` / `toggle` / `delete`, plus catalog fields | `success`, `id` on create | Validation messages; `delete` deactivates instead when bookings reference the row |
+| `service_request.php` | POST (multipart) | `require_user` + active lease | `serviceId`, `quantity`, `preferredDate`, `preferredTimeSlot`, `notes`; file `uploadedFile` | `success`, `id`, `totalCost` | `401` · `403` no active lease · `422` malformed date · inactive service, disabled category or date inside lead time → `success:false` with HTTP 200 |
+| `get_service_requests.php` | GET | `require_admin` | `status`, `category` | `success`, `requests[]` | `403` |
+| `update_service_status.php` | POST | `require_admin` | `rawId`, `status` | `success`, `billed`, `invoiceId`, `warning` | `409` invalid transition, concurrent change or refused reversal · `422` |
+| `sync_service_to_invoice.php` | POST | `require_admin` | `rawId` | `success`, `invoiceId` | Not Completed, or already billed |
+| `cancel_request.php` | POST | `require_user` | `id`, `type: "Service"` | `success` | `409` not your own Pending booking |
+| `cctv_request.php` | POST (JSON) | `require_user` + active lease | `incidentDate`, `incidentTime`, `locationDetails`, `reasonRequest` | `success`, `id` | `401` · `403` · `422` future date or over-length fields |
+| `get_cctv_requests.php` | GET | `require_admin` | — | `success`, `requests[]` | `403` |
+| `update_cctv_status.php` | POST | `require_admin` | `id` / `rawId`, `status` (`Approved` / `Rejected`) | `success` | `404` · `409` already decided · `422` |
+
+**Rules** — defined in `backend/config.php`:
+
+| Rule | Definition |
+|---|---|
+| `SERVICE_TRANSITIONS` | `Pending → Approved \| Rejected \| Cancelled` · `Approved → In Progress \| Completed \| Rejected \| Cancelled` · `In Progress → Completed \| Cancelled` · `Completed → Cancelled` (reverses the charge first) · `Rejected`, `Cancelled` terminal |
+| `SERVICE_ADJUSTABLE_INVOICE_STATUSES` | `pending`, `unpaid`, `overdue`, `scheduled`, `payment-failed` — a charge can be added to or reversed from these. Never `processing` (amount already at the gateway) or `pending-verification` (tenant already paid it) |
+| `billing_period_label()` | Periods are matched as `"September 2026"`, the format every invoice writer uses; legacy `YYYY-MM` is also matched |
+
+### 8.2 API Diagrams
+
+Booking lifecycle and where money moves:
+
+```mermaid
+flowchart LR
+    P[Pending] -->|Approve| AP[Approved]
+    P -->|Reject| RJ[Rejected]
+    P -->|Tenant cancels| CX[Cancelled]
+    AP -->|Start| IP[In Progress]
+    AP -->|Complete| CM[Completed]
+    AP -->|Reject| RJ
+    AP -->|Cancel| CX
+    IP -->|Complete| CM
+    IP -->|Cancel| CX
+    CM -->|Cancel: reverse the charge first| CX
+    CM -.->|post_service_charge| INV[(invoices.services)]
+
+    classDef open fill:#fff3cd,stroke:#c69500
+    classDef done fill:#d4edda,stroke:#28a745
+    classDef dead fill:#f8d7da,stroke:#dc3545
+    class P,AP,IP open
+    class CM done
+    class RJ,CX dead
+```
+
+Completion and billing:
+
+```mermaid
+sequenceDiagram
+    actor A as Admin
+    participant AS as AdminServicePage.jsx
+    participant US as update_service_status.php
+    participant PC as post_service_charge()
+    participant DB as ams_db
+
+    A->>AS: Mark completed
+    AS->>US: POST {rawId, status: "Completed"}
+    US->>US: Check SERVICE_TRANSITIONS
+    US->>DB: UPDATE status WHERE status = current
+    US->>PC: Bill the booking
+    PC->>DB: Claim: UPDATE is_invoiced = 1 WHERE is_invoiced = 0
+    alt Already claimed
+        PC-->>US: Already billed, no money moves
+    else
+        PC->>DB: Find the "September 2026" invoice in an adjustable status
+        alt Found
+            PC->>DB: services += cost, total_amount += cost
+        else None, or that month is paid / being paid
+            PC->>DB: INSERT services-only invoice (base_rent 0)
+            PC->>DB: services += cost, total_amount += cost
+        end
+        PC->>DB: Link invoice_id and billing_period, COMMIT
+        PC-->>US: ok, invoice_id
+    end
+    US->>DB: Notify tenant, resolve the admin intake notification
+    US-->>AS: {success, billed, invoiceId, warning}
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        SV[Services.jsx / ServiceCatalog.jsx]
+        SB[ServiceBooking.jsx]
+        CR[CctvRequest.jsx]
+        MY[UserMyRequests.jsx]
+        AS[AdminServicePage.jsx]
+        AC[AdminCctv.jsx]
+    end
+    subgraph Endpoints
+        E1[get_service_catalog.php]
+        E2[service_request.php]
+        E3[get_service_requests.php]
+        E4[update_service_status.php]
+        E5[manage_service_catalog.php]
+        E6[sync_service_to_invoice.php]
+        E7[cancel_request.php]
+        E8[cctv_request.php]
+        E9[get_cctv_requests.php]
+        E10[update_cctv_status.php]
+    end
+    subgraph Tables
+        T1[(service_catalog)]
+        T2[(service_requests)]
+        T3[(invoices)]
+        T4[(cctv_requests)]
+        T5[(system_settings)]
+        T6[(notifications)]
+    end
+    SV --> E1
+    SB --> E1 & E2
+    CR --> E8
+    MY --> E7
+    AS --> E1 & E3 & E4 & E5 & E6 & E9 & E10
+    AC --> E9 & E10
+    E1 --> T1
+    E2 --> T1 & T2 & T5 & T6
+    E4 --> T2 & T3 & T6
+    E5 --> T1
+    E6 --> T2 & T3
+    E7 --> T2
+    E8 --> T4 & T6
+    E10 --> T4 & T6
+```
+
+### 8.3 Step-by-Step Workflow
+
+1. **Admin — set up the catalog** · `/admin-services` → *Service Catalog* → `manage_service_catalog.php` (create, edit, toggle, delete). An item with bookings is deactivated rather than deleted.
+2. **Admin — switch categories** · the cleaning, laundry and other-services cards write `service_<category>_active`. The cards show the cheapest active catalog price.
+3. **Tenant — book** · `/services` → `/service-booking?serviceId=N`. Only active items in enabled categories are offered. `service_request.php` recalculates the price, clamps quantity, enforces lead time and creates a Pending booking; admin notified.
+4. **Tenant — cancel** · `/my-requests` → `cancel_request.php` while the booking is Pending.
+5. **Admin — decide** · *Approve*, or *Reject* (with a confirmation) → tenant notified.
+6. **Admin — deliver** · *Start work*, then *Mark completed* → `post_service_charge()` bills the booking and the admin sees which invoice it landed on.
+7. **Admin — retry billing** · if no active lease was found at completion, a banner lists unbilled bookings with a *Post charge* button (`sync_service_to_invoice.php`).
+8. **Admin — reverse** · cancelling a Completed booking (with a confirmation) backs the charge out, provided the invoice is still adjustable.
+9. **CCTV** · tenant `/cctv-request` → `cctv_request.php` → Pending; admin approves or rejects once, from the CCTV tab or `/admin-cctv`.
+
+### 8.4 Test Conditions
+
+Precondition for M5-05 onward — a pending rent invoice for Ana's current month:
+
+```sql
+INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date, created_at)
+VALUES ('INV-TEST-RENT', 12, 10, 3500, 3500, 'September 2026', 'pending', DATE_ADD(CURDATE(), INTERVAL 10 DAY), NOW() - INTERVAL 1 DAY);
+```
+
+Substitute the current month's label if you are testing in a different month.
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M5-01** | Sec | Tenant opens the admin booking queue | Ana's token | `GET get_service_requests.php` | `403` | — |
+| **M5-02** | Sec | Booking without an active lease | Gloria's token | `service_request.php` | `403 "Only tenants with an active lease can book services."` | — |
+| **M5-03** | Negative | Category switched off | `service_laundry_active='false'` | Ana books a laundry item | `success:false`, "Laundry services are currently unavailable." (HTTP 200) | Restore the setting afterwards |
+| **M5-04** | Money | A cancelled booking cannot be billed | Maria's Pending booking #2 | Maria cancels; admin sets `Completed` | `200`; then `409 "A Cancelled booking cannot be moved to Completed."` | — |
+| **M5-05** | Money | Charge merges into that month's rent invoice | `INV-TEST-RENT` pending | Complete Ana's Approved booking #3 (₱900) | `invoiceId: INV-TEST-RENT`; `services 900.00`, `total_amount 4400.00`; **no new invoice** | Regression guard for the double-rent bug |
+| **M5-06** | Sec | Spoofed identity, skipped approval, cross-tenant cancel | Ana's token | Book with body `userId=6`; admin Pending → Completed; Ben cancels | Stored as user 12, unit K; `409`; `409` | — |
+| **M5-07** | Money | Month already paid → services-only invoice | `INV-TEST-RENT` set to `paid` | Approve and complete the new booking (₱500) | New invoice: `base_rent 0.00`, `services 500.00`, `total_amount 500.00`, same period | Rent is never billed from this path |
+| **M5-08** | Money | Reversal from an overdue invoice | That services-only invoice set to `overdue` | Cancel the completed booking | `200`; invoice back to `0.00`; booking `is_invoiced = 0` | Previously refused as "already paid" |
+| **M5-09** | Money | Reversal refused on paid and in-verification invoices | Booking #3 billed to `INV-TEST-RENT` | Cancel while the invoice is `paid`, then while `pending-verification` | `409 "…is already paid; issue a manual credit instead."`; `409 "…has a payment under verification."` | — |
+| **M5-10** | Money | A reversed booking stays closed | The cancelled booking from M5-08 | Set `Completed` | `409` | It can never be billed again |
+| **M5-11** | Negative | CCTV incident in the future | Ana's token | `incidentDate` = today + 3 | `422` | — |
+| **M5-12** | Sec | CCTV identity from session | Ana's token | Valid request with body `userId=6` | Stored with `user_id=12` | — |
+| **M5-13** | Sec | CCTV without a lease or without a token | Gloria's token; no token | Submit | `403`; `401` | — |
+| **M5-14** | Negative | CCTV decided once | A Pending CCTV request | Approve, then Reject | `200`; `409 "This request has already been approved."` | — |
+
+**Restore:**
+
+```sql
+UPDATE service_requests SET status='Pending' WHERE id = 2;
+UPDATE service_requests SET status='Approved', is_invoiced=0, invoice_id=NULL, billing_period=NULL, completed_at=NULL WHERE id = 3;
+DELETE FROM service_requests WHERE id > 3;
+DELETE FROM invoices WHERE id = 'INV-TEST-RENT' OR (base_rent = 0 AND created_at >= NOW() - INTERVAL 1 HOUR);
+DELETE FROM cctv_requests WHERE id > 2;
+UPDATE system_settings SET setting_value='true' WHERE setting_key='service_laundry_active';
+DELETE FROM notifications WHERE created_at >= NOW() - INTERVAL 1 HOUR;
+```
+
+Completing or cancelling a booking also marks its admin intake notification `Resolved`. Snapshot `notifications.status` before a run if you need that exact state back.
+
+---
+
+## 9. Date-Dependent Testing
 
 Several behaviours here only fire when a date passes: overdue promotion and the late fee ([§6.4](#64-test-conditions) M3-08…M3-10, M3-17), lease expiry, reservation holds ([§5.4](#54-test-conditions) M2-10) and reminder cadence.
 
@@ -874,41 +1251,41 @@ There is **no scheduler**. Nothing runs on a timer: overdue promotion happens wh
 
 ---
 
-## 8. Known Issues & Blocked Tests
+## 10. Known Issues & Blocked Tests
 
 Open defects as of this document's version. Each affects testing, so check here before filing a bug.
 
-### 8.1 Defects
+### 10.1 Defects
 
 | # | Issue | Evidence | Effect on testing |
 |---|---|---|---|
 | 1 | **`get_available_parking_slots.php` fatals on every call** | Does `include 'db_connection.php'`, which does not exist in `backend/api/`; `config.php` never loads, so `$conn` is undefined | Parking slot availability cannot be tested at all |
-| 2 | **`maintenance_requests.resolved_at` does not exist — and is actively written** | `update_maintenance_status.php:35,38` writes it and `get_maintenance_requests.php:50` reads it, but no `CREATE` or `ALTER` anywhere defines it. Confirmed absent from the live `ams_db`: `SELECT resolved_at FROM maintenance_requests` → `ERROR 1054 Unknown column` | **Updating a maintenance request status fails outright.** This is not a migration-only gap — it is broken right now. Maintenance status transitions cannot be tested until the column is added |
-| 3 | **`change_password.php` has no authentication** | No session call; changes any account's password given the email and current password | Security defect. Do not treat a successful password change as evidence that auth works |
-| 4 | **Forgot-password dev link does not route** | `Login.jsx:197` builds `/#/reset-password?…` while `App.jsx:256` mounts `BrowserRouter` | The dev reset flow must be exercised by pasting the token into `/reset-password` manually |
-| 5 | **PayMongo return URLs never reach the app** | `create_checkout_session.php:87,90` return `…/dist/index.html#/pay-bills?status=…`; `BrowserRouter` has no `basename` and there is no catch-all route | Returning from checkout renders a blank page, so the cancel → `release_checkout_session.php` wiring does not fire in a browser. The endpoint itself is correct (M3-15 passes by curl), and M3-17's overdue promotion still rescues the invoice — but only once it is past due |
+| 2 | **`change_password.php` has no authentication** | No session call; changes any account's password given the email and current password | Security defect. Do not treat a successful password change as evidence that auth works |
+| 3 | **Forgot-password dev link does not route** | `Login.jsx:197` builds `/#/reset-password?…` while `App.jsx:256` mounts `BrowserRouter` | The dev reset flow must be exercised by pasting the token into `/reset-password` manually |
+| 4 | **PayMongo return URLs never reach the app** | `create_checkout_session.php:87,90` return `…/dist/index.html#/pay-bills?status=…`; `BrowserRouter` has no `basename` and there is no catch-all route | Returning from checkout renders a blank page, so the cancel → `release_checkout_session.php` wiring does not fire in a browser. The endpoint itself is correct (M3-15 passes by curl), and M3-17's overdue promotion still rescues the invoice — but only once it is past due |
 
-### 8.2 Endpoints still on legacy header trust
+### 10.2 Endpoints still on legacy header trust
 
 These accept `X-User-Id` (or a body `userId`) as identity with no session resolution. They are **outside this guide's audited scope** — do not assume the auth guarantees in §3 apply to them:
 
-`rent_application.php` · `maintenance_request.php` · `service_request.php` · `parking_reservation.php` · `cctv_request.php` · `cancel_request.php` · `get_my_requests.php` · `create_notification.php` · the tenant branches of `get_notifications.php`, `mark_notification_read.php`, `delete_notification.php`, `get_utility_readings.php`, `get_contracts.php`, `get_visitors.php`, `check_in_visitor.php`, `update_visitor_status.php`, `upload_lease_document.php`
+`rent_application.php` · `parking_reservation.php` · `create_notification.php` · the tenant branches of `get_notifications.php`, `mark_notification_read.php`, `delete_notification.php`, `get_utility_readings.php`, `get_contracts.php`, `get_visitors.php`, `check_in_visitor.php`, `update_visitor_status.php`, `upload_lease_document.php`
 
 Also: `expire_contracts.php` and `expire_reservations.php` mutate rows **before** their admin check runs, so both have an unauthenticated side effect.
 
-### 8.3 Sharp edges (working as designed, but easy to misread)
+### 10.3 Sharp edges (working as designed, but easy to misread)
 
 - **No `status` allowlist on `rooms`** — `update_room.php` writes any string, so a typo persists silently.
 - **Seed data predates the 1.7 gate** — see [§1.5](#15--the-seed-data-predates-the-acceptance-criteria-gate). No seeded application can be approved.
-- **`maintenance_requests.status` has no server-side allowlist** — any non-empty string is accepted; only `Completed` is special-cased.
+- **Some booking refusals return HTTP 200.** `service_request.php` reports an inactive service, a disabled category or a date inside the lead time as `success:false` with HTTP 200. Only a missing tenancy (`403`) and a malformed date (`422`) set an error status, so assert on `success` for the others.
+- **`sync_utility_to_invoice.php` was not part of this audit.** It looks up only `status='pending'` invoices for a period and otherwise inserts a new invoice — the same pattern that caused the service double-rent bug. Review it for the same risk in the Utilities audit.
 - **No catch-all route** — an unknown path renders a blank page, not a 404.
 - **Logout leaves `localStorage`** — only `sessionStorage` is cleared, while every reader falls back to `localStorage`. Clear both when testing session expiry.
 
 ---
 
-## 9. Appendix — Recipes & Reference
+## 11. Appendix — Recipes & Reference
 
-### 9.1 Curl recipes
+### 11.1 Curl recipes
 
 ```bash
 BASE=http://localhost:8080/ApartmentManagementSystem_React/backend/api
@@ -935,7 +1312,7 @@ curl -s "$BASE/get_invoices.php?userId=2"      # expect 401
 
 PHP has no access to Git Bash's `/tmp`. To parse a response with the PHP CLI, write the file somewhere Windows-visible (e.g. the project directory) and delete it afterwards.
 
-### 9.2 Useful queries
+### 11.2 Useful queries
 
 ```sql
 -- Tenant → room → application → contract, in one view
@@ -968,7 +1345,7 @@ This surfaces invoices charging an amount their breakdown does not explain. On t
 
 That row is a **seed-data inconsistency**, not application behaviour: `update_tenant_status.php` bills the move-in invoice as `monthly_rent × 2` (one month's rent **plus** the deposit), so a real move-in invoice does include it. Treat `INV-202601-14` as the known exception and **any other drifting row as a genuine bug**.
 
-### 9.3 Standard restore
+### 11.3 Standard restore
 
 ```sql
 DELETE FROM invoices          WHERE id LIKE 'INV-TEST%';
@@ -987,17 +1364,32 @@ SET status='Active', hold_expires_at='2026-09-20', released_at=NULL, released_re
 WHERE room_name='I' AND reserved_for_name='Katrina Villareal';
 UPDATE rooms SET status='vacant', tenant_name=NULL, lease_start=NULL, lease_end=NULL, occupants=0
 WHERE id IN ('I','J','N');
+
+-- Maintenance and service fixtures (§7.4, §8.4)
+UPDATE maintenance_requests
+SET status='Pending', assigned_to=NULL, estimated_cost=NULL, actual_cost=NULL, work_notes=NULL,
+    tenant_responsible=0, acknowledged_at=NULL, started_at=NULL, resolved_at=NULL, rejection_reason=NULL
+WHERE id IN (6, 7);
+DELETE FROM maintenance_requests WHERE id > 7;
+UPDATE service_requests SET status='Pending' WHERE id = 2;
+UPDATE service_requests SET status='Approved', is_invoiced=0, invoice_id=NULL, billing_period=NULL, completed_at=NULL WHERE id = 3;
+DELETE FROM service_requests WHERE id > 3;
+DELETE FROM cctv_requests WHERE id > 2;
+DELETE FROM invoices WHERE base_rent = 0 AND created_at >= NOW() - INTERVAL 1 HOUR;
+UPDATE system_settings SET setting_value='true' WHERE setting_key IN ('service_cleaning_active', 'service_laundry_active', 'service_other_active');
 ```
 
 Then re-run the baseline check in [§1.6](#16-restore-discipline).
 
-### 9.4 Settings each module reads
+### 11.4 Settings each module reads
 
 | Module | `system_settings` keys |
 |---|---|
 | 1 — Tenant | `occupant_surcharge_per_person`, `minLeaseDuration` |
 | 2 — Unit | `minLeaseDuration`, `reservation_hold_days`, `max_parking_slots` |
 | 3 — Billing | `late_fee_enabled`, `late_fee_type`, `late_fee_value`, `payment_mode`, `payment_sandbox_enabled`, `payment_ch_*`, `paymongo_secret_key`, `paymongo_webhook_secret`, and the reminder keys below |
+| 4 — Maintenance | `maintenance_monthly_budget` (admin budget panel; ₱50,000 when unset) |
+| 5 — Services | `service_cleaning_active`, `service_laundry_active`, `service_other_active` (a missing key counts as enabled), plus the module cards `service_maintenance_active` and `service_cctv_active` |
 
 Not every key exists as a row. The reminder settings — `rent_due_reminders_enabled`, `rent_due_reminder_days`, `overdue_reminders_enabled`, `overdue_reminder_interval_days` — are **absent from the seed database** and fall back to code defaults (enabled, 3 days, enabled, 3 days) in `check_due_date_reminders.php`. To test a different cadence, `INSERT` the key rather than expecting an `UPDATE` to match a row:
 

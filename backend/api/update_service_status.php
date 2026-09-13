@@ -11,13 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
-$admin_id = (int)$admin_id;
+$admin_id = require_admin($conn);
 
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
 $id = (int)($input['rawId'] ?? $input['id'] ?? 0);
@@ -25,9 +19,8 @@ $status = $input['status'] ?? '';
 $admin_notes = array_key_exists('adminNotes', $input) ? trim((string)$input['adminNotes']) : null;
 $assigned_to = array_key_exists('assignedTo', $input) ? trim((string)$input['assignedTo']) : null;
 
-$ALLOWED = ['Pending', 'Approved', 'In Progress', 'Completed', 'Rejected', 'Cancelled'];
-
-if (!$id || !in_array($status, $ALLOWED, true)) {
+if (!$id || !array_key_exists($status, SERVICE_TRANSITIONS)) {
+    http_response_code(422);
     echo json_encode(["success" => false, "message" => "Invalid parameters."]);
     exit;
 }
@@ -40,28 +33,31 @@ try {
     $stmt->close();
 
     if (!$old) {
+        http_response_code(404);
         echo json_encode(["success" => false, "message" => "Service request not found."]);
         exit;
     }
 
     if ($old['status'] === $status) {
+        http_response_code(409);
         echo json_encode(["success" => false, "message" => "This request is already marked $status."]);
         exit;
     }
 
-    //AOnceCompletedRequestHasBilledMoney;TheOnlyWayOutIsAReversal.
-    if ($old['status'] === 'Completed') {
-        if ($status !== 'Cancelled') {
-            echo json_encode(["success" => false, "message" => "A completed request can only be reversed by cancelling it."]);
+    // A cancelled or rejected booking can never be completed, so it can never be billed.
+    if (!in_array($status, SERVICE_TRANSITIONS[$old['status']] ?? [], true)) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "A {$old['status']} booking cannot be moved to $status."]);
+        exit;
+    }
+
+    // Leaving Completed is only allowed as a cancellation, which must reverse any charge first.
+    if ($old['status'] === 'Completed' && (int)$old['is_invoiced']) {
+        $reversal = reverse_service_charge($conn, $id);
+        if (!$reversal['ok']) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => $reversal['message']]);
             exit;
-        }
-        if ((int)$old['is_invoiced']) {
-            $reversal = reverse_service_charge($conn, $id);
-            if (!$reversal['ok']) {
-                //RefuseTheWholeTransition-StatusAndMoneyMustNotDrift
-                echo json_encode(["success" => false, "message" => $reversal['message']]);
-                exit;
-            }
         }
     }
 
@@ -73,10 +69,17 @@ try {
                                 assigned_to = COALESCE(?, assigned_to),
                                 handled_by = ?,
                                 completed_at = IF(? = 'Completed', NOW(), completed_at)
-                            WHERE id = ?");
-    $stmt->bind_param("sssisi", $status, $admin_notes, $assigned_to, $admin_id, $status, $id);
+                            WHERE id = ? AND status = ?");
+    $stmt->bind_param("sssisis", $status, $admin_notes, $assigned_to, $admin_id, $status, $id, $old['status']);
     $stmt->execute();
+    $claimed = $stmt->affected_rows;
     $stmt->close();
+
+    if ($claimed === 0) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This booking was changed by someone else. Refresh and try again."]);
+        exit;
+    }
 
     //BillOnDelivery.AFailureHereIsNotFatal:TheStatusChangeStands
     //AndTheQueueOffersARetryViaSync_service_to_invoice.php.
@@ -120,7 +123,7 @@ try {
         $resolve->close();
     }
 
-    log_activity($conn, $admin_id, 'service', "Updated Service Request Status", "Service Request ID: $id status set to $status");
+    log_activity($conn, $admin_id, 'service', "Updated Service Request Status", "Service Request ID: $id status {$old['status']} -> $status");
 
     echo json_encode([
         "success" => true,
@@ -132,8 +135,7 @@ try {
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => "Failed to update the service request."]);
 }
 
 $conn->close();
-?>

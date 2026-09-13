@@ -189,7 +189,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Income Overview Chart & Secondary Status */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               
               {/* Income Overview Chart Block */}
               <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
@@ -249,7 +249,7 @@ const AdminDashboard = () => {
                 </div>
                 
                 {/* Chart Canvas Area */}
-                <div className="p-6 flex-1 flex flex-col justify-end min-h-[290px]">
+                <div className="p-4 md:p-6 flex-1 flex flex-col">
                   {loading ? (
                     <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
                       <FontAwesomeIcon icon={faClock} className="animate-spin mr-2" /> Loading financial data...
@@ -259,9 +259,9 @@ const AdminDashboard = () => {
                       No income records found
                     </div>
                   ) : chartView === 'bar' ? (
-                    <div>
+                    <div className="flex flex-col">
                       {/* Legend */}
-                      <div className="flex justify-end items-center gap-4 text-xs text-slate-500 mb-4">
+                      <div className="flex justify-end items-center gap-4 text-xs text-slate-500 mb-2">
                         <div className="flex items-center gap-1.5">
                           <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
                           <span>Collected</span>
@@ -273,10 +273,11 @@ const AdminDashboard = () => {
                       </div>
 
                       {/* Stacked Bars */}
-                      <div className="h-44 flex items-end justify-between gap-3 sm:gap-6 px-2 pb-2">
+                      <div className="h-48 flex items-end justify-between gap-3 sm:gap-6 px-2 pb-2 mt-2">
                         {incomeData.map(d => {
                           const totalBilled = Math.max((d.collected || 0) + (d.pending || 0), d.billed || 0);
-                          const dynamicHeight = totalBilled > 0 ? `${Math.max((totalBilled / maxValue) * 100, 8)}%` : '4px';
+                          const barContainerPx = 192; // h-48 = 12rem = 192px
+                          const dynamicHeight = totalBilled > 0 ? `${Math.max((totalBilled / maxValue) * barContainerPx, 14)}px` : '4px';
                           const collectedPercent = totalBilled > 0 ? `${((d.collected || 0) / totalBilled) * 100}%` : '0%';
                           const pendingPercent = totalBilled > 0 ? `${((d.pending || 0) / totalBilled) * 100}%` : '0%';
                           const isSelected = selectedMonth === d.month || selectedMonth === d.key;

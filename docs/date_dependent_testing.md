@@ -357,30 +357,35 @@ UPDATE rooms SET lease_end = '2027-08-01' WHERE id = 'A';
 ### Full workflow
 
 ```
-Tenant submits request → Admin sees in Kanban → Admin updates status →
-Tenant notified (future) → Cost/notes recorded
+Tenant submits request → Admin starts work → Admin completes (or rejects with a reason) →
+Tenant notified on every status change → Timeline and costs recorded
 ```
+
+> The full API contract and test matrix for this module are in the verification guide's §7.
 
 **Step 1 — Tenant submits**
-- URL: `/services` → Maintenance → fill issue category, urgency, description, preferred schedule, optional attachment → submit.
+- URL: `/maintenance-request` → category (Plumbing, Electrical, Structural/Physical, Water Supply, General Maintenance, Others), description, preferred date and time, optional photo or video → submit. There is no priority field — the tenant does not choose urgency.
+- Only tenants with an active lease can submit.
 - Check:
 ```sql
-SELECT * FROM maintenance_requests ORDER BY id DESC LIMIT 1;
--- user_id set, status = 'Pending'
+SELECT id, user_id, room_name, issue_category, urgency, status FROM maintenance_requests ORDER BY id DESC LIMIT 1;
+-- user_id and room_name set, urgency = 'Needs Triage', status = 'Pending'
 ```
 
-**Step 2 — Admin updates in Kanban**
-- Admin page: `AdminMaintainance` → drag card to In Progress / Resolved.
-- Fill: assigned_to, estimated_cost, work_notes, tenant_responsible toggle.
+**Step 2 — Admin triages and works the ticket**
+- Admin page: `AdminMaintainance` → open the ticket → set **Priority** (Low/Medium/High/Urgent, saves immediately) → *Start Work* (assignee, optional estimate) → *Mark Completed* (actual cost). *Reject* from Pending requires a reason.
+- Setting a priority is optional before starting work — an admin may begin work on a still-`Needs Triage` ticket.
+- Assignee, priority, estimated cost, work notes and the tenant-responsible toggle each save independently.
 - Check:
 ```sql
-SELECT status, assigned_to, estimated_cost, work_notes, tenant_responsible
+SELECT status, assigned_to, estimated_cost, actual_cost, work_notes, tenant_responsible,
+       acknowledged_at, started_at, resolved_at, rejection_reason
 FROM maintenance_requests WHERE id = <ID>;
 ```
 
 **Step 3 — Tenant cancels (before admin action)**
 - URL: `/my-requests` → find Pending request → Cancel.
-- Expected: `status = 'Cancelled'`, no longer shows in admin Kanban pending column.
+- Expected: `status = 'Cancelled'`; it moves to the admin board's Rejected / Cancelled column.
 
 ### Testing with a past preferred schedule date
 
@@ -394,7 +399,15 @@ WHERE id = <ID>;
 ```
 - Expected: schedule shows as past in admin view (no special frontend logic currently, but useful for regression testing).
 
-> ⚠️ **Maintenance status updates are currently broken.** `update_maintenance_status.php` writes `maintenance_requests.resolved_at`, a column no migration creates and which is absent from the live database (`ERROR 1054 Unknown column 'resolved_at'`). Step 2 above will fail until the column is added. Tracked in the verification guide's §8.
+### Testing resolution time
+
+Total resolution time is `resolved_at − created_at`. To see a multi-day figure without waiting, back-date the report before completing the ticket:
+
+```sql
+UPDATE maintenance_requests SET created_at = DATE_SUB(NOW(), INTERVAL 3 DAY) WHERE id = <ID>;
+```
+
+Complete it from the admin board, then open the detail modal — it should show roughly "3 days". Restore `created_at` afterwards.
 
 ---
 

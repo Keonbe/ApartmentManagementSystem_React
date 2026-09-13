@@ -39,8 +39,17 @@ export default function ServiceBooking() {
     useEffect(() => {
         const loadCatalog = async () => {
             try {
-                const res = await api.get('get_service_catalog.php?active=1');
-                if (res.data.success) setCatalog(res.data.services || []);
+                const [res, settingsRes] = await Promise.all([
+                    api.get('get_service_catalog.php?active=1'),
+                    api.get('get_system_settings.php').catch(() => ({ data: {} })),
+                ]);
+                const settings = settingsRes.data?.settings || {};
+                //ADisabledCategoryIsRefusedByService_request.php,SoNeverOfferIt
+                const categoryEnabled = (category) => {
+                    const value = settings[`service_${category}_active`];
+                    return value === undefined || value === null || value === true || value === 'true';
+                };
+                if (res.data.success) setCatalog((res.data.services || []).filter(s => categoryEnabled(s.category)));
             } catch (err) {
                 console.error('Failed to load service catalog:', err);
                 setFormError(t('serviceBooking.loadError'));
@@ -125,12 +134,7 @@ export default function ServiceBooking() {
             return;
         }
 
-        const loggedInUserStr = sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser');
-        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
-
-        // Pack the data into FormData (required for file uploads)
         const formData = new FormData();
-        formData.append('userId', loggedInUser?.id || '');
         formData.append('serviceId', selected.id);
         formData.append('quantity', isQuantified ? quantity : 1);
         formData.append('preferredDate', preferredDate);
@@ -151,8 +155,7 @@ export default function ServiceBooking() {
                 setFormError(res.data.message);
             }
         } catch (error) {
-            console.error('Error submitting service booking:', error);
-            setFormError(t('serviceBooking.submitError'));
+            setFormError(error.response?.data?.message || t('serviceBooking.submitError'));
         } finally {
             setSubmitting(false);
         }
@@ -210,7 +213,7 @@ export default function ServiceBooking() {
                                 <option value="" disabled hidden>{t('serviceBooking.selectServicePlaceholder')}</option>
                                 {catalog.map(s => (
                                     <option key={s.id} value={s.id}>
-                                        {s.name} — ₱{s.price.toLocaleString()} / {unitLabel(s.pricingUnit)}
+                                        {s.name} — ₱{Number(s.price || 0).toLocaleString()} / {unitLabel(s.pricingUnit)}
                                     </option>
                                 ))}
                             </select>
@@ -226,7 +229,7 @@ export default function ServiceBooking() {
                                     <h3 className="text-base font-bold text-slate-800 m-0">{selected.name}</h3>
                                     <p className="text-xs text-slate-500 m-0 mt-1 leading-relaxed">{selected.description}</p>
                                     <p className="text-xs font-semibold text-indigo-600 m-0 mt-2">
-                                        ₱{selected.price.toLocaleString()} / {unitLabel(selected.pricingUnit)}
+                                        ₱{Number(selected.price || 0).toLocaleString()} / {unitLabel(selected.pricingUnit)}
                                         {selected.leadTimeDays > 0 && (
                                             <span className="ml-2 font-medium text-slate-400">
                                                 · {t('serviceBooking.leadTime').replace('{days}', selected.leadTimeDays)}

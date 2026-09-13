@@ -242,18 +242,18 @@ INSERT IGNORE INTO `invoices` (`id`,`user_id`,`rent_application_id`,`base_rent`,
 
 -- ============================================================
 -- 6. MAINTENANCE REQUESTS
--- issue_category: Plumbing | Electrical | Structural | Appliance | Pest Control | Others
--- urgency: High | Medium | Low
--- status: Completed | In Progress | Pending
+-- issue_category: Plumbing | Electrical | Structural/Physical | Water Supply | General Maintenance | Others
+-- urgency: Urgent | High | Medium | Low
+-- status: Pending | In Progress | Completed | Rejected | Cancelled
 -- ============================================================
-INSERT IGNORE INTO `maintenance_requests` (`user_id`, `issue_category`, `urgency`, `preferred_date`, `preferred_time`, `description`, `permission_to_enter`, `status`, `assigned_to`, `estimated_cost`, `work_notes`, `tenant_responsible`, `created_at`) VALUES
-(10, 'Plumbing',   'High',   '2026-02-10', 'Morning',   'Kitchen faucet leaking severely, water damage risk.',   1, 'Completed',   'Jun Delos Santos', 1500.00, 'Replaced faucet cartridge. Fixed.',           0, '2026-02-08 09:00:00'),
-(12, 'Appliance',  'Low',    '2026-03-05', 'Afternoon', 'Exhaust fan in bathroom making rattling noise.',        0, 'Completed',   'Rodel Agustin',      600.00, 'Tightened housing screws, lubricated motor.', 0, '2026-03-03 10:00:00'),
-(3,  'Electrical', 'High',   '2026-04-12', 'Morning',   'Circuit breaker tripping repeatedly in living area.',   1, 'Completed',   'Mar Bernardo',      2200.00, 'Replaced faulty breaker unit. Resolved.',     0, '2026-04-10 08:30:00'),
-(9,  'Pest Control','Low',   '2026-05-20', 'Morning',   'Ants near kitchen counter, minor infestation.',         0, 'Completed',   'AMS Pest Control',   800.00, 'Applied bait stations. Clear after 1 week.',  0, '2026-05-18 09:00:00'),
-(6,  'Plumbing',   'Medium', '2026-06-14', 'Afternoon', 'Slow drain in bathroom, possible clogging.',            1, 'In Progress', 'Jun Delos Santos',     NULL, NULL,                                           1, '2026-06-12 10:00:00'),
-(13, 'Structural', 'Low',    '2026-07-18', 'Morning',   'Window screen torn, insects getting in.',               0, 'Pending',      NULL,                   NULL, NULL,                                           0, '2026-07-16 09:00:00'),
-(11, 'Electrical', 'Medium', '2026-08-08', 'Morning',   'Light switch in bathroom flickering intermittently.',   1, 'Pending',      NULL,                   NULL, NULL,                                           0, '2026-08-06 09:00:00');
+INSERT IGNORE INTO `maintenance_requests` (`user_id`, `room_name`, `issue_category`, `urgency`, `preferred_date`, `preferred_time`, `description`, `permission_to_enter`, `status`, `assigned_to`, `estimated_cost`, `actual_cost`, `work_notes`, `tenant_responsible`, `created_at`, `acknowledged_at`, `started_at`, `resolved_at`) VALUES
+(10, 'G', 'Plumbing',            'High',   '2026-02-10', 'Morning',   'Kitchen faucet leaking severely, water damage risk.',   1, 'Completed',   'Jun Delos Santos', 1500.00, 1500.00, 'Replaced faucet cartridge. Fixed.',           0, '2026-02-08 09:00:00', '2026-02-08 11:00:00', '2026-02-10 08:00:00', '2026-02-10 15:30:00'),
+(12, 'K', 'General Maintenance', 'Low',    '2026-03-05', 'Afternoon', 'Exhaust fan in bathroom making rattling noise.',        0, 'Completed',   'Rodel Agustin',     600.00,  600.00, 'Tightened housing screws, lubricated motor.', 0, '2026-03-03 10:00:00', '2026-03-03 14:00:00', '2026-03-05 13:00:00', '2026-03-05 16:00:00'),
+(3,  'B', 'Electrical',          'High',   '2026-04-12', 'Morning',   'Circuit breaker tripping repeatedly in living area.',   1, 'Completed',   'Mar Bernardo',     2200.00, 2200.00, 'Replaced faulty breaker unit. Resolved.',     0, '2026-04-10 08:30:00', '2026-04-10 09:15:00', '2026-04-12 08:00:00', '2026-04-12 12:00:00'),
+(9,  'F', 'General Maintenance', 'Low',    '2026-05-20', 'Morning',   'Ants near kitchen counter, minor infestation.',         0, 'Completed',   'AMS Pest Control',  800.00,  800.00, 'Applied bait stations. Clear after 1 week.',  0, '2026-05-18 09:00:00', '2026-05-18 13:00:00', '2026-05-20 09:00:00', '2026-05-27 10:00:00'),
+(6,  'D', 'Plumbing',            'Medium', '2026-06-14', 'Afternoon', 'Slow drain in bathroom, possible clogging.',            1, 'In Progress', 'Jun Delos Santos',    NULL,    NULL, NULL,                                          1, '2026-06-12 10:00:00', '2026-06-12 15:00:00', '2026-06-14 13:00:00', NULL),
+(13, 'L', 'Structural/Physical', 'Low',    '2026-07-18', 'Morning',   'Window screen torn, insects getting in.',               0, 'Pending',     NULL,                  NULL,    NULL, NULL,                                          0, '2026-07-16 09:00:00', NULL,                  NULL,                  NULL),
+(11, 'H', 'Electrical',          'Medium', '2026-08-08', 'Morning',   'Light switch in bathroom flickering intermittently.',   1, 'Pending',     NULL,                  NULL,    NULL, NULL,                                          0, '2026-08-06 09:00:00', NULL,                  NULL,                  NULL);
 
 -- ============================================================
 -- 7. PARKING RESERVATIONS

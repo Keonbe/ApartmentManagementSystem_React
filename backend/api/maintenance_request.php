@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
@@ -12,118 +12,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
     echo json_encode(["success" => false, "message" => "Invalid request method"]);
     exit;
 }
 
-$issue_category = $_POST['issueType'] ?? '';
-$urgency = $_POST['urgency'] ?? '';
-$preferred_date = $_POST['preferredDate'] ?? '';
-$preferred_time = $_POST['preferredTime'] ?? '';
-$description = $_POST['description'] ?? '';
-$user_id = $_POST['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
-$permission_to_enter = isset($_POST['permissionToEnter']) ? (int)$_POST['permissionToEnter'] : 0;
+$auth = require_user($conn);
+$user_id = $auth['id'];
 
-if (empty($issue_category) || empty($urgency) || empty($preferred_date) || empty($preferred_time) || empty($description) || empty($user_id)) {
-    echo json_encode(["success" => false, "message" => "Please fill in all required fields."]);
+$category = normalize_maintenance_category($_POST['issueType'] ?? '');
+// Priority is an admin call, not a tenant self-declaration — any urgency the
+// client sends is ignored. Every new ticket starts as "Needs Triage" and only
+// an admin can assign a real priority via update_maintenance_status.php.
+$urgency = MAINTENANCE_DEFAULT_URGENCY;
+$preferred_date = $_POST['preferredDate'] ?? '';
+$preferred_time = strtolower(trim($_POST['preferredTime'] ?? ''));
+$description = trim($_POST['description'] ?? '');
+$permission_to_enter = !empty($_POST['permissionToEnter']) ? 1 : 0;
+
+if (!$category || $preferred_date === '' || $preferred_time === '' || $description === '') {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Please fill in all required fields with a valid category."]);
     exit;
 }
 
-$attachment_path = null;
-
-// Handle File Uploads (Images & Videos)
-if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] !== UPLOAD_ERR_NO_FILE) {
-    
-    // Check if there was an upload error (e.g., file exceeds upload_max_filesize in php.ini)
-    if ($_FILES['uploadedFile']['error'] !== UPLOAD_ERR_OK) {
-        echo json_encode(["success" => false, "message" => "File upload error. The video or image file may be too large."]);
-        exit;
-    }
-
-    $file_name = basename($_FILES['uploadedFile']['name']);
-    $file_tmp = $_FILES['uploadedFile']['tmp_name'];
-    $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-
-    // Allowed Extensions: Images AND Videos
-    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov', 'm4v', 'ogg'];
-
-    if (!in_array($file_ext, $allowed_extensions)) {
-        echo json_encode(["success" => false, "message" => "Invalid file format. Allowed formats: images (JPG, PNG, WEBP) or videos (MP4, WEBM, MOV)."]);
-        exit;
-    }
-
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file_tmp);
-    finfo_close($finfo);
-
-    $allowed_mimes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-        'video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v', 'video/ogg'
-    ];
-    if (!in_array($mime, $allowed_mimes)) {
-        echo json_encode(["success" => false, "message" => "File content does not match allowed image or video format."]);
-        exit;
-    }
-
-    $upload_dir = "../uploads/maintenance/"; 
-    
-    if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
-    }
-
-    // SANITIZE: Replace spaces and special characters with underscores to prevent NS_BINDING_ABORTED errors
-    $safe_file_name = preg_replace("/[^a-zA-Z0-9.]/", "_", $file_name);
-    $unique_file_name = time() . "_" . uniqid() . "_" . $safe_file_name;
-    
-    $destination = $upload_dir . $unique_file_name;
-
-    if (move_uploaded_file($file_tmp, $destination)) {
-        // Save relative path for easy rendering on the frontend
-        $attachment_path = "uploads/maintenance/" . $unique_file_name;
-    } else {
-        echo json_encode(["success" => false, "message" => "Failed to save the attached file."]);
-        exit;
-    }
+$parsed_date = DateTime::createFromFormat('Y-m-d', $preferred_date);
+$today = (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
+if (!$parsed_date || $parsed_date->format('Y-m-d') !== $preferred_date || $preferred_date < $today) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Preferred date must be a valid date from today onward."]);
+    exit;
 }
 
-// Snapshot the tenant's current room so this ticket stays attributed to the
-// right unit even if they later move rooms or file another application.
-$room_name = null;
-$room_stmt = $conn->prepare("
-    SELECT room_name FROM rent_applications
-    WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')
-    ORDER BY id DESC LIMIT 1
-");
-$room_stmt->bind_param("i", $user_id);
-$room_stmt->execute();
-$room_res = $room_stmt->get_result();
-if ($room_row = $room_res->fetch_assoc()) {
-    $room_name = $room_row['room_name'];
+if (!in_array($preferred_time, ['morning', 'afternoon'], true)) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Preferred time must be morning or afternoon."]);
+    exit;
 }
-$room_stmt->close();
 
+$tenancy = get_active_tenancy($conn, $user_id);
+if (!$tenancy) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Only tenants with an active lease can submit maintenance requests."]);
+    exit;
+}
+
+[$attachment_path, $upload_error] = store_maintenance_attachment($_FILES['uploadedFile'] ?? null);
+if ($upload_error) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => $upload_error]);
+    exit;
+}
+
+$room_name = $tenancy['room_name'];
 $stmt = $conn->prepare("INSERT INTO maintenance_requests (user_id, issue_category, urgency, preferred_date, preferred_time, description, permission_to_enter, attachment_path, room_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("isssssiss", $user_id, $category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path, $room_name);
 
-$stmt->bind_param("isssssiss", $user_id, $issue_category, $urgency, $preferred_date, $preferred_time, $description, $permission_to_enter, $attachment_path, $room_name);
-
-if ($stmt->execute()) {
-    // Notify Admin
-    $admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
-    if ($admin_row) {
-        $notif_admin_id = (int)$admin_row['id'];
-        $notif_title = "New Maintenance Request";
-        $notif_msg = "A new maintenance request ($issue_category - $urgency) has been submitted.";
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_request', ?, ?, 'Pending', 0)");
-        $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
-        $notif_stmt->execute();
-        $notif_stmt->close();
-    }
-
-    echo json_encode(["success" => true, "message" => "Maintenance request submitted successfully"]);
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to submit request", "error" => $stmt->error]);
+if (!$stmt->execute()) {
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => "Failed to submit request."]);
+    $stmt->close();
+    exit;
 }
 
+$request_id = $stmt->insert_id;
 $stmt->close();
+
+$admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
+if ($admin_row) {
+    $notif_admin_id = (int)$admin_row['id'];
+    $notif_title = "New Maintenance Request";
+    $notif_msg = "A new maintenance request ($category - $urgency) has been submitted for Unit $room_name.";
+    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_request', ?, ?, 'Pending', 0)");
+    $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
+    $notif_stmt->execute();
+    $notif_stmt->close();
+}
+
+log_activity($conn, $user_id, 'maintenance', "Submitted Maintenance Request #$request_id", "Issue: $category ($urgency), Unit: $room_name");
+
+echo json_encode(["success" => true, "message" => "Maintenance request submitted successfully", "id" => $request_id]);
 $conn->close();
-?>

@@ -11,26 +11,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_GET['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
-
-if (!$user_id) {
-    echo json_encode(["success" => false, "message" => "User ID is required"]);
-    exit;
+// A tenant only ever sees their own requests; an admin may look up a specific tenant.
+$auth = require_user($conn);
+$user_id = $auth['id'];
+if ($auth['role'] === 'admin' && !empty($_GET['userId'])) {
+    $user_id = (int)$_GET['userId'];
 }
 
-$requests = [];
-// Column names below must match the schema in migrations/SetupDB.sql exactly:
-// maintenance_requests has no resolved_at, cctv_requests stores the reason in
-// reason_request, and parking_reservations stores the OR/CR in document_path.
-// total_cost is NULL for the three request types that carry no fee, so every
-// branch projects the same column list.
-$query = "(SELECT id, 'Maintenance' as type, issue_category as title, status, created_at, NULL as resolved_at, attachment_path, description, NULL as total_cost FROM maintenance_requests WHERE user_id = ?)
+$query = "(SELECT id, 'Maintenance' AS type, COALESCE(title, issue_category) AS title, status, created_at, resolved_at, attachment_path, description, NULL AS total_cost, rejection_reason FROM maintenance_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'CCTV' as type, location_details as title, status, created_at, NULL as resolved_at, NULL as attachment_path, reason_request as description, NULL as total_cost FROM cctv_requests WHERE user_id = ?)
+          (SELECT id, 'CCTV', location_details, status, created_at, NULL, NULL, reason_request, NULL, NULL FROM cctv_requests WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'Parking' as type, vehicle_type as title, status, created_at, NULL as resolved_at, document_path as attachment_path, vehicle_model as description, NULL as total_cost FROM parking_reservations WHERE user_id = ?)
+          (SELECT id, 'Parking', vehicle_type, status, created_at, NULL, document_path, vehicle_model, NULL, NULL FROM parking_reservations WHERE user_id = ?)
           UNION ALL
-          (SELECT id, 'Service' as type, service_name as title, status, created_at, completed_at as resolved_at, attachment_path, notes as description, total_cost FROM service_requests WHERE user_id = ?)
+          (SELECT id, 'Service', service_name, status, created_at, completed_at, attachment_path, notes, total_cost, NULL FROM service_requests WHERE user_id = ?)
           ORDER BY created_at DESC";
 
 $stmt = $conn->prepare($query);
@@ -38,6 +32,7 @@ $stmt->bind_param("iiii", $user_id, $user_id, $user_id, $user_id);
 $stmt->execute();
 $res = $stmt->get_result();
 
+$requests = [];
 while ($row = $res->fetch_assoc()) {
     $requests[] = $row;
 }
@@ -45,4 +40,3 @@ $stmt->close();
 
 echo json_encode(["success" => true, "requests" => $requests]);
 $conn->close();
-?>

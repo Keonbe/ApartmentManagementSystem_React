@@ -26,6 +26,7 @@ import {
   faPlay
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import ServiceCatalogModal from '../Components/ServiceCatalogModal';
 
 const initialServices = [
@@ -120,6 +121,24 @@ const initialServices = [
   },
 ];
 
+// Mirrors SERVICE_TRANSITIONS in backend/config.php.
+const SERVICE_TRANSITIONS = {
+  'Pending': ['Approved', 'Rejected', 'Cancelled'],
+  'Approved': ['In Progress', 'Completed', 'Rejected', 'Cancelled'],
+  'In Progress': ['Completed', 'Cancelled'],
+  'Completed': ['Cancelled'],
+  'Rejected': [],
+  'Cancelled': [],
+};
+const canMove = (from, to) => (SERVICE_TRANSITIONS[from] || []).includes(to);
+
+const CATALOG_CATEGORY_BY_CARD = { cleaning: 'cleaning', laundry: 'laundry', 'other-services': 'other' };
+
+const CONFIRM_MESSAGES = {
+  Rejected: 'Reject this booking? The tenant will be notified.',
+  Cancelled: 'Cancel this booking? If it was already billed, the charge will be reversed from the tenant invoice.',
+};
+
 const AdminServicePage = () => {
   const [services, setServices] = useState(initialServices);
   const [activeTab, setActiveTab] = useState('services');
@@ -134,6 +153,7 @@ const AdminServicePage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [savingService, setSavingService] = useState(false);
+  const [modalSession, setModalSession] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -244,8 +264,8 @@ const AdminServicePage = () => {
         alert('Failed to update service setting in system configuration.');
       }
     } catch (err) {
-      console.error('Failed to save service toggle state:', err);
       setServices(prev => prev.map(s => s.id === serviceId ? { ...s, isActive: !newActiveState } : s));
+      alert(err.response?.data?.message || 'Failed to update service setting. Please try again.');
     }
   };
 
@@ -266,13 +286,16 @@ const AdminServicePage = () => {
   };
 
   //=== ServiceCatalogCRUD ===
+  //EachOpenGetsAFreshModalKey,SoAPreviousCreateNeverLeavesStaleFormValues
   const openCreateModal = () => {
     setEditingService(null);
+    setModalSession(n => n + 1);
     setModalOpen(true);
   };
 
   const openEditModal = (service) => {
     setEditingService(service);
+    setModalSession(n => n + 1);
     setModalOpen(true);
   };
 
@@ -301,7 +324,7 @@ const AdminServicePage = () => {
   };
 
   const handleToggleCatalogItem = async (service) => {
-    const nextState = !service.isActive;
+    const nextState = !Number(service.isActive);
     //OptimisticUIUpdate
     setCatalog(prev => prev.map(s => s.id === service.id ? { ...s, isActive: nextState ? 1 : 0 } : s));
     try {
@@ -335,7 +358,7 @@ const AdminServicePage = () => {
 
   //=== ServiceBookingLifecycle ===
   const handleServiceStatus = async (request, newStatus) => {
-    setServiceRequests(prev => prev.map(r => r.id === request.id ? { ...r, status: newStatus } : r));
+    if (CONFIRM_MESSAGES[newStatus] && !window.confirm(CONFIRM_MESSAGES[newStatus])) return;
     try {
       const res = await api.post('update_service_status.php', {
         rawId: request.rawId || request.id,
@@ -346,23 +369,35 @@ const AdminServicePage = () => {
       } else if (res.data.warning) {
         //TheStatusChangeStuckButTheChargeCouldNotBePosted
         alert(`Marked ${newStatus}, but the charge was not billed: ${res.data.warning}`);
+      } else if (res.data.billed && res.data.invoiceId) {
+        alert(`Marked ${newStatus}. ₱${Number(request.totalCost || 0).toLocaleString()} was added to invoice ${res.data.invoiceId}.`);
       }
-      fetchData();
     } catch (err) {
+      alert(err.response?.data?.message || 'Failed to update booking status.');
+    } finally {
       fetchData();
-      console.error('Service status update failed:', err);
     }
   };
 
   const handlePostCharge = async (request) => {
     try {
       const res = await api.post('sync_service_to_invoice.php', { rawId: request.rawId || request.id });
-      alert(res.data.message);
-      fetchData();
+      alert(res.data.message || (res.data.success ? 'Charge posted.' : 'Failed to post the charge.'));
     } catch (err) {
-      console.error('Failed to post service charge:', err);
-      alert('Failed to post the charge. Please try again.');
+      alert(err.response?.data?.message || 'Failed to post the charge. Please try again.');
+    } finally {
+      fetchData();
     }
+  };
+
+  //ModuleCardsShowTheCheapestActiveCatalogPriceInsteadOfAHardcodedFigure
+  const withCatalogPrice = (service) => {
+    const category = CATALOG_CATEGORY_BY_CARD[service.id];
+    if (!category || loading) return service;
+    const items = catalog.filter(c => c.category === category && Number(c.isActive));
+    if (items.length === 0) return { ...service, price: 'No active items', unit: '' };
+    const cheapest = items.reduce((a, b) => (Number(b.price) < Number(a.price) ? b : a));
+    return { ...service, price: `From ₱${Number(cheapest.price).toLocaleString()}`, unit: `/ ${cheapest.pricingUnit}` };
   };
 
   const handleParkingStatus = async (item, newStatus) => {
@@ -445,7 +480,7 @@ const AdminServicePage = () => {
               </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
                 {services.map(service => (
-                  <ServiceCard key={service.id} service={service} onToggle={() => toggleService(service.id)} />
+                  <ServiceCard key={service.id} service={withCatalogPrice(service)} onToggle={() => toggleService(service.id)} />
                 ))}
               </div>
             </section>
@@ -499,7 +534,7 @@ const AdminServicePage = () => {
                                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600">{item.category}</span>
                               </td>
                               <td className="px-4 py-3 font-semibold text-indigo-600">
-                                ₱{item.price.toLocaleString()}
+                                ₱{Number(item.price || 0).toLocaleString()}
                                 <span className="ml-1 text-[10px] font-medium text-slate-400">/ {item.pricingUnit}</span>
                               </td>
                               <td className="px-4 py-3 text-slate-600">
@@ -634,7 +669,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.pricingUnit === 'session' ? '—' : `${req.quantity} ${req.pricingUnit}`}
                                     </td>
-                                    <td className="px-4 py-3 font-semibold text-indigo-600">₱{req.totalCost.toLocaleString()}</td>
+                                    <td className="px-4 py-3 font-semibold text-indigo-600">₱{Number(req.totalCost || 0).toLocaleString()}</td>
                                     <td className="px-4 py-3 text-slate-600">
                                       {req.preferredDate}
                                       <br />
@@ -643,7 +678,7 @@ const AdminServicePage = () => {
                                     <td className="px-4 py-3 text-center">
                                       {req.attachmentPath ? (
                                         <a
-                                          href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${req.attachmentPath}`}
+                                          href={fileUrl(req.attachmentPath)}
                                           target="_blank"
                                           rel="noreferrer"
                                           className="mx-auto flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline no-underline"
@@ -686,32 +721,32 @@ const AdminServicePage = () => {
                                     </td>
                                     <td className="px-4 py-3 text-right">
                                       <div className="flex justify-end gap-2">
-                                        {req.status === 'Pending' && (
-                                          <>
-                                            <button type="button" onClick={() => handleServiceStatus(req, 'Approved')} className="rounded p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
-                                              <FontAwesomeIcon icon={faCheck} />
-                                            </button>
-                                            <button type="button" onClick={() => handleServiceStatus(req, 'Rejected')} className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reject">
-                                              <FontAwesomeIcon icon={faTimes} />
-                                            </button>
-                                          </>
+                                        {canMove(req.status, 'Approved') && (
+                                          <button type="button" onClick={() => handleServiceStatus(req, 'Approved')} className="rounded p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Approve">
+                                            <FontAwesomeIcon icon={faCheck} />
+                                          </button>
                                         )}
-                                        {req.status === 'Approved' && (
+                                        {canMove(req.status, 'In Progress') && (
                                           <button type="button" onClick={() => handleServiceStatus(req, 'In Progress')} className="rounded p-1.5 text-indigo-600 transition-colors hover:bg-indigo-50 border-0 cursor-pointer" title="Start work">
                                             <FontAwesomeIcon icon={faPlay} />
                                           </button>
                                         )}
-                                        {req.status === 'In Progress' && (
+                                        {req.status === 'In Progress' && canMove(req.status, 'Completed') && (
                                           <button type="button" onClick={() => handleServiceStatus(req, 'Completed')} className="rounded p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Mark completed and bill">
                                             <FontAwesomeIcon icon={faCheck} />
                                           </button>
                                         )}
-                                        {req.status === 'Completed' && (
-                                          <button type="button" onClick={() => handleServiceStatus(req, 'Cancelled')} className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reverse and cancel">
+                                        {canMove(req.status, 'Rejected') && (
+                                          <button type="button" onClick={() => handleServiceStatus(req, 'Rejected')} className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reject">
                                             <FontAwesomeIcon icon={faTimes} />
                                           </button>
                                         )}
-                                        {['Rejected', 'Cancelled'].includes(req.status) && (
+                                        {req.status !== 'Pending' && canMove(req.status, 'Cancelled') && (
+                                          <button type="button" onClick={() => handleServiceStatus(req, 'Cancelled')} className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title={req.status === 'Completed' ? 'Reverse charge and cancel' : 'Cancel booking'}>
+                                            <FontAwesomeIcon icon={faTrash} />
+                                          </button>
+                                        )}
+                                        {(SERVICE_TRANSITIONS[req.status] || []).length === 0 && (
                                           <span className="text-xs font-medium italic text-slate-400">Closed</span>
                                         )}
                                       </div>
@@ -818,11 +853,11 @@ const AdminServicePage = () => {
                                   </td>
                                   <td className="px-4 py-3 uppercase font-mono text-xs text-slate-600">{req.plate}</td>
                                   <td className="px-4 py-3 text-slate-600">{req.duration} mos</td>
-                                  <td className="px-4 py-3 font-semibold text-indigo-600">₱{req.totalCost.toLocaleString()}</td>
+                                  <td className="px-4 py-3 font-semibold text-indigo-600">₱{Number(req.totalCost || 0).toLocaleString()}</td>
                                   <td className="px-4 py-3 text-center">
                                     {req.documentPath ? (
                                       <a
-                                        href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${req.documentPath.replace('../', '')}`}
+                                        href={fileUrl(req.documentPath)}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="mx-auto flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline no-underline"
@@ -874,7 +909,7 @@ const AdminServicePage = () => {
 
       {/*ServiceCatalogCreateEditModal*/}
       <ServiceCatalogModal
-        key={editingService ? `edit-${editingService.id}` : 'create'}
+        key={`catalog-modal-${modalSession}`}
         isOpen={modalOpen}
         service={editingService}
         saving={savingService}

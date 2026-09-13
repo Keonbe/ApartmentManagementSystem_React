@@ -637,6 +637,28 @@ ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `late_fee` decimal(10,2) NOT NUL
 -- uploads) before an application can be approved (checklist item 1.7).
 ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `terms_agreed_at` timestamp NULL DEFAULT NULL;
 
+-- Maintenance timeline (checklist 4.6), title, actual cost and rejection reason.
+-- resolved_at was read and written by the maintenance endpoints but never created.
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `title` varchar(150) DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `acknowledged_at` datetime DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `started_at` datetime DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `resolved_at` datetime DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `actual_cost` decimal(10,2) DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `rejection_reason` varchar(255) DEFAULT NULL;
+
+-- Upgrade existing rows to the canonical categories (checklist 4.2) and urgencies, then backfill the timeline.
+UPDATE `maintenance_requests` SET `issue_category` = 'General Maintenance' WHERE LOWER(`issue_category`) IN ('appliance', 'pest control', 'general', 'general maintenance');
+UPDATE `maintenance_requests` SET `issue_category` = 'Structural/Physical' WHERE LOWER(`issue_category`) IN ('structural', 'carpentry', 'structural/physical');
+UPDATE `maintenance_requests` SET `issue_category` = 'Water Supply' WHERE LOWER(`issue_category`) IN ('water', 'water supply');
+UPDATE `maintenance_requests` SET `issue_category` = 'Plumbing' WHERE LOWER(`issue_category`) = 'plumbing';
+UPDATE `maintenance_requests` SET `issue_category` = 'Electrical' WHERE LOWER(`issue_category`) = 'electrical';
+UPDATE `maintenance_requests` SET `issue_category` = 'Others' WHERE `issue_category` NOT IN ('Plumbing', 'Electrical', 'Structural/Physical', 'Water Supply', 'General Maintenance');
+UPDATE `maintenance_requests` SET `urgency` = 'Urgent' WHERE LOWER(`urgency`) IN ('urgent', 'emergency');
+UPDATE `maintenance_requests` SET `urgency` = CONCAT(UPPER(LEFT(`urgency`, 1)), LOWER(SUBSTRING(`urgency`, 2))) WHERE LOWER(`urgency`) IN ('low', 'medium', 'high');
+UPDATE `maintenance_requests` SET `acknowledged_at` = `created_at` WHERE `status` <> 'Pending' AND `acknowledged_at` IS NULL;
+UPDATE `maintenance_requests` SET `started_at` = GREATEST(`created_at`, COALESCE(TIMESTAMP(`preferred_date`, '08:00:00'), `created_at`)) WHERE `status` IN ('In Progress', 'Completed') AND `started_at` IS NULL;
+UPDATE `maintenance_requests` SET `resolved_at` = GREATEST(`created_at`, COALESCE(TIMESTAMP(`preferred_date`, '17:00:00'), `created_at`)), `actual_cost` = COALESCE(`actual_cost`, `estimated_cost`) WHERE `status` = 'Completed' AND `resolved_at` IS NULL;
+
 -- Seed catalog entries. Admin can re-price, deactivate or add more from /admin-services.
 INSERT IGNORE INTO `service_catalog`
   (`category`, `name`, `description`, `price`, `pricing_unit`, `min_quantity`, `max_quantity`, `lead_time_days`, `icon`, `is_active`, `sort_order`) VALUES

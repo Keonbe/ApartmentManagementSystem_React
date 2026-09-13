@@ -76,6 +76,10 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                 next.minQuantity = 1;
                 next.maxQuantity = 1;
             }
+            //LeavingSessionPricingMustNotKeepTheForcedMaximumOfOne
+            if (field === 'pricingUnit' && prev.pricingUnit === 'session' && value !== 'session') {
+                next.maxQuantity = '';
+            }
             return next;
         });
     };

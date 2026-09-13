@@ -11,12 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+require_admin($conn);
 
 $status = $_GET['status'] ?? '';
 $category = $_GET['category'] ?? '';

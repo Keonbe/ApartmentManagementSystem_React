@@ -21,9 +21,10 @@ $preferred_date = $_POST['preferredDate'] ?? '';
 $preferred_time_slot = $_POST['preferredTimeSlot'] ?? '';
 $notes = trim($_POST['notes'] ?? '');
 $quantity_input = $_POST['quantity'] ?? 1;
-$user_id = (int)($_POST['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? 0);
+$auth = require_user($conn);
+$user_id = $auth['id'];
 
-if (!$service_id || empty($preferred_date) || empty($preferred_time_slot) || !$user_id) {
+if (!$service_id || empty($preferred_date) || empty($preferred_time_slot)) {
     echo json_encode(["success" => false, "message" => "Please fill in all required fields."]);
     exit;
 }
@@ -75,7 +76,13 @@ if ($pricing_unit === 'session') {
 
 $total_cost = round($unit_price * $quantity, 2);
 
-//4.RejectDatesInsideTheServicesLeadTime
+//4.RejectInvalidDatesAndDatesInsideTheServicesLeadTime
+$parsed_date = DateTime::createFromFormat('Y-m-d', $preferred_date);
+if (!$parsed_date || $parsed_date->format('Y-m-d') !== $preferred_date) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Invalid preferred date."]);
+    exit;
+}
 $lead_days = (int)$service['lead_time_days'];
 $earliest = (new DateTime('now', new DateTimeZone('Asia/Manila')))->modify("+$lead_days days")->format('Y-m-d');
 if ($preferred_date < $earliest) {
@@ -83,14 +90,14 @@ if ($preferred_date < $earliest) {
     exit;
 }
 
-//5.ResolveTheTenantsUnitForTheAdminQueue
-$room_name = null;
-$stmt = $conn->prepare("SELECT room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$lease = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-if ($lease) $room_name = $lease['room_name'];
+//5.OnlyActiveTenantsCanBook-ACompletedBookingIsBilledToTheirInvoice
+$lease = get_active_tenancy($conn, $user_id);
+if (!$lease) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Only tenants with an active lease can book services."]);
+    exit;
+}
+$room_name = $lease['room_name'];
 
 //6.OptionalAttachment(ReferencePhotoOfTheGarmentOrArea)
 $attachment_path = null;

@@ -139,28 +139,23 @@ function post_service_charge($conn, $service_request_id) {
         }
 
         //3.BillingPeriodIsTheMonthOfDelivery,InManilaTime
-        $period = (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m');
+        $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
+        $period = billing_period_label($now);
+        $legacy_period = $now->format('Y-m');
 
-        //4.FindThisTenantsOpenInvoiceForThePeriod
-        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period = ? AND status = 'pending' LIMIT 1");
-        $stmt->bind_param("is", $user_id, $period);
+        //4.FindThisTenantsAdjustableInvoiceForThePeriod (label format, plus legacy 'Y-m')
+        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
+        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable ORDER BY created_at ASC LIMIT 1");
+        $stmt->bind_param("iss", $user_id, $period, $legacy_period);
         $stmt->execute();
         $invoice = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
         $invoice_id = $invoice ? $invoice['id'] : null;
 
-        //5.NoOpenInvoiceYet-AutoGenerateOneFromTheActiveLease
+        //5.NoAdjustableInvoice-CreateAServicesOnlyInvoice. Rent is never billed from here.
         if (!$invoice_id) {
-            $lease_q = "SELECT id AS rent_application_id, monthly_rent
-                        FROM rent_applications
-                        WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')
-                        ORDER BY id DESC LIMIT 1";
-            $stmt = $conn->prepare($lease_q);
-            $stmt->bind_param("i", $user_id);
-            $stmt->execute();
-            $lease = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            $lease = get_active_tenancy($conn, $user_id);
 
             if (!$lease) {
                 //RollbackUnclaimsTheRowSoTheChargeCanBePostedLater
@@ -168,17 +163,15 @@ function post_service_charge($conn, $service_request_id) {
                 return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved lease — cannot post service charge.'];
             }
 
-            $invoice_id = "INV-" . strtoupper(uniqid());
-            $base_rent = (float)$lease['monthly_rent'];
-            $due_date = date('Y-m-d', strtotime($period . '-01 +1 month +4 days'));
+            $invoice_id = 'INV-' . $now->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $due_date = (clone $now)->modify('first day of next month')->modify('+4 days')->format('Y-m-d');
 
-            $insert = "INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
-                       VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)";
-            $stmt = $conn->prepare($insert);
-            $stmt->bind_param("siiddss", $invoice_id, $user_id, $lease['rent_application_id'], $base_rent, $base_rent, $period, $due_date);
+            $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
+                                    VALUES (?, ?, ?, 0, 0, ?, 'pending', ?)");
+            $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $period, $due_date);
             if (!$stmt->execute()) {
                 $stmt->close();
-                throw new Exception("Failed to auto-generate invoice: " . $conn->error);
+                throw new Exception("Failed to create services invoice: " . $conn->error);
             }
             $stmt->close();
         }
@@ -229,8 +222,9 @@ function reverse_service_charge($conn, $service_request_id) {
 
         $amount = (float)$request['total_cost'];
 
-        //TheStatusGuardIsWhatMakesThisSafe:APaidInvoiceMatchesNoRows
-        $stmt = $conn->prepare("UPDATE invoices SET services = GREATEST(services - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status = 'pending'");
+        //TheStatusGuardIsWhatMakesThisSafe:APaidOrInFlightInvoiceMatchesNoRows
+        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
+        $stmt = $conn->prepare("UPDATE invoices SET services = GREATEST(services - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status IN $adjustable");
         $stmt->bind_param("dds", $amount, $amount, $request['invoice_id']);
         $stmt->execute();
         $reversed = $stmt->affected_rows;
@@ -238,7 +232,18 @@ function reverse_service_charge($conn, $service_request_id) {
 
         if ($reversed === 0) {
             $conn->rollback();
-            return ['ok' => false, 'message' => 'Invoice ' . $request['invoice_id'] . ' is already paid; issue a manual credit instead.'];
+            $inv = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
+            $inv->bind_param("s", $request['invoice_id']);
+            $inv->execute();
+            $inv_status = $inv->get_result()->fetch_assoc()['status'] ?? null;
+            $inv->close();
+            $reason = match ($inv_status) {
+                'processing' => 'has an online payment in progress',
+                'pending-verification' => 'has a payment under verification',
+                'paid' => 'is already paid; issue a manual credit instead',
+                default => 'can no longer be adjusted',
+            };
+            return ['ok' => false, 'message' => 'Invoice ' . $request['invoice_id'] . ' ' . $reason . '.'];
         }
 
         $stmt = $conn->prepare("UPDATE service_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
@@ -411,6 +416,110 @@ const BILLING_OPEN_STATUSES = [
 // safe and keeps the many call sites from each needing dynamic placeholders.
 function billing_open_status_sql() {
     return "('" . implode("','", BILLING_OPEN_STATUSES) . "')";
+}
+
+// Maintenance vocabulary (checklist 4.2 / 4.3), enforced server-side.
+const MAINTENANCE_CATEGORIES = ['Plumbing', 'Electrical', 'Structural/Physical', 'Water Supply', 'General Maintenance', 'Others'];
+const MAINTENANCE_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
+
+// Priority is an admin judgment call, not a tenant self-declaration — a
+// tenant should not be able to jump the queue by claiming "Urgent". Every
+// tenant-submitted ticket starts here regardless of anything sent in the
+// request; only an admin can move it to one of the four real MAINTENANCE_URGENCIES
+// values via update_maintenance_status.php. Deliberately excluded from
+// MAINTENANCE_URGENCIES/normalize_maintenance_urgency() so it can never be
+// selected as a "real" priority again once triaged.
+const MAINTENANCE_DEFAULT_URGENCY = 'Needs Triage';
+
+// Rejected and Cancelled are terminal; Completed may be reopened if the fix did not hold.
+const MAINTENANCE_TRANSITIONS = [
+    'Pending'     => ['In Progress', 'Rejected'],
+    'In Progress' => ['Completed', 'Pending'],
+    'Completed'   => ['In Progress'],
+    'Rejected'    => [],
+    'Cancelled'   => [],
+];
+
+// A cancelled or rejected booking can never reach Completed, so it can never be billed.
+const SERVICE_TRANSITIONS = [
+    'Pending'     => ['Approved', 'Rejected', 'Cancelled'],
+    'Approved'    => ['In Progress', 'Completed', 'Rejected', 'Cancelled'],
+    'In Progress' => ['Completed', 'Cancelled'],
+    'Completed'   => ['Cancelled'],
+    'Rejected'    => [],
+    'Cancelled'   => [],
+];
+
+// Invoices a service charge may be added to or reversed from. Excludes 'processing'
+// (amount already at the gateway) and 'pending-verification' (tenant already paid it).
+const SERVICE_ADJUSTABLE_INVOICE_STATUSES = ['pending', 'unpaid', 'overdue', 'scheduled', 'payment-failed'];
+
+function normalize_maintenance_category($value) {
+    $map = [
+        'plumbing' => 'Plumbing',
+        'electrical' => 'Electrical',
+        'structural' => 'Structural/Physical',
+        'structural/physical' => 'Structural/Physical',
+        'carpentry' => 'Structural/Physical',
+        'water' => 'Water Supply',
+        'water supply' => 'Water Supply',
+        'general' => 'General Maintenance',
+        'general maintenance' => 'General Maintenance',
+        'appliance' => 'General Maintenance',
+        'pest control' => 'General Maintenance',
+        'other' => 'Others',
+        'others' => 'Others',
+    ];
+    return $map[strtolower(trim((string)$value))] ?? null;
+}
+
+function normalize_maintenance_urgency($value) {
+    $v = strtolower(trim((string)$value));
+    if ($v === 'emergency') $v = 'urgent';
+    $v = ucfirst($v);
+    return in_array($v, MAINTENANCE_URGENCIES, true) ? $v : null;
+}
+
+// Every invoice writer stores the period as a label like "September 2026".
+function billing_period_label(DateTime $when) {
+    return $when->format('F Y');
+}
+
+// Latest Approved/active/pending-move-out application for a user, or null.
+function get_active_tenancy($conn, $user_id) {
+    $stmt = $conn->prepare("SELECT id, room_name, monthly_rent FROM rent_applications
+                            WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')
+                            ORDER BY id DESC LIMIT 1");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+// Validates and stores a maintenance photo or video. Returns [path|null, error|null].
+function store_maintenance_attachment($file) {
+    if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) return [null, null];
+    if ($file['error'] !== UPLOAD_ERR_OK) return [null, 'File upload failed. Attachments must be 10MB or smaller.'];
+    if ($file['size'] > 10 * 1024 * 1024) return [null, 'Attachments must be 10MB or smaller.'];
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'm4v', 'webm', 'mov'], true)) {
+        return [null, 'Allowed formats: JPG, PNG, GIF or WEBP images, or MP4, WEBM or MOV videos.'];
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/x-m4v', 'video/webm', 'video/quicktime'];
+    if (!in_array($mime, $allowed_mimes, true)) return [null, 'File content does not match an allowed image or video format.'];
+
+    $dir = __DIR__ . '/uploads/maintenance/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $name = time() . '_' . bin2hex(random_bytes(6)) . '_' . preg_replace('/[^a-zA-Z0-9.]/', '_', basename($file['name']));
+    if (!move_uploaded_file($file['tmp_name'], $dir . $name)) return [null, 'Failed to save the attached file.'];
+
+    return ['uploads/maintenance/' . $name, null];
 }
 
 // Promotes lapsed invoices to 'overdue' and applies the configured late fee.

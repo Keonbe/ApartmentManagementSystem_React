@@ -11,38 +11,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
+$auth = require_user($conn);
+$user_id = $auth['id'];
+
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
+$id   = (int)($input['id'] ?? $input['rawId'] ?? 0);
+$type = $input['type'] ?? '';
 
-$user_id = (int)($input['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? 0);
-$id      = (int)($input['id'] ?? $input['rawId'] ?? 0);
-$type    = $input['type'] ?? '';
-
-if (!$user_id || !$id || !$type) {
-    echo json_encode(["success" => false, "message" => "User ID, request ID and type are required."]);
+if (!$id || !$type) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => "Request ID and type are required."]);
     exit;
 }
 
-//MapsRequestTypeToItsOwningTable
-switch ($type) {
-    case 'Maintenance':
-        $table = 'maintenance_requests';
-        break;
-    case 'CCTV':
-        $table = 'cctv_requests';
-        break;
-    case 'Parking':
-        $table = 'parking_reservations';
-        break;
-    case 'Service':
-        //Only Pending rows are cancellable, so a billed booking can never reach here
-        $table = 'service_requests';
-        break;
-    default:
-        echo json_encode(["success" => false, "message" => "Unknown request type: $type"]);
-        exit;
-}
+$tables = [
+    'Maintenance' => 'maintenance_requests',
+    'CCTV' => 'cctv_requests',
+    'Parking' => 'parking_reservations',
+    'Service' => 'service_requests',
+];
 
-//OnlyPendingRowsMayBeCancelled,AndOnlyByTheirOwner
+if (!isset($tables[$type])) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Unknown request type: $type"]);
+    exit;
+}
+$table = $tables[$type];
+
+// Only Pending rows may be cancelled, and only by their owner — so a billed booking can never reach here.
 $stmt = $conn->prepare("UPDATE `$table` SET status = 'Cancelled' WHERE id = ? AND user_id = ? AND status = 'Pending'");
 $stmt->bind_param("ii", $id, $user_id);
 $stmt->execute();
@@ -50,13 +46,21 @@ $affected = $stmt->affected_rows;
 $stmt->close();
 
 if ($affected === 0) {
-    echo json_encode(["success" => false, "message" => "Only pending requests can be cancelled."]);
+    http_response_code(409);
+    echo json_encode(["success" => false, "message" => "Only your own pending requests can be cancelled."]);
     $conn->close();
     exit;
+}
+
+if ($type === 'Service') {
+    $metadata = "service_request:$id";
+    $resolve = $conn->prepare("UPDATE notifications SET status = 'Resolved' WHERE type = 'service_request' AND metadata_value = ?");
+    $resolve->bind_param("s", $metadata);
+    $resolve->execute();
+    $resolve->close();
 }
 
 log_activity($conn, $user_id, 'service', "Cancelled Request", "$type Request ID: $id cancelled by tenant");
 
 echo json_encode(["success" => true, "message" => "Request cancelled successfully."]);
 $conn->close();
-?>
