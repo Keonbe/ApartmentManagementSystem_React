@@ -17,7 +17,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | A-1 | Change the default admin password in the database | Admin account takeover by anyone who knows the demo password | `[ ]` |
 | A-2 | Change MySQL `root` password on the production server | Full database access with no credentials | `[ ]` |
 | A-3 | Create a least-privilege DB user (`ams_user`) instead of `root` | A PHP breach exposes the entire DB server | `[ ]` |
-| A-4 | Verify every admin API endpoint calls `verify_admin($conn, $admin_id)` | Tenants can call admin-only APIs directly | `[x]` |
+| A-4 | Verify every admin API endpoint gates on `require_admin($conn)` (or the deprecated `verify_admin()` wrapper, which now also checks the real session rather than a client-supplied id) | Tenants can call admin-only APIs directly | `[x]` |
 | A-5 | Add rate limiting to `login.php` (e.g., via `mod_ratelimit` or fail2ban) | Unlimited brute-force login attempts | `[x]` |
 | A-6 | Remove dead `$_SESSION` code in `login.php` (lines 41-49) | Dead code creates false security assumptions | `[x]` |
 
@@ -189,9 +189,29 @@ $password   = "";  // no password
 
 ## 6. Low: Dead Session Code
 
-[login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) assigns `$_SESSION['user']` but has no `session_start()`. Auth is stateless (via `X-User-Id` header) and works correctly, but this dead code creates confusion about the auth model.
+[login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) assigns `$_SESSION['user']` but has no `session_start()`. Auth does not use PHP sessions — it uses a server-issued bearer token stored in the `sessions` table (see `create_session()` / `get_authenticated_user()` in `config.php`), so this dead `$_SESSION` code only creates confusion about the auth model.
 
 **Fix:** Remove the `$_SESSION` block (lines 41–49).
+
+---
+
+## 6b. Billing & Payments Hardening (2026-09)
+
+Findings from the Module 3 (Rental Payment & Billing) audit, all since fixed.
+
+| Issue | Where | Fix |
+|---|---|---|
+| **Unauthenticated billing IDOR** — omitting `X-User-Id` entirely skipped the ownership comparison, so any tenant's invoices (amounts, payment references, sender names, proof paths) were readable with no credentials | `get_invoices.php` | Requires a session via `require_user()`; a non-admin can only ever read their own `user_id`, whatever `?userId=` says |
+| **Identity accepted from the request body** — `$_POST['userId']` fallback let anyone attach a payment reference/proof to another tenant's invoice | `upload_payment_proof.php` | Identity comes only from the verified session |
+| **Unauthenticated mass notification dispatch**, plus `ALTER TABLE` DDL executed on every request | `check_due_date_reminders.php` | `require_admin()`; the reminder columns moved into `SetupDB.sql` |
+| **Webhook replay** — the HMAC covers timestamp + payload, but the timestamp was never checked, so a captured `payment.paid` event stayed valid indefinitely | `paymongo_webhook.php` | 5-minute freshness window; event is also bound to the invoice's own `checkout_session_id`, and the UPDATE is scoped to open statuses so a settled or cancelled invoice cannot be rewritten |
+| **Lost payments on DB failure** — the webhook returned HTTP 200 even when the write failed, so the gateway never retried | `paymongo_webhook.php` | Returns 500 on write failure; logs attributed to the paying tenant instead of a hardcoded (non-existent) user id 1 |
+| **TLS verification disabled** on the call carrying the PayMongo secret key | `create_checkout_session.php` | Locates a CA bundle and verifies; only falls back to unverified on non-production, and then logs loudly |
+| **Invoice state could be rewound** — no status guard or `affected_rows` check meant a tenant could re-submit against a `paid` invoice, resetting its status and blanking `paid_at` | `pay_bill.php`, `upload_payment_proof.php`, `schedule_payment.php` | All writes scoped to `BILLING_OPEN_STATUSES` with `affected_rows` checks returning 409 |
+| **Invoice ID collisions overwrote real invoices** — `rand(1000,9999)` combined with `ON DUPLICATE KEY UPDATE` silently rewrote an existing invoice's amounts | `create_invoice.php` | `random_bytes()`-based ids; re-issuing a `paid`/`cancelled` invoice is refused |
+| Unvalidated scheduling input (past dates, arbitrary time slots) and an UPDATE that was not owner-scoped | `schedule_payment.php` | Date/slot validation and owner-scoped claim in a single statement |
+
+Header-trust (`X-User-Id` / `X-Admin-Id`) is now removed from every payment endpoint: `get_invoices.php`, `pay_bill.php`, `upload_payment_proof.php`, `schedule_payment.php`, `create_checkout_session.php`, `get_payment_channels.php`, `create_invoice.php`, `check_due_date_reminders.php`.
 
 ---
 

@@ -25,18 +25,30 @@ if (!$secret) {
 $parts = explode(',', $signature_header);
 $parsed_sig = [];
 foreach ($parts as $part) {
-    list($key, $value) = explode('=', trim($part), 2);
-    $parsed_sig[$key] = $value;
+    // A malformed segment with no "=" would raise an undefined-offset error
+    // under PHP 8 if destructured blindly.
+    $kv = explode('=', trim($part), 2);
+    if (count($kv) === 2) {
+        $parsed_sig[$kv[0]] = $kv[1];
+    }
 }
 
 $timestamp = $parsed_sig['t'] ?? '';
-$test_sig = $parsed_sig['te'] ?? '';
-// Since we only support sandbox per user request
-$signature_to_verify = $test_sig; 
+// Sandbox signs as 'te', live as 'li'. Accept whichever is present so that
+// switching to live keys does not silently 401 every real webhook.
+$signature_to_verify = $parsed_sig['te'] ?? $parsed_sig['li'] ?? '';
 
 if (!$timestamp || !$signature_to_verify) {
     http_response_code(401);
     echo json_encode(["success" => false, "message" => "Invalid signature format"]);
+    exit;
+}
+
+// The signature covers timestamp + payload, so without a freshness window a
+// captured "payment.paid" event stays valid forever and can be replayed.
+if (!ctype_digit((string)$timestamp) || abs(time() - (int)$timestamp) > 300) {
+    http_response_code(401);
+    echo json_encode(["success" => false, "message" => "Signature timestamp outside the accepted window"]);
     exit;
 }
 
@@ -75,8 +87,42 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
 
     $invoice_id = $metadata['invoice_id'] ?? null;
     $user_id = $metadata['user_id'] ?? null;
+    $session_id = $event_data['id'] ?? null;
 
     if ($invoice_id) {
+        // Bind the event to the checkout session this invoice actually opened.
+        // Without this, any validly-signed event naming an invoice id could
+        // settle it, including a stale event from a superseded session.
+        $chk = $conn->prepare("SELECT status, checkout_session_id FROM invoices WHERE id = ?");
+        $chk->bind_param("s", $invoice_id);
+        $chk->execute();
+        $inv_row = $chk->get_result()->fetch_assoc();
+        $chk->close();
+
+        if (!$inv_row) {
+            http_response_code(200);
+            echo json_encode(["success" => true, "message" => "Unknown invoice; ignored"]);
+            $conn->close();
+            exit;
+        }
+
+        if ($session_id && !empty($inv_row['checkout_session_id'])
+            && !hash_equals($inv_row['checkout_session_id'], $session_id)) {
+            http_response_code(200);
+            echo json_encode(["success" => true, "message" => "Event belongs to a superseded checkout session; ignored"]);
+            $conn->close();
+            exit;
+        }
+
+        // Already settled — acknowledge so PayMongo stops retrying, but do
+        // not rewrite the row.
+        if ($inv_row['status'] === 'paid' && $status === 'paid') {
+            http_response_code(200);
+            echo json_encode(["success" => true, "message" => "Already recorded"]);
+            $conn->close();
+            exit;
+        }
+
         if ($status === 'paid') {
             $source_type = $event_data['attributes']['payments'][0]['attributes']['source']['type'] ?? null;
             $pm_label = null;
@@ -91,22 +137,31 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             }
 
             if ($pm_label) {
-                $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, paid_at = COALESCE(paid_at, NOW()) WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
                 $stmt->bind_param("ss", $pm_label, $invoice_id);
             } else {
-                $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = COALESCE(payment_method, 'PayMongo (Sandbox)'), paid_at = COALESCE(paid_at, NOW()) WHERE id = ?");
+                $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = COALESCE(payment_method, 'PayMongo (Sandbox)'), paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
                 $stmt->bind_param("s", $invoice_id);
             }
         } else {
-            $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ?");
+            $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ? AND status IN " . billing_open_status_sql());
             $stmt->bind_param("ss", $status, $invoice_id);
         }
 
-        if ($stmt->execute()) {
-            if ($user_id) {
-                log_activity($conn, 1, 'Payment', 'Webhook ' . $status, "Invoice: $invoice_id"); // Assuming admin 1 for systemic logs
-            }
+        if (!$stmt->execute()) {
+            // Returning 200 on a failed write used to mean PayMongo never
+            // retried, so a collected payment could be permanently lost.
+            error_log("PayMongo webhook DB write failed for invoice $invoice_id: " . $stmt->error);
+            http_response_code(500);
+            echo json_encode(["success" => false, "message" => "Failed to record payment"]);
+            $conn->close();
+            exit;
         }
+
+        // Attribute to the paying tenant from the session metadata rather than
+        // a hardcoded admin id (the old literal 1 is not even a real user).
+        $actor = $user_id ? (int)$user_id : null;
+        log_activity($conn, $actor, 'payment', 'Gateway webhook: ' . $status, "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a'));
     }
 }
 

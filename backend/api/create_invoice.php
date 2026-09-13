@@ -11,12 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+$admin_id = require_admin($conn);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
@@ -32,21 +27,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $late_fee = (float)($input['lateFee'] ?? 0);
         $due_date = !empty($input['dueDate']) ? $input['dueDate'] : date('Y-m-d', strtotime('+15 days'));
         $billing_period = trim($input['billingPeriod'] ?? date('Y-m'));
-        $invoice_id = !empty($input['invoiceNumber']) ? trim($input['invoiceNumber']) : ('INV-' . date('Ym') . '-' . rand(1000, 9999));
+        // rand(1000,9999) gave only 9000 ids per month, and the statement below
+        // uses ON DUPLICATE KEY UPDATE — so a collision silently rewrote an
+        // existing invoice's amounts instead of failing.
+        $invoice_id = !empty($input['invoiceNumber']) ? trim($input['invoiceNumber']) : ('INV-' . date('Ym') . '-' . strtoupper(bin2hex(random_bytes(4))));
 
         // Re-issuing an existing invoice must not drop service charges already
-        // posted onto it by post_service_charge(), since the UPDATE below
-        // rewrites total_amount wholesale.
+        // posted onto it by post_service_charge(), nor the move-in security
+        // deposit, since the UPDATE below rewrites total_amount wholesale.
         $existing_services = 0.00;
-        $svc_lookup = $conn->prepare("SELECT services FROM invoices WHERE id = ?");
+        $existing_deposit = 0.00;
+        $svc_lookup = $conn->prepare("SELECT services, security_deposit, status FROM invoices WHERE id = ?");
         $svc_lookup->bind_param("s", $invoice_id);
         $svc_lookup->execute();
         if ($svc_row = $svc_lookup->get_result()->fetch_assoc()) {
             $existing_services = (float)$svc_row['services'];
+            $existing_deposit = (float)$svc_row['security_deposit'];
+
+            // Re-issuing over a settled or cancelled invoice would rewrite what
+            // the tenant already paid, with no record of the original amounts.
+            if (in_array($svc_row['status'], ['paid', 'cancelled'], true)) {
+                http_response_code(409);
+                echo json_encode([
+                    "success" => false,
+                    "message" => "Invoice {$invoice_id} is already {$svc_row['status']} and cannot be re-issued. Create a new invoice instead."
+                ]);
+                exit;
+            }
         }
         $svc_lookup->close();
 
-        $total_amount = $base_rent + $water + $electricity + $parking + $late_fee + $existing_services;
+        $total_amount = $base_rent + $water + $electricity + $parking + $late_fee + $existing_services + $existing_deposit;
 
         // If user_id wasn't provided directly, look it up by unit / active application
         $rent_app_id = !empty($input['appId']) ? (int)$input['appId'] : null;
@@ -76,19 +87,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Insert invoice record
         $stmt = $conn->prepare("INSERT INTO invoices (
-            id, user_id, rent_application_id, base_rent, water, electricity, parking, total_amount, billing_period, status, due_date, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())
-        ON DUPLICATE KEY UPDATE 
+            id, user_id, rent_application_id, base_rent, water, electricity, parking, late_fee, total_amount, billing_period, status, due_date, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())
+        ON DUPLICATE KEY UPDATE
             base_rent = VALUES(base_rent),
             water = VALUES(water),
             electricity = VALUES(electricity),
             parking = VALUES(parking),
+            late_fee = VALUES(late_fee),
             total_amount = VALUES(total_amount),
             billing_period = VALUES(billing_period),
             due_date = VALUES(due_date)");
 
         $stmt->bind_param(
-            "siiddddsss",
+            "siiddddddss",
             $invoice_id,
             $user_id,
             $rent_app_id,
@@ -96,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $water,
             $electricity,
             $parking,
+            $late_fee,
             $total_amount,
             $billing_period,
             $due_date

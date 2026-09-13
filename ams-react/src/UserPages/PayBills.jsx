@@ -61,7 +61,11 @@ export default function PayBills() {
                 try {
                     const res = await api.get(`/get_invoices.php?userId=${user.id}`);
                     if (res.data.success && res.data.invoices && res.data.invoices.length > 0) {
-                        const activeInv = res.data.invoices.find(i => ['pending', 'overdue', 'pending-verification', 'scheduled'].includes(i.status));
+                        // 'processing' and 'payment-failed' must be included: an
+                        // abandoned or declined online checkout leaves the invoice
+                        // in one of those states, and omitting them made the bill
+                        // disappear from this page entirely while still owed.
+                        const activeInv = res.data.invoices.find(i => ['pending', 'overdue', 'pending-verification', 'scheduled', 'processing', 'payment-failed'].includes(i.status));
                         if (activeInv) {
                             setBillDetails({
                                 baseRent: parseFloat(activeInv.base_rent) || 0,
@@ -122,10 +126,21 @@ export default function PayBills() {
                     navigate('/pay-bills', { replace: true });
                 }, 500);
             } else if (status === 'cancelled') {
-                setTimeout(() => {
+                // Hand the invoice back to 'pending'/'overdue'. Without this it
+                // stays in 'processing' and becomes unpayable.
+                const invoiceId = queryParams.get('invoice_id');
+                (async () => {
+                    if (invoiceId) {
+                        try {
+                            await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
+                        } catch (err) {
+                            console.error('Failed to release the cancelled payment session:', err);
+                        }
+                    }
                     alert("Payment was cancelled.");
                     navigate('/pay-bills', { replace: true });
-                }, 500);
+                    fetchInvoice();
+                })();
             }
         }
     }, [navigate]);

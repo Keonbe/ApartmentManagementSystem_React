@@ -620,6 +620,18 @@ ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `pre_archive_status` va
 -- and duplicated rows for a user with more than one application).
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `room_name` varchar(50) DEFAULT NULL;
 
+-- Reminder dispatch tracking, so check_due_date_reminders.php sends at most
+-- one reminder per invoice per day. These were previously created by an
+-- ALTER TABLE executed inside that endpoint on every single request.
+ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `last_reminder_date` date DEFAULT NULL;
+ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `reminder_count` int(11) NOT NULL DEFAULT 0;
+
+-- Late fee charged on an overdue invoice. create_invoice.php previously added
+-- the admin-entered late fee straight into total_amount with nowhere to store
+-- it, so get_invoices.php reported it as a hardcoded 0.00 and the tenant's
+-- bill breakdown never summed to the amount they were actually charged.
+ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `late_fee` decimal(10,2) NOT NULL DEFAULT 0.00 AFTER `services`;
+
 -- Records when the applicant checked the Terms & Conditions box at submission.
 -- update_tenant_status.php requires this to be set (along with real ID/NBI
 -- uploads) before an application can be approved (checklist item 1.7).
@@ -709,4 +721,10 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('landlord_address', 'Tamak, Maguyam, Silang, Cavite'),
 ('landlord_contact', '*********** (Smart)'),
 ('property_address', 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite'),
-('occupant_surcharge_per_person', '1000');
+('occupant_surcharge_per_person', '1000'),
+-- Late fee applied automatically when an invoice lapses past its due date
+-- (promote_overdue_invoices() in config.php). type: 'flat' (peso amount) or
+-- 'percent' (of the invoice's recurring charges, excluding any deposit).
+('late_fee_enabled', 'false'),
+('late_fee_type', 'flat'),
+('late_fee_value', '200');

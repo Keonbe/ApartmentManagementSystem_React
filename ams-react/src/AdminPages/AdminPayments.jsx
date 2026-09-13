@@ -100,7 +100,6 @@ const AdminPayments = () => {
               dueDateDay: 5,
               billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, addOns: 0 },
               history: [],
-              settlements: [],
               outstandingBalance: 0,
               pendingInvoiceId: null,
               lastReminderDate: inv.last_reminder_date || null,
@@ -124,6 +123,7 @@ const AdminPayments = () => {
             t.billing.parking = parseFloat(inv.parking || 0);
             t.billing.services = parseFloat(inv.services || 0);
             t.billing.securityDeposit = parseFloat(inv.security_deposit || 0);
+            t.billing.lateFee = parseFloat(inv.late_fee || 0);
             t.outstandingBalance += parseFloat(inv.total_amount || 0);
             t.pendingInvoiceId = inv.id;
             if (inv.proof_of_payment_path) t.proofOfPaymentPath = inv.proof_of_payment_path;
@@ -186,6 +186,7 @@ const AdminPayments = () => {
   // Payment Recording States
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [amountTendered, setAmountTendered] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // History Table States
@@ -199,8 +200,6 @@ const AdminPayments = () => {
   const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
   const [historyForm, setHistoryForm] = useState(null);
 
-  const [showSettlementForm, setShowSettlementForm] = useState(false);
-  const [settlementForm, setSettlementForm] = useState({ amount: '', note: '', type: 'Partial Payment' });
 
   const settings = getSystemSettings();
 
@@ -287,32 +286,14 @@ const AdminPayments = () => {
     return result;
   }, [tenants]);
 
-  const monthlyTarget = tenants.reduce((sum, t) => sum + (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services), 0);
-  const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services), 0);
+  // Security deposit and late fee are part of what is actually invoiced, so
+  // leaving them out measured collection against a smaller base than the
+  // amounts tenants were billed — overstating the collection rate on any
+  // move-in or overdue invoice.
+  const billedTotal = (t) => t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + (t.billing.securityDeposit || 0) + (t.billing.lateFee || 0);
+  const monthlyTarget = tenants.reduce((sum, t) => sum + billedTotal(t), 0);
+  const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + billedTotal(t), 0);
   const collectionPct = monthlyTarget > 0 ? Math.round((monthlyCollected / monthlyTarget) * 100) : 0;
-
-  const handleAddSettlement = () => {
-    if (!settlementForm.amount || Number(settlementForm.amount) <= 0) return;
-    const amt = Number(settlementForm.amount);
-    const newBalance = Math.max(0, (activeTenant.outstandingBalance || totalDue) - amt);
-    const settlement = {
-      id: `STL-${String(Math.floor(100 + Math.random() * 900))}`,
-      date: new Date().toISOString().slice(0, 10),
-      type: settlementForm.type,
-      amount: amt,
-      remaining: newBalance,
-      note: settlementForm.note,
-      status: newBalance === 0 ? 'settled' : 'partial'
-    };
-    setTenants(prev => prev.map(t => t.id === selectedTenantId ? {
-      ...t,
-      settlements: [settlement, ...(t.settlements || [])],
-      outstandingBalance: newBalance,
-      status: newBalance === 0 ? 'paid' : t.status
-    } : t));
-    setSettlementForm({ amount: '', note: '', type: 'Partial Payment' });
-    setShowSettlementForm(false);
-  };
 
   const getDaysUntilDue = (dueDateStr) => {
     if (!dueDateStr) return null;
@@ -341,7 +322,12 @@ const handleMarkAsPaid = async () => {
     try {
       const res = await api.post('/record_payment_admin.php', {
         invoiceId: activeTenant.pendingInvoiceId,
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        // The amount tendered and reference were previously collected in this
+        // form and then thrown away, so nothing about the payment itself was
+        // recorded beyond the method.
+        amountPaid: amountTendered !== '' ? Number(amountTendered) : undefined,
+        paymentReference: paymentReference || undefined
       });
       
       // Safely check if the response is successful
@@ -349,8 +335,9 @@ const handleMarkAsPaid = async () => {
         fetchInvoices();
         setIsExtendedRent(false); 
         setExtendedAmount(0); 
-        setCustomAddOns(0); 
+        setCustomAddOns(0);
         setAmountTendered('');
+        setPaymentReference('');
         setShowConfirmModal(false);
       } else {
         // If it's a string (HTML error) or missing the message property, alert a safe fallback
@@ -752,6 +739,19 @@ const handleMarkAsPaid = async () => {
                           <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 text-slate-700 font-semibold">{formatCurrency(change)}</div>
                         </div>
                       </div>
+
+                      {paymentMethod !== 'Cash' && (
+                        <div className="mt-3">
+                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference No.</label>
+                          <input
+                            type="text"
+                            value={paymentReference}
+                            onChange={e => setPaymentReference(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white"
+                            placeholder={activeTenant.paymentReference || 'Transfer / transaction reference'}
+                          />
+                        </div>
+                      )}
                       
                       {(activeTenant.status === 'pending-verification' || activeTenant.proofOfPaymentPath) && (
                         <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3">
@@ -1007,16 +1007,15 @@ const handleMarkAsPaid = async () => {
                   </div>
                 </div>
                 
-                {/* ─── PAYMENT SETTLEMENT TRACKING ─── */}
+                {/* ─── OUTSTANDING BALANCE ─── */}
+                {/* Invoices are settled in full via Record Payment; there is no
+                    partial-payment ledger, so no settlement entry form here. */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
-                      <FontAwesomeIcon icon={faHandshake} className="text-violet-600" />
-                      Settlement Tracking — {activeTenant.name}
+                      <FontAwesomeIcon icon={faBalanceScale} className="text-violet-600" />
+                      Outstanding Balance — {activeTenant.name}
                     </h3>
-                    <button onClick={() => setShowSettlementForm(!showSettlementForm)} className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors">
-                      <FontAwesomeIcon icon={faPlus} /> Record Settlement
-                    </button>
                   </div>
                   <div className="p-6 space-y-4">
                     {/* Outstanding Balance Monitor */}

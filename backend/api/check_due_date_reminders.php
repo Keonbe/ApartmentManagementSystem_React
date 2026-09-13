@@ -11,10 +11,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . "/../config.php";
 
+// This endpoint fans out notifications to every tenant with a due or overdue
+// invoice, so it must not be publicly triggerable. Its only caller is the
+// admin payments page.
+$admin_id = require_admin($conn);
+
 try {
-    // 1. Ensure tracking columns exist on invoices table
-    @$conn->query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS last_reminder_date DATE DEFAULT NULL;");
-    @$conn->query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminder_count INT DEFAULT 0;");
+    // Tracking columns (last_reminder_date, reminder_count) now live in
+    // SetupDB.sql instead of being created by an ALTER TABLE on every request.
 
     // 2. Load system settings for reminders
     $settings = [];
@@ -30,9 +34,8 @@ try {
     $overdue_enabled = ($settings['overdue_reminders_enabled'] ?? 'true') !== 'false';
     $overdue_interval = (int)($settings['overdue_reminder_interval_days'] ?? 3);
 
-    // 3. Auto-mark pending invoices whose due date has passed as 'overdue'
-    $conn->query("UPDATE invoices SET status = 'overdue' WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < CURDATE()");
-    $marked_overdue = $conn->affected_rows;
+    // 3. Auto-mark lapsed invoices 'overdue' and apply the configured late fee
+    $marked_overdue = promote_overdue_invoices($conn);
 
     $upcoming_sent = 0;
     $overdue_sent = 0;

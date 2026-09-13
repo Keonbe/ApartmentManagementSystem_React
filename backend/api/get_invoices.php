@@ -14,22 +14,28 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-        $logged_user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-        $is_admin = verify_admin($conn, $admin_id);
+        // Billing data is financial PII (amounts, payment references, sender
+        // names, proof paths), so this endpoint requires a real session — it
+        // previously only compared a client-supplied X-User-Id against the
+        // requested one, which meant OMITTING the header entirely skipped the
+        // check and returned any tenant's full billing history unauthenticated.
+        $auth = require_user($conn);
+        $is_admin = $auth['role'] === 'admin';
 
-        // Auto-mark pending invoices whose due_date has passed as 'overdue'
-        $conn->query("UPDATE invoices SET status = 'overdue' WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < CURDATE()");
+        // Auto-mark lapsed invoices 'overdue' and apply the configured late fee
+        promote_overdue_invoices($conn);
 
         $user_id_param = $_GET['userId'] ?? null;
         if ($user_id_param) {
-            if (!$is_admin && $logged_user_id && (int)$user_id_param !== (int)$logged_user_id) {
+            // A non-admin may only ever read their own invoices, whatever the
+            // ?userId= parameter says.
+            if (!$is_admin && (int)$user_id_param !== $auth['id']) {
                 http_response_code(403);
                 echo json_encode(["success" => false, "message" => "Forbidden: Access denied to other user's invoices"]);
                 exit;
             }
 
-            $stmt = $conn->prepare("SELECT 
+            $stmt = $conn->prepare("SELECT
                         i.*, 
                         u.first_name, 
                         u.last_name, 
@@ -82,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'parking' => $row['parking'] ?? 0,
                 'services' => $row['services'] ?? 0,
                 'security_deposit' => $row['security_deposit'] ?? 0,
-                'late_fee' => 0.00, // Late fee should be managed via DB if implemented properly
+                'late_fee' => $row['late_fee'] ?? 0.00,
                 'total_amount' => $row['total_amount'] ?? 0.00,
                 'status' => $row['status'],
                 

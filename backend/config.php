@@ -391,6 +391,93 @@ function verify_admin($conn, $admin_id = null) {
     return $user !== null && $user['role'] === 'admin';
 }
 
+// Every invoice status that still represents money owed. This list is the
+// single source of truth for "is this invoice still open?" across billing,
+// receivables, overdue promotion and reminders.
+//
+// 'processing' (an online checkout was started), 'payment-failed' (the
+// gateway declined) and 'scheduled' (tenant booked an in-person payment)
+// used to be omitted from those queries, so an abandoned or failed checkout
+// silently dropped the invoice out of the tenant's bill view, out of
+// receivables, and out of overdue/reminder detection — the debt simply
+// vanished. 'unpaid' is a legacy spelling kept so older rows still match.
+const BILLING_OPEN_STATUSES = [
+    'pending', 'unpaid', 'overdue', 'pending-verification',
+    'scheduled', 'processing', 'payment-failed'
+];
+
+// Ready-to-interpolate SQL tuple, e.g. "('pending','unpaid',...)". The values
+// are hardcoded constants above (never request input), so inlining them is
+// safe and keeps the many call sites from each needing dynamic placeholders.
+function billing_open_status_sql() {
+    return "('" . implode("','", BILLING_OPEN_STATUSES) . "')";
+}
+
+// Promotes lapsed invoices to 'overdue' and applies the configured late fee.
+//
+// Both the promotion and the fee live here because they must always happen
+// together: the fee is what makes checklist item 3.7's "late fee calculation"
+// real rather than an admin typing a number by hand. Called from the invoice
+// list and the reminder sweep, so it runs on any path that observes billing.
+//
+// The fee is applied once per invoice, guarded by late_fee = 0, and is added
+// to total_amount so the stored total always equals the sum of its line items.
+function promote_overdue_invoices($conn) {
+    // Anything still owed past its due date becomes overdue — not just
+    // 'pending'. An abandoned checkout ('processing'), a declined payment
+    // ('payment-failed') or a missed in-person booking ('scheduled' whose date
+    // has passed) previously stayed frozen forever: never overdue, never
+    // reminded, and invisible in receivables.
+    $conn->query("
+        UPDATE invoices
+        SET status = 'overdue',
+            -- A checkout that never completed must not leave a session id
+            -- behind that a late-arriving webhook could still match on.
+            checkout_session_id = CASE WHEN status = 'processing' THEN NULL ELSE checkout_session_id END
+        WHERE due_date IS NOT NULL AND due_date < CURDATE()
+          AND (
+                status IN ('pending', 'unpaid', 'payment-failed', 'processing')
+                OR (status = 'scheduled' AND (scheduled_date IS NULL OR scheduled_date < CURDATE()))
+              )
+    ");
+    $promoted = $conn->affected_rows;
+
+    $settings = [];
+    $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('late_fee_enabled', 'late_fee_type', 'late_fee_value')");
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $settings[$row['setting_key']] = $row['setting_value'];
+        }
+    }
+
+    $enabled = ($settings['late_fee_enabled'] ?? 'false') === 'true' || ($settings['late_fee_enabled'] ?? '') === '1';
+    $value = (float)($settings['late_fee_value'] ?? 0);
+    if (!$enabled || $value <= 0) {
+        return $promoted;
+    }
+
+    if (($settings['late_fee_type'] ?? 'flat') === 'percent') {
+        $stmt = $conn->prepare("
+            UPDATE invoices
+            SET late_fee = ROUND((base_rent + water + electricity + parking + services) * ? / 100, 2),
+                total_amount = total_amount + ROUND((base_rent + water + electricity + parking + services) * ? / 100, 2)
+            WHERE status = 'overdue' AND late_fee = 0
+        ");
+        $stmt->bind_param("dd", $value, $value);
+    } else {
+        $stmt = $conn->prepare("
+            UPDATE invoices
+            SET late_fee = ?, total_amount = total_amount + ?
+            WHERE status = 'overdue' AND late_fee = 0
+        ");
+        $stmt->bind_param("dd", $value, $value);
+    }
+    $stmt->execute();
+    $stmt->close();
+
+    return $promoted;
+}
+
 // Returns the owning tenant's user_id for a rent application, or null if the
 // application does not exist. Used to check a non-admin caller's X-User-Id
 // against the tenant that actually owns a rent_application/lease_contract

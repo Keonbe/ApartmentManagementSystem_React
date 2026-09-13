@@ -75,7 +75,7 @@ try {
             SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as overdue_total,
             SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cnt
         FROM invoices 
-        WHERE LOWER(status) IN ('pending', 'unpaid', 'overdue', 'pending-verification')
+        WHERE LOWER(status) IN " . billing_open_status_sql() . "
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -181,7 +181,7 @@ try {
         SELECT 
             DATE_FORMAT(created_at, '%Y-%m') as m_key, 
             SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as collected_val,
-            SUM(CASE WHEN LOWER(status) IN ('pending', 'unpaid', 'overdue', 'pending-verification') THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as pending_val,
+            SUM(CASE WHEN LOWER(status) IN " . billing_open_status_sql() . " THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as pending_val,
             SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as billed_val,
             COUNT(*) as total_cnt
         FROM invoices 

@@ -7,12 +7,8 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-if (!$user_id) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden"]);
-    exit;
-}
+$auth = require_user($conn);
+$user_id = $auth['id'];
 
 $data = json_decode(file_get_contents("php://input"), true);
 $invoice_id = $data['invoice_id'] ?? null;
@@ -24,29 +20,55 @@ if (!$invoice_id || !$scheduled_date || !$scheduled_time_slot) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT id, status FROM invoices WHERE id = ? AND user_id = ?");
-$stmt->bind_param("si", $invoice_id, $user_id);
-$stmt->execute();
-$res = $stmt->get_result();
-
-if ($res->num_rows === 0) {
-    echo json_encode(["success" => false, "message" => "Invoice not found or access denied"]);
+// A schedule is a promise to show up and pay, so it has to be a real future
+// date — the endpoint previously accepted any string, including past dates.
+$parsed_date = DateTime::createFromFormat('Y-m-d', $scheduled_date);
+if (!$parsed_date || $parsed_date->format('Y-m-d') !== $scheduled_date) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Invalid scheduled date."]);
+    exit;
+}
+$today = new DateTime(date('Y-m-d'));
+if ($parsed_date < $today) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Scheduled date cannot be in the past."]);
+    exit;
+}
+if ((int)$today->diff($parsed_date)->format('%a') > 60) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Scheduled date cannot be more than 60 days ahead."]);
     exit;
 }
 
-$row = $res->fetch_assoc();
-if (in_array($row['status'], ['paid', 'processing'])) {
-    echo json_encode(["success" => false, "message" => "Cannot schedule payment for this invoice status"]);
+$allowed_slots = ['morning', 'afternoon', 'evening'];
+if (!in_array($scheduled_time_slot, $allowed_slots, true)) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Invalid time slot."]);
     exit;
 }
 
-$update = $conn->prepare("UPDATE invoices SET status = 'scheduled', scheduled_date = ?, scheduled_time_slot = ?, payment_gateway = 'in_person' WHERE id = ?");
-$update->bind_param("sss", $scheduled_date, $scheduled_time_slot, $invoice_id);
+// Claim the invoice and scope by owner in the same statement, rather than
+// checking ownership in a separate SELECT and then updating by id alone.
+$update = $conn->prepare("
+    UPDATE invoices
+    SET status = 'scheduled', scheduled_date = ?, scheduled_time_slot = ?, payment_gateway = 'in_person'
+    WHERE id = ? AND user_id = ? AND status IN " . billing_open_status_sql() . "
+");
+$update->bind_param("sssi", $scheduled_date, $scheduled_time_slot, $invoice_id, $user_id);
 
 if ($update->execute()) {
+    if ($update->affected_rows === 0) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This invoice is not open for scheduling — it may already be settled or cancelled."]);
+        $update->close();
+        $conn->close();
+        exit;
+    }
+    log_activity($conn, $user_id, 'payment', "In-person payment scheduled", "Invoice ID: $invoice_id, Date: $scheduled_date ($scheduled_time_slot)");
     echo json_encode(["success" => true, "message" => "Payment scheduled successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to schedule payment"]);
 }
+$update->close();
 $conn->close();
 ?>

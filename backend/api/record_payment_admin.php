@@ -16,8 +16,13 @@ $admin_id = require_admin($conn);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $input = json_decode(file_get_contents("php://input"), true);
-        $invoice_id = $input['invoiceId'] ?? ''; 
+        $invoice_id = $input['invoiceId'] ?? '';
         $payment_method = $input['paymentMethod'] ?? 'Cash';
+        // Checklist 3.2 calls for amount and reference to be recorded; both
+        // were previously discarded, so every admin-recorded payment was
+        // assumed to settle the full total with no reference kept.
+        $payment_reference = trim($input['paymentReference'] ?? '') ?: null;
+        $amount_paid = isset($input['amountPaid']) && $input['amountPaid'] !== '' ? (float)$input['amountPaid'] : null;
 
         if (empty($invoice_id)) {
             echo json_encode(["success" => false, "message" => "Invalid target invoice parameter."]);
@@ -26,11 +31,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $conn->begin_transaction();
 
+        // This system settles invoices in full — there is no partial-payment
+        // ledger — so a short payment must be rejected rather than silently
+        // recorded as fully paid.
+        if ($amount_paid !== null) {
+            $due_q = $conn->prepare("SELECT total_amount FROM invoices WHERE id = ?");
+            $due_q->bind_param("s", $invoice_id);
+            $due_q->execute();
+            $due_row = $due_q->get_result()->fetch_assoc();
+            $due_q->close();
+            if ($due_row && $amount_paid + 0.009 < (float)$due_row['total_amount']) {
+                throw new Exception("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the invoice total (₱" . number_format((float)$due_row['total_amount'], 2) . "). Partial payments are not supported.");
+            }
+        }
+
         // Only a still-payable invoice can be settled — without this guard,
         // a bogus/already-settled invoice id still returned {"success":true}
         // and a replayed call could re-run the whole activation cascade below.
-        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, paid_at = NOW() WHERE id = ? AND status IN ('pending', 'pending-verification', 'overdue')");
-        $stmt->bind_param("ss", $payment_method, $invoice_id);
+        // The open-status set includes 'scheduled'/'processing'/'payment-failed'
+        // so an in-person booking or a failed online attempt can still be
+        // settled at the desk.
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, payment_reference = COALESCE(?, payment_reference), paid_at = NOW() WHERE id = ? AND status IN " . billing_open_status_sql());
+        $stmt->bind_param("sss", $payment_method, $payment_reference, $invoice_id);
         $stmt->execute();
         if ($stmt->affected_rows === 0) {
             throw new Exception("Invoice not found or already settled.");

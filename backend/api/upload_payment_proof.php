@@ -11,15 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? $_POST['userId'] ?? null;
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-$is_admin = verify_admin($conn, $admin_id);
-
-if (empty($user_id) && !$is_admin) {
-    http_response_code(401);
-    echo json_encode(["success" => false, "message" => "Unauthorized"]);
-    exit;
-}
+// The old code accepted $_POST['userId'] as a fallback identity, so anyone
+// could post a payment reference and proof onto another tenant's invoice.
+// Identity now comes only from the verified session.
+$auth = require_user($conn);
+$user_id = $auth['id'];
+$is_admin = $auth['role'] === 'admin';
 
 $invoice_id = $_POST['invoice_id'] ?? $_POST['invoiceId'] ?? null;
 $payment_reference = $_POST['payment_reference'] ?? $_POST['referenceNo'] ?? null;
@@ -40,6 +37,14 @@ if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
 
 $proof_path = null;
 if ($proof_file) {
+    // Match the 10MB ceiling the other upload endpoints enforce; this one
+    // previously accepted a file of any size.
+    if ($proof_file['size'] > 10 * 1024 * 1024) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Payment proof exceeds the 10MB size limit."]);
+        exit;
+    }
+
     $file_extension = strtolower(pathinfo($proof_file['name'], PATHINFO_EXTENSION));
     $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
 
@@ -70,6 +75,13 @@ if ($proof_file) {
     
     if (move_uploaded_file($proof_file['tmp_name'], $target_file)) {
         $proof_path = 'uploads/payment_proofs/' . $file_name;
+    } else {
+        // Failing silently here used to leave the invoice marked
+        // 'pending-verification' with no proof attached, while still telling
+        // the tenant their upload succeeded.
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Failed to save the payment proof. Please try again."]);
+        exit;
     }
 }
 
@@ -94,12 +106,25 @@ if ($is_admin) {
     $types .= "si";
 }
 
+// Never let a settled or cancelled invoice be reopened by attaching a proof.
+$query .= " AND status IN " . billing_open_status_sql();
+
 $stmt = $conn->prepare($query);
 $stmt->bind_param($types, ...$params);
 
 if ($stmt->execute()) {
+    if ($stmt->affected_rows === 0) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This invoice is not open for payment — it may already be settled or cancelled."]);
+        $stmt->close();
+        $conn->close();
+        exit;
+    }
+
+    log_activity($conn, $user_id, 'payment', "Payment proof submitted", "Invoice ID: $invoice_id, Method: $payment_method, Ref: $payment_reference");
+
     echo json_encode([
-        "success" => true, 
+        "success" => true,
         "message" => "Payment proof and reference uploaded successfully.",
         "proof_path" => $proof_path
     ]);

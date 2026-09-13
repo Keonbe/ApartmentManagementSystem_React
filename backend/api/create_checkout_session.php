@@ -10,12 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-if (!$user_id) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden"]);
-    exit;
-}
+$auth = require_user($conn);
+$user_id = $auth['id'];
 
 $data = json_decode(file_get_contents("php://input"), true);
 $invoice_id = $data['invoice_id'] ?? null;
@@ -52,8 +48,16 @@ if (!$res || $res->num_rows === 0) {
 
 $invoice = $res->fetch_assoc();
 
-if (in_array($invoice['status'], ['paid'])) {
-    echo json_encode(["success" => false, "message" => "Invoice is already paid"]);
+// Only a genuinely open invoice may be paid. 'paid' alone was checked before,
+// which let a cancelled invoice be charged and allowed a second concurrent
+// checkout session to be opened against one already in 'processing'.
+if (!in_array($invoice['status'], BILLING_OPEN_STATUSES, true) || $invoice['status'] === 'processing') {
+    $msg = $invoice['status'] === 'paid'
+        ? "Invoice is already paid"
+        : ($invoice['status'] === 'processing'
+            ? "A payment for this invoice is already in progress. Please finish or cancel it first."
+            : "This invoice is not open for payment.");
+    echo json_encode(["success" => false, "message" => $msg]);
     exit;
 }
 
@@ -81,7 +85,9 @@ if (empty($secret_key)) {
 
 // 3. Build PayMongo Checkout Session request
 $success_url = $data['success_url'] ?? ("http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html#/pay-bills?status=success&invoice_id=" . urlencode($invoice_id));
-$cancel_url = $data['cancel_url'] ?? "http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html#/pay-bills?status=cancelled";
+// The invoice id must ride along on the cancel URL too, so the app can release
+// the 'processing' hold this endpoint is about to place on it.
+$cancel_url = $data['cancel_url'] ?? ("http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html#/pay-bills?status=cancelled&invoice_id=" . urlencode($invoice_id));
 
 $payload = [
     'data' => [
@@ -121,8 +127,30 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "Authorization: Basic " . base64_encode($secret_key . ":")
 ]);
 
-// Handle SSL for Windows local XAMPP environments
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+// This request carries the PayMongo secret key, so the gateway's certificate
+// must actually be verified. Verification used to be switched off outright
+// because XAMPP ships without curl.cainfo configured; instead, locate a CA
+// bundle and point cURL at it.
+$ca_bundle = ini_get('curl.cainfo') ?: ini_get('openssl.cafile') ?: '';
+if (!$ca_bundle || !is_readable($ca_bundle)) {
+    foreach (['C:/xampp/apache/bin/curl-ca-bundle.crt', 'C:/xampp/php/extras/ssl/cacert.pem', '/etc/ssl/certs/ca-certificates.crt'] as $candidate) {
+        if (is_readable($candidate)) { $ca_bundle = $candidate; break; }
+    }
+}
+
+if ($ca_bundle && is_readable($ca_bundle)) {
+    curl_setopt($ch, CURLOPT_CAINFO, $ca_bundle);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+} elseif (APP_ENV !== 'production') {
+    // No bundle anywhere on a dev box: keep the sandbox demo working, but say
+    // so loudly rather than silently shipping an unverified TLS connection.
+    error_log("PayMongo: no CA bundle found; TLS peer verification disabled (development only).");
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+} else {
+    echo json_encode(["success" => false, "message" => "Payment gateway TLS certificate store is not configured on this server."]);
+    exit;
+}
 
 $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);

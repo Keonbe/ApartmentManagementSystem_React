@@ -2,6 +2,10 @@
 
 This guide documents how to manually test every major module in the AMS, including workflows that span multiple steps across days or months. Where a test depends on a date (late fees, billing cycles, lease expiry, overdue detection), the setup SQL is provided inline.
 
+> **Companion document:** for audited modules, [`documentation/module_verification_guide.md`](documentation/module_verification_guide.md) carries the full API contract, workflow diagrams and a numbered test-condition matrix. This guide stays focused on **date manipulation**; that one covers everything else.
+>
+> **Endpoint testing now requires a session token.** Auth is a server-issued bearer token (`Authorization: Bearer …`), not the old `X-User-Id` header — so any curl-based test must log in first. See the verification guide's §3 for the recipe.
+
 ---
 
 ## Table of Contents
@@ -27,15 +31,19 @@ This guide documents how to manually test every major module in the AMS, includi
 
 | Feature | Source of truth | Key column(s) |
 |---|---|---|
-| Late fee (+500) | `get_invoices.php` | `invoices.due_date`, `invoices.status` |
+| Overdue promotion | `promote_overdue_invoices()` in `backend/config.php` | `invoices.due_date`, `invoices.status`, `invoices.scheduled_date` |
+| Late fee (configurable) | `promote_overdue_invoices()` in `backend/config.php` | `invoices.late_fee`; settings `late_fee_enabled`, `late_fee_type`, `late_fee_value` |
+| Reminder cadence | `check_due_date_reminders.php` | `invoices.last_reminder_date`, `invoices.reminder_count`; settings `rent_due_reminder_days`, `overdue_reminder_interval_days` |
 | Overdue badge (frontend) | `AdminTenants.jsx` | `invoices.due_date`, `invoices.status` |
 | Lease start / end | `record_payment_admin.php` | `rooms.lease_start`, `rooms.lease_end` |
+| Reservation hold expiry | `release_expired_reservations()` in `backend/config.php` | `unit_reservations.hold_expires_at` |
+| Contract expiry | `expire_lapsed_contracts()` in `backend/config.php` | `lease_contracts.lease_end` |
 | Monthly billing period label | `invoices.billing_period` | `invoices.billing_period` (display string) |
 | Dashboard due invoices | `AdminDashboard.jsx` | `invoices.due_date` |
 | Lease expiry warning | `MyRoom.jsx`, `AdminUnits` | `rooms.lease_end` |
 | Parking reservation duration | `parking_reservations` | `start_date`, `end_date` |
 | CCTV incident date | `cctv_requests` | `incident_date` |
-| Maintenance preferred schedule | `maintenance_requests` | `preferred_schedule` |
+| Maintenance preferred schedule | `maintenance_requests` | `preferred_date`, `preferred_time` |
 
 The backend uses PHP's `date('Y-m-d')` and `strtotime()` — there is **no injectable clock**. The two practical approaches are:
 
@@ -95,23 +103,27 @@ Register → Login → Preview rooms → Submit Rent Application → Track Appli
 **Step 2 — Submit a Rent Application**
 - URL: `/rent-application` (choose a room from `/preview` first)
 - Fill: all personal details, occupant count (1–4), months of rent, upload Valid ID front/back + NBI Clearance.
-- Tick terms checkbox → Submit.
+- Tick the Terms & Conditions checkbox → Submit. **The checkbox is required** — submission is refused without it, and the timestamp is stored in `rent_applications.terms_agreed_at`.
 - Expected: `SuccessModal` "Application Submitted Successfully" → redirected to `/track-application`.
 
 **Check DB after submit:**
 ```sql
-SELECT * FROM rent_applications ORDER BY id DESC LIMIT 1;
+SELECT id, user_id, status, room_name, terms_agreed_at,
+       valid_id_front_path, valid_id_back_path, nbi_clearance_path
+FROM rent_applications ORDER BY id DESC LIMIT 1;
 ```
-Expected columns: `user_id` populated, `status = 'Pending'`, file paths set, `room_name` = chosen room.
+Expected: `user_id` populated, **`status = 'Pending Review'`** (not `'Pending'` — that value is never used), all three file paths set, `terms_agreed_at` non-null, `room_name` = chosen room.
 
 **Step 3 — Admin reviews and approves**
-- Admin page: `AdminTenants` → Pending tab → find the applicant → Approve.
-- Expected: `rent_applications.status` = `'Approved'`, notification sent to tenant.
+- Admin page: `AdminApplications` → find the applicant → Approve. (`AdminTenants` deliberately excludes `Pending Review` rows; the Applications page owns this pipeline.)
+- Expected: `rent_applications.status` = `'Approved'`, move-in invoice and `draft` contract created, notification sent to tenant.
 
 ```sql
 SELECT status FROM rent_applications ORDER BY id DESC LIMIT 1;
 -- Should return 'Approved'
 ```
+
+> **Approval is gated (checklist 1.7).** `update_tenant_status.php` refuses to approve unless all three document paths are real (not the literal `'placeholder'`) **and** `terms_agreed_at` is set. Every row in `seed_mock_data.sql` predates this gate and carries placeholder documents, so **no seeded application can be approved** — that is correct behaviour, not a bug. To test a successful approval, create a fixture with real paths and a `terms_agreed_at` value; see the verification guide's M1-02.
 
 **Step 4 — Room is marked occupied**
 ```sql
@@ -162,28 +174,32 @@ SELECT id, user_id, monthly_rent, room_name FROM rent_applications WHERE status 
 
 -- 2. Insert a new monthly invoice (replace <APP_ID> and <USER_ID>)
 INSERT INTO invoices (
+  id,
   user_id,
   rent_application_id,
-  invoice_number,
   base_rent,
   water,
   electricity,
   parking,
+  late_fee,
   security_deposit,
+  total_amount,
   status,
   due_date,
   billing_period,
   created_at
 )
 SELECT
+  CONCAT('INV-', DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y%m'), '-', user_id),
   user_id,
   id,
-  CONCAT('INV-', UNIX_TIMESTAMP(), '-', id),
   monthly_rent,
   500,    -- sample water bill
   800,    -- sample electricity bill
   0,
   0,
+  0,
+  monthly_rent + 500 + 800,   -- total_amount must equal the sum of the line items
   'pending',
   DATE_ADD(CURDATE(), INTERVAL 1 MONTH),
   DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%M %Y'),
@@ -192,44 +208,75 @@ FROM rent_applications
 WHERE id = <APP_ID>;
 ```
 
+> **Corrected September 2026.** `invoices.id` is a **VARCHAR primary key you must supply** — there is no `invoice_number` column (that name never existed in the schema). Always set `total_amount` to the sum of the line items; the tenant's bill breakdown is rendered from the individual columns, so a total that disagrees with them shows the tenant one number and charges another.
+
 - Expected: The new invoice appears in tenant's `PayBills` page and admin's `AdminPayments` page with the correct billing period label (e.g. "September 2026").
 
 ### 5b. Test Late Fee Trigger
 
-The late fee rule in `get_invoices.php`:
-```php
-// +500 if status=pending AND due_date < today
-$late_fee = ($row['status'] === 'pending'
-    && !empty($row['due_date'])
-    && strtotime($row['due_date']) < strtotime(date('Y-m-d'))) ? 500.00 : 0.00;
+> **Rewritten September 2026.** The old hardcoded `+500` computed on the fly in `get_invoices.php` no longer exists. The late fee is now a real `invoices.late_fee` column, applied **once per invoice** by `promote_overdue_invoices()` in `backend/config.php` and configurable through `system_settings`.
+
+**How it works now**
+
+1. Any invoice listing (`get_invoices.php`) or the admin reminder sweep (`check_due_date_reminders.php`) calls `promote_overdue_invoices()`.
+2. That promotes anything still owed and past its `due_date` to `overdue` — including `processing`, `payment-failed`, and `scheduled` invoices whose booked date has passed.
+3. It then applies the configured fee to overdue invoices **where `late_fee = 0`**, writing `late_fee` and adding the same amount to `total_amount`. The `late_fee = 0` guard is what makes it idempotent.
+
+**Settings**
+
+| Key | Values | Meaning |
+|---|---|---|
+| `late_fee_enabled` | `true` / `false` | Master switch. Ships **disabled** |
+| `late_fee_type` | `flat` / `percent` | Peso amount, or % of recurring charges (deposit excluded) |
+| `late_fee_value` | number | ₱ amount, or the percentage |
+
+**Trigger a late fee**
+
+```sql
+-- 1. Enable (defaults: flat ₱200)
+UPDATE system_settings SET setting_value='true' WHERE setting_key='late_fee_enabled';
+
+-- 2. Record the originals BEFORE changing anything
+SELECT id, status, due_date, late_fee, total_amount FROM invoices WHERE id = '<INVOICE_ID>';
+
+-- 3. Back-date it
+UPDATE invoices SET due_date = DATE_SUB(CURDATE(), INTERVAL 5 DAY) WHERE id = '<INVOICE_ID>';
 ```
 
-**Trigger a late fee:**
-```sql
-UPDATE invoices
-SET due_date = DATE_SUB(CURDATE(), INTERVAL 5 DAY)
-WHERE id = <INVOICE_ID> AND status = 'pending';
-```
-Reload Payments page → `total_amount` should be 500 higher.
+Load `/admin-payments` (or call `get_invoices.php`), then:
 
-**No late fee (future due date):**
 ```sql
-UPDATE invoices
-SET due_date = DATE_ADD(CURDATE(), INTERVAL 10 DAY)
-WHERE id = <INVOICE_ID> AND status = 'pending';
+SELECT id, status, late_fee, total_amount FROM invoices WHERE id = '<INVOICE_ID>';
+-- status → 'overdue', late_fee → 200.00, total_amount → 200.00 higher
 ```
-Reload → late fee = 0.
 
-**Due today — no fee** (the condition is strict `<`, not `<=`):
+**Percent mode** — `5` on a ₱5,340 invoice yields `267.00`:
+
 ```sql
-UPDATE invoices SET due_date = CURDATE() WHERE id = <INVOICE_ID>;
+UPDATE system_settings SET setting_value='percent' WHERE setting_key='late_fee_type';
+UPDATE system_settings SET setting_value='5'       WHERE setting_key='late_fee_value';
+UPDATE invoices SET late_fee = 0, total_amount = total_amount - late_fee WHERE id = '<INVOICE_ID>';
 ```
-Reload → late fee should be 0.
 
-**Restore:**
+**Confirm it does not double-charge** — reload the page a second time; `late_fee` must not move. This is the single most useful assertion here, because the fee is applied on a read path that runs constantly.
+
+**No fee when not overdue**
+
 ```sql
-UPDATE invoices SET due_date = '2026-09-05' WHERE id = <INVOICE_ID>;
--- Replace with the original due date
+UPDATE invoices SET due_date = DATE_ADD(CURDATE(), INTERVAL 10 DAY), status='pending',
+                    late_fee = 0 WHERE id = '<INVOICE_ID>';
+```
+
+Promotion requires `due_date < CURDATE()`, so an invoice due **today** is not yet overdue and attracts no fee.
+
+**Restore**
+
+```sql
+UPDATE invoices SET total_amount = total_amount - late_fee, late_fee = 0 WHERE late_fee <> 0;
+UPDATE invoices SET due_date = '<original>', status = '<original>' WHERE id = '<INVOICE_ID>';
+UPDATE system_settings SET setting_value='false' WHERE setting_key='late_fee_enabled';
+UPDATE system_settings SET setting_value='flat'  WHERE setting_key='late_fee_type';
+UPDATE system_settings SET setting_value='200'   WHERE setting_key='late_fee_value';
 ```
 
 ### 5c. Test Overdue Badge (AdminTenants)
@@ -337,12 +384,17 @@ FROM maintenance_requests WHERE id = <ID>;
 
 ### Testing with a past preferred schedule date
 
+There is no `preferred_schedule` column — the schedule is split across **`preferred_date`** (DATE) and **`preferred_time`** (VARCHAR):
+
 ```sql
 UPDATE maintenance_requests
-SET preferred_schedule = DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+SET preferred_date = DATE_SUB(CURDATE(), INTERVAL 3 DAY),
+    preferred_time = 'morning'
 WHERE id = <ID>;
 ```
 - Expected: schedule shows as past in admin view (no special frontend logic currently, but useful for regression testing).
+
+> ⚠️ **Maintenance status updates are currently broken.** `update_maintenance_status.php` writes `maintenance_requests.resolved_at`, a column no migration creates and which is absent from the live database (`ERROR 1054 Unknown column 'resolved_at'`). Step 2 above will fail until the column is added. Tracked in the verification guide's §8.
 
 ---
 
@@ -498,10 +550,13 @@ Admin uploads signed/notarized lease contract → Tenant views via ViewContract
 
 **Step 1 — Admin uploads contract**
 - Admin page: `AdminContracts` → find tenant → upload signed PDF.
-- Check:
+- Check — `lease_contracts` has **no `user_id`**; it links through `rent_application_id`, and the file columns are `signed_lease_path` / `notarized_lease_path`:
 ```sql
-SELECT * FROM lease_contracts WHERE user_id = <USER_ID> ORDER BY id DESC LIMIT 1;
--- signed_contract_path and/or notarized_contract_path set
+SELECT lc.id, lc.status, lc.signed_lease_path, lc.notarized_lease_path
+FROM lease_contracts lc
+JOIN rent_applications ra ON ra.id = lc.rent_application_id
+WHERE ra.user_id = <USER_ID>
+ORDER BY lc.id DESC LIMIT 1;
 ```
 
 **Step 2 — Tenant views contract**
@@ -514,9 +569,13 @@ SELECT * FROM lease_contracts WHERE user_id = <USER_ID> ORDER BY id DESC LIMIT 1
 
 | Scenario | Setup SQL | What to check in UI |
 |---|---|---|
-| Invoice overdue — late fee applies | `SET due_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)` on a `pending` invoice | `total_amount` +500 in PayBills / AdminPayments |
-| Invoice due today — no fee | `SET due_date = CURDATE()` on `pending` invoice | Late fee = 0 (condition is strict `<`) |
+| Invoice overdue — late fee applies | Enable `late_fee_enabled`, then `SET due_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)` on an open invoice | `status` → `overdue`, `late_fee` set, `total_amount` raised by the same amount |
+| Late fee is not charged twice | Same as above, then reload | `late_fee` unchanged on the second read |
+| Invoice due today — no fee | `SET due_date = CURDATE()` | Not yet overdue (promotion needs `due_date < CURDATE()`) |
 | Invoice due in future — no fee | `SET due_date = DATE_ADD(CURDATE(), INTERVAL 30 DAY)` | Late fee = 0 |
+| Abandoned online checkout still chased | `SET status='processing', due_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)` | Promoted to `overdue`; stale `checkout_session_id` cleared |
+| Missed in-person booking | `SET status='scheduled', scheduled_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`, past `due_date` | Promoted to `overdue` |
+| Reservation hold expires | `SET hold_expires_at = DATE_SUB(CURDATE(), INTERVAL 1 DAY)` on an `Active` row, then load `/preview` | Reservation → `Expired` |
 | Overdue badge on tenant card | Same as "overdue" above | `overdueCount > 0` badge in AdminTenants |
 | Lease expiring in 7 days | `SET rooms.lease_end = DATE_ADD(CURDATE(), INTERVAL 7 DAY)` | Expiry warning in MyRoom & AdminUnits |
 | Lease already expired | `SET rooms.lease_end = DATE_SUB(CURDATE(), INTERVAL 1 DAY)` | Expired status shown |
@@ -532,8 +591,10 @@ SELECT * FROM lease_contracts WHERE user_id = <USER_ID> ORDER BY id DESC LIMIT 1
 
 ## 14. Tips & Gotchas
 
-- **`due_date < today` is strict** — an invoice due *today* does **not** incur a late fee. Set to yesterday or earlier to trigger it.
-- **`status` must stay `'pending'`** — a `paid` or `pending-verification` invoice never gets a late fee, even if `due_date` is in the past.
+- **`due_date < today` is strict** — an invoice due *today* is not yet overdue. Set it to yesterday or earlier to trigger promotion.
+- **The late fee is applied once, guarded by `late_fee = 0`.** To re-test, zero it *and* subtract it back out of `total_amount`, or the next run compounds the total.
+- **Promotion covers every open status, not just `pending`.** `processing`, `payment-failed`, and `scheduled` (whose booked date has passed) are all promoted. The authoritative list is `BILLING_OPEN_STATUSES` in `backend/config.php` — `paid` and `cancelled` are terminal and are never promoted.
+- **Nothing runs on a timer.** There is no scheduler: overdue promotion happens when an invoice list is requested or the admin runs the reminder sweep; reservation expiry happens when rooms are listed; contract expiry happens when `my_room.php` is called. If a date-dependent change has not happened, it is usually because nothing invoked the endpoint that performs it.
 - **`billing_period` is a display string** — never parsed by the backend. Safe to set to any human-readable value (`"September 2026"`).
 - **`rooms.id` is VARCHAR** — always quote it: `WHERE id = 'A'`, not `WHERE id = A`.
 - **`lease_start` / `lease_end` are set by `record_payment_admin.php`** using `date('Y-m-d')` at first-payment approval. To test a specific start date, `UPDATE rooms` directly after approval.

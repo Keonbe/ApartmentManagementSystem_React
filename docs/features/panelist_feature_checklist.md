@@ -392,18 +392,18 @@ flowchart TD
 > Tenant Pages: [PayBills.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/PayBills.jsx) · [PaymentUpload.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/PaymentUpload.jsx) · [UserPaymentHistory.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserPaymentHistory.jsx)
 > Related Docs: [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md)
 
-- [x] **3.1 Monthly Billing / Invoice Generation** ✅ — `invoices` table
-- [x] **3.2 Payment Recording** ✅ — `record_payment_admin.php`
-- [x] **3.3 Payment History** ✅ — `get_invoices.php`
-- [x] **3.4 Receipt Generation** ✅ — Printable official receipts with admin signature placeholder
-- [x] **3.5 Balance Monitoring** ✅ — Status filter select and full balance tracking metrics & aging ledger
-- [x] **3.6 Due Date Reminders** ✅ — Automatic countdown alerts + `check_due_date_reminders.php` + manual admin dispatch
-- [x] **3.7 Overdue Alerts** ✅ — Auto-overdue status + `overdue` notification dispatch + banner in `PayBills.jsx`
-- [x] **3.8 Payment Proof Upload** ✅ — `upload_payment_proof.php`
-- [x] **3.9 Security Deposit Tracking** ✅ — Non-refundable deposit tracking applied to rent, bills, or damages
-- [ ] **3.10 Extended Rent Terms** 🔧 — Lease extension exists; billing adjustment pending
-- [x] **3.11 Payment Methods (GCash, Cash, Bank)** ✅ — Online & offline payment method support
-- [x] **3.12 Term of Payment Rules** ✅ — Enforcement of payment terms (1 mo advance, 1 mo deposit, etc)
+- [x] **3.1 Monthly Billing / Invoice Generation** ✅ — `invoices` table, `create_invoice.php` (base rent + water + electricity + parking + services + late fee)
+- [x] **3.2 Payment Recording** ✅ — `record_payment_admin.php` records method, reference number, amount tendered and timestamp. Invoices settle in full; there is no partial-payment ledger, and a short amount is rejected rather than recorded as paid.
+- [x] **3.3 Payment History** ✅ — `get_invoices.php` (session-authenticated; a tenant can only ever read their own)
+- [x] **3.4 Receipt Generation** ✅ — Printable receipt modal rendered from invoice data with an admin signature placeholder. Note: receipts are generated on demand for printing — no separate receipt table or sequential OR number is persisted.
+- [x] **3.5 Balance Monitoring** ✅ — Total receivables, overdue totals, per-tenant outstanding balance and a 30/60/60+ aging ledger, all computed from real invoice rows across every unpaid status
+- [x] **3.6 Due Date Reminders** ✅ — Automatic countdown alerts + `check_due_date_reminders.php` (admin-authenticated) + manual admin dispatch
+- [x] **3.7 Overdue Alerts** ✅ — Auto-overdue promotion + configurable late fee (flat or % via `late_fee_*` settings, applied once per invoice by `promote_overdue_invoices()`) + `overdue` notification dispatch + banner in `PayBills.jsx`. Tenants are notified directly; the admin sees overdue totals on the dashboard rather than receiving a separate escalation notification.
+- [x] **3.8 Payment Proof Upload** ✅ — `upload_payment_proof.php` (10MB cap, MIME-validated, session-scoped to the invoice owner)
+- [x] **3.9 Security Deposit Tracking** ✅ — Deposit recorded at move-in and tracked through to move-out, where it is applied to rent, unpaid bills or damages. It is **non-refundable by design** — `refund_amount` is always 0.00 — so there is no refund calculation step.
+- [ ] **3.10 Extended Rent Terms** 🔧 — Lease extension exists; prorated billing adjustment on extension still pending
+- [x] **3.11 Payment Methods (GCash, Cash, Bank)** ✅ — Online (PayMongo sandbox: GCash/Maya/card/online banking) or manual transfer channels, **plus** in-person cash, which is always offered alongside whichever remote family is active
+- [x] **3.12 Term of Payment Rules** ✅ — The move-in invoice bills 1 month advance rent + 1 month security deposit, and approval is gated on documents + terms agreement (see 1.7). Enforcement lives in the approval/invoice endpoints, not in DB constraints.
 
 ---
 
@@ -629,34 +629,41 @@ There is no separate "1 month deposit" line distinct from the security deposit �
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
 | 3.1 | **Monthly Billing / Invoice Generation** | Auto-generate monthly invoice per tenant: base rent + water + electricity + parking (if applicable) | Small+ | `invoices` table, invoice generation in admin panel | — |
-| 3.2 | **Payment Recording** | Admin records payment: amount, date, method (GCash / Cash / Bank Transfer), reference number | Small+ | `record_payment_admin.php`, `pay_bill.php` | — |
-| 3.3 | **Payment History** | Tenant views their payment history; admin views all payments with filters by date, tenant, status | Small+ | `get_invoices.php` | — |
-| 3.4 | **Receipt Generation** | Generate printable/downloadable receipt after payment confirmation: invoice #, amount, date, method, admin signature | Small+ | React print/PDF component from invoice data | — |
-| 3.5 | **Balance Monitoring** | Dashboard showing: total receivables, overdue amounts, per-tenant balance summary | Small+ | `get_invoices.php` (filter by status: Pending) | — |
+| 3.2 | **Payment Recording** | Admin records payment: amount tendered, date, method (GCash / Cash / Bank Transfer), reference number. Settlement is all-or-nothing — a short amount is refused, since no partial-payment ledger exists | Small+ | `record_payment_admin.php`, `pay_bill.php` | — |
+| 3.3 | **Payment History** | Tenant views their own payment history; admin views all payments with filters by date, tenant, status. Session-authenticated — a tenant cannot read another tenant's billing data | Small+ | `get_invoices.php` | — |
+| 3.4 | **Receipt Generation** | Printable receipt rendered from invoice data after payment confirmation: invoice #, amount, date, method, admin signature placeholder. Not persisted as its own record and not sequentially numbered | Small+ | React print component in `AdminPayments.jsx` | — |
+| 3.5 | **Balance Monitoring** | Dashboard showing total receivables, overdue amounts, per-tenant balance summary and a 30/60/60+ aging ledger. Counts every unpaid status — including an abandoned online checkout or a failed payment | Small+ | `get_invoices.php`, `dashboard_stats.php`, `BILLING_OPEN_STATUSES` in `config.php` | — |
 | 3.6 | **Due Date Reminders** | Automatic in-app notification before rent due date (e.g., 3 days before). Optional SMS/email | Small+ | `check_due_date_reminders.php`, `send_payment_reminder.php`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 3.7 | **Overdue Alerts** | Flag overdue invoices, notify tenant, escalate to admin dashboard. Optional late fee calculation | Small+ | `check_due_date_reminders.php`, `AdminPayments.jsx`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 3.7 | **Overdue Alerts** | Flag overdue invoices, notify tenant, surface overdue totals on the admin dashboard, and apply a configurable late fee (flat peso amount or % of recurring charges, applied once per invoice) | Small+ | `promote_overdue_invoices()` in `config.php`, `check_due_date_reminders.php`, `AdminPayments.jsx`, `PayBills.jsx`, `late_fee_*` system settings | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 3.8 | **Payment Proof Upload** | Tenant uploads screenshot/photo of GCash/bank transfer receipt for admin verification | Small+ | `upload_payment_proof.php` | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
-| 3.9 | **Security Deposit Tracking** | Record deposit on move-in, track deductions (damages, unpaid rent), calculate refund on move-out | Medium | Deposit fields in `lease_contracts` or `invoices` | — |
+| 3.9 | **Security Deposit Tracking** | Record deposit on move-in, track deductions (damages, unpaid utilities) and apply the balance to rent at move-out. The deposit is non-refundable by design — `refund_amount` is always 0.00, so there is no refund calculation | Medium | `invoices.security_deposit`, `lease_contracts.deposit_amount`/`deposit_status`/`damage_deduction`/`utility_deduction`, `update_tenant_status.php` | — |
 | 3.10 | **Extended Rent Terms** | Handle lease extension billing: prorated amounts, adjusted rates, updated payment schedule | Medium | `extend_lease.php` + new invoice generation | — |
-| 3.11 | **Payment Methods (GCash, Cash, Bank)** | Support and track multiple payment channels; verify online transfer references | Small+ | `record_payment_admin.php`, `upload_payment_proof.php` | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) |
-| 3.12 | **Term of Payment Rules** | System enforcement of payment terms including advance rent and multi-month deposit requirements | Small+ | DB validation rules | — |
+| 3.11 | **Payment Methods (GCash, Cash, Bank)** | Support and track multiple payment channels; verify online transfer references. In-person cash is always available alongside the active remote family (sandbox gateway or manual transfer), each channel individually toggleable | Small+ | `get_payment_channels.php`, `create_checkout_session.php`, `record_payment_admin.php`, `upload_payment_proof.php`, `schedule_payment.php` | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) |
+| 3.12 | **Term of Payment Rules** | Move-in billing is 1 month advance rent + 1 month security deposit, and approval is gated on complete documents plus a recorded terms agreement (item 1.7). Enforced in the approval and invoicing endpoints rather than by DB constraints | Small+ | `update_tenant_status.php`, `create_invoice.php` | — |
 
 #### Billing Breakdown Structure
 
+Each line item is a real column on `invoices`, and `total_amount` is always their sum — so the tenant's breakdown reconciles with the amount charged.
+
 | Line Item | Source | Frequency | Notes |
 |---|---|---|---|
-| **Base Rent** | `rooms.monthly_rate` | Monthly | Fixed per unit type |
-| **Water** | Meter reading or flat rate | Monthly | Per-unit or shared allocation |
+| **Base Rent** | `rooms.monthly_rent` | Monthly | Fixed per unit, set via `update_room.php` |
+| **Water** | Meter reading or flat rate | Monthly | Per-unit or shared allocation (`save_utility_reading.php`) |
 | **Electricity** | Meter reading or flat rate | Monthly | Per-unit sub-meter preferred |
 | **Parking** | Assigned slot fee | Monthly | Optional — only if tenant has parking |
-| **Late Fee** | System-calculated | On overdue | Configurable % or flat amount |
+| **Services** | Completed service requests | Monthly | Accumulates via `post_service_charge()` |
+| **Security Deposit** | One month's rent | Move-in only | Non-refundable (see 3.9) |
+| **Late Fee** | System-calculated on overdue promotion | On overdue | Configurable flat amount or % via `late_fee_enabled` / `late_fee_type` / `late_fee_value`; applied once per invoice |
 
 #### Payment Methods
 
+Cash is always offered; the remote channels depend on whether `payment_mode` is `sandbox` (live gateway checkout) or `manual` (transfer-and-upload).
+
 | Method | How It Works | Verification |
 |---|---|---|
-| **Cash** | Tenant pays at admin office | Admin records directly |
-| **GCash** | Tenant transfers via GCash | Tenant uploads proof screenshot; admin verifies |
+| **Cash / In-Person** | Tenant books a slot (`schedule_payment.php`) and pays at the admin office | Admin records directly, with amount tendered |
+| **GCash / Maya / Card (sandbox)** | Tenant is redirected to a PayMongo checkout session | Settled automatically by the signed `paymongo_webhook.php` callback |
+| **GCash (manual)** | Tenant transfers via GCash | Tenant uploads proof screenshot; admin verifies |
 | **Bank Transfer** | Tenant transfers to building bank account | Tenant uploads proof + reference number; admin verifies |
 
 ---
