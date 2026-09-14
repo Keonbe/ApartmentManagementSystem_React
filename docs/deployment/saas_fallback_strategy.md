@@ -5,6 +5,7 @@
 > **Stack:** React 19 + Vite 8 → PHP 8 → MySQL/MariaDB (XAMPP)
 > **Last Updated:** September 2026
 > **Status:** Planning & Decision Reference
+> **Step-by-step setup & deployment:** see [saas_deployment_guide.md](saas_deployment_guide.md)
 >
 > ⚠️ **Verified against the repo (Sept 2026):** this document's §2 architecture diagram bundled Supabase (PostgreSQL) as the SaaS database, but §3.1's own warning, §6's migration runbook, and §7's recommended stack all correctly steer *away* from Supabase-as-database toward Railway MySQL/PlanetScale to avoid a Postgres dialect rewrite. §2 has been corrected below to match the document's own conclusion — Supabase remains a valid choice for *file storage only* (§3.7), never as the database.
 
