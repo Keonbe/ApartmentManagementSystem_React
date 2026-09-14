@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -31,6 +31,18 @@ export default function UserUtilities() {
     };
     fetchReadings();
   }, []);
+
+  // Average usage per billing cycle across the tenant's own readings.
+  const summary = useMemo(() => {
+    if (readings.length === 0) return null;
+    const sum = (key) => readings.reduce((acc, r) => acc + (parseFloat(r[key]) || 0), 0);
+    return {
+      cycles: readings.length,
+      avgWater: (sum('water_consumption') / readings.length).toFixed(2),
+      avgElectric: (sum('electric_consumption') / readings.length).toFixed(2),
+      avgCost: (sum('water_amount') + sum('water_other_fees') + sum('electric_amount') + sum('electric_other_fees')) / readings.length,
+    };
+  }, [readings]);
 
   return (
     <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center text-slate-800">
@@ -98,6 +110,23 @@ export default function UserUtilities() {
           </div>
         ) : (
           <div className="space-y-4">
+            {summary && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Avg water / cycle</p>
+                  <p className="text-xl font-black text-blue-800 m-0 mt-1">{summary.avgWater} m³</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Avg electricity / cycle</p>
+                  <p className="text-xl font-black text-amber-800 m-0 mt-1">{summary.avgElectric} kWh</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Avg utility cost / cycle</p>
+                  <p className="text-xl font-black text-slate-900 m-0 mt-1">₱{summary.avgCost.toFixed(2)}</p>
+                  <p className="text-[11px] text-slate-400 m-0">Across {summary.cycles} billing {summary.cycles === 1 ? 'cycle' : 'cycles'}</p>
+                </div>
+              </div>
+            )}
             {readings.map(r => {
               // #2: Include other_fees in total (matches what sync sends to invoice)
               const totalAmount = parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0);
@@ -114,7 +143,7 @@ export default function UserUtilities() {
                       </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-extrabold text-slate-900 m-0">
-                          Billing Cycle: {r.billing_period}
+                          Billing Cycle: {r.billing_period_label || r.billing_period}
                         </h3>
                         {r.reading_date && (
                           <p className="text-xs text-slate-400 m-0 mt-0.5 flex items-center gap-1.5">
@@ -131,7 +160,7 @@ export default function UserUtilities() {
                         : 'bg-amber-50 text-amber-700 border border-amber-200'
                     }`}>
                       <FontAwesomeIcon icon={isInvoiced ? faCheckCircle : faClock} className="text-xs" />
-                      <span>{isInvoiced ? 'Included in Monthly Invoice' : 'Pending Invoice Sync'}</span>
+                      <span>{isInvoiced ? (r.invoice_id ? `Billed on ${r.invoice_id}` : 'Billed') : 'Not Yet Billed'}</span>
                     </span>
                   </div>
 
@@ -163,6 +192,7 @@ export default function UserUtilities() {
                           <span>Consumption:</span>
                           <span>{r.water_consumption} m³</span>
                         </div>
+                        <UsageChange pct={r.water_change_pct} />
                       </div>
 
                       {/* #3: Show other fees line item if present */}
@@ -205,6 +235,7 @@ export default function UserUtilities() {
                           <span>Consumption:</span>
                           <span>{r.electric_consumption} kWh</span>
                         </div>
+                        <UsageChange pct={r.electric_change_pct} />
                       </div>
 
                       {/* #3: Show other fees line item if present */}
@@ -234,8 +265,8 @@ export default function UserUtilities() {
                       </div>
                       <p className="text-[11px] text-slate-400 m-0 leading-tight">
                         {isInvoiced 
-                          ? "This amount has been added to your monthly rental statement." 
-                          : "Calculated sub-meter balance pending invoice consolidation."}
+                          ? "This amount has been billed. Settle it from Pay Bills."
+                          : "Recorded by the administrator and not billed yet."}
                       </p>
                     </div>
 
@@ -256,6 +287,19 @@ export default function UserUtilities() {
         )}
 
       </div>
+    </div>
+  );
+}
+
+// Change against the tenant's own previous cycle (the server sends null when there is none).
+// The 30% cutoff mirrors UTILITY_SPIKE_THRESHOLD_PCT in backend/config.php.
+function UsageChange({ pct }) {
+  if (pct === null || pct === undefined) return null;
+  const high = pct > 30;
+  const tone = high ? 'text-rose-600' : pct > 0 ? 'text-amber-700' : 'text-emerald-700';
+  return (
+    <div className={`text-[11px] font-semibold ${tone}`}>
+      {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {Math.abs(pct)}% vs previous cycle{high ? ' — unusually high' : ''}
     </div>
   );
 }

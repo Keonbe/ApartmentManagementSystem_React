@@ -349,6 +349,23 @@ INSERT IGNORE INTO `activity_logs` (`category`, `action`, `details`, `performed_
 ('payment',     'Verified Payment', 'Marked Invoice INV-202608-2 as Paid - Maria Santos.', @admin_id, '2026-08-14 09:00:00'),
 ('inquiry',     'Reserved Unit', 'Unit I held for Katrina Villareal until +14 days (Reservation ID: 1)', @admin_id, '2026-08-28 14:30:00');
 
+-- ============================================================
+-- 14. UTILITY READINGS (checklist 8.7)
+-- July + August 2026 for Room A (Maria) and Room K (Ana), already billed.
+-- Amount + other fees on each row equal the water/electricity line items on the
+-- matching seeded invoice, so readings and invoices reconcile. No September
+-- reading is seeded: tests record one and sync it.
+-- ============================================================
+INSERT IGNORE INTO `utility_readings`
+  (`room_name`,`user_id`,`billing_period`,`reading_date`,
+   `water_prev_reading`,`water_curr_reading`,`water_rate_per_unit`,`water_consumption`,`water_amount`,`water_other_fees`,
+   `electric_prev_reading`,`electric_curr_reading`,`electric_rate_per_unit`,`electric_consumption`,`electric_amount`,`electric_other_fees`,
+   `is_invoiced`,`invoice_id`,`notes`,`recorded_by`,`created_at`) VALUES
+('A', 2,  '2026-07', '2026-07-31', 100.00, 107.50, 40.00, 7.50, 300.00,  0.00, 2000.00, 2073.00, 12.00, 73.00, 876.00, 4.00, 1, 'INV-202607-2',  NULL, @admin_id, '2026-07-31 16:00:00'),
+('A', 2,  '2026-08', '2026-08-31', 107.50, 114.50, 40.00, 7.00, 280.00, 15.00, 2073.00, 2145.00, 12.00, 72.00, 864.00, 1.00, 1, 'INV-202608-2',  NULL, @admin_id, '2026-08-31 16:00:00'),
+('K', 12, '2026-07', '2026-07-31',  80.00,  86.50, 40.00, 6.50, 260.00, 15.00, 1500.00, 1568.00, 12.00, 68.00, 816.00, 9.00, 1, 'INV-202607-12', NULL, @admin_id, '2026-07-31 16:30:00'),
+('K', 12, '2026-08', '2026-08-31',  86.50,  93.20, 40.00, 6.70, 268.00,  0.00, 1568.00, 1635.00, 12.00, 67.00, 804.00, 8.00, 1, 'INV-202608-12', NULL, @admin_id, '2026-08-31 16:30:00');
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================

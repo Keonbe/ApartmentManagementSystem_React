@@ -218,6 +218,32 @@ erDiagram
         timestamp updated_at
     }
 
+    UTILITY_READINGS {
+        int id PK
+        varchar room_name "soft ref, no FK; UNIQUE with billing_period"
+        int user_id FK "tenant billed; nullable, ON DELETE SET NULL"
+        varchar billing_period "YYYY-MM (invoices use 'September 2026')"
+        date reading_date
+        decimal water_prev_reading
+        decimal water_curr_reading
+        decimal water_rate_per_unit
+        decimal water_consumption
+        decimal water_amount
+        decimal water_other_fees
+        decimal electric_prev_reading
+        decimal electric_curr_reading
+        decimal electric_rate_per_unit
+        decimal electric_consumption
+        decimal electric_amount
+        decimal electric_other_fees
+        tinyint is_invoiced
+        varchar invoice_id "soft ref to invoices.id"
+        text notes
+        int recorded_by "admin id"
+        timestamp created_at
+        timestamp updated_at
+    }
+
     VISITOR_LOGS {
         int id PK
         int user_id FK "nullable, ON DELETE SET NULL"
@@ -335,6 +361,8 @@ erDiagram
     USERS ||--o{ SERVICE_REQUESTS : books
     USERS ||--o{ SERVICE_CATALOG : "creates (admin, created_by)"
     USERS ||--o{ INVOICES : owns
+    USERS ||--o{ UTILITY_READINGS : "billed for (ON DELETE SET NULL)"
+    ROOMS ||--o{ UTILITY_READINGS : "metered (soft ref)"
     USERS ||--o{ NOTIFICATIONS : receives
     USERS ||--o{ ACTIVITY_LOGS : "performs (performed_by)"
     USERS ||--o{ VISITOR_LOGS : "hosts / logs (user_id, created_by)"
@@ -368,12 +396,13 @@ erDiagram
 ### Billing
 | Table | Purpose |
 |---|---|
-| `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. `base_rent`/`water`/`electricity`/`parking`/`services` are itemized and summed into `total_amount`; `services` accumulates (can hold more than one completed service booking's cost in the same month), unlike `water`/`electricity` which get overwritten by the current reading. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. |
+| `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. `base_rent`/`water`/`electricity`/`parking`/`services`/`late_fee` are itemized and summed into `total_amount`; `services` accumulates (can hold more than one completed service booking's cost in the same month). `water`/`electricity` are set once from a single utility reading — `sync_utility_to_invoice.php` refuses to merge into an invoice that already carries them, and adds to `total_amount` rather than recomputing it. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. |
+| `utility_readings` | One row per unit per billing month (`UNIQUE (room_name, billing_period)`). `billing_period` is `YYYY-MM`, while invoices label the same month `"September 2026"` — always convert with `utility_period_label()` before matching. Previous/current readings form a chain per unit, so readings are recorded oldest-first and only the latest un-invoiced one may be deleted. `is_invoiced` is claimed atomically before the charge is posted, and `invoice_id` records the invoice it landed on. |
 
 ### Requests & Services
 | Table | Purpose |
 |---|---|
-| `maintenance_requests` | Tenant-submitted tickets. Note: **no `room_name` column** — the room is inferred from the tenant's active application, not stored directly. |
+| `maintenance_requests` | Tenant-submitted tickets. `room_name` is **snapshotted** from the tenant's active application when the ticket is created (a soft reference, no FK), so a later move doesn't reattribute the ticket. |
 | `cctv_requests` | Footage-request tickets tied to an incident date/time/location. |
 | `parking_reservations` | `vehicle_type` must match the JSON array in the `parking_allowed_vehicle_types` setting; the admin-configured `max_parking_slots` cap counts rows in `Pending`/`Assigned`/`Approved`/`Active`. |
 | `service_catalog` | Admin-managed price list for add-on services (cleaning, laundry, pest control, ...). `is_active=0` hides an item from the tenant-facing catalog without deleting history. |
@@ -399,13 +428,13 @@ erDiagram
 
 ## 3. Migration Files
 
-All four files live in `backend/api/migrations/`.
+All migration files live in `backend/api/migrations/`.
 
 ### `SetupDB.sql` — the schema, run once per environment
 The single source of truth for every `CREATE TABLE`. Structure:
 1. `CREATE DATABASE IF NOT EXISTS ams_db` + all `DROP TABLE IF EXISTS` / `CREATE TABLE` statements for the 12 "original" tables (`users`, `rooms`, `invoices`, `lease_contracts`, `maintenance_requests`, `notifications`, `parking_reservations`, `rent_applications`, `cctv_requests`, `announcements`, `activity_logs`, `system_settings`).
 2. The one seed row that must exist for the app to be usable at all: the **admin account** (`admin@gmail.com` / `admin123`) and the **14-room inventory**.
-3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `visitor_logs`, `inquiries`, `unit_reservations`, `service_catalog`, `service_requests`, `password_resets`) — additive, so re-running this file against an existing DB won't wipe those.
+3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `visitor_logs`, `inquiries`, `unit_reservations`, `service_catalog`, `service_requests`, `utility_readings`, `password_resets`) — additive, so re-running this file against an existing DB won't wipe those.
 4. Two `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements patching `notifications` (`status`, `metadata_value`) and `invoices` (`services`) — columns the API code depends on that were never added to the original `CREATE TABLE notifications`/`invoices` blocks.
 5. The default `system_settings` rows.
 
@@ -417,6 +446,9 @@ Populates ~12 tenants across the 14 rooms with a full year-to-date (Jan–Aug 20
 The roster is deliberately split into **scripted accounts** — each built to exercise one specific admin feature (an overdue tenant, one flagged for eviction, one with a draft contract awaiting activation, one with a renewal on file, one still `Pending Review`) — and **bulk accounts** that just add realistic volume. The file's own header comment documents exactly which login belongs to which scenario; see that block rather than duplicating it here, since it's the part most likely to drift out of sync with this doc otherwise.
 
 Must run **after** `SetupDB.sql` in the same import — it resolves the admin's id dynamically (`SET @admin_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1)`) rather than assuming a literal id, and references `service_catalog` rows that only exist once `SetupDB.sql` has seeded them.
+
+### `2026_09_utility_readings.sql` — upgrade for existing databases
+`utility_readings` used to be created at request time by `get_utility_readings.php`, so databases set up before September 2026 may have it without the `invoice_id` column, or not at all. This file is idempotent: `CREATE TABLE IF NOT EXISTS` plus `ADD COLUMN IF NOT EXISTS invoice_id`. A fresh `SetupDB.sql` import does not need it.
 
 ### `clear_and_seed.sql` and `seed_reset.sql` — ⚠️ currently out of sync
 Both predate the current schema and the `seed_mock_data.sql` rewrite above, and have **not** been kept in sync:
@@ -437,7 +469,7 @@ See the root [README.md](../../README.md) ("Installation & Setup" section) for t
 
 ## 4. Notable Design Conventions
 
-- **Soft references vs. enforced FKs on `room_name`.** Only `rent_applications.room_name` is a real foreign key. `maintenance_requests` doesn't store a room at all; `visitor_logs`, `inquiries`, `unit_reservations`, and `service_requests` store `room_name` as a plain indexed string with no constraint, by design (an inquiry or a service booking doesn't have to name a committed unit). Don't assume referential integrity on those columns.
+- **Soft references vs. enforced FKs on `room_name`.** Only `rent_applications.room_name` is a real foreign key. `maintenance_requests`, `visitor_logs`, `inquiries`, `unit_reservations`, `service_requests`, and `utility_readings` store `room_name` as a plain string with no constraint, by design (an inquiry or a service booking doesn't have to name a committed unit). Don't assume referential integrity on those columns.
 - **Snapshotting over live joins.** `service_requests` copies `service_name`/`category`/`unit_price`/`pricing_unit` from `service_catalog` at booking time instead of joining live, so re-pricing a catalog item never silently rewrites a tenant's past invoice history. The same reasoning is why `lease_contracts` has no `monthly_rent` column — leases intentionally do the opposite (always read live) because the rate is meant to track the tenant's current application, not freeze at signing.
 - **Status-as-lifecycle, not boolean flags.** Nearly every operational table drives its workflow off a `status` string/`ENUM` column (`rent_applications.status`, `lease_contracts.status`, `invoices.status`, `visitor_logs.status`, `unit_reservations.status`, ...) rather than separate boolean columns — check the relevant PHP endpoint for the exact allowed transitions before writing a query that filters on status.
 - **`system_settings` over schema columns.** Any value an admin might reasonably want to change (thresholds, toggles, payment channels, landlord identity for the printed lease contract) is a row in `system_settings`, not a dedicated column somewhere — extending an existing setting rather than adding a new column is usually the right move.

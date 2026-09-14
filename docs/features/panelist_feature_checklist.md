@@ -3,7 +3,7 @@
 > **Project:** Apartment Management System
 > **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
 > **Context:** Small-to-medium scale apartment building (15–100 units)
-> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code)
+> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking and Utility Usage audited)
 
 ---
 
@@ -22,7 +22,7 @@
 | [x] | **Inquiry & Reservation Management**    | [x] Inquiry handling, [x] reservation tracking, [x] room/unit availability tracking, [x] reservation module                                                                                                                                                             |
 | [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [~] slot assignment management (status-based, no numbered slots), [~] parking fee integration into billing (manual admin entry, not auto-synced)                                                                   |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
-| [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit                                                                                                                                                                                                   |
+| [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit, [x] month-over-month change & usage-spike flags, [x] billing sync to invoices                                                                                                                  |
 | [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [x] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
 | [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management                                                                                                                                                     |
 | [x] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [x] admin approval/rejection, [x] request status tracking                                                                                                                                                                              |
@@ -475,13 +475,13 @@ flowchart TD
 
 > Admin Pages: [AdminDashboard.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminDashboard.jsx) · [AdminReports.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminReports.jsx) · [AdminActivityLogs.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminActivityLogs.jsx)
 
-- [x] **8.1 Dashboard Statistics** ✅ — `dashboard_stats.php`
-- [x] **8.2 Income Reports** ✅ — Financial income statement, unit income rankings, period comparisons, CSV/Print export (`get_report_data.php` + `AdminReports.jsx`)
-- [x] **8.3 Revenue Stream Analysis** ✅ — Category stream breakdown (Rent, Utilities, Parking, Deposits), 100% DB-backed 6-month historical trends, diversification index
+- [x] **8.1 Dashboard Statistics** ✅ — `dashboard_stats.php` (session-authenticated). Receivables and the action queue cover every unpaid invoice status; the collection rate leaves cancelled invoices out
+- [x] **8.2 Income Reports** ✅ — Financial income statement, unit income rankings, period comparisons, CSV/Print export (`get_report_data.php` + `AdminReports.jsx`). Expenses are recorded maintenance costs (actual cost, excluding tenant-responsible repairs) plus an **optional** overhead percentage (`report_overhead_pct`, 0% unless an admin sets it). No overhead is invented. Outstanding arrears count every unpaid status past its due date, so collection efficiency reflects real overdue balances
+- [x] **8.3 Revenue Stream Analysis** ✅ — Category stream breakdown (Rent, Electricity, Water, Parking, Add-On Services, Deposits, Late Fees) that sums exactly to gross revenue, 100% DB-backed 6-month historical trends, diversification index and a computed utility recovery ratio (paid ÷ invoiced water and electricity)
 - [x] **8.4 Tenant Monitoring** ✅ — `get_tenants.php`
 - [x] **8.5 Maintenance Monitoring** ✅ — `get_maintenance_requests.php`
 - [x] **8.6 System Activity Logs** ✅ — `activity_logs` table, `get_activity_logs.php`, `AdminActivityLogs.jsx`
-- [x] **8.7 Utility Usage Tracking** ✅ — `utility_readings` table, `AdminUtilities.jsx`, `UserUtilities.jsx`
+- [x] **8.7 Utility Usage Tracking** ✅ — `utility_readings` table (now in `SetupDB.sql`), `AdminUtilities.jsx`, `UserUtilities.jsx`. Each unit has one water and electricity reading per billing month. Readings are validated: a meter can't read lower than last month, readings are recorded oldest-first, and rates carry forward. Each reading shows the change from the previous month and flags a usage spike above 30%. A mistyped reading is corrected by deleting the latest un-invoiced one. `sync_utility_to_invoice.php` posts the charge onto the tenant's open invoice for that month, or onto a utilities-only invoice — rent is never billed twice. Reports show units read vs. occupied and which units are still unread. Tenants see only their own readings (session-scoped)
 - [ ] **8.8 Sampling Data / Demo Data** 📋 — Needed for demo (SQL seed script)
 
 ---
@@ -542,17 +542,19 @@ flowchart TD
 |---|---|---|---|---|---|
 | 1. Tenant Management | 8 | 8 | 0 | 0 | 0 |
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
-| 3. Payment & Billing | 12 | 9 | 1 | 2 | 0 |
+| 3. Payment & Billing | 12 | 11 | 1 | 0 | 0 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
-| 6. Notification | 8 | 2 | 1 | 5 | 0 |
+| 6. Notification | 8 | 4 | 1 | 3 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
-| 8. Dashboard & Reports | 8 | 6 | 0 | 2 | 0 |
+| 8. Dashboard & Reports | 8 | 7 | 0 | 1 | 0 |
 | 9. Contracts | 6 | 6 | 0 | 0 | 0 |
 | 10. Parking | 4 | 2 | 2 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **83** | **60** | **6** | **17** | **0** |
+| **TOTAL** | **83** | **67** | **5** | **11** | **0** |
+
+> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026. Modules 3, 6 and 8 and the totals had drifted out of step with the item list.
 
 ### Core Functionality Coverage
 
@@ -648,8 +650,8 @@ Each line item is a real column on `invoices`, and `total_amount` is always thei
 | Line Item | Source | Frequency | Notes |
 |---|---|---|---|
 | **Base Rent** | `rooms.monthly_rent` | Monthly | Fixed per unit, set via `update_room.php` |
-| **Water** | Meter reading or flat rate | Monthly | Per-unit or shared allocation (`save_utility_reading.php`) |
-| **Electricity** | Meter reading or flat rate | Monthly | Per-unit sub-meter preferred |
+| **Water** | Per-unit sub-meter reading × rate + other fees | Monthly | Recorded via `save_utility_reading.php`, posted by `sync_utility_to_invoice.php` (added to the month's open invoice, or a utilities-only invoice) |
+| **Electricity** | Per-unit sub-meter reading × rate + other fees | Monthly | Same flow as water; both come from one reading row per unit per month |
 | **Parking** | Assigned slot fee | Monthly | Optional — only if tenant has parking |
 | **Services** | Completed service requests | Monthly | Accumulates via `post_service_charge()` |
 | **Security Deposit** | One month's rent | Move-in only | Non-refundable (see 3.9) |
@@ -751,13 +753,13 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 8.1 | **Dashboard Statistics** | Cards showing: total tenants, occupancy rate, total revenue (this month), pending maintenance, overdue payments | Small+ | `dashboard_stats.php` | — |
-| 8.2 | **Income Reports** | Monthly/quarterly revenue breakdown: rent collected, utilities, parking fees, outstanding balances | Small+ | `get_report_data.php` | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
-| 8.3 | **Revenue Stream Analysis** | Breakdown by source: base rent vs. water vs. electricity vs. parking vs. deposits. 100% database-backed 6-month category trends with no mock fallbacks. | Medium | `get_report_data.php` with real category breakdowns | — |
+| 8.1 | **Dashboard Statistics** | Cards showing: total tenants, occupancy rate, total revenue (this month), pending maintenance, overdue payments. Receivables span every unpaid status; the collection rate excludes cancelled invoices | Small+ | `dashboard_stats.php` | — |
+| 8.2 | **Income Reports** | Monthly/quarterly/yearly revenue breakdown: rent collected, utilities, parking fees, services, late fees, outstanding arrears (every unpaid status past due) and collection efficiency. Expenses = recorded maintenance cost (actual cost, tenant-responsible repairs excluded, dated by resolution) + an optional configured overhead % (`report_overhead_pct`, default 0) | Small+ | `get_report_data.php`, `AdminReports.jsx` | [module_verification_guide.md §9](../documentation/module_verification_guide.md) |
+| 8.3 | **Revenue Stream Analysis** | Breakdown by source: base rent vs. water vs. electricity vs. parking vs. services vs. deposits vs. late fees, summing exactly to gross revenue. 100% database-backed 6-month category trends with no mock fallbacks, and a computed utility recovery ratio | Medium | `get_report_data.php` with real category breakdowns | [module_verification_guide.md §9](../documentation/module_verification_guide.md) |
 | 8.4 | **Tenant Monitoring** | List view: all tenants with lease status, payment status (current/overdue), lease end date | Small+ | `get_tenants.php` | — |
 | 8.5 | **Maintenance Monitoring** | Overview: open requests by priority, average resolution time, requests by category | Small+ | `get_maintenance_requests.php` with aggregation | — |
 | 8.6 | **System Activity Logs** | Audit trail: who did what, when. Admin actions logged (tenant approved, payment recorded, settings changed) | Small+ | `get_activity_logs.php`, `activity_logs` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 8.7 | **Utility Usage Tracking** | Track water/electricity consumption per unit over time; identify unusual usage patterns | Medium | New `utility_readings` table or extend `invoices` | — |
+| 8.7 | **Utility Usage Tracking** | Track water/electricity consumption per unit over time and identify unusual usage patterns. Monthly sub-meter readings per unit are validated: no backwards meters, recorded in order, rates carried forward. Each shows the change from the previous month, with a spike flag above 30%. Readings are billed onto invoices without ever re-billing rent, and a mistake is corrected by deleting the latest un-invoiced reading. Reports show consumption, recovery, and occupied units not yet read. Tenants see their own history and averages | Medium | `utility_readings` table, `save_utility_reading.php`, `get_utility_readings.php`, `delete_utility_reading.php`, `sync_utility_to_invoice.php`, `get_utilities_report_data.php`, `AdminUtilities.jsx`, `UserUtilities.jsx` | [module_verification_guide.md §10](../documentation/module_verification_guide.md) |
 | 8.8 | **Sampling Data / Demo Data** | Pre-populated realistic data for demo: 10-20 tenants, 6 months of payment history, maintenance records | Small+ | SQL seed script in `backend/api/migrations/` | — |
 
 ---
@@ -784,7 +786,7 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 |---|---|---|---|---|---|
 | 10.1 | **Parking Slot Listing** | View all parking slots with status: Available / Assigned / Reserved / Under Maintenance | Small+ | `get_available_parking_slots.php` | — |
 | 10.2 | **Reservation Request** | Tenant requests a parking slot; admin approves/rejects based on availability | Small+ | `parking_reservation.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 10.3 | **Parking Fee Integration** | `invoices.parking` line item exists and flows through billing/reporting/reversal like other charges, but the amount is a manual field on invoice creation — a reservation's `total_cost` is not auto-copied onto the invoice | Small+ | `create_invoice.php` (`parking` input field), `sync_utility_to_invoice.php` (carries it forward) | — |
+| 10.3 | **Parking Fee Integration** | `invoices.parking` line item exists and flows through billing/reporting/reversal like other charges, but the amount is a manual field on invoice creation — a reservation's `total_cost` is not auto-copied onto the invoice | Small+ | `create_invoice.php` (`parking` input field); `sync_utility_to_invoice.php` adds utility charges to `total_amount` instead of recomputing it, so a parking charge already on the invoice survives | — |
 | 10.4 | **Slot Assignment Management** | Admin moves a reservation to Assigned/Approved/Rejected and the tenant is notified; there is no numbered-slot column, so a specific physical slot is not tracked or transferred on move-out | Small+ | `parking_reservations` table (status field only, no `slot_number`), `update_parking_status.php`, `AdminParking.jsx` | — |
 
 ---

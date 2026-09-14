@@ -11,12 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+$admin_id = require_admin($conn);
+promote_overdue_invoices($conn);
 
 $response = [
     'success' => true,
@@ -147,6 +143,7 @@ try {
             SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as total
         FROM invoices 
         WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())
+          AND LOWER(status) <> 'cancelled'
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -186,6 +183,7 @@ try {
             COUNT(*) as total_cnt
         FROM invoices 
         WHERE created_at >= DATE_SUB(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 5 MONTH)
+          AND LOWER(status) <> 'cancelled'
         GROUP BY m_key
         ORDER BY m_key ASC
     ");
@@ -262,7 +260,7 @@ try {
         FROM invoices i
         LEFT JOIN users u ON i.user_id = u.id
         LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
-        WHERE LOWER(i.status) IN ('pending', 'pending-verification', 'unpaid', 'overdue')
+        WHERE LOWER(i.status) IN " . billing_open_status_sql() . "
         ORDER BY CASE WHEN LOWER(i.status) = 'pending-verification' THEN 1 WHEN i.due_date < CURRENT_DATE() THEN 2 ELSE 3 END, i.created_at DESC
         LIMIT 4
     ");

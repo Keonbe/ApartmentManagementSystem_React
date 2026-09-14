@@ -11,41 +11,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+$admin_id = require_admin($conn);
+
+// Bring invoice states up to date first, so an invoice that lapsed since anyone
+// last opened the billing pages is already counted as overdue here.
+promote_overdue_invoices($conn);
 
 $timeframe = $_GET['timeframe'] ?? 'monthly';
 $month = isset($_GET['month']) ? (int)$_GET['month'] : date('n');
 $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 $quarter = isset($_GET['quarter']) ? (int)$_GET['quarter'] : ceil(date('n') / 3);
 
+// Collected money is dated by when it was paid; created_at stands in only for a
+// paid row with no paid_at stamp. The 6-month trend below uses the same rule, so
+// the period figures and the chart can no longer disagree.
+$paidAt = "COALESCE(paid_at, created_at)";
+$paidAtI = "COALESCE(i.paid_at, i.created_at)";
+// A repair is an expense of the month it was finished, not the month it was reported.
+$resolvedAt = "COALESCE(resolved_at, created_at)";
+
 // Current period date conditions
 $dateCondition = "";
 if ($timeframe === 'yearly') {
     $dateCondition = "YEAR(created_at) = $year";
-    $paidDateCondition = "YEAR(paid_at) = $year";
+    $paidDateCondition = "YEAR($paidAt) = $year";
     $maintDateCondition = "YEAR(m.created_at) = $year";
-    $maintDirectDateCondition = "YEAR(created_at) = $year";
+    $maintDirectDateCondition = "YEAR($resolvedAt) = $year";
     $parkingDateCondition = "YEAR(p.created_at) = $year";
-    $invoiceDateCondition = "YEAR(i.paid_at) = $year";
+    $invoiceDateCondition = "YEAR($paidAtI) = $year";
 } elseif ($timeframe === 'quarterly') {
     $dateCondition = "YEAR(created_at) = $year AND QUARTER(created_at) = $quarter";
-    $paidDateCondition = "YEAR(paid_at) = $year AND QUARTER(paid_at) = $quarter";
+    $paidDateCondition = "YEAR($paidAt) = $year AND QUARTER($paidAt) = $quarter";
     $maintDateCondition = "YEAR(m.created_at) = $year AND QUARTER(m.created_at) = $quarter";
-    $maintDirectDateCondition = "YEAR(created_at) = $year AND QUARTER(created_at) = $quarter";
+    $maintDirectDateCondition = "YEAR($resolvedAt) = $year AND QUARTER($resolvedAt) = $quarter";
     $parkingDateCondition = "YEAR(p.created_at) = $year AND QUARTER(p.created_at) = $quarter";
-    $invoiceDateCondition = "YEAR(i.paid_at) = $year AND QUARTER(i.paid_at) = $quarter";
+    $invoiceDateCondition = "YEAR($paidAtI) = $year AND QUARTER($paidAtI) = $quarter";
 } else {
     $dateCondition = "YEAR(created_at) = $year AND MONTH(created_at) = $month";
-    $paidDateCondition = "YEAR(paid_at) = $year AND MONTH(paid_at) = $month";
+    $paidDateCondition = "YEAR($paidAt) = $year AND MONTH($paidAt) = $month";
     $maintDateCondition = "YEAR(m.created_at) = $year AND MONTH(m.created_at) = $month";
-    $maintDirectDateCondition = "YEAR(created_at) = $year AND MONTH(created_at) = $month";
+    $maintDirectDateCondition = "YEAR($resolvedAt) = $year AND MONTH($resolvedAt) = $month";
     $parkingDateCondition = "YEAR(p.created_at) = $year AND MONTH(p.created_at) = $month";
-    $invoiceDateCondition = "YEAR(i.paid_at) = $year AND MONTH(i.paid_at) = $month";
+    $invoiceDateCondition = "YEAR($paidAtI) = $year AND MONTH($paidAtI) = $month";
 }
 
 // Previous period date conditions (for period comparison & growth rates)
@@ -55,27 +62,39 @@ $prevQuarter = $quarter - 1;
 
 if ($timeframe === 'yearly') {
     $prevYear = $year - 1;
-    $prevPaidCondition = "YEAR(paid_at) = $prevYear";
-    $prevMaintCondition = "YEAR(created_at) = $prevYear";
+    $prevPaidCondition = "YEAR($paidAt) = $prevYear";
+    $prevMaintCondition = "YEAR($resolvedAt) = $prevYear";
 } elseif ($timeframe === 'quarterly') {
     if ($prevQuarter < 1) {
         $prevQuarter = 4;
         $prevYear = $year - 1;
     }
-    $prevPaidCondition = "YEAR(paid_at) = $prevYear AND QUARTER(paid_at) = $prevQuarter";
-    $prevMaintCondition = "YEAR(created_at) = $prevYear AND QUARTER(created_at) = $prevQuarter";
+    $prevPaidCondition = "YEAR($paidAt) = $prevYear AND QUARTER($paidAt) = $prevQuarter";
+    $prevMaintCondition = "YEAR($resolvedAt) = $prevYear AND QUARTER($resolvedAt) = $prevQuarter";
 } else {
     if ($prevMonth < 1) {
         $prevMonth = 12;
         $prevYear = $year - 1;
     }
-    $prevPaidCondition = "YEAR(paid_at) = $prevYear AND MONTH(paid_at) = $prevMonth";
-    $prevMaintCondition = "YEAR(created_at) = $prevYear AND MONTH(created_at) = $prevMonth";
+    $prevPaidCondition = "YEAR($paidAt) = $prevYear AND MONTH($paidAt) = $prevMonth";
+    $prevMaintCondition = "YEAR($resolvedAt) = $prevYear AND MONTH($resolvedAt) = $prevMonth";
 }
+
+// Overhead is only charged when the admin has configured a real percentage
+// (system_settings.report_overhead_pct). The report used to invent a flat 15%
+// overhead — and 25% of revenue when there were no costs at all — so the
+// income statement showed expenses the building never had.
+$overheadPct = 0.0;
+$stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'report_overhead_pct'");
+$stmt->execute();
+if ($row = $stmt->get_result()->fetch_assoc()) {
+    $overheadPct = min(100, max(0, (float)$row['setting_value']));
+}
+$stmt->close();
 
 $data = [
     'totalOccupied' => 0,
-    'totalRooms' => 15,
+    'totalRooms' => 0,
     'moveIns' => 0,
     'moveOuts' => 0,
     'rentCollected' => 0,
@@ -84,6 +103,7 @@ $data = [
     'parkingCollected' => 0,
     'servicesCollected' => 0,
     'depositCollected' => 0,
+    'lateFeesCollected' => 0,
     'expenses' => 0,
     'totalMaintenance' => 0,
     'maintCompleted' => 0,
@@ -122,6 +142,7 @@ $stmt = $conn->prepare("SELECT
     SUM(parking) as parking,
     SUM(COALESCE(services, 0)) as services,
     SUM(COALESCE(security_deposit, 0)) as deposit,
+    SUM(late_fee) as late_fee,
     SUM(total_amount) as total
 FROM invoices
 WHERE status = 'paid' AND $paidDateCondition");
@@ -135,6 +156,7 @@ if ($row = $res->fetch_assoc()) {
     $data['parkingCollected'] = (float)($row['parking'] ?? 0);
     $data['servicesCollected'] = (float)($row['services'] ?? 0);
     $data['depositCollected'] = (float)($row['deposit'] ?? 0);
+    $data['lateFeesCollected'] = (float)($row['late_fee'] ?? 0);
     $grossRevenue = (float)($row['total'] ?? 0);
 }
 $stmt->close();
@@ -146,6 +168,7 @@ $prevElectric = 0.0;
 $prevParking = 0.0;
 $prevServices = 0.0;
 $prevDeposit = 0.0;
+$prevLateFee = 0.0;
 $prevGrossRevenue = 0.0;
 
 $stmt = $conn->prepare("SELECT 
@@ -155,6 +178,7 @@ $stmt = $conn->prepare("SELECT
     SUM(parking) as parking,
     SUM(COALESCE(services, 0)) as services,
     SUM(COALESCE(security_deposit, 0)) as deposit,
+    SUM(late_fee) as late_fee,
     SUM(total_amount) as total
 FROM invoices
 WHERE status = 'paid' AND $prevPaidCondition");
@@ -168,6 +192,7 @@ if ($stmt) {
         $prevParking = (float)($row['parking'] ?? 0);
         $prevServices = (float)($row['services'] ?? 0);
         $prevDeposit = (float)($row['deposit'] ?? 0);
+        $prevLateFee = (float)($row['late_fee'] ?? 0);
         $prevGrossRevenue = (float)($row['total'] ?? 0);
     }
     $stmt->close();
@@ -175,7 +200,9 @@ if ($stmt) {
 
 // 5. Maintenance Expenses (Current Period)
 $actualMaintExpenses = 0.0;
-$stmt = $conn->prepare("SELECT SUM(COALESCE(estimated_cost, 0)) as maint_cost FROM maintenance_requests WHERE status IN ('Completed', 'Resolved') AND $maintDirectDateCondition");
+// Actual cost where recorded (the estimate only as a fallback), and never a
+// tenant-responsible repair — that is billed to the tenant, not a building expense.
+$stmt = $conn->prepare("SELECT SUM(COALESCE(actual_cost, estimated_cost, 0)) as maint_cost FROM maintenance_requests WHERE status IN ('Completed', 'Resolved') AND tenant_responsible = 0 AND $maintDirectDateCondition");
 if ($stmt) {
     $stmt->execute();
     $res = $stmt->get_result();
@@ -187,7 +214,7 @@ if ($stmt) {
 
 // Prior maintenance expenses
 $prevMaintExpenses = 0.0;
-$stmt = $conn->prepare("SELECT SUM(COALESCE(estimated_cost, 0)) as maint_cost FROM maintenance_requests WHERE status IN ('Completed', 'Resolved') AND $prevMaintCondition");
+$stmt = $conn->prepare("SELECT SUM(COALESCE(actual_cost, estimated_cost, 0)) as maint_cost FROM maintenance_requests WHERE status IN ('Completed', 'Resolved') AND tenant_responsible = 0 AND $prevMaintCondition");
 if ($stmt) {
     $stmt->execute();
     $res = $stmt->get_result();
@@ -197,19 +224,13 @@ if ($stmt) {
     $stmt->close();
 }
 
-// Operating Expenses calculation: Real maintenance + estimated utility/property operations overhead
-$operatingOverhead = round($grossRevenue * 0.15); // 15% operations & facility overhead
+// Operating expenses = recorded maintenance cost + the configured overhead (0% unless set)
+$operatingOverhead = round($grossRevenue * $overheadPct / 100, 2);
 $operatingExpenses = $actualMaintExpenses + $operatingOverhead;
-if ($operatingExpenses == 0 && $grossRevenue > 0) {
-    $operatingExpenses = round($grossRevenue * 0.25);
-}
 $data['expenses'] = $operatingExpenses;
 
-$prevOperatingOverhead = round($prevGrossRevenue * 0.15);
+$prevOperatingOverhead = round($prevGrossRevenue * $overheadPct / 100, 2);
 $prevOperatingExpenses = $prevMaintExpenses + $prevOperatingOverhead;
-if ($prevOperatingExpenses == 0 && $prevGrossRevenue > 0) {
-    $prevOperatingExpenses = round($prevGrossRevenue * 0.25);
-}
 
 $netIncome = $grossRevenue - $operatingExpenses;
 $prevNetIncome = $prevGrossRevenue - $prevOperatingExpenses;
@@ -219,9 +240,12 @@ $revenueGrowthPct = $prevGrossRevenue > 0 ? round((($grossRevenue - $prevGrossRe
 $netGrowthPct = $prevNetIncome > 0 ? round((($netIncome - $prevNetIncome) / $prevNetIncome) * 100, 1) : 0;
 $netMarginPct = $grossRevenue > 0 ? round(($netIncome / $grossRevenue) * 100, 1) : 0;
 
-// Outstanding Overdue Invoices
+// Outstanding arrears: every still-owed status past its due date. This used to
+// match only 'pending', but promote_overdue_invoices() turns a lapsed invoice
+// into 'overdue' — so arrears read ₱0 and collection efficiency 100% while
+// tenants were in fact behind.
 $totalOutstanding = 0.0;
-$stmt = $conn->prepare("SELECT SUM(total_amount) as overdue FROM invoices WHERE status = 'pending' AND due_date < CURDATE()");
+$stmt = $conn->prepare("SELECT SUM(total_amount) as overdue FROM invoices WHERE status IN " . billing_open_status_sql() . " AND due_date < CURDATE()");
 if ($stmt) {
     $stmt->execute();
     if ($row = $stmt->get_result()->fetch_assoc()) {
@@ -239,8 +263,10 @@ $data['incomeStatement'] = [
     'utilityRevenue' => $data['waterCollected'] + $data['electricCollected'],
     'serviceRevenue' => $data['servicesCollected'],
     'depositRevenue' => $data['depositCollected'],
+    'lateFeeRevenue' => $data['lateFeesCollected'],
     'maintenanceExpenses' => $actualMaintExpenses,
     'operatingOverhead' => $operatingOverhead,
+    'overheadPct' => $overheadPct,
     'operatingExpenses' => $operatingExpenses,
     'netOperatingIncome' => $netIncome,
     'netMarginPct' => $netMarginPct,
@@ -313,16 +339,40 @@ $streams = [
         'growthPct' => $prevDeposit > 0 ? round((($data['depositCollected'] - $prevDeposit) / $prevDeposit) * 100, 1) : 0,
         'color' => '#10b981',
         'icon' => 'faShieldAlt'
+    ],
+    // Late fees are part of every paid invoice's total_amount; without this stream
+    // the categories did not add up to gross revenue.
+    [
+        'id' => 'late_fees',
+        'category' => 'Late Payment Fees',
+        'amount' => $data['lateFeesCollected'],
+        'pct' => $grossRevenue > 0 ? round(($data['lateFeesCollected'] / $grossRevenue) * 100, 1) : 0,
+        'prevAmount' => $prevLateFee,
+        'growthPct' => $prevLateFee > 0 ? round((($data['lateFeesCollected'] - $prevLateFee) / $prevLateFee) * 100, 1) : 0,
+        'color' => '#ef4444',
+        'icon' => 'faExclamationTriangle'
     ]
 ];
 $data['revenueStreams'] = $streams;
+
+// Utility recovery: share of the water/electricity invoiced this period that has been paid.
+$utilityBilled = 0.0;
+$utilityPaid = 0.0;
+$stmt = $conn->prepare("SELECT SUM(water + electricity) as billed, SUM(CASE WHEN status = 'paid' THEN water + electricity ELSE 0 END) as paid FROM invoices WHERE status <> 'cancelled' AND $dateCondition");
+$stmt->execute();
+if ($row = $stmt->get_result()->fetch_assoc()) {
+    $utilityBilled = (float)($row['billed'] ?? 0);
+    $utilityPaid = (float)($row['paid'] ?? 0);
+}
+$stmt->close();
 
 // Revenue Diversification metrics
 $data['diversification'] = [
     'coreRentPct' => $grossRevenue > 0 ? round(($data['rentCollected'] / $grossRevenue) * 100, 1) : 0,
     'utilitiesPct' => $grossRevenue > 0 ? round((($data['waterCollected'] + $data['electricCollected']) / $grossRevenue) * 100, 1) : 0,
-    'ancillaryPct' => $grossRevenue > 0 ? round((($data['parkingCollected'] + $data['servicesCollected'] + $data['depositCollected']) / $grossRevenue) * 100, 1) : 0,
-    'utilityRecoveryRatio' => ($data['waterCollected'] + $data['electricCollected']) > 0 ? 100 : 0
+    'ancillaryPct' => $grossRevenue > 0 ? round((($data['parkingCollected'] + $data['servicesCollected'] + $data['depositCollected'] + $data['lateFeesCollected']) / $grossRevenue) * 100, 1) : 0,
+    // Was hardcoded to 100 whenever any utility money came in.
+    'utilityRecoveryRatio' => $utilityBilled > 0 ? round(($utilityPaid / $utilityBilled) * 100, 1) : 0
 ];
 
 // Unit-by-Unit Income Ledger
@@ -337,6 +387,7 @@ $stmt = $conn->prepare("SELECT
     SUM(i.parking) as parking_total,
     SUM(COALESCE(i.services, 0)) as services_total,
     SUM(COALESCE(i.security_deposit, 0)) as deposit_total,
+    SUM(i.late_fee) as late_fee_total,
     SUM(i.total_amount) as total_collected,
     COUNT(i.id) as invoice_count
 FROM invoices i
@@ -360,6 +411,7 @@ if ($stmt) {
             'parking' => (float)$row['parking_total'],
             'services' => (float)$row['services_total'],
             'deposit' => (float)$row['deposit_total'],
+            'lateFee' => (float)$row['late_fee_total'],
             'total' => $uTotal,
             'pct' => $grossRevenue > 0 ? round(($uTotal / $grossRevenue) * 100, 1) : 0,
             'invoicesCount' => (int)$row['invoice_count']
@@ -424,8 +476,9 @@ for ($i = 5; $i >= 0; $i--) {
         SUM(parking) as parking,
         SUM(COALESCE(services, 0)) as services,
         SUM(COALESCE(security_deposit, 0)) as deposit,
+        SUM(late_fee) as late_fee,
         SUM(total_amount) as total
-    FROM invoices 
+    FROM invoices
     WHERE status = 'paid' AND YEAR(COALESCE(paid_at, created_at)) = ? AND MONTH(COALESCE(paid_at, created_at)) = ?");
     $rev_stmt->bind_param("ii", $target_year, $target_month);
     $rev_stmt->execute();
@@ -437,23 +490,21 @@ for ($i = 5; $i >= 0; $i--) {
     $monthParking = (float)($rev_res['parking'] ?? 0);
     $monthServices = (float)($rev_res['services'] ?? 0);
     $monthDeposit = (float)($rev_res['deposit'] ?? 0);
+    $monthLateFee = (float)($rev_res['late_fee'] ?? 0);
     $monthRevenue = (float)($rev_res['total'] ?? 0);
-    if ($monthRevenue == 0 && ($monthRent > 0 || $monthElectric > 0 || $monthWater > 0 || $monthParking > 0 || $monthServices > 0 || $monthDeposit > 0)) {
-        $monthRevenue = $monthRent + $monthElectric + $monthWater + $monthParking + $monthServices + $monthDeposit;
+    if ($monthRevenue == 0 && ($monthRent > 0 || $monthElectric > 0 || $monthWater > 0 || $monthParking > 0 || $monthServices > 0 || $monthDeposit > 0 || $monthLateFee > 0)) {
+        $monthRevenue = $monthRent + $monthElectric + $monthWater + $monthParking + $monthServices + $monthDeposit + $monthLateFee;
     }
     $rev_stmt->close();
     
     // Maintenance cost for that target month from real completed maintenance records
-    $maint_stmt = $conn->prepare("SELECT SUM(COALESCE(estimated_cost, 0)) as cost FROM maintenance_requests WHERE status IN ('Completed', 'Resolved') AND YEAR(created_at) = ? AND MONTH(created_at) = ?");
+    $maint_stmt = $conn->prepare("SELECT SUM(COALESCE(actual_cost, estimated_cost, 0)) as cost FROM maintenance_requests WHERE status IN ('Completed', 'Resolved') AND tenant_responsible = 0 AND YEAR(COALESCE(resolved_at, created_at)) = ? AND MONTH(COALESCE(resolved_at, created_at)) = ?");
     $maint_stmt->bind_param("ii", $target_year, $target_month);
     $maint_stmt->execute();
     $m_cost = (float)($maint_stmt->get_result()->fetch_assoc()['cost'] ?? 0);
     $maint_stmt->close();
     
-    $monthExpenses = $m_cost;
-    if ($monthRevenue > 0) {
-        $monthExpenses += round($monthRevenue * 0.15); // Standard overhead
-    }
+    $monthExpenses = $m_cost + round($monthRevenue * $overheadPct / 100, 2);
     $monthNet = $monthRevenue - $monthExpenses;
     
     // Occupied rooms in target month from database lease contracts & approved applications
@@ -503,6 +554,7 @@ for ($i = 5; $i >= 0; $i--) {
         'water' => $monthWater,
         'parking' => $monthParking,
         'deposit' => $monthDeposit,
+        'lateFee' => $monthLateFee,
         'expenses' => $monthExpenses,
         'net' => $monthNet,
         'occupancyRate' => $occ_rate
@@ -540,6 +592,15 @@ while ($row = $res->fetch_assoc()) {
 }
 $stmt->close();
 
+// Average resolution time for requests resolved in the period (null when none were)
+$data['maintAvgResolutionHours'] = null;
+$stmt = $conn->prepare("SELECT AVG(TIMESTAMPDIFF(MINUTE, created_at, resolved_at)) / 60 as avg_hours FROM maintenance_requests WHERE resolved_at IS NOT NULL AND $maintDirectDateCondition");
+$stmt->execute();
+if ($row = $stmt->get_result()->fetch_assoc()) {
+    $data['maintAvgResolutionHours'] = $row['avg_hours'] !== null ? round((float)$row['avg_hours'], 1) : null;
+}
+$stmt->close();
+
 // Parking Reservations
 $stmt = $conn->prepare("SELECT COUNT(*) as count FROM parking_reservations WHERE $dateCondition");
 $stmt->execute();
@@ -566,7 +627,9 @@ $stmt = $conn->prepare("SELECT
 FROM rent_applications ra
 LEFT JOIN users u ON ra.user_id = u.id
 LEFT JOIN rooms r ON ra.room_name = r.id
-WHERE ra.status = 'Approved'
+-- Every current tenant, not just 'Approved': a tenant becomes 'active' once the
+-- move-in invoice is paid, and was dropped from this list (and the invoice picker) from then on.
+WHERE ra.status IN ('Approved', 'active', 'pending-move-out')
 ORDER BY ra.room_name ASC");
 $stmt->execute();
 $res = $stmt->get_result();
@@ -598,7 +661,7 @@ if (empty($data['tenantList'])) {
             'name' => !empty($name) ? $name : "Unit {$row['unit']} Tenant",
             'email' => $row['email_address'] ?? '',
             'phone' => $row['contact_no'] ?? '',
-            'moveIn' => date('Y-m-d'),
+            'moveIn' => '',
             'rent' => (float)($row['monthly_rent'] ?? 4000),
             'leaseEnd' => $row['lease_end'] ?? '',
             'userId' => $row['user_id'] ? (int)$row['user_id'] : null,
@@ -612,7 +675,7 @@ if (empty($data['tenantList'])) {
 // 2. methodsBreakdown & payment records
 $data['methodsBreakdown'] = ['Cash' => 0, 'GCash' => 0, 'Bank Transfer' => 0];
 $data['paymentRecords'] = [];
-$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity, i.parking, i.security_deposit FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity, i.parking, i.services, i.late_fee, i.security_deposit FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
@@ -631,18 +694,20 @@ while ($row = $res->fetch_assoc()) {
         'amount' => (float)$row['total_amount'],
         'method' => $method,
         'datePaid' => date('Y-m-d', strtotime($row['paid_at'])),
-        'breakdown' => "Rent: ₱{$row['base_rent']} | Water: ₱{$row['water']} | Elec: ₱{$row['electricity']}" . ($row['parking'] > 0 ? " | Park: ₱{$row['parking']}" : "") . ($row['security_deposit'] > 0 ? " | Dep: ₱{$row['security_deposit']}" : "")
+        'breakdown' => "Rent: ₱{$row['base_rent']} | Water: ₱{$row['water']} | Elec: ₱{$row['electricity']}" . ($row['parking'] > 0 ? " | Park: ₱{$row['parking']}" : "") . ($row['services'] > 0 ? " | Svc: ₱{$row['services']}" : "") . ($row['late_fee'] > 0 ? " | Late: ₱{$row['late_fee']}" : "") . ($row['security_deposit'] > 0 ? " | Dep: ₱{$row['security_deposit']}" : "")
     ];
 }
 $stmt->close();
 
 // 3. outstandingBalances
 $data['outstandingBalances'] = [];
-$stmt = $conn->prepare("SELECT u.first_name, u.last_name, r.id as unit, i.total_amount, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'pending' AND i.due_date < CURDATE()");
+$stmt = $conn->prepare("SELECT i.id, i.status, u.first_name, u.last_name, COALESCE(r.id, ra.room_name) as unit, i.total_amount, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status IN " . billing_open_status_sql() . " AND i.due_date < CURDATE() ORDER BY i.due_date ASC");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     $data['outstandingBalances'][] = [
+        'invoiceId' => $row['id'],
+        'status' => $row['status'],
         'tenant' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
         'unit' => $row['unit'] ?? 'N/A',
         'balance' => (float)$row['total_amount'],
@@ -653,7 +718,9 @@ $stmt->close();
 
 // 4. maintenanceRecords
 $data['maintenanceRecords'] = [];
-$stmt = $conn->prepare("SELECT m.id, u.first_name, u.last_name, r.id as unit, m.issue_category, m.urgency, m.created_at, m.status, m.description, m.estimated_cost FROM maintenance_requests m LEFT JOIN users u ON m.user_id = u.id LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status = 'Approved' LEFT JOIN rooms r ON ra.room_name = r.id WHERE $maintDateCondition ORDER BY m.created_at DESC LIMIT 50");
+// The unit is the one snapshotted on the ticket; joining through an 'Approved'
+// application lost it for 'active' tenants. Cost is the actual cost where recorded.
+$stmt = $conn->prepare("SELECT m.id, u.first_name, u.last_name, m.room_name as unit, m.issue_category, m.urgency, m.created_at, m.status, m.description, COALESCE(m.actual_cost, m.estimated_cost) as estimated_cost FROM maintenance_requests m LEFT JOIN users u ON m.user_id = u.id WHERE $maintDateCondition ORDER BY m.created_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {

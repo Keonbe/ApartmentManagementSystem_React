@@ -86,16 +86,18 @@ const AdminReports = () => {
       const response = await api.get(`get_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`);
       if (response.data.success) {
         const bd = response.data.data;
-        const totalCollected = (bd.rentCollected || 0) + (bd.waterCollected || 0) + (bd.electricCollected || 0) + (bd.parkingCollected || 0) + (bd.depositCollected || 0);
+        // Gross revenue comes from the server, which counts every paid line item; the old
+        // client-side sum left out services and late fees.
+        const totalCollected = bd.incomeStatement?.grossRevenue ?? 0;
         const expenses = bd.expenses || 0;
-        const netIncome = totalCollected - expenses;
+        const netIncome = bd.incomeStatement?.netOperatingIncome ?? (totalCollected - expenses);
 
         setData({
           occupancy: {
-            totalUnits: bd.totalRooms || 15,
+            totalUnits: bd.totalRooms || 0,
             occupiedUnits: bd.totalOccupied || 0,
-            vacantUnits: (bd.totalRooms || 15) - (bd.totalOccupied || 0),
-            occupancyRate: Math.round(((bd.totalOccupied || 0) / (bd.totalRooms || 15)) * 100) || 0,
+            vacantUnits: (bd.totalRooms || 0) - (bd.totalOccupied || 0),
+            occupancyRate: bd.totalRooms ? Math.round(((bd.totalOccupied || 0) / bd.totalRooms) * 100) : 0,
             moveIns: bd.moveIns || 0,
             moveOuts: bd.moveOuts || 0,
             avgStayDuration: bd.avgStayDuration || 6.0,
@@ -107,56 +109,39 @@ const AdminReports = () => {
             electricCollected: bd.electricCollected || 0,
             parkingCollected: bd.parkingCollected || 0,
             depositCollected: bd.depositCollected || 0,
+            servicesCollected: bd.servicesCollected || 0,
+            lateFeesCollected: bd.lateFeesCollected || 0,
             totalCollected,
             expenses,
             netIncome,
             outstandingBalances: bd.outstandingBalances || [],
-            totalOutstanding: bd.incomeStatement?.totalOutstanding || (bd.outstandingBalances || []).reduce((sum, b) => sum + b.balance, 0),
-            collectionEfficiency: bd.incomeStatement?.collectionEfficiency || (totalCollected > 0 ? 92 : 0),
+            // `??` rather than `||`: a real 0 must display as 0, not fall through to a made-up 92%.
+            totalOutstanding: bd.incomeStatement?.totalOutstanding ?? (bd.outstandingBalances || []).reduce((sum, b) => sum + b.balance, 0),
+            collectionEfficiency: bd.incomeStatement?.collectionEfficiency ?? 0,
             records: bd.paymentRecords || [],
             methodsBreakdown: bd.methodsBreakdown || { Cash: 0, GCash: 0, 'Bank Transfer': 0 }
           },
+          // The server always sends these. The fallbacks are empty, never invented
+          // percentages — a report that can't load should show zeros, not a plausible story.
           incomeStatement: bd.incomeStatement || {
-            grossRevenue: totalCollected,
-            rentalRevenue: (bd.rentCollected || 0) + (bd.parkingCollected || 0),
-            utilityRevenue: (bd.waterCollected || 0) + (bd.electricCollected || 0),
-            depositRevenue: bd.depositCollected || 0,
-            maintenanceExpenses: 0,
-            operatingOverhead: Math.round(totalCollected * 0.15),
-            operatingExpenses: expenses,
-            netOperatingIncome: netIncome,
-            netMarginPct: totalCollected > 0 ? Math.round((netIncome / totalCollected) * 100) : 0,
-            collectionEfficiency: 95,
-            totalOutstanding: 0,
-            prevGrossRevenue: 0,
-            revenueGrowthPct: 0,
-            prevNetIncome: 0,
-            netGrowthPct: 0
+            grossRevenue: 0, rentalRevenue: 0, utilityRevenue: 0, serviceRevenue: 0, depositRevenue: 0, lateFeeRevenue: 0,
+            maintenanceExpenses: 0, operatingOverhead: 0, overheadPct: 0, operatingExpenses: 0, netOperatingIncome: 0,
+            netMarginPct: 0, collectionEfficiency: 0, totalOutstanding: 0,
+            prevGrossRevenue: 0, revenueGrowthPct: 0, prevNetIncome: 0, netGrowthPct: 0
           },
-          revenueStreams: bd.revenueStreams || [
-            { id: 'rent', category: 'Base Room Rent', amount: bd.rentCollected || 0, pct: 75, prevAmount: 0, growthPct: 0, color: '#6366f1', icon: 'faBuilding' },
-            { id: 'electric', category: 'Electricity Utility', amount: bd.electricCollected || 0, pct: 12, prevAmount: 0, growthPct: 0, color: '#f59e0b', icon: 'faBolt' },
-            { id: 'water', category: 'Water Utility', amount: bd.waterCollected || 0, pct: 6, prevAmount: 0, growthPct: 0, color: '#3b82f6', icon: 'faTint' },
-            { id: 'parking', category: 'Parking Space', amount: bd.parkingCollected || 0, pct: 7, prevAmount: 0, growthPct: 0, color: '#ec4899', icon: 'faSquareParking' },
-            { id: 'services', category: 'Add-On Services', amount: bd.servicesCollected || 0, pct: 0, prevAmount: 0, growthPct: 0, color: '#8b5cf6', icon: 'faConciergeBell' }
-          ],
+          revenueStreams: bd.revenueStreams || [],
           unitIncome: bd.unitIncome || [],
-          diversification: bd.diversification || {
-            coreRentPct: 75,
-            utilitiesPct: 18,
-            ancillaryPct: 7,
-            utilityRecoveryRatio: 100
-          },
+          diversification: bd.diversification || { coreRentPct: 0, utilitiesPct: 0, ancillaryPct: 0, utilityRecoveryRatio: 0 },
           maintenance: {
             total: bd.totalMaintenance || 0,
-            totalCost: (bd.maintenanceRecords || []).reduce((acc, m) => acc + (m.cost || 0), 0) || (bd.totalMaintenance * 1500),
+            totalCost: (bd.maintenanceRecords || []).reduce((acc, m) => acc + (m.cost || 0), 0),
             budget: 50000,
             completed: bd.maintCompleted || 0,
             inProgress: bd.maintInProgress || 0,
             pending: bd.maintPending || 0,
             categoryCounts: bd.maintCategoryCounts || {},
             urgencyCounts: bd.maintUrgencyCounts || {},
-            avgResolutionTime: 24.5,
+            avgResolutionTime: bd.maintAvgResolutionHours ?? null,
             records: bd.maintenanceRecords || []
           },
           reservations: {
@@ -165,7 +150,7 @@ const AdminReports = () => {
             roomRejected: bd.roomRejected || 0,
             roomPending: bd.roomPending || 0,
             parkingCount: bd.parkingReservationsCount || 0,
-            parkingRevenue: bd.parkingCollected || (bd.parkingReservationsCount * 1200),
+            parkingRevenue: bd.parkingCollected || 0,
             parkingList: bd.parkingList || [],
             roomList: bd.roomList || []
           }
@@ -343,11 +328,17 @@ const AdminReports = () => {
       });
       csvContent += `\r\n--- Utilities Summary ---\r\n`;
       csvContent += `Total Water,${utilityData?.water?.totalM3} m3\r\n`;
-      csvContent += `Avg Water/Unit,${utilityData?.water?.avgM3} m3\r\n`;
+      csvContent += `Avg Water/Unit-Month,${utilityData?.water?.avgM3} m3\r\n`;
       csvContent += `Total Electricity,${utilityData?.electric?.totalKwh} kWh\r\n`;
-      csvContent += `Avg Electricity/Unit,${utilityData?.electric?.avgKwh} kWh\r\n`;
+      csvContent += `Avg Electricity/Unit-Month,${utilityData?.electric?.avgKwh} kWh\r\n`;
       csvContent += `Total Utility Billed,${utilityData?.financials?.totalBilled}\r\n`;
       csvContent += `Total Utility Collected,${utilityData?.financials?.totalCollected}\r\n`;
+      csvContent += `Utility Outstanding,${utilityData?.financials?.outstanding}\r\n`;
+      csvContent += `Readings Pending Sync,${utilityData?.pendingSync?.count} (${utilityData?.pendingSync?.amount})\r\n`;
+      csvContent += `Usage Spikes (>${utilityData?.spikeThresholdPct}%),${utilityData?.spikeCount}\r\n`;
+      if (utilityData?.coverage) {
+        csvContent += `Occupied Units Not Yet Read,"${utilityData.coverage.missingUnits.join(' ')}"\r\n`;
+      }
     } else {
       csvContent += "ID,Type,Name,Unit/Vehicle,Amount,Duration (Months),Date,Status\r\n";
       (data?.reservations?.roomList || []).forEach(r => {
@@ -816,7 +807,7 @@ const AdminReports = () => {
                       </div>
                     </div>
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 flex items-center gap-1 w-fit">
-                      Avg: {utilityData.water.avgM3} m³ / unit • Billed: {formatCurrency(utilityData.water.totalBilled)}
+                      Avg: {utilityData.water.avgM3} m³ / unit-month • Billed: {formatCurrency(utilityData.water.totalBilled)}
                     </span>
                   </div>
 
@@ -829,22 +820,36 @@ const AdminReports = () => {
                       </div>
                     </div>
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 flex items-center gap-1 w-fit">
-                      Avg: {utilityData.electric.avgKwh} kWh / unit • Billed: {formatCurrency(utilityData.electric.totalBilled)}
+                      Avg: {utilityData.electric.avgKwh} kWh / unit-month • Billed: {formatCurrency(utilityData.electric.totalBilled)}
                     </span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Financial Recovery</p>
-                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{utilityData.financials.recoveryRate}%</p>
-                    <span className={`text-[9px] font-semibold w-fit mt-2 block px-1.5 py-0.5 rounded ${utilityData.financials.recoveryRate >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                      Collected {formatCurrency(utilityData.financials.totalCollected)} of {formatCurrency(utilityData.financials.totalBilled)}
-                    </span>
+                    {utilityData.financials.totalBilled > 0 ? (
+                      <>
+                        <p className="text-xl font-bold text-slate-800 m-0 mt-1">{utilityData.financials.recoveryRate}%</p>
+                        <span className={`text-[9px] font-semibold w-fit mt-2 block px-1.5 py-0.5 rounded ${utilityData.financials.recoveryRate >= 90 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                          Collected {formatCurrency(utilityData.financials.totalCollected)} of {formatCurrency(utilityData.financials.totalBilled)}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xl font-bold text-slate-400 m-0 mt-1">—</p>
+                        <span className="text-[9px] text-slate-500 mt-2 block">No utility charges invoiced this period</span>
+                      </>
+                    )}
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active Utility Units</p>
-                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{utilityData.water.totalUnits}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Tracked active sub-meters</span>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Units Read</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">
+                      {utilityData.coverage ? `${utilityData.coverage.unitsRead} / ${utilityData.coverage.occupiedUnits}` : utilityData.water.totalUnits}
+                    </p>
+                    <span className="text-[9px] text-slate-500 mt-2 block">
+                      {utilityData.coverage ? 'Occupied units with a reading this month' : 'Units with readings this period'}
+                      {utilityData.spikeCount > 0 && <strong className="text-rose-600"> • {utilityData.spikeCount} usage spike{utilityData.spikeCount === 1 ? '' : 's'}</strong>}
+                    </span>
                   </div>
                 </>
               )}
@@ -904,6 +909,12 @@ const AdminReports = () => {
                             <span className="font-semibold">{formatCurrency(data.payments.depositCollected)}</span>
                           </div>
                         )}
+                        {data.payments.lateFeesCollected > 0 && (
+                          <div className="flex justify-between text-xs py-1 text-slate-700">
+                            <span className="flex items-center gap-2"><FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 w-3.5" /> Late Payment Fees</span>
+                            <span className="font-semibold">{formatCurrency(data.payments.lateFeesCollected)}</span>
+                          </div>
+                        )}
                         <div className="border-t border-slate-200 pt-2 flex justify-between text-xs font-bold text-slate-900 bg-indigo-50/60 p-2.5 rounded-lg">
                           <span>Total Gross Revenue Collected</span>
                           <span className="text-indigo-700 font-extrabold">{formatCurrency(data.incomeStatement.grossRevenue)}</span>
@@ -921,7 +932,7 @@ const AdminReports = () => {
                           <span className="font-semibold text-red-600">({formatCurrency(data.incomeStatement.maintenanceExpenses)})</span>
                         </div>
                         <div className="flex justify-between text-xs py-1 text-slate-700">
-                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faSlidersH} className="text-slate-500 w-3.5" /> Facility & Operations Overhead (15%)</span>
+                          <span className="flex items-center gap-2"><FontAwesomeIcon icon={faSlidersH} className="text-slate-500 w-3.5" /> Facility & Operations Overhead ({data.incomeStatement.overheadPct ? `${data.incomeStatement.overheadPct}%` : 'not configured'})</span>
                           <span className="font-semibold text-red-600">({formatCurrency(data.incomeStatement.operatingOverhead)})</span>
                         </div>
                         <div className="flex justify-between text-xs py-1 text-slate-700">
@@ -1812,7 +1823,14 @@ const AdminReports = () => {
                     <tbody>
                       {utilityData.topUnits.slice(0, activeModule === 'all' ? 5 : 20).map((u, idx) => (
                         <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                          <td className="py-2.5 px-3 font-bold text-indigo-600">{u.unit}</td>
+                          <td className="py-2.5 px-3 font-bold text-indigo-600">
+                            {u.unit}
+                            {u.hasSpike && (
+                              <span className="ml-1.5 text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-0.5" title={`Usage rose more than ${utilityData.spikeThresholdPct}% over the previous reading`}>
+                                Spike
+                              </span>
+                            )}
+                          </td>
                           <td className="py-2.5 px-3 font-semibold text-slate-700">{u.waterM3.toFixed(1)}</td>
                           <td className="py-2.5 px-3 font-semibold text-slate-700">{u.electricKwh.toFixed(1)}</td>
                           <td className="py-2.5 px-3 font-bold text-slate-900">{formatCurrency(u.totalCost)}</td>
@@ -1829,6 +1847,12 @@ const AdminReports = () => {
                       )}
                     </tbody>
                   </table>
+                  {utilityData.coverage && utilityData.coverage.missingUnits.length > 0 && (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3 mb-0">
+                      <FontAwesomeIcon icon={faExclamationTriangle} className="mr-1.5" />
+                      Occupied units with no meter reading for this month: <strong>{utilityData.coverage.missingUnits.join(', ')}</strong>
+                    </p>
+                  )}
                 </div>
               </div>
             )}
