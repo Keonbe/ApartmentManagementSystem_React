@@ -11,41 +11,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
-$notification_id = $input['notificationId'] ?? null;
-$user_id = $input['userId'] ?? null;
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+// Same scoping as mark_notification_read.php. A single id used to be deleted
+// with no check (even unauthenticated), and an admin "clear all" deleted every
+// non-pending notification in the system — every tenant's inbox included.
+$auth = require_user($conn);
+$is_admin = $auth['role'] === 'admin';
 
-$is_admin = verify_admin($conn, $admin_id);
+$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$notification_id = (int)($input['notificationId'] ?? $input['id'] ?? 0);
 
-try {
-    if ($notification_id) {
-        // Delete a single notification
-        $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ?");
-        $stmt->bind_param("i", $notification_id);
-    } else if ($is_admin) {
-        // ADMIN BULK ACTION: Clear ALL non-pending notifications
-        // (Preserves 'Pending' verification requests so active requests aren't lost)
-        $stmt = $conn->prepare("DELETE FROM notifications WHERE status != 'Pending'");
-    } else if ($user_id) {
-        // TENANT BULK ACTION: Delete all notifications for this user
-        $stmt = $conn->prepare("DELETE FROM notifications WHERE user_id = ? AND status != 'Pending'");
-        $stmt->bind_param("i", $user_id);
-    } else {
-        echo json_encode(["success" => false, "message" => "Missing parameters."]);
-        exit();
-    }
+$scope = $is_admin ? "(user_id = ? OR type IN " . admin_queue_types_sql() . ")" : "user_id = ?";
 
-    if ($stmt->execute()) {
-        echo json_encode(["success" => true, "message" => "Notifications cleared."]);
-    } else {
-        echo json_encode(["success" => false, "message" => "Failed to delete notifications."]);
-    }
+if ($notification_id) {
+    $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ? AND $scope");
+    $stmt->bind_param("ii", $notification_id, $auth['id']);
+    $stmt->execute();
+    $deleted = $stmt->affected_rows;
     $stmt->close();
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Server error: " . $e->getMessage()]);
+
+    if ($deleted === 0) {
+        http_response_code(404);
+        echo json_encode(["success" => false, "message" => "Notification not found."]);
+        exit;
+    }
+} else {
+    // Bulk clear keeps anything still Pending, so an open request is never lost.
+    $stmt = $conn->prepare("DELETE FROM notifications WHERE status != 'Pending' AND $scope");
+    $stmt->bind_param("i", $auth['id']);
+    $stmt->execute();
+    $deleted = $stmt->affected_rows;
+    $stmt->close();
 }
 
+echo json_encode(["success" => true, "message" => "Notifications cleared.", "deleted" => $deleted]);
 $conn->close();
 ?>

@@ -100,7 +100,8 @@ const AdminReports = () => {
             occupancyRate: bd.totalRooms ? Math.round(((bd.totalOccupied || 0) / bd.totalRooms) * 100) : 0,
             moveIns: bd.moveIns || 0,
             moveOuts: bd.moveOuts || 0,
-            avgStayDuration: bd.avgStayDuration || 6.0,
+            avgStayDuration: bd.avgStayDuration ?? 0,
+            vacantRentPotential: bd.vacantRentPotential ?? 0,
             tenantList: bd.tenantList || []
           },
           payments: {
@@ -135,7 +136,8 @@ const AdminReports = () => {
           maintenance: {
             total: bd.totalMaintenance || 0,
             totalCost: (bd.maintenanceRecords || []).reduce((acc, m) => acc + (m.cost || 0), 0),
-            budget: 50000,
+            budget: bd.maintenanceBudget ?? 0,
+            openByPriority: bd.maintOpenByPriority || {},
             completed: bd.maintCompleted || 0,
             inProgress: bd.maintInProgress || 0,
             pending: bd.maintPending || 0,
@@ -411,7 +413,10 @@ const AdminReports = () => {
                 </div>
                 <div className="text-right">
                   <p><strong>Date Generated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  <p><strong>Author:</strong> System Administrator Financial Center</p>
+                  <p><strong>Prepared by:</strong> {(() => {
+                    const u = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+                    return [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Administrator';
+                  })()}</p>
                 </div>
               </div>
             </div>
@@ -704,9 +709,9 @@ const AdminReports = () => {
                     <span className="text-[9px] text-slate-500 mt-2 block">Contract modifications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Average Stay Duration</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Average Lease Term</p>
                     <p className="text-xl font-bold text-emerald-600 m-0 mt-1">{data.occupancy.avgStayDuration} Mos</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Average tenant term</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Contracted months across all tenancies</span>
                   </div>
                 </>
               )}
@@ -762,7 +767,10 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Maintenance Cost</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{formatCurrency(data.maintenance.totalCost)}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Completed repairs expense</span>
+                    <span className={`text-[9px] mt-2 block font-semibold ${data.maintenance.budget > 0 && data.maintenance.totalCost > data.maintenance.budget ? 'text-red-600' : 'text-slate-500'}`}>
+                      of {formatCurrency(data.maintenance.budget)} budget
+                      {data.maintenance.avgResolutionTime !== null && ` • Avg resolution ${data.maintenance.avgResolutionTime}h`}
+                    </span>
                   </div>
                 </>
               )}
@@ -1180,7 +1188,7 @@ const AdminReports = () => {
                             <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                               <td className="py-3 px-4 font-semibold text-slate-800 flex items-center gap-2.5">
                                 <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-[10px]" style={{ backgroundColor: s.color }}>
-                                  <FontAwesomeIcon icon={s.id === 'rent' ? faBuilding : s.id === 'electric' ? faBolt : s.id === 'water' ? faTint : s.id === 'parking' ? faSquareParking : s.id === 'services' ? faConciergeBell : faShieldAlt} />
+                                  <FontAwesomeIcon icon={s.id === 'rent' ? faBuilding : s.id === 'electric' ? faBolt : s.id === 'water' ? faTint : s.id === 'parking' ? faSquareParking : s.id === 'services' ? faConciergeBell : s.id === 'late_fees' ? faExclamationTriangle : faShieldAlt} />
                                 </div>
                                 {s.category}
                               </td>
@@ -1194,9 +1202,23 @@ const AdminReports = () => {
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-center">
-                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase tracking-wide">
-                                  Healthy
-                                </span>
+                                {/* Derived from the figures; every stream used to read "Healthy" whatever it did. */}
+                                {(() => {
+                                  const [label, cls] = s.amount === 0 && s.prevAmount === 0
+                                    ? ['No revenue', 'bg-slate-100 text-slate-500 border-slate-200']
+                                    : s.prevAmount === 0
+                                      ? ['New', 'bg-indigo-50 text-indigo-700 border-indigo-100']
+                                      : s.growthPct <= -10
+                                        ? ['Declining', 'bg-red-50 text-red-700 border-red-100']
+                                        : s.growthPct >= 10
+                                          ? ['Growing', 'bg-emerald-50 text-emerald-700 border-emerald-100']
+                                          : ['Stable', 'bg-slate-50 text-slate-700 border-slate-200'];
+                                  return (
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide ${cls}`}>
+                                      {label}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           ))}
@@ -1445,6 +1467,38 @@ const AdminReports = () => {
                 </div>
               )}
 
+              {/* Maintenance monitoring breakdown (checklist 8.5): open by priority, filed by category */}
+              {activeModule === 'maintenance' && (
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300 print:break-inside-avoid">
+                  <h3 className="text-sm font-bold text-slate-800 mb-5 m-0 flex items-center gap-2">
+                    <FontAwesomeIcon icon={faClipboardList} className="text-amber-500" />
+                    Priority & Category Breakdown
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider m-0 mb-2">Open now, by priority</p>
+                      {['Needs Triage', 'Urgent', 'High', 'Medium', 'Low'].map(p => (
+                        <div key={p} className="flex justify-between py-1.5 border-b border-slate-100">
+                          <span className={p === 'Urgent' || p === 'High' ? 'text-red-600 font-semibold' : p === 'Needs Triage' ? 'text-amber-700 font-semibold' : 'text-slate-600'}>{p}</span>
+                          <span className="font-bold text-slate-800">{data.maintenance.openByPriority[p] || 0}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider m-0 mb-2">Filed this period, by category</p>
+                      {Object.keys(data.maintenance.categoryCounts).length === 0 ? (
+                        <p className="text-slate-400 m-0">No requests filed in this period.</p>
+                      ) : Object.entries(data.maintenance.categoryCounts).sort((a, b) => b[1] - a[1]).map(([cat, count]) => (
+                        <div key={cat} className="flex justify-between py-1.5 border-b border-slate-100">
+                          <span className="text-slate-600">{cat}</span>
+                          <span className="font-bold text-slate-800">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Chart 4: Reservations Parking Type Count */}
               {activeModule === 'reservations' && (
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm print:border-slate-300 print:break-inside-avoid">
@@ -1675,7 +1729,7 @@ const AdminReports = () => {
                           <td className="py-3 px-4 text-slate-600 font-semibold">{m.category}</td>
                           <td className="py-3 px-4">
                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${
-                              m.urgency === 'High' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'
+                              m.urgency === 'Urgent' || m.urgency === 'High' ? 'bg-red-50 text-red-700' : m.urgency === 'Needs Triage' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'
                             }`}>
                               {m.urgency}
                             </span>
@@ -1732,7 +1786,7 @@ const AdminReports = () => {
                             <td className="py-2.5 px-3 text-slate-500">{r.dateSubmitted}</td>
                             <td className="py-2.5 px-3 text-center">
                               <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
-                                r.status === 'Approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                ['Approved', 'active', 'pending-move-out', 'moved-out', 'archived'].includes(r.status) ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                                 r.status === 'Pending Review' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
                                 'bg-red-50 text-red-700 border border-red-100'
                               }`}>
@@ -1930,7 +1984,7 @@ const AdminReports = () => {
                         {data.occupancy.vacantUnits > 0 && (
                           <div className="flex items-start gap-2 text-xs">
                             <FontAwesomeIcon icon={faBuilding} className="text-amber-500 mt-0.5" />
-                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Occupancy Gap:</strong> {data.occupancy.vacantUnits} vacant unit(s) representing {formatCurrency(data.occupancy.vacantUnits * 4000)}/mo in potential lost revenue. Increase marketing efforts.</p>
+                            <p className="m-0 text-slate-700"><strong className="text-amber-700">Occupancy Gap:</strong> {data.occupancy.vacantUnits} vacant unit(s) representing {formatCurrency(data.occupancy.vacantRentPotential)}/mo in rent not being collected. Increase marketing efforts.</p>
                           </div>
                         )}
                         {data.payments.totalOutstanding === 0 && data.maintenance.pending === 0 && data.occupancy.vacantUnits === 0 && (

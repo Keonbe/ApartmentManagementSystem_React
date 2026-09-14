@@ -21,9 +21,17 @@ $vehicle_model = trim($_POST['vehicleModel'] ?? '');
 $plate_number = strtoupper(trim($_POST['plateNumber'] ?? ''));
 $transmission = trim($_POST['transmission'] ?? '');
 $duration_months = trim($_POST['durationMonths'] ?? '');
-$user_id = $_POST['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
+// The reservation belongs to the session user. It used to take a userId from the
+// form body, so anyone could file a reservation under any account.
+$auth = require_user($conn);
+if ($auth['role'] !== 'user' || !get_active_tenancy($conn, $auth['id'])) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Only tenants with an active lease can reserve parking."]);
+    exit;
+}
+$user_id = $auth['id'];
 
-if (empty($vehicle_type) || empty($vehicle_model) || empty($plate_number) || empty($transmission) || empty($duration_months) || empty($user_id)) {
+if (empty($vehicle_type) || empty($vehicle_model) || empty($plate_number) || empty($transmission) || empty($duration_months)) {
     echo json_encode(["success" => false, "message" => "All fields are required."]);
     exit;
 }

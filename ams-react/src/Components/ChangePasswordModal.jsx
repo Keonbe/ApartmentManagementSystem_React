@@ -32,15 +32,9 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
             return;
         }
 
-        const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
-        if (!loggedInUser || !loggedInUser.email_address) {
-            setMessage("User session expired. Please log in again.");
-            return;
-        }
-
         try {
+            // The account is identified by the session token, not by an email in the body.
             const res = await api.post("/change_password.php", {
-                email_address: loggedInUser.email_address,
                 current_password: currentPassword,
                 new_password: newPassword,
                 confirm_password: confirmPassword
@@ -61,7 +55,7 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
             }
         } catch (error) {
             console.error("Error updating password:", error);
-            setMessage("Unable to save password change. Please try again.");
+            setMessage(error?.response?.data?.message || "Unable to save password change. Please try again.");
         }
     };
 

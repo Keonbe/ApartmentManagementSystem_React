@@ -10,7 +10,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [message, setMessage] = useState('');
+    // Set when axiosConfig bounced a request whose session had ended.
+    const [message, setMessage] = useState(() =>
+        new URLSearchParams(window.location.search).get('expired') ? 'Your session has ended. Please sign in again.' : ''
+    );
     const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [forgotMessage, setForgotMessage] = useState('');
     const [forgotToken, setForgotToken] = useState('');
@@ -42,7 +45,8 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 setMessage(res.data.message || t('login.error'));
             }
         } catch (error) {
-            setMessage(t('login.error'));
+            // 429 carries the lockout message; anything else is a generic failure.
+            setMessage(error?.response?.data?.message || t('login.error'));
         }
     };
 
@@ -194,7 +198,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             {forgotToken && (
                                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex flex-col space-y-2">
                                     <p className="m-0 font-semibold">[DEV MODE] Email delivery simulated.</p>
-                                    <a href={`/#/reset-password?email=${encodeURIComponent(email)}&token=${forgotToken}`} className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg text-center no-underline hover:bg-emerald-700 transition-colors block">
+                                    <a href={`/reset-password?email=${encodeURIComponent(email)}&token=${forgotToken}`} className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg text-center no-underline hover:bg-emerald-700 transition-colors block">
                                         Click here to reset password
                                     </a>
                                 </div>

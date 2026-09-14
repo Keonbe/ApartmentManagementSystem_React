@@ -337,16 +337,16 @@ INSERT IGNORE INTO `notifications` (`user_id`, `title`, `message`, `type`, `is_r
 -- 13. ACTIVITY LOGS (admin audit)
 -- ============================================================
 INSERT IGNORE INTO `activity_logs` (`category`, `action`, `details`, `performed_by`, `created_at`) VALUES
-('application', 'Approved Application', 'Approved rent application for Maria Santos - Room A.',        @admin_id, '2025-10-27 09:00:00'),
-('application', 'Approved Application', 'Approved rent application for Jose Reyes - Room B.',          @admin_id, '2025-09-25 10:00:00'),
-('application', 'Approved Application', 'Approved rent application for Rosa Dela Cruz - Room C.',      @admin_id, '2025-08-27 12:00:00'),
-('application', 'Approved Application', 'Approved rent application for Ben Flores - Room D.',          @admin_id, '2025-10-27 09:00:00'),
-('application', 'Approved Application', 'Approved rent application for Lita Ramos - Room E.',          @admin_id, '2026-07-29 10:00:00'),
+('tenant',      'Approved Application', 'Approved rent application for Maria Santos - Room A.',        @admin_id, '2025-10-27 09:00:00'),
+('tenant',      'Approved Application', 'Approved rent application for Jose Reyes - Room B.',          @admin_id, '2025-09-25 10:00:00'),
+('tenant',      'Approved Application', 'Approved rent application for Rosa Dela Cruz - Room C.',      @admin_id, '2025-08-27 12:00:00'),
+('tenant',      'Approved Application', 'Approved rent application for Ben Flores - Room D.',          @admin_id, '2025-10-27 09:00:00'),
+('tenant',      'Approved Application', 'Approved rent application for Lita Ramos - Room E.',          @admin_id, '2026-07-29 10:00:00'),
 ('contract',    'Approved Lease Extension', 'User ID: 5 - Contract LC-0003 extended by 9 month(s): 2026-03-01 to 2026-12-01', @admin_id, '2026-07-05 10:30:00'),
 ('tenant',      'Updated Contract Eviction Status', 'Contract: LC-0004, Action: flag', @admin_id, '2026-08-16 11:00:00'),
 ('maintenance', 'Resolved Maintenance', 'Plumbing issue in Room G resolved. Cost: PHP1,500.',   @admin_id, '2026-02-10 14:00:00'),
 ('maintenance', 'Resolved Maintenance', 'Electrical repair in Room B completed. Cost: PHP2,200.', @admin_id, '2026-04-12 13:00:00'),
-('payment',     'Verified Payment', 'Marked Invoice INV-202608-2 as Paid - Maria Santos.', @admin_id, '2026-08-14 09:00:00'),
+('billing',     'Verified Payment', 'Marked Invoice INV-202608-2 as Paid - Maria Santos.', @admin_id, '2026-08-14 09:00:00'),
 ('inquiry',     'Reserved Unit', 'Unit I held for Katrina Villareal until +14 days (Reservation ID: 1)', @admin_id, '2026-08-28 14:30:00');
 
 -- ============================================================

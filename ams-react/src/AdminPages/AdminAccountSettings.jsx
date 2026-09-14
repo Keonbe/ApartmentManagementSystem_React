@@ -4,13 +4,20 @@ import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck, faCar } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
+import api from '../api/axiosConfig';
 
 const AdminAccountSettings = () => {
-  const [firstName, setFirstName] = useState('Admin');
-  const [lastName, setLastName] = useState('System');
-  const [email, setEmail] = useState('admin@system.com');
-  const [phone, setPhone] = useState('9171234567');
-  
+  // Loaded from the signed-in admin's real account. These used to be hardcoded
+  // placeholders ("Admin System", admin@system.com) that saving never touched.
+  const storedUser = JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+  const [firstName, setFirstName] = useState(storedUser.first_name || '');
+  const [lastName, setLastName] = useState(storedUser.last_name || '');
+  const [email, setEmail] = useState(storedUser.email_address || '');
+  const [phone, setPhone] = useState('');
+  const [profileExtras, setProfileExtras] = useState({ middle_name: '', suffix: '', gender: '' });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,38 +36,78 @@ const AdminAccountSettings = () => {
       setSettings(data);
     };
     loadSettings();
+
+    const loadProfile = async () => {
+      try {
+        const res = await api.get('profile.php');
+        if (res.data.success && res.data.data) {
+          const p = res.data.data;
+          setFirstName(p.first_name || '');
+          setLastName(p.last_name || '');
+          setPhone(p.contact_no || '');
+          setProfileExtras({ middle_name: p.middle_name || '', suffix: p.suffix || '', gender: p.gender || '' });
+        }
+      } catch (err) {
+        console.error('Failed to load admin profile:', err);
+      }
+    };
+    loadProfile();
   }, []);
 
-  const handleProfileSubmit = (e) => {
-    e.preventDefault();
-    setToast({
-      type: 'success',
-      title: 'Profile Updated',
-      message: 'Admin personal details and credentials have been updated successfully.'
-    });
-    setTimeout(() => setToast(null), 4000);
+  const showToast = (type, title, message) => {
+    setToast({ type, title, message });
+    setTimeout(() => setToast(null), 4500);
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const res = await api.post('profile.php', {
+        firstName, lastName, email, contactNo: phone,
+        middleName: profileExtras.middle_name, suffix: profileExtras.suffix, gender: profileExtras.gender
+      });
+      if (!res.data.success) throw new Error(res.data.message);
+      // Keep the header and guards showing the new name/email without a re-login.
+      const store = sessionStorage.getItem('loggedInUser') ? sessionStorage : localStorage;
+      store.setItem('loggedInUser', JSON.stringify({ ...storedUser, first_name: firstName, last_name: lastName, email_address: email }));
+      showToast('success', 'Profile Updated', 'Your administrator details have been saved.');
+    } catch (err) {
+      showToast('error', 'Profile Not Saved', err?.response?.data?.message || err.message || 'Failed to save your profile.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  // Calls the real endpoint. This form used to show "Password Changed" without sending anything.
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      setToast({
-        type: 'error',
-        title: 'Password Mismatch',
-        message: 'New passwords do not match. Please verify and try again.'
-      });
-      setTimeout(() => setToast(null), 4000);
+      showToast('error', 'Password Mismatch', 'New passwords do not match. Please verify and try again.');
       return;
     }
-    setToast({
-      type: 'success',
-      title: 'Password Changed',
-      message: 'Your administrator password has been updated securely.'
-    });
-    setTimeout(() => setToast(null), 4000);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    if (newPassword.length < 8) {
+      showToast('error', 'Password Too Short', 'Use at least 8 characters.');
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const res = await api.post('change_password.php', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword
+      });
+      if (!res.data.success) throw new Error(res.data.message);
+      const ended = res.data.sessions_ended || 0;
+      showToast('success', 'Password Changed', `Your password has been updated.${ended ? ` ${ended} other session(s) were signed out.` : ''}`);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      showToast('error', 'Password Not Changed', err?.response?.data?.message || err.message || 'Failed to change password.');
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   const handleSettingsSave = async (e) => {
@@ -162,8 +209,8 @@ const AdminAccountSettings = () => {
                         type="text"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
+                        placeholder="09123456789"
                         className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        required
                       />
                     </div>
                   </div>
@@ -171,10 +218,11 @@ const AdminAccountSettings = () => {
                   <div className="pt-2 flex justify-end">
                     <button
                       type="submit"
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer"
+                      disabled={savingProfile}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
                     >
-                      <FontAwesomeIcon icon={faSave} />
-                      Save Changes
+                      <FontAwesomeIcon icon={savingProfile ? faSpinner : faSave} className={savingProfile ? 'animate-spin' : ''} />
+                      {savingProfile ? 'Saving…' : 'Save Changes'}
                     </button>
                   </div>
                 </form>
@@ -232,10 +280,11 @@ const AdminAccountSettings = () => {
                   <div className="pt-2 flex justify-end">
                     <button
                       type="submit"
-                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer"
+                      disabled={savingPassword}
+                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
                     >
-                      <FontAwesomeIcon icon={faSave} />
-                      Update Password
+                      <FontAwesomeIcon icon={savingPassword ? faSpinner : faSave} className={savingPassword ? 'animate-spin' : ''} />
+                      {savingPassword ? 'Updating…' : 'Update Password'}
                     </button>
                   </div>
                 </form>

@@ -99,14 +99,15 @@ sequenceDiagram
 |----------|---------|
 | `create_session()` | Issues a 64-char hex token, valid for 7 days |
 | `get_bearer_token()` | Reads token from `Authorization` or `X-Session-Token` header |
-| `get_authenticated_user()` | Returns `{id, role}` or `null` — **sole source of identity** |
+| `get_authenticated_user()` | Returns `{id, role}` or `null` — **sole source of identity**. Role and archive state are read live from `users` |
+| `revoke_user_sessions()` | Ends a user's sessions (optionally keeping the caller's) — used on password change/reset, role change, archive |
 | `require_admin()` | Gate: 401/403 if not an authenticated admin; returns admin ID |
 | `require_user()` | Gate: 401 if no valid session; returns `{id, role}` |
 | `require_owner_or_admin()` | Gate: 403 if caller is neither the resource owner nor admin |
 | `verify_admin()` | Legacy boolean check — does **not** exit on failure |
 
 > [!IMPORTANT]
-> `X-User-Id` / `X-Admin-Id` headers are **convenience identifiers only**. The session token is the sole proof of identity. Never trust client-supplied IDs for authorization.
+> The session token is the sole proof of identity. `config.php` overwrites any `X-User-Id` / `X-Admin-Id` header from the verified session before an endpoint runs (and removes them when there is no session), and the frontend no longer sends them. Never trust a client-supplied id for authorization.
 
 ---
 
@@ -118,7 +119,8 @@ Authenticates a user and issues a session token.
 | Property | Detail |
 |----------|--------|
 | **Auth** | None (public) |
-| **Rate Limit** | 10 attempts per IP per 15 minutes |
+| **Rate Limit** | 5 failures per account and 20 per IP within 15 minutes (shared with `change_password.php`); a successful login clears that account's failures |
+| **Audit** | Admin sign-ins are written to the activity log (`auth`) |
 
 **Request Body:**
 | Field | Type | Required | Description |
@@ -134,7 +136,7 @@ Authenticates a user and issues a session token.
 | `user` | object | `{id, first_name, middle_name, last_name, suffix, email_address, role}` |
 | `role` | string | `"user"` or `"admin"` |
 
-**Error Codes:** `429` (rate limited), `200` with `valid: false` (bad credentials / archived)
+**Error Codes:** `429` (locked out), `200` with `valid: false` (bad credentials; "archived" is only reported after a correct password)
 
 ---
 
@@ -154,7 +156,7 @@ Creates a new tenant user account.
 | Property | Detail |
 |----------|--------|
 | **Auth** | None (public) |
-| **Validation** | Password ≥ 8 chars, confirmed, unique email |
+| **Validation** | First/last name and a valid email required; password ≥ 8 chars, confirmed; unique email. Always creates a `user` (tenant) account |
 
 **Request Body:**
 | Field | Type | Required |
@@ -183,14 +185,22 @@ Initiates a password reset flow by generating a SHA-256 hashed token (expires in
 ### `POST` [reset_password.php](../../backend/api/reset_password.php)
 Completes password reset using the token from forgot_password.
 
-**Request Body:** `{email, token, new_password}` — password ≥ 6 chars
+**Request Body:** `{email, token, new_password}` — password ≥ 8 chars. On success every session for the account is ended and the reset is logged (`auth`).
 
 ---
 
 ### `POST` [change_password.php](../../backend/api/change_password.php)
-Authenticated password change for logged-in users.
+Changes the **caller's own** password.
 
-**Request Body:** `{email_address, current_password, new_password, confirm_password}` — password ≥ 8 chars
+| Property | Detail |
+|----------|--------|
+| **Auth** | `require_user()` — the account is the session's; any `email_address` in the body is ignored |
+| **Rate Limit** | Wrong current passwords count towards the login lockout |
+| **Effect** | Other sessions for the account are ended (this device stays signed in); logged (`auth`) |
+
+**Request Body:** `{current_password, new_password, confirm_password}` — new password ≥ 8 chars and different from the current one.
+
+**Response:** `{success, message, sessions_ended}` · **Errors:** `401`, `422` (wrong current password / too short / mismatch / unchanged), `429`
 
 ---
 
@@ -214,7 +224,7 @@ Multi-purpose profile endpoint — fetches, updates text fields, uploads/clears 
 **POST (text update):** JSON body
 | Field | Type | Notes |
 |-------|------|-------|
-| `email` | string | Can change login email |
+| `email` | string | Can change login email — must be valid and unused (`409` if taken) |
 | `firstName`, `lastName` | string | Required |
 | `middleName`, `suffix` | string | Optional |
 | `contactNo` | string | PH mobile format validated |
@@ -231,20 +241,22 @@ Admin user management — list, edit, reset password, set role, archive/unarchiv
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `verify_admin()` |
-| **Self-Protection** | Cannot modify own account |
+| **Auth** | `require_admin()` |
+| **Self-Protection** | The session admin cannot modify their own account here (`409`) |
 
-**GET:** Returns all users with full details (sorted admins first)
+**GET:** Returns all users with full details (sorted admins first), each with `is_self`; plus `max_admins`.
 
 **POST Actions (JSON body with `action` + `user_id`):**
 
 | Action | Additional Fields | Notes |
 |--------|-------------------|-------|
-| `update` | `first_name`, `last_name`, `email`, etc. | Email uniqueness enforced |
-| `reset_password` | `new_password` | Min 6 chars |
-| `set_role` | `role` (`user` or `admin`) | Max 3 admins enforced |
-| `delete` | — | Soft-archives (sets `is_archived=1`); cannot archive admins |
-| `unarchive` | — | Restores archived user |
+| `update` | `first_name`, `last_name`, `email`, etc. | Valid, unused email; PH mobile format; values stored exactly as typed |
+| `reset_password` | `new_password` | Min 8 chars; ends the user's sessions |
+| `set_role` | `role` (`user` or `admin`) | Max 3 active admins; last admin can't be demoted; archived accounts can't be promoted; ends the user's sessions |
+| `delete` | — | Soft-archives (sets `is_archived=1`); cannot archive admins; ends the user's sessions |
+| `unarchive` | — | Restores archived user (`409` if not archived) |
+
+Every action is logged under the `user` category. **Errors:** `404` unknown user, `409` rule violations, `422` invalid input.
 
 ---
 
@@ -254,7 +266,7 @@ Lightweight user list for dropdowns (admin only). Returns `{id, name, email}` fo
 ---
 
 ### `GET` [get_tenants.php](../../backend/api/get_tenants.php)
-Admin-only endpoint returning all rent applications with tenant details, document paths, archive info, and move-out dates.
+Admin-only (`require_admin()`) list of all rent applications with tenant details, document paths, archive info and move-out dates — plus tenant monitoring fields: `paymentStatus` (`overdue` / `due` / `current`, from unpaid invoices), `outstandingBalance`, `overdueBalance`, `daysOverdue`, `leaseEnd` and `moveIn` from the lease contract when one exists, and `contractStatus`. Runs `promote_overdue_invoices()` first.
 
 ---
 
@@ -838,18 +850,28 @@ Returns visitor records with overstay detection. Admin sees all; tenant sees own
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | Admin or authenticated tenant |
+| **Auth** | `require_user()` — a tenant sees only their own visitors and their unit's; `?userId=` is ignored |
 | **Overstay** | Configurable via `system_settings.visitor_overstay_hours` |
 
 ---
 
 ### `POST` [check_in_visitor.php](../../backend/api/check_in_visitor.php)
-Registers a visitor for a tenant's unit. Validates visitor count limits and checks for duplicate active visitors.
+Registers a visitor. A **tenant** registration goes to `pending_approval`, and the unit and host are always the tenant's own active tenancy (`403` without one). An **admin** walk-in is `checked_in` immediately; the unit must exist, and the host is the unit's current tenant. Optional `idPhoto`: JPG/PNG/WEBP up to 5 MB, validated by extension and content.
+
+| Property | Detail |
+|----------|--------|
+| **Auth** | `require_user()` |
+| **Errors** | `403` no active lease · `422` missing fields, unknown unit, invalid photo |
 
 ---
 
 ### `POST` [update_visitor_status.php](../../backend/api/update_visitor_status.php)
-Checks out a visitor or updates their status. Records check-out time.
+`action`: `approve` / `reject` (admin only, from `pending_approval`) or `checked_out` (admin or the owning tenant, from `checked_in`).
+
+| Property | Detail |
+|----------|--------|
+| **Auth** | `require_user()`; a tenant may only act on their own visitor |
+| **Errors** | `403` not permitted · `404` unknown visitor · `409` action not valid from the current status · `422` unknown action |
 
 ---
 
@@ -871,7 +893,7 @@ Returns parking reservations — admin sees all, tenant sees own.
 ---
 
 ### `GET` [get_available_parking_slots.php](../../backend/api/get_available_parking_slots.php)
-Returns currently available parking slots for a given date range.
+Returns `{occupied_count, max_slots, available_slots}` — reservations in `Pending`/`Assigned`/`Approved`/`Active` against the `max_parking_slots` setting. `require_user()`.
 
 ---
 
@@ -902,37 +924,48 @@ Admin broadcasts an announcement to all tenants via in-app notifications.
 ---
 
 ### `GET` [get_announcements.php](../../backend/api/get_announcements.php)
-Returns all announcements ordered by most recent.
+`?public=1` — the tenant feed: `require_user()`, sent announcements only. Without it — the full list including drafts and channels: `require_admin()`.
 
 ---
 
 ### `POST` [create_notification.php](../../backend/api/create_notification.php)
-Creates a targeted notification for a specific user.
+Creates a targeted notification for a specific user. `require_admin()`; the user must exist. Body: `{userId, title, message, type}`.
 
 ---
 
 ### `GET` [get_notifications.php](../../backend/api/get_notifications.php)
-Returns unread/all notifications for the authenticated user.
+`require_user()`. A tenant gets their own inbox (any `?userId=` is ignored). An admin gets the pending action queue (`ADMIN_QUEUE_NOTIFICATION_TYPES`).
 
 ---
 
 ### `POST` [mark_notification_read.php](../../backend/api/mark_notification_read.php)
-Marks one or all notifications as read for the authenticated user.
+`require_user()`. With `notificationId` (or `id`): marks that one, if it is in the caller's scope (`404` otherwise). Without: marks everything in scope. Scope — a tenant's own notifications; for an admin, their own plus the admin action queue. Response includes `updated`.
 
 ---
 
 ### `POST` [delete_notification.php](../../backend/api/delete_notification.php)
-Deletes a notification (soft or hard delete depending on ownership).
+`require_user()`, same scope as above. A single id outside it → `404`. Bulk clear skips anything still `Pending`. Response includes `deleted`.
 
 ---
 
 ### `GET` [get_activity_logs.php](../../backend/api/get_activity_logs.php)
-Returns the activity audit log — all logged actions across the system. Admin only.
+The audit trail, filtered and paged on the server. `require_admin()`.
+
+| Parameter | Detail |
+|-----------|--------|
+| `category` | `all` or one of `auth`, `user`, `tenant`, `unit`, `contract`, `billing`, `utilities`, `maintenance`, `service`, `inquiry`, `communication`, `system` (`422` otherwise) |
+| `performer` | `all` / `admin` / `tenant` / `system` (no user) |
+| `search` | Action, details, performer name or email, or a log id (`LOG-0012`) |
+| `from`, `to` | `YYYY-MM-DD`, inclusive |
+| `page`, `limit` | Paging; `limit` ≤ 100 (default 25) |
+| `export` | `1` returns up to 5,000 matching rows and records an `Exported Activity Log` entry |
+
+**Response:** `{logs[], total, page, limit, pages, categories, categoryCounts}` — each log has `id, category, categoryLabel, action, details, createdAt, performedBy, performerName, performerEmail, performerRole`.
 
 ---
 
 ### `GET` / `POST` [get_system_settings.php](../../backend/api/get_system_settings.php) / [update_system_settings.php](../../backend/api/update_system_settings.php)
-Read/write system-wide configuration.
+Read/write system-wide configuration. `update_system_settings.php` is `require_admin()`: keys must match `[A-Za-z0-9_]`, arrays are stored as JSON, only changed values are written, and the activity-log entry names the keys that changed (secret keys shown as "value hidden"). Response includes `changed`.
 
 **Known Settings:**
 | Key | Type | Description |
