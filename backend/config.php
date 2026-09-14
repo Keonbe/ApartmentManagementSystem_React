@@ -34,9 +34,19 @@ if ($conn->connect_error) {
 }
 
 // Priority 4: Observability
+//
+// Audit trail (checklist 8.6). The performer is the verified session user
+// whenever there is one, so a call site that still passes a client-supplied id
+// can no longer attribute an action to someone else. The passed id is used only
+// for requests that have no session at all (password reset by emailed token,
+// payment gateway webhooks). Categories are normalised to LOG_CATEGORIES so the
+// log can actually be filtered — call sites historically wrote a dozen spellings.
 function log_activity($conn, $user_id, $category, $action, $details = "") {
+    $session = get_authenticated_user($conn);
+    $performer = $session ? $session['id'] : ((int)$user_id > 0 ? (int)$user_id : null);
+    $category = normalize_log_category($category);
     $stmt = $conn->prepare("INSERT INTO activity_logs (performed_by, category, action, details) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("isss", $user_id, $category, $action, $details);
+    $stmt->bind_param("isss", $performer, $category, $action, $details);
     $stmt->execute();
     $stmt->close();
 }
@@ -317,26 +327,42 @@ function get_bearer_token() {
 // session. This is the only source of truth for "who is making this
 // request" — nothing else in this codebase should be treated as identity.
 function get_authenticated_user($conn) {
+    static $cache = [];
+
     $token = get_bearer_token();
     if (!$token) return null;
+    if (array_key_exists($token, $cache)) return $cache[$token];
 
-    $stmt = $conn->prepare("SELECT user_id, role FROM sessions WHERE token = ? AND expires_at > NOW()");
+    // Role and archive state come from users, live — not from the session row.
+    // sessions.role is a snapshot taken at login, so trusting it meant a demoted
+    // admin kept admin access, and an archived tenant kept logging in, for up to
+    // the 7-day life of any token they already held.
+    $stmt = $conn->prepare("SELECT s.user_id, u.role, u.is_archived
+                            FROM sessions s JOIN users u ON u.id = s.user_id
+                            WHERE s.token = ? AND s.expires_at > NOW()");
     $stmt->bind_param("s", $token);
     $stmt->execute();
-    $res = $stmt->get_result();
-    if ($res->num_rows === 0) {
-        $stmt->close();
-        return null;
-    }
-    $row = $res->fetch_assoc();
+    $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+
+    if (!$row) {
+        return $cache[$token] = null;
+    }
+
+    if ((int)$row['is_archived'] === 1) {
+        $del = $conn->prepare("DELETE FROM sessions WHERE token = ?");
+        $del->bind_param("s", $token);
+        $del->execute();
+        $del->close();
+        return $cache[$token] = null;
+    }
 
     $touch = $conn->prepare("UPDATE sessions SET last_seen_at = NOW() WHERE token = ?");
     $touch->bind_param("s", $token);
     $touch->execute();
     $touch->close();
 
-    return ['id' => (int)$row['user_id'], 'role' => $row['role']];
+    return $cache[$token] = ['id' => (int)$row['user_id'], 'role' => $row['role']];
 }
 
 // Hard gate for admin-only endpoints: ends the request with 401/403 if the
@@ -646,4 +672,139 @@ function get_contract_owner($conn, $contract_id) {
     if ($res->num_rows === 0) return null;
     return (int)$res->fetch_assoc()['user_id'];
 }
+
+// ── Role-based access & password management (checklist Module 11) ──
+
+// Every path that sets a password uses this minimum. Password reset and the
+// admin "reset password" action used to accept 6 characters while registration
+// and change-password required 8.
+const PASSWORD_MIN_LENGTH = 8;
+
+// Ends every session a user holds, optionally keeping the caller's own token.
+// Called whenever a password, role or archive state changes, so the old
+// credentials or privileges stop working at once (security audit A-8).
+function revoke_user_sessions($conn, $user_id, $keep_token = null) {
+    if ($keep_token) {
+        $stmt = $conn->prepare("DELETE FROM sessions WHERE user_id = ? AND token <> ?");
+        $stmt->bind_param("is", $user_id, $keep_token);
+    } else {
+        $stmt = $conn->prepare("DELETE FROM sessions WHERE user_id = ?");
+        $stmt->bind_param("i", $user_id);
+    }
+    $stmt->execute();
+    $count = $stmt->affected_rows;
+    $stmt->close();
+    return $count;
+}
+
+// Login throttling (A-5 / A-9). Failures are counted per IP and per account.
+// The per-account limit is what stops password guessing from rotating IPs, and a
+// successful login clears only that account's failures — previously one good
+// login (even to the attacker's own account) wiped the whole IP's counter.
+// change_password.php shares the same counters, so it is no longer an
+// unthrottled side door for guessing a password.
+const LOGIN_MAX_FAILURES_PER_IP = 20;
+const LOGIN_MAX_FAILURES_PER_ACCOUNT = 5;
+const LOGIN_LOCKOUT_MINUTES = 15;
+
+function login_throttle_message($conn, $ip, $email) {
+    $email = strtolower(trim((string)$email));
+    $stmt = $conn->prepare("SELECT
+            SUM(ip_address = ?) AS by_ip,
+            SUM(email = ?) AS by_email
+        FROM login_attempts
+        WHERE attempt_time > DATE_SUB(NOW(), INTERVAL " . LOGIN_LOCKOUT_MINUTES . " MINUTE)");
+    $stmt->bind_param("ss", $ip, $email);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ((int)($row['by_email'] ?? 0) >= LOGIN_MAX_FAILURES_PER_ACCOUNT) {
+        return "Too many failed attempts for this account. Please wait " . LOGIN_LOCKOUT_MINUTES . " minutes before trying again.";
+    }
+    if ((int)($row['by_ip'] ?? 0) >= LOGIN_MAX_FAILURES_PER_IP) {
+        return "Too many failed login attempts. Please wait " . LOGIN_LOCKOUT_MINUTES . " minutes before trying again.";
+    }
+    return null;
+}
+
+function record_login_failure($conn, $ip, $email) {
+    $email = strtolower(trim((string)$email));
+    $stmt = $conn->prepare("INSERT INTO login_attempts (ip_address, email, attempt_time) VALUES (?, ?, NOW())");
+    $stmt->bind_param("ss", $ip, $email);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function clear_login_failures($conn, $email) {
+    $email = strtolower(trim((string)$email));
+    $stmt = $conn->prepare("DELETE FROM login_attempts WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Notification types that form the admin's action queue. An admin may read and
+// act on these regardless of which admin row they were addressed to; every
+// other notification belongs only to its own user_id.
+const ADMIN_QUEUE_NOTIFICATION_TYPES = [
+    'rent_application', 'maintenance_request', 'cctv_request', 'parking_reservation',
+    'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request'
+];
+
+function admin_queue_types_sql() {
+    return "('" . implode("','", ADMIN_QUEUE_NOTIFICATION_TYPES) . "')";
+}
+
+// ── Activity log vocabulary (checklist 8.6) ──
+const LOG_CATEGORIES = [
+    'auth'          => 'Authentication',
+    'user'          => 'User Accounts',
+    'tenant'        => 'Tenants',
+    'unit'          => 'Units',
+    'contract'      => 'Contracts',
+    'billing'       => 'Billing & Payments',
+    'utilities'     => 'Utilities',
+    'maintenance'   => 'Maintenance',
+    'service'       => 'Services, CCTV, Parking & Visitors',
+    'inquiry'       => 'Inquiries & Reservations',
+    'communication' => 'Announcements',
+    'system'        => 'System & Settings',
+];
+
+function normalize_log_category($value) {
+    $map = [
+        'payment' => 'billing', 'invoice' => 'billing', 'billing' => 'billing',
+        'user management' => 'user', 'user' => 'user',
+        'tenant management' => 'tenant', 'application' => 'tenant', 'rent_application' => 'tenant', 'tenant' => 'tenant',
+        'contract' => 'contract', 'document' => 'contract', 'lease' => 'contract',
+        'unit' => 'unit', 'room' => 'unit',
+        'utilities' => 'utilities', 'utility' => 'utilities',
+        'maintenance' => 'maintenance',
+        'service' => 'service', 'cctv' => 'service', 'parking' => 'service', 'visitor' => 'service',
+        'inquiry' => 'inquiry', 'reservation' => 'inquiry',
+        'communication' => 'communication', 'announcement' => 'communication', 'notification' => 'communication',
+        'auth' => 'auth', 'security' => 'auth', 'login' => 'auth',
+        'system' => 'system',
+    ];
+    return $map[strtolower(trim((string)$value))] ?? 'system';
+}
+
+// ── Legacy identity headers ──
+// About forty endpoints still read $_SERVER['HTTP_X_USER_ID'] / ['HTTP_X_ADMIN_ID'],
+// values the client sets freely. Rather than trust whatever arrived, both are
+// overwritten here — before any endpoint code runs — with the id of the verified
+// session, and removed entirely when there is none. A forged header therefore
+// resolves to nothing, in every endpoint at once, including the ones that use
+// the value for attribution columns such as created_by.
+(function ($conn) {
+    unset($_SERVER['HTTP_X_USER_ID'], $_SERVER['HTTP_X_ADMIN_ID']);
+    $user = get_authenticated_user($conn);
+    if ($user) {
+        $_SERVER['HTTP_X_USER_ID'] = (string)$user['id'];
+        if ($user['role'] === 'admin') {
+            $_SERVER['HTTP_X_ADMIN_ID'] = (string)$user['id'];
+        }
+    }
+})($conn);
 ?>

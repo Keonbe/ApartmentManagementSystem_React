@@ -10,15 +10,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? ($_GET['userId'] ?? null);
-$isAdmin = verify_admin($conn, $admin_id);
-
-if (!$isAdmin && !$user_id) {
-    http_response_code(401);
-    echo json_encode(["success" => false, "message" => "Unauthorized"]);
-    exit;
-}
+// The tenant scope is the session user. It used to fall back to ?userId= with no
+// authentication, which returned any tenant's visitor log (names, contact numbers,
+// ID numbers) to anyone.
+$auth = require_user($conn);
+$isAdmin = $auth['role'] === 'admin';
+$user_id = $auth['id'];
 
 try {
     // 1. Fetch configurable overstay threshold from system_settings
@@ -37,7 +34,7 @@ try {
     // Scoping
     if (!$isAdmin) {
         // Tenant view: filter by tenant user_id or matching room
-        $where_clauses[] = "(v.user_id = ? OR v.room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved'))";
+        $where_clauses[] = "(v.user_id = ? OR v.room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')))";
         $params[] = (int)$user_id;
         $params[] = (int)$user_id;
         $types .= "ii";
@@ -155,7 +152,7 @@ try {
     $stats_params = [];
     $stats_types = "";
     if (!$isAdmin) {
-        $stats_scope = "WHERE (user_id = ? OR room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved'))";
+        $stats_scope = "WHERE (user_id = ? OR room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')))";
         $stats_params = [(int)$user_id, (int)$user_id];
         $stats_types = "ii";
     }

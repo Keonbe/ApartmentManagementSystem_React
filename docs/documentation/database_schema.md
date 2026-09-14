@@ -252,6 +252,7 @@ erDiagram
         varchar contact_number
         varchar id_type
         varchar id_number
+        varchar id_photo_path "added Sept 2026; check-in failed without it"
         varchar purpose
         varchar vehicle_plate
         enum status "pending_approval | checked_in | checked_out | overstayed | denied"
@@ -331,7 +332,7 @@ erDiagram
 
     ACTIVITY_LOGS {
         int id PK
-        varchar category "application | tenant | maintenance | payment | contract | inquiry | system | service"
+        varchar category "auth | user | tenant | unit | contract | billing | utilities | maintenance | service | inquiry | communication | system"
         varchar action
         text details
         int performed_by FK "nullable, ON DELETE SET NULL"
@@ -353,6 +354,22 @@ erDiagram
         timestamp created_at
     }
 
+    SESSIONS {
+        char token PK "64 hex"
+        int user_id FK "ON DELETE CASCADE"
+        varchar role "login snapshot only; access uses users.role"
+        timestamp created_at
+        timestamp expires_at "7 days"
+        timestamp last_seen_at
+    }
+
+    LOGIN_ATTEMPTS {
+        int id PK
+        varchar ip_address
+        varchar email "lowercased"
+        datetime attempt_time
+    }
+
     USERS ||--o{ RENT_APPLICATIONS : submits
     USERS ||--o{ LEASE_RENEWALS : "approves (approved_by, no FK)"
     USERS ||--o{ MAINTENANCE_REQUESTS : submits
@@ -365,6 +382,7 @@ erDiagram
     ROOMS ||--o{ UTILITY_READINGS : "metered (soft ref)"
     USERS ||--o{ NOTIFICATIONS : receives
     USERS ||--o{ ACTIVITY_LOGS : "performs (performed_by)"
+    USERS ||--o{ SESSIONS : "signs in"
     USERS ||--o{ VISITOR_LOGS : "hosts / logs (user_id, created_by)"
     USERS ||--o{ INQUIRIES : "files (optional)"
     USERS ||--o{ UNIT_RESERVATIONS : "holds (optional)"
@@ -411,18 +429,20 @@ erDiagram
 ### Communication, Access & Audit
 | Table | Purpose |
 |---|---|
-| `visitor_logs` | Front-desk check-in/out log. `status` is a real `ENUM` including `overstayed`/`denied`. |
+| `visitor_logs` | Front-desk check-in/out log. `status` is a real `ENUM` including `overstayed`/`denied`. `id_photo_path` (the uploaded government ID) was missing from the schema until September 2026, which made every check-in fail. |
 | `inquiries` | Public/walk-in "tell me about a unit" leads. `room_name` is intentionally **not** FK-enforced — an inquiry doesn't have to name a specific unit. |
 | `unit_reservations` | A short hold on a room after a promising inquiry. "One active hold per room" is enforced at the application layer (`SELECT ... FOR UPDATE` inside a transaction) rather than a DB constraint, because MySQL has no native partial/conditional unique index. |
 | `announcements` | Broadcast messages; `channels` is a JSON array stored as `longtext` with a `CHECK (json_valid(...))` constraint. |
 | `notifications` | Shared inbox row for **both** tenant-facing status updates and admin-facing "new request" alerts — disambiguated by `user_id` (whose inbox) and `status`/`type`, not by a separate table. `status` and `metadata_value` were added via `ALTER TABLE` after the initial `CREATE TABLE` (see the file — they're relied on everywhere but weren't in the original dump). |
-| `activity_logs` | Admin audit trail; `performed_by` is nullable so a deleted admin account doesn't cascade-delete history. |
+| `activity_logs` | Audit trail (checklist 8.6), append-only. `performed_by` is always the session user when there is one (set by `log_activity()`), and nullable so a deleted account doesn't cascade-delete history. `category` is one of the 12 keys in `LOG_CATEGORIES`; `normalize_log_category()` maps legacy spellings on write. |
 
 ### Settings & Auth Support
 | Table | Purpose |
 |---|---|
 | `system_settings` | Generic `setting_key`/`setting_value` pair store. Every admin-configurable value in the app (lease duration, overdue threshold, payment channel toggles, parking caps, landlord identity for the lease contract, etc.) lives here rather than as dedicated columns — see [`ams-react/src/config/systemSettings.js`](../../ams-react/src/config/systemSettings.js) for the full key list and camelCase↔snake_case mapping. |
 | `password_resets` | Token storage for `forgot_password.php`/`reset_password.php`. |
+| `sessions` | Server-issued bearer tokens. `role` is a snapshot from login and is **not** used for access decisions — `get_authenticated_user()` joins `users` for the live role and archive state. Rows are deleted by `revoke_user_sessions()` on password change/reset, role change and archive. |
+| `login_attempts` | Failed sign-ins and wrong current passwords, counted per account (`email`, lowercased) and per IP over 15 minutes by `login_throttle_message()`. Previously created by `login.php` at request time. |
 
 ---
 
@@ -434,7 +454,7 @@ All migration files live in `backend/api/migrations/`.
 The single source of truth for every `CREATE TABLE`. Structure:
 1. `CREATE DATABASE IF NOT EXISTS ams_db` + all `DROP TABLE IF EXISTS` / `CREATE TABLE` statements for the 12 "original" tables (`users`, `rooms`, `invoices`, `lease_contracts`, `maintenance_requests`, `notifications`, `parking_reservations`, `rent_applications`, `cctv_requests`, `announcements`, `activity_logs`, `system_settings`).
 2. The one seed row that must exist for the app to be usable at all: the **admin account** (`admin@gmail.com` / `admin123`) and the **14-room inventory**.
-3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `visitor_logs`, `inquiries`, `unit_reservations`, `service_catalog`, `service_requests`, `utility_readings`, `password_resets`) — additive, so re-running this file against an existing DB won't wipe those.
+3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `visitor_logs`, `inquiries`, `unit_reservations`, `service_catalog`, `service_requests`, `utility_readings`, `sessions`, `login_attempts`, `password_resets`) — additive, so re-running this file against an existing DB won't wipe those.
 4. Two `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements patching `notifications` (`status`, `metadata_value`) and `invoices` (`services`) — columns the API code depends on that were never added to the original `CREATE TABLE notifications`/`invoices` blocks.
 5. The default `system_settings` rows.
 
@@ -449,6 +469,9 @@ Must run **after** `SetupDB.sql` in the same import — it resolves the admin's 
 
 ### `2026_09_utility_readings.sql` — upgrade for existing databases
 `utility_readings` used to be created at request time by `get_utility_readings.php`, so databases set up before September 2026 may have it without the `invoice_id` column, or not at all. This file is idempotent: `CREATE TABLE IF NOT EXISTS` plus `ADD COLUMN IF NOT EXISTS invoice_id`. A fresh `SetupDB.sql` import does not need it.
+
+### `2026_09_rbac_activity_logs.sql` — upgrade for existing databases
+Idempotent. It creates `login_attempts` if missing and adds the `(email, attempt_time)` index for the per-account lockout. It adds the missing `visitor_logs.id_photo_path` column. It also rewrites existing `activity_logs.category` values into the 12 standard categories. A fresh `SetupDB.sql` import does not need it.
 
 ### `clear_and_seed.sql` and `seed_reset.sql` — ⚠️ currently out of sync
 Both predate the current schema and the `seed_mock_data.sql` rewrite above, and have **not** been kept in sync:

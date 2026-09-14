@@ -1,6 +1,6 @@
 # Security Audit — ApartmentManagementSystem (AMS)
 
-> **Last Updated:** 2026-09-13
+> **Last Updated:** 2026-09-14 (role-based access & activity log audit — see §6d)
 > **Stack:** React 18 (Vite SPA) + PHP 8 + MySQL/MariaDB on XAMPP
 > **Status:** Pre-production / Pilot Testing Review
 > **Scope of this pass:** all 83 `backend/api/*.php` endpoints (auth gate, upload handling, SQL), `backend/config.php`, the frontend auth/routing/API-base code in `ams-react/src`, and `npm audit` on `ams-react`.
@@ -19,11 +19,11 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | A-2 | Change MySQL `root` password on the production server | Full database access with no credentials | `[ ]` |
 | A-3 | Create a least-privilege DB user (`ams_user`) instead of `root` | A PHP breach exposes the entire DB server. Currently blocked by runtime `CREATE TABLE`/`ALTER TABLE` calls (see D-9) that need schema privileges | `[ ]` |
 | A-4 | Verify every **admin-only** API endpoint gates on `require_admin($conn)` (or the hardened `verify_admin()`, which now checks the real session, not a client-supplied id) | Tenants can call admin-only APIs directly | `[x]` |
-| A-5 | Rate-limit `login.php` | Unlimited brute-force login attempts | `[~]` partial — see A-9 |
+| A-5 | Rate-limit `login.php` | Unlimited brute-force login attempts | `[x]` per account (5) and per IP (20) per 15 minutes |
 | A-6 | Remove dead `$_SESSION` code in `login.php` | Dead code creates false security assumptions | `[x]` |
-| A-7 | Gate every **tenant-facing** endpoint on `require_user()`/`require_owner_or_admin()`, not on the client-supplied `X-User-Id` header or a `userId` body/query field | Any unauthenticated caller can read or act as any tenant (see Critical findings below) | `[ ]` |
-| A-8 | Invalidate existing session tokens on password change/reset, role change, or archive | A stolen or just-changed-away-from password keeps working for up to 7 days after the tenant "secured" their account | `[ ]` |
-| A-9 | Rate-limit `forgot_password.php`, `reset_password.php`, and `change_password.php`, and make `login.php`'s limiter per-account as well as per-IP | Password guessing/reset abuse is unlimited on these three endpoints; the login limiter alone is bypassed by rotating source IPs or by one successful login clearing the counter | `[ ]` |
+| A-7 | Gate every **tenant-facing** endpoint on `require_user()`/`require_owner_or_admin()`, not on the client-supplied `X-User-Id` header or a `userId` body/query field | Any unauthenticated caller can read or act as any tenant (see Critical findings below) | `[x]` 2026-09-14 — see §6d |
+| A-8 | Invalidate existing session tokens on password change/reset, role change, or archive | A stolen or just-changed-away-from password keeps working for up to 7 days after the tenant "secured" their account | `[x]` 2026-09-14 — `revoke_user_sessions()`; role and archive state also read live |
+| A-9 | Rate-limit `forgot_password.php`, `reset_password.php`, and `change_password.php`, and make `login.php`'s limiter per-account as well as per-IP | Password guessing/reset abuse is unlimited on these three endpoints; the login limiter alone is bypassed by rotating source IPs or by one successful login clearing the counter | `[~]` `login.php` and `change_password.php` now share a per-account + per-IP limiter; `forgot_password.php` (request spam) is still unlimited. `reset_password.php` needs a 256-bit token, so guessing is not practical |
 
 ### SECTION 2 — File Uploads
 
@@ -35,7 +35,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | B-4 | Switch all MIME detection to `finfo_file()` — never trust `$_FILES['type']` (client-supplied) | Spoofed MIME bypasses extension-based guards | `[x]` |
 | B-5 | Add `backend/uploads/.htaccess` blocking PHP execution and directory listing | Even if PHP is uploaded, it can be executed from the URL | `[x]` |
 | B-6 | Set upload directory permissions: `chown www-data` + `chmod 755` | World-writable uploads are a server foothold | `[ ]` |
-| B-7 | Validate extension + MIME on `check_in_visitor.php`'s `idPhoto` upload | No check at all today — the client's extension is kept as-is, allowing `.html`/`.svg` (stored XSS) or other types not covered by the uploads `.htaccess` denylist | `[ ]` |
+| B-7 | Validate extension + MIME on `check_in_visitor.php`'s `idPhoto` upload | No check at all today — the client's extension is kept as-is, allowing `.html`/`.svg` (stored XSS) or other types not covered by the uploads `.htaccess` denylist | `[x]` 2026-09-14 — JPG/PNG/WEBP allowlist, `finfo_file()`, 5 MB, random filename |
 | B-8 | Gate access to sensitive uploaded documents (gov-ID, NBI clearance, payment proofs, signed leases) behind an authenticated download endpoint instead of a static, guessable-path file URL | Filenames are `<Name>_<field>_<time>_<uniqid>.ext` — `uniqid()` is time-seeded and brute-forceable, so anyone who finds/guesses one URL can view another tenant's ID photos or bank proof | `[ ]` |
 
 ### SECTION 3 — Network & Transport
@@ -59,7 +59,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | D-6 | Set `php.ini` limits: `upload_max_filesize=10M`, `post_max_size=12M` | Uploads silently fail or exceed memory on production | `[x]` |
 | D-7 | Set `APP_ENV=production` in the deployed `config.env.php` (the fallback default in `config.php` and the checked-in `config.env.example.php` are both `development`) | `forgot_password.php` returns the raw reset token (`dev_token`) in the JSON response whenever `APP_ENV !== 'production'` — anyone can reset any account, including the admin, without ever seeing an email | `[ ]` |
 | D-8 | Stop returning `$stmt->error` / `$conn->error` / `$e->getMessage()` in API JSON responses (~30 occurrences) | Leaks table/column names and query structure to any client that triggers a DB error | `[ ]` |
-| D-9 | Move the runtime `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` calls out of request-time PHP (`login.php`, `submit_inquiry.php`, `get_inquiries.php`, `send_payment_reminder.php`) and into `SetupDB.sql` — `get_utility_readings.php` done September 2026 (`utility_readings` now in `SetupDB.sql` + `migrations/2026_09_utility_readings.sql`) | Requires the production DB user to hold schema-DDL privileges, which conflicts with the least-privilege goal in A-3 | `[ ]` |
+| D-9 | Move the runtime `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` calls out of request-time PHP (`submit_inquiry.php`, `get_inquiries.php`, `send_payment_reminder.php`) and into `SetupDB.sql` — `get_utility_readings.php` and `login.php` (`login_attempts`) done September 2026 (`utility_readings` now in `SetupDB.sql` + `migrations/2026_09_utility_readings.sql`) | Requires the production DB user to hold schema-DDL privileges, which conflicts with the least-privilege goal in A-3 | `[ ]` |
 
 ### SECTION 5 — Frontend / React
 
@@ -87,9 +87,9 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 
 | Severity | Count | Items |
 |---|---|---|
-| **Critical** (unauthenticated IDOR / account takeover) | 1 category, 14 endpoints (5 of them fixed 2026-09 — see §6c) | A-7 (see the endpoint table in Finding 1 below) |
-| **High** | 6 | A-1, D-7, B-6, B-7, B-8, E-7 |
-| **Moderate** | 8 | A-3, A-8, A-9, C-1, C-2, C-3, D-8, D-9 |
+| **Critical** (unauthenticated IDOR / account takeover) | 0 — A-7 resolved 2026-09-14 (§6d) | — |
+| **High** | 5 | A-1, D-7, B-6, B-8, E-7 |
+| **Moderate** | 7 | A-3, A-9 (partial), C-1, C-2, C-3, D-8, D-9 |
 | **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-1, E-2, E-3, E-4, E-5 |
 
 > All **Critical** items must be resolved before any external user (pilot or production) touches the system. **High** items must be done before public access.
@@ -104,6 +104,8 @@ _Scanned: all 83 files in `backend/api/`, `backend/config.php`, and the frontend
 ---
 
 ## 1. Critical: Broken Access Control — Tenant Identity Trusted From the Client (A-7)
+
+> ✅ **Resolved 2026-09-14.** Every endpoint in the table below now takes identity from the session. `config.php` also overwrites `X-User-Id` / `X-Admin-Id` from the session before any endpoint runs, so a forged header resolves to nothing anywhere, and the frontend no longer sends them. Details and the live tests are in §6d. The finding is kept below as a record.
 
 `backend/config.php` was hardened so that **admin** identity can never be spoofed: `require_admin()`, `require_user()`, `require_owner_or_admin()`, and even the legacy `verify_admin()` wrapper all resolve identity from the bearer session token created at login (`create_session()` / `get_authenticated_user()`), never from a header.
 
@@ -155,6 +157,8 @@ If a production deployment is copied from the example file (or the `APP_ENV` con
 
 ## 3. High: Unrestricted Upload in Visitor Check-In (B-7)
 
+> ✅ **Resolved 2026-09-14.** `check_in_visitor.php` now allows only JPG/PNG/WEBP up to 5 MB, checked by extension and `finfo_file()`, saved under a random name. (The endpoint also could not store the photo at all until then: `visitor_logs.id_photo_path` was missing from the schema.)
+
 [check_in_visitor.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/check_in_visitor.php) accepts an `idPhoto` upload with **no extension or MIME validation** — the only other three unrestricted-upload endpoints from the previous audit (`parking_reservation.php`, `upload_lease_document.php`, `upload_payment_proof.php`) were fixed, but this one was added later and missed the same treatment:
 
 ```php
@@ -183,14 +187,14 @@ The filename entropy comes from `uniqid()`, which is time-seeded (default 13 hex
 ## 5. Moderate: Additional Findings
 
 - **DB/exception details returned to clients (D-8).** ~30 endpoints echo `$stmt->error`, `$conn->error`, or `$e->getMessage()` straight into the JSON response (e.g. [registration.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/registration.php), [cctv_request.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/cctv_request.php), [get_applications.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_applications.php)). `config.php`'s own connection failure also `die()`s with the raw `connect_error` outside of `APP_ENV=production`. Strip these from responses and log server-side instead.
-- **Public data exposure.** [get_rooms.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_rooms.php) has no auth gate and returns current/past tenant full names, lease dates, monthly rent, move-out reasons, and maintenance history to anyone. [get_announcements.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_announcements.php) without `?public=1` returns *all* announcements — including unsent drafts — with no auth check at all.
-- **Password-reset/account endpoints have no rate limiting (A-9).** Only `login.php` limits attempts, and it does so per-IP with a shared 15-minute/10-attempt bucket that a single successful login clears — an attacker rotating source IPs, or simply logging into their own account between guesses, is unaffected. `forgot_password.php`, `reset_password.php`, and `change_password.php` have no limiting at all.
-- **Account enumeration.** [login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) reveals "This account has been archived" before checking the password (distinguishing archived accounts from wrong passwords), and [registration.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/registration.php) confirms whether an email is already registered.
-- **Inconsistent password minimums.** [reset_password.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/reset_password.php) accepts a 6-character password while `registration.php`/`change_password.php` require 8.
-- **Sessions are never revoked (A-8).** `DELETE FROM sessions` exists only in `logout.php`. Changing a password (`change_password.php`, `reset_password.php`), demoting/archiving a user (`manage_users.php`), or changing a role does not invalidate that user's other outstanding session tokens, which remain valid for up to 7 days and carry the **old** role.
+- **Public data exposure.** [get_rooms.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_rooms.php) has no auth gate and returns current/past tenant full names, lease dates, monthly rent, move-out reasons, and maintenance history to anyone. ~~[get_announcements.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_announcements.php) without `?public=1` returns *all* announcements — including unsent drafts — with no auth check at all.~~ Fixed 2026-09-14: the full list requires an admin, and the tenant feed requires a session and returns sent announcements only.
+- **Password-reset/account endpoints have no rate limiting (A-9).** *Partly fixed 2026-09-14:* `login.php` and `change_password.php` now share a limiter of 5 failures per account and 20 per IP per 15 minutes, and a successful login clears only that account's failures. `forgot_password.php` is still unlimited (request spam only; tokens are 256-bit).
+- **Account enumeration.** ~~[login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) reveals "This account has been archived" before checking the password~~ — fixed 2026-09-14: the archived message is only shown after a correct password. [registration.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/registration.php) still confirms whether an email is already registered.
+- ~~**Inconsistent password minimums.**~~ Fixed 2026-09-14: `PASSWORD_MIN_LENGTH` (8) applies to registration, change, reset and the admin reset.
+- ~~**Sessions are never revoked (A-8).**~~ Fixed 2026-09-14: `revoke_user_sessions()` runs on password change (other devices), password reset, role change and archive. `get_authenticated_user()` also reads the role and archive state live from `users`, so a stale session can no longer carry an old role.
 - **Session tokens stored in plaintext.** The `sessions` table stores the raw bearer token rather than a hash of it, so a DB read (backup leak, injection elsewhere, careless export) hands out live session tokens directly, unlike `password_resets`, which correctly stores only a SHA-256 hash.
 - **Runtime schema DDL (D-9).** `login.php`, `submit_inquiry.php`, `get_inquiries.php`, and `send_payment_reminder.php` run `CREATE TABLE IF NOT EXISTS`/`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` on every request, which both wastes a round trip and requires the app's DB user to hold DDL privileges — directly at odds with the least-privilege goal in A-3.
-- **`get_available_parking_slots.php` includes a non-existent file** (`db_connection.php` — there is no such file in `backend/api/`), so every call fatal-errors; with `display_errors` on, this leaks the server filesystem path.
+- ~~**`get_available_parking_slots.php` includes a non-existent file**~~ — fixed 2026-09-14: loads `config.php` and requires a session.
 - **Tokens readable by any JS on the page.** `sessionToken`/`loggedInUser` live in `sessionStorage`/`localStorage` (`axiosConfig.js`), so any future XSS anywhere in the SPA is a full session-token theft, not just a defacement.
 
 ---
@@ -202,7 +206,7 @@ The filename entropy comes from `uniqid()`, which is time-seeded (default 13 hex
 - `backend/uploads/.htaccess` uses Apache 2.2 `Order allow,deny` syntax (needs `mod_access_compat` on newer Apache/httpd) and its `FilesMatch` denylist for executable extensions doesn't include `phar|pht|phtml|html|svg`. Consider switching to `Require all denied` for the general block and adding those extensions to the denylist, plus `Header set X-Content-Type-Options nosniff`.
 - No security response headers are set anywhere yet (C-4, E-2, E-3, E-4).
 - 10 hardcoded `http://localhost`/`http://localhost:8080` URLs remain in the frontend (E-1) — the API base and several inline document-viewer links use different ports/paths (`localhost` vs `localhost:8080`), which will also break inconsistently in production even after the main `axiosConfig.js` base URL is fixed.
-- `axiosConfig.js` still attaches `X-User-Id`/`X-Admin-Id` on every request; once A-7 is fixed, that comment in the file ("kept only for endpoints not yet migrated") should be revisited so it isn't left attached indefinitely as an unused, spoofable signal.
+- ~~`axiosConfig.js` still attaches `X-User-Id`/`X-Admin-Id` on every request~~ — removed 2026-09-14; only the `Authorization` header is sent, and a `401` now clears the stored session and redirects to `/login`.
 
 ---
 
@@ -230,7 +234,7 @@ if (!in_array($mime, $allowed_mimes)) {
     exit;
 }
 ```
-(`check_in_visitor.php` is the one remaining gap — see Finding 3 above.)
+(`check_in_visitor.php`, the last gap, was fixed 2026-09-14 — see Finding 3.)
 
 ### R-2. Client-Supplied MIME Type No Longer Trusted
 
@@ -288,6 +292,30 @@ Findings from the Module 4 (Maintenance) and Module 5 (Service Management) audit
 
 ---
 
+## 6d. Role-Based Access & Activity Log Hardening (2026-09-14)
+
+Findings from the Module 11 (Role-Based Access) and 8.4–8.6 (Reports & Activity Log) audit, all since fixed and verified live — see `docs/documentation/module_verification_guide.md` §11–§12.
+
+| Issue | Where | Fix |
+|---|---|---|
+| **Header identity trusted across the codebase** — about forty endpoints read `X-User-Id` / `X-Admin-Id` | `config.php` | Both headers are overwritten from the session (or removed) before any endpoint runs; the frontend no longer sends them |
+| **Stale privileges** — the role came from `sessions.role`, a snapshot taken at login, so a demoted admin kept admin access and an archived user stayed signed in for up to 7 days | `get_authenticated_user()` | Role and archive state read live from `users`; archived sessions deleted on sight |
+| **Sessions never revoked** (A-8) | `change_password.php`, `reset_password.php`, `manage_users.php` | `revoke_user_sessions()` on password change/reset, role change, archive |
+| **Unauthenticated password change** — any account's password could be changed given its email, and guessed without limit | `change_password.php` | `require_user()`; shares the login limiter |
+| **Login limiter defeated by one successful login**; archived status revealed before the password check | `login.php` | Per-account (5) + per-IP (20) failures per 15 minutes, cleared per account; password verified first; `login_attempts` DDL moved to `SetupDB.sql` |
+| **Tenant IDOR via client-supplied ids** (A-7) | `get_notifications.php`, `mark_notification_read.php`, `delete_notification.php`, `get_contracts.php`, `get_visitors.php`, `check_in_visitor.php`, `update_visitor_status.php`, `upload_lease_document.php`, `parking_reservation.php`, `rent_application.php`, `submit_inquiry.php` | Identity and ownership from the session |
+| **Unauthenticated writes/reads** — arbitrary notifications into any inbox; all announcements including drafts | `create_notification.php`, `get_announcements.php` | `require_admin()`; tenant feed requires a session and shows sent items only |
+| **Notification scope** — a single id could be read-marked or deleted with no check; admin bulk actions wiped every tenant's inbox; the admin header's `{id}` fell through to the bulk branch | `mark_notification_read.php`, `delete_notification.php` | Scoped to own notifications (plus the admin queue for admins); `id` accepted |
+| **Visitor registration for any unit/host**; unvalidated ID photo (B-7); unguarded status transitions | `check_in_visitor.php`, `update_visitor_status.php` | Tenant forced to own tenancy; upload allowlist + MIME; approve/deny only from pending, checkout only from checked-in |
+| **One-open-application rule bypassed** with someone else's `appId` | `rent_application.php` | `403` unless the application is the caller's |
+| **Admin self-guard and audit attribution from a header**; double-escaped names | `manage_users.php` | `require_admin()`; prepared statements only; last-admin and archived-promotion guards |
+| **Audit trail attributable to anyone** — performer taken from whatever id the call site passed | `log_activity()` | Session user always wins; categories normalised |
+| **Fake admin account settings** — profile and password forms showed success without calling the API | `AdminAccountSettings.jsx` | Wired to `profile.php` and `change_password.php` |
+| **Inconsistent password minimum** (6 vs 8) | `reset_password.php`, `manage_users.php` | `PASSWORD_MIN_LENGTH` = 8 everywhere |
+| Endpoint fatal on every call | `get_available_parking_slots.php` | Loads `config.php`; `require_user()` |
+
+---
+
 ## 7. Correct & Secure Implementations
 
 These are done right — do not regress them.
@@ -301,7 +329,9 @@ These are done right — do not regress them.
 | [forgot_password.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/forgot_password.php), [reset_password.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/reset_password.php) | Reset tokens are random (`random_bytes(32)`) and stored only as a SHA-256 hash, with a 30-minute expiry and single-use deletion after success |
 | All endpoints | Prepared statements (`bind_param`) used consistently — no raw string SQL construction anywhere in `backend/api/` |
 
-> `change_password.php` is intentionally **not** listed here despite matching password-strength rules — see Finding 1: it has no session check at all and trusts the `email_address` field in the request body.
+| [change_password.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/change_password.php), [manage_users.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/manage_users.php) | Session-scoped (2026-09-14): own account only / verified admin; sessions revoked on password or role change; shared login throttle |
+
+> `change_password.php` was previously excluded from this table because it had no session check; that was fixed on 2026-09-14 (§6d).
 
 ---
 

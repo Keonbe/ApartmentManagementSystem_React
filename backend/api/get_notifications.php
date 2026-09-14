@@ -6,37 +6,30 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Id, x
 
 require_once "../config.php";
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { 
-    http_response_code(200); 
-    exit(); 
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-$is_admin = verify_admin($conn, $admin_id);
+// Whose inbox this is comes from the session. The tenant branch used to read
+// ?userId= with no authentication, so anyone could read any tenant's notices.
+$auth = require_user($conn);
 
 try {
-    if ($is_admin) {
-        // ADMIN VIEW: Only notification types that represent an admin action queue,
-        // and only while still awaiting that action (status = 'Pending'). This excludes
-        // tenant-specific notices (rent_due, overdue, billing, maintenance_update, etc.)
-        // even though several of them also default to status = 'Pending'.
-        $query = "SELECT * FROM notifications
-                  WHERE status = 'Pending'
-                  AND type IN ('rent_application', 'maintenance_request', 'cctv_request', 'parking_reservation', 'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request')
-                  ORDER BY created_at DESC
-                  LIMIT 100";
-        $stmt = $conn->prepare($query);
+    if ($auth['role'] === 'admin') {
+        // ADMIN VIEW: the action queue — request types still awaiting a decision.
+        $stmt = $conn->prepare("SELECT * FROM notifications
+                                WHERE status = 'Pending' AND type IN " . admin_queue_types_sql() . "
+                                ORDER BY created_at DESC
+                                LIMIT 100");
     } else {
-        // TENANT VIEW: Only fetch notifications meant for this specific tenant
-        $user_id = $_GET['userId'] ?? 0;
-        $query = "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50";
-        $stmt = $conn->prepare($query);
-        $stmt->bind_param("i", $user_id);
+        // TENANT VIEW: only the caller's own notifications; ?userId= is ignored.
+        $stmt = $conn->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50");
+        $stmt->bind_param("i", $auth['id']);
     }
 
     $stmt->execute();
     $result = $stmt->get_result();
-    
     $notifications = [];
     while ($row = $result->fetch_assoc()) {
         $notifications[] = $row;
@@ -44,10 +37,9 @@ try {
     $stmt->close();
 
     echo json_encode(["success" => true, "notifications" => $notifications]);
-
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => "Failed to load notifications."]);
 }
 
 $conn->close();

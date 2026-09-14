@@ -26,7 +26,16 @@ $occupants = $_POST['occupants'] ?? '';
 $months_of_rent = $_POST['monthsOfRent'] ?? '';
 $room_name = $_POST['roomName'] ?? '';
 $monthly_rent = $_POST['monthlyRent'] ?? '';
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
+// The applicant is the session user. This read X-User-Id directly, so a caller
+// could submit — or, with appId, overwrite — an application as another user, and
+// the profile sync below would then write onto that user's account.
+$auth = require_user($conn);
+if ($auth['role'] !== 'user') {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Rent applications are submitted from a tenant account."]);
+    exit;
+}
+$user_id = $auth['id'];
 $app_id = $_POST['appId'] ?? null;
 $agree_terms = filter_var($_POST['agreeTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
@@ -60,6 +69,13 @@ if (!empty($app_id) && !empty($user_id)) {
         $existing_front = $row['valid_id_front_path'];
         $existing_back = $row['valid_id_back_path'];
         $existing_nbi = $row['nbi_clearance_path'];
+    } else {
+        // An appId that isn't the caller's own is refused. Before, it fell through
+        // to the INSERT branch — skipping the one-open-application check above.
+        $check_stmt->close();
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "This application does not belong to your account."]);
+        exit;
     }
     $check_stmt->close();
 }

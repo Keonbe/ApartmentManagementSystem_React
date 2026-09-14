@@ -136,6 +136,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Please enter a valid email address."]);
+        exit;
+    }
+
+    // email_address is UNIQUE. Without this check a taken address made the UPDATE
+    // fail silently (mysqli does not throw here), yet the response still said
+    // the profile was saved.
+    $dup = $conn->prepare("SELECT 1 FROM users WHERE email_address = ? AND id <> ?");
+    $dup->bind_param("si", $new_email, $auth['id']);
+    $dup->execute();
+    $taken = (bool)$dup->get_result()->fetch_assoc();
+    $dup->close();
+    if ($taken) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "That email address is already used by another account."]);
+        exit;
+    }
+
     // ── Contact Number Validation (F-1) ──
     if (!empty($contact_no)) {
         $clean_contact = preg_replace('/[\s\-]/', '', $contact_no);

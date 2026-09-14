@@ -3,7 +3,7 @@
 > **Project:** Apartment Management System
 > **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
 > **Context:** Small-to-medium scale apartment building (15–100 units)
-> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking and Utility Usage audited)
+> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking, Utility Usage, Reports & Activity Log, and Role-Based Access audited)
 
 ---
 
@@ -24,7 +24,7 @@
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
 | [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit, [x] month-over-month change & usage-spike flags, [x] billing sync to invoices                                                                                                                  |
 | [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [x] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
-| [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management                                                                                                                                                     |
+| [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management, [x] account lockout, [x] sessions ended on role/password change                                                                                     |
 | [x] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [x] admin approval/rejection, [x] request status tracking                                                                                                                                                                              |
 | [x] | **Visitor Management**                  | [x] Visitor records / management, [x] tenant pre-authorization, [x] visitor history, [x] overstay alerts                                                                                                                                                                |
 | [x] | **Contract Management**                 | [x] Contract generation (auto on approval, as Draft), [x] contract viewing, [x] status management (Draft → Active → Expired, auto-expiring), [x] renewal (extends contract + audit trail in `lease_renewals`), [x] printable (PDF via browser print dialog)             |
@@ -322,22 +322,21 @@ flowchart TD
 ```mermaid
 flowchart TD
     A(["User Visits System"]) --> B["Login Page<br/>login.php"]
-    B --> C{"Credentials Valid?"}
-    C -->|No| D["Show Error Message"]
+    B --> T{"Locked out?<br/>5 failures per account / 20 per IP in 15 min"}
+    T -->|Yes| U["429 — wait 15 minutes"]
+    T -->|No| C{"Credentials Valid?"}
+    C -->|No| D["Record failure, show error"]
     D --> B
-    C -->|Yes| E["Read Role from DB<br/>users.role"]
+    C -->|Yes| E["Issue session token<br/>sessions table, 7 days"]
     E --> F{"Role?"}
-    F -->|admin| G["Inject X-Admin-Id Header<br/>axiosConfig.js"]
-    F -->|tenant| H["Inject X-User-Id Header<br/>axiosConfig.js"]
-    G --> I["Route to Admin Pages<br/>AdminDashboard, AdminTenants, etc."]
-    H --> J["Route to Tenant Pages<br/>Home, PayBills, etc."]
-    I --> K{"API Request"}
-    K --> L["PHP: verify_admin<br/>checks X-Admin-Id"]
-    L -->|Valid| M["Process Request"]
-    L -->|Invalid| N["403 Forbidden"]
-    J --> O{"API Request"}
-    O --> P["PHP: checks X-User-Id<br/>scopes data to tenant"]
-    P --> M
+    F -->|admin| I["Admin pages<br/>AdminProtectedRoute"]
+    F -->|tenant| J["Tenant pages<br/>TenantProtectedRoute"]
+    I --> K{"API request<br/>Authorization: Bearer token"}
+    J --> K
+    K --> L["config.php: token → users row<br/>role read live, archived rejected,<br/>identity headers rewritten from session"]
+    L -->|No valid session| O["401 → browser signs out<br/>/login?expired=1"]
+    L -->|Signed in, not permitted| N["403 Forbidden"]
+    L -->|Permitted| M["Process request<br/>scoped to the session user"]
 ```
 
 ---
@@ -478,9 +477,14 @@ flowchart TD
 - [x] **8.1 Dashboard Statistics** ✅ — `dashboard_stats.php` (session-authenticated). Receivables and the action queue cover every unpaid invoice status; the collection rate leaves cancelled invoices out
 - [x] **8.2 Income Reports** ✅ — Financial income statement, unit income rankings, period comparisons, CSV/Print export (`get_report_data.php` + `AdminReports.jsx`). Expenses are recorded maintenance costs (actual cost, excluding tenant-responsible repairs) plus an **optional** overhead percentage (`report_overhead_pct`, 0% unless an admin sets it). No overhead is invented. Outstanding arrears count every unpaid status past its due date, so collection efficiency reflects real overdue balances
 - [x] **8.3 Revenue Stream Analysis** ✅ — Category stream breakdown (Rent, Electricity, Water, Parking, Add-On Services, Deposits, Late Fees) that sums exactly to gross revenue, 100% DB-backed 6-month historical trends, diversification index and a computed utility recovery ratio (paid ÷ invoiced water and electricity)
-- [x] **8.4 Tenant Monitoring** ✅ — `get_tenants.php`
-- [x] **8.5 Maintenance Monitoring** ✅ — `get_maintenance_requests.php`
-- [x] **8.6 System Activity Logs** ✅ — `activity_logs` table, `get_activity_logs.php`, `AdminActivityLogs.jsx`
+- [x] **8.4 Tenant Monitoring** ✅ — `get_tenants.php`. Lease status, lease end (from the contract) and a real payment status per tenant (**Overdue / Due / Paid up**, from unpaid invoices), shown on `AdminTenants.jsx`. It had been hardcoded to "paid" for everyone
+- [x] **8.5 Maintenance Monitoring** ✅ — `get_maintenance_requests.php` board, plus the Reports *Maintenance* tab: tickets by status, open tickets by priority (untriaged first), tickets filed by category, average resolution time, and cost against the admin-configured monthly budget
+- [x] **8.6 System Activity Logs** ✅ — `activity_logs` table, `get_activity_logs.php`, `AdminActivityLogs.jsx`.
+  - **Search:** filters (12 categories, performer, date range, text search) and paging run on the server over the whole log.
+  - **Export:** real CSV export, and each export is itself logged.
+  - **Append-only:** there is no way to clear the log from the UI.
+  - **Attribution:** the performer always comes from the verified session.
+  - **What's logged:** admin sign-ins, password changes and resets, role changes, archives, and which settings changed
 - [x] **8.7 Utility Usage Tracking** ✅ — `utility_readings` table (now in `SetupDB.sql`), `AdminUtilities.jsx`, `UserUtilities.jsx`. Each unit has one water and electricity reading per billing month. Readings are validated: a meter can't read lower than last month, readings are recorded oldest-first, and rates carry forward. Each reading shows the change from the previous month and flags a usage spike above 30%. A mistyped reading is corrected by deleting the latest un-invoiced one. `sync_utility_to_invoice.php` posts the charge onto the tenant's open invoice for that month, or onto a utilities-only invoice — rent is never billed twice. Reports show units read vs. occupied and which units are still unread. Tenants see only their own readings (session-scoped)
 - [ ] **8.8 Sampling Data / Demo Data** 📋 — Needed for demo (SQL seed script)
 
@@ -517,10 +521,13 @@ flowchart TD
 > Admin Pages: [AdminUsers.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminUsers.jsx) · [AdminAccountSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAccountSettings.jsx) · [AdminCctv.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminCctv.jsx)
 > Tenant Pages: [Login.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Login.jsx) · [Registration.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/Registration.jsx) · [ResetPassword.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ResetPassword.jsx) · [CctvRequest.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/CctvRequest.jsx)
 
-- [x] **11.1 Role-Based Access Control** ✅ — Admin/tenant route guards
-- [x] **11.2 Admin Authentication** ✅ — `login.php`
-- [x] **11.3 Tenant Authentication** ✅ — `login.php`
-- [x] **11.4 Password Management** ✅ — `change_password.php`
+- [x] **11.1 Role-Based Access Control** ✅ — Two roles (`admin`, `user`), enforced server-side on every endpoint from the verified session; the React route guards are convenience only.
+  - **Role changes apply immediately:** the role is read live, so a demotion or archive takes effect on the next request, and the user's sessions are ended.
+  - **Forged identity headers do nothing:** client-supplied `X-User-Id` / `X-Admin-Id` values are overwritten from the session.
+  - **Admin limits:** at most 3 admins; the last admin can't be demoted; an admin can't change their own role in User Management
+- [x] **11.2 Admin Authentication** ✅ — `login.php` session token. Admin sign-ins are recorded in the activity log. The account locks for 15 minutes after 5 failed attempts (20 per IP)
+- [x] **11.3 Tenant Authentication** ✅ — `login.php`, same lockout. Archived accounts are refused, and only after the correct password is given
+- [x] **11.4 Password Management** ✅ — `change_password.php` (own account only, verifies the current password, signs out other devices); email reset via `forgot_password.php` / `reset_password.php` (ends all sessions); admin reset in User Management; the admin's own password and profile in Account Settings. 8-character minimum on every path
 - [x] **11.5 CCTV Access Requests** ✅ — Tenant submits via `cctv_request.php`; admin approves/rejects via `update_cctv_status.php` (`AdminCctv.jsx`), which also notifies the tenant and logs the action; queue and counts via `get_cctv_requests.php`
 
 ---
@@ -530,7 +537,7 @@ flowchart TD
 > Admin Pages: [AdminVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminVisitors.jsx)
 > Tenant Pages: [UserVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserVisitors.jsx)
 
-- [x] **12.1 Visitor Log Entry** ✅ — `check_in_visitor.php`, `visitor_logs` table (with ID type, ID number & Gov ID photo upload)
+- [x] **12.1 Visitor Log Entry** ✅ — `check_in_visitor.php`, `visitor_logs` table (with ID type, ID number & Gov ID photo upload). The photo column was missing from the schema, so check-in failed until September 2026. A tenant can only register visitors for their own unit, and ID photos are validated
 - [x] **12.2 Tenant Pre-Authorization / Registration** ✅ — Tenant self-registration with `pending_approval` admin review
 - [x] **12.3 Visitor History & Overstay Alerts** ✅ — `get_visitors.php` role-scoped query, status/date/unit filters, overstay threshold alerts
 
@@ -756,9 +763,9 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 | 8.1 | **Dashboard Statistics** | Cards showing: total tenants, occupancy rate, total revenue (this month), pending maintenance, overdue payments. Receivables span every unpaid status; the collection rate excludes cancelled invoices | Small+ | `dashboard_stats.php` | — |
 | 8.2 | **Income Reports** | Monthly/quarterly/yearly revenue breakdown: rent collected, utilities, parking fees, services, late fees, outstanding arrears (every unpaid status past due) and collection efficiency. Expenses = recorded maintenance cost (actual cost, tenant-responsible repairs excluded, dated by resolution) + an optional configured overhead % (`report_overhead_pct`, default 0) | Small+ | `get_report_data.php`, `AdminReports.jsx` | [module_verification_guide.md §9](../documentation/module_verification_guide.md) |
 | 8.3 | **Revenue Stream Analysis** | Breakdown by source: base rent vs. water vs. electricity vs. parking vs. services vs. deposits vs. late fees, summing exactly to gross revenue. 100% database-backed 6-month category trends with no mock fallbacks, and a computed utility recovery ratio | Medium | `get_report_data.php` with real category breakdowns | [module_verification_guide.md §9](../documentation/module_verification_guide.md) |
-| 8.4 | **Tenant Monitoring** | List view: all tenants with lease status, payment status (current/overdue), lease end date | Small+ | `get_tenants.php` | — |
-| 8.5 | **Maintenance Monitoring** | Overview: open requests by priority, average resolution time, requests by category | Small+ | `get_maintenance_requests.php` with aggregation | — |
-| 8.6 | **System Activity Logs** | Audit trail: who did what, when. Admin actions logged (tenant approved, payment recorded, settings changed) | Small+ | `get_activity_logs.php`, `activity_logs` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 8.4 | **Tenant Monitoring** | List view: all tenants with lease status, payment status (overdue / due / paid up, computed from unpaid invoices), outstanding and overdue amounts, lease end date from the contract | Small+ | `get_tenants.php`, `AdminTenants.jsx` | [module_verification_guide.md §11](../documentation/module_verification_guide.md) |
+| 8.5 | **Maintenance Monitoring** | Overview: open requests by priority (untriaged first), average resolution time, requests by category, cost vs. monthly budget | Small+ | `get_maintenance_requests.php`, `get_report_data.php` (`maintOpenByPriority`, `maintCategoryCounts`, `maintAvgResolutionHours`, `maintenanceBudget`) | [module_verification_guide.md §11](../documentation/module_verification_guide.md) |
+| 8.6 | **System Activity Logs** | Audit trail: who did what, when. The performer comes from the session and categories are standardised (12). Server-side search and filters; CSV export (itself logged); append-only. Logs admin actions plus security events (admin sign-in, password change/reset, role change, archive, settings keys changed) | Small+ | `get_activity_logs.php`, `activity_logs` table, `log_activity()` / `LOG_CATEGORIES` in `config.php` | [module_verification_guide.md §11](../documentation/module_verification_guide.md) |
 | 8.7 | **Utility Usage Tracking** | Track water/electricity consumption per unit over time and identify unusual usage patterns. Monthly sub-meter readings per unit are validated: no backwards meters, recorded in order, rates carried forward. Each shows the change from the previous month, with a spike flag above 30%. Readings are billed onto invoices without ever re-billing rent, and a mistake is corrected by deleting the latest un-invoiced reading. Reports show consumption, recovery, and occupied units not yet read. Tenants see their own history and averages | Medium | `utility_readings` table, `save_utility_reading.php`, `get_utility_readings.php`, `delete_utility_reading.php`, `sync_utility_to_invoice.php`, `get_utilities_report_data.php`, `AdminUtilities.jsx`, `UserUtilities.jsx` | [module_verification_guide.md §10](../documentation/module_verification_guide.md) |
 | 8.8 | **Sampling Data / Demo Data** | Pre-populated realistic data for demo: 10-20 tenants, 6 months of payment history, maintenance records | Small+ | SQL seed script in `backend/api/migrations/` | — |
 
@@ -797,10 +804,10 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 11.1 | **Role-Based Access Control** | Admin sees admin pages; tenant sees tenant pages. Routes guarded by role check | Small+ | `loggedInUser.role` check, `verify_admin()` in PHP | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 11.2 | **Admin Authentication** | Admin login with email/password; session-based auth via `sessionStorage` | Small+ | `login.php`, `axiosConfig.js` (X-Admin-Id header) | — |
-| 11.3 | **Tenant Authentication** | Tenant login with email/password; same auth mechanism, different role | Small+ | `login.php`, `axiosConfig.js` (X-User-Id header) | — |
-| 11.4 | **Password Management** | Change password functionality for both roles | Small+ | `change_password.php` | — |
+| 11.1 | **Role-Based Access Control** | Admin sees admin pages; tenant sees tenant pages. Every API call is authorised server-side from the session, with the role read live. Role changes and archiving end the user's sessions. Forged identity headers are overwritten | Small+ | `require_admin()` / `require_user()` / `get_authenticated_user()` in `config.php`, `manage_users.php`, route guards in `App.jsx` | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
+| 11.2 | **Admin Authentication** | Admin login with email/password → server-issued bearer session token (7 days). Per-account and per-IP lockout. Admin sign-ins logged | Small+ | `login.php`, `sessions` / `login_attempts` tables, `axiosConfig.js` (Authorization header, 401 → sign-out) | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
+| 11.3 | **Tenant Authentication** | Tenant login with email/password; same mechanism and lockout, different role. Archived accounts refused | Small+ | `login.php` | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
+| 11.4 | **Password Management** | Change own password (current password required, other devices signed out); forgot/reset by email (all sessions ended); admin reset of a user's password; admin profile & password in Account Settings; 8-character minimum everywhere | Small+ | `change_password.php`, `forgot_password.php`, `reset_password.php`, `manage_users.php`, `profile.php`, `AdminAccountSettings.jsx`, `ChangePasswordModal.jsx` | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
 | 11.5 | **CCTV Access Requests** | Tenant requests to view CCTV footage; admin approves/rejects, tenant is notified either way, queue shows live approved/rejected counts | Medium | `cctv_request.php`, `get_cctv_requests.php`, `update_cctv_status.php`, `AdminCctv.jsx` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 
 ---

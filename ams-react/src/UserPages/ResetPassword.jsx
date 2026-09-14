@@ -34,8 +34,8 @@ export default function ResetPassword() {
             return;
         }
 
-        if (password.length < 6) {
-            setMessage("Password must be at least 6 characters.");
+        if (password.length < 8) {
+            setMessage("Password must be at least 8 characters.");
             return;
         }
 
@@ -148,7 +148,7 @@ export default function ResetPassword() {
                                                     required
                                                     value={password}
                                                     onChange={(e) => setPassword(e.target.value)}
-                                                    minLength={6}
+                                                    minLength={8}
                                                 />
                                                 <button
                                                     type="button"
@@ -170,7 +170,7 @@ export default function ResetPassword() {
                                                     required
                                                     value={confirmPassword}
                                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                                    minLength={6}
+                                                    minLength={8}
                                                 />
                                             </div>
                                         </div>

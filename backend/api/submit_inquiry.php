@@ -62,15 +62,15 @@ $source     = trim($input['source'] ?? 'web');
 $occupants  = isset($input['occupants']) && $input['occupants'] !== '' ? (int)$input['occupants'] : null;
 $move_in    = trim($input['preferred_move_in'] ?? '');
 
-// Optional — present only when the submitter is logged in. axiosConfig omits
-// the header entirely for guests.
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-$user_id = ($user_id !== null && $user_id !== '') ? (int)$user_id : null;
+// Optional — an inquiry is linked to an account only when the submitter has a
+// real session; guests stay anonymous. (This used to trust X-User-Id, so a guest
+// could attach an inquiry to any account.)
+$auth = get_authenticated_user($conn);
+$user_id = $auth ? $auth['id'] : null;
 
 // An admin logging a walk-in / phone inquiry may name the source; anyone else
 // is 'web' regardless of what they post.
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-$is_admin = verify_admin($conn, $admin_id);
+$is_admin = $auth && $auth['role'] === 'admin';
 if (!$is_admin || !in_array($source, ['web', 'walk-in', 'phone'], true)) {
     $source = 'web';
 }

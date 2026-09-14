@@ -15,21 +15,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // lapsed lease never reports 'active' just because no admin has looked at it.
 expire_lapsed_contracts($conn);
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-$logged_user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-$is_admin = verify_admin($conn, $admin_id);
+// Ownership is checked against the session. It used to compare ?userId= with the
+// X-User-Id header — two values the same client supplies — so sending a matching
+// pair read any tenant's contract and contact details.
+$auth = require_user($conn);
+$is_admin = $auth['role'] === 'admin';
 
 $user_id = $_GET['userId'] ?? null;
 $email = $_GET['email'] ?? null;
 
-if (!empty($user_id)) {
-    // A non-admin may only read their own contract, and must identify themselves.
-    if (!$is_admin && (empty($logged_user_id) || (int)$user_id !== (int)$logged_user_id)) {
+if (!$is_admin) {
+    if (!empty($user_id) && (int)$user_id !== $auth['id']) {
         http_response_code(403);
         echo json_encode(["success" => false, "message" => "Forbidden: Access denied to other user's contract"]);
         exit;
     }
+    // A tenant always gets their own contract, whatever else was asked for.
+    $user_id = $auth['id'];
+}
 
+if (!empty($user_id)) {
     $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at 
                             FROM rent_applications ra 
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
@@ -89,7 +94,9 @@ if (!empty($user_id)) {
     // UI (banner/panel/stat card in AdminContracts.jsx) has real data instead
     // of always-null. Same 'oldest unpaid invoice' definition already used by
     // check_due_date_reminders.php / get_invoices.php.
-    $conn->query("UPDATE invoices SET status = 'overdue' WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < CURDATE()");
+    // The shared promotion, so late fees and every open status apply here too
+    // (this used to be a private UPDATE that only moved 'pending' invoices).
+    promote_overdue_invoices($conn);
     $overdue_by_user = [];
     $overdue_res = $conn->query("SELECT user_id, MIN(due_date) AS oldest_due_date, SUM(total_amount) AS outstanding_amount, COUNT(*) AS invoice_count FROM invoices WHERE status = 'overdue' GROUP BY user_id");
     if ($overdue_res) {

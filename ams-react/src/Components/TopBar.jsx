@@ -19,8 +19,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
     const handleLogout = () => {
         api.post('/logout.php').catch(() => {}); // invalidate the server-side session; fire-and-forget
-        sessionStorage.removeItem("loggedInUser");
-        sessionStorage.removeItem("sessionToken");
+        // Both stores: readers fall back to localStorage, so clearing one left the user "signed in".
+        for (const store of [sessionStorage, localStorage]) {
+            store.removeItem("loggedInUser");
+            store.removeItem("sessionToken");
+        }
         navigate('/login');
     };
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);

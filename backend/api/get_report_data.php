@@ -420,19 +420,31 @@ if ($stmt) {
     $stmt->close();
 }
 
-// Move-ins (Approved applications in period). Includes 'active'/'pending-move-out'
-// too — those are tenants who were approved (moved in) during this period and
-// have simply progressed since; a later status change shouldn't erase the
-// historical move-in.
-$stmt = $conn->prepare("SELECT COUNT(*) as count FROM rent_applications WHERE status IN ('Approved', 'active', 'pending-move-out') AND $dateCondition");
+// Period filter on an arbitrary date expression (all inputs are cast ints).
+$periodOn = function ($expr) use ($timeframe, $year, $month, $quarter) {
+    if ($timeframe === 'yearly') return "YEAR($expr) = $year";
+    if ($timeframe === 'quarterly') return "YEAR($expr) = $year AND QUARTER($expr) = $quarter";
+    return "YEAR($expr) = $year AND MONTH($expr) = $month";
+};
+
+// Move-ins: tenancies whose lease started in the period (the application date
+// when no contract exists). This used to count applications *submitted* in the
+// period, and dropped anyone who had since moved out or been archived.
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM rent_applications ra
+                        LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
+                        WHERE ra.status IN ('Approved', 'active', 'pending-move-out', 'moved-out', 'archived')
+                          AND " . $periodOn("COALESCE(lc.lease_start, DATE(ra.created_at))"));
 $stmt->execute();
 if ($row = $stmt->get_result()->fetch_assoc()) {
     $data['moveIns'] = (int)$row['count'];
 }
 $stmt->close();
 
-// Move-outs (Applications changed to 'moved-out' in period)
-$stmt = $conn->prepare("SELECT COUNT(*) as count FROM rent_applications WHERE status = 'moved-out' AND $dateCondition");
+// Move-outs: tenancies that ended with a move-out date in the period. This used
+// to count moved-out applications by the date they were *submitted*.
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM rent_applications
+                        WHERE status IN ('moved-out', 'archived') AND requested_move_out_date IS NOT NULL
+                          AND " . $periodOn("requested_move_out_date"));
 $stmt->execute();
 $data['moveOuts'] = 0;
 if ($row = $stmt->get_result()->fetch_assoc()) {
@@ -568,8 +580,9 @@ $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
     $data['roomApplications'] += (int)$row['count'];
-    if ($row['status'] === 'Approved') $data['roomApproved'] = (int)$row['count'];
-    if ($row['status'] === 'Rejected') $data['roomRejected'] = (int)$row['count'];
+    // An application approved in the period and since activated (or moved out) is still an approval.
+    if (in_array($row['status'], ['Approved', 'active', 'pending-move-out', 'moved-out', 'archived'], true)) $data['roomApproved'] += (int)$row['count'];
+    if (in_array($row['status'], ['Rejected', 'Declined'], true)) $data['roomRejected'] += (int)$row['count'];
     if ($row['status'] === 'Pending Review' || $row['status'] === 'Pending') $data['roomPending'] = (int)$row['count'];
 }
 $stmt->close();
@@ -591,6 +604,27 @@ while ($row = $res->fetch_assoc()) {
     $data['maintUrgencyCounts'][$urg] = ($data['maintUrgencyCounts'][$urg] ?? 0) + 1;
 }
 $stmt->close();
+
+// Open maintenance by priority right now (checklist 8.5), untriaged tickets included
+$data['maintOpenByPriority'] = [];
+$res = $conn->query("SELECT urgency, COUNT(*) AS c FROM maintenance_requests WHERE status IN ('Pending', 'In Progress') GROUP BY urgency");
+while ($row = $res->fetch_assoc()) {
+    $data['maintOpenByPriority'][$row['urgency'] ?: 'Needs Triage'] = (int)$row['c'];
+}
+
+// Maintenance budget for the period: the admin's monthly setting (₱50,000 when
+// unset) times the months covered. The page used a hardcoded ₱50,000 regardless.
+$monthly_budget = 50000.0;
+$res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('maintenance_monthly_budget', 'maintenanceMonthlyBudget') ORDER BY setting_key = 'maintenance_monthly_budget' DESC LIMIT 1");
+if ($res && ($row = $res->fetch_assoc()) && is_numeric($row['setting_value'])) {
+    $monthly_budget = (float)$row['setting_value'];
+}
+$data['maintenanceBudget'] = $monthly_budget * ($timeframe === 'yearly' ? 12 : ($timeframe === 'quarterly' ? 3 : 1));
+
+// Monthly rent not being earned on vacant units — the "Occupancy Gap" figure
+// used to assume ₱4,000 for every vacant unit.
+$row = $conn->query("SELECT COALESCE(SUM(monthly_rent), 0) AS potential FROM rooms WHERE LOWER(status) = 'vacant'")->fetch_assoc();
+$data['vacantRentPotential'] = (float)$row['potential'];
 
 // Average resolution time for requests resolved in the period (null when none were)
 $data['maintAvgResolutionHours'] = null;
@@ -620,13 +654,14 @@ $stmt = $conn->prepare("SELECT
     COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), TRIM(CONCAT(COALESCE(ra.first_name, ''), ' ', COALESCE(ra.last_name, ''))), 'Active Tenant') as tenant_name,
     COALESCE(u.email_address, ra.email, '') as email_address,
     COALESCE(u.contact_no, ra.contact_no, '') as contact_no,
-    ra.created_at,
-    COALESCE(r.monthly_rent, ra.monthly_rent, 4000) as monthly_rent,
-    COALESCE(r.lease_end, '') as lease_end,
+    COALESCE(lc.lease_start, ra.created_at) as created_at,
+    COALESCE(ra.monthly_rent, r.monthly_rent, 0) as monthly_rent,
+    COALESCE(lc.lease_end, r.lease_end, '') as lease_end,
     ra.status
 FROM rent_applications ra
 LEFT JOIN users u ON ra.user_id = u.id
 LEFT JOIN rooms r ON ra.room_name = r.id
+LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
 -- Every current tenant, not just 'Approved': a tenant becomes 'active' once the
 -- move-in invoice is paid, and was dropped from this list (and the invoice picker) from then on.
 WHERE ra.status IN ('Approved', 'active', 'pending-move-out')
@@ -644,7 +679,8 @@ while ($row = $res->fetch_assoc()) {
         'leaseEnd' => $row['lease_end'],
         'userId' => $row['user_id'] ? (int)$row['user_id'] : null,
         'appId' => $row['application_id'],
-        'status' => 'active'
+        // Was always 'active', so tenants serving move-out notice never showed as "Ending".
+        'status' => $row['status'] === 'pending-move-out' ? 'pending-move-out' : 'active'
     ];
 }
 $stmt->close();

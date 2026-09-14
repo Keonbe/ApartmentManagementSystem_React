@@ -412,6 +412,7 @@ CREATE TABLE `visitor_logs` (
   `contact_number` varchar(30) NOT NULL,
   `id_type` varchar(50) DEFAULT NULL,
   `id_number` varchar(50) DEFAULT NULL,
+  `id_photo_path` varchar(255) DEFAULT NULL,
   `purpose` varchar(255) NOT NULL,
   `vehicle_plate` varchar(30) DEFAULT NULL,
   `status` enum('pending_approval','checked_in','checked_out','overstayed','denied') NOT NULL DEFAULT 'pending_approval',
@@ -742,6 +743,22 @@ CREATE TABLE IF NOT EXISTS `sessions` (
   PRIMARY KEY (`token`),
   KEY `fk_session_user` (`user_id`),
   CONSTRAINT `fk_session_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `login_attempts`
+-- Failed sign-in attempts, counted per IP and per account by
+-- login_throttle_message() in backend/config.php (also used by
+-- change_password.php). Previously created by login.php at request time.
+--
+CREATE TABLE IF NOT EXISTS `login_attempts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ip_address` varchar(45) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `attempt_time` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ip_address` (`ip_address`,`attempt_time`),
+  KEY `email_time` (`email`,`attempt_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `password_resets` (

@@ -86,12 +86,12 @@ const AdminUsers = () => {
         setEditUser(null);
         showToast('User updated successfully.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to save changes.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to save changes.', 'error'); }
     finally { setSaving(false); }
   };
 
   const handleResetPassword = async () => {
-    if (newPassword.length < 6) { showToast('Password must be at least 6 characters.', 'error'); return; }
+    if (newPassword.length < 8) { showToast('Password must be at least 8 characters.', 'error'); return; }
     setSaving(true);
     try {
       const res = await api.post('/manage_users.php', { action: 'reset_password', user_id: showResetModal, new_password: newPassword });
@@ -100,18 +100,20 @@ const AdminUsers = () => {
         setNewPassword('');
         showToast('Password reset successfully.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to reset password.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to reset password.', 'error'); }
     finally { setSaving(false); }
   };
 
   const handleSetRole = async (user, newRole) => {
+    const verb = newRole === 'admin' ? 'grant admin access to' : 'revoke admin access from';
+    if (!window.confirm(`Are you sure you want to ${verb} ${user.first_name} ${user.last_name}? They will be signed out and must sign in again.`)) return;
     try {
       const res = await api.post('/manage_users.php', { action: 'set_role', user_id: user.id, role: newRole });
       if (res.data.success) {
         await fetchUsers();
         showToast(`Role changed to "${newRole}".`);
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to change role.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to change role.', 'error'); }
   };
 
   const handleArchive = async () => {
@@ -123,7 +125,7 @@ const AdminUsers = () => {
         setArchiveTarget(null);
         showToast('User account archived.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to archive user.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to archive user.', 'error'); }
     finally { setSaving(false); }
   };
 
@@ -134,7 +136,7 @@ const AdminUsers = () => {
         await fetchUsers();
         showToast('User account restored successfully.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to restore user.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to restore user.', 'error'); }
   };
 
   const counts = {
@@ -249,7 +251,11 @@ const AdminUsers = () => {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            {statusFilter === 'active' ? (
+                            {u.is_self ? (
+                              <span className="text-[10px] font-semibold text-slate-400" title="Your own details and password are managed from Account Settings">
+                                You · Account Settings
+                              </span>
+                            ) : statusFilter === 'active' ? (
                               <>
                                 <button onClick={() => openEdit(u)} title="Edit"
                                   className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors">
@@ -363,7 +369,7 @@ const AdminUsers = () => {
             <div className="p-6 space-y-3">
               <p className="text-xs text-slate-500 m-0">Enter a new password for this account. The user will need to use this password on their next login.</p>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Password (min 6 chars)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Password (min 8 chars)</label>
                 <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
                   placeholder="Enter new password" />
@@ -371,7 +377,7 @@ const AdminUsers = () => {
             </div>
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
               <button onClick={() => setShowResetModal(null)} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
-              <button onClick={handleResetPassword} disabled={saving || newPassword.length < 6}
+              <button onClick={handleResetPassword} disabled={saving || newPassword.length < 8}
                 className="px-5 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 border-0 cursor-pointer disabled:opacity-40">
                 {saving ? 'Saving...' : 'Reset Password'}
               </button>

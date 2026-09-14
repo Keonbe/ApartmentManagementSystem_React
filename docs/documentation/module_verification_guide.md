@@ -1,6 +1,6 @@
 # AMS — Module Verification Guide
 
-> **Document Version:** 1.1 — September 2026 (adds Financial Tracking and Utility Usage)
+> **Document Version:** 1.2 — September 2026 (adds Reports & Activity Log and Role-Based Access; 1.1 added Financial Tracking and Utility Usage)
 > **Stack:** React 18 (Vite) + PHP 8 + MySQL/MariaDB 10 (XAMPP)
 > **Database:** `ams_db`
 > **Scope:** Modules that have been audited end-to-end. See [§2 Extending This Guide](#2-extending-this-guide).
@@ -48,9 +48,19 @@
    - 10.2 [API Diagrams](#102-api-diagrams)
    - 10.3 [Step-by-Step Workflow](#103-step-by-step-workflow)
    - 10.4 [Test Conditions](#104-test-conditions)
-11. [Date-Dependent Testing](#11-date-dependent-testing)
-12. [Known Issues & Blocked Tests](#12-known-issues--blocked-tests)
-13. [Appendix — Recipes & Reference](#13-appendix--recipes--reference)
+11. [Module 8 — Reports & Activity Log (8.4–8.6)](#11-module-8--reports--activity-log)
+   - 11.1 [API Contract](#111-api-contract)
+   - 11.2 [API Diagrams](#112-api-diagrams)
+   - 11.3 [Step-by-Step Workflow](#113-step-by-step-workflow)
+   - 11.4 [Test Conditions](#114-test-conditions)
+12. [Module 11 — Role-Based Access (11.1–11.4)](#12-module-11--role-based-access)
+   - 12.1 [API Contract](#121-api-contract)
+   - 12.2 [API Diagrams](#122-api-diagrams)
+   - 12.3 [Step-by-Step Workflow](#123-step-by-step-workflow)
+   - 12.4 [Test Conditions](#124-test-conditions)
+13. [Date-Dependent Testing](#13-date-dependent-testing)
+14. [Known Issues & Blocked Tests](#14-known-issues--blocked-tests)
+15. [Appendix — Recipes & Reference](#15-appendix--recipes--reference)
 
 ---
 
@@ -109,9 +119,10 @@ If a start script reports "could not be started" but the port is already listeni
 >
 > Two other files, `clear_and_seed.sql` and `seed_reset.sql`, are **out of sync with the current schema** — do not use them.
 >
-> **Upgrading an existing database** (not needed after a fresh import): `utility_readings` used to be created at request time and may lack the `invoice_id` column. Run the idempotent migration once:
+> **Upgrading an existing database** (not needed after a fresh import): run the idempotent migrations once. The first adds `utility_readings` and its `invoice_id` column. The second adds `login_attempts` with its per-account index and the missing `visitor_logs.id_photo_path` column, and normalises activity-log categories.
 > ```bash
 > /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_utility_readings.sql
+> /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_rbac_activity_logs.sql
 > ```
 
 ### 1.3 Base URLs
@@ -178,7 +189,7 @@ SELECT COUNT(*) AS utility_readings       FROM utility_readings;
 SELECT COUNT(*) AS overhead_setting       FROM system_settings WHERE setting_key='report_overhead_pct';"
 ```
 
-Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded July/August rows for rooms A and K), `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. See [§13.3](#133-standard-restore) for the full restore snippet.
+Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded July/August rows for rooms A and K), `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. See [§15.3](#153-standard-restore) for the full restore snippet.
 
 > The reservation and the free rooms are the two fixtures most easily consumed without noticing — approving an application for room I converts Katrina's hold, and the room stays occupied even after the test application is deleted.
 
@@ -203,10 +214,10 @@ Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded Ju
 | 5 | Service Management | ✅ Documented (add-on catalog, bookings, billing, CCTV) | [§8](#8-module-5--service-management) |
 | 6 | Notification Module | ⬜ Not yet audited | — |
 | 7 | Communication (Two-Way Chat) | ⬜ Not yet audited | — |
-| 8 | Admin Dashboard & Reports | 🟡 Partly documented — Financial Tracking (8.1–8.3) and Utility Usage (8.7). Tenant, maintenance and activity-log monitoring (8.4–8.6) not yet audited | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage) |
+| 8 | Admin Dashboard & Reports | 🟡 Documented except demo data (8.8) — Financial Tracking (8.1–8.3), Utility Usage (8.7), and Reports & Activity Log (8.4–8.6) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
 | 9 | Contract & Document Generation | ⬜ Not yet audited | — |
 | 10 | Parking Reservation | ⬜ Not yet audited | — |
-| 11 | Security & Access Control | ⬜ Not yet audited | — |
+| 11 | Security & Access Control | ✅ Documented — role-based access, authentication and password management (11.1–11.4). CCTV requests (11.5) are in §8 | [§12](#12-module-11--role-based-access) |
 | 12 | Visitor Management | ⬜ Not yet audited | — |
 
 ### 2.2 Section template
@@ -260,13 +271,14 @@ Helpers in `backend/config.php`:
 | Helper | Behaviour |
 |---|---|
 | `create_session($conn, $user_id, $role)` | Issues the token; 7-day expiry. |
-| `get_authenticated_user($conn)` | **The only source of identity truth.** Resolves the token → `['id','role']` or `null`. |
+| `get_authenticated_user($conn)` | **The only source of identity truth.** Resolves the token → `['id','role']` or `null`. The role is read **live from `users`**, not from the session row, and an archived account's session is deleted on sight — so a role change or archive takes effect on the very next request. Cached per request. |
 | `require_admin($conn)` | Hard gate. `401` if unauthenticated, `403` if not admin. Returns the real admin id. |
 | `require_user($conn)` | Hard gate. `401` if unauthenticated. Returns `['id','role']`. |
 | `require_owner_or_admin($conn, $owner_id)` | Hard gate for self-or-admin. |
 | `verify_admin($conn, $admin_id)` | **Legacy shape, still session-backed.** The `$admin_id` argument is *ignored* — admin-ness is decided purely by the session. Returns a boolean and never exits, so dual-role endpoints can branch on it. |
+| `revoke_user_sessions($conn, $user_id, $keep_token)` | Ends a user's sessions (optionally keeping the caller's). Called on password change, password reset, role change and archive. |
 
-> The legacy `X-User-Id` / `X-Admin-Id` headers are still *sent* by the frontend, but the endpoints covered in this guide no longer trust them. Forging them achieves nothing. Some endpoints outside this guide's scope still do trust them — see [§12.2](#122-endpoints-still-on-legacy-header-trust).
+> **The `X-User-Id` / `X-Admin-Id` headers carry no identity anywhere.** `config.php` overwrites both from the verified session before any endpoint code runs, and removes them when there is no session. Forging them resolves to nothing in every endpoint, audited or not, and the frontend no longer sends them. See [§12](#12-module-11--role-based-access).
 
 ### 3.2 Getting a token
 
@@ -284,9 +296,9 @@ TEN=$(curl -s -X POST $BASE/login.php -H "Content-Type: application/json" \
 curl -s -H "Authorization: Bearer $ADM" "$BASE/get_invoices.php" | head -c 200
 ```
 
-Note the login field is `email_address`, **not** `email`. Login is rate-limited to 10 failed attempts per IP per 15 minutes (HTTP 429), and archived accounts are refused.
+Note the login field is `email_address`, **not** `email`. Login locks out after **5 failed attempts per account** or **20 per IP** within 15 minutes (HTTP 429), and archived accounts are refused. Failed `change_password.php` attempts count towards the same per-account limit.
 
-Clear sessions when finished: `DELETE FROM sessions;`
+Clear sessions and lockouts when finished: `DELETE FROM sessions; DELETE FROM login_attempts;`
 
 ### 3.3 The frontend/backend trust split
 
@@ -301,7 +313,7 @@ The React guards in `App.jsx` and the backend gates are **independent**, and onl
 Two consequences that will otherwise waste your time:
 
 - **A hand-written `loggedInUser` in sessionStorage passes every client guard.** It does not pass the backend. This is the correct design — test authorization against the API, not the UI.
-- **There is no response interceptor.** An expired or invalid token produces stuck spinners and "failed to load" panels *while the UI still believes you are logged in*. There is no automatic bounce to `/login`. If a page mysteriously shows no data, check the token before hunting for a data bug.
+- **A 401 signs the browser out.** `axiosConfig.js` has a response interceptor: when a request that carried a token comes back `401` (expired, logged out elsewhere, or ended by a password reset, role change or archive), it clears both `sessionStorage` and `localStorage` and redirects to `/login?expired=1`, which shows "Your session has ended". A `403` does not sign you out — it means the session is valid but the action is not allowed.
 
 ### 3.4 The tenant room gate (precondition for most tenant tests)
 
@@ -334,7 +346,7 @@ The escape hatch is `ProtectedRoute`-only: `/track-application`, `/upload-paymen
 
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
-| `rent_application.php` | POST (multipart) | ⚠️ `X-User-Id` (legacy) | `firstName`, `lastName`, `contactNo`, `email`, `gender`, `occupants`, `monthsOfRent`, `roomName`, `agreeTerms`, `appId`; files: valid ID front/back, NBI | `success`, `message` | Missing T&C → refused; duplicate open application → refused |
+| `rent_application.php` | POST (multipart) | `require_user`, tenant accounts only | `firstName`, `lastName`, `contactNo`, `email`, `gender`, `occupants`, `monthsOfRent`, `roomName`, `agreeTerms`, `appId`; files: valid ID front/back, NBI | `success`, `message` | Missing T&C → refused; duplicate open application → refused; `403` admin account, or an `appId` that isn't the caller's |
 | `get_applications.php` | GET | `verify_admin` gate | — | `success`, `data` | `403` non-admin |
 | `update_tenant_status.php` | POST | `require_admin` | `id`, `status`, `rejection_reason`, `requested_move_out_date`, `clearance_notes`, `damage_deduction`, `utility_deduction` | `success` | `422` status not in allowlist; **1.7 gate** → `success:false` with reason; room already taken → refused |
 | `get_tenants.php` | GET | `verify_admin` gate | — | `success`, `data` | `403` non-admin |
@@ -849,7 +861,7 @@ All rows below were executed against the live stack during the September 2026 au
 | **M3-14** | Negative | Second concurrent checkout | Invoice already `processing` | `create_checkout_session.php` again | Refused — *"already in progress"* | Prevents double payment |
 | **M3-15** | Happy | Abandoned checkout released | Invoice `processing`, due date in the future | `release_checkout_session.php` | `released:true` → back to `pending`, session id cleared | `SELECT status, checkout_session_id FROM invoices WHERE id='<id>';` |
 | **M3-16** | Sec | Cross-tenant release | Maria's token, Ben's `processing` invoice | `release_checkout_session.php` | `released:false` — no-op | Ben's invoice still `processing` |
-| **M3-17** | Boundary | Stranded invoice rescued | Invoice `processing` **past** its due date | Any invoice listing | Promoted to `overdue`, stale session id cleared | Safety net for M3-15 when the return URL fails (§12.1 #4) |
+| **M3-17** | Boundary | Stranded invoice rescued | Invoice `processing` **past** its due date | Any invoice listing | Promoted to `overdue`, stale session id cleared | Safety net for M3-15 when the return URL fails (§14.1 #4) |
 | **M3-18** | Negative | Past scheduling date | Open invoice | `schedule_payment.php` date `2020-01-01` | `422 "cannot be in the past"` | — |
 | **M3-19** | Negative | Invalid time slot | Open invoice | slot `"midnight"` | `422 "Invalid time slot."` | Allowed: `morning`, `afternoon`, `evening` |
 | **M3-20** | Negative | Re-issuing a paid invoice | A `paid` invoice id | `create_invoice.php` with that id | `409` — create a new invoice instead | Amounts unchanged |
@@ -1590,7 +1602,434 @@ After restoring, `SELECT COUNT(*) FROM utility_readings;` should be back to the 
 
 ---
 
-## 11. Date-Dependent Testing
+## 11. Module 8 — Reports & Activity Log
+
+> Audited September 2026. This section covers the panel's **Report Generation / Admin Dashboard** row: tenant monitoring (8.4), maintenance monitoring (8.5) and system activity logs (8.6), plus the report tabs not covered by §9 (occupancy, reservations, management gaps). Financial figures are in §9, utilities in §10.
+>
+> Remediation — activity log:
+> - **Only the newest 100 entries were reachable.** The page received 100 rows and filtered them in the browser, so older history could not be found at all. Filtering, search, date range and paging now run on the server over the whole table.
+> - **"Export CSV" was a mock `alert()`**, and **"Clear Logs" said it deleted the log permanently** but only emptied the screen. Export is now real (every matching entry, and the export is itself logged). Clear was removed: the audit trail is append-only.
+> - **Categories didn't match the filter tabs.** Call sites wrote a dozen spellings (`payment`, `invoice`, `User Management`, `Tenant Management`, `application`, …), so most tabs showed nothing. There are now 12 standard categories, applied on write and fixed for existing rows by migration.
+> - **Entries could be attributed to the wrong person.** Many endpoints passed a client-chosen id as the performer. `log_activity()` now always records the session user.
+> - **Settings changes were logged as "Updated multiple configuration keys".** The entry now names the keys that changed, hides secret values, and nothing is logged when nothing changed. Array settings were also being stored as the literal word "Array".
+> - **Security events weren't logged.** Admin sign-ins, password changes and resets, role changes and archives are now recorded, with how many sessions were ended.
+>
+> Remediation — reports and monitoring:
+> - **Every tenant's payment status was hardcoded to `'paid'`.** It is now computed from invoices (overdue / due / paid up) and shown as a badge on the Tenants page. Lease end comes from the contract.
+> - **Move-ins and move-outs were counted by application submission date.** Move-ins also dropped tenants who had since moved out. They are now counted by lease start and move-out date.
+> - **Approvals counted only the literal status `Approved`**, missing applications that had since become `active`.
+> - **The tenant list labelled every tenant `active`**, so tenants serving move-out notice never showed as "Ending".
+> - **Made-up figures:**
+>   - the occupancy gap assumed ₱4,000 per vacant unit
+>   - the maintenance budget was a hardcoded ₱50,000
+>   - every revenue stream was labelled "Healthy"
+>   - the print header named a fictional author
+>   - "Average Stay Duration" was actually the contracted lease term (now relabelled)
+> - **Maintenance monitoring (8.5) added:** open requests by priority, requests by category, average resolution time and budget use. Urgent and untriaged tickets are now highlighted.
+>
+> §11.4 was verified live.
+
+### 11.1 API Contract
+
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `get_activity_logs.php` | GET | `require_admin` | `category` (a key below, or `all`), `performer` = `all` / `admin` / `tenant` / `system`, `search`, `from`, `to` (`YYYY-MM-DD`), `page`, `limit` (≤ 100), `export=1` (up to 5,000 rows, logged) | `logs[]` (`id`, `category`, `categoryLabel`, `action`, `details`, `createdAt`, `performerName`, `performerEmail`, `performerRole`), `total`, `page`, `pages`, `categories`, `categoryCounts` | `401` · `403` · `422` unknown category |
+| `update_system_settings.php` | POST | `require_admin` | `{ key: value, … }` — keys `[A-Za-z0-9_]` | `success`, `changed` (count) | `400` empty · `422` invalid key |
+| `get_tenants.php` | GET | `require_admin` | — | `data[]` incl. `paymentStatus` (`overdue` / `due` / `current`), `outstandingBalance`, `overdueBalance`, `daysOverdue`, `leaseEnd`, `contractStatus` | `401` · `403` |
+| `get_report_data.php` | GET | `require_admin` | `timeframe`, `month`, `quarter`, `year` | Beyond §9: `tenantList[]` (status `active` / `pending-move-out`), `moveIns`, `moveOuts`, `roomApproved`/`Rejected`/`Pending`, `maintOpenByPriority`, `maintCategoryCounts`, `maintAvgResolutionHours`, `maintenanceBudget`, `vacantRentPotential`, `avgStayDuration` (contracted months) | `401` · `403` |
+| `dashboard_stats.php` | GET | `require_admin` | — | `activity_logs[]` — the 10 newest entries | `401` · `403` |
+
+**Activity log categories** — `LOG_CATEGORIES` in `backend/config.php`. `normalize_log_category()` maps legacy spellings on write; anything unknown becomes `system`.
+
+| Key | Label | Written by (examples) |
+|---|---|---|
+| `auth` | Authentication | Admin sign-in, password change, password reset |
+| `user` | User Accounts | Edit user, reset user password, role change, archive/restore |
+| `tenant` | Tenants | Approvals, move-out, archive tenant, occupancy changes |
+| `unit` | Units | Create / update room |
+| `contract` | Contracts | Activation, renewal, eviction flag, lease documents |
+| `billing` | Billing & Payments | Invoices, payments, reminders, webhooks |
+| `utilities` | Utilities | Readings, sync, deletion |
+| `maintenance` | Maintenance | Ticket created / updated |
+| `service` | Services, CCTV, Parking & Visitors | Bookings, catalog, CCTV and parking decisions, visitors |
+| `inquiry` | Inquiries & Reservations | Inquiry status, unit holds |
+| `communication` | Announcements | Announcement created |
+| `system` | System & Settings | Settings changes, log export, scheduled sweeps |
+
+**Tenant payment status** (`get_tenants.php`): `overdue` when any unpaid invoice (`BILLING_OPEN_STATUSES`) is past its due date; `due` when something is owed but not yet late; otherwise `current`. Invoices counted are those on the application, plus any for the same user with no application.
+
+### 11.2 API Diagrams
+
+How an entry reaches the log:
+
+```mermaid
+flowchart LR
+    EP["Any endpoint<br/>log_activity(conn, id, category, action, details)"] --> S{"Verified session?"}
+    S -->|yes| P1["performer = session user<br/>(the passed id is ignored)"]
+    S -->|"no — reset token, webhook"| P2["performer = passed id, or NULL"]
+    P1 --> N["normalize_log_category()<br/>12 keys, unknown → system"]
+    P2 --> N
+    N --> T[(activity_logs)]
+```
+
+Filtering and export on the Activity Log page:
+
+```mermaid
+sequenceDiagram
+    actor A as Admin
+    participant P as AdminActivityLogs.jsx
+    participant G as get_activity_logs.php
+    participant DB as ams_db
+
+    A->>P: Pick category, performer, dates, type a search
+    P->>G: GET ?category&performer&from&to&search&page&limit=25
+    G->>DB: COUNT(*) and page of rows (whole table, server-side)
+    G-->>P: {logs, total, pages, categoryCounts}
+    A->>P: Export CSV
+    P->>G: GET same filters + export=1
+    G->>DB: Up to 5,000 matching rows
+    G->>DB: INSERT activity_logs "Exported Activity Log" (filters named)
+    G-->>P: {logs}
+    P->>P: Build CSV in the browser and download
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        AL[AdminActivityLogs.jsx]
+        AD[AdminDashboard.jsx]
+        AT[AdminTenants.jsx]
+        AR[AdminReports.jsx]
+        AS[AdminAccountSettings.jsx]
+    end
+    subgraph Endpoints
+        E1[get_activity_logs.php]
+        E2[dashboard_stats.php]
+        E3[get_tenants.php]
+        E4[get_report_data.php]
+        E5[update_system_settings.php]
+    end
+    subgraph Tables
+        T1[(activity_logs)]
+        T2[(users)]
+        T3[(rent_applications)]
+        T4[(lease_contracts)]
+        T5[(invoices)]
+        T6[(maintenance_requests)]
+        T7[(rooms)]
+        T8[(system_settings)]
+    end
+    AL --> E1
+    AD --> E2
+    AT --> E3
+    AR --> E4
+    AS --> E5
+    E1 --> T1 & T2
+    E2 --> T1
+    E3 --> T3 & T4 & T5
+    E4 --> T3 & T4 & T5 & T6 & T7 & T8
+    E5 --> T8 & T1
+```
+
+### 11.3 Step-by-Step Workflow
+
+1. **Admin — review activity** · `/admin-activity-logs` → `get_activity_logs.php`. Filter by category tab, performer, date range or search; page through 25 at a time. Click an entry for full details and who did it.
+2. **Admin — export** · *Export CSV* downloads every entry matching the current filters; the export appears in the log under `system`.
+3. **Admin — quick view** · `/admin-dashboard` → *Activity* tab shows the 10 newest entries.
+4. **Admin — monitor tenants (8.4)** · `/admin-tenants` → each unit shows **Overdue ₱…**, **Due ₱…** or **Paid up**, with lease end and days remaining.
+5. **Admin — monitor maintenance (8.5)** · `/admin-reports` → *Maintenance* tab: tickets by status, open tickets by priority (Needs Triage first), tickets filed by category, cost against the period's budget and average resolution time.
+6. **Admin — occupancy and gaps** · *Occupancy* tab (move-ins/move-outs by lease dates, average lease term); *Management Gaps* tab (arrears, pending maintenance, vacant units with the real rent not being collected).
+7. **Admin — change a setting** · `/admin-settings` → *Save System Settings* → the log entry lists exactly which keys changed.
+
+### 11.4 Test Conditions
+
+Values marked *audit DB* came from the database this audit ran against (its billing and maintenance state had moved on from the seed); compare against the **Verify** query on a fresh seed.
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M8L-01** | Sec | Log without a session, or as a tenant | — ; Gloria's token | `GET get_activity_logs.php` | `401`; `403` | — |
+| **M8L-02** | Sec | Tenant forges the admin header | Maria's token | `GET get_activity_logs.php` with `X-Admin-Id: 4` | `403` | The header is overwritten from the session |
+| **M8L-03** | Sec | Performer comes from the session | Maria's token | Register a visitor with body `userId=6` (M11-10) | Log entry `performed_by = 2` | `SELECT performed_by FROM activity_logs WHERE action='Registered Visitor for Review' ORDER BY id DESC LIMIT 1;` |
+| **M8L-04** | Happy | Admin sign-in is logged | — | Log in as admin | Entry `auth` / `Admin Signed In` / `performed_by 4` | `SELECT category, action, performed_by FROM activity_logs WHERE action='Admin Signed In' ORDER BY id DESC LIMIT 1;` |
+| **M8L-05** | Happy | Category filter runs over the whole table | Admin token | `GET …?category=user&limit=100` | Every row `category = user`; `total` equals the DB count | `SELECT COUNT(*) FROM activity_logs WHERE category='user';` |
+| **M8L-06** | Boundary | Paging | Admin token | `limit=5&page=1`, then `page=2` | 5 rows each, no id repeated, `pages = ceil(total / 5)` | Compare the id lists |
+| **M8L-07** | Happy | Search by log id | Admin token | `search=LOG-0001` | Returns entry `1` | — |
+| **M8L-08** | Happy | Performer filter | Admin token | `performer=admin&limit=100` | Every row `performerRole = admin` | — |
+| **M8L-09** | Boundary | Date range | Admin token | `from=<today>&to=<today>` | Only today's entries | Earliest `createdAt` is today |
+| **M8L-10** | Happy | Export returns everything and is audited | Admin token | `export=1&category=user` | All matching rows (not one page); new `Exported Activity Log` entry naming the filters | `SELECT details FROM activity_logs WHERE action='Exported Activity Log' ORDER BY id DESC LIMIT 1;` |
+| **M8L-11** | Negative | Unknown category | Admin token | `category=bogus` | `422 "Unknown category."` | — |
+| **M8L-12** | Happy | Settings audit names keys and hides secrets | Admin token | `POST update_system_settings.php {"report_overhead_pct":"5","paymongo_webhook_secret":"whsk_test"}`; then resend the first value alone | `changed: 2`, entry *"Changed 2 setting(s): report_overhead_pct, paymongo_webhook_secret (value hidden)"*; then `changed: 0`, no new entry | Restore both settings (§11.4 restore) |
+| **M8L-13** | Happy | Legacy categories are normalised | Migration applied | — | Only the 12 category keys remain | `SELECT DISTINCT category FROM activity_logs;` |
+| **M8R-01** | Happy | Tenant payment status is real | Admin token | `GET get_tenants.php` | Status follows invoices (*audit DB*: D `overdue` ₱10,975; B `overdue` ₱10,640; A `current`) | `SELECT user_id, SUM(total_amount) FROM invoices WHERE status IN ('pending','unpaid','overdue','pending-verification','scheduled','processing','payment-failed') AND due_date < CURDATE() GROUP BY user_id;` — previously `paid` for everyone |
+| **M8R-02** | Sec | Tenant reads the tenant list | Tenant token | `GET get_tenants.php` | `403` | — |
+| **M8R-03** | Happy | Maintenance budget comes from the setting | Admin token | `get_report_data.php` monthly, then yearly | `maintenanceBudget` = setting (50,000), then × 12 (600,000) | `SELECT setting_value FROM system_settings WHERE setting_key IN ('maintenance_monthly_budget','maintenanceMonthlyBudget');` |
+| **M8R-04** | Happy | Occupancy gap uses real rents | Admin token | Monthly report | `vacantRentPotential` = sum of vacant rooms' rent (*audit DB*: 11,500) | `SELECT SUM(monthly_rent) FROM rooms WHERE LOWER(status)='vacant';` — previously vacant units × ₱4,000 |
+| **M8R-05** | Happy | Open maintenance by priority | Admin token | Monthly report | `maintOpenByPriority` matches (*audit DB*: Low 1, Medium 2) | `SELECT urgency, COUNT(*) FROM maintenance_requests WHERE status IN ('Pending','In Progress') GROUP BY urgency;` |
+| **M8R-06** | Happy | Tenant list statuses | Admin token | Monthly report | `tenantList` has one row per current tenant; `pending-move-out` tenants show as such | `SELECT status, COUNT(*) FROM rent_applications WHERE status IN ('Approved','active','pending-move-out') GROUP BY status;` |
+| **M8R-07** | Happy | Move-ins by lease start | Admin token | `timeframe=yearly&year=2026` | `moveIns` equals the query (*audit DB*: 2) | `SELECT COUNT(*) FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id=ra.id WHERE ra.status IN ('Approved','active','pending-move-out','moved-out','archived') AND YEAR(COALESCE(lc.lease_start, DATE(ra.created_at)))=2026;` |
+
+**Restore:**
+
+```sql
+DELETE FROM system_settings WHERE setting_key = 'report_overhead_pct';
+-- M8L-12 overwrote the webhook secret: put back the value you noted before the test
+UPDATE system_settings SET setting_value = '<original>' WHERE setting_key = 'paymongo_webhook_secret';
+DELETE FROM activity_logs WHERE created_at >= NOW() - INTERVAL 1 HOUR;
+DELETE FROM sessions;
+```
+
+---
+
+## 12. Module 11 — Role-Based Access
+
+> Audited September 2026. This section covers the panel's **Role-Based Access** row: role-based access control (11.1), admin and tenant authentication (11.2, 11.3) and password management (11.4). CCTV access requests (11.5) are verified in §8.
+>
+> Remediation — sessions and roles:
+> - **Role changes and archiving didn't take effect for up to 7 days.** Identity used the role stored in the session at login, so a demoted admin kept admin access and an archived tenant stayed signed in. The role is now read live from `users`, and archived accounts are rejected.
+> - **Nothing ended existing sessions.** A password change, password reset, role change or archive now signs that user out everywhere.
+> - **About 40 endpoints read the client-chosen `X-User-Id` / `X-Admin-Id` headers.** `config.php` now overwrites them from the session before any endpoint runs, and the frontend no longer sends them.
+>
+> Remediation — endpoints that trusted client-supplied identity:
+> - **Read or changed other tenants' data:** notifications (read, mark read, delete), contracts, visitor logs, visitor check-in, lease document upload/removal, parking reservations, rent applications and inquiries.
+> - **Had no authentication at all:** `create_notification.php` (in-app phishing) and the full announcement list, drafts included.
+> - **Fatal on every call:** `get_available_parking_slots.php` included a file that doesn't exist.
+>
+> Remediation — notifications:
+> - **Any single notification could be marked read or deleted by id**, even without a session.
+> - **The admin "mark all read" and "clear all" hit every tenant's inbox.**
+> - **The admin header sends `{ id }` but the endpoint only read `notificationId`**, so clicking one notification marked the whole system read.
+>
+> Remediation — passwords and sign-in:
+> - **`change_password.php` had no authentication.** It changed whichever account's email was posted, and was a side door for unthrottled password guessing.
+> - **The admin Account Settings forms were fake.** Hardcoded "Admin System" details, and a password form that showed "Password Changed" without calling anything.
+> - **The login throttle was easy to reset.** One successful login — even to the attacker's own account — cleared the whole IP's failure count. It is now counted per account and per IP.
+> - **Login revealed that an account was archived before checking the password**, confirming the account existed.
+> - **Password reset and the admin reset accepted 6 characters** while registration required 8.
+>
+> Remediation — user management:
+> - **The "cannot modify your own account" guard relied on the header.**
+> - **Names with apostrophes were saved with a backslash** ("O'Brien" → "O\'Brien").
+> - **Archived accounts could be promoted to admin.**
+>
+> Remediation — visitors and applications:
+> - **Tenants could register visitors under any unit and any host.**
+> - **The ID photo upload was unvalidated** (security audit B-7).
+> - **Every visitor check-in failed.** The `id_photo_path` column had never existed in the schema.
+> - **Visitor status changes had no state guard.** A denied or checked-out visitor could be approved again.
+> - **A fake `appId` skipped the one-open-application rule** on rent applications.
+>
+> Remediation — frontend:
+> - **No handling for expired or revoked sessions** — pages spun forever.
+> - **Logout left the login in `localStorage`.**
+> - **The development password-reset link used a `/#/` route that doesn't exist.**
+>
+> §12.4 was verified live.
+
+### 12.1 API Contract
+
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `login.php` | POST | Public, throttled | `email_address`, `password` | `valid`, `sessionToken`, `user`, `role` | `429` locked out · `valid:false` wrong credentials or archived (archived only after a correct password) |
+| `logout.php` | POST | Bearer token | — | `success` | Never errors |
+| `change_password.php` | POST | `require_user`, throttled | `current_password`, `new_password`, `confirm_password` | `success`, `sessions_ended` | `401` · `422` wrong current password, short, mismatch, unchanged · `429` locked out |
+| `reset_password.php` | POST | Emailed token | `email`, `token`, `new_password` | `success` | Invalid/expired token · short password |
+| `registration.php` | POST | Public | `first_name`, `last_name`, `email_address`, `password`, `conPassword` | `success` | Missing names, invalid email, short/mismatched password, email taken |
+| `profile.php` | GET/POST | `require_user` (own account) | `firstName`, `lastName`, `email`, `contactNo`, … | `success` | `409` email taken · `422` invalid email or mobile |
+| `manage_users.php` | GET/POST | `require_admin` | `action` = `update` / `reset_password` / `set_role` / `delete` / `unarchive`, `user_id` | `success`, `message` | `404` · `409` own account, already that role, archived promote, max 3 admins, last admin, archive an admin · `422` short password, bad email |
+
+Identity is taken from the session in every one of these; the listed body/query id is ignored or checked:
+
+| Endpoint | Rule |
+|---|---|
+| `get_notifications.php` | Tenant: own inbox (`?userId=` ignored). Admin: the pending action queue |
+| `mark_notification_read.php`, `delete_notification.php` | `notificationId` or `id`. Tenant: own only. Admin: own plus admin-queue types. Bulk actions use the same scope; `404` outside it |
+| `create_notification.php` | `require_admin`; target user must exist |
+| `get_contracts.php` | Tenant: own contract only; another `userId` → `403` |
+| `get_visitors.php` | Tenant: own visitors and their unit's |
+| `check_in_visitor.php` | Tenant: unit and host forced to their active tenancy (`403` without one). Admin: unit must exist, host resolved from the unit. ID photo: JPG/PNG/WEBP ≤ 5 MB |
+| `update_visitor_status.php` | Tenant: own visitor, checkout only. Approve/deny only from `pending_approval`; checkout only from `checked_in` (`409` otherwise) |
+| `upload_lease_document.php` | Non-admin must own the contract/application (`403`) |
+| `parking_reservation.php` | Tenant with an active lease (`403`) |
+| `rent_application.php` | Tenant accounts; `appId` must be the caller's (`403`) |
+| `get_announcements.php` | `?public=1`: signed-in users, sent announcements only. Full list: `require_admin` |
+| `get_available_parking_slots.php` | `require_user`; returns `occupied_count`, `max_slots`, `available_slots` |
+| `submit_inquiry.php` | Linked to an account only when a real session exists |
+
+**Rules** — `backend/config.php` and `manage_users.php`:
+
+| Rule | Value |
+|---|---|
+| Roles | `admin`, `user` (tenant). Self-registration always creates `user` |
+| `MAX_ADMIN_ACCOUNTS` | 3 active admins; the last admin cannot be demoted; an admin cannot change their own account in User Management |
+| `PASSWORD_MIN_LENGTH` | 8 on every path |
+| Lockout | `LOGIN_MAX_FAILURES_PER_ACCOUNT` 5, `LOGIN_MAX_FAILURES_PER_IP` 20, over `LOGIN_LOCKOUT_MINUTES` 15. A successful sign-in clears that account's failures only |
+| Sessions end on | Password change (other devices), password reset (all), role change (all), archive (all) |
+| Session lifetime | 7 days; role and archive state re-read on every request |
+
+**Access matrix** — who may do what, enforced server-side:
+
+| Capability | Guest | Tenant | Admin |
+|---|---|---|---|
+| Browse rooms, submit an inquiry, register, request a password reset | ✅ | ✅ | ✅ |
+| Own profile, own password, own notifications | — | ✅ | ✅ |
+| Submit a rent application | — | ✅ own | ❌ |
+| Own contract, visitors, parking, maintenance, services, bills | — | ✅ own; active lease where required | ✅ any |
+| Approve/deny visitors, CCTV, parking, services; manage invoices | — | ❌ | ✅ |
+| Reports, dashboard, tenant list, activity log, system settings | — | ❌ | ✅ |
+| Manage user accounts and roles | — | ❌ | ✅ (not own account) |
+
+### 12.2 API Diagrams
+
+How every request's identity is resolved:
+
+```mermaid
+sequenceDiagram
+    participant C as Browser (axiosConfig.js)
+    participant CFG as config.php
+    participant DB as ams_db
+    participant EP as Endpoint
+
+    C->>CFG: Request + Authorization: Bearer token (no identity headers)
+    CFG->>CFG: unset X-User-Id / X-Admin-Id
+    CFG->>DB: SELECT s.user_id, u.role, u.is_archived<br/>FROM sessions s JOIN users u WHERE token AND not expired
+    alt No session
+        CFG-->>EP: identity = none (headers stay unset)
+    else Archived account
+        CFG->>DB: DELETE session
+        CFG-->>EP: identity = none
+    else Valid
+        CFG-->>EP: identity = {id, live role}; headers rewritten from it
+    end
+    EP->>EP: require_user / require_admin / ownership checks
+    alt Not signed in
+        EP-->>C: 401
+        C->>C: Clear both storages → /login?expired=1
+    else Signed in but not allowed
+        EP-->>C: 403
+    else Allowed
+        EP-->>C: 200, scoped to the session user
+    end
+```
+
+What a privilege change does to existing sessions:
+
+```mermaid
+flowchart LR
+    A[Admin: change role / reset password / archive] --> R["revoke_user_sessions(target)"]
+    T[User: change own password] --> R2["revoke_user_sessions(self, keep this device)"]
+    P[Password reset by email] --> R
+    R --> S[(sessions rows deleted)]
+    R2 --> S
+    S --> N["Target's next request → 401"]
+    N --> L["Frontend signs out → /login?expired=1"]
+    L --> I["Signs in again with the new role / password"]
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        LG[Login.jsx / Registration.jsx / ResetPassword.jsx]
+        CP[ChangePasswordModal.jsx]
+        AS[AdminAccountSettings.jsx]
+        AU[AdminUsers.jsx]
+        AX[axiosConfig.js]
+        GU[App.jsx route guards]
+    end
+    subgraph Endpoints
+        E1[login.php / logout.php / registration.php]
+        E2[forgot_password.php / reset_password.php]
+        E3[change_password.php]
+        E4[profile.php]
+        E5[manage_users.php]
+    end
+    subgraph Tables
+        T1[(users)]
+        T2[(sessions)]
+        T3[(login_attempts)]
+        T4[(password_resets)]
+        T5[(activity_logs)]
+    end
+    LG --> E1 & E2
+    CP --> E3
+    AS --> E3 & E4
+    AU --> E5
+    E1 --> T1 & T2 & T3 & T5
+    E2 --> T1 & T2 & T4 & T5
+    E3 --> T1 & T2 & T3 & T5
+    E4 --> T1
+    E5 --> T1 & T2 & T5
+```
+
+### 12.3 Step-by-Step Workflow
+
+1. **Anyone — register** · `/register` → `registration.php` → a `user` account (8-character password minimum).
+2. **User — sign in** · `/login` → `login.php`. Five wrong passwords lock that account for 15 minutes; admins land on `/admin-dashboard`, tenants on `/home`. Admin sign-ins are logged.
+3. **User — change password** · tenant: profile menu → *Change Password*; admin: `/admin-settings` → *Security & Password* → `change_password.php`. Other devices are signed out.
+4. **Admin — own profile** · `/admin-settings` → *Administrator Profile* → `profile.php` (loads and saves the real account).
+5. **Forgotten password** · `/login` → *Forgot password* → `forgot_password.php` → emailed link to `/reset-password` → `reset_password.php`; every session for that account ends.
+6. **Admin — manage accounts** · `/admin-users` → `manage_users.php`: edit details, reset a password, grant or revoke admin (with confirmation), archive or restore. The affected user is signed out. The admin's own row shows *You · Account Settings* instead of actions.
+7. **Session ends mid-use** · the next API call returns `401` → the browser is signed out and sent to `/login?expired=1`.
+8. **Sign out** · profile menu → *Logout* → `logout.php`; both browser stores are cleared.
+
+### 12.4 Test Conditions
+
+Fixtures: notification **#2** belongs to Jose (user 3); contract **LC-0004** belongs to Ben; application **#6** is Gloria's; Gloria (user 8) has no lease; Mark (user 13) and Carlo (user 11) are plain tenants. Snapshot `users` and `notifications.is_read` first (restore below).
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M11-01** | Sec | Forged tenant header, no session | — | `GET get_notifications.php?userId=3` with `X-User-Id: 3` | `401` | — |
+| **M11-02** | Sec | Forged admin header on a tenant session | Maria's token | Any admin endpoint with `X-Admin-Id: 4` | `403` | Header rewritten from the session |
+| **M11-03** | Sec | Another tenant's notification | Notification #2 | `mark_notification_read.php {"notificationId":2}` with no token; with Maria's token | `401`; `404` | `SELECT is_read FROM notifications WHERE id=2;` unchanged |
+| **M11-04** | Sec | Delete another tenant's notification | Maria's token | `delete_notification.php {"notificationId":2}` | `404` | Row still exists |
+| **M11-05** | Happy | Admin marks one notification with `{id}` | An unread admin-queue notification | `mark_notification_read.php {"id":<id>}` | `updated: 1` | Unread count drops by exactly one — previously the whole system |
+| **M11-06** | Sec | Admin "mark all read" leaves tenant inboxes alone | Unread tenant-owned notifications exist | `mark_notification_read.php {"isAdmin":true}` | `200` | Unread count of non-queue notifications for users other than the admin is unchanged |
+| **M11-07** | Sec | Create a notification | — ; Maria's token | `create_notification.php` | `401`; `403` | No row inserted |
+| **M11-08** | Sec | Another tenant's contract | Maria's token | `GET get_contracts.php?userId=6`; then no parameter | `403`; Maria's own contract (room A) | — |
+| **M11-09** | Sec | Visitor log without a session | — | `GET get_visitors.php?userId=6` | `401` | — |
+| **M11-10** | Sec | Tenant registers a visitor for someone else's unit | Maria's token | `check_in_visitor.php {"visitorName":"RBAC Test Visitor",…,"unit":"D","userId":6}` | `200`, `pending_approval` | `SELECT room_name, user_id, status, created_by FROM visitor_logs WHERE visitor_name='RBAC Test Visitor';` → `A, 2, pending_approval, 2` |
+| **M11-11** | Negative | Visitor state guard | M11-10 visitor | Maria approves; admin approves; admin approves again; Maria checks out; Maria checks out again | `403`; `200`; `409`; `200`; `409` | — |
+| **M11-12** | Sec | Remove another tenant's lease document | Maria's token | `upload_lease_document.php` multipart `contractId=LC-0004`, `action=remove` | `403 "You do not own this contract."` | Ben's `signed_lease_path` unchanged |
+| **M11-13** | Sec | Parking without a lease | Gloria's token | `parking_reservation.php` multipart | `403` | — |
+| **M11-14** | Sec | Rent application with someone else's `appId` | Maria's token | `rent_application.php` multipart `appId=6` | `403 "This application does not belong to your account."` | Gloria's application unchanged; previously skipped the one-open-application rule |
+| **M11-15** | Sec | Announcements | — ; Maria's token | Full list with no token; full list as Maria; `?public=1` as Maria | `401`; `403`; `200` with sent announcements only | — |
+| **M11-16** | Negative | Parking slot availability | Maria's token | `GET get_available_parking_slots.php` | `200` JSON with `occupied_count`, `max_slots`, `available_slots` | Previously a fatal error |
+| **M11-17** | Sec | Change a password without a session | — | `change_password.php` with `email_address` in the body | `401` | Previously changed that account's password |
+| **M11-18** | Negative | Wrong current password | Maria's token | `current_password: "wrong-pass"` | `422 "Incorrect current password."` | — |
+| **M11-19** | Sec | A password change signs other devices out | Two Maria tokens, T1 and T2 | Change the password with T1 | `sessions_ended: 1`; T2 → `401`; T1 → `200` | Change it back to `tenant123` with T1 |
+| **M11-20** | Sec | Per-account lockout | Carlo; `login_attempts` empty | Five wrong passwords, then the right one | `429 "Too many failed attempts for this account…"` | `DELETE FROM login_attempts;` afterwards |
+| **M11-21** | Negative | Admin reset with a short password | Admin token | `manage_users.php {"action":"reset_password","user_id":13,"new_password":"short"}` | `422 "…at least 8 characters."` | — |
+| **M11-22** | Negative | Admin changes their own account | Admin token | `set_role` on user 4 | `409 "You cannot change your own account here…"` | — |
+| **M11-23** | Sec | Promotion takes effect and signs the user out | Maria's token | Promote Maria; use the old token on an admin endpoint; sign in again and retry | `200`; old token `401`; new token `200` | `SELECT role FROM users WHERE id=2;` → `admin` |
+| **M11-24** | Sec | Demotion takes effect at once | Maria's admin token from M11-23 | Demote Maria; use that token | `200`; `401` | — |
+| **M11-25** | Sec | Archive ends sessions and hides status from guessers | Mark's token | Archive Mark; use his token; sign in with a wrong password; with the right one; restore | `200`; `401`; *"Invalid email or password"*; *"…archived…"*; `200` | — |
+| **M11-26** | Happy | Apostrophes are stored as typed | Admin token | `update` user 13 with `last_name` `O'Brien` | `200` | `SELECT last_name FROM users WHERE id=13;` → `O'Brien`, not `O\'Brien` |
+| **M11-27** | Happy | The browser signs out on a revoked session (UI) | Tenant signed in in one browser | In another browser, reset that tenant's password from `/admin-users`; in the first, navigate | Redirected to `/login?expired=1` showing *"Your session has ended…"*; storage cleared | Manual check |
+
+**Restore:**
+
+```sql
+-- Taken before the run:
+--   CREATE TABLE zz_users AS SELECT id, first_name, last_name, role, is_archived, password FROM users;
+--   CREATE TABLE zz_notif AS SELECT id, is_read FROM notifications;
+UPDATE users u JOIN zz_users z ON z.id = u.id
+SET u.first_name = z.first_name, u.last_name = z.last_name, u.role = z.role,
+    u.is_archived = z.is_archived, u.password = z.password;
+UPDATE notifications n JOIN zz_notif z ON z.id = n.id SET n.is_read = z.is_read;
+DROP TABLE zz_users; DROP TABLE zz_notif;
+DELETE FROM visitor_logs WHERE visitor_name = 'RBAC Test Visitor';
+DELETE FROM notifications WHERE created_at >= NOW() - INTERVAL 1 HOUR;
+DELETE FROM activity_logs WHERE created_at >= NOW() - INTERVAL 1 HOUR;
+DELETE FROM login_attempts;
+DELETE FROM sessions;
+```
+
+---
+
+## 13. Date-Dependent Testing
 
 Several behaviours here only fire when a date passes: overdue promotion and the late fee ([§6.4](#64-test-conditions) M3-08…M3-10, M3-17), lease expiry, reservation holds ([§5.4](#54-test-conditions) M2-10) and reminder cadence.
 
@@ -1602,28 +2041,33 @@ There is **no scheduler**. Nothing runs on a timer: overdue promotion happens wh
 
 ---
 
-## 12. Known Issues & Blocked Tests
+## 14. Known Issues & Blocked Tests
 
 Open defects as of this document's version. Each affects testing, so check here before filing a bug.
 
-### 12.1 Defects
+### 14.1 Defects
 
 | # | Issue | Evidence | Effect on testing |
 |---|---|---|---|
-| 1 | **`get_available_parking_slots.php` fatals on every call** | Does `include 'db_connection.php'`, which does not exist in `backend/api/`; `config.php` never loads, so `$conn` is undefined | Parking slot availability cannot be tested at all |
-| 2 | **`change_password.php` has no authentication** | No session call; changes any account's password given the email and current password | Security defect. Do not treat a successful password change as evidence that auth works |
-| 3 | **Forgot-password dev link does not route** | `Login.jsx:197` builds `/#/reset-password?…` while `App.jsx:256` mounts `BrowserRouter` | The dev reset flow must be exercised by pasting the token into `/reset-password` manually |
+| 1 | ✅ **Fixed Sept 2026** — `get_available_parking_slots.php` fataled on every call | It included a `db_connection.php` that doesn't exist | Now loads `config.php` and requires a session — see M11-16 |
+| 2 | ✅ **Fixed Sept 2026** — `change_password.php` had no authentication | It changed whichever account's email was posted | Now `require_user` and throttled — see M11-17…M11-19 |
+| 3 | ✅ **Fixed Sept 2026** — forgot-password dev link did not route | `Login.jsx` built `/#/reset-password?…` under `BrowserRouter` | The link now opens `/reset-password?email=…&token=…` directly |
 | 4 | **PayMongo return URLs never reach the app** | `create_checkout_session.php:87,90` return `…/dist/index.html#/pay-bills?status=…`; `BrowserRouter` has no `basename` and there is no catch-all route | Returning from checkout renders a blank page, so the cancel → `release_checkout_session.php` wiring does not fire in a browser. The endpoint itself is correct (M3-15 passes by curl), and M3-17's overdue promotion still rescues the invoice — but only once it is past due |
 
-### 12.2 Endpoints still on legacy header trust
+### 14.2 Legacy identity headers (resolved)
 
-These accept `X-User-Id` (or a body `userId`) as identity with no session resolution. They are **outside this guide's audited scope** — do not assume the auth guarantees in §3 apply to them:
-
-`rent_application.php` · `parking_reservation.php` · `create_notification.php` · the tenant branches of `get_notifications.php`, `mark_notification_read.php`, `delete_notification.php`, `get_contracts.php`, `get_visitors.php`, `check_in_visitor.php`, `update_visitor_status.php`, `upload_lease_document.php`
+Every endpoint previously listed here as trusting `X-User-Id` or a body `userId` now takes identity from the session — see the table in [§12.1](#121-api-contract). In addition, `config.php` overwrites both headers from the session before any endpoint code runs, so no endpoint anywhere can be fooled by a forged header. A test that sends one should behave exactly as if it weren't sent.
 
 Also: `expire_contracts.php` and `expire_reservations.php` mutate rows **before** their admin check runs, so both have an unauthenticated side effect.
 
-### 12.3 Sharp edges (working as designed, but easy to misread)
+### 14.3 Sharp edges (working as designed, but easy to misread)
+
+- **Failed logins lock the account for everyone's tests.** Five wrong passwords — including wrong *current* passwords on `change_password.php` — lock that account for 15 minutes. Run `DELETE FROM login_attempts;` between runs that exercise failures.
+- **Changing a role, password or archive state signs the user out.** Any token you captured for that user before the change is dead; sign in again.
+- **`sessions.role` is informational.** Access is decided by `users.role`, read live. Editing `sessions.role` in the database changes nothing.
+- **Exporting the activity log writes to it.** An `Exported Activity Log` entry appears after every export, so a count taken immediately after an export is one higher.
+- **Saving settings with no changes logs nothing.** `update_system_settings.php` only writes and logs keys whose value actually changed.
+- **An admin's "mark all read" and "clear all" cover only the admin action queue and the admin's own notifications**, never tenants' inboxes.
 
 - **No `status` allowlist on `rooms`** — `update_room.php` writes any string, so a typo persists silently.
 - **Seed data predates the 1.7 gate** — see [§1.5](#15--the-seed-data-predates-the-acceptance-criteria-gate). No seeded application can be approved.
@@ -1632,13 +2076,12 @@ Also: `expire_contracts.php` and `expire_reservations.php` mutate rows **before*
 - **Overhead is 0 until configured.** `report_overhead_pct` is not seeded and has no admin UI; set it with SQL ([§9.3](#93-step-by-step-workflow)).
 - **Older databases can hold orphan utility readings.** Before `utility_readings` was in `SetupDB.sql`, rows could be saved for units that don't exist in `rooms` (the audit machine had units `101`, `102`, `104`). `room_name` has no FK, so they still count in report unit totals. Drop and re-import to clear them.
 - **No catch-all route** — an unknown path renders a blank page, not a 404.
-- **Logout leaves `localStorage`** — only `sessionStorage` is cleared, while every reader falls back to `localStorage`. Clear both when testing session expiry.
 
 ---
 
-## 13. Appendix — Recipes & Reference
+## 15. Appendix — Recipes & Reference
 
-### 13.1 Curl recipes
+### 15.1 Curl recipes
 
 ```bash
 BASE=http://localhost:8080/ApartmentManagementSystem_React/backend/api
@@ -1665,7 +2108,7 @@ curl -s "$BASE/get_invoices.php?userId=2"      # expect 401
 
 PHP has no access to Git Bash's `/tmp`. To parse a response with the PHP CLI, write the file somewhere Windows-visible (e.g. the project directory) and delete it afterwards.
 
-### 13.2 Useful queries
+### 15.2 Useful queries
 
 ```sql
 -- Tenant → room → application → contract, in one view
@@ -1711,12 +2154,13 @@ WHERE ROUND(ur.water_amount + ur.water_other_fees - i.water, 2) <> 0
 
 On the stock seed this returns **no rows**. A row here means a reading and the invoice it was billed on disagree.
 
-### 13.3 Standard restore
+### 15.3 Standard restore
 
 ```sql
 DELETE FROM invoices          WHERE id LIKE 'INV-TEST%';
 DELETE FROM rooms             WHERE id LIKE 'TEST%';
 DELETE FROM sessions;
+DELETE FROM login_attempts;
 UPDATE invoices SET total_amount = total_amount - late_fee, late_fee = 0 WHERE late_fee <> 0;
 UPDATE invoices SET last_reminder_date = NULL, reminder_count = 0;
 UPDATE invoices SET checkout_session_id = NULL WHERE checkout_session_id LIKE 'cs_test%';
@@ -1753,11 +2197,17 @@ DELETE FROM invoices WHERE id LIKE 'INV-TEST-UTIL%';
 DELETE FROM utility_readings
 WHERE (room_name IN ('A','K','L','H') AND billing_period = '2026-09')
    OR (room_name = 'H' AND billing_period = '2026-08');
+
+-- Reports, activity log and role-based access fixtures (§11.4, §12.4)
+DELETE FROM visitor_logs WHERE visitor_name = 'RBAC Test Visitor';
+UPDATE users SET role = 'user', is_archived = 0 WHERE id IN (2, 13);
+UPDATE users SET last_name = 'Santiago' WHERE id = 13;
+-- Passwords changed during §12.4 are restored from the zz_users snapshot shown there.
 ```
 
 Then re-run the baseline check in [§1.6](#16-restore-discipline).
 
-### 13.4 Settings each module reads
+### 15.4 Settings each module reads
 
 | Module | `system_settings` keys |
 |---|---|
@@ -1768,6 +2218,8 @@ Then re-run the baseline check in [§1.6](#16-restore-discipline).
 | 5 — Services | `service_cleaning_active`, `service_laundry_active`, `service_other_active` (a missing key counts as enabled), plus the module cards `service_maintenance_active` and `service_cctv_active` |
 | 8 — Financial tracking | `report_overhead_pct` (absent = 0%), plus the Module 3 `late_fee_*` keys via `promote_overdue_invoices()` |
 | 8.7 — Utilities | None. Rates are entered per reading and default to the unit's previous rate (40 / 12 for a unit's first reading); the spike threshold is the `UTILITY_SPIKE_THRESHOLD_PCT` constant (30) in `config.php` |
+| 8.4–8.6 — Reports & log | `maintenance_monthly_budget` (falls back to `maintenanceMonthlyBudget`, then ₱50,000) for the maintenance budget in reports |
+| 11 — Role-based access | None. Limits are constants in `config.php` / `manage_users.php`: `PASSWORD_MIN_LENGTH` 8, `LOGIN_MAX_FAILURES_PER_ACCOUNT` 5, `LOGIN_MAX_FAILURES_PER_IP` 20, `LOGIN_LOCKOUT_MINUTES` 15, `MAX_ADMIN_ACCOUNTS` 3 |
 
 Not every key exists as a row. The reminder settings — `rent_due_reminders_enabled`, `rent_due_reminder_days`, `overdue_reminders_enabled`, `overdue_reminder_interval_days` — are **absent from the seed database** and fall back to code defaults (enabled, 3 days, enabled, 3 days) in `check_due_date_reminders.php`. To test a different cadence, `INSERT` the key rather than expecting an `UPDATE` to match a row:
 

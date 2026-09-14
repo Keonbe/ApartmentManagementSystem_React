@@ -485,6 +485,24 @@ const AdminTenants = () => {
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-bold text-indigo-600">Unit {t.unit}</span>
+                        {/* Payment standing from real invoices (checklist 8.4) */}
+                        {t.status !== 'archived' && t.paymentStatus && (
+                          <div className="mt-1">
+                            {t.paymentStatus === 'overdue' ? (
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200" title={`${t.daysOverdue} day(s) past due`}>
+                                Overdue ₱{Number(t.overdueBalance).toLocaleString()}
+                              </span>
+                            ) : t.paymentStatus === 'due' ? (
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                Due ₱{Number(t.outstandingBalance).toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Paid up
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">{getOccupancyBadge(t.status)}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">

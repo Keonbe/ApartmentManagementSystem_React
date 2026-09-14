@@ -11,15 +11,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-
-$is_admin = verify_admin($conn, $admin_id);
-if (!$is_admin && empty($user_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Authentication required"]);
-    exit;
-}
+// The owner comparison below is against the session user. It used to compare
+// against the X-User-Id header, so a tenant could upload — or remove — another
+// tenant's signed or notarized lease by sending that tenant's id.
+$auth = require_user($conn);
+$is_admin = $auth['role'] === 'admin';
+$user_id = $auth['id'];
+$admin_id = $is_admin ? $auth['id'] : null;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(["success" => false, "message" => "Invalid request method"]);
