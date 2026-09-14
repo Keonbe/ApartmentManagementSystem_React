@@ -497,6 +497,43 @@ function get_active_tenancy($conn, $user_id) {
     return $row ?: null;
 }
 
+// Utility readings (checklist 8.7) are keyed by a 'YYYY-MM' billing period — the
+// month the meter covers — while every invoice stores a "September 2026" label.
+// Comparing one against the other directly never matches, which is how
+// sync_utility_to_invoice.php used to miss the month's rent invoice and bill
+// rent a second time. Always convert with utility_period_label() first.
+function is_valid_utility_period($period) {
+    return is_string($period) && preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $period) === 1;
+}
+
+function utility_period_label($period) {
+    return billing_period_label(DateTime::createFromFormat('!Y-m', $period));
+}
+
+// A reading counts as a spike when consumption rises more than this percentage
+// over the unit's previous billing period.
+const UTILITY_SPIKE_THRESHOLD_PCT = 30;
+
+// Current billable tenancy for a unit: ['id' => application id, 'user_id' => ...]
+// or null. A tenant still waiting on their move-in payment is not yet billed.
+function get_room_tenancy($conn, $room_name) {
+    $stmt = $conn->prepare("SELECT ra.id, ra.user_id FROM rent_applications ra
+                            WHERE ra.room_name = ?
+                              AND ra.status IN ('Approved', 'active', 'pending-move-out')
+                              AND NOT EXISTS (
+                                  SELECT 1 FROM invoices i
+                                  WHERE i.rent_application_id = ra.id
+                                    AND i.status IN ('pending', 'pending-verification')
+                                    AND i.security_deposit > 0
+                              )
+                            ORDER BY ra.id DESC LIMIT 1");
+    $stmt->bind_param("s", $room_name);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
 // Validates and stores a maintenance photo or video. Returns [path|null, error|null].
 function store_maintenance_attachment($file) {
     if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) return [null, null];

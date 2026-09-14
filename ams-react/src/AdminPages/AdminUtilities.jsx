@@ -6,9 +6,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faBolt, faTint, faPlus, faSync, faSearch, faCheckCircle, 
   faReceipt, faFileInvoiceDollar, faClock,
-  faTimes, faCalendarAlt, faChartLine
+  faTimes, faCalendarAlt, faChartLine, faTrash, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+
+// Mirrors UTILITY_SPIKE_THRESHOLD_PCT in backend/config.php.
+const SPIKE_THRESHOLD_PCT = 30;
 
 function formatBillingPeriod(periodStr) {
   if (!periodStr) return '';
@@ -16,6 +19,25 @@ function formatBillingPeriod(periodStr) {
   if (!year || !month) return periodStr;
   const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+// The reading a new one is computed from: the unit's latest earlier billing period
+// (the same rule save_utility_reading.php applies).
+function findPreviousReading(readings, roomName, period) {
+  if (!roomName || !Array.isArray(readings)) return null;
+  return readings
+    .filter(r => r.room_name === roomName && (!period || r.billing_period < period))
+    .sort((a, b) => b.billing_period.localeCompare(a.billing_period))[0] || null;
+}
+
+function ChangeBadge({ pct }) {
+  if (pct === null || pct === undefined) return null;
+  const tone = pct > SPIKE_THRESHOLD_PCT ? 'text-rose-600' : 'text-slate-400';
+  return (
+    <div className={`text-[10px] font-semibold ${tone}`}>
+      {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {Math.abs(pct)}% vs previous
+    </div>
+  );
 }
 
 export default function AdminUtilities() {
@@ -169,6 +191,30 @@ export default function AdminUtilities() {
     } catch (err) {
       console.error("Sync error:", err);
       alert(err?.response?.data?.message || "Failed to sync utility.");
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  // Only a unit's latest reading can be deleted — the next reading is computed from it.
+  const latestPeriodByRoom = useMemo(() => {
+    const latest = {};
+    readings.forEach(r => {
+      if (!latest[r.room_name] || r.billing_period > latest[r.room_name]) latest[r.room_name] = r.billing_period;
+    });
+    return latest;
+  }, [readings]);
+
+  const handleDelete = async (reading) => {
+    if (!window.confirm(`Delete the ${formatBillingPeriod(reading.billing_period)} reading for Unit ${reading.room_name}? You can record it again afterwards.`)) return;
+    setSyncingId(reading.id);
+    try {
+      const res = await api.post('/delete_utility_reading.php', { id: reading.id });
+      alert(res?.data?.message || "Reading deleted.");
+      if (res?.data?.success) reloadData();
+    } catch (err) {
+      console.error("Delete reading error:", err);
+      alert(err?.response?.data?.message || "Failed to delete the reading.");
     } finally {
       setSyncingId(null);
     }
@@ -553,6 +599,15 @@ export default function AdminUtilities() {
                                   ) : (
                                     <p className="text-[11px] text-slate-400 italic m-0">No tenant assigned</p>
                                   )}
+                                  {r.has_spike && (
+                                    <p
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full px-2 py-0.5 m-0 mt-0.5"
+                                      title={`Usage rose more than ${SPIKE_THRESHOLD_PCT}% over the previous reading`}
+                                    >
+                                      <FontAwesomeIcon icon={faExclamationTriangle} className="text-[9px]" />
+                                      Usage spike
+                                    </p>
+                                  )}
                                   {r.reading_date && (
                                     <p className="text-[10px] text-slate-400 m-0 font-normal">
                                       Read: {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -564,7 +619,7 @@ export default function AdminUtilities() {
 
                             {/* Period */}
                             <td className="px-4 py-4 text-xs font-semibold text-slate-700">
-                              {r.billing_period}
+                              {formatBillingPeriod(r.billing_period)}
                             </td>
 
                             {/* Water */}
@@ -579,6 +634,7 @@ export default function AdminUtilities() {
                                   ₱{parseFloat(r.water_amount || 0).toFixed(2)}
                                   <span className="text-slate-400 font-normal ml-1">({r.water_prev_reading} → {r.water_curr_reading})</span>
                                 </div>
+                                <ChangeBadge pct={r.water_change_pct} />
                                 {parseFloat(r.water_other_fees || 0) > 0 && (
                                   <div className="text-[10px] text-blue-600 font-semibold">+ ₱{parseFloat(r.water_other_fees).toFixed(2)} fees</div>
                                 )}
@@ -597,6 +653,7 @@ export default function AdminUtilities() {
                                   ₱{parseFloat(r.electric_amount || 0).toFixed(2)}
                                   <span className="text-slate-400 font-normal ml-1">({r.electric_prev_reading} → {r.electric_curr_reading})</span>
                                 </div>
+                                <ChangeBadge pct={r.electric_change_pct} />
                                 {parseFloat(r.electric_other_fees || 0) > 0 && (
                                   <div className="text-[10px] text-amber-600 font-semibold">+ ₱{parseFloat(r.electric_other_fees).toFixed(2)} fees</div>
                                 )}
@@ -620,20 +677,36 @@ export default function AdminUtilities() {
                                 <FontAwesomeIcon icon={isInvoiced ? faCheckCircle : faClock} className="text-[10px]" />
                                 {isInvoiced ? 'Invoiced' : 'Pending Sync'}
                               </span>
+                              {isInvoiced && r.invoice_id && (
+                                <span className="block text-[10px] text-slate-400 font-medium mt-1">{r.invoice_id}</span>
+                              )}
                             </td>
 
                             {/* Actions */}
                             <td className="px-5 py-4 text-right">
                               {!isInvoiced ? (
-                                <button
-                                  type="button"
-                                  onClick={() => setSyncTargetId(r.id)}
-                                  disabled={syncingId === r.id}
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer border border-indigo-200 hover:border-indigo-600 disabled:opacity-50"
-                                >
-                                  <FontAwesomeIcon icon={faSync} className={syncingId === r.id ? 'animate-spin' : ''} />
-                                  <span>Sync Options</span>
-                                </button>
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSyncTargetId(r.id)}
+                                    disabled={syncingId === r.id}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer border border-indigo-200 hover:border-indigo-600 disabled:opacity-50"
+                                  >
+                                    <FontAwesomeIcon icon={faSync} className={syncingId === r.id ? 'animate-spin' : ''} />
+                                    <span>Sync Options</span>
+                                  </button>
+                                  {latestPeriodByRoom[r.room_name] === r.billing_period && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(r)}
+                                      disabled={syncingId === r.id}
+                                      title="Delete this reading to correct and re-record it"
+                                      className="inline-flex items-center justify-center rounded-lg bg-white text-rose-600 hover:bg-rose-600 hover:text-white w-8 h-8 text-xs transition-colors cursor-pointer border border-rose-200 hover:border-rose-600 disabled:opacity-50"
+                                    >
+                                      <FontAwesomeIcon icon={faTrash} />
+                                    </button>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="text-xs font-medium text-slate-400">Synced</span>
                               )}
@@ -715,7 +788,7 @@ function SyncOptionsModal({ readingId, onClose, onSync }) {
               <input type="radio" name="syncMode" value="merge" checked={syncMode === 'merge'} onChange={() => setSyncMode('merge')} className="mt-1" />
               <div>
                 <p className="font-bold text-slate-800 m-0 text-sm">Merge with Monthly Rent</p>
-                <p className="text-xs text-slate-500 m-0">Adds utility amount to the pending rent invoice.</p>
+                <p className="text-xs text-slate-500 m-0">Adds the charge to this tenant's open invoice for the same month. If there is none, a utilities-only invoice is created — rent is never billed twice.</p>
               </div>
             </label>
             <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
@@ -785,9 +858,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
   // Previous reading detection for selected room in modal
   const selectedRoomPrevReading = useMemo(() => {
     if (!formData.room_name || !Array.isArray(readings)) return { water: 0, electric: 0 };
-    const prev = readings
-      .filter(r => r.room_name === formData.room_name && r.billing_period !== formData.billing_period)
-      .sort((a, b) => new Date(b.reading_date || 0) - new Date(a.reading_date || 0))[0];
+    const prev = findPreviousReading(readings, formData.room_name, formData.billing_period);
     return {
       water: prev ? parseFloat(prev.water_curr_reading || 0) : 0,
       electric: prev ? parseFloat(prev.electric_curr_reading || 0) : 0
@@ -829,7 +900,18 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [name]: value };
+      // Carry the unit's last rates forward instead of resetting them to the defaults.
+      if (name === 'room_name' || name === 'billing_period') {
+        const last = findPreviousReading(readings, next.room_name, next.billing_period);
+        if (last) {
+          next.water_rate_per_unit = parseFloat(last.water_rate_per_unit) || next.water_rate_per_unit;
+          next.electric_rate_per_unit = parseFloat(last.electric_rate_per_unit) || next.electric_rate_per_unit;
+        }
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -838,11 +920,16 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
       alert("Please select a target room.");
       return;
     }
+    if ((parseFloat(formData.water_curr_reading) || 0) < selectedRoomPrevReading.water ||
+        (parseFloat(formData.electric_curr_reading) || 0) < selectedRoomPrevReading.electric) {
+      alert("A current reading is lower than the previous reading. Meters don't run backwards — please check the value.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.post('/save_utility_reading.php', formData);
       if (res?.data?.success) {
-        alert(res.data.message || "Utility reading saved successfully!");
+        alert([res.data.message || "Utility reading saved successfully!", res.data.warning].filter(Boolean).join('\n\n'));
         onSuccess();
       } else {
         alert(res?.data?.message || "Failed to save reading.");

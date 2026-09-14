@@ -16,7 +16,7 @@
 | 4 | [Room / Unit Management](#4-room--unit-management) | 4 | Room CRUD, tenant room view |
 | 5 | [Lease & Contract Management](#5-lease--contract-management) | 6 | Contracts, documents, lease extensions |
 | 6 | [Billing & Invoices](#6-billing--invoices) | 11 | Invoice generation, payments, PayMongo |
-| 7 | [Utility Management](#7-utility-management) | 4 | Meter readings, utility billing sync |
+| 7 | [Utility Management](#7-utility-management) | 5 | Meter readings, corrections, utility billing sync |
 | 8 | [Maintenance Requests](#8-maintenance-requests) | 5 | Tenant maintenance tickets |
 | 9 | [Service Requests](#9-service-requests) | 6 | Bookable services, catalog management |
 | 10 | [Visitor Management](#10-visitor-management) | 3 | Visitor registration, check-in/out |
@@ -654,41 +654,63 @@ Returns available payment channels with PayMongo sandbox configuration status.
 ## 7. Utility Management
 
 ### `POST` [save_utility_reading.php](../../backend/api/save_utility_reading.php)
-Records water/electricity meter readings for a unit. Admin only.
+Records one unit's water **and** electricity meter readings for a billing month.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `verify_admin()` |
-| **Calculation** | Consumption = current - previous reading; cost = consumption × rate |
+| **Auth** | `require_admin()` — `recorded_by` is the session admin |
+| **Calculation** | Consumption = current − previous reading (the unit's latest earlier period); amount = consumption × rate |
+| **Validation** | Unit must exist · period `YYYY-MM` · reading date not in the future or before the period · current ≥ previous · rate > 0 and ≤ 1,000 · fees ≥ 0 |
+| **Errors** | `422` validation · `409` a reading already exists for this or a later period |
 
 **Request Body:**
 | Field | Type | Required |
 |-------|------|----------|
 | `room_name` | string | ✅ |
-| `reading_type` | string | ✅ (`water`/`electricity`) |
-| `current_reading` | decimal | ✅ |
-| `rate_per_unit` | decimal | ✅ |
-| `billing_period` | string | ✅ |
+| `billing_period` | string `YYYY-MM` | ✅ |
+| `reading_date` | date | — (today) |
+| `water_curr_reading` | decimal | ✅ |
+| `electric_curr_reading` | decimal | ✅ |
+| `water_rate_per_unit` / `electric_rate_per_unit` | decimal | — (unit's previous rate, else 40 / 12) |
+| `water_other_fees` / `electric_other_fees` | decimal | — (0) |
+| `notes` | string | — |
+
+Response includes `id`, consumption, `total_amount`, and a `warning` when the unit has no billable tenant.
 
 ---
 
 ### `GET` [get_utility_readings.php](../../backend/api/get_utility_readings.php)
-Returns utility readings with filtering by room, type, and period. Admin only.
+Lists readings. Tenants receive only their own rows (session-scoped); admins receive all and may filter with `room_name` / `billing_period`. Each row carries `water_change_pct`, `electric_change_pct`, `has_spike` (> 30% over the previous period), `billing_period_label` and `invoice_id`.
+
+| Property | Detail |
+|----------|--------|
+| **Auth** | `require_user()` |
+
+---
+
+### `POST` [delete_utility_reading.php](../../backend/api/delete_utility_reading.php)
+Deletes a reading so it can be re-recorded. Only an un-invoiced reading that is the unit's latest.
+
+| Property | Detail |
+|----------|--------|
+| **Auth** | `require_admin()` |
+| **Errors** | `404` · `409` already invoiced, or a later reading exists |
 
 ---
 
 ### `POST` [sync_utility_to_invoice.php](../../backend/api/sync_utility_to_invoice.php)
-Merges utility reading costs into the tenant's invoice for the billing period. Creates invoice if none exists.
+Posts a reading's charge onto an invoice. `sync_mode`: `merge` adds it to the tenant's adjustable invoice for that month (a utilities-only invoice is created when there is none — rent is never billed here); `separate` always creates a utilities-only invoice with `due_date` (today to +10 days); `paid` records a cash-settled utilities-only invoice.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `verify_admin()` |
-| **Transactional** | Atomic update of water/electricity columns + total_amount |
+| **Auth** | `require_admin()` |
+| **Transactional** | Reading claimed (`is_invoiced`) first; invoice write, `invoice_id` link and tenant notification commit together |
+| **Errors** | `404` · `409` already synced, or the merge target already has water/electricity · `422` no billable tenant, bad mode or due date |
 
 ---
 
 ### `GET` [get_utilities_report_data.php](../../backend/api/get_utilities_report_data.php)
-Returns aggregated utility data for reporting — consumption trends, costs by period/unit.
+Aggregated utility data for a `timeframe` (`monthly`/`quarterly`/`yearly`) filtered by billing period: consumption and averages per unit-month, invoiced vs. collected utility charges (cancelled excluded), readings pending sync, spike count, top units with `hasSpike`, and — monthly — occupied units still missing a reading. `require_admin()`.
 
 ---
 
@@ -924,26 +946,30 @@ Read/write system-wide configuration.
 ---
 
 ### `GET` [dashboard_stats.php](../../backend/api/dashboard_stats.php)
-Returns comprehensive dashboard statistics for admin. **363 lines** of aggregation queries.
+Returns dashboard statistics for admin. `require_admin()`; runs `promote_overdue_invoices()` first.
 
 **Response Stats Include:**
 - Revenue totals (current, last month, trend)
-- Pending/overdue dues
-- Tenant counts (active, pending, archived)
+- Pending/overdue dues across every open invoice status (`BILLING_OPEN_STATUSES`)
+- Tenant counts (active, pending)
 - Occupancy rate
 - Maintenance ticket breakdown
-- Monthly revenue chart data (12 months)
-- Recent activity log
+- Collection rate for the month (cancelled invoices excluded)
+- Monthly income chart data (6 months, cancelled excluded)
+- Action queues (applications, open invoices, maintenance) and recent activity log
 
 ---
 
 ### `GET` [get_report_data.php](../../backend/api/get_report_data.php)
-Generates detailed report data for exports. **31KB / 700+ lines** — the largest API file.
+Generates detailed report data for `/admin-reports` and its exports — the largest API file.
 
 | Property | Detail |
 |----------|--------|
-| **Auth** | `verify_admin()` |
-| **Report Types** | Financial, occupancy, maintenance, tenant, parking |
+| **Auth** | `require_admin()`; runs `promote_overdue_invoices()` first |
+| **Parameters** | `timeframe` (`monthly`/`quarterly`/`yearly`), `month`, `quarter`, `year` |
+| **Report Types** | Financial (income statement, revenue streams incl. late fees, unit income, 6-month trend), occupancy, maintenance, tenant, parking |
+| **Expenses** | Recorded maintenance cost (`COALESCE(actual_cost, estimated_cost)`, tenant-responsible excluded, dated by resolution) + `report_overhead_pct` setting (absent = 0%) |
+| **Arrears** | Every `BILLING_OPEN_STATUSES` invoice past its due date |
 
 ---
 
@@ -1141,8 +1167,9 @@ All endpoints return JSON with this shape on error:
 | 40 | [send_payment_reminder.php](../../backend/api/send_payment_reminder.php) | POST | Billing | Admin | Send reminders |
 | 41 | [get_payment_channels.php](../../backend/api/get_payment_channels.php) | GET | Billing | User | Available channels |
 | 42 | [save_utility_reading.php](../../backend/api/save_utility_reading.php) | POST | Utility | Admin | Record meter reading |
-| 43 | [get_utility_readings.php](../../backend/api/get_utility_readings.php) | GET | Utility | Admin | List readings |
-| 44 | [sync_utility_to_invoice.php](../../backend/api/sync_utility_to_invoice.php) | POST | Utility | Admin | Merge into invoice |
+| 43 | [get_utility_readings.php](../../backend/api/get_utility_readings.php) | GET | Utility | User (own) / Admin | List readings |
+| 43a | [delete_utility_reading.php](../../backend/api/delete_utility_reading.php) | POST | Utility | Admin | Delete latest un-invoiced reading |
+| 44 | [sync_utility_to_invoice.php](../../backend/api/sync_utility_to_invoice.php) | POST | Utility | Admin | Post charge to invoice |
 | 45 | [get_utilities_report_data.php](../../backend/api/get_utilities_report_data.php) | GET | Utility | Admin | Utility reports |
 | 46 | [maintenance_request.php](../../backend/api/maintenance_request.php) | POST | Maintenance | User | Submit ticket |
 | 47 | [create_maintenance_request_admin.php](../../backend/api/create_maintenance_request_admin.php) | POST | Maintenance | Admin | Create ticket for tenant |
