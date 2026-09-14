@@ -414,7 +414,7 @@ $MYSQL -h $HOST -P $PORT -u root -p ams_db -e "
   SELECT setting_key, setting_value FROM system_settings WHERE setting_key='payment_mode';"
 ```
 
-Expected: about 25 tables including `sessions`, `login_attempts`, `utility_readings`; one admin row; 14 rooms; `payment_mode = manual`.
+Expected: 22 tables, including `sessions`, `login_attempts`, `utility_readings`; one admin row; 14 rooms; `payment_mode = manual`.
 
 ### 3.4 Lock it down
 
