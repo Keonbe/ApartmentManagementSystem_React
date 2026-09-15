@@ -123,12 +123,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $conn->commit();
-        log_activity($conn, $admin_id, 'payment', "Approved Verification Pipeline", "Invoice ID: $invoice_id settled via $payment_method");
+        log_activity($conn, $admin_id, 'billing', "Recorded Payment", "Invoice ID: $invoice_id settled via $payment_method");
+
+        // The tenant is told the payment landed, and a proof awaiting
+        // verification leaves the admin queue.
+        resolve_admin_queue($conn, 'payment_verification', $invoice_id);
+        if ($inv_res && !empty($inv_res['user_id'])) {
+            create_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Received',
+                "Your payment for invoice $invoice_id has been received and recorded ($payment_method). Thank you!");
+        }
+
         echo json_encode(["success" => true, "message" => "Payment successfully finalized and saved."]);
     } catch (Exception $e) {
         $conn->rollback();
-        http_response_code(500);
-        echo json_encode(["success" => false, "message" => "Server Error: " . $e->getMessage()]);
+        // These messages are written above for the admin and carry no internals.
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => $e->getMessage()]);
     }
     
     $conn->close();

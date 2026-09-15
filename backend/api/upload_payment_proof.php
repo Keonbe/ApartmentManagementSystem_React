@@ -121,7 +121,20 @@ if ($stmt->execute()) {
         exit;
     }
 
-    log_activity($conn, $user_id, 'payment', "Payment proof submitted", "Invoice ID: $invoice_id, Method: $payment_method, Ref: $payment_reference");
+    log_activity($conn, $user_id, 'billing', "Submitted Payment Proof", "Invoice ID: $invoice_id, Method: $payment_method, Ref: $payment_reference");
+
+    // The admin used to learn about a waiting proof only by opening Payments.
+    // One queue row per invoice: a re-upload does not add a second one.
+    $queued = $conn->prepare("SELECT 1 FROM notifications WHERE type = 'payment_verification' AND metadata_value = ? AND status = 'Pending'");
+    $queue_key = "payment_verification:$invoice_id";
+    $queued->bind_param("s", $queue_key);
+    $queued->execute();
+    $already_queued = (bool)$queued->get_result()->fetch_assoc();
+    $queued->close();
+    if (!$already_queued) {
+        notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Payment Proof Submitted',
+            "A $payment_method payment proof was submitted for invoice $invoice_id and is waiting for verification.");
+    }
 
     echo json_encode([
         "success" => true,

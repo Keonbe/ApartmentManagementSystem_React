@@ -12,6 +12,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once "../config.php";
 
 $token = get_bearer_token();
+$user = get_authenticated_user($conn);
+if ($user) {
+    log_activity($conn, $user['id'], 'auth', 'Signed Out', ucfirst($user['role'] === 'admin' ? 'admin' : 'tenant') . " #{$user['id']} signed out");
+}
 if ($token) {
     $stmt = $conn->prepare("DELETE FROM sessions WHERE token = ?");
     $stmt->bind_param("s", $token);

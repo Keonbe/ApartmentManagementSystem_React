@@ -87,11 +87,13 @@ if (!empty($inquiry['user_id'])) {
     if (isset($messages[$status])) {
         $notif_title = "Inquiry Update";
         $notif_msg = $messages[$status];
-        $notif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'inquiry_update', ?, ?, 'Resolved', 0)");
-        $notif->bind_param("iss", $tenant_id, $notif_title, $notif_msg);
-        $notif->execute();
-        $notif->close();
+        create_notification($conn, $tenant_id, 'inquiry_update', $notif_title, $notif_msg);
     }
+}
+
+// Once the admin has moved the inquiry past New it no longer needs attention.
+if ($status !== 'New') {
+    resolve_admin_queue($conn, 'inquiry', $id);
 }
 
 echo json_encode(["success" => true, "message" => "Inquiry updated to $status."]);

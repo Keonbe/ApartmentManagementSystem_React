@@ -257,15 +257,16 @@ INSERT IGNORE INTO `maintenance_requests` (`user_id`, `room_name`, `issue_catego
 
 -- ============================================================
 -- 7. PARKING RESERVATIONS
--- max_parking_slots = 3 (system_settings); counted statuses:
---   Pending/Assigned/Approved/Active. Kept at exactly 3 to demonstrate
---   the configurable cap being reached.
+-- max_parking_slots = 3 (system_settings). Only Assigned rows hold a slot:
+-- slots 1 and 2 are taken, slot 3 is free, so approving Pedro's Pending
+-- request (id 3) fills the lot. total_cost = months x parking_monthly_fee (300).
+-- Both permits are still inside their term on 2026-09-14.
 -- vehicle_type lowercase 'motorcycle' matches parking_allowed_vehicle_types default.
 -- ============================================================
-INSERT IGNORE INTO `parking_reservations` (`user_id`, `vehicle_type`, `vehicle_model`, `plate_number`, `status`, `transmission`, `duration_months`, `total_cost`, `document_path`, `created_at`) VALUES
-(9,  'motorcycle', 'Honda Click 125i', 'ABC-1234', 'Assigned', 'Automatic', 12, 14400.00, 'placeholder', '2025-08-15 09:00:00'),
-(11, 'motorcycle', 'Yamaha Nmax 155',  'DEF-9012', 'Assigned', 'Automatic',  6,  7200.00, 'placeholder', '2026-02-10 10:00:00'),
-(10, 'motorcycle', 'Suzuki Raider 150','GHI-3456', 'Pending',  'Manual',     3,  3600.00, 'placeholder', '2026-08-22 11:00:00');
+INSERT IGNORE INTO `parking_reservations` (`id`, `user_id`, `vehicle_type`, `vehicle_model`, `plate_number`, `status`, `slot_number`, `assigned_at`, `transmission`, `duration_months`, `total_cost`, `document_path`, `created_at`) VALUES
+(1, 9,  'motorcycle', 'Honda Click 125i', 'ABC-1234', 'Assigned', 1,    '2026-04-01 09:00:00', 'Automatic', 6, 1800.00, 'placeholder', '2026-03-28 09:00:00'),
+(2, 11, 'motorcycle', 'Yamaha Nmax 155',  'DEF-9012', 'Assigned', 2,    '2026-06-01 10:00:00', 'Automatic', 6, 1800.00, 'placeholder', '2026-05-29 10:00:00'),
+(3, 10, 'motorcycle', 'Suzuki Raider 150','GHI-3456', 'Pending',  NULL, NULL,                  'Manual',    3,  900.00, 'placeholder', '2026-08-22 11:00:00');
 
 -- ============================================================
 -- 8. CCTV REQUESTS
@@ -319,19 +320,28 @@ INSERT IGNORE INTO `announcements` (`tag`, `title`, `body`, `send_to`, `channels
 ('Maintenance', 'Elevator Inspection - June 20, 2026',             'Elevator inspection on June 20 from 9AM-3PM. Please use the stairwell.', 'All Tenants', '["Email"]', 'sent', 12, '2026-06-18 09:00:00'),
 ('Reminder',    'Service Catalog Now Available',                   'Book cleaning, laundry and pest control add-ons directly from the Services page.', 'All Tenants', '["Email"]', 'sent', 12, '2026-08-01 09:00:00');
 
-INSERT IGNORE INTO `notifications` (`user_id`, `title`, `message`, `type`, `is_read`, `created_at`) VALUES
-(2,  'Application Approved', 'Congratulations! Your application for Room A has been approved.', 'system', 1, '2025-10-27 09:00:00'),
-(3,  'Application Approved', 'Congratulations! Your application for Room B has been approved.', 'system', 1, '2025-09-25 10:00:00'),
-(5,  'Application Approved', 'Congratulations! Your application for Room C has been approved.', 'system', 1, '2025-08-27 12:00:00'),
-(6,  'Application Approved', 'Congratulations! Your application for Room D has been approved.', 'system', 1, '2025-10-27 09:00:00'),
-(7,  'Application Approved', 'Congratulations! Your application for Room E has been approved.', 'system', 0, '2026-07-29 10:00:00'),
-(2,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time.', 'announcement', 1, '2026-03-10 08:00:00'),
-(3,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time.', 'announcement', 1, '2026-03-10 08:00:00'),
-(5,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time.', 'announcement', 0, '2026-03-10 08:00:00'),
-(@admin_id, 'New CCTV Request',    'A new CCTV footage request has been submitted for an incident at Parking Area.', 'cctv_request',        0, '2026-07-21 09:00:00'),
-(@admin_id, 'New Maintenance Request', 'A new maintenance request (Electrical - Medium) has been submitted.',      'maintenance_request', 0, '2026-08-06 09:00:00'),
-(@admin_id, 'New Service Booking', 'A new laundry booking ("Wash & Fold") has been submitted for Aug 20, 2026.',   'service_request',      0, '2026-08-18 10:00:00'),
-(@admin_id, 'New Rent Application', 'Gloria Tan submitted a rent application for Room N.',                        'rent_application',     0, '2026-08-20 09:00:00');
+-- Informational rows are 'Resolved'; only the admin action queue is 'Pending'.
+-- Queue rows carry metadata_value '<type>:<id>' so the decision endpoint can
+-- resolve the matching row (resolve_admin_queue() in config.php).
+SET @pending_maint = (SELECT id FROM maintenance_requests WHERE room_name = 'H' AND status = 'Pending' ORDER BY id DESC LIMIT 1);
+SET @pending_cctv  = (SELECT id FROM cctv_requests WHERE user_id = 2 AND status = 'Pending' ORDER BY id DESC LIMIT 1);
+SET @pending_svc   = (SELECT id FROM service_requests WHERE user_id = 2 AND status = 'Pending' ORDER BY id DESC LIMIT 1);
+SET @pending_app   = (SELECT id FROM rent_applications WHERE user_id = 8 AND status = 'Pending Review' ORDER BY id DESC LIMIT 1);
+
+INSERT IGNORE INTO `notifications` (`user_id`, `title`, `message`, `type`, `status`, `metadata_value`, `is_read`, `created_at`) VALUES
+(2,  'Application Approved', 'Congratulations! Your application for Room A has been approved.', 'application_update', 'Resolved', NULL, 1, '2025-10-27 09:00:00'),
+(3,  'Application Approved', 'Congratulations! Your application for Room B has been approved.', 'application_update', 'Resolved', NULL, 1, '2025-09-25 10:00:00'),
+(5,  'Application Approved', 'Congratulations! Your application for Room C has been approved.', 'application_update', 'Resolved', NULL, 1, '2025-08-27 12:00:00'),
+(6,  'Application Approved', 'Congratulations! Your application for Room D has been approved.', 'application_update', 'Resolved', NULL, 1, '2025-10-27 09:00:00'),
+(7,  'Application Approved', 'Congratulations! Your application for Room E has been approved.', 'application_update', 'Resolved', NULL, 0, '2026-07-29 10:00:00'),
+(2,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time.', 'info', 'Resolved', NULL, 1, '2026-03-10 08:00:00'),
+(3,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time.', 'info', 'Resolved', NULL, 1, '2026-03-10 08:00:00'),
+(5,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time.', 'info', 'Resolved', NULL, 0, '2026-03-10 08:00:00'),
+(@admin_id, 'New CCTV Request',    'A new CCTV footage request has been submitted for an incident at Parking Area.', 'cctv_request',        'Pending', CONCAT('cctv_request:', @pending_cctv),         0, '2026-07-21 09:00:00'),
+(@admin_id, 'New Maintenance Request', 'A new maintenance request (Electrical - Medium) has been submitted.',      'maintenance_request', 'Pending', CONCAT('maintenance_request:', @pending_maint), 0, '2026-08-06 09:00:00'),
+(@admin_id, 'New Service Booking', 'A new laundry booking ("Wash & Fold") has been submitted for Aug 20, 2026.',   'service_request',     'Pending', CONCAT('service_request:', @pending_svc),       0, '2026-08-18 10:00:00'),
+(@admin_id, 'New Rent Application', 'Gloria Tan submitted a rent application for Room N.',                        'rent_application',    'Pending', CONCAT('rent_application:', @pending_app),      0, '2026-08-20 09:00:00'),
+(@admin_id, 'New Parking Reservation', 'A new parking reservation request for plate GHI-3456 has been submitted.', 'parking_reservation', 'Pending', 'parking_reservation:3',                    0, '2026-08-22 11:00:00');
 
 -- ============================================================
 -- 13. ACTIVITY LOGS (admin audit)

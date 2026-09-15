@@ -196,6 +196,7 @@ $update = $conn->prepare("UPDATE invoices SET status = 'processing', checkout_se
 $update->bind_param("sss", $checkout_session_id, $payment_method, $invoice_id);
 
 if ($update->execute()) {
+    log_activity($conn, null, 'billing', 'Started Online Payment', "Invoice $invoice_id sent to checkout via $payment_method");
     echo json_encode(["success" => true, "checkout_url" => $checkout_url]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to update invoice status"]);

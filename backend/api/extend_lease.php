@@ -59,6 +59,7 @@ try {
         $stmt->bind_param("isss", $userId, $title, $msg, $additionalMonths);
 
         if ($stmt->execute()) {
+            log_activity($conn, $userId, 'tenant', "Requested Lease Extension", "Unit $roomName: $additionalMonths month(s)");
             echo json_encode(["success" => true, "message" => "Lease extension request submitted for admin verification."]);
         } else {
             throw new Exception("Failed to save extension request.");

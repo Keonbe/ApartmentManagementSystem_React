@@ -49,10 +49,15 @@ if ($performer === 'admin') {
     $where[] = "a.performed_by IS NULL";
 }
 if ($search !== '') {
-    $where[] = "(a.action LIKE ? OR a.details LIKE ? OR CONCAT_WS(' ', u.first_name, u.last_name) LIKE ? OR u.email_address LIKE ? OR CAST(a.id AS CHAR) = ?)";
-    $like = "%$search%";
-    $types .= "sssss";
-    array_push($params, $like, $like, $like, $like, ltrim($search, 'LOG-0'));
+    // Escape LIKE wildcards so "50%" or "user_id" match literally rather than
+    // acting as patterns. A log reference "LOG-0012" (or just "12") matches id 12;
+    // the old ltrim($search, 'LOG-0') stripped any of those characters from both
+    // ends, so "LOG-0100" searched for id 1.
+    $like = '%' . addcslashes($search, '\\%_') . '%';
+    $log_id = preg_match('/^(?:LOG-)?0*(\d+)$/i', $search, $m) ? (int)$m[1] : 0;
+    $where[] = "(a.action LIKE ? OR a.details LIKE ? OR CONCAT_WS(' ', u.first_name, u.last_name) LIKE ? OR u.email_address LIKE ? OR a.id = ?)";
+    $types .= "ssssi";
+    array_push($params, $like, $like, $like, $like, $log_id);
 }
 if ($valid_date($from)) {
     $where[] = "a.created_at >= ?";
@@ -109,15 +114,19 @@ while ($row = $res->fetch_assoc()) {
     $category_counts[$key] += (int)$row['c'];
 }
 
-// Exporting the audit trail is itself an auditable action.
+// Exporting the audit trail is itself an auditable action. The export is capped at
+// $limit rows; the entry used to claim the full total even when it was cut short.
+$exported = count($logs);
+$truncated = $export && $total > $exported;
 if ($export) {
-    log_activity($conn, $admin_id, 'system', 'Exported Activity Log', "Exported $total log entr" . ($total === 1 ? 'y' : 'ies') . " (category: $category, performer: $performer" . ($from || $to ? ", range: " . ($from ?: '…') . " to " . ($to ?: '…') : "") . ($search !== '' ? ", search: \"$search\"" : "") . ")");
+    log_activity($conn, $admin_id, 'system', 'Exported Activity Log', "Exported $exported of $total log entr" . ($total === 1 ? 'y' : 'ies') . " (category: $category, performer: $performer" . ($from || $to ? ", range: " . ($from ?: '…') . " to " . ($to ?: '…') : "") . ($search !== '' ? ", search: \"$search\"" : "") . ")");
 }
 
 echo json_encode([
     "success" => true,
     "logs" => $logs,
     "total" => $total,
+    "truncated" => $truncated,
     "page" => $page,
     "limit" => $limit,
     "pages" => max(1, (int)ceil($total / $limit)),

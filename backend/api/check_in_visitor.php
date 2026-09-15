@@ -94,10 +94,7 @@ if ($isAdmin) {
     if ($target_user_id) {
         $n_title = "Visitor Arrival: $visitor_name";
         $n_msg = "$visitor_name (Contact: $contact_number) has checked in to visit your unit ($room_name).";
-        $n_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'visitor_log', ?, ?, 'Active', 0)");
-        $n_stmt->bind_param("iss", $target_user_id, $n_title, $n_msg);
-        $n_stmt->execute();
-        $n_stmt->close();
+        create_notification($conn, $target_user_id, 'visitor_log', $n_title, $n_msg);
     }
     log_activity($conn, $auth['id'], 'service', "Logged Visitor Check-In", "Visitor $visitor_name checked in for Unit $room_name");
 } else {

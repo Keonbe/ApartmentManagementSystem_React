@@ -37,6 +37,8 @@ CREATE TABLE `activity_logs` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `performed_by` (`performed_by`),
+  KEY `idx_created` (`created_at`),
+  KEY `idx_category` (`category`),
   CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`performed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -238,12 +240,24 @@ CREATE TABLE `parking_reservations` (
   `vehicle_model` varchar(100) NOT NULL,
   `plate_number` varchar(20) NOT NULL,
   `status` varchar(50) DEFAULT 'Pending',
+  -- Pending -> Assigned | Rejected | Cancelled; Assigned -> Released (PARKING_TRANSITIONS in config.php)
+  `slot_number` int(11) DEFAULT NULL,
+  `assigned_at` datetime DEFAULT NULL,
+  `released_at` datetime DEFAULT NULL,
+  `release_reason` varchar(255) DEFAULT NULL,
+  `rejection_reason` varchar(255) DEFAULT NULL,
   `transmission` varchar(50) NOT NULL,
   `duration_months` int(11) NOT NULL,
   `total_cost` decimal(10,2) NOT NULL,
   `document_path` varchar(255) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  -- The database refuses two active reservations on one slot and two open
+  -- reservations for one tenant, so concurrent requests cannot overbook.
+  `active_slot` int(11) AS (IF(`status` = 'Assigned', `slot_number`, NULL)) PERSISTENT,
+  `open_user` int(11) AS (IF(`status` IN ('Pending', 'Assigned'), `user_id`, NULL)) PERSISTENT,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_active_slot` (`active_slot`),
+  UNIQUE KEY `uniq_open_user` (`open_user`),
   KEY `fk_parking_user` (`user_id`),
   CONSTRAINT `fk_parking_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -509,6 +523,33 @@ CREATE TABLE IF NOT EXISTS `unit_reservations` (
 
 ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `status` varchar(20) DEFAULT 'Pending';
 ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `metadata_value` varchar(255) DEFAULT NULL;
+ALTER TABLE `notifications` ADD INDEX IF NOT EXISTS `idx_type_status` (`type`, `status`);
+ALTER TABLE `notifications` ADD INDEX IF NOT EXISTS `idx_user_read` (`user_id`, `is_read`);
+
+-- Per-category in-app notification opt-outs (checklist 6.8). No row = enabled.
+-- Categories and the types they cover: NOTIFICATION_PREF_CATEGORIES in config.php.
+CREATE TABLE IF NOT EXISTS `notification_preferences` (
+  `user_id` int(11) NOT NULL,
+  `category` varchar(40) NOT NULL,
+  `in_app_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`user_id`, `category`),
+  CONSTRAINT `fk_notif_pref_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- One row per parking reservation per billed month (checklist 10.3). Inserting the
+-- row is the claim, so the same month can never be billed twice.
+CREATE TABLE IF NOT EXISTS `parking_charges` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `reservation_id` int(11) NOT NULL,
+  `billing_period` char(7) NOT NULL,
+  `invoice_id` varchar(50) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_reservation_period` (`reservation_id`, `billing_period`),
+  CONSTRAINT `fk_parking_charge_reservation` FOREIGN KEY (`reservation_id`) REFERENCES `parking_reservations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Table structure for table `service_catalog`
@@ -799,6 +840,12 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('reservation_hold_days', '7'),
 ('max_parking_slots', '3'),
 ('parking_allowed_vehicle_types', '["motorcycle"]'),
+-- Parking fee per month of the permit term, and whether it is posted to invoices
+-- automatically ('auto') or by the admin's "Bill this month" button ('manual').
+('parking_monthly_fee', '300'),
+('parking_billing_mode', 'manual'),
+-- Date of the last daily notification sweep (run_notification_sweep() in config.php).
+('notification_sweep_last_run', '2000-01-01'),
 ('landlord_name', 'Elizabeth Angcanan'),
 ('landlord_address', 'Tamak, Maguyam, Silang, Cavite'),
 ('landlord_contact', '*********** (Smart)'),

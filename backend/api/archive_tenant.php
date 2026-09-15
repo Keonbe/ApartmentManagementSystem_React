@@ -75,7 +75,11 @@ if ($id > 0) {
             $user_stmt->close();
         }
 
-        log_activity($conn, $admin_id, 'tenant', "Archived Tenant", "Application ID: $id, Reason: $archiveReason" . ($archiveNotes ? ", Notes: $archiveNotes" : ""));
+        // Free the tenant's parking slot (checklist 10.4). Restoring the tenant
+        // does not re-assign it — the slot may have been given to someone else.
+        $parking_released = $user_id > 0 ? release_user_parking($conn, $user_id, 'Tenant archived') : 0;
+
+        log_activity($conn, $admin_id, 'tenant', "Archived Tenant", "Application ID: $id, Reason: $archiveReason" . ($archiveNotes ? ", Notes: $archiveNotes" : "") . ($parking_released ? "; parking released" : ""));
 
         $conn->commit();
         echo json_encode(["success" => true]);

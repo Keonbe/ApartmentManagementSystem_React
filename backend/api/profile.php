@@ -78,9 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
         $stmt->bind_param("si", $relative_path, $auth['id']);
         
         if ($stmt->execute()) {
+            log_activity($conn, $auth['id'], 'user', 'Updated Profile Photo', "User #{$auth['id']} uploaded a new profile photo");
             echo json_encode([
-                "success" => true, 
-                "message" => "Avatar updated successfully", 
+                "success" => true,
+                "message" => "Avatar updated successfully",
                 "avatar_url" => $relative_path
             ]);
         } else {
@@ -113,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param("i", $auth['id']);
 
         if ($stmt->execute()) {
+            log_activity($conn, $auth['id'], 'user', 'Removed Profile Photo', "User #{$auth['id']} removed their profile photo");
             echo json_encode(["success" => true, "message" => "Avatar path removed successfully"]);
         } else {
             echo json_encode(["success" => false, "message" => "Failed to clear avatar from database layout row"]);
@@ -166,6 +168,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Which fields change, for the audit log — names only, never the values.
+    $before_stmt = $conn->prepare("SELECT first_name, middle_name, last_name, suffix, contact_no, gender, email_address FROM users WHERE id = ?");
+    $before_stmt->bind_param("i", $auth['id']);
+    $before_stmt->execute();
+    $before = $before_stmt->get_result()->fetch_assoc() ?: [];
+    $before_stmt->close();
+    $after = ['first_name' => $first_name, 'middle_name' => $middle_name, 'last_name' => $last_name, 'suffix' => $suffix,
+              'contact_no' => $contact_no, 'gender' => $gender, 'email_address' => $new_email];
+    $changed_fields = array_keys(array_filter($after, fn($v, $k) => (string)($before[$k] ?? '') !== (string)$v, ARRAY_FILTER_USE_BOTH));
+
     $conn->begin_transaction();
     try {
         $stmt1 = $conn->prepare("UPDATE users SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, gender = ?, email_address = ? WHERE id = ?");
@@ -179,10 +191,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt2->close();
 
         $conn->commit();
+        if ($changed_fields) {
+            log_activity($conn, $auth['id'], 'user', 'Updated Profile', "Changed: " . implode(', ', $changed_fields));
+        }
         echo json_encode(["success" => true, "message" => "Profile text values stored successfully"]);
     } catch (Exception $e) {
         $conn->rollback();
-        echo json_encode(["success" => false, "message" => "Database processing failure during sync", "error" => $e->getMessage()]);
+        server_error_response($e, "Failed to save your profile.");
     }
 
     $conn->close();

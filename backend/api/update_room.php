@@ -169,7 +169,7 @@ try {
         }
     }
 
-    log_activity($conn, $adminId, 'system', 'Update Room', $actionDesc);
+    log_activity($conn, $adminId, 'unit', 'Updated Unit', $actionDesc);
 
     echo json_encode(['success' => true, 'message' => 'Room updated successfully']);
 } catch (Exception $e) {

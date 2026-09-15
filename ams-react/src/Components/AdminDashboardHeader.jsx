@@ -1,32 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, formatRelativeTime } from '../config/notificationLinks';
 import '../assets/styles/responsive/admin/admin-header.responsive.css';
-
-const defaultAdminNotifications = [
-  { id: 1, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit E — Pedro Cruz rent of ₱6,500 is due in 3 days (July 5).', time: '2 hours ago', timestamp: '2024-07-02 10:00', read: false },
-  { id: 2, type: 'overdue', title: 'Overdue Alert', message: 'Unit G — Ben Flores has an overdue balance of ₱6,500 (7 days past due).', time: '3 hours ago', timestamp: '2024-07-02 09:00', read: false },
-  { id: 3, type: 'maintenance', title: 'Maintenance Update', message: 'REQ-003 (Clogged kitchen drain) has been marked as In Progress. Assigned to Mang Totoy.', time: '5 hours ago', timestamp: '2024-07-02 07:00', read: false },
-  { id: 4, type: 'rent_due', title: 'Rent Due Reminder', message: 'Unit F — Rosa Dela Cruz rent of ₱7,500 is due in 5 days (July 7).', time: 'Yesterday', timestamp: '2024-07-01 14:00', read: true },
-];
 
 const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const navigate = useNavigate();
 
-  const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
-  const emailKey = loggedInUser.email_address || "default_admin";
-
   const [notifications, setNotifications] = useState([]);
 
-  useEffect(() => {
-    fetchNotifications();
-  }, [loggedInUser.id]);
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const response = await api.get('get_notifications.php');
       if (response.data.success) {
@@ -35,7 +22,21 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     } catch (err) {
       console.error(err);
     }
-  };
+  }, []);
+
+  // Polled while the tab is visible. The bell used to load once per page, and
+  // rendered a "time" field the API never returns.
+  useEffect(() => {
+    fetchNotifications();
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchNotifications();
+    }, NOTIFICATION_POLL_MS);
+    window.addEventListener(ADMIN_NOTIFICATIONS_EVENT, fetchNotifications);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(ADMIN_NOTIFICATIONS_EVENT, fetchNotifications);
+    };
+  }, [fetchNotifications]);
 
   const handleToggle = () => {
     if (onToggleSidebar) {
@@ -55,32 +56,36 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     navigate('/login');
   };
 
+  // One request marks everything the admin can see as read (it used to send one per id).
   const handleMarkAllRead = async () => {
     try {
-      const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
-      for (const id of unreadIds) {
-        await api.post('mark_notification_read.php', { id });
+      await api.post('mark_notification_read.php', {});
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })));
+      window.dispatchEvent(new CustomEvent(ADMIN_NOTIFICATIONS_EVENT));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openNotification = async (notif) => {
+    setIsNotifOpen(false);
+    if (!Number(notif.is_read)) {
+      try {
+        await api.post('mark_notification_read.php', { id: notif.id });
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: 1 } : n));
+        window.dispatchEvent(new CustomEvent(ADMIN_NOTIFICATIONS_EVENT));
+      } catch (err) {
+        console.error(err);
       }
-      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
-    } catch (err) {
-      console.error(err);
     }
+    navigate(ADMIN_NOTIFICATION_LINKS[notif.type] || '/admin-notifications');
   };
 
-  const handleMarkRead = async (id) => {
-    try {
-      await api.post('mark_notification_read.php', { id });
-      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter(n => !Number(n.is_read)).length;
 
   return (
     <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 select-none relative z-40">
-      
+
       {/* Left Area: Hamburger + Title */}
       <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
         <button
@@ -98,22 +103,22 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
       </div>
 
       <div className="flex items-center gap-3 sm:gap-6 relative shrink-0">
-        
+
         {/* Notifications */}
         <div className="relative">
-          <button 
+          <button
             onClick={() => { setIsNotifOpen(!isNotifOpen); setIsProfileOpen(false); }}
             className="admin-header-notif-btn text-gray-500 hover:text-gray-700 transition-colors relative bg-transparent border-0 cursor-pointer p-2 outline-none"
             aria-label="Notifications"
           >
             <FontAwesomeIcon icon={faBell} className="text-lg sm:text-xl" />
             {unreadCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
-                {unreadCount}
+              <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-0.5 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </button>
-          
+
           {isNotifOpen && (
             <div className="admin-header-notif-dropdown absolute right-0 mt-3 w-80 bg-white rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] border border-gray-200 overflow-hidden z-50 transform origin-top-right transition-all">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center select-none">
@@ -125,22 +130,22 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
               <div className="max-h-80 overflow-y-auto">
                 {notifications.length > 0 ? (
                   notifications.map(notif => (
-                    <div 
-                      key={notif.id} 
-                      onClick={() => handleMarkRead(notif.id)}
-                      className={`px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 ${!notif.is_read ? 'bg-indigo-50/20' : ''}`}
+                    <div
+                      key={notif.id}
+                      onClick={() => openNotification(notif)}
+                      className={`px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 ${!Number(notif.is_read) ? 'bg-indigo-50/20' : ''}`}
                     >
-                      {!notif.is_read && (
+                      {!Number(notif.is_read) && (
                         <span className="absolute left-1.5 top-[18px] w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
                       )}
-                      <p className={`text-xs font-bold m-0 leading-snug ${!notif.is_read ? 'text-slate-800' : 'text-slate-600'}`}>{notif.title}</p>
+                      <p className={`text-xs font-bold m-0 leading-snug ${!Number(notif.is_read) ? 'text-slate-800' : 'text-slate-600'}`}>{notif.title}</p>
                       <p className="text-[11px] text-slate-500 m-0 leading-normal">{notif.message}</p>
-                      <p className="text-[9px] text-slate-400 font-medium m-0 mt-1">{notif.time}</p>
+                      <p className="text-[9px] text-slate-400 font-medium m-0 mt-1">{formatRelativeTime(notif.created_at)}</p>
                     </div>
                   ))
                 ) : (
                   <div className="py-12 text-center text-slate-400 text-xs italic">
-                    No new notifications
+                    Nothing needs your attention
                   </div>
                 )}
               </div>
@@ -153,7 +158,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
 
         {/* Profile */}
         <div className="relative">
-          <div 
+          <div
             onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotifOpen(false); }}
             className="admin-header-avatar-btn w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold shadow-md cursor-pointer text-xs sm:text-sm hover:bg-indigo-700 transition-all border-2 border-transparent hover:border-indigo-200 select-none"
             aria-label="Admin Profile Menu"
@@ -167,14 +172,14 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
                 <p className="text-sm font-semibold text-gray-800 m-0">Admin Dashboard</p>
                 <p className="text-xs text-gray-500 m-0 mt-0.5 truncate">admin@system.com</p>
               </div>
-              <button 
+              <button
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-indigo-600 transition-colors flex items-center gap-3 bg-transparent border-none cursor-pointer"
                 onClick={() => { setIsProfileOpen(false); navigate('/admin-settings'); }}
               >
                 <FontAwesomeIcon icon={faUserCog} className="text-gray-400 w-4" />
                 <span>Account Settings</span>
               </button>
-              <button 
+              <button
                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-3 bg-transparent border-none cursor-pointer"
                 onClick={handleLogout}
               >

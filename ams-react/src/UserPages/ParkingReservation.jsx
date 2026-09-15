@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faCheckCircle, faUndo, faFilePdf, faEye, faTimes, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faCheckCircle, faUndo, faFilePdf, faEye, faTimes, faExclamationTriangle, faCar, faClock, faBan } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
@@ -29,62 +29,40 @@ export default function ParkingReservation() {
     const [pdfModalUrl, setPdfModalUrl] = useState(null);
     const [pdfModalTitle, setPdfModalTitle] = useState('PDF Viewer');
 
+    const [monthlyFee, setMonthlyFee] = useState(null);
+    const [myReservation, setMyReservation] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [formError, setFormError] = useState('');
+
     const navigate = useNavigate();
 
-    //2.FetchDynamicOccupiedSlotsWithRobustEndpointFallback
+    //2.RealCapacityFeeAndTheTenantsOwnReservation
+    // The counter used to call the admin-only reservations endpoint, get a 403, and
+    // show every slot as free. get_available_parking_slots.php is the tenant view.
     useEffect(() => {
         const fetchAvailableSlots = async () => {
             try {
-                const { maxParkingSlots, parkingAllowedVehicleTypes } = await getSystemSettings();
-                const capacity = maxParkingSlots || 3;
+                const [{ parkingAllowedVehicleTypes }, slotsRes] = await Promise.all([
+                    getSystemSettings(),
+                    api.get('get_available_parking_slots.php'),
+                ]);
                 const allowedTypes = (parkingAllowedVehicleTypes && parkingAllowedVehicleTypes.length > 0)
                     ? parkingAllowedVehicleTypes
                     : ['motorcycle'];
-                setTotalCapacity(capacity);
                 setAllowedVehicleTypes(allowedTypes);
                 if (!allowedTypes.includes(vehicleType)) {
                     setVehicleType(allowedTypes[0]);
                 }
 
-                let reservationsList = [];
-
-                //TryFetchingFromGetEndpointFirst
-                try {
-                    const res = await api.get(`get_parking_reservations.php?_t=${Date.now()}`);
-                    if (res.data) {
-                        if (Array.isArray(res.data.reservations)) reservationsList = res.data.reservations;
-                        else if (Array.isArray(res.data.data)) reservationsList = res.data.data;
-                        else if (Array.isArray(res.data)) reservationsList = res.data;
-                    }
-                } catch (e) {
-                    console.warn("get_parking_reservations.php not found, trying fallback...");
+                if (slotsRes.data.success) {
+                    setTotalCapacity(slotsRes.data.max_slots);
+                    setAvailableSlots(slotsRes.data.available_slots);
+                    setMonthlyFee(Number(slotsRes.data.monthly_fee));
+                    setMyReservation(slotsRes.data.my_reservation);
                 }
-
-                //IfEmptyTryFetchingFromBaseEndpoint
-                if (reservationsList.length === 0) {
-                    try {
-                        const resFallback = await api.get(`parking_reservation.php?_t=${Date.now()}`);
-                        if (resFallback.data) {
-                            if (Array.isArray(resFallback.data.reservations)) reservationsList = resFallback.data.reservations;
-                            else if (Array.isArray(resFallback.data.data)) reservationsList = resFallback.data.data;
-                            else if (Array.isArray(resFallback.data)) reservationsList = resFallback.data;
-                        }
-                    } catch (e2) {
-                        console.warn("Fallback endpoint also failed.");
-                    }
-                }
-
-                //CountOnlyAssignedApprovedActiveOrPending(ExcludeRejected)
-                const occupiedCount = reservationsList.filter(r => {
-                    const st = (r.status || '').toString().trim().toLowerCase();
-                    return ['assigned', 'approved', 'pending', 'active'].includes(st);
-                }).length;
-                
-                const freeSlots = Math.max(0, capacity - occupiedCount);
-                setAvailableSlots(freeSlots);
-
             } catch (err) {
-                console.error("Failed to query dynamic parking slots:", err);
+                console.error("Failed to load parking availability:", err);
+                setFormError('Could not load parking availability. Please refresh the page.');
             } finally {
                 setLoadingSlots(false);
             }
@@ -122,11 +100,18 @@ export default function ParkingReservation() {
         }
     };
 
-    //PriceCalculationMetrics
-    const BASE_PRICE = 300;
-    const calculatedTotal = durationMonths && !isNaN(durationMonths)
-        ? BASE_PRICE * parseInt(durationMonths, 10)
+    //PriceCalculationMetrics — the fee is the admin-configured parking_monthly_fee
+    const calculatedTotal = durationMonths && !isNaN(durationMonths) && monthlyFee
+        ? monthlyFee * parseInt(durationMonths, 10)
         : 0;
+    const peso = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const hasOpenReservation = myReservation && ['Pending', 'Assigned'].includes(myReservation.status);
+
+    //ImagePreviewUrlIsCreatedOnceAndRevoked (it was recreated on every render and never freed)
+    const isImageFile = uploadedFile && (uploadedFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(uploadedFile.name));
+    const previewUrl = useMemo(() => (isImageFile ? URL.createObjectURL(uploadedFile) : null), [uploadedFile, isImageFile]);
+    useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
     //4.IntelligentPhilippineLTOPlateAndInductionStickerValidation
     const validatePhilippinePlate = (val) => {
@@ -225,25 +210,23 @@ export default function ParkingReservation() {
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
+        if (submitting) return;
+        setFormError('');
 
         const plateValidationError = validatePhilippinePlate(plateNumber);
         if (plateValidationError) {
             setPhonePlateError(plateValidationError);
-            alert(plateValidationError);
+            setFormError(plateValidationError);
             return;
         }
-
-        const loggedInUserStr = sessionStorage.getItem('loggedInUser');
-        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
-        const userId = loggedInUser?.id || '';
 
         if (!uploadedFile) {
-            alert("Please upload your Vehicle Registration Form (OR/CR) before proceeding.");
+            setFormError("Please upload your Vehicle Registration Form (OR/CR) before proceeding.");
             return;
         }
 
+        // The reservation is filed under the signed-in account on the server.
         const formData = new FormData();
-        formData.append('userId', userId);
         formData.append('vehicleType', vehicleType);
         formData.append('vehicleModel', vehicleModel.trim());
         formData.append('plateNumber', plateNumber.trim());
@@ -251,6 +234,7 @@ export default function ParkingReservation() {
         formData.append('durationMonths', durationMonths);
         formData.append('uploadedFile', uploadedFile);
 
+        setSubmitting(true);
         try {
             const res = await api.post("parking_reservation.php", formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -259,13 +243,12 @@ export default function ParkingReservation() {
             if (res.data.success) {
                 setIsModalOpen(true);
             } else {
-                console.error("Server Error:", res.data.message);
-                alert(res.data.message);
+                setFormError(res.data.message || 'Could not submit the reservation.');
             }
         } catch (error) {
-            console.error("Error submitting reservation:", error);
-            const serverMessage = error.response?.data?.message;
-            alert(serverMessage || "A network error occurred.");
+            setFormError(error.response?.data?.message || "A network error occurred.");
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -299,7 +282,54 @@ export default function ParkingReservation() {
                     </div>
                 </div>
 
-                {/*FormInputsPanelLayout*/}
+                {/*LastClosedReservationOutcome*/}
+                {myReservation && !hasOpenReservation && (
+                    <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 flex items-start gap-3">
+                        <FontAwesomeIcon icon={faBan} className="text-slate-400 mt-0.5" />
+                        <p className="m-0">
+                            Your last parking request ({myReservation.plate_number}) was <strong>{myReservation.status.toLowerCase()}</strong>
+                            {(myReservation.rejection_reason || myReservation.release_reason) && `: ${myReservation.rejection_reason || myReservation.release_reason}`}.
+                            You can submit a new request below.
+                        </p>
+                    </div>
+                )}
+
+                {formError && (
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-semibold text-rose-700 flex items-center gap-2">
+                        <FontAwesomeIcon icon={faExclamationTriangle} /> {formError}
+                    </div>
+                )}
+
+                {/*OpenReservationStatusCard — replaces the form so a second request can't be filed*/}
+                {hasOpenReservation ? (
+                    <div className="bg-white rounded-3xl border border-slate-100 shadow-md p-6 sm:p-10 space-y-5">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${myReservation.status === 'Assigned' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                <FontAwesomeIcon icon={myReservation.status === 'Assigned' ? faCar : faClock} />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Your parking</p>
+                                <h2 className="text-2xl font-extrabold m-0" style={{ color: '#3b4276' }}>
+                                    {myReservation.status === 'Assigned' ? `Slot #${myReservation.slot_number}` : 'Awaiting review'}
+                                </h2>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Vehicle</p><p className="font-bold text-slate-800 m-0">{myReservation.vehicle_model}</p></div>
+                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Plate</p><p className="font-bold text-slate-800 m-0 font-mono">{myReservation.plate_number}</p></div>
+                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Term</p><p className="font-bold text-slate-800 m-0">{myReservation.duration_months} month(s){myReservation.term_ends_at ? ` · until ${new Date(myReservation.term_ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}</p></div>
+                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Monthly fee</p><p className="font-bold text-slate-800 m-0">{peso(monthlyFee)}</p></div>
+                        </div>
+                        {myReservation.status === 'Assigned' ? (
+                            <p className="text-xs text-slate-500 m-0">
+                                The parking fee is added to your monthly bill.
+                                {myReservation.billed_periods?.length > 0 && ` Billed so far: ${myReservation.billed_periods.join(', ')}.`}
+                            </p>
+                        ) : (
+                            <p className="text-xs text-slate-500 m-0">Management will review your OR/CR and assign a slot. You'll get a notification either way.</p>
+                        )}
+                    </div>
+                ) : (
                 <form className="parking-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start" onSubmit={handleFormSubmit}>
 
                     {/*VehicleTypeSelectorRestrictedToMotorcycle*/}
@@ -379,8 +409,8 @@ export default function ParkingReservation() {
                             required
                         >
                             <option value="" disabled hidden>Select transmission type...</option>
-                            <option value="automatic">{t('parking.automatic')}</option>
-                            <option value="manual">{t('parking.manual')}</option>
+                            <option value="Automatic">{t('parking.automatic')}</option>
+                            <option value="Manual">{t('parking.manual')}</option>
                         </select>
                     </div>
 
@@ -430,9 +460,9 @@ export default function ParkingReservation() {
                                 </>
                             ) : (
                                 <div className="space-y-3 flex flex-col items-center w-full z-10 p-2">
-                                    {uploadedFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(uploadedFile.name) ? (
-                                        <img 
-                                            src={URL.createObjectURL(uploadedFile)} 
+                                    {isImageFile ? (
+                                        <img
+                                            src={previewUrl}
                                             alt="OR/CR Document Preview" 
                                             className="w-full max-w-[360px] h-40 object-contain rounded-xl border border-slate-200 bg-white shadow-sm"
                                         />
@@ -466,24 +496,25 @@ export default function ParkingReservation() {
                         <div className="parking-pricing-items flex items-center justify-between sm:justify-start gap-6 sm:space-x-12 select-none">
                             <div>
                                 <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">{t('parking.monthlyCost')}</span>
-                                <span className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">₱300.00</span>
+                                <span className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{monthlyFee === null ? '…' : peso(monthlyFee)}</span>
                             </div>
                             <div>
                                 <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">{t('parking.totalCost')}</span>
-                                <span className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">₱{calculatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                <span className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">{peso(calculatedTotal)}</span>
                             </div>
                         </div>
 
                         <button
                             type="submit"
-                            disabled={availableSlots <= 0}
+                            disabled={loadingSlots || availableSlots <= 0 || submitting}
                             className="parking-submit-btn w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
-                            {availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
+                            {submitting ? 'Submitting…' : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
                         </button>
                     </div>
 
                 </form>
+                )}
             </div>
 
             {/*PDFPreviewModalOverlay*/}

@@ -141,10 +141,7 @@ try {
     if ($user_id) {
         $notif_title = "Unit Reserved";
         $notif_msg = "Unit $room_name has been reserved for you. The hold expires in $hold_days day(s) — please complete your rent application before then.";
-        $notif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'unit_reservation', ?, ?, 'Resolved', 0)");
-        $notif->bind_param("iss", $user_id, $notif_title, $notif_msg);
-        $notif->execute();
-        $notif->close();
+        create_notification($conn, $user_id, 'unit_reservation', $notif_title, $notif_msg);
     }
 
     echo json_encode([

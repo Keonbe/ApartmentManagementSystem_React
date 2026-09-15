@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -11,89 +11,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . "/../config.php";
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+// Manual reminders from AdminPayments.jsx. Every reminder goes through
+// claim_invoice_reminder(), so an invoice is reminded at most once per day
+// whether by this button, "Send to all", or the daily sweep. The batch used to
+// re-notify every open invoice on each click, and an ALTER TABLE ran on every
+// request.
+$admin_id = require_admin($conn);
+
+// Open invoices that are worth a nudge: excludes 'processing' (checkout at the
+// gateway) and 'pending-verification' (payment already submitted).
+$remindable = array_values(array_diff(BILLING_OPEN_STATUSES, ['processing', 'pending-verification']));
+$remindable_sql = "('" . implode("','", $remindable) . "')";
 
 try {
-    // Ensure columns exist
-    @$conn->query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS last_reminder_date DATE DEFAULT NULL;");
-    @$conn->query("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminder_count INT DEFAULT 0;");
-
     $input = json_decode(file_get_contents("php://input"), true) ?? [];
     $invoice_id = trim($input['invoice_id'] ?? '');
     $is_batch = !empty($input['all']);
     $custom_message = trim($input['custom_message'] ?? '');
-
     $today = new DateTime(date('Y-m-d'));
 
     if ($is_batch) {
-        // Find all invoices that are pending or overdue with a due date
-        $query = "
-            SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, i.status,
-                   u.first_name, u.last_name, ra.room_name
+        $rows = $conn->query("
+            SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, i.status, ra.room_name
             FROM invoices i
-            LEFT JOIN users u ON i.user_id = u.id
             LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
-            WHERE i.status IN ('pending', 'overdue')
-              AND i.due_date IS NOT NULL
-        ";
-        $result = $conn->query($query);
+            WHERE i.status IN $remindable_sql AND i.due_date IS NOT NULL
+        ")->fetch_all(MYSQLI_ASSOC);
+
         $count = 0;
-
-        while ($inv = $result->fetch_assoc()) {
-            $dueDateObj = new DateTime($inv['due_date']);
-            $unit = !empty($inv['room_name']) ? $inv['room_name'] : 'your unit';
-            $amountFormatted = number_format((float)$inv['total_amount'], 2);
-            $formattedDueDate = $dueDateObj->format('M j, Y');
-
-            $isOverdue = $dueDateObj < $today;
-            $type = $isOverdue ? 'overdue' : 'rent_due';
-
-            if ($isOverdue) {
-                $diffDays = (int)$dueDateObj->diff($today)->format("%a");
-                $daysText = $diffDays === 1 ? "1 day" : "{$diffDays} days";
-                $title = "Overdue Rent Alert: {$inv['billing_period']}";
-                $message = !empty($custom_message) ? $custom_message : "Notice from Management: Your rent payment of ₱{$amountFormatted} for Unit {$unit} was due on {$formattedDueDate} ({$daysText} overdue). Please settle your bill immediately.";
-            } else {
-                $diffDays = (int)$today->diff($dueDateObj)->format("%a");
-                $daysText = $diffDays === 0 ? "today" : ($diffDays === 1 ? "in 1 day" : "in {$diffDays} days");
-                $title = "Rent Due Reminder: {$inv['billing_period']}";
-                $message = !empty($custom_message) ? $custom_message : "Notice from Management: Your rent payment of ₱{$amountFormatted} for Unit {$unit} is due {$daysText} ({$formattedDueDate}). Please settle your bill on time.";
+        $skipped = 0;
+        foreach ($rows as $inv) {
+            if (!claim_invoice_reminder($conn, $inv['id'])) {
+                $skipped++;
+                continue;
             }
-
-            $notif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read, created_at) VALUES (?, ?, ?, ?, 'Pending', 0, NOW())");
-            $notif->bind_param("isss", $inv['user_id'], $type, $title, $message);
-            $notif->execute();
-            $notif->close();
-
-            $upd = $conn->prepare("UPDATE invoices SET last_reminder_date = CURDATE(), reminder_count = reminder_count + 1 WHERE id = ?");
-            $upd->bind_param("s", $inv['id']);
-            $upd->execute();
-            $upd->close();
-
+            $overdue = new DateTime($inv['due_date']) < $today;
+            [$title, $message] = reminder_text($inv, $today, $overdue, $custom_message);
+            create_notification($conn, $inv['user_id'], $overdue ? 'overdue' : 'rent_due', $title, $message);
             $count++;
         }
 
-        log_activity($conn, $admin_id, 'billing', 'batch_reminder', "Dispatched payment reminders to {$count} tenant(s) with pending/overdue balances.");
+        if ($count > 0) {
+            log_activity($conn, $admin_id, 'billing', 'Sent Payment Reminders', "Sent payment reminders for {$count} invoice(s); {$skipped} already reminded today.");
+        }
 
         echo json_encode([
             "success" => true,
-            "message" => "Dispatched payment reminders to {$count} tenant(s).",
-            "count" => $count
+            "message" => "Sent reminders for {$count} invoice(s)." . ($skipped ? " {$skipped} were already reminded today." : ""),
+            "count" => $count,
+            "skipped" => $skipped
         ]);
         exit;
     }
 
-    if (empty($invoice_id)) {
+    if ($invoice_id === '') {
+        http_response_code(422);
         echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
         exit;
     }
 
-    // Single invoice reminder
     $stmt = $conn->prepare("
         SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, i.status, i.reminder_count,
                u.first_name, u.last_name, ra.room_name
@@ -104,65 +80,42 @@ try {
     ");
     $stmt->bind_param("s", $invoice_id);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $inv = $res->fetch_assoc();
+    $inv = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     if (!$inv) {
+        http_response_code(404);
         echo json_encode(["success" => false, "message" => "Invoice not found."]);
         exit;
     }
-
-    if (!in_array($inv['status'], ['pending', 'overdue', 'pending-verification'])) {
-        echo json_encode(["success" => false, "message" => "Invoice is already {$inv['status']}."]);
+    if (!in_array($inv['status'], $remindable, true) || !$inv['due_date']) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "No reminder needed: invoice is {$inv['status']}."]);
+        exit;
+    }
+    if (!claim_invoice_reminder($conn, $invoice_id)) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This tenant was already reminded about this invoice today."]);
         exit;
     }
 
-    $dueDateObj = new DateTime($inv['due_date']);
-    $unit = !empty($inv['room_name']) ? $inv['room_name'] : 'your unit';
+    $overdue = new DateTime($inv['due_date']) < $today;
+    [$title, $message] = reminder_text($inv, $today, $overdue, $custom_message);
+    create_notification($conn, $inv['user_id'], $overdue ? 'overdue' : 'rent_due', $title, $message);
+
     $tenantName = trim(($inv['first_name'] ?? '') . ' ' . ($inv['last_name'] ?? '')) ?: 'Tenant';
-    $amountFormatted = number_format((float)$inv['total_amount'], 2);
-    $formattedDueDate = $dueDateObj->format('M j, Y');
-
-    $isOverdue = $dueDateObj < $today;
-    $type = $isOverdue ? 'overdue' : 'rent_due';
-
-    if ($isOverdue) {
-        $diffDays = (int)$dueDateObj->diff($today)->format("%a");
-        $daysText = $diffDays === 1 ? "1 day" : "{$diffDays} days";
-        $title = "Overdue Rent Alert: {$inv['billing_period']}";
-        $message = !empty($custom_message) ? $custom_message : "Notice from Management: Your rent payment of ₱{$amountFormatted} for Unit {$unit} was due on {$formattedDueDate} ({$daysText} overdue). Please settle your balance immediately.";
-    } else {
-        $diffDays = (int)$today->diff($dueDateObj)->format("%a");
-        $daysText = $diffDays === 0 ? "today" : ($diffDays === 1 ? "in 1 day" : "in {$diffDays} days");
-        $title = "Rent Due Reminder: {$inv['billing_period']}";
-        $message = !empty($custom_message) ? $custom_message : "Notice from Management: Your rent payment of ₱{$amountFormatted} for Unit {$unit} is due {$daysText} ({$formattedDueDate}). Please settle your bill promptly.";
-    }
-
-    $notif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read, created_at) VALUES (?, ?, ?, ?, 'Pending', 0, NOW())");
-    $notif->bind_param("isss", $inv['user_id'], $type, $title, $message);
-    $notif->execute();
-    $notif->close();
-
-    $newCount = (int)($inv['reminder_count'] ?? 0) + 1;
-    $upd = $conn->prepare("UPDATE invoices SET last_reminder_date = CURDATE(), reminder_count = ? WHERE id = ?");
-    $upd->bind_param("is", $newCount, $invoice_id);
-    $upd->execute();
-    $upd->close();
-
-    log_activity($conn, $admin_id, 'billing', 'send_reminder', "Sent payment reminder to {$tenantName} (Unit {$unit}) for invoice {$invoice_id}.");
+    $unit = $inv['room_name'] ?: 'no unit';
+    log_activity($conn, $admin_id, 'billing', 'Sent Payment Reminder', "Sent payment reminder to {$tenantName} (Unit {$unit}) for invoice {$invoice_id}.");
 
     echo json_encode([
         "success" => true,
         "message" => "Reminder sent to {$tenantName} successfully.",
         "invoice_id" => $invoice_id,
         "last_reminder_date" => date('Y-m-d'),
-        "reminder_count" => $newCount
+        "reminder_count" => (int)$inv['reminder_count'] + 1
     ]);
-
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    server_error_response($e, "Failed to send the reminder.");
 }
 
 $conn->close();

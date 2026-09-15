@@ -54,12 +54,10 @@ try {
     if ($cctv) {
         $notifTitle = "CCTV Request " . $status;
         $notifMsg = "Your CCTV footage request for " . $cctv['location_details'] . " on " . $cctv['incident_date'] . " has been " . strtolower($status) . ".";
-        $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'cctv_request', ?, ?, 'Resolved', 0)");
-        $notifStmt->bind_param("iss", $cctv['user_id'], $notifTitle, $notifMsg);
-        $notifStmt->execute();
-        $notifStmt->close();
+        create_notification($conn, $cctv['user_id'], 'cctv_request', $notifTitle, $notifMsg);
     }
 
+    resolve_admin_queue($conn, 'cctv_request', $id);
     log_activity($conn, $admin_id, 'service', "Updated CCTV Request", "CCTV Request ID: $id status set to $status");
 
     echo json_encode(["success" => true, "message" => "CCTV request status updated successfully."]);

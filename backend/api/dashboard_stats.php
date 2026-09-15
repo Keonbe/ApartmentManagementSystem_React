@@ -335,14 +335,14 @@ try {
             a.action,
             a.details,
             a.created_at,
-            a.category AS entity_type,
-            a.performed_by AS admin_id,
-            a.id AS entity_id,
-            u.first_name, 
-            u.last_name 
-        FROM activity_logs a 
-        LEFT JOIN users u ON a.performed_by = u.id 
-        ORDER BY a.created_at DESC 
+            a.category,
+            a.performed_by,
+            u.first_name,
+            u.last_name,
+            u.role AS performer_role
+        FROM activity_logs a
+        LEFT JOIN users u ON a.performed_by = u.id
+        ORDER BY a.created_at DESC, a.id DESC
         LIMIT 10
     ");
     $stmt->execute();

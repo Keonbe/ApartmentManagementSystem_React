@@ -28,6 +28,8 @@ const DEFAULTS = {
   paymongoWebhookSecret: '',
   maxParkingSlots: 3,                          // total parking slots available
   parkingAllowedVehicleTypes: ['motorcycle'],  // vehicle types eligible for parking reservations
+  parkingMonthlyFee: 300,                      // PHP per assigned slot per month
+  parkingBillingMode: 'manual',                // 'manual' = admin bills each month, 'auto' = daily sweep bills it
   landlordName: 'Elizabeth Angcanan',          // shown as the Owner/Lessor on the lease contract
   landlordAddress: 'Tamak, Maguyam, Silang, Cavite',
   landlordContact: '*********** (Smart)',
@@ -70,6 +72,8 @@ export const getSystemSettings = async () => {
           }
           return DEFAULTS.parkingAllowedVehicleTypes;
         })(),
+        parkingMonthlyFee: parseFloat(dbSettings.parking_monthly_fee || DEFAULTS.parkingMonthlyFee),
+        parkingBillingMode: dbSettings.parking_billing_mode === 'auto' ? 'auto' : 'manual',
         landlordName: dbSettings.landlord_name || DEFAULTS.landlordName,
         landlordAddress: dbSettings.landlord_address || DEFAULTS.landlordAddress,
         landlordContact: dbSettings.landlord_contact || DEFAULTS.landlordContact,
@@ -104,6 +108,8 @@ export const saveSystemSettings = async (settings) => {
       paymongo_webhook_secret: settings.paymongoWebhookSecret || '',
       max_parking_slots: settings.maxParkingSlots,
       parking_allowed_vehicle_types: JSON.stringify(settings.parkingAllowedVehicleTypes || []),
+      parking_monthly_fee: String(settings.parkingMonthlyFee ?? DEFAULTS.parkingMonthlyFee),
+      parking_billing_mode: settings.parkingBillingMode === 'auto' ? 'auto' : 'manual',
       landlord_name: settings.landlordName || '',
       landlord_address: settings.landlordAddress || '',
       landlord_contact: settings.landlordContact || '',

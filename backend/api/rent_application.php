@@ -185,6 +185,7 @@ try {
         $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
         $stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
         $stmt->execute();
+        $new_app_id = $stmt->insert_id;
         $stmt->close();
     }
 
@@ -196,24 +197,24 @@ try {
         $user_stmt->close();
     }
 
-    // 3. Notify Admin
-    $admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
-    if ($admin_row) {
-        $notif_admin_id = (int)$admin_row['id'];
-        $is_update = !empty($app_id) && $existing_front;
-        $notif_title = $is_update ? "Updated Rent Application" : "New Rent Application";
-        $notif_msg = "$first_name $last_name " . ($is_update ? "updated their" : "submitted a") . " rent application for Unit $room_name.";
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'rent_application', ?, ?, 'Pending', 0)");
-        $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
-        $notif_stmt->execute();
-        $notif_stmt->close();
+    // 3. Notify Admin — one open queue row per application, so a resubmission
+    // does not stack a second "review" item.
+    $is_update = !empty($app_id) && $existing_front;
+    $queue_app_id = $is_update ? (int)$app_id : (int)($new_app_id ?? 0);
+    if ($queue_app_id) {
+        resolve_admin_queue($conn, 'rent_application', $queue_app_id);
+        notify_admins_queue($conn, 'rent_application', $queue_app_id,
+            $is_update ? "Updated Rent Application" : "New Rent Application",
+            "$first_name $last_name " . ($is_update ? "updated their" : "submitted a") . " rent application for Unit $room_name.");
     }
 
     $conn->commit();
+    log_activity($conn, $user_id, 'tenant', $is_update ? "Resubmitted Rental Application" : "Submitted Rental Application",
+        "Application ID: $queue_app_id, Unit: $room_name");
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
 } catch (Exception $e) {
     $conn->rollback();
-    echo json_encode(["success" => false, "message" => "Failed to submit application", "error" => $e->getMessage()]);
+    server_error_response($e, "Failed to submit application.");
 }
 
 $conn->close();

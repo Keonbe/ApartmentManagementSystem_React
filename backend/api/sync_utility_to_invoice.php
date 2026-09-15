@@ -105,7 +105,7 @@ try {
         $stmt->execute();
         $stmt->close();
         $conn->commit();
-        log_activity($conn, $admin_id, 'utilities', 'sync_invoice', "Utility reading #{$id} ({$label}) had no charge; marked as invoiced");
+        log_activity($conn, $admin_id, 'utilities', 'Synced Utility Charges', "Utility reading #{$id} ({$label}) had no charge; marked as invoiced");
         echo json_encode(["success" => true, "message" => "This reading has no charge, so no invoice was needed.", "invoice_id" => null, "merged" => false]);
         exit;
     }
@@ -182,10 +182,7 @@ try {
         $notif_title = "Utility Charges Billed: {$label}";
         $notif_msg = "Water and electricity for {$label} ({$amount_text}) " . ($merged ? "were added to invoice {$target_inv_id}." : "were billed on invoice {$target_inv_id}.");
     }
-    $stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, is_read, created_at) VALUES (?, ?, ?, 'billing', 0, NOW())");
-    $stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
-    $stmt->execute();
-    $stmt->close();
+    create_notification($conn, $user_id, 'billing', $notif_title, $notif_msg);
 
     $conn->commit();
 } catch (Throwable $e) {
@@ -203,7 +200,7 @@ if ($merged) {
     $message = "Separate utility invoice {$target_inv_id} created.";
 }
 
-log_activity($conn, $admin_id, 'utilities', 'sync_invoice', "Synced utility reading #{$id} ({$sync_mode}) to invoice {$target_inv_id} — {$amount_text}");
+log_activity($conn, $admin_id, 'utilities', 'Synced Utility Charges', "Synced utility reading #{$id} ({$sync_mode}) to invoice {$target_inv_id} — {$amount_text}");
 echo json_encode(["success" => true, "message" => $message, "invoice_id" => $target_inv_id, "merged" => $merged]);
 $conn->close();
 ?>

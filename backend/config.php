@@ -23,6 +23,29 @@ if (APP_ENV === 'production') {
 
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
+// An uncaught exception used to print PHP's own error page — or, in the many
+// endpoints that catch and echo $e->getMessage(), the raw SQL error — to the
+// client, while nothing was recorded on the server. Uncaught ones now go to the
+// PHP error log and the client gets a generic message.
+if (PHP_SAPI !== 'cli') {
+    set_exception_handler(function ($e) {
+        error_log('[AMS] ' . ($_SERVER['SCRIPT_NAME'] ?? 'cli') . ': ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+        }
+        echo json_encode(["success" => false, "message" => "Server error. Please try again."]);
+    });
+}
+
+// For endpoints that catch an exception themselves: log the detail, return a
+// safe message.
+function server_error_response($e, $public_message = "Server error. Please try again.") {
+    error_log('[AMS] ' . ($_SERVER['SCRIPT_NAME'] ?? 'cli') . ': ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => $public_message]);
+}
+
 if ($conn->connect_error) {
     if (APP_ENV === 'production') {
         http_response_code(500);
@@ -41,9 +64,17 @@ if ($conn->connect_error) {
 // for requests that have no session at all (password reset by emailed token,
 // payment gateway webhooks). Categories are normalised to LOG_CATEGORIES so the
 // log can actually be filtered — call sites historically wrote a dozen spellings.
-function log_activity($conn, $user_id, $category, $action, $details = "") {
-    $session = get_authenticated_user($conn);
-    $performer = $session ? $session['id'] : ((int)$user_id > 0 ? (int)$user_id : null);
+//
+// $performer_override is for the few requests whose actor is not the session
+// holder: a sign-in or registration that still carries an older token, or the
+// daily sweep run from the command line. Pass 0 to record "System".
+function log_activity($conn, $user_id, $category, $action, $details = "", $performer_override = null) {
+    if ($performer_override !== null) {
+        $performer = (int)$performer_override > 0 ? (int)$performer_override : null;
+    } else {
+        $session = get_authenticated_user($conn);
+        $performer = $session ? $session['id'] : ((int)$user_id > 0 ? (int)$user_id : null);
+    }
     $category = normalize_log_category($category);
     $stmt = $conn->prepare("INSERT INTO activity_logs (performed_by, category, action, details) VALUES (?, ?, ?, ?)");
     $stmt->bind_param("isss", $performer, $category, $action, $details);
@@ -749,11 +780,486 @@ function clear_login_failures($conn, $email) {
 // other notification belongs only to its own user_id.
 const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     'rent_application', 'maintenance_request', 'cctv_request', 'parking_reservation',
-    'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request'
+    'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request',
+    'payment_verification'
 ];
 
 function admin_queue_types_sql() {
     return "('" . implode("','", ADMIN_QUEUE_NOTIFICATION_TYPES) . "')";
+}
+
+// ── In-app notifications (checklist Module 6) ──
+//
+// Status vocabulary: 'Pending' means "an admin still has to act on this" and is
+// used only for ADMIN_QUEUE_NOTIFICATION_TYPES rows (plus a tenant's own open
+// occupancy / lease request). Everything informational is 'Resolved'. Rows used
+// to default to 'Pending', which made announcements and reminders look like open
+// requests, so a tenant's "Clear all" never removed them.
+
+// Categories a user may switch off (checklist 6.8). Types not listed here —
+// overdue alerts, billing, payments, application and maintenance updates,
+// contract and move-out notices, request decisions — are always delivered.
+const NOTIFICATION_PREF_CATEGORIES = [
+    'announcements'     => ['label' => 'Building announcements',             'types' => ['info', 'warning', 'action']],
+    'payment_reminders' => ['label' => 'Rent due reminders (before due date)', 'types' => ['rent_due']],
+    'service_updates'   => ['label' => 'Service, CCTV and parking updates',  'types' => ['service_status', 'cctv_request', 'parking_reservation']],
+    'visitor_updates'   => ['label' => 'Visitor updates',                    'types' => ['visitor_log']],
+    'inquiry_updates'   => ['label' => 'Inquiry and unit hold updates',      'types' => ['inquiry_update', 'unit_reservation']],
+];
+
+function notification_pref_category_for_type($type) {
+    foreach (NOTIFICATION_PREF_CATEGORIES as $key => $cat) {
+        if (in_array($type, $cat['types'], true)) return $key;
+    }
+    return null;
+}
+
+// The single insert path for notifications. Returns the new id, or 0 when the
+// recipient has muted that category. Admin queue rows ignore preferences.
+function create_notification($conn, $user_id, $type, $title, $message, $status = 'Resolved', $metadata = null) {
+    $user_id = (int)$user_id;
+    if ($user_id <= 0) return 0;
+
+    $category = notification_pref_category_for_type($type);
+    if ($category !== null && $status !== 'Pending') {
+        $pref = $conn->prepare("SELECT in_app_enabled FROM notification_preferences WHERE user_id = ? AND category = ?");
+        $pref->bind_param("is", $user_id, $category);
+        $pref->execute();
+        $row = $pref->get_result()->fetch_assoc();
+        $pref->close();
+        if ($row && !(int)$row['in_app_enabled']) return 0;
+    }
+
+    $stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, metadata_value, is_read) VALUES (?, ?, ?, ?, ?, ?, 0)");
+    $stmt->bind_param("isssss", $user_id, $type, $title, $message, $status, $metadata);
+    $stmt->execute();
+    $id = $stmt->insert_id;
+    $stmt->close();
+    return $id;
+}
+
+// Adds a row to the admin action queue. metadata "<type>:<id>" is what lets the
+// decision endpoint clear exactly this row later (resolve_admin_queue()).
+function notify_admins_queue($conn, $type, $entity_id, $title, $message) {
+    $admin = $conn->query("SELECT id FROM users WHERE role = 'admin' AND is_archived = 0 ORDER BY id LIMIT 1");
+    $row = $admin ? $admin->fetch_assoc() : null;
+    if (!$row) return 0;
+    return create_notification($conn, (int)$row['id'], $type, $title, $message, 'Pending', "$type:$entity_id");
+}
+
+// Clears a decided request from the admin bell. Before this existed only service
+// bookings were ever cleared, so every application, maintenance ticket, CCTV
+// request, parking request and inquiry stayed in the queue forever.
+function resolve_admin_queue($conn, $type, $entity_id) {
+    $metadata = "$type:$entity_id";
+    $stmt = $conn->prepare("UPDATE notifications SET status = 'Resolved', is_read = 1 WHERE type = ? AND metadata_value = ? AND status = 'Pending'");
+    $stmt->bind_param("ss", $type, $metadata);
+    $stmt->execute();
+    $n = $stmt->affected_rows;
+    $stmt->close();
+    return $n;
+}
+
+// Invoices a rent-due reminder is sent for. 'processing' (checkout at the gateway)
+// and 'pending-verification' (tenant already paid) are open but need no nudge;
+// 'overdue' gets the overdue alert instead.
+const REMINDER_UPCOMING_STATUSES = ['pending', 'unpaid', 'scheduled', 'payment-failed'];
+
+// Atomic per-invoice claim: at most one reminder per invoice per day, however many
+// requests race (two admins, two tabs, React StrictMode's double mount). The
+// notification is only sent when this returns true.
+function claim_invoice_reminder($conn, $invoice_id, $min_days_between = 1) {
+    $min_days_between = max(1, (int)$min_days_between);
+    $stmt = $conn->prepare("UPDATE invoices SET last_reminder_date = CURDATE(), reminder_count = reminder_count + 1
+                            WHERE id = ? AND (last_reminder_date IS NULL OR DATEDIFF(CURDATE(), last_reminder_date) >= ?)");
+    $stmt->bind_param("si", $invoice_id, $min_days_between);
+    $stmt->execute();
+    $claimed = $stmt->affected_rows > 0;
+    $stmt->close();
+    return $claimed;
+}
+
+function get_setting($conn, $key, $default = null) {
+    $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+    $stmt->bind_param("s", $key);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? $row['setting_value'] : $default;
+}
+
+// Daily automation (checklist 6.2 / 6.3 / 10.3): overdue promotion, rent-due and
+// overdue reminders, parking permit expiry and automatic parking billing.
+//
+// There is no always-on scheduler in XAMPP, so this runs from two places:
+//   - get_notifications.php, which every signed-in page polls — the first request
+//     of the day claims the run and everyone else skips it;
+//   - backend/cron/daily_sweep.php, for Windows Task Scheduler.
+// $force skips the once-a-day claim (admin "Run now" button, CLI script). Even when
+// forced, each reminder and each parking month is individually claimed, so a
+// forced re-run never sends a duplicate reminder or bills a month twice.
+function run_notification_sweep($conn, $force = false) {
+    if (!$force) {
+        $stmt = $conn->prepare("UPDATE system_settings SET setting_value = CURDATE()
+                                WHERE setting_key = 'notification_sweep_last_run' AND setting_value < CURDATE()");
+        $stmt->execute();
+        $claimed = $stmt->affected_rows > 0;
+        $stmt->close();
+        if (!$claimed) {
+            // Row missing (database not migrated): create it and run once.
+            $exists = $conn->query("SELECT 1 FROM system_settings WHERE setting_key = 'notification_sweep_last_run'")->fetch_assoc();
+            if ($exists) return ['ran' => false];
+            $conn->query("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('notification_sweep_last_run', CURDATE())");
+        }
+    } else {
+        $conn->query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('notification_sweep_last_run', CURDATE())
+                      ON DUPLICATE KEY UPDATE setting_value = CURDATE()");
+    }
+
+    $result = [
+        'ran' => true,
+        'marked_overdue' => promote_overdue_invoices($conn),
+        'upcoming_reminders_sent' => 0,
+        'overdue_reminders_sent' => 0,
+        'parking_released' => 0,
+        'parking_charges_posted' => 0,
+    ];
+
+    $reminders_enabled = get_setting($conn, 'rent_due_reminders_enabled', 'true') !== 'false';
+    $reminder_days = max(0, (int)get_setting($conn, 'rent_due_reminder_days', 3));
+    $overdue_enabled = get_setting($conn, 'overdue_reminders_enabled', 'true') !== 'false';
+    $overdue_interval = max(1, (int)get_setting($conn, 'overdue_reminder_interval_days', 3));
+    $today = new DateTime(date('Y-m-d'));
+
+    if ($reminders_enabled) {
+        $statuses = "('" . implode("','", REMINDER_UPCOMING_STATUSES) . "')";
+        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name
+                                FROM invoices i
+                                LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
+                                WHERE i.status IN $statuses AND i.due_date IS NOT NULL
+                                  AND i.due_date >= CURDATE() AND DATEDIFF(i.due_date, CURDATE()) <= ?
+                                  AND (i.last_reminder_date IS NULL OR i.last_reminder_date < CURDATE())");
+        $stmt->bind_param("i", $reminder_days);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        foreach ($rows as $inv) {
+            if (!claim_invoice_reminder($conn, $inv['id'])) continue;
+            [$title, $message] = reminder_text($inv, $today, false);
+            create_notification($conn, $inv['user_id'], 'rent_due', $title, $message);
+            $result['upcoming_reminders_sent']++;
+        }
+    }
+
+    if ($overdue_enabled) {
+        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name
+                                FROM invoices i
+                                LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
+                                WHERE i.status = 'overdue' AND i.due_date IS NOT NULL AND i.due_date < CURDATE()
+                                  AND (i.last_reminder_date IS NULL OR DATEDIFF(CURDATE(), i.last_reminder_date) >= ?)");
+        $stmt->bind_param("i", $overdue_interval);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        foreach ($rows as $inv) {
+            if (!claim_invoice_reminder($conn, $inv['id'], $overdue_interval)) continue;
+            [$title, $message] = reminder_text($inv, $today, true);
+            create_notification($conn, $inv['user_id'], 'overdue', $title, $message);
+            $result['overdue_reminders_sent']++;
+        }
+    }
+
+    $result['parking_released'] = release_lapsed_parking($conn);
+
+    if (get_setting($conn, 'parking_billing_mode', 'manual') === 'auto') {
+        $month = new DateTime('now', new DateTimeZone('Asia/Manila'));
+        $ids = $conn->query("SELECT id FROM parking_reservations WHERE status = 'Assigned'");
+        while ($ids && ($r = $ids->fetch_assoc())) {
+            $posted = post_parking_charge($conn, (int)$r['id'], $month);
+            if ($posted['ok'] && !empty($posted['invoice_id'])) $result['parking_charges_posted']++;
+        }
+    }
+
+    $did = $result['marked_overdue'] + $result['upcoming_reminders_sent'] + $result['overdue_reminders_sent']
+         + $result['parking_released'] + $result['parking_charges_posted'];
+    if ($did > 0) {
+        log_activity($conn, null, 'system', 'Daily Notification Sweep',
+            "Marked overdue: {$result['marked_overdue']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}",
+            0);
+    }
+
+    return $result;
+}
+
+// Title and message for a rent-due or overdue reminder. Shared by the sweep and
+// the admin's manual "Send reminder" action so the wording never drifts.
+function reminder_text(array $inv, DateTime $today, $overdue, $custom_message = '') {
+    $due = new DateTime($inv['due_date']);
+    $unit = !empty($inv['room_name']) ? $inv['room_name'] : 'your unit';
+    $amount = number_format((float)$inv['total_amount'], 2);
+    $due_text = $due->format('M j, Y');
+    $period = $inv['billing_period'] ?? '';
+
+    if ($overdue) {
+        $days = (int)$due->diff($today)->format('%a');
+        $days_text = $days === 1 ? '1 day' : "$days days";
+        return ["Overdue Rent Alert: $period",
+            $custom_message !== '' ? $custom_message
+                : "Your payment of ₱$amount for Unit $unit was due on $due_text ($days_text overdue). Please settle your outstanding balance immediately to avoid further penalties."];
+    }
+
+    $days = (int)$today->diff($due)->format('%r%a');
+    if ($days <= 0) {
+        return ["Payment Due Today: $period",
+            $custom_message !== '' ? $custom_message
+                : "Your rent payment of ₱$amount for Unit $unit is due today ($due_text). Please settle your bill promptly."];
+    }
+    $days_text = $days === 1 ? '1 day' : "$days days";
+    return ["Rent Due Reminder: $period",
+        $custom_message !== '' ? $custom_message
+            : "Your rent payment of ₱$amount for Unit $unit is due on $due_text ($days_text remaining). Please settle your bill on time."];
+}
+
+// ── Parking reservation (checklist Module 10) ──
+
+// Assigned is the only status that holds a slot. Released and Rejected are
+// terminal; a tenant who needs parking again files a new request.
+const PARKING_TRANSITIONS = [
+    'Pending'   => ['Assigned', 'Rejected', 'Cancelled'],
+    'Assigned'  => ['Released'],
+    'Rejected'  => [],
+    'Cancelled' => [],
+    'Released'  => [],
+];
+
+const PARKING_MAX_DURATION_MONTHS = 6;
+
+function parking_max_slots($conn) {
+    $v = get_setting($conn, 'max_parking_slots', 3);
+    return is_numeric($v) && (int)$v > 0 ? (int)$v : 3;
+}
+
+function parking_monthly_fee($conn) {
+    $v = get_setting($conn, 'parking_monthly_fee', 300);
+    return is_numeric($v) && (float)$v > 0 ? (float)$v : 300.0;
+}
+
+// ['max' => n, 'taken' => [slot numbers], 'occupied' => n, 'available' => n]
+function parking_capacity($conn) {
+    $max = parking_max_slots($conn);
+    $taken = [];
+    $res = $conn->query("SELECT slot_number FROM parking_reservations WHERE status = 'Assigned' AND slot_number IS NOT NULL ORDER BY slot_number");
+    while ($res && ($row = $res->fetch_assoc())) $taken[] = (int)$row['slot_number'];
+    $occupied = (int)$conn->query("SELECT COUNT(*) AS c FROM parking_reservations WHERE status = 'Assigned'")->fetch_assoc()['c'];
+    return ['max' => $max, 'taken' => $taken, 'occupied' => $occupied, 'available' => max(0, $max - $occupied)];
+}
+
+// First day after a permit's last billable month, or null if never assigned.
+function parking_term_end($assigned_at, $duration_months) {
+    if (!$assigned_at) return null;
+    $start = new DateTime(substr($assigned_at, 0, 10));
+    return $start->modify('+' . (int)$duration_months . ' months');
+}
+
+// Posts one month's parking fee onto the tenant's invoice for that month
+// (checklist 10.3), mirroring post_service_charge(). The parking_charges row is
+// inserted first as the claim: its (reservation_id, billing_period) key means the
+// same month can never be billed twice, whether by the admin's button, the
+// automatic sweep, or both.
+//
+// Returns ['ok' => bool, 'invoice_id' => string|null, 'message' => string,
+//          'already' => bool].
+function post_parking_charge($conn, $reservation_id, DateTime $month) {
+    $period = $month->format('Y-m');
+    $label = billing_period_label($month);
+
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare("SELECT user_id, status, assigned_at, duration_months FROM parking_reservations WHERE id = ? FOR UPDATE");
+        $stmt->bind_param("i", $reservation_id);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$res) {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => 'Parking reservation not found.', 'already' => false];
+        }
+        if ($res['status'] !== 'Assigned') {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => 'Only an assigned parking slot can be billed.', 'already' => false];
+        }
+
+        // Billable months run from the month of assignment for duration_months.
+        $first = (new DateTime(substr($res['assigned_at'], 0, 7) . '-01'));
+        $end = (clone $first)->modify('+' . (int)$res['duration_months'] . ' months');
+        $this_month = new DateTime($period . '-01');
+        if ($this_month < $first || $this_month >= $end) {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => "$label is outside this permit's term.", 'already' => false];
+        }
+
+        $user_id = (int)$res['user_id'];
+        $amount = parking_monthly_fee($conn);
+
+        $claim = $conn->prepare("INSERT IGNORE INTO parking_charges (reservation_id, billing_period, amount) VALUES (?, ?, ?)");
+        $claim->bind_param("isd", $reservation_id, $period, $amount);
+        $claim->execute();
+        $charge_id = $claim->affected_rows > 0 ? $claim->insert_id : 0;
+        $claim->close();
+
+        if (!$charge_id) {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => "Parking for $label has already been billed.", 'already' => true];
+        }
+
+        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
+        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable ORDER BY created_at ASC LIMIT 1");
+        $stmt->bind_param("iss", $user_id, $label, $period);
+        $stmt->execute();
+        $invoice = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $invoice_id = $invoice ? $invoice['id'] : null;
+
+        if (!$invoice_id) {
+            $lease = get_active_tenancy($conn, $user_id);
+            if (!$lease) {
+                $conn->rollback();
+                return ['ok' => false, 'invoice_id' => null, 'message' => 'The tenant has no active lease, so parking cannot be billed.', 'already' => false];
+            }
+            // Parking-only invoice. Rent is never billed from here.
+            $invoice_id = 'INV-' . $month->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $due_date = (clone $this_month)->modify('first day of next month')->modify('+4 days')->format('Y-m-d');
+            $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
+                                    VALUES (?, ?, ?, 0, 0, ?, 'pending', ?)");
+            $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $label, $due_date);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                throw new Exception("Failed to create parking invoice: " . $conn->error);
+            }
+            $stmt->close();
+        }
+
+        $stmt = $conn->prepare("UPDATE invoices SET parking = parking + ?, total_amount = total_amount + ? WHERE id = ?");
+        $stmt->bind_param("dds", $amount, $amount, $invoice_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt = $conn->prepare("UPDATE parking_charges SET invoice_id = ? WHERE id = ?");
+        $stmt->bind_param("si", $invoice_id, $charge_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+
+        create_notification($conn, $user_id, 'billing', "Parking Fee Added: $label",
+            "Your parking fee of ₱" . number_format($amount, 2) . " for $label has been added to invoice $invoice_id.");
+
+        return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Parking for $label posted to invoice $invoice_id.", 'already' => false];
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log('[AMS] post_parking_charge: ' . $e->getMessage());
+        return ['ok' => false, 'invoice_id' => null, 'message' => 'Could not post the parking charge.', 'already' => false];
+    }
+}
+
+// Backs one month's parking charge out of its invoice while that invoice can still
+// be adjusted. Once paid or mid-payment the admin must issue a manual credit.
+function reverse_parking_charge($conn, $reservation_id, $period) {
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare("SELECT id, invoice_id, amount FROM parking_charges WHERE reservation_id = ? AND billing_period = ? FOR UPDATE");
+        $stmt->bind_param("is", $reservation_id, $period);
+        $stmt->execute();
+        $charge = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$charge) {
+            $conn->rollback();
+            return ['ok' => false, 'message' => 'That month has not been billed.'];
+        }
+
+        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
+        $stmt = $conn->prepare("UPDATE invoices SET parking = GREATEST(parking - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status IN $adjustable");
+        $stmt->bind_param("dds", $charge['amount'], $charge['amount'], $charge['invoice_id']);
+        $stmt->execute();
+        $reversed = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($reversed === 0) {
+            $conn->rollback();
+            return ['ok' => false, 'message' => "Invoice {$charge['invoice_id']} can no longer be adjusted (paid or payment in progress)."];
+        }
+
+        $stmt = $conn->prepare("DELETE FROM parking_charges WHERE id = ?");
+        $stmt->bind_param("i", $charge['id']);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        return ['ok' => true, 'message' => "Parking charge reversed from invoice {$charge['invoice_id']}."];
+    } catch (Exception $e) {
+        $conn->rollback();
+        error_log('[AMS] reverse_parking_charge: ' . $e->getMessage());
+        return ['ok' => false, 'message' => 'Could not reverse the parking charge.'];
+    }
+}
+
+// Ends a user's open parking when their tenancy ends (move-out, archive): an
+// Assigned slot is Released, a Pending request is Cancelled. Returns rows changed.
+function release_user_parking($conn, $user_id, $reason) {
+    $stmt = $conn->prepare("SELECT id, status, slot_number FROM parking_reservations WHERE user_id = ? AND status IN ('Pending', 'Assigned')");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    foreach ($rows as $r) {
+        $new = $r['status'] === 'Assigned' ? 'Released' : 'Cancelled';
+        $upd = $conn->prepare("UPDATE parking_reservations SET status = ?, released_at = NOW(), release_reason = ? WHERE id = ? AND status = ?");
+        $upd->bind_param("ssis", $new, $reason, $r['id'], $r['status']);
+        $upd->execute();
+        $upd->close();
+        resolve_admin_queue($conn, 'parking_reservation', $r['id']);
+        $slot = $r['slot_number'] ? " (slot #{$r['slot_number']})" : '';
+        create_notification($conn, $user_id, 'parking_reservation', "Parking " . ($new === 'Released' ? 'Slot Released' : 'Request Cancelled'),
+            "Your parking reservation$slot has been " . strtolower($new) . ": $reason.");
+    }
+    return count($rows);
+}
+
+// Sweep step: releases Assigned permits whose term has ended, or whose tenant no
+// longer has an active tenancy (e.g. moved out before this release existed).
+function release_lapsed_parking($conn) {
+    $released = 0;
+    $res = $conn->query("SELECT id, user_id, assigned_at, duration_months FROM parking_reservations WHERE status = 'Assigned'");
+    $rows = $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
+    $today = new DateTime(date('Y-m-d'));
+
+    foreach ($rows as $r) {
+        $end = parking_term_end($r['assigned_at'], $r['duration_months']);
+        $reason = null;
+        if ($end && $end <= $today) {
+            $reason = 'Permit term ended';
+        } elseif (!get_active_tenancy($conn, (int)$r['user_id'])) {
+            $reason = 'Tenancy ended';
+        }
+        if ($reason === null) continue;
+
+        $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Released', released_at = NOW(), release_reason = ? WHERE id = ? AND status = 'Assigned'");
+        $upd->bind_param("si", $reason, $r['id']);
+        $upd->execute();
+        $changed = $upd->affected_rows > 0;
+        $upd->close();
+        if (!$changed) continue;
+
+        create_notification($conn, (int)$r['user_id'], 'parking_reservation', 'Parking Slot Released',
+            "Your parking slot has been released: $reason. Submit a new request if you still need parking.");
+        $released++;
+    }
+    return $released;
 }
 
 // ── Activity log vocabulary (checklist 8.6) ──

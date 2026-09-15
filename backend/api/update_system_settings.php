@@ -47,6 +47,32 @@ foreach ($input as $key => $value) {
         $value = (string)$value;
     }
 
+    // Parking settings drive capacity and billing, so a bad value is refused
+    // instead of silently breaking the parking module.
+    if ($key === 'max_parking_slots') {
+        $highest = (int)($conn->query("SELECT COALESCE(MAX(slot_number), 0) AS m FROM parking_reservations WHERE status = 'Assigned'")->fetch_assoc()['m'] ?? 0);
+        if (!ctype_digit($value) || (int)$value < 1 || (int)$value > 500) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "Parking slots must be a whole number between 1 and 500."]);
+            exit;
+        }
+        if ((int)$value < $highest) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "Slot #$highest is still assigned. Release it before reducing parking slots below $highest."]);
+            exit;
+        }
+    }
+    if ($key === 'parking_billing_mode' && !in_array($value, ['manual', 'auto'], true)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Parking billing mode must be manual or auto."]);
+        exit;
+    }
+    if ($key === 'parking_monthly_fee' && (!is_numeric($value) || (float)$value <= 0 || (float)$value > 100000)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Parking monthly fee must be a positive amount."]);
+        exit;
+    }
+
     if (array_key_exists($key, $existing) && $existing[$key] === $value) continue;
 
     $stmt->bind_param("sss", $key, $value, $value);

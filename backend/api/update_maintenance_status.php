@@ -160,10 +160,12 @@ if ($status_changed && $current['user_id']) {
     $message = "Your maintenance request \"$label\" is now $new_status.";
     if ($rejection_reason !== null) $message .= " Reason: $rejection_reason";
 
-    $notif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'maintenance_update', 'Maintenance Update', ?, 'Resolved', 0)");
-    $notif->bind_param("is", $current['user_id'], $message);
-    $notif->execute();
-    $notif->close();
+    create_notification($conn, $current['user_id'], 'maintenance_update', 'Maintenance Update', $message);
+}
+
+// The ticket has been triaged once it leaves Pending.
+if ($status_changed && $new_status !== 'Pending') {
+    resolve_admin_queue($conn, 'maintenance_request', $id);
 }
 
 echo json_encode(["success" => true, "message" => "Maintenance request updated."]);

@@ -1,8 +1,8 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 require_once "../config.php";
 
@@ -12,146 +12,134 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
     echo json_encode(["success" => false, "message" => "Invalid request method"]);
     exit;
 }
 
-$vehicle_type = trim($_POST['vehicleType'] ?? '');
-$vehicle_model = trim($_POST['vehicleModel'] ?? '');
-$plate_number = strtoupper(trim($_POST['plateNumber'] ?? ''));
-$transmission = trim($_POST['transmission'] ?? '');
-$duration_months = trim($_POST['durationMonths'] ?? '');
-// The reservation belongs to the session user. It used to take a userId from the
-// form body, so anyone could file a reservation under any account.
+function parking_fail($code, $message) {
+    http_response_code($code);
+    echo json_encode(["success" => false, "message" => $message]);
+    exit;
+}
+
+// The reservation belongs to the session user; any userId in the form is ignored.
 $auth = require_user($conn);
 if ($auth['role'] !== 'user' || !get_active_tenancy($conn, $auth['id'])) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Only tenants with an active lease can reserve parking."]);
-    exit;
+    parking_fail(403, "Only tenants with an active lease can reserve parking.");
 }
 $user_id = $auth['id'];
 
-if (empty($vehicle_type) || empty($vehicle_model) || empty($plate_number) || empty($transmission) || empty($duration_months)) {
-    echo json_encode(["success" => false, "message" => "All fields are required."]);
-    exit;
+// The Services page hid parking when the module was switched off, but the
+// endpoint still accepted requests.
+if (get_setting($conn, 'service_parking_active', 'true') === 'false') {
+    parking_fail(403, "Parking reservations are currently unavailable.");
 }
 
-// ── Plate Number Validation (F-2) ──
-if (!preg_match('/^[A-Z0-9\s\-]{3,10}$/', $plate_number)) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Invalid plate number. Must be 3-10 alphanumeric characters (e.g. ABC 1234)."]);
-    exit;
-}
+$vehicle_type = strtolower(trim($_POST['vehicleType'] ?? ''));
+$vehicle_model = trim($_POST['vehicleModel'] ?? '');
+$plate_number = strtoupper(trim($_POST['plateNumber'] ?? ''));
+$transmission = trim($_POST['transmission'] ?? '');
+$duration_raw = trim($_POST['durationMonths'] ?? '');
 
-// ── Vehicle Type Restriction (admin-configurable) ──
+// ── Validate everything before touching the upload ──
+if ($vehicle_type === '' || $vehicle_model === '' || $plate_number === '' || $transmission === '' || $duration_raw === '') {
+    parking_fail(422, "All fields are required.");
+}
+if (mb_strlen($vehicle_model) < 2 || mb_strlen($vehicle_model) > 100) {
+    parking_fail(422, "Vehicle model must be between 2 and 100 characters.");
+}
+// Plate numbers, conduction stickers, or MV file numbers (up to 15 digits) —
+// the same rule the form applies. The server used to cap this at 10 characters,
+// so an MV file number the form accepted was refused.
+if (!preg_match('/^[A-Z0-9][A-Z0-9 \-]{2,14}$/', $plate_number)) {
+    parking_fail(422, "Invalid plate number. Use 3–15 letters, digits, spaces or dashes (e.g. ABC 1234).");
+}
+if (!in_array($transmission, ['Automatic', 'Manual'], true)) {
+    parking_fail(422, "Transmission must be Automatic or Manual.");
+}
+if (!ctype_digit($duration_raw) || (int)$duration_raw < 1 || (int)$duration_raw > PARKING_MAX_DURATION_MONTHS) {
+    parking_fail(422, "Duration must be between 1 and " . PARKING_MAX_DURATION_MONTHS . " months.");
+}
+$duration_months = (int)$duration_raw;
+
 $allowed_vehicle_types = ['motorcycle'];
-$setting_stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'parking_allowed_vehicle_types'");
-$setting_stmt->execute();
-$setting_row = $setting_stmt->get_result()->fetch_assoc();
-$setting_stmt->close();
-if ($setting_row) {
-    $decoded_types = json_decode($setting_row['setting_value'], true);
-    if (is_array($decoded_types) && count($decoded_types) > 0) {
-        $allowed_vehicle_types = $decoded_types;
-    }
+$decoded = json_decode((string)get_setting($conn, 'parking_allowed_vehicle_types', ''), true);
+if (is_array($decoded) && count($decoded) > 0) {
+    $allowed_vehicle_types = array_map('strtolower', $decoded);
 }
-$allowed_vehicle_types = array_map('strtolower', $allowed_vehicle_types);
-
-if (!in_array(strtolower($vehicle_type), $allowed_vehicle_types)) {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "This vehicle type is not currently accepted for parking reservations."]);
-    exit;
+if (!in_array($vehicle_type, $allowed_vehicle_types, true)) {
+    parking_fail(422, "This vehicle type is not currently accepted for parking reservations.");
 }
 
-// ── Slot Capacity Enforcement (admin-configurable) ──
-$max_slots = 3;
-$max_slots_stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'max_parking_slots'");
-$max_slots_stmt->execute();
-$max_slots_row = $max_slots_stmt->get_result()->fetch_assoc();
-$max_slots_stmt->close();
-if ($max_slots_row && is_numeric($max_slots_row['setting_value'])) {
-    $max_slots = (int)$max_slots_row['setting_value'];
+// One open reservation per tenant (also enforced by a unique key).
+$open = $conn->prepare("SELECT status FROM parking_reservations WHERE user_id = ? AND status IN ('Pending', 'Assigned') LIMIT 1");
+$open->bind_param("i", $user_id);
+$open->execute();
+$existing = $open->get_result()->fetch_assoc();
+$open->close();
+if ($existing) {
+    parking_fail(409, $existing['status'] === 'Assigned'
+        ? "You already have an assigned parking slot."
+        : "You already have a parking request awaiting review.");
 }
 
-$occupied_stmt = $conn->prepare("SELECT COUNT(*) AS occupied FROM parking_reservations WHERE status IN ('Pending', 'Assigned', 'Approved', 'Active')");
-$occupied_stmt->execute();
-$occupied_count = (int)$occupied_stmt->get_result()->fetch_assoc()['occupied'];
-$occupied_stmt->close();
-
-if ($occupied_count >= $max_slots) {
-    http_response_code(409);
-    echo json_encode(["success" => false, "message" => "No parking slots available at this time."]);
-    exit;
+// Only Assigned reservations hold a slot. A request can still be filed while the
+// lot is full? No — the tenant is told straight away, as in the panel's flow.
+$capacity = parking_capacity($conn);
+if ($capacity['available'] <= 0) {
+    parking_fail(409, "No parking slots available at this time.");
 }
 
-$base_price = 300;
-$total_cost = intval($duration_months) * $base_price;
-
-$document_path = null;
-if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] === UPLOAD_ERR_OK) {
-    $file_name = basename($_FILES['uploadedFile']['name']);
-    $file_tmp = $_FILES['uploadedFile']['tmp_name'];
-    $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-
-    $allowed_extensions = ['jpg', 'jpeg', 'png', 'pdf'];
-    if (!in_array($file_ext, $allowed_extensions)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Invalid document format. Allowed formats: JPG, PNG, PDF."]);
-        exit;
-    }
-
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file_tmp);
-    finfo_close($finfo);
-
-    $allowed_mimes = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (!in_array($mime, $allowed_mimes)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "File content does not match allowed Image or PDF format."]);
-        exit;
-    }
-
-    $upload_dir = "../uploads/documents/";
-    if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
-    }
-
-    $unique_file_name = time() . "_" . uniqid() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", $file_name);
-    $destination = $upload_dir . $unique_file_name;
-
-    if (move_uploaded_file($file_tmp, $destination)) {
-        $document_path = $destination;
-    } else {
-        echo json_encode(["success" => false, "message" => "Failed to save the uploaded document."]);
-        exit;
-    }
-} else {
-    echo json_encode(["success" => false, "message" => "Vehicle registration document is required."]);
-    exit;
+$file = $_FILES['uploadedFile'] ?? null;
+if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) {
+    parking_fail(422, "Vehicle registration document (OR/CR) is required.");
+}
+if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] > 10 * 1024 * 1024) {
+    parking_fail(422, "The document must be a JPG, PNG or PDF of 10MB or less.");
+}
+$file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+if (!in_array($file_ext, ['jpg', 'jpeg', 'png', 'pdf'], true)) {
+    parking_fail(422, "Invalid document format. Allowed formats: JPG, PNG, PDF.");
+}
+$finfo = finfo_open(FILEINFO_MIME_TYPE);
+$mime = finfo_file($finfo, $file['tmp_name']);
+finfo_close($finfo);
+if (!in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) {
+    parking_fail(422, "File content does not match allowed Image or PDF format.");
 }
 
-$status = 'Pending';
-$stmt = $conn->prepare("INSERT INTO parking_reservations (user_id, vehicle_type, vehicle_model, plate_number, status, transmission, duration_months, total_cost, document_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-
-$stmt->bind_param("isssssids", $user_id, $vehicle_type, $vehicle_model, $plate_number, $status, $transmission, $duration_months, $total_cost, $document_path);
-
-if ($stmt->execute()) {
-    // Notify Admin
-    $admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
-    if ($admin_row) {
-        $notif_admin_id = (int)$admin_row['id'];
-        $notif_title = "New Parking Reservation";
-        $notif_msg = "A new parking reservation request for plate $plate_number has been submitted.";
-        $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'parking_reservation', ?, ?, 'Pending', 0)");
-        $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
-        $notif_stmt->execute();
-        $notif_stmt->close();
-    }
-
-    echo json_encode(["success" => true, "message" => "Reservation created successfully"]);
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to create reservation", "error" => $stmt->error]);
+$upload_dir = __DIR__ . "/../uploads/documents/";
+if (!is_dir($upload_dir)) {
+    mkdir($upload_dir, 0755, true);
 }
+$unique_file_name = time() . "_" . bin2hex(random_bytes(6)) . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($file['name']));
+if (!move_uploaded_file($file['tmp_name'], $upload_dir . $unique_file_name)) {
+    parking_fail(500, "Failed to save the uploaded document.");
+}
+$document_path = "uploads/documents/" . $unique_file_name;
 
+$total_cost = $duration_months * parking_monthly_fee($conn);
+
+$stmt = $conn->prepare("INSERT INTO parking_reservations (user_id, vehicle_type, vehicle_model, plate_number, status, transmission, duration_months, total_cost, document_path) VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?, ?)");
+$stmt->bind_param("issssids", $user_id, $vehicle_type, $vehicle_model, $plate_number, $transmission, $duration_months, $total_cost, $document_path);
+
+if (!$stmt->execute()) {
+    $duplicate = $stmt->errno === 1062;
+    $stmt->close();
+    @unlink($upload_dir . $unique_file_name);
+    if ($duplicate) {
+        parking_fail(409, "You already have an open parking reservation.");
+    }
+    error_log('[AMS] parking_reservation insert failed: ' . $conn->error);
+    parking_fail(500, "Failed to create the reservation. Please try again.");
+}
+$reservation_id = $stmt->insert_id;
 $stmt->close();
+
+notify_admins_queue($conn, 'parking_reservation', $reservation_id, "New Parking Reservation",
+    "A new parking reservation request for plate $plate_number ($vehicle_model, $duration_months month(s)) has been submitted.");
+log_activity($conn, $user_id, 'service', "Requested Parking", "Reservation ID: $reservation_id, Plate: $plate_number, $duration_months month(s)");
+
+echo json_encode(["success" => true, "message" => "Reservation created successfully", "id" => $reservation_id]);
 $conn->close();

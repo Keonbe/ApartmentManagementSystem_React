@@ -129,7 +129,7 @@ if (!$ok) {
 $reading_id = $conn->insert_id;
 
 $total = round($water_amount + $water_other_fees + $electric_amount + $electric_other_fees, 2);
-log_activity($conn, $admin_id, 'utilities', 'record_reading', "Recorded utility reading #{$reading_id} for Unit {$room_name} ({$billing_period}) — ₱" . number_format($total, 2));
+log_activity($conn, $admin_id, 'utilities', 'Recorded Utility Reading', "Recorded utility reading #{$reading_id} for Unit {$room_name} ({$billing_period}) — ₱" . number_format($total, 2));
 
 $response = [
     "success" => true,

@@ -37,7 +37,6 @@ $conn->query("CREATE TABLE IF NOT EXISTS `inquiries` (
   KEY `fk_inquiry_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
-@$conn->query("ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `status` varchar(20) DEFAULT 'Pending'");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(["success" => false, "message" => "Invalid request method"]);
@@ -134,21 +133,13 @@ $stmt->close();
 
 // ── Notify the admin ──
 // notifications.user_id is NOT NULL with an FK to users, so a guest inquiry has
-// no id of its own to attach. Address the row to the admin account instead; the
-// admin view in get_notifications.php selects all non-Resolved rows regardless
-// of recipient.
-$admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
-if ($admin_row) {
-    $notif_admin_id = (int)$admin_row['id'];
-    $notif_title = "New Unit Inquiry";
-    $notif_msg = $full_name . " sent an inquiry"
-        . ($room_name ? " about Unit $room_name" : "")
-        . " (" . $contact_no . " / " . $email . ").";
-    $notif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'inquiry', ?, ?, 'Pending', 0)");
-    $notif->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
-    $notif->execute();
-    $notif->close();
-}
+// no id of its own to attach. The queue row is addressed to the admin account;
+// update_inquiry_status.php clears it once the inquiry is handled.
+notify_admins_queue($conn, 'inquiry', $inquiry_id, "New Unit Inquiry",
+    $full_name . " sent an inquiry" . ($room_name ? " about Unit $room_name" : "") . " (" . $contact_no . " / " . $email . ").");
+
+log_activity($conn, $user_id, 'inquiry', $is_admin ? "Logged Inquiry" : "Submitted Inquiry",
+    "Inquiry ID: $inquiry_id" . ($room_name ? ", Unit: $room_name" : "") . ", Source: $source", $is_admin ? null : ($user_id ?? 0));
 
 echo json_encode([
     "success" => true,

@@ -93,7 +93,7 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         // Bind the event to the checkout session this invoice actually opened.
         // Without this, any validly-signed event naming an invoice id could
         // settle it, including a stale event from a superseded session.
-        $chk = $conn->prepare("SELECT status, checkout_session_id FROM invoices WHERE id = ?");
+        $chk = $conn->prepare("SELECT status, checkout_session_id, user_id FROM invoices WHERE id = ?");
         $chk->bind_param("s", $invoice_id);
         $chk->execute();
         $inv_row = $chk->get_result()->fetch_assoc();
@@ -158,10 +158,21 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             exit;
         }
 
-        // Attribute to the paying tenant from the session metadata rather than
-        // a hardcoded admin id (the old literal 1 is not even a real user).
-        $actor = $user_id ? (int)$user_id : null;
-        log_activity($conn, $actor, 'payment', 'Gateway webhook: ' . $status, "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a'));
+        // Attribute to the invoice's owner as stored in the database — the
+        // payload metadata is only as trustworthy as whoever built the session.
+        $actor = !empty($inv_row['user_id']) ? (int)$inv_row['user_id'] : null;
+        $changed = $stmt->affected_rows > 0;
+        log_activity($conn, $actor, 'billing', $status === 'paid' ? 'Online Payment Received' : 'Online Payment Failed', "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a'), $actor ?? 0);
+
+        if ($changed && $actor) {
+            if ($status === 'paid') {
+                create_notification($conn, $actor, 'payment', 'Payment Received',
+                    "Your online payment for invoice $invoice_id was successful. Thank you!");
+            } else {
+                create_notification($conn, $actor, 'payment', 'Payment Failed',
+                    "Your online payment for invoice $invoice_id did not go through. Please try again or choose another payment method.");
+            }
+        }
     }
 }
 

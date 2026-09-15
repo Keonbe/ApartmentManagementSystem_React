@@ -36,7 +36,14 @@ const formatDateTime = (value) => {
   return isNaN(d) ? value : d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 };
 
-const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+// Details can contain text typed by tenants (visitor names, request notes). A cell
+// starting with = + - @ would run as a formula when the CSV is opened in Excel, so
+// those are prefixed with an apostrophe.
+const csvCell = (value) => {
+  let text = String(value ?? '');
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+};
 
 export default function AdminActivityLogs() {
   const navigate = useNavigate();
@@ -103,7 +110,10 @@ export default function AdminActivityLogs() {
     try {
       const res = await api.get(`get_activity_logs.php?${buildParams({ export: '1', page: '1' })}`);
       if (!res.data.success) throw new Error(res.data.message);
-      const header = ['Log ID', 'Timestamp', 'Category', 'Action', 'Details', 'Performed By', 'Role', 'Email'];
+      if (res.data.truncated) {
+        alert(`Only the newest ${res.data.logs.length.toLocaleString()} of ${res.data.total.toLocaleString()} matching entries fit in one export. Narrow the date range to export the rest.`);
+      }
+      const header =['Log ID', 'Timestamp', 'Category', 'Action', 'Details', 'Performed By', 'Role', 'Email'];
       const rows = res.data.logs.map(l => [
         `LOG-${String(l.id).padStart(4, '0')}`, l.createdAt, l.categoryLabel, l.action, l.details,
         l.performerName, l.performerRole, l.performerEmail

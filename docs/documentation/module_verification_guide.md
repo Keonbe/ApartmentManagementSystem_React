@@ -1,6 +1,6 @@
 # AMS — Module Verification Guide
 
-> **Document Version:** 1.2 — September 2026 (adds Reports & Activity Log and Role-Based Access; 1.1 added Financial Tracking and Utility Usage)
+> **Document Version:** 1.3 — September 2026 (adds Notifications & Automation, Parking Reservation, and extends Reports & Activity Log with logging-coverage tests; 1.2 added Reports & Activity Log and Role-Based Access; 1.1 added Financial Tracking and Utility Usage)
 > **Stack:** React 18 (Vite) + PHP 8 + MySQL/MariaDB 10 (XAMPP)
 > **Database:** `ams_db`
 > **Scope:** Modules that have been audited end-to-end. See [§2 Extending This Guide](#2-extending-this-guide).
@@ -58,9 +58,19 @@
    - 12.2 [API Diagrams](#122-api-diagrams)
    - 12.3 [Step-by-Step Workflow](#123-step-by-step-workflow)
    - 12.4 [Test Conditions](#124-test-conditions)
-13. [Date-Dependent Testing](#13-date-dependent-testing)
-14. [Known Issues & Blocked Tests](#14-known-issues--blocked-tests)
-15. [Appendix — Recipes & Reference](#15-appendix--recipes--reference)
+13. [Module 6 — Notifications & Automation](#13-module-6--notifications--automation)
+   - 13.1 [API Contract](#131-api-contract)
+   - 13.2 [API Diagrams](#132-api-diagrams)
+   - 13.3 [Step-by-Step Workflow](#133-step-by-step-workflow)
+   - 13.4 [Test Conditions](#134-test-conditions)
+14. [Module 10 — Parking Reservation](#14-module-10--parking-reservation)
+   - 14.1 [API Contract](#141-api-contract)
+   - 14.2 [API Diagrams](#142-api-diagrams)
+   - 14.3 [Step-by-Step Workflow](#143-step-by-step-workflow)
+   - 14.4 [Test Conditions](#144-test-conditions)
+15. [Date-Dependent Testing](#15-date-dependent-testing)
+16. [Known Issues & Blocked Tests](#16-known-issues--blocked-tests)
+17. [Appendix — Recipes & Reference](#17-appendix--recipes--reference)
 
 ---
 
@@ -119,10 +129,11 @@ If a start script reports "could not be started" but the port is already listeni
 >
 > Two other files, `clear_and_seed.sql` and `seed_reset.sql`, are **out of sync with the current schema** — do not use them.
 >
-> **Upgrading an existing database** (not needed after a fresh import): run the idempotent migrations once. The first adds `utility_readings` and its `invoice_id` column. The second adds `login_attempts` with its per-account index and the missing `visitor_logs.id_photo_path` column, and normalises activity-log categories.
+> **Upgrading an existing database** (not needed after a fresh import): run the idempotent migrations once, in order. The first adds `utility_readings` and its `invoice_id` column. The second adds `login_attempts` with its per-account index and the missing `visitor_logs.id_photo_path` column, and normalises activity-log categories. The third adds `notification_preferences`, `parking_charges`, numbered-slot columns on `parking_reservations`, indexes on `notifications`/`activity_logs`, the parking/sweep settings, and recategorises a handful of existing log rows (contract, unit).
 > ```bash
 > /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_utility_readings.sql
 > /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_rbac_activity_logs.sql
+> /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_notifications_parking.sql
 > ```
 
 ### 1.3 Base URLs
@@ -186,10 +197,14 @@ SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE 'l
 SELECT room_name, status FROM unit_reservations WHERE room_name='I';
 SELECT id, status FROM rooms WHERE id IN ('I','J','N');
 SELECT COUNT(*) AS utility_readings       FROM utility_readings;
-SELECT COUNT(*) AS overhead_setting       FROM system_settings WHERE setting_key='report_overhead_pct';"
+SELECT COUNT(*) AS overhead_setting       FROM system_settings WHERE setting_key='report_overhead_pct';
+SELECT COUNT(*) AS notif_pref_rows        FROM notification_preferences;
+SELECT COUNT(*) AS parking_charges_rows   FROM parking_charges;
+SELECT id, status, slot_number FROM parking_reservations WHERE id IN (1,2,3) ORDER BY id;
+SELECT setting_value FROM system_settings WHERE setting_key='notification_sweep_last_run';"
 ```
 
-Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded July/August rows for rooms A and K), `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. See [§15.3](#153-standard-restore) for the full restore snippet.
+Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded July/August rows for rooms A and K), `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. Parking: rows 1 and 2 `Assigned` (slots 1 and 2), row 3 `Pending`, no `parking_charges` rows. `notification_preferences` empty. See [§17.3](#173-standard-restore) for the full restore snippet.
 
 > The reservation and the free rooms are the two fixtures most easily consumed without noticing — approving an application for room I converts Katrina's hold, and the room stays occupied even after the test application is deleted.
 
@@ -212,11 +227,11 @@ Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded Ju
 | 3 | Rental Payment & Billing | ✅ Documented | [§6](#6-module-3--rental-payment--billing) |
 | 4 | Maintenance Request | ✅ Documented | [§7](#7-module-4--maintenance-request) |
 | 5 | Service Management | ✅ Documented (add-on catalog, bookings, billing, CCTV) | [§8](#8-module-5--service-management) |
-| 6 | Notification Module | ⬜ Not yet audited | — |
+| 6 | Notification Module | ✅ Documented — in-app only; email/SMS remain designed (6.6/6.7) | [§13](#13-module-6--notifications--automation) |
 | 7 | Communication (Two-Way Chat) | ⬜ Not yet audited | — |
-| 8 | Admin Dashboard & Reports | 🟡 Documented except demo data (8.8) — Financial Tracking (8.1–8.3), Utility Usage (8.7), and Reports & Activity Log (8.4–8.6) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
+| 8 | Admin Dashboard & Reports | 🟡 Documented except demo data (8.8) — Financial Tracking (8.1–8.3), Utility Usage (8.7), and Reports & Activity Log (8.4–8.6, extended for logging coverage) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
 | 9 | Contract & Document Generation | ⬜ Not yet audited | — |
-| 10 | Parking Reservation | ⬜ Not yet audited | — |
+| 10 | Parking Reservation | ✅ Documented — numbered slots, release on move-out/archive, manual or automatic fee billing | [§14](#14-module-10--parking-reservation) |
 | 11 | Security & Access Control | ✅ Documented — role-based access, authentication and password management (11.1–11.4). CCTV requests (11.5) are in §8 | [§12](#12-module-11--role-based-access) |
 | 12 | Visitor Management | ⬜ Not yet audited | — |
 
@@ -1628,6 +1643,15 @@ After restoring, `SELECT COUNT(*) FROM utility_readings;` should be back to the 
 > - **Maintenance monitoring (8.5) added:** open requests by priority, requests by category, average resolution time and budget use. Urgent and untriaged tickets are now highlighted.
 >
 > §11.4 was verified live.
+>
+> **Extended September 2026 — logging coverage.** A follow-up audit (alongside Modules 6 and 10, §13–§14) found the log itself sound but its coverage incomplete:
+> - **13 endpoints changed data with no log call at all**, including `parking_reservation.php`, `rent_application.php`, `submit_inquiry.php`, `update_occupants.php`, `extend_lease.php`, `profile.php`, `registration.php`, `logout.php`, `create_checkout_session.php`, `login.php` (both tenant sign-ins and failed sign-ins), and the notification sweep. All now log.
+> - **Contract actions were filed under `tenant`** and **room updates under `system`** — both recategorised (`contract`, `unit`) with a migration for existing rows. `cancel_request.php` always logged `service`, even for a cancelled maintenance ticket; it now logs `maintenance` or `service` by type.
+> - **Search wasn't escaping LIKE wildcards** (`%`/`_` acted as patterns) and the log-ID parser (`ltrim($s,'LOG-0')`) stripped characters rather than a prefix. Both fixed.
+> - **Export silently truncated at 5,000 rows** while the audit entry claimed the full total; it now reports `truncated` and names how many of how many were exported.
+> - **CSV export could carry a formula injection** — a value starting with `= + - @` now gets an apostrophe prefix before quoting.
+> - **The dashboard's recent-activity widget** keyed its icons on old category names and printed `Admin #null` for system-performed entries; now keyed on the 12 real categories, with "System" as the fallback.
+> - Added indexes on `activity_logs(created_at)` and `(category)` — filtering and sorting previously scanned the whole table.
 
 ### 11.1 API Contract
 
@@ -1779,6 +1803,18 @@ UPDATE system_settings SET setting_value = '<original>' WHERE setting_key = 'pay
 DELETE FROM activity_logs WHERE created_at >= NOW() - INTERVAL 1 HOUR;
 DELETE FROM sessions;
 ```
+
+### 11.5 Logging Coverage Test Conditions
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M8L-14** | Happy | Previously-silent endpoints now log | — | Submit a parking reservation, a rent application, and an inquiry | Three new `activity_logs` rows, categories `service`/`tenant`/`inquiry` | `SELECT category, action FROM activity_logs ORDER BY id DESC LIMIT 3;` |
+| **M8L-15** | Happy | Tenant sign-in and failed sign-in are logged | — | Sign in as a tenant; then attempt with a wrong password | `Tenant Signed In` (auth, performer = the tenant); `Failed Sign-in` with a masked email, performer NULL | `SELECT category, action, performed_by, details FROM activity_logs ORDER BY id DESC LIMIT 2;` — no password ever appears |
+| **M8L-16** | Happy | LIKE wildcards are literal | Any log data | `search=100%25` (a literal `100%`) | Only exact substring matches, not a wildcard scan | Verified live: total dropped to the true count |
+| **M8L-17** | Happy | Log-ID search is exact | Log id `1` exists | `search=LOG-0001` and `search=1` | The first returns exactly id 1; the id form matches the numeric value, not a wildcard on the digits | Verified live |
+| **M8L-18** | Boundary | Export reports truncation | More than 5,000 matching rows (or simulate with `limit` reasoning) | `export=1` | `truncated:true` when `total > returned`; log entry says "Exported N of M" | `SELECT details FROM activity_logs WHERE action='Exported Activity Log' ORDER BY id DESC LIMIT 1;` |
+| **M8L-19** | Sec | CSV injection neutralised | A detail field starting with `=SUM(...)` (e.g. a maintenance work note) | Export CSV, inspect the cell | Cell is prefixed with `'` before the quotes, so spreadsheet software treats it as text | Open the exported file in a text editor, not just a spreadsheet, to confirm the literal prefix |
+| **M8L-20** | Happy | Contract and unit actions carry the right category | Activate a contract; update a room | New rows | `contract` / `unit`, not `tenant` / `system` | `SELECT category FROM activity_logs WHERE action IN ('Activated Contract','Updated Unit') ORDER BY id DESC LIMIT 2;` |
 
 ---
 
@@ -2029,23 +2065,321 @@ DELETE FROM sessions;
 
 ---
 
-## 13. Date-Dependent Testing
+## 13. Module 6 — Notifications & Automation
 
-Several behaviours here only fire when a date passes: overdue promotion and the late fee ([§6.4](#64-test-conditions) M3-08…M3-10, M3-17), lease expiry, reservation holds ([§5.4](#54-test-conditions) M2-10) and reminder cadence.
+> Audited September 2026. Remediation: admin "mark all read"/"clear all" could touch tenants' own notifications (shared queue types); `process_tenant_request.php` accepted any notification id, not just occupancy/lease requests; most admin to-do rows were never cleared once decided; reminders had no atomic claim, so two requests could send the same one twice; automation only ran when an admin happened to open Payments, with no scheduler; notification preferences (checklist 6.8) saved only to `localStorage` with a non-functional Save button; several state changes (payment recorded, payment failed, payment proof submitted, contract activated/eviction flagged, move-out completed) sent no notification at all.
 
-The techniques — moving the row versus moving the system clock, and which columns drive which feature — live in **[`date_dependent_testing.md`](../date_dependent_testing.md)** and are not duplicated here.
+### 13.1 API Contract
 
-> Prefer **moving the row** (back-date `due_date`, `lease_end`, `hold_expires_at`). Changing the Windows system clock affects MySQL timestamps and every other process on the machine.
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `get_notifications.php` | GET | `require_user` | — | `success`, `notifications[]`, `unread_count`. Also runs the daily sweep (§15) opportunistically | `401` |
+| `mark_notification_read.php` | POST | `require_user` | `id`/`notificationId` (optional — omit for "mark all") | `success`, `updated` | Scope: tenant = own rows; admin = own rows **or** the open (`Pending`) action queue — never a tenant's own decided notice |
+| `delete_notification.php` | POST | `require_user` | `id`/`notificationId` (optional — omit for "clear all") | `success`, `deleted` | `409` deleting your own still-open (`Pending`) request; single delete/mark-read scoped to your own rows only, admin or tenant |
+| `create_notification.php` | POST | `require_admin` | `userId`, `title`, `message`, `type` (not an admin-queue type) | `success`, `delivered` | `422` bad type or a queue type · `404` unknown user · `delivered:false` when the recipient muted that category |
+| `get_notification_preferences.php` | GET | `require_user` | — | `preferences[]` (category, label, `in_app_enabled`), `always_on[]` | `401` |
+| `update_notification_preferences.php` | POST | `require_user` | `{ preferences: { <category>: bool, … } }` | `success`, `changed` | `422` unknown category or non-boolean value |
+| `check_due_date_reminders.php` | GET/POST | `require_admin` | — | `run_notification_sweep()` result (forced) | `401`/`403` |
+| `send_payment_reminder.php` | POST | `require_admin` | `invoice_id` or `all`, optional `custom_message` | `success`, `count`/`reminder_count` | `404` unknown invoice · `409` invoice not remindable, or already reminded today |
+| `process_tenant_request.php` | POST | `require_admin` | `notificationId`, `action` (`approve`/`reject`) | `success` | `404` id isn't an `occupancy_request`/`lease_extension_request` · claim-first, so a replay is a no-op |
+| `create_announcement.php` | POST | `require_admin` | `tag`, `title`, `body`, `sendTo` (`All tenants` / `Specific unit`), `unit` | `success`, `recipient_count`, `delivered` | `422` missing unit for "Specific unit" · `422` no current tenants match |
 
-There is **no scheduler**. Nothing runs on a timer: overdue promotion happens when an invoice list, the admin dashboard or the financial report is requested, or the admin triggers the reminder sweep; reservation expiry happens when rooms are listed; contract expiry happens when `my_room.php` is called. If a state change seems not to have happened, the usual cause is that nothing has invoked the endpoint that performs it.
+**Status vocabulary.** `Pending` means "an admin still has to act": the 9 `ADMIN_QUEUE_NOTIFICATION_TYPES` (`rent_application`, `maintenance_request`, `cctv_request`, `parking_reservation`, `service_request`, `inquiry`, `occupancy_request`, `lease_extension_request`, `payment_verification`) plus a tenant's own open occupancy/lease request. Everything else — announcements, billing, rent-due/overdue reminders, every decision notice — is `Resolved`. This is what lets a tenant's "Clear all" remove everything except a request still awaiting a decision, and what stops an admin's "Clear all" from ever reaching a tenant's own inbox (see M6-01 below).
+
+**Notification preference categories** (`NOTIFICATION_PREF_CATEGORIES` in `backend/config.php`) — the only ones a tenant can mute; everything else (`overdue`, `billing`, `payment`, `application_update`, `maintenance_update`, contract and move-out notices, request decisions) is always delivered:
+
+| Category | Covers types |
+|---|---|
+| `announcements` | `info`, `warning`, `action` |
+| `payment_reminders` | `rent_due` |
+| `service_updates` | `service_status`, `cctv_request`, `parking_reservation` |
+| `visitor_updates` | `visitor_log` |
+| `inquiry_updates` | `inquiry_update`, `unit_reservation` |
+
+### 13.2 API Diagrams
+
+The admin action queue, end to end — request in, decision out:
+
+```mermaid
+sequenceDiagram
+    actor T as Tenant
+    participant E as Intake endpoint<br/>(maintenance_request.php, etc.)
+    participant DB as ams_db
+    actor A as Admin
+    participant D as Decision endpoint<br/>(update_maintenance_status.php, etc.)
+
+    T->>E: Submit request
+    E->>DB: notify_admins_queue()<br/>INSERT notifications type=X, status='Pending',<br/>metadata_value="X:<id>"
+    A->>D: Approve / Reject / Assign
+    D->>DB: resolve_admin_queue()<br/>UPDATE notifications SET status='Resolved'<br/>WHERE type=X AND metadata_value="X:<id>"
+    D->>DB: create_notification() — tenant decision notice<br/>(skipped if the tenant muted that category, queue rows excepted)
+    Note over DB: Every intake type now has a matching resolve call —<br/>previously only service bookings ever cleared the queue
+```
+
+The daily sweep (§15 has the scheduling story):
+
+```mermaid
+flowchart LR
+    G["get_notifications.php<br/>(any signed-in page load)"] -->|"claim: UPDATE system_settings<br/>SET sweep_last_run=CURDATE()<br/>WHERE sweep_last_run < CURDATE()"| C{"Claimed?"}
+    CLI["daily_sweep.php (Task Scheduler)"] -->|force=true, skip claim| W
+    ADM["check_due_date_reminders.php<br/>(admin 'Run now')"] -->|force=true, skip claim| W
+    C -->|"yes (0 rows before today)"| W["run_notification_sweep()"]
+    C -->|no — already ran today| SKIP[No-op]
+    W --> P["promote_overdue_invoices()"]
+    W --> R["Rent-due + overdue reminders<br/>claim_invoice_reminder() per invoice"]
+    W --> K["release_lapsed_parking()"]
+    W --> B["post_parking_charge() per Assigned reservation<br/>(only when parking_billing_mode='auto')"]
+    W --> L["log_activity 'system' — only if something happened"]
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        UN[UserNotifications.jsx]
+        TB[TopBar.jsx]
+        AN[AdminNotifications.jsx]
+        AH[AdminDashboardHeader.jsx]
+        AA[AdminAnnouncements.jsx]
+    end
+    subgraph Endpoints
+        E1[get_notifications.php]
+        E2[mark_notification_read.php]
+        E3[delete_notification.php]
+        E4[get_notification_preferences.php]
+        E5[update_notification_preferences.php]
+        E6[process_tenant_request.php]
+        E7[check_due_date_reminders.php]
+        E8[send_payment_reminder.php]
+        E9[create_announcement.php]
+    end
+    subgraph Tables
+        T1[(notifications)]
+        T2[(notification_preferences)]
+        T3[(invoices)]
+        T4[(announcements)]
+        T5[(activity_logs)]
+    end
+    UN --> E1 & E2 & E3 & E4 & E5
+    TB --> E1 & E2
+    AN --> E1 & E2 & E3 & E6 & E7
+    AH --> E1 & E2
+    AA --> E9
+    E1 --> T1 & T3
+    E2 & E3 --> T1
+    E4 & E5 --> T2
+    E6 --> T1
+    E7 & E8 --> T1 & T3 & T5
+    E9 --> T1 & T4
+```
+
+### 13.3 Step-by-Step Workflow
+
+1. **Tenant — read notifications** · `/notifications` (or the `TopBar.jsx` bell, polling every 60s) → `get_notifications.php`. Clicking an item marks it read and opens the page the notice is about (`ams-react/src/config/notificationLinks.js`).
+2. **Tenant — set preferences** · `/notifications` → Preferences panel → `get_notification_preferences.php` / `update_notification_preferences.php`. Categories that can't be muted are listed under "Always delivered".
+3. **Admin — review the action queue** · `/admin-notifications` (or `AdminDashboardHeader.jsx` bell) → `get_notifications.php` returns only `Pending` queue rows plus anything addressed to that admin. Occupancy/lease requests decide inline (`process_tenant_request.php`); everything else has a "Review Request" button routing to the owning admin page, where its own decision endpoint calls `resolve_admin_queue()`.
+4. **Admin — reminder settings** · `/admin-notifications` settings panel → `update_system_settings.php` sets `rent_due_reminder_days` / `overdue_reminder_interval_days` and whether each is enabled. "Run reminder check now" force-runs the sweep for immediate feedback.
+5. **Automation, unattended** · the first `get_notifications.php` call of the day runs `run_notification_sweep()`: promotes overdue invoices, sends due/overdue reminders (claim-first, so at most one per invoice per day), releases lapsed parking permits, and — in `auto` billing mode — posts that month's parking fee. For a guarantee independent of anyone opening the app, register `backend/cron/daily_sweep.php` in Windows Task Scheduler (`C:\xampp\php\php.exe C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\daily_sweep.php`, daily).
+6. **Admin — announcements** · `/admin-announcements` → `create_announcement.php` → one row in `announcements`, plus an in-app notice to every current tenant (or just the named unit's tenant), respecting each tenant's `announcements` preference.
+
+### 13.4 Test Conditions
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M6-01** | Sec | Admin clear-all cannot delete a tenant's decision notice | Pedro (user 10) has a `Resolved` `parking_reservation` notice | Admin `POST delete_notification.php {}` | Admin's own resolved queue rows are removed; Pedro's row survives | `SELECT COUNT(*) FROM notifications WHERE user_id=10;` unchanged — verified live during this audit |
+| **M6-02** | Sec | Admin mark-all-read cannot mark a tenant's notice read | Same fixture, unread | Admin `POST mark_notification_read.php {}` | Only admin's own + open queue rows change | Pedro's `is_read` unchanged |
+| **M6-03** | Sec | Tenant cannot delete their own open request | Tenant has a `Pending` `occupancy_request` | `POST delete_notification.php {"id":<id>}` as that tenant | `409 "still awaiting a decision"` | Row still present, still `Pending` |
+| **M6-04** | Sec | `process_tenant_request` refuses a non-decidable type | A `Pending` `cctv_request`/`rent_due`/`billing` id | `POST process_tenant_request.php {"notificationId":<id>,"action":"approve"}` | `404 "Occupancy or lease extension request not found."` | Row and status unchanged — verified live |
+| **M6-05** | Happy | Decision clears the admin queue | A `Pending` `maintenance_request` row | Admin resolves the ticket (any status ≠ Pending) | Queue row → `Resolved` | `SELECT status FROM notifications WHERE type='maintenance_request' AND metadata_value='maintenance_request:<id>';` |
+| **M6-06** | Boundary | Reminder claim is atomic | An invoice due within the reminder window | Call the sweep (or `send_payment_reminder.php`) twice same day | Second call sends nothing (`skipped`/no new row) | `SELECT last_reminder_date, reminder_count FROM invoices WHERE id='<id>';` — `reminder_count` +1, not +2 |
+| **M6-07** | Boundary | Sweep runs once per day | Fresh `notification_sweep_last_run` | `get_notifications.php` twice | First call may act; second is a no-op | `SELECT setting_value FROM system_settings WHERE setting_key='notification_sweep_last_run';` = today after the first call |
+| **M6-08** | Happy | Forced sweep still respects the reminder claim | Force via `check_due_date_reminders.php` twice | — | Second run reports 0 new reminders | Compare `upcoming_reminders_sent`/`overdue_reminders_sent` across calls |
+| **M6-09** | Happy | Muted category is skipped | Tenant sets `service_updates:false` | Admin releases that tenant's parking slot | No new notification row | `SELECT COUNT(*) FROM notifications WHERE user_id=<id> AND title LIKE '%Released%';` = 0 — verified live |
+| **M6-10** | Negative | Overdue alerts can't be muted | Same tenant, muted | An invoice becomes overdue | Notification still sent | `overdue` is not in any `NOTIFICATION_PREF_CATEGORIES` list |
+| **M6-11** | Negative | Unknown preference category | Any tenant | `POST update_notification_preferences.php {"preferences":{"bogus":true}}` | `422 "Unknown notification category: bogus"` | Verified live |
+| **M6-12** | Happy | Announcement respects the audience | 2+ current tenants | `create_announcement.php {"sendTo":"Specific unit","unit":"A"}` | Only Unit A's tenant is notified | `recipient_count` = 1; `SELECT COUNT(*) FROM notifications WHERE title=<title>;` = 1 (before preferences) |
+| **M6-13** | Sec | Unauthenticated notification creation | — | `POST create_notification.php` with no token | `401` | No row inserted |
+
+**Restore:** see [§17.3](#173-standard-restore) (`notification_preferences`, `notification_sweep_last_run`).
 
 ---
 
-## 14. Known Issues & Blocked Tests
+## 14. Module 10 — Parking Reservation
+
+> Audited September 2026. The panel's flow calls for a specific slot allocated on approval, the fee added to the monthly invoice, and the slot released on move-out — none of which existed. Remediation: added numbered slots (`slot_number`, unique among `Assigned` rows) and a status-transition map (`Pending → Assigned | Rejected | Cancelled`, `Assigned → Released`) where previously any status could move to any other, including back to `Pending`, which bypassed the capacity check; the tenant's own slot counter called an admin-only endpoint and then a POST-only one, so it always read "3/3 free" — it now calls `get_available_parking_slots.php`; a tenant could hold several open reservations at once (now blocked by a unique key, `open_user`, on top of the application check); the fee was never billed from a reservation, only ever typed in manually — `post_parking_charge()` posts it per calendar month of the permit term, claimed via a `(reservation_id, billing_period)` unique key so a month can never be billed twice, whether by the admin's "Bill this month" button or the automatic daily sweep (admin-configurable `parking_billing_mode`); move-out and archiving never freed the slot — they now call `release_user_parking()`.
+
+### 14.1 API Contract
+
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `parking_reservation.php` | POST (multipart) | `require_user` + active lease | `vehicleType`, `vehicleModel`, `plateNumber`, `transmission` (`Automatic`/`Manual`), `durationMonths` (1–6); file `uploadedFile` (OR/CR, ≤10MB) | `success`, `id` | `403` no active lease, or `service_parking_active=false` · `409` already has an open reservation, or the lot is full · `422` bad plate/transmission/duration/file |
+| `get_available_parking_slots.php` | GET | `require_user` | — | `max_slots`, `occupied_count`, `available_slots`, `monthly_fee`, `billing_mode`, `my_reservation` (own latest row, with `term_ends_at`, `billed_periods`); admins also get `taken_slots` | `401` |
+| `get_parking_reservations.php` | GET | `require_admin` | — | `reservations[]` (one row per reservation, with `slotNumber`, `assignedAt`, `releasedAt`, `billedPeriods`, `termEndsAt`), `capacity`, `monthly_fee`, `billing_mode`, `current_period` | `401`/`403` |
+| `update_parking_status.php` | POST | `require_admin` | `id`, `status` (`Assigned`/`Rejected`/`Released`), `slotNumber` (for Assigned), `reason` (for Rejected/Released) | `success`, `billing` (non-null if auto-billed on assignment) | `404` unknown id · `422` invalid transition, or missing/out-of-range slot/reason · `409` slot taken, lot full, or tenant lease no longer active |
+| `sync_parking_to_invoice.php` | POST | `require_admin` | `reservation_id`, optional `period` (`YYYY-MM`, defaults to current), `action:"reverse"` to undo | `success`, `invoice_id`, `already_billed` | `404` unknown reservation · `409` already billed for that month, outside the permit term, no active lease, or (reverse) invoice no longer adjustable |
+| `cancel_request.php` (type `Parking`) | POST | `require_user`, owner's own `Pending` row only | `id`, `type:"Parking"` | `success` | `409` not your own Pending request |
+
+**Status vocabulary and transitions** (`PARKING_TRANSITIONS` in `backend/config.php`): `Pending → Assigned \| Rejected \| Cancelled`; `Assigned → Released`; `Rejected`, `Cancelled`, `Released` are terminal. Only `Assigned` holds a slot — a generated column (`active_slot`, unique) means the database itself refuses two `Assigned` rows on the same `slot_number`. A second generated column (`open_user`, unique) means one tenant can never hold two rows in `Pending`/`Assigned` at once.
+
+### 14.2 API Diagrams
+
+Request through decision through billing:
+
+```mermaid
+sequenceDiagram
+    actor T as Tenant
+    participant PR as ParkingReservation.jsx
+    participant P as parking_reservation.php
+    participant DB as ams_db
+    actor A as Admin
+    participant AP as AdminParking.jsx
+    participant U as update_parking_status.php
+
+    T->>PR: Vehicle details + OR/CR
+    PR->>P: POST multipart
+    P->>DB: One open reservation? Lot full?
+    alt Refused
+        P-->>PR: 409
+    else
+        P->>DB: INSERT parking_reservations status='Pending'
+        P->>DB: notify_admins_queue('parking_reservation', id, ...)
+        P-->>PR: {success, id}
+    end
+
+    A->>AP: Open Pending tab, pick a free slot
+    AP->>U: POST {id, status:'Assigned', slotNumber}
+    U->>DB: SELECT ... FOR UPDATE (lock Assigned rows)
+    alt Slot taken / lot full / lease inactive
+        U-->>AP: 409
+    else
+        U->>DB: UPDATE status='Assigned', slot_number, assigned_at=NOW()
+        U->>DB: resolve_admin_queue() + create_notification(tenant)
+        alt parking_billing_mode = 'auto'
+            U->>DB: post_parking_charge() — this month's fee
+        end
+        U-->>AP: {success, billing}
+    end
+
+    Note over A,DB: Manual mode — admin clicks "Bill this month" separately, any time within the term
+    A->>U: sync_parking_to_invoice.php {reservation_id}
+    U->>DB: INSERT parking_charges (claim) → post to invoice.parking
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        PR[ParkingReservation.jsx]
+        AP[AdminParking.jsx]
+        AS[AdminServicePage.jsx<br/>read-only summary]
+    end
+    subgraph Endpoints
+        E1[parking_reservation.php]
+        E2[get_available_parking_slots.php]
+        E3[get_parking_reservations.php]
+        E4[update_parking_status.php]
+        E5[sync_parking_to_invoice.php]
+        E6[cancel_request.php]
+    end
+    subgraph Tables
+        T1[(parking_reservations)]
+        T2[(parking_charges)]
+        T3[(invoices)]
+        T4[(notifications)]
+        T5[(activity_logs)]
+    end
+    PR --> E1 & E2 & E6
+    AP --> E3 & E4 & E5
+    AS --> E3
+    E1 --> T1 & T4 & T5
+    E4 --> T1 & T2 & T3 & T4 & T5
+    E5 --> T2 & T3 & T5
+```
+
+Slot lifecycle:
+
+```mermaid
+flowchart LR
+    P[Pending] -->|Admin assigns a free slot| A[Assigned]
+    P -->|Admin rejects, reason required| R[Rejected]
+    P -->|Tenant cancels own Pending| C[Cancelled]
+    A -->|Admin releases, reason required| L[Released]
+    A -->|Term ends, or tenant's lease ends<br/>daily sweep| L
+    A -->|Tenant moves out or is archived| L
+
+    classDef open fill:#fff3cd,stroke:#c69500
+    classDef done fill:#d4edda,stroke:#28a745
+    classDef dead fill:#f8d7da,stroke:#dc3545
+    class P open
+    class A done
+    class R,C,L dead
+```
+
+### 14.3 Step-by-Step Workflow
+
+1. **Tenant — check availability and reserve** · `/parking-reservation` → `get_available_parking_slots.php` shows real capacity and the monthly fee; if the tenant already has an open reservation, the form is replaced by a status card. Otherwise → `parking_reservation.php` → `Pending`, admin notified.
+2. **Admin — assign a slot** · `/admin-parking` → Pending tab → *Assign* opens a slot picker limited to free slots → `update_parking_status.php {status:'Assigned', slotNumber}`. Tenant is notified with the slot number; in `auto` billing mode the current month is posted immediately.
+3. **Admin — reject** · *Reject* requires a reason, which is shown to the tenant.
+4. **Admin — bill (manual mode)** · Assigned row → *Bill this month* → `sync_parking_to_invoice.php` → posts onto the tenant's adjustable invoice for the current month, or a parking-only invoice if none exists. Disabled once that month is already billed.
+5. **Admin — release** · Assigned row → *Release* requires a reason → slot freed, tenant notified, the admin queue row (if any) resolved.
+6. **Automatic release** · the daily sweep releases an Assigned permit once its term ends (`assigned_at + duration_months`) or the tenant no longer has an active lease — a safety net for tenancies that ended before this release path existed.
+7. **Move-out / archive** · `update_tenant_status.php` (`moved-out`) and `archive_tenant.php` both call `release_user_parking()`: an Assigned slot is Released, a Pending request is Cancelled, and the tenant is notified either way. `restore_tenant.php` does **not** re-assign a slot — the tenant files a new request if they still need one.
+8. **Settings** · `/admin-settings` → Parking Policy: `max_parking_slots` (can't drop below the highest slot still assigned), `parking_monthly_fee`, `parking_allowed_vehicle_types`, and the Manual/Automatic billing toggle.
+
+### 14.4 Test Conditions
+
+Seed fixtures: reservation **1** (Dante, user 9) Assigned slot 1; reservation **2** (Carlo, user 11) Assigned slot 2; reservation **3** (Pedro, user 10) Pending — approving it fills the 3-slot lot.
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M10-01** | Happy | Tenant sees real capacity | Seed state | `GET get_available_parking_slots.php` as Dante | `max_slots:3, occupied_count:2, available_slots:1`, `my_reservation.status:'Assigned', slot_number:1` | Verified live during this audit |
+| **M10-02** | Sec | One open reservation per tenant | Dante already Assigned | `POST parking_reservation.php` as Dante | `409 "You already have an assigned parking slot."` | Verified live; `open_user` unique key backs this even under a race |
+| **M10-03** | Boundary | Lot full refuses new requests | Fill the 3rd slot first (M10-05) | `POST parking_reservation.php` as a 4th tenant | `409 "No parking slots available at this time."` | — |
+| **M10-04** | Negative | Invalid plate / duration / transmission | Any tenant, no open reservation | Submit `durationMonths:12`, or `transmission:"awd"`, or a 2-character plate | `422` with a field-specific message | No row inserted |
+| **M10-05** | Happy | Assign the pending request | Reservation 3 (Pedro), lot has 1 free slot | Admin `POST update_parking_status.php {"id":3,"status":"Assigned","slotNumber":3}` | `{"success":true}`, `slot_number=3` | Verified live: `capacity.available_slots` → 0 |
+| **M10-06** | Sec | Duplicate slot refused | Slot 3 now taken | Admin assigns another Pending row to slot 3 | `409 "Slot #3 is already assigned to another tenant."` | Verified live via re-assigning an already-Assigned row (`422` transition case) |
+| **M10-07** | Negative | Invalid transition | Reservation already `Assigned` | `POST update_parking_status.php {"status":"Assigned", ...}` again | `422 "A Assigned reservation cannot be changed to Assigned."` | Verified live |
+| **M10-08** | Negative | Unknown reservation id | — | `POST update_parking_status.php {"id":999999,"status":"Assigned",...}` | `404` | — |
+| **M10-09** | Negative | Reject/Release without a reason | Any Pending/Assigned row | Omit `reason` | `422` "Give a reason for …" | Status unchanged |
+| **M10-10** | Happy | Manual bill posts once | `parking_billing_mode='manual'`, reservation 3 now Assigned | `POST sync_parking_to_invoice.php {"reservation_id":3}` | `{"success":true}`, invoice created/updated with `parking += 300` | Verified live: `INV-202609-…` created for Pedro |
+| **M10-11** | Negative | Manual bill twice, same month | Immediately after M10-10 | Same call again | `409 "Parking for September 2026 has already been billed."` | Verified live — `already_billed:true` |
+| **M10-12** | Happy | Reverse only while adjustable | Billed invoice still `pending` | `POST sync_parking_to_invoice.php {"reservation_id":3,"action":"reverse"}` | `parking` and `total_amount` reduced; `parking_charges` row removed | `SELECT parking FROM invoices WHERE id='<id>';` |
+| **M10-13** | Negative | Reverse refused once paid | Invoice `paid` | Same reverse call | `409` "can no longer be adjusted" | Charge remains on the invoice |
+| **M10-14** | Happy | Move-out releases the slot | Dante Assigned slot 1, active tenancy | `update_tenant_status.php {"id":<app_id>,"status":"moved-out",...}` | Reservation → `Released`, `release_reason='Tenant moved out'`; tenant notified | `SELECT status, release_reason FROM parking_reservations WHERE user_id=9;` |
+| **M10-15** | Boundary | Sweep releases an expired term | Back-date `assigned_at` so `assigned_at + duration_months` has passed | Run the sweep (forced) | Reservation → `Released`, `release_reason='Permit term ended'` | `parking_released` count in the sweep result |
+| **M10-16** | Sec | `service_parking_active=false` refuses new requests | Toggle the setting off | `POST parking_reservation.php` | `403 "Parking reservations are currently unavailable."` | Toggle back on afterward |
+| **M10-17** | Negative | `max_parking_slots` can't drop below assigned | Slots 1 and 2 Assigned | `update_system_settings.php {"max_parking_slots":"1"}` | `422 "Slot #2 is still assigned…"` | Setting unchanged |
+| **M10-18** | Sec | Tenant cancel doesn't bypass ownership | Row belongs to another tenant | `cancel_request.php {"id":<other's id>,"type":"Parking"}` | `409` "Only your own pending requests…" | Row unchanged |
+
+**Restore:** see [§17.3](#173-standard-restore) — resets `parking_reservations` 1–3 to seed state, clears `parking_charges`, deletes any test rows, and resets `max_parking_slots`/`parking_billing_mode`/`parking_monthly_fee`.
+
+---
+
+## 15. Date-Dependent Testing
+
+Several behaviours here only fire when a date passes: overdue promotion and the late fee ([§6.4](#64-test-conditions) M3-08…M3-10, M3-17), lease expiry, reservation holds ([§5.4](#54-test-conditions) M2-10), reminder cadence and parking permit expiry ([§14.4](#144-test-conditions) M10-15).
+
+The techniques — moving the row versus moving the system clock, and which columns drive which feature — live in **[`date_dependent_testing.md`](../date_dependent_testing.md)** and are not duplicated here.
+
+> Prefer **moving the row** (back-date `due_date`, `lease_end`, `hold_expires_at`, `assigned_at`). Changing the Windows system clock affects MySQL timestamps and every other process on the machine.
+
+**There is now a daily sweep**, but still no OS-level scheduler doing the calling on its own: `run_notification_sweep()` (`backend/config.php`) runs overdue promotion, rent-due/overdue reminders, parking-permit expiry and automatic parking billing together, claimed at most once per calendar day via the `notification_sweep_last_run` setting. It fires two ways — opportunistically from `get_notifications.php` (so the first signed-in page load of the day runs it) and forced (bypassing the once-a-day claim) from `check_due_date_reminders.php` or the CLI script `backend/cron/daily_sweep.php`, which is meant to be registered in Windows Task Scheduler (see [§14.3](#143-step-by-step-workflow)). To force a re-run within the same day for testing:
+> ```sql
+> UPDATE system_settings SET setting_value = '2000-01-01' WHERE setting_key = 'notification_sweep_last_run';
+> ```
+> then call `check_due_date_reminders.php` (forced) or `get_notifications.php` (opportunistic — runs once, then the claim above is needed again).
+
+Room-status and contract-status expiry are unchanged: reservation expiry happens when rooms are listed; contract expiry happens when `my_room.php` is called. If a state change seems not to have happened, the usual cause is that nothing has invoked the endpoint that performs it.
+
+---
+
+## 16. Known Issues & Blocked Tests
 
 Open defects as of this document's version. Each affects testing, so check here before filing a bug.
 
-### 14.1 Defects
+### 16.1 Defects
 
 | # | Issue | Evidence | Effect on testing |
 |---|---|---|---|
@@ -2054,21 +2388,21 @@ Open defects as of this document's version. Each affects testing, so check here 
 | 3 | ✅ **Fixed Sept 2026** — forgot-password dev link did not route | `Login.jsx` built `/#/reset-password?…` under `BrowserRouter` | The link now opens `/reset-password?email=…&token=…` directly |
 | 4 | **PayMongo return URLs never reach the app** | `create_checkout_session.php:87,90` return `…/dist/index.html#/pay-bills?status=…`; `BrowserRouter` has no `basename` and there is no catch-all route | Returning from checkout renders a blank page, so the cancel → `release_checkout_session.php` wiring does not fire in a browser. The endpoint itself is correct (M3-15 passes by curl), and M3-17's overdue promotion still rescues the invoice — but only once it is past due |
 
-### 14.2 Legacy identity headers (resolved)
+### 16.2 Legacy identity headers (resolved)
 
 Every endpoint previously listed here as trusting `X-User-Id` or a body `userId` now takes identity from the session — see the table in [§12.1](#121-api-contract). In addition, `config.php` overwrites both headers from the session before any endpoint code runs, so no endpoint anywhere can be fooled by a forged header. A test that sends one should behave exactly as if it weren't sent.
 
 Also: `expire_contracts.php` and `expire_reservations.php` mutate rows **before** their admin check runs, so both have an unauthenticated side effect.
 
-### 14.3 Sharp edges (working as designed, but easy to misread)
+### 16.3 Sharp edges (working as designed, but easy to misread)
 
 - **Failed logins lock the account for everyone's tests.** Five wrong passwords — including wrong *current* passwords on `change_password.php` — lock that account for 15 minutes. Run `DELETE FROM login_attempts;` between runs that exercise failures.
 - **Changing a role, password or archive state signs the user out.** Any token you captured for that user before the change is dead; sign in again.
 - **`sessions.role` is informational.** Access is decided by `users.role`, read live. Editing `sessions.role` in the database changes nothing.
 - **Exporting the activity log writes to it.** An `Exported Activity Log` entry appears after every export, so a count taken immediately after an export is one higher.
 - **Saving settings with no changes logs nothing.** `update_system_settings.php` only writes and logs keys whose value actually changed.
-- **An admin's "mark all read" and "clear all" cover only the admin action queue and the admin's own notifications**, never tenants' inboxes.
-
+- **The daily sweep runs at most once per real day, even forced.** `check_due_date_reminders.php` (forced) bypasses the once-a-day claim on the sweep as a whole, but each reminder and each parking month underneath it still claims individually (`claim_invoice_reminder()`, the `parking_charges` unique key), so a forced re-run the same day reports zero new sends rather than duplicating them. Back-date `notification_sweep_last_run` (§15) to force a genuinely fresh run.
+- **A parking charge is billed per calendar month of the permit term**, not per admin action — `post_parking_charge()` refuses a month outside `[assigned_at, assigned_at + duration_months)`. Testing a later month means back-dating `parking_reservations.assigned_at`, not the invoice.
 - **No `status` allowlist on `rooms`** — `update_room.php` writes any string, so a typo persists silently.
 - **Seed data predates the 1.7 gate** — see [§1.5](#15--the-seed-data-predates-the-acceptance-criteria-gate). No seeded application can be approved.
 - **Some booking refusals return HTTP 200.** `service_request.php` reports an inactive service, a disabled category or a date inside the lead time as `success:false` with HTTP 200. Only a missing tenancy (`403`) and a malformed date (`422`) set an error status, so assert on `success` for the others.
@@ -2079,9 +2413,9 @@ Also: `expire_contracts.php` and `expire_reservations.php` mutate rows **before*
 
 ---
 
-## 15. Appendix — Recipes & Reference
+## 17. Appendix — Recipes & Reference
 
-### 15.1 Curl recipes
+### 17.1 Curl recipes
 
 ```bash
 BASE=http://localhost:8080/ApartmentManagementSystem_React/backend/api
@@ -2108,7 +2442,7 @@ curl -s "$BASE/get_invoices.php?userId=2"      # expect 401
 
 PHP has no access to Git Bash's `/tmp`. To parse a response with the PHP CLI, write the file somewhere Windows-visible (e.g. the project directory) and delete it afterwards.
 
-### 15.2 Useful queries
+### 17.2 Useful queries
 
 ```sql
 -- Tenant → room → application → contract, in one view
@@ -2154,7 +2488,7 @@ WHERE ROUND(ur.water_amount + ur.water_other_fees - i.water, 2) <> 0
 
 On the stock seed this returns **no rows**. A row here means a reading and the invoice it was billed on disagree.
 
-### 15.3 Standard restore
+### 17.3 Standard restore
 
 ```sql
 DELETE FROM invoices          WHERE id LIKE 'INV-TEST%';
@@ -2203,11 +2537,31 @@ DELETE FROM visitor_logs WHERE visitor_name = 'RBAC Test Visitor';
 UPDATE users SET role = 'user', is_archived = 0 WHERE id IN (2, 13);
 UPDATE users SET last_name = 'Santiago' WHERE id = 13;
 -- Passwords changed during §12.4 are restored from the zz_users snapshot shown there.
+
+-- Notifications & automation fixtures (§13.4)
+DELETE FROM notification_preferences;
+UPDATE system_settings SET setting_value = '2000-01-01' WHERE setting_key = 'notification_sweep_last_run';
+
+-- Parking reservation fixtures (§14.4) — back to the seed's two Assigned + one Pending
+DELETE FROM parking_charges;
+DELETE FROM parking_reservations WHERE id > 3;
+UPDATE parking_reservations SET status='Assigned', slot_number=1, assigned_at='2026-04-01 09:00:00',
+  released_at=NULL, release_reason=NULL, rejection_reason=NULL, duration_months=6, total_cost=1800.00
+  WHERE id = 1;
+UPDATE parking_reservations SET status='Assigned', slot_number=2, assigned_at='2026-06-01 10:00:00',
+  released_at=NULL, release_reason=NULL, rejection_reason=NULL, duration_months=6, total_cost=1800.00
+  WHERE id = 2;
+UPDATE parking_reservations SET status='Pending', slot_number=NULL, assigned_at=NULL,
+  released_at=NULL, release_reason=NULL, rejection_reason=NULL, duration_months=3, total_cost=900.00
+  WHERE id = 3;
+UPDATE system_settings SET setting_value='3' WHERE setting_key='max_parking_slots';
+UPDATE system_settings SET setting_value='manual' WHERE setting_key='parking_billing_mode';
+UPDATE system_settings SET setting_value='300' WHERE setting_key='parking_monthly_fee';
 ```
 
 Then re-run the baseline check in [§1.6](#16-restore-discipline).
 
-### 15.4 Settings each module reads
+### 17.4 Settings each module reads
 
 | Module | `system_settings` keys |
 |---|---|
@@ -2219,6 +2573,8 @@ Then re-run the baseline check in [§1.6](#16-restore-discipline).
 | 8 — Financial tracking | `report_overhead_pct` (absent = 0%), plus the Module 3 `late_fee_*` keys via `promote_overdue_invoices()` |
 | 8.7 — Utilities | None. Rates are entered per reading and default to the unit's previous rate (40 / 12 for a unit's first reading); the spike threshold is the `UTILITY_SPIKE_THRESHOLD_PCT` constant (30) in `config.php` |
 | 8.4–8.6 — Reports & log | `maintenance_monthly_budget` (falls back to `maintenanceMonthlyBudget`, then ₱50,000) for the maintenance budget in reports |
+| 6 — Notifications & automation | `rent_due_reminders_enabled`, `rent_due_reminder_days`, `overdue_reminders_enabled`, `overdue_reminder_interval_days` (see below), `notification_sweep_last_run` (the daily-sweep claim) |
+| 10 — Parking | `max_parking_slots`, `parking_allowed_vehicle_types`, `parking_monthly_fee`, `parking_billing_mode` (`manual` / `auto`), `service_parking_active` |
 | 11 — Role-based access | None. Limits are constants in `config.php` / `manage_users.php`: `PASSWORD_MIN_LENGTH` 8, `LOGIN_MAX_FAILURES_PER_ACCOUNT` 5, `LOGIN_MAX_FAILURES_PER_IP` 20, `LOGIN_LOCKOUT_MINUTES` 15, `MAX_ADMIN_ACCOUNTS` 3 |
 
 Not every key exists as a row. The reminder settings — `rent_due_reminders_enabled`, `rent_due_reminder_days`, `overdue_reminders_enabled`, `overdue_reminder_interval_days` — are **absent from the seed database** and fall back to code defaults (enabled, 3 days, enabled, 3 days) in `check_due_date_reminders.php`. To test a different cadence, `INSERT` the key rather than expecting an `UPDATE` to match a row:
