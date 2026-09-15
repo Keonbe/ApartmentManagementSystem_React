@@ -11,15 +11,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Expire any contract whose lease_end has already passed before reading, so a
-// lapsed lease never reports 'active' just because no admin has looked at it.
-expire_lapsed_contracts($conn);
-
 // Ownership is checked against the session. It used to compare ?userId= with the
 // X-User-Id header — two values the same client supplies — so sending a matching
 // pair read any tenant's contract and contact details.
 $auth = require_user($conn);
 $is_admin = $auth['role'] === 'admin';
+
+// Expire any contract whose lease_end has already passed before reading, so a
+// lapsed lease never reports 'active' just because no admin has looked at it.
+// Runs after require_user() above — expiring contracts (and notifying their
+// tenants) is a side effect of reading, not something an unauthenticated
+// request should be able to trigger.
+expire_lapsed_contracts($conn);
 
 $user_id = $_GET['userId'] ?? null;
 $email = $_GET['email'] ?? null;

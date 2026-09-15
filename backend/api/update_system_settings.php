@@ -72,6 +72,19 @@ foreach ($input as $key => $value) {
         echo json_encode(["success" => false, "message" => "Parking monthly fee must be a positive amount."]);
         exit;
     }
+    // The UI's slider goes 1-168 hours (one week); the endpoint used to store
+    // whatever was posted, including 0 or non-numeric text, which then fell
+    // back to 24 with no indication anything was wrong.
+    if ($key === 'visitor_overstay_hours' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 168)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Visitor overstay threshold must be a whole number between 1 and 168 hours."]);
+        exit;
+    }
+    if ($key === 'lease_end_reminder_days' && (!ctype_digit($value) || (int)$value < 0 || (int)$value > 180)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Lease-end reminder days must be a whole number between 0 and 180."]);
+        exit;
+    }
 
     if (array_key_exists($key, $existing) && $existing[$key] === $value) continue;
 

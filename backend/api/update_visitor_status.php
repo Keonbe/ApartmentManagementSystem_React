@@ -57,9 +57,18 @@ $guarded_update = function ($sql, $types, $params, $from_status) use ($conn, $id
 
 if ($action === 'checked_in' || $action === 'approve') {
     if (!$isAdmin) fail(403, "Forbidden: Only admins can approve visitors.");
+
+    // A tenant's tenancy may have ended between pre-registration and review —
+    // approving would otherwise check someone in against a unit that's no
+    // longer theirs.
+    if ($target_user_id && !get_active_tenancy($conn, (int)$target_user_id)) {
+        fail(409, "This tenant no longer has an active lease — the registration can only be denied.");
+    }
+
     if (!$guarded_update("UPDATE visitor_logs SET status = 'checked_in', admin_notes = ?, check_in_at = NOW()", "s", [$admin_notes], 'pending_approval')) {
         fail(409, "Only a visitor awaiting approval can be approved.");
     }
+    resolve_admin_queue($conn, 'visitor_registration', $id);
 
     if ($target_user_id) {
         $n_title = "Visitor Approved: $visitor_name";
@@ -73,6 +82,7 @@ if ($action === 'checked_in' || $action === 'approve') {
     if (!$guarded_update("UPDATE visitor_logs SET status = 'denied', admin_notes = ?", "s", [$admin_notes], 'pending_approval')) {
         fail(409, "Only a visitor awaiting approval can be denied.");
     }
+    resolve_admin_queue($conn, 'visitor_registration', $id);
 
     if ($target_user_id) {
         $n_title = "Visitor Entry Declined";
@@ -81,10 +91,22 @@ if ($action === 'checked_in' || $action === 'approve') {
     }
     log_activity($conn, $auth['id'], 'service', "Denied Visitor Entry", "Visitor $visitor_name entry denied for Unit $unit");
 
+} else if ($action === 'cancel') {
+    // A tenant withdrawing their own still-pending pre-registration. Admins
+    // use 'denied' instead — cancel is for the person who filed it.
+    if ($isAdmin) fail(403, "Forbidden: Admins should deny a pending registration instead of cancelling it.");
+    if ((int)$visitor['user_id'] !== $auth['id']) fail(403, "Forbidden: You cannot cancel another tenant's registration.");
+    if (!$guarded_update("UPDATE visitor_logs SET status = 'cancelled', admin_notes = ?", "s", [$admin_notes ?: 'Cancelled by tenant'], 'pending_approval')) {
+        fail(409, "Only a registration awaiting approval can be cancelled.");
+    }
+    resolve_admin_queue($conn, 'visitor_registration', $id);
+    log_activity($conn, $auth['id'], 'service', "Cancelled Visitor Pre-Registration", "Visitor $visitor_name registration cancelled for Unit $unit");
+
 } else if ($action === 'checked_out' || $action === 'checkout') {
     if (!$guarded_update("UPDATE visitor_logs SET status = 'checked_out', check_out_at = NOW(), checkout_notes = ?", "s", [$checkout_notes], 'checked_in')) {
         fail(409, "Only a visitor who is checked in can be checked out.");
     }
+    resolve_admin_queue($conn, 'visitor_overstay', $id);
     log_activity($conn, $auth['id'], 'service', "Visitor Checked Out", "Visitor $visitor_name checked out from Unit $unit" . ($isAdmin ? "" : " (reported by tenant)"));
 
 } else {

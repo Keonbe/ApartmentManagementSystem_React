@@ -183,43 +183,29 @@ if ($id > 0 && !empty($status)) {
             $utility_deduction = isset($input['utility_deduction']) ? (float)$input['utility_deduction'] : 0.0;
             $room_condition = ($damage_deduction > 0) ? 'Needs Repair' : 'Good';
 
-            // Get application details to vacate the room
-            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name FROM rent_applications WHERE id = ?");
-            $app_stmt->bind_param("i", $id);
-            $app_stmt->execute();
-            $app_res = $app_stmt->get_result();
-            if ($app_res->num_rows > 0) {
-                $app = $app_res->fetch_assoc();
-                $full_name = $app['first_name'] . ' ' . $app['last_name'];
-                $room_name = $app['room_name'];
-                
-                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0, last_inspection_date = CURDATE(), room_condition = ? WHERE id = ?");
-                $room_stmt->bind_param("sss", $full_name, $room_condition, $room_name);
-                $room_stmt->execute();
-                $room_stmt->close();
-
-                // Update lease contract to store security deposit allocation details
-                // The security deposit is non-refundable (refund_amount is 0.00)
-                $deposit_status = 'Applied to Rent';
-                if ($damage_deduction > 0 || $utility_deduction > 0) {
-                    $deposit_status = 'Applied to Bills/Damages';
-                }
-                
-                $ctr_stmt = $conn->prepare("
-                    UPDATE lease_contracts 
-                    SET status = 'expired', 
-                        deposit_status = ?, 
-                        damage_deduction = ?, 
-                        utility_deduction = ?, 
-                        refund_amount = 0.00, 
-                        refund_date = CURDATE() 
-                    WHERE rent_application_id = ? AND status = 'active'
-                ");
-                $ctr_stmt->bind_param("sddi", $deposit_status, $damage_deduction, $utility_deduction, $id);
-                $ctr_stmt->execute();
-                $ctr_stmt->close();
+            // Update lease contract to store the security deposit allocation
+            // (non-refundable: refund_amount is always 0.00). Only settles an
+            // 'active' contract — vacate_tenant_room() below handles the
+            // room/invoices/parking/visitors every move-out shares, whatever
+            // state the contract itself is in (also used by contract
+            // termination, which ends the tenancy the same way).
+            $deposit_status = 'Applied to Rent';
+            if ($damage_deduction > 0 || $utility_deduction > 0) {
+                $deposit_status = 'Applied to Bills/Damages';
             }
-            $app_stmt->close();
+            $ctr_stmt = $conn->prepare("
+                UPDATE lease_contracts
+                SET status = 'expired',
+                    deposit_status = ?,
+                    damage_deduction = ?,
+                    utility_deduction = ?,
+                    refund_amount = 0.00,
+                    refund_date = CURDATE()
+                WHERE rent_application_id = ? AND status = 'active'
+            ");
+            $ctr_stmt->bind_param("sddi", $deposit_status, $damage_deduction, $utility_deduction, $id);
+            $ctr_stmt->execute();
+            $ctr_stmt->close();
 
             if (!empty($clearance_notes)) {
                 $notes_stmt = $conn->prepare("UPDATE rent_applications SET archive_notes = ? WHERE id = ?");
@@ -228,23 +214,13 @@ if ($id > 0 && !empty($status)) {
                 $notes_stmt->close();
             }
 
-            // Cancel any remaining pending invoices associated with this past move-out application
-            $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
-            $cancel_inv->bind_param("i", $id);
-            $cancel_inv->execute();
-            $cancel_inv->close();
-
-            // A moved-out tenant's parking slot used to stay Assigned forever,
-            // holding capacity nobody could use (checklist 10.4).
-            $owner_id = get_rent_application_owner($conn, $id);
-            $parking_released = 0;
-            if ($owner_id) {
-                $parking_released = release_user_parking($conn, $owner_id, 'Tenant moved out');
-                create_notification($conn, $owner_id, 'move_out_update', 'Move-Out Completed',
+            $vacated = vacate_tenant_room($conn, $id, $room_condition);
+            if ($vacated && $vacated['user_id']) {
+                create_notification($conn, $vacated['user_id'], 'move_out_update', 'Move-Out Completed',
                     "Your move-out has been completed and your clearance recorded. Thank you for staying with us.");
             }
 
-            log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance", "Application ID: $id, $clearance_notes" . ($parking_released ? "; parking released" : ""));
+            log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance", "Application ID: $id, $clearance_notes" . ($vacated && $vacated['parking_released'] ? "; parking released" : ""));
         } else {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         }

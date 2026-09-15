@@ -79,7 +79,11 @@ if ($id > 0) {
         // does not re-assign it — the slot may have been given to someone else.
         $parking_released = $user_id > 0 ? release_user_parking($conn, $user_id, 'Tenant archived') : 0;
 
-        log_activity($conn, $admin_id, 'tenant', "Archived Tenant", "Application ID: $id, Reason: $archiveReason" . ($archiveNotes ? ", Notes: $archiveNotes" : "") . ($parking_released ? "; parking released" : ""));
+        // A pending visitor pre-registration otherwise stayed open forever
+        // for a tenant who is no longer here to be visited (checklist 12.2).
+        $visitors_cancelled = $user_id > 0 ? cancel_user_visitor_registrations($conn, $user_id, 'Tenant archived') : 0;
+
+        log_activity($conn, $admin_id, 'tenant', "Archived Tenant", "Application ID: $id, Reason: $archiveReason" . ($archiveNotes ? ", Notes: $archiveNotes" : "") . ($parking_released ? "; parking released" : "") . ($visitors_cancelled ? "; visitor pre-registrations cancelled" : ""));
 
         $conn->commit();
         echo json_encode(["success" => true]);

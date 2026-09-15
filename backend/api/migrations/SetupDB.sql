@@ -142,6 +142,15 @@ CREATE TABLE `lease_contracts` (
   `signed_lease_path` varchar(255) DEFAULT NULL,
   `notarized_lease_path` varchar(255) DEFAULT NULL,
   `eviction_status` varchar(50) DEFAULT NULL,
+  -- Set only by the 'terminate' action (update_contract_status.php), which
+  -- also ends the tenancy via vacate_tenant_room() — distinct from the
+  -- move-out settlement fields below, which apply to a voluntary
+  -- end-of-lease move-out instead.
+  `termination_reason` text DEFAULT NULL,
+  `terminated_at` datetime DEFAULT NULL,
+  -- Claim column for the once-per-contract lease-end reminder
+  -- (run_notification_sweep() -> send_lease_end_reminders()).
+  `renewal_reminder_sent_at` datetime DEFAULT NULL,
   `deposit_status` varchar(50) DEFAULT 'Held',
   `damage_deduction` decimal(10,2) DEFAULT 0.00,
   `utility_deduction` decimal(10,2) DEFAULT 0.00,
@@ -150,6 +159,10 @@ CREATE TABLE `lease_contracts` (
   `generated_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `fk_contract_rent_app` (`rent_application_id`),
+  -- One contract per application — create_contract.php used to insert a
+  -- second row for an already-contracted application with no check, and
+  -- every consumer query joins with LIMIT 1 and picks one arbitrarily.
+  UNIQUE KEY `uniq_contract_app` (`rent_application_id`),
   CONSTRAINT `fk_contract_rent_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -429,10 +442,20 @@ CREATE TABLE `visitor_logs` (
   `id_photo_path` varchar(255) DEFAULT NULL,
   `purpose` varchar(255) NOT NULL,
   `vehicle_plate` varchar(30) DEFAULT NULL,
-  `status` enum('pending_approval','checked_in','checked_out','overstayed','denied') NOT NULL DEFAULT 'pending_approval',
+  -- 'cancelled' lets a tenant withdraw their own pending pre-registration,
+  -- and lets a moved-out/archived tenant's pending rows be closed out
+  -- automatically (cancel_user_visitor_registrations()).
+  `status` enum('pending_approval','checked_in','checked_out','overstayed','denied','cancelled') NOT NULL DEFAULT 'pending_approval',
+  -- Expected arrival for a tenant's pre-registration; check_in_at is only
+  -- ever stamped once the visitor is actually approved/admitted.
+  `expected_at` datetime DEFAULT NULL,
   `check_in_at` datetime NOT NULL DEFAULT current_timestamp(),
   `check_out_at` datetime DEFAULT NULL,
   `checkout_notes` text DEFAULT NULL,
+  -- Claim column so alert_overstayed_visitors() (called from
+  -- get_notifications.php on every poll) alerts admins/host exactly once
+  -- per visit instead of re-notifying on every page load.
+  `overstay_alerted_at` datetime DEFAULT NULL,
   `admin_notes` text DEFAULT NULL,
   `created_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -844,6 +867,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 -- automatically ('auto') or by the admin's "Bill this month" button ('manual').
 ('parking_monthly_fee', '300'),
 ('parking_billing_mode', 'manual'),
+('lease_end_reminder_days', '30'),
 -- Date of the last daily notification sweep (run_notification_sweep() in config.php).
 ('notification_sweep_last_run', '2000-01-01'),
 ('landlord_name', 'Elizabeth Angcanan'),

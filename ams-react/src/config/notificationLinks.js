@@ -34,6 +34,8 @@ export const ADMIN_NOTIFICATION_LINKS = {
   payment_verification: '/admin-payments',
   occupancy_request: '/admin-notifications',
   lease_extension_request: '/admin-notifications',
+  visitor_registration: '/admin-visitors',
+  visitor_overstay: '/admin-visitors',
 };
 
 // Fired after any change to notifications (read, delete, preferences) so every

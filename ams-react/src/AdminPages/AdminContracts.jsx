@@ -28,7 +28,6 @@ const formatCurrency = (n) => (Number.isFinite(Number(n)) ? `₱${Number(n).toLo
 
 const AdminContracts = () => {
   const [contracts, setContracts] = useState([]);
-  const [tenantOptions, setTenantOptions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -52,6 +51,7 @@ const AdminContracts = () => {
       if (res.data.success) {
         const fetched = res.data.contracts.map(c => ({
           id: c.id,
+          rentApplicationId: c.rent_application_id,
           tenant: `${c.first_name} ${c.last_name}`,
           tenantEmail: c.email,
           unit: c.room_name,
@@ -65,6 +65,7 @@ const AdminContracts = () => {
           signedLease: { uploaded: !!c.signed_lease_path, fileName: c.signed_lease_path ? c.signed_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.signed_lease_path },
           notarizedLease: { uploaded: !!c.notarized_lease_path, fileName: c.notarized_lease_path ? c.notarized_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.notarized_lease_path },
           evictionStatus: c.eviction_status,
+          terminationReason: c.termination_reason,
           overdueInfo: c.overdueInfo ? {
             daysOverdue: c.overdueInfo.daysOverdue,
             oldestDueDate: c.overdueInfo.oldestDueDate,
@@ -74,11 +75,18 @@ const AdminContracts = () => {
           } : null
         }));
         setContracts(fetched);
+        return fetched;
       }
     } catch(err) {
       console.error(err);
     }
+    return null;
   };
+
+  // Raw tenant applications from get_tenants.php, before the "already has a
+  // contract" / eligible-status filtering below (which also depends on
+  // `contracts`, fetched separately).
+  const [tenantApplications, setTenantApplications] = useState([]);
 
   const fetchTenants = async () => {
     try {
@@ -86,22 +94,31 @@ const AdminContracts = () => {
       // get_tenants.php returns { success, data: [...] } with name/unit/rent
       // already composed; rent arrives pre-formatted as "₱4,000".
       if (res.data.success && Array.isArray(res.data.data)) {
-        const eligible = res.data.data.filter(t => {
-          const s = String(t.status || '').toLowerCase();
-          return s === 'active' || s === 'approved' || s === 'pending review';
-        });
-        setTenantOptions(eligible.map(t => ({
-          id: t.id,
-          name: t.name,
-          unit: t.unit,
-          type: 'Unit',
-          rent: Number(String(t.rent ?? '').replace(/[^\d.]/g, '')) || 0
-        })));
+        setTenantApplications(res.data.data);
       }
     } catch(err) {
       console.error(err);
     }
   };
+
+  // Only an application the tenant has actually moved into can have a
+  // contract generated for it, and only if one doesn't already exist —
+  // create_contract.php now refuses both server-side (409/422), but the
+  // picker should not offer choices that will just fail.
+  const tenantOptions = useMemo(() => {
+    const contractedAppIds = new Set(contracts.map(c => c.rentApplicationId).filter(Boolean));
+    const eligible = tenantApplications.filter(t => {
+      const s = String(t.status || '').toLowerCase();
+      return (s === 'active' || s === 'approved') && !contractedAppIds.has(t.id);
+    });
+    return eligible.map(t => ({
+      id: t.id,
+      name: t.name,
+      unit: t.unit,
+      type: 'Unit',
+      rent: Number(String(t.rent ?? '').replace(/[^\d.]/g, '')) || 0
+    }));
+  }, [tenantApplications, contracts]);
 
   // getSystemSettings() is async — awaiting it once on mount instead of calling
   // it in the render body (which fired an un-awaited request per render and left
@@ -111,9 +128,12 @@ const AdminContracts = () => {
     getSystemSettings().then(s => setOverdueThresholdDays(s.overdueThresholdDays || 15));
   }, []);
 
-  // Count overdue contracts exceeding threshold
+  // Count overdue contracts exceeding threshold. Only an 'active' contract
+  // can actually be flagged (CONTRACT_TRANSITIONS) — an expired or
+  // terminated lease's tenant can still show overdue invoices, but flagging
+  // that contract would just 422.
   const evictionAlertContracts = useMemo(() => {
-    return contracts.filter(c => c.overdueInfo && c.overdueInfo.daysOverdue >= overdueThresholdDays && c.status !== 'eviction-pending');
+    return contracts.filter(c => c.overdueInfo && c.overdueInfo.daysOverdue >= overdueThresholdDays && c.status === 'active');
   }, [contracts, overdueThresholdDays]);
 
   const filtered = useMemo(() => {
@@ -265,14 +285,23 @@ const AdminContracts = () => {
     }
   };
 
+  // Re-fetches the contract list and, if the preview modal has this contract
+  // open, syncs it to whatever the server actually did — rather than
+  // guessing the new status client-side (clear's target status is
+  // date-derived server-side, and terminate changes several fields at once).
+  const refreshContract = async (contractId) => {
+    const fetched = await fetchContracts();
+    if (fetched && selectedContract && selectedContract.id === contractId) {
+      const match = fetched.find(c => c.id === contractId);
+      if (match) setSelectedContract(match);
+    }
+  };
+
   const handleActivateContract = async (contractId) => {
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'activate' });
       if (res.data.success) {
-        fetchContracts();
-        if (selectedContract && selectedContract.id === contractId) {
-          setSelectedContract(prev => ({ ...prev, status: 'active' }));
-        }
+        await refreshContract(contractId);
       } else {
         alert(res.data.message || 'Failed to activate contract.');
       }
@@ -286,24 +315,55 @@ const AdminContracts = () => {
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'flag' });
       if (res.data.success) {
-        fetchContracts();
-        if (selectedContract && selectedContract.id === contractId) {
-           setSelectedContract(prev => ({ ...prev, status: 'eviction-pending', evictionStatus: 'flagged' }));
-        }
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to flag contract for eviction.');
       }
-    } catch(err) { console.error(err); }
+    } catch(err) {
+      console.error(err);
+      alert('Failed to flag contract for eviction.');
+    }
   };
 
   const handleClearEviction = async (contractId) => {
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'clear' });
       if (res.data.success) {
-        fetchContracts();
-        if (selectedContract && selectedContract.id === contractId) {
-           setSelectedContract(prev => ({ ...prev, status: 'active', evictionStatus: null }));
-        }
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to clear eviction flag.');
       }
-    } catch(err) { console.error(err); }
+    } catch(err) {
+      console.error(err);
+      alert('Failed to clear eviction flag.');
+    }
+  };
+
+  // Terminating a lease ends the tenancy — the backend vacates the room,
+  // cancels pending invoices, releases parking and cancels the tenant's
+  // pending visitor pre-registrations. Confirmed separately from the reason
+  // prompt since it isn't reversible from this page.
+  const handleTerminateContract = async (contractId) => {
+    const reason = prompt('Reason for terminating this lease (this will also mark the tenant as moved out and vacate their unit):');
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) {
+      alert('A reason is required to terminate a contract.');
+      return;
+    }
+    if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released. Continue?')) {
+      return;
+    }
+    try {
+      const res = await api.post('/update_contract_status.php', { contractId, action: 'terminate', reason: reason.trim() });
+      if (res.data.success) {
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to terminate contract.');
+      }
+    } catch(err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to terminate contract.');
+    }
   };
 
   // Lease completeness checker
@@ -622,6 +682,30 @@ const AdminContracts = () => {
                     className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs border-0 cursor-pointer transition-all"
                   >
                     <FontAwesomeIcon icon={faCheckCircle} className="mr-1.5" /> Activate Contract
+                  </button>
+                </div>
+              )}
+
+              {selectedContract.status === 'terminated' && (
+                <div className="bg-slate-100 border border-slate-300 rounded-xl p-4">
+                  <p className="text-sm font-bold text-slate-700 m-0">This lease was terminated.</p>
+                  {selectedContract.terminationReason && (
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">Reason: {selectedContract.terminationReason}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Early termination — ends the tenancy (vacates the unit,
+                  cancels pending invoices, releases parking/visitor requests).
+                  Only offered where the backend actually allows it. */}
+              {['active', 'expired', 'eviction-pending'].includes(selectedContract.status) && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleTerminateContract(selectedContract.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faGavel} /> Terminate Lease
                   </button>
                 </div>
               )}

@@ -49,30 +49,40 @@ if (!$is_admin) {
     }
 }
 
+// A contract is only generated once the application is approved
+// (update_tenant_status.php) — this used to auto-create a blank ₱0,
+// dateless lease_contracts row for ANY rent_application_id the caller
+// owned, even a still-Pending one. When the application was later approved,
+// update_tenant_status.php saw a contract already existed and skipped
+// creating the real one, so the tenant ended up stuck with the blank row.
 if (empty($contract_id) && !empty($rent_app_id)) {
-    // Lookup or auto-create lease contract for this rent application
-    $stmt = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ? LIMIT 1");
+    $stmt = $conn->prepare("SELECT lc.id FROM lease_contracts lc
+                            JOIN rent_applications ra ON ra.id = lc.rent_application_id
+                            WHERE lc.rent_application_id = ? AND ra.status IN ('Approved', 'active', 'pending-move-out')
+                            LIMIT 1");
     $stmt->bind_param("i", $rent_app_id);
     $stmt->execute();
     $res = $stmt->get_result();
     if ($res && $res->num_rows > 0) {
         $contract_id = $res->fetch_assoc()['id'];
-    } else {
-        $contract_id = 'LC-' . uniqid();
-        $ins = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount) VALUES (?, ?, 0.00)");
-        $ins->bind_param("si", $contract_id, $rent_app_id);
-        $ins->execute();
-        $ins->close();
     }
     $stmt->close();
+
+    if (empty($contract_id)) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "Your contract is generated once your application is approved."]);
+        exit;
+    }
 }
 
 if (empty($contract_id) || empty($doc_type)) {
+    http_response_code(422);
     echo json_encode(["success" => false, "message" => "Contract ID or Rent Application ID and docType are required."]);
     exit;
 }
 
 if ($doc_type !== 'signedLease' && $doc_type !== 'notarizedLease') {
+    http_response_code(422);
     echo json_encode(["success" => false, "message" => "Invalid docType."]);
     exit;
 }
@@ -80,12 +90,29 @@ if ($doc_type !== 'signedLease' && $doc_type !== 'notarizedLease') {
 $column_name = $doc_type === 'signedLease' ? 'signed_lease_path' : 'notarized_lease_path';
 
 if ($action === 'remove') {
+    // A tenant may only remove a document while the contract is still a
+    // draft under their own review — once activated, removing a signed or
+    // notarized lease is an admin action.
+    if (!$is_admin) {
+        $status_stmt = $conn->prepare("SELECT status FROM lease_contracts WHERE id = ?");
+        $status_stmt->bind_param("s", $contract_id);
+        $status_stmt->execute();
+        $status_row = $status_stmt->get_result()->fetch_assoc();
+        $status_stmt->close();
+        if (!$status_row || $status_row['status'] !== 'draft') {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This document can no longer be removed — contact management."]);
+            exit;
+        }
+    }
+
     $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = NULL WHERE id = ?");
     $stmt->bind_param("s", $contract_id);
     if ($stmt->execute()) {
         log_activity($conn, $admin_id ?: $user_id, 'contract', "Removed Lease Document", "Document: $doc_type from Contract: $contract_id");
         echo json_encode(["success" => true, "message" => "Document removed successfully"]);
     } else {
+        http_response_code(500);
         echo json_encode(["success" => false, "message" => "Failed to remove document"]);
     }
     $stmt->close();
@@ -96,6 +123,12 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
     $file_name = basename($_FILES['file']['name']);
     $file_tmp = $_FILES['file']['tmp_name'];
     $file_ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+
+    if ($_FILES['file']['size'] > 10 * 1024 * 1024) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "File must be 10MB or smaller."]);
+        exit;
+    }
 
     $allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png'];
     if (!in_array($file_ext, $allowed_extensions)) {

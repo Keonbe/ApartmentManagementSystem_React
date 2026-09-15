@@ -3,7 +3,7 @@
 > **Project:** Apartment Management System
 > **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
 > **Context:** Small-to-medium scale apartment building (15–100 units)
-> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking, Utility Usage, Reports & Activity Log, Role-Based Access, Notification/Automation and Parking Reservation audited)
+> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking, Utility Usage, Reports & Activity Log, Role-Based Access, Notification/Automation, Parking Reservation, Contract & Document Generation, and Visitor Management audited)
 
 ---
 
@@ -26,8 +26,8 @@
 | [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [x] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
 | [x] | **Role-Based Access**                   | [x] Role-based access and permissions, [x] admin authentication, [x] tenant authentication, [x] password management, [x] account lockout, [x] sessions ended on role/password change                                                                                     |
 | [x] | **CCTV Access Requests**                | [x] Tenant CCTV footage request, [x] admin approval/rejection, [x] request status tracking                                                                                                                                                                              |
-| [x] | **Visitor Management**                  | [x] Visitor records / management, [x] tenant pre-authorization, [x] visitor history, [x] overstay alerts                                                                                                                                                                |
-| [x] | **Contract Management**                 | [x] Contract generation (auto on approval, as Draft), [x] contract viewing, [x] status management (Draft → Active → Expired, auto-expiring), [x] renewal (extends contract + audit trail in `lease_renewals`), [x] printable (PDF via browser print dialog)             |
+| [x] | **Visitor Management**                  | [x] Visitor records / management (own-tenant scoped), [x] tenant pre-authorization (reaches the admin queue, cancellable), [x] visitor history, [x] overstay alerts (actually notify admin + host, once per visit)                                                     |
+| [x] | **Contract Management**                 | [x] Contract generation (auto on approval, as Draft; one per application), [x] contract viewing (with status banner), [x] status management (Draft → Active → Eviction Pending → Expired → Terminated, transition-guarded, auto-expiring), [x] renewal (extends contract + audit trail in `lease_renewals`), [x] termination (ends the tenancy) + lease-end reminders, [x] printable (PDF via browser print dialog) |
 
 ---
 
@@ -240,16 +240,18 @@ flowchart LR
 ```mermaid
 flowchart TD
     A(["Expected Visitor"]) --> B{"Registration Method"}
-    B -->|Tenant Pre-Registers| C["Tenant Submits Visitor Info<br/>via UserVisitors.jsx"]
+    B -->|Tenant Pre-Registers| C["Tenant Submits Visitor Info + Expected Arrival<br/>via UserVisitors.jsx"]
     B -->|Walk-In| D["Admin Logs Visitor<br/>check_in_visitor.php"]
-    C --> E["Status: Pending Approval"]
-    E --> F["Admin Reviews and Approves"]
+    C --> C2["notify_admins_queue('visitor_registration')<br/>reaches the admin bell"]
+    C2 --> E["Status: Pending Approval"]
+    E -->|Tenant may Cancel| E2["Status: Cancelled"]
+    E --> F["Admin Reviews and Approves<br/>(refused if the tenant's lease has since ended)"]
     F --> G["Visitor Checked In<br/>ID Verified + Gov ID Photo"]
     D --> G
     G --> H["Record: Name, Contact, ID Type,<br/>ID Number, Host Room, Purpose, Timestamp"]
-    H --> I{"Visit Duration Check"}
+    H --> I{"Visit Duration Check<br/>(every notification poll)"}
     I -->|Within Threshold| J["Normal Visit Log"]
-    I -->|Overstay Alert| K["Alert Admin of Overstay"]
+    I -->|Overstay, once per visit| K["alert_overstayed_visitors()<br/>Admin queue + host notified"]
     K --> L["Admin Takes Action"]
     J --> M["Visitor Checks Out"]
     L --> M
@@ -270,12 +272,15 @@ flowchart TD
     F -->|Print/Download| H["Print Layout<br/>@media print CSS"]
     G --> I(["Contract Acknowledged"])
     H --> I
-    E --> J{"Lease Approaching End?"}
-    J -->|Yes| K["Lease Extension / Renewal<br/>extend_lease.php"]
-    K --> L["Updated Contract Generated<br/>New End Date + Adjusted Rate"]
+    E --> J{"Lease Approaching End?<br/>(daily sweep, lease_end_reminder_days)"}
+    J -->|Yes — tenant notified| K["Lease Extension / Renewal<br/>extend_lease.php + process_tenant_request.php"]
+    K --> L["Contract Extended in Place<br/>New End Date + lease_renewals Audit Row"]
     L --> E
-    J -->|Expired| M["Contract Status: Expired"]
-    M --> N["Archive or Terminate"]
+    J -->|Lease end passes, no action| M["Contract Status: Expired"]
+    M --> N{"Admin Decision"}
+    E --> O["Admin Terminates Early<br/>(reason required)"]
+    N -->|Terminate| O
+    O --> P["Contract Status: Terminated<br/>vacate_tenant_room(): room vacated,<br/>invoices/parking/visitors released"]
 ```
 
 ### Parking Reservation Flow
@@ -501,12 +506,13 @@ flowchart TD
 > Admin Pages: [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx)
 > Tenant Pages: [ViewContract.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ViewContract.jsx)
 
-- [x] **9.1 Lease Contract Generation** ✅ — Auto-generated on application approval (`update_tenant_status.php`), created as `draft`; rent, security deposit, lease start/end and tenant details all bound to real DB values in `ViewContract.jsx`; landlord identity comes from `system_settings`
-- [x] **9.2 Contract Viewing** ✅ — Fully wired to `lease_contracts` via `ViewContract.jsx`, scoped to the logged-in tenant (`?userId=` + `X-User-Id`); `?email=` lookup is admin-only
-- [x] **9.3 Contract Status Management** ✅ — `Draft → Active → Expired`, plus `Eviction Pending`, all implemented; auto-expiry via `expire_lapsed_contracts()` (`backend/config.php`), run opportunistically from `get_contracts.php`/`my_room.php` and on-demand via `expire_contracts.php`, same pattern as `release_expired_reservations()`. `Terminated` is a valid ENUM state but still has no admin action to reach it.
+- [x] **9.1 Lease Contract Generation** ✅ — Auto-generated on application approval (`update_tenant_status.php`), created as `draft`; rent, security deposit, lease start/end and tenant details all bound to real DB values in `ViewContract.jsx`; landlord identity comes from `system_settings`. The admin "Generate Contract" button (`create_contract.php`) now refuses to create a second contract for an application that already has one (`UNIQUE KEY` on `rent_application_id`) and only accepts an approved application
+- [x] **9.2 Contract Viewing** ✅ — Fully wired to `lease_contracts` via `ViewContract.jsx`, scoped to the logged-in tenant (session-verified `?userId=`); `?email=` lookup is admin-only. The page now shows a status banner (screen only) when the contract is `draft`, `eviction-pending`, `expired` or `terminated`, so a draft doesn't read as final
+- [x] **9.3 Contract Status Management** ✅ — `Draft → Active → Eviction Pending → Expired → Terminated`, every transition gated by a `CONTRACT_TRANSITIONS` map in `backend/config.php` (previously unenforced — "Clear eviction flag" could activate a still-unreviewed draft, or reactivate an already-terminated lease). Auto-expiry via `expire_lapsed_contracts()`, run opportunistically from `get_contracts.php`/`my_room.php` and from the daily sweep (§17), same pattern as `release_expired_reservations()`. `Terminated` is now reachable via a `terminate` action, which also ends the tenancy — see 9.7
 - [x] **9.4 Contract Renewal** ✅ — `process_tenant_request.php` extends the tenant's existing `lease_contracts` row (transaction-wrapped, resolves the application once instead of two divergent queries, reactivates an `expired` contract on renewal) and records every extension in the new `lease_renewals` audit table (added months, previous/new end date, rent at time of renewal). Renewal still amends the one contract row per application rather than creating a separate versioned document — the schema has no per-contract rate column to version in the first place (rate is always read live from `rent_applications.monthly_rent`).
 - [x] **9.5 Printable** ✅ — High-fidelity 4-page `@media print` CSS in `ViewContract.jsx`. **Note:** "Downloadable" is via the browser's *Save as PDF* in the print dialog; there is no PDF library or server-side PDF export in the project
-- [x] **9.6 Eviction Monitoring** ✅ — `AdminContracts.jsx`'s overdue-payment banner, per-contract eviction panel, and Flag/Clear actions were previously unreachable dead UI (`overdueInfo` was hardcoded `null`). `get_contracts.php` now computes real per-tenant overdue totals and days-overdue from `invoices`, so the eviction workflow is fully wired end to end.
+- [x] **9.6 Eviction Monitoring** ✅ — `AdminContracts.jsx`'s overdue-payment banner, per-contract eviction panel, and Flag/Clear actions were previously unreachable dead UI (`overdueInfo` was hardcoded `null`). `get_contracts.php` now computes real per-tenant overdue totals and days-overdue from `invoices`, so the eviction workflow is fully wired end to end. Flagging is now only offered/accepted from an `active` contract.
+- [x] **9.7 Lease-End Reminders & Termination** ✅ — New: a tenant is notified once, `lease_end_reminder_days` (default 30) before `lease_end` (`send_lease_end_reminders()`, daily sweep), covering the panel flow's "Lease approaching end?" step. A new admin *Terminate Lease* action ends a lease early (reason required) and, since ending a lease means ending the tenancy, also vacates the room, cancels pending invoices, and releases parking/visitor requests — the same `vacate_tenant_room()` helper the ordinary move-out flow uses.
 
 ---
 
@@ -543,9 +549,10 @@ flowchart TD
 > Admin Pages: [AdminVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminVisitors.jsx)
 > Tenant Pages: [UserVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserVisitors.jsx)
 
-- [x] **12.1 Visitor Log Entry** ✅ — `check_in_visitor.php`, `visitor_logs` table (with ID type, ID number & Gov ID photo upload). The photo column was missing from the schema, so check-in failed until September 2026. A tenant can only register visitors for their own unit, and ID photos are validated
-- [x] **12.2 Tenant Pre-Authorization / Registration** ✅ — Tenant self-registration with `pending_approval` admin review
-- [x] **12.3 Visitor History & Overstay Alerts** ✅ — `get_visitors.php` role-scoped query, status/date/unit filters, overstay threshold alerts
+- [x] **12.1 Visitor Log Entry** ✅ — `check_in_visitor.php`, `visitor_logs` table (with ID type, ID number & Gov ID photo upload). The photo column was missing from the schema, so check-in failed until September 2026. A tenant can only register visitors for their own unit, and every field is now validated server-side (length caps, contact format, an allowlisted ID type) — the database has no `STRICT` `sql_mode`, so an over-length value used to be silently truncated rather than rejected. A tenant's registration also records an `expected_at` arrival time and can be switched off entirely via `service_visitor_management_active`
+- [x] **12.2 Tenant Pre-Authorization / Registration** ✅ — Tenant self-registration with `pending_approval` admin review, which now actually reaches the admin action queue (`notify_admins_queue()`/`resolve_admin_queue()` — previously a pre-registration sat with nothing telling an admin it was waiting). A tenant can cancel their own still-pending registration, and a moved-out or archived tenant's pending registrations are cancelled automatically
+- [x] **12.3 Visitor History** ✅ — `get_visitors.php`, status/date/unit filters. A tenant's view is scoped strictly to visitors they registered (`user_id`) — it previously also matched by current room, which surfaced a **previous occupant's** visitors (names, phone numbers, ID numbers) to whoever rents the unit next
+- [x] **12.4 Overstay Alerts** ✅ — Previously "overstayed" was only a label computed when the list was read; nobody was actually notified. `alert_overstayed_visitors()` now queues an admin alert and notifies the host once per visit (claimed via `overstay_alerted_at`), checked on every notification poll rather than the once-a-day sweep, since the threshold is in hours
 
 ---
 
@@ -561,13 +568,13 @@ flowchart TD
 | 6. Notification | 8 | 6 | 0 | 2 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
 | 8. Dashboard & Reports | 8 | 7 | 0 | 1 | 0 |
-| 9. Contracts | 6 | 6 | 0 | 0 | 0 |
+| 9. Contracts | 7 | 7 | 0 | 0 | 0 |
 | 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
-| 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **83** | **71** | **2** | **10** | **0** |
+| 12. Visitor Management | 4 | 4 | 0 | 0 | 0 |
+| **TOTAL** | **85** | **73** | **2** | **10** | **0** |
 
-> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation.
+> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4).
 
 ### Core Functionality Coverage
 
@@ -578,7 +585,7 @@ flowchart TD
 | Maintenance Request | Module 4 (10 features) |
 | Inquiry and Reservation | Module 1.8 (inquiries + unit reservations), Module 10, Module 11.5, Module 12 |
 | Report Generation | Module 8 (8 features) |
-| Modular Services | Module 5 (5 features) + Module 12 (3 features) |
+| Modular Services | Module 5 (5 features) + Module 12 (4 features) |
 
 ---
 
@@ -784,11 +791,13 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 9.1 | **Lease Contract Generation** | Auto-fill contract template: tenant name, unit, rate, lease dates, deposit amounts, terms & conditions | Small+ | `create_contract.php`, `lease_contracts` table | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
-| 9.2 | **Contract Viewing** | Tenant can view their active contract in-app; admin can view any tenant's contract | Small+ | `get_contracts.php`, `ViewContract.jsx` | — |
-| 9.3 | **Contract Status Management** | Track: Draft → Active → Expired → Terminated. Auto-expire when lease end date passes | Small+ | `update_contract_status.php`, `AdminContracts.jsx` | — |
-| 9.4 | **Contract Renewal** | On lease extension, generate updated contract with new end date and any rate changes | Medium | `extend_lease.php`, `process_tenant_request.php` | — |
+| 9.1 | **Lease Contract Generation** | Auto-fill contract template on approval: tenant name, unit, rate, lease dates, deposit amounts, terms & conditions, created as `draft`. Admin can also generate one manually (`create_contract.php`), refused if the application isn't approved yet or already has a contract | Small+ | `update_tenant_status.php`, `create_contract.php`, `lease_contracts` table (`UNIQUE` on `rent_application_id`) | [module_verification_guide.md §15](../documentation/module_verification_guide.md) |
+| 9.2 | **Contract Viewing** | Tenant can view their own contract in-app, with a status banner when it isn't `active`; admin can view any tenant's contract | Small+ | `get_contracts.php`, `ViewContract.jsx` | [module_verification_guide.md §15](../documentation/module_verification_guide.md) |
+| 9.3 | **Contract Status Management** | Track: Draft → Active → Eviction Pending → Expired → Terminated, every transition gated by `CONTRACT_TRANSITIONS`. Auto-expire when lease end date passes | Small+ | `update_contract_status.php`, `CONTRACT_TRANSITIONS` in `config.php`, `expire_lapsed_contracts()`, `AdminContracts.jsx` | [module_verification_guide.md §15](../documentation/module_verification_guide.md) |
+| 9.4 | **Contract Renewal** | On lease extension, extend the existing contract's end date and any rate changes, with an audit trail | Medium | `extend_lease.php`, `process_tenant_request.php`, `lease_renewals` table | — |
 | 9.5 | **Downloadable / Printable** | Export contract as PDF or printable HTML for tenant/admin records | Medium | `ViewContract.jsx` print layout | — |
+| 9.6 | **Eviction Monitoring** | Flag/clear an eviction review from overdue-payment data, only while the lease is `active` | Medium | `update_contract_status.php` (`flag`/`clear`), `get_contracts.php`'s `overdueInfo`, `AdminContracts.jsx` | [module_verification_guide.md §15](../documentation/module_verification_guide.md) |
+| 9.7 | **Lease-End Reminders & Termination** | Tenant is reminded once before `lease_end`; admin can terminate a lease early (reason required), which also ends the tenancy — vacates the room, cancels pending invoices, releases parking/visitor requests | Small+ | `send_lease_end_reminders()`, `update_contract_status.php` (`terminate`), `vacate_tenant_room()` in `config.php` | [module_verification_guide.md §15](../documentation/module_verification_guide.md) |
 
 ---
 
@@ -825,9 +834,10 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 12.1 | **Visitor Log Entry** | Record visitor: full name, contact, ID type/number, vehicle plate, host room, purpose, timestamp | Small+ | `check_in_visitor.php`, `visitor_logs` table, `AdminVisitors.jsx`, `UserVisitors.jsx` | — |
-| 12.2 | **Tenant Pre-Authorization / Registration** | Tenant pre-registers expected guest via tenant portal; enters `pending_approval` state for admin review | Small+ | `UserVisitors.jsx`, `check_in_visitor.php`, `update_visitor_status.php` | — |
-| 12.3 | **Visitor History & Overstay Alerts** | Admin views visitor log with unit/status/date filters, search, checkout action, and configurable overstay alerts (1h to 7d) | Small+ | `get_visitors.php`, `update_visitor_status.php`, `AdminVisitors.jsx` | — |
+| 12.1 | **Visitor Log Entry** | Record visitor: full name, contact, ID type/number, vehicle plate, expected arrival, host room, purpose, timestamp. Every field validated server-side (length, format, an allowlisted ID type); registration can be switched off via `service_visitor_management_active` | Small+ | `check_in_visitor.php`, `visitor_logs` table, `AdminVisitors.jsx`, `UserVisitors.jsx` | [module_verification_guide.md §16](../documentation/module_verification_guide.md) |
+| 12.2 | **Tenant Pre-Authorization / Registration** | Tenant pre-registers expected guest via tenant portal; enters `pending_approval` state for admin review, reaching the admin action queue; the tenant can cancel their own pending registration, and it's cancelled automatically on move-out/archive | Small+ | `UserVisitors.jsx`, `check_in_visitor.php`, `update_visitor_status.php`, `cancel_user_visitor_registrations()` | [module_verification_guide.md §16](../documentation/module_verification_guide.md) |
+| 12.3 | **Visitor History** | Admin views visitor log with unit/status/date filters, search, checkout action. A tenant's own view is scoped strictly to visitors they registered | Small+ | `get_visitors.php`, `update_visitor_status.php`, `AdminVisitors.jsx` | [module_verification_guide.md §16](../documentation/module_verification_guide.md) |
+| 12.4 | **Overstay Alerts** | A checked-in visitor past the configurable threshold (1h–168h) actually alerts the admin queue and notifies the host, once per visit | Small+ | `alert_overstayed_visitors()` in `config.php`, called from `get_notifications.php`/`get_visitors.php` | [module_verification_guide.md §16](../documentation/module_verification_guide.md) |
 
 ---
 

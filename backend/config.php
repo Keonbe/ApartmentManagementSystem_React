@@ -118,18 +118,140 @@ function release_expired_reservations($conn) {
     return $released;
 }
 
-// Expires lease contracts whose lease_end has passed. Only 'active' contracts
-// are affected — a 'draft' contract was never activated so it has nothing to
-// expire, and 'terminated'/'eviction-pending' are already terminal states.
-// UPDATE-only (no DDL) and safe to call opportunistically, same pattern as
-// release_expired_reservations() above.
+// Expires lease contracts whose lease_end has passed, notifying each tenant.
+// Only 'active' contracts are affected — a 'draft' contract was never
+// activated so it has nothing to expire, and 'terminated'/'eviction-pending'
+// are already terminal states. Safe to call opportunistically
+// (get_contracts.php, my_room.php) as well as from the daily sweep, same
+// pattern as release_expired_reservations() above — each row is guarded on
+// its own previous status, so a concurrent call can't double-notify.
 function expire_lapsed_contracts($conn) {
-    $stmt = $conn->prepare("UPDATE lease_contracts SET status = 'expired' WHERE status = 'active' AND lease_end IS NOT NULL AND lease_end < CURDATE()");
+    $stmt = $conn->prepare("SELECT lc.id, ra.user_id FROM lease_contracts lc
+                            JOIN rent_applications ra ON ra.id = lc.rent_application_id
+                            WHERE lc.status = 'active' AND lc.lease_end IS NOT NULL AND lc.lease_end < CURDATE()");
     if (!$stmt) return 0; // column/table not migrated yet
     $stmt->execute();
-    $count = $stmt->affected_rows;
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
+    if (empty($rows)) return 0;
+
+    $upd = $conn->prepare("UPDATE lease_contracts SET status = 'expired' WHERE id = ? AND status = 'active'");
+    $count = 0;
+    foreach ($rows as $row) {
+        $upd->bind_param("s", $row['id']);
+        $upd->execute();
+        if ($upd->affected_rows === 0) continue; // already expired by a concurrent call
+        $count++;
+        if (!empty($row['user_id'])) {
+            create_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Contract Expired',
+                "Your lease contract ({$row['id']}) has expired. Contact management about renewal or move-out.");
+        }
+    }
+    $upd->close();
     return $count;
+}
+
+// Sweep step: notifies a tenant once, `lease_end_reminder_days` before their
+// active contract's lease_end, so "Lease approaching end?" (panel flow) is
+// something a tenant is actually told about rather than only visible if they
+// happen to open View Contract. Claimed via renewal_reminder_sent_at, so a
+// forced re-run the same day never sends a duplicate.
+function send_lease_end_reminders($conn) {
+    $days = max(0, (int)get_setting($conn, 'lease_end_reminder_days', 30));
+    $stmt = $conn->prepare("SELECT lc.id, ra.user_id, ra.room_name, lc.lease_end FROM lease_contracts lc
+                            JOIN rent_applications ra ON ra.id = lc.rent_application_id
+                            WHERE lc.status = 'active' AND lc.renewal_reminder_sent_at IS NULL
+                              AND lc.lease_end IS NOT NULL
+                              AND lc.lease_end >= CURDATE() AND DATEDIFF(lc.lease_end, CURDATE()) <= ?");
+    if (!$stmt) return 0; // column not migrated yet
+    $stmt->bind_param("i", $days);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $sent = 0;
+    $claim = $conn->prepare("UPDATE lease_contracts SET renewal_reminder_sent_at = NOW() WHERE id = ? AND renewal_reminder_sent_at IS NULL");
+    foreach ($rows as $row) {
+        $claim->bind_param("s", $row['id']);
+        $claim->execute();
+        if ($claim->affected_rows === 0) continue; // claimed by a concurrent run
+        $sent++;
+        if (!empty($row['user_id'])) {
+            $unit = !empty($row['room_name']) ? "Unit {$row['room_name']}" : 'your unit';
+            $end = date('M j, Y', strtotime($row['lease_end']));
+            create_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
+                "Your lease for $unit ends on $end. Visit My Room to request an extension if you'd like to stay.");
+        }
+    }
+    $claim->close();
+    return $sent;
+}
+
+// ── Lease contracts (checklist Module 9) ──
+// Keyed by current status; each entry lists the update_contract_status.php
+// actions allowed from it. 'clear' resolves to 'active' or 'expired'
+// depending on whether lease_end has passed — this map names the action,
+// not a fixed target status. Sweep-driven expiry (active -> expired once
+// lease_end passes) happens outside this map, in expire_lapsed_contracts().
+const CONTRACT_TRANSITIONS = [
+    'draft'            => ['activate'],
+    'active'           => ['flag', 'terminate', 'edit'],
+    'eviction-pending' => ['clear', 'terminate', 'edit'],
+    'expired'          => ['terminate', 'edit'],
+    'terminated'       => [],
+];
+
+function contract_action_allowed($current_status, $action) {
+    $allowed = CONTRACT_TRANSITIONS[$current_status] ?? [];
+    return in_array($action, $allowed, true);
+}
+
+// Ends a tenant's occupancy of their room: vacates the unit, cancels any
+// still-pending invoices for the application, releases parking
+// (release_user_parking()) and cancels pending visitor pre-registrations
+// (cancel_user_visitor_registrations()) — both of which notify the tenant on
+// their own. Does NOT touch rent_applications.status or lease_contracts;
+// callers own those. Shared by the ordinary move-out clearance flow
+// (update_tenant_status.php) and contract termination
+// (update_contract_status.php's 'terminate' action), so terminating a lease
+// actually ends the tenancy instead of leaving the contract out of step with
+// a still-active application.
+//
+// Returns null if the application doesn't exist; otherwise
+// ['room_name' => ?string, 'user_id' => ?int, 'parking_released' => int,
+// 'visitors_cancelled' => int].
+function vacate_tenant_room($conn, $app_id, $room_condition = 'Good') {
+    $stmt = $conn->prepare("SELECT first_name, last_name, room_name, user_id FROM rent_applications WHERE id = ?");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $app = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$app) return null;
+
+    $full_name = trim($app['first_name'] . ' ' . $app['last_name']);
+    $room_name = $app['room_name'];
+    $user_id = $app['user_id'] ? (int)$app['user_id'] : null;
+
+    if (!empty($room_name)) {
+        $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0, last_inspection_date = CURDATE(), room_condition = ? WHERE id = ?");
+        $room_stmt->bind_param("sss", $full_name, $room_condition, $room_name);
+        $room_stmt->execute();
+        $room_stmt->close();
+    }
+
+    $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
+    $cancel_inv->bind_param("i", $app_id);
+    $cancel_inv->execute();
+    $cancel_inv->close();
+
+    $parking_released = 0;
+    $visitors_cancelled = 0;
+    if ($user_id) {
+        $parking_released = release_user_parking($conn, $user_id, 'Tenant moved out');
+        $visitors_cancelled = cancel_user_visitor_registrations($conn, $user_id, 'Tenant moved out');
+    }
+
+    return ['room_name' => $room_name, 'user_id' => $user_id, 'parking_released' => $parking_released, 'visitors_cancelled' => $visitors_cancelled];
 }
 
 // Posts a completed service request's cost onto the tenant's invoice for the
@@ -781,7 +903,7 @@ function clear_login_failures($conn, $email) {
 const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     'rent_application', 'maintenance_request', 'cctv_request', 'parking_reservation',
     'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request',
-    'payment_verification'
+    'payment_verification', 'visitor_registration', 'visitor_overstay'
 ];
 
 function admin_queue_types_sql() {
@@ -888,8 +1010,12 @@ function get_setting($conn, $key, $default = null) {
     return $row ? $row['setting_value'] : $default;
 }
 
-// Daily automation (checklist 6.2 / 6.3 / 10.3): overdue promotion, rent-due and
-// overdue reminders, parking permit expiry and automatic parking billing.
+// Daily automation (checklist 6.2 / 6.3 / 9.6 / 10.3): overdue promotion,
+// rent-due and overdue reminders, contract expiry and lease-end reminders,
+// parking permit expiry and automatic parking billing. Visitor overstay
+// alerts (checklist 12.3) are NOT here — their threshold is in hours, so
+// alert_overstayed_visitors() runs on every get_notifications.php poll
+// instead of once a day.
 //
 // There is no always-on scheduler in XAMPP, so this runs from two places:
 //   - get_notifications.php, which every signed-in page polls — the first request
@@ -923,6 +1049,8 @@ function run_notification_sweep($conn, $force = false) {
         'overdue_reminders_sent' => 0,
         'parking_released' => 0,
         'parking_charges_posted' => 0,
+        'contracts_expired' => 0,
+        'lease_end_reminders_sent' => 0,
     ];
 
     $reminders_enabled = get_setting($conn, 'rent_due_reminders_enabled', 'true') !== 'false';
@@ -982,11 +1110,15 @@ function run_notification_sweep($conn, $force = false) {
         }
     }
 
+    $result['contracts_expired'] = expire_lapsed_contracts($conn);
+    $result['lease_end_reminders_sent'] = send_lease_end_reminders($conn);
+
     $did = $result['marked_overdue'] + $result['upcoming_reminders_sent'] + $result['overdue_reminders_sent']
-         + $result['parking_released'] + $result['parking_charges_posted'];
+         + $result['parking_released'] + $result['parking_charges_posted']
+         + $result['contracts_expired'] + $result['lease_end_reminders_sent'];
     if ($did > 0) {
         log_activity($conn, null, 'system', 'Daily Notification Sweep',
-            "Marked overdue: {$result['marked_overdue']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}",
+            "Marked overdue: {$result['marked_overdue']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}; contracts expired: {$result['contracts_expired']}; lease-end reminders sent: {$result['lease_end_reminders_sent']}",
             0);
     }
 
@@ -1260,6 +1392,68 @@ function release_lapsed_parking($conn) {
         $released++;
     }
     return $released;
+}
+
+// ── Visitor management (checklist Module 12) ──
+
+// Ends a user's open visitor pre-registrations when their tenancy ends
+// (move-out, archive, contract termination): a Pending request is Cancelled.
+// Mirrors release_user_parking() above. Returns rows changed.
+function cancel_user_visitor_registrations($conn, $user_id, $reason) {
+    $stmt = $conn->prepare("SELECT id, visitor_name, room_name FROM visitor_logs WHERE user_id = ? AND status = 'pending_approval'");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    foreach ($rows as $r) {
+        $upd = $conn->prepare("UPDATE visitor_logs SET status = 'cancelled', admin_notes = ? WHERE id = ? AND status = 'pending_approval'");
+        $upd->bind_param("si", $reason, $r['id']);
+        $upd->execute();
+        $upd->close();
+        resolve_admin_queue($conn, 'visitor_registration', $r['id']);
+    }
+    return count($rows);
+}
+
+// Alerts admins and the host tenant, once per visit, when a checked-in
+// visitor has stayed past the configurable overstay threshold. Before this
+// existed, "overstayed" was only a label computed at read time — nobody was
+// actually notified (panel flow: "Alert Admin of Overstay"). Called from
+// get_notifications.php on every poll: the threshold is in hours, so the
+// once-a-day sweep is too coarse. overstay_alerted_at is the atomic claim,
+// so a race between two requests can never double-alert one visit.
+function alert_overstayed_visitors($conn) {
+    $hours = (int)get_setting($conn, 'visitor_overstay_hours', 24);
+    if ($hours <= 0) $hours = 24;
+
+    $stmt = $conn->prepare("SELECT id, user_id, visitor_name, room_name FROM visitor_logs
+                            WHERE status = 'checked_in' AND overstay_alerted_at IS NULL
+                              AND TIMESTAMPDIFF(HOUR, check_in_at, NOW()) >= ?");
+    if (!$stmt) return 0; // column not migrated yet
+    $stmt->bind_param("i", $hours);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $alerted = 0;
+    $claim = $conn->prepare("UPDATE visitor_logs SET overstay_alerted_at = NOW() WHERE id = ? AND overstay_alerted_at IS NULL");
+    foreach ($rows as $r) {
+        $claim->bind_param("i", $r['id']);
+        $claim->execute();
+        if ($claim->affected_rows === 0) continue; // claimed by a concurrent poll
+        $alerted++;
+
+        $unit = $r['room_name'] ?: 'a unit';
+        notify_admins_queue($conn, 'visitor_overstay', $r['id'], "Visitor Overstay: {$r['visitor_name']}",
+            "{$r['visitor_name']} has stayed past $hours hour(s) at Unit $unit and has not checked out.");
+        if (!empty($r['user_id'])) {
+            create_notification($conn, (int)$r['user_id'], 'visitor_log', 'Visitor Overstay',
+                "Your visitor {$r['visitor_name']} has stayed past $hours hour(s). Please check them out or contact management.");
+        }
+    }
+    $claim->close();
+    return $alerted;
 }
 
 // ── Activity log vocabulary (checklist 8.6) ──

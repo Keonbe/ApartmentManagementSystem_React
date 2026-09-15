@@ -27,9 +27,11 @@ export default function UserVisitors() {
     purpose: 'Personal Visit',
     idType: 'National ID',
     idNumber: '',
-    vehiclePlate: ''
+    vehiclePlate: '',
+    expectedAt: ''
   });
   const [submitting, setSubmitting] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
 
   useEffect(() => {
     fetchTenantData();
@@ -47,8 +49,9 @@ export default function UserVisitors() {
         }
       }
 
-      // 2. Get tenant's scoped visitor records
-      const res = await api.get(`get_visitors.php?userId=${loggedInUser.id}`);
+      // 2. Get tenant's scoped visitor records. The server scopes this to
+      // the session regardless of any userId query param, so it isn't sent.
+      const res = await api.get('get_visitors.php');
       if (res.data.success) {
         setVisitors(res.data.visitors || []);
       } else {
@@ -64,12 +67,14 @@ export default function UserVisitors() {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    if (!registerForm.visitorName || !registerForm.contactNumber) {
+    if (!registerForm.visitorName || !registerForm.contactNumber || !registerForm.expectedAt) {
       alert('Please fill in all required fields.');
       return;
     }
     setSubmitting(true);
     try {
+      // The unit and host are always the tenant's own current tenancy —
+      // resolved server-side from the session, not from anything posted here.
       let payload;
       let headers = {};
 
@@ -81,16 +86,12 @@ export default function UserVisitors() {
         payload.append('idType', registerForm.idType);
         payload.append('idNumber', registerForm.idNumber);
         payload.append('vehiclePlate', registerForm.vehiclePlate);
+        payload.append('expectedAt', registerForm.expectedAt);
         payload.append('idPhoto', registerForm.idPhoto);
-        payload.append('unit', tenantRoom || 'Unassigned');
-        payload.append('userId', loggedInUser.id);
         headers = { 'Content-Type': 'multipart/form-data' };
       } else {
-        payload = {
-          ...registerForm,
-          unit: tenantRoom || 'Unassigned',
-          userId: loggedInUser.id
-        };
+        const { idPhoto, ...rest } = registerForm;
+        payload = rest;
       }
 
       const res = await api.post('check_in_visitor.php', payload, { headers });
@@ -103,6 +104,7 @@ export default function UserVisitors() {
           idType: 'National ID',
           idNumber: '',
           vehiclePlate: '',
+          expectedAt: '',
           idPhoto: null
         });
         fetchTenantData();
@@ -111,7 +113,7 @@ export default function UserVisitors() {
       }
     } catch (err) {
       console.error('Registration failed:', err);
-      alert('Server error registering visitor.');
+      alert(err.response?.data?.message || 'Server error registering visitor.');
     } finally {
       setSubmitting(false);
     }
@@ -135,9 +137,27 @@ export default function UserVisitors() {
     }
   };
 
+  const handleCancelRegistration = async (id) => {
+    if (!window.confirm('Cancel this visitor pre-registration?')) return;
+    setCancellingId(id);
+    try {
+      const res = await api.post('update_visitor_status.php', { id, action: 'cancel' });
+      if (res.data.success) {
+        fetchTenantData();
+      } else {
+        alert(res.data.message || 'Failed to cancel registration.');
+      }
+    } catch (err) {
+      console.error('Failed to cancel registration:', err);
+      alert(err.response?.data?.message || 'Failed to cancel registration.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const activeVisitors = visitors.filter(v => v.status === 'checked_in' || v.status === 'overstayed');
   const pendingVisitors = visitors.filter(v => v.status === 'pending_approval');
-  const pastVisitors = visitors.filter(v => v.status === 'checked_out' || v.status === 'denied');
+  const pastVisitors = visitors.filter(v => v.status === 'checked_out' || v.status === 'denied' || v.status === 'cancelled');
 
   return (
     <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
@@ -242,9 +262,22 @@ export default function UserVisitors() {
                     <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5">Pending Review</span>
                   </div>
                   <p className="text-xs text-slate-500 m-0 mt-1">Contact: {v.contactNumber} • Purpose: {v.purpose}</p>
+                  {v.expectedAt && (
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                      Expected {new Date(v.expectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
                   {v.vehiclePlate && (
                     <p className="text-[11px] text-indigo-600 font-mono font-bold m-0 mt-0.5">Vehicle: {v.vehiclePlate}</p>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => handleCancelRegistration(v.id)}
+                    disabled={cancellingId === v.id}
+                    className="mt-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 text-[11px] font-bold transition-colors border-0 cursor-pointer disabled:opacity-50"
+                  >
+                    {cancellingId === v.id ? t('visitors.cancelling') : t('visitors.cancelRegistration')}
+                  </button>
                 </div>
               ))}
             </div>
@@ -331,6 +364,9 @@ export default function UserVisitors() {
                         {v.status === 'denied' && (
                           <span className="rounded-full bg-red-100 text-red-700 text-[10px] font-bold px-2.5 py-1">Declined</span>
                         )}
+                        {v.status === 'cancelled' && (
+                          <span className="rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold px-2.5 py-1">Cancelled</span>
+                        )}
                       </td>
 
                     </tr>
@@ -363,6 +399,7 @@ export default function UserVisitors() {
 
             <p className="text-xs text-slate-500 leading-relaxed mb-4">
               {t('visitors.modalDesc')}
+              {tenantRoom && <> {t('visitors.modalUnitNote')} <span className="font-bold text-slate-700">Unit {tenantRoom}</span>.</>}
             </p>
 
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
@@ -403,6 +440,19 @@ export default function UserVisitors() {
                   <option value="Official / Business">Official / Business</option>
                   <option value="Short Stay Guest">Short Stay Guest</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedAt')} *</label>
+                <input
+                  type="datetime-local"
+                  required
+                  min={new Date().toISOString().slice(0, 16)}
+                  max={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)}
+                  value={registerForm.expectedAt}
+                  onChange={(e) => setRegisterForm({ ...registerForm, expectedAt: e.target.value })}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

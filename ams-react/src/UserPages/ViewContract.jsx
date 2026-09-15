@@ -72,9 +72,11 @@ export default function ViewContract() {
 
                 let contractRes = await api.get(contractQuery);
                 let data = null;
+                let contractStatus = null; // only meaningful when `data` came from get_contracts.php — my_room.php's `status` field is the application's status, not the contract's
 
                 if (contractRes.data.success && contractRes.data.contract) {
                     data = contractRes.data.contract;
+                    contractStatus = data.status || null;
                 } else if (activeEmail) {
                     const fallbackRes = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
                     if (fallbackRes.data.success && fallbackRes.data.data) {
@@ -105,6 +107,7 @@ export default function ViewContract() {
                         leaseEndDate: formatLongDate(data.lease_end),
                         dueDateDay: hasValidStart ? startDate.getDate() : null,
                         isTentative: isTentative,
+                        status: contractStatus,
                         signedLeasePath: data.signed_lease_path || null,
                         notarizedLeasePath: data.notarized_lease_path || null
                     });
@@ -215,6 +218,22 @@ export default function ViewContract() {
                     </button>
                 </div>
             </div>
+
+            {/* Status banner — screen only, so a Draft/expired/terminated lease
+                doesn't read as final just because the printed contract body
+                below has no place to show it. */}
+            {contractData.status && contractData.status !== 'active' && (
+                <div className={`w-full max-w-3xl mb-6 print:hidden rounded-xl border px-4 py-3 text-xs font-semibold ${
+                    contractData.status === 'draft' ? 'bg-amber-50 border-amber-200 text-amber-800'
+                    : contractData.status === 'eviction-pending' ? 'bg-red-50 border-red-200 text-red-800'
+                    : 'bg-slate-100 border-slate-300 text-slate-600'
+                }`}>
+                    {contractData.status === 'draft' && t('contract.statusDraft')}
+                    {contractData.status === 'eviction-pending' && t('contract.statusEvictionPending')}
+                    {contractData.status === 'expired' && t('contract.statusExpired')}
+                    {contractData.status === 'terminated' && t('contract.statusTerminated')}
+                </div>
+            )}
 
             {/* Executed copies the tenant has already uploaded */}
             {(contractData.signedLeasePath || contractData.notarizedLeasePath) && (

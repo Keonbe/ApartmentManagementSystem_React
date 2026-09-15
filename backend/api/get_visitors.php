@@ -17,6 +17,15 @@ $auth = require_user($conn);
 $isAdmin = $auth['role'] === 'admin';
 $user_id = $auth['id'];
 
+// Alert admins/host on any visit that has just crossed the overstay
+// threshold — cheap and indexed, and this page is the one place both
+// audiences actually look at visitor status.
+try {
+    alert_overstayed_visitors($conn);
+} catch (Throwable $e) {
+    error_log('[AMS] alert_overstayed_visitors: ' . $e->getMessage());
+}
+
 try {
     // 1. Fetch configurable overstay threshold from system_settings
     $overstay_hours = 24;
@@ -33,11 +42,14 @@ try {
 
     // Scoping
     if (!$isAdmin) {
-        // Tenant view: filter by tenant user_id or matching room
-        $where_clauses[] = "(v.user_id = ? OR v.room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')))";
+        // Tenant view: strictly the visitors THIS tenant registered or was
+        // hosting (walk-ins are stamped with the current occupant's user_id
+        // at check-in). Matching by current room used to also surface a
+        // PREVIOUS occupant's visitors for the same unit — names, phone
+        // numbers and ID numbers included.
+        $where_clauses[] = "v.user_id = ?";
         $params[] = (int)$user_id;
-        $params[] = (int)$user_id;
-        $types .= "ii";
+        $types .= "i";
     } else {
         if (!empty($_GET['unit']) && $_GET['unit'] !== 'all') {
             $where_clauses[] = "v.room_name = ?";
@@ -137,6 +149,7 @@ try {
             'rawStatus' => $row['status'],
             'status' => $display_status,
             'isOverstayed' => $is_overstayed,
+            'expectedAt' => $row['expected_at'],
             'checkInAt' => $row['check_in_at'],
             'checkOutAt' => $row['check_out_at'],
             'checkoutNotes' => $row['checkout_notes'] ?? '',
@@ -152,9 +165,9 @@ try {
     $stats_params = [];
     $stats_types = "";
     if (!$isAdmin) {
-        $stats_scope = "WHERE (user_id = ? OR room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out')))";
-        $stats_params = [(int)$user_id, (int)$user_id];
-        $stats_types = "ii";
+        $stats_scope = "WHERE user_id = ?";
+        $stats_params = [(int)$user_id];
+        $stats_types = "i";
     }
 
     // Queries for stats
@@ -168,7 +181,7 @@ try {
 
     $stmt_stats = $conn->prepare($stats_sql);
     if (!$isAdmin) {
-        $stmt_stats->bind_param("iiii", $overstay_hours, $overstay_hours, ...$stats_params);
+        $stmt_stats->bind_param("ii" . $stats_types, $overstay_hours, $overstay_hours, ...$stats_params);
     } else {
         $stmt_stats->bind_param("ii", $overstay_hours, $overstay_hours);
     }

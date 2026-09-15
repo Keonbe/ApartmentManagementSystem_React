@@ -9,6 +9,7 @@ import {
   faDoorOpen, faInfoCircle, faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 
 export default function AdminVisitors() {
@@ -229,6 +230,7 @@ export default function AdminVisitors() {
     { key: 'overstayed', label: 'Overstayed', count: stats.overstay_count, color: 'text-rose-600 bg-rose-50' },
     { key: 'checked_out', label: 'Checked Out' },
     { key: 'denied', label: 'Denied' },
+    { key: 'cancelled', label: 'Cancelled' },
   ];
 
   return (
@@ -436,6 +438,7 @@ export default function AdminVisitors() {
                         const isOverstay = v.status === 'overstayed';
                         const isCompleted = v.status === 'checked_out';
                         const isDenied = v.status === 'denied';
+                        const isCancelled = v.status === 'cancelled';
 
                         return (
                           <tr key={v.id} className="transition-colors hover:bg-slate-50/80">
@@ -458,7 +461,7 @@ export default function AdminVisitors() {
                                     )}
                                     {v.idPhotoPath && (
                                       <a
-                                        href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${v.idPhotoPath}`}
+                                        href={fileUrl(v.idPhotoPath)}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline inline-flex items-center gap-1 bg-indigo-50 px-1.5 py-0.5 rounded"
@@ -509,7 +512,11 @@ export default function AdminVisitors() {
                             {/* Duration */}
                             <td className="px-4 py-4 text-xs">
                               {isPending ? (
-                                <span className="text-slate-400 italic text-[11px]">Awaiting entry</span>
+                                <span className="text-slate-400 italic text-[11px]">
+                                  {v.expectedAt
+                                    ? `Expected ${new Date(v.expectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                                    : 'Awaiting entry'}
+                                </span>
                               ) : (
                                 <span className={`font-mono font-bold text-xs ${isOverstay ? 'text-rose-600' : 'text-slate-700'}`}>
                                   {v.duration}
@@ -545,6 +552,11 @@ export default function AdminVisitors() {
                               {isDenied && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700" title={v.adminNotes || 'Entry Denied'}>
                                   Denied
+                                </span>
+                              )}
+                              {isCancelled && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500" title={v.adminNotes || 'Cancelled by tenant'}>
+                                  Cancelled
                                 </span>
                               )}
                             </td>

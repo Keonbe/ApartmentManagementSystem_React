@@ -23,6 +23,14 @@ try {
     error_log('[AMS] notification sweep failed: ' . $e->getMessage());
 }
 
+// Visitor overstay alerts are checked here too, not only in the daily sweep
+// above — the threshold is in hours, so a once-a-day check is too coarse.
+try {
+    alert_overstayed_visitors($conn);
+} catch (Throwable $e) {
+    error_log('[AMS] alert_overstayed_visitors: ' . $e->getMessage());
+}
+
 try {
     if ($auth['role'] === 'admin') {
         // ADMIN VIEW: the open action queue, plus anything addressed to this admin.

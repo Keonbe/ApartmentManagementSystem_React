@@ -1,6 +1,6 @@
 # AMS — Module Verification Guide
 
-> **Document Version:** 1.3 — September 2026 (adds Notifications & Automation, Parking Reservation, and extends Reports & Activity Log with logging-coverage tests; 1.2 added Reports & Activity Log and Role-Based Access; 1.1 added Financial Tracking and Utility Usage)
+> **Document Version:** 1.4 — September 2026 (adds Contract & Document Generation and Visitor Management, renumbering Date-Dependent Testing/Known Issues/Appendix to §17–§19; 1.3 added Notifications & Automation, Parking Reservation, and extended Reports & Activity Log with logging-coverage tests; 1.2 added Reports & Activity Log and Role-Based Access; 1.1 added Financial Tracking and Utility Usage)
 > **Stack:** React 18 (Vite) + PHP 8 + MySQL/MariaDB 10 (XAMPP)
 > **Database:** `ams_db`
 > **Scope:** Modules that have been audited end-to-end. See [§2 Extending This Guide](#2-extending-this-guide).
@@ -68,9 +68,19 @@
    - 14.2 [API Diagrams](#142-api-diagrams)
    - 14.3 [Step-by-Step Workflow](#143-step-by-step-workflow)
    - 14.4 [Test Conditions](#144-test-conditions)
-15. [Date-Dependent Testing](#15-date-dependent-testing)
-16. [Known Issues & Blocked Tests](#16-known-issues--blocked-tests)
-17. [Appendix — Recipes & Reference](#17-appendix--recipes--reference)
+15. [Module 9 — Contract & Document Generation](#15-module-9--contract--document-generation)
+   - 15.1 [API Contract](#151-api-contract)
+   - 15.2 [API Diagrams](#152-api-diagrams)
+   - 15.3 [Step-by-Step Workflow](#153-step-by-step-workflow)
+   - 15.4 [Test Conditions](#154-test-conditions)
+16. [Module 12 — Visitor Management](#16-module-12--visitor-management)
+   - 16.1 [API Contract](#161-api-contract)
+   - 16.2 [API Diagrams](#162-api-diagrams)
+   - 16.3 [Step-by-Step Workflow](#163-step-by-step-workflow)
+   - 16.4 [Test Conditions](#164-test-conditions)
+17. [Date-Dependent Testing](#17-date-dependent-testing)
+18. [Known Issues & Blocked Tests](#18-known-issues--blocked-tests)
+19. [Appendix — Recipes & Reference](#19-appendix--recipes--reference)
 
 ---
 
@@ -204,7 +214,7 @@ SELECT id, status, slot_number FROM parking_reservations WHERE id IN (1,2,3) ORD
 SELECT setting_value FROM system_settings WHERE setting_key='notification_sweep_last_run';"
 ```
 
-Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded July/August rows for rooms A and K), `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. Parking: rows 1 and 2 `Assigned` (slots 1 and 2), row 3 `Pending`, no `parking_charges` rows. `notification_preferences` empty. See [§17.3](#173-standard-restore) for the full restore snippet.
+Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded July/August rows for rooms A and K), `late_fee_enabled` = `false`, room I's reservation = `Active`, and rooms I/J/N all `vacant`. Parking: rows 1 and 2 `Assigned` (slots 1 and 2), row 3 `Pending`, no `parking_charges` rows. `notification_preferences` empty. See [§19.3](#193-standard-restore) for the full restore snippet.
 
 > The reservation and the free rooms are the two fixtures most easily consumed without noticing — approving an application for room I converts Katrina's hold, and the room stays occupied even after the test application is deleted.
 
@@ -230,10 +240,10 @@ Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded Ju
 | 6 | Notification Module | ✅ Documented — in-app only; email/SMS remain designed (6.6/6.7) | [§13](#13-module-6--notifications--automation) |
 | 7 | Communication (Two-Way Chat) | ⬜ Not yet audited | — |
 | 8 | Admin Dashboard & Reports | 🟡 Documented except demo data (8.8) — Financial Tracking (8.1–8.3), Utility Usage (8.7), and Reports & Activity Log (8.4–8.6, extended for logging coverage) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
-| 9 | Contract & Document Generation | ⬜ Not yet audited | — |
+| 9 | Contract & Document Generation | ✅ Documented — transition guards, one contract per application, termination ends the tenancy | [§15](#15-module-9--contract--document-generation) |
 | 10 | Parking Reservation | ✅ Documented — numbered slots, release on move-out/archive, manual or automatic fee billing | [§14](#14-module-10--parking-reservation) |
 | 11 | Security & Access Control | ✅ Documented — role-based access, authentication and password management (11.1–11.4). CCTV requests (11.5) are in §8 | [§12](#12-module-11--role-based-access) |
-| 12 | Visitor Management | ⬜ Not yet audited | — |
+| 12 | Visitor Management | ✅ Documented — tenant scoping fixed, pre-registration reaches the admin queue, overstay actually alerts | [§16](#16-module-12--visitor-management) |
 
 ### 2.2 Section template
 
@@ -2073,7 +2083,7 @@ DELETE FROM sessions;
 
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
-| `get_notifications.php` | GET | `require_user` | — | `success`, `notifications[]`, `unread_count`. Also runs the daily sweep (§15) opportunistically | `401` |
+| `get_notifications.php` | GET | `require_user` | — | `success`, `notifications[]`, `unread_count`. Also runs the daily sweep (§17) opportunistically, plus `alert_overstayed_visitors()` (§16) on every call | `401` |
 | `mark_notification_read.php` | POST | `require_user` | `id`/`notificationId` (optional — omit for "mark all") | `success`, `updated` | Scope: tenant = own rows; admin = own rows **or** the open (`Pending`) action queue — never a tenant's own decided notice |
 | `delete_notification.php` | POST | `require_user` | `id`/`notificationId` (optional — omit for "clear all") | `success`, `deleted` | `409` deleting your own still-open (`Pending`) request; single delete/mark-read scoped to your own rows only, admin or tenant |
 | `create_notification.php` | POST | `require_admin` | `userId`, `title`, `message`, `type` (not an admin-queue type) | `success`, `delivered` | `422` bad type or a queue type · `404` unknown user · `delivered:false` when the recipient muted that category |
@@ -2084,7 +2094,7 @@ DELETE FROM sessions;
 | `process_tenant_request.php` | POST | `require_admin` | `notificationId`, `action` (`approve`/`reject`) | `success` | `404` id isn't an `occupancy_request`/`lease_extension_request` · claim-first, so a replay is a no-op |
 | `create_announcement.php` | POST | `require_admin` | `tag`, `title`, `body`, `sendTo` (`All tenants` / `Specific unit`), `unit` | `success`, `recipient_count`, `delivered` | `422` missing unit for "Specific unit" · `422` no current tenants match |
 
-**Status vocabulary.** `Pending` means "an admin still has to act": the 9 `ADMIN_QUEUE_NOTIFICATION_TYPES` (`rent_application`, `maintenance_request`, `cctv_request`, `parking_reservation`, `service_request`, `inquiry`, `occupancy_request`, `lease_extension_request`, `payment_verification`) plus a tenant's own open occupancy/lease request. Everything else — announcements, billing, rent-due/overdue reminders, every decision notice — is `Resolved`. This is what lets a tenant's "Clear all" remove everything except a request still awaiting a decision, and what stops an admin's "Clear all" from ever reaching a tenant's own inbox (see M6-01 below).
+**Status vocabulary.** `Pending` means "an admin still has to act": the 11 `ADMIN_QUEUE_NOTIFICATION_TYPES` (`rent_application`, `maintenance_request`, `cctv_request`, `parking_reservation`, `service_request`, `inquiry`, `occupancy_request`, `lease_extension_request`, `payment_verification`, `visitor_registration`, `visitor_overstay`) plus a tenant's own open occupancy/lease request. Everything else — announcements, billing, rent-due/overdue reminders, every decision notice — is `Resolved`. This is what lets a tenant's "Clear all" remove everything except a request still awaiting a decision, and what stops an admin's "Clear all" from ever reaching a tenant's own inbox (see M6-01 below).
 
 **Notification preference categories** (`NOTIFICATION_PREF_CATEGORIES` in `backend/config.php`) — the only ones a tenant can mute; everything else (`overdue`, `billing`, `payment`, `application_update`, `maintenance_update`, contract and move-out notices, request decisions) is always delivered:
 
@@ -2116,7 +2126,7 @@ sequenceDiagram
     Note over DB: Every intake type now has a matching resolve call —<br/>previously only service bookings ever cleared the queue
 ```
 
-The daily sweep (§15 has the scheduling story):
+The daily sweep (§17 has the scheduling story):
 
 ```mermaid
 flowchart LR
@@ -2127,10 +2137,14 @@ flowchart LR
     C -->|no — already ran today| SKIP[No-op]
     W --> P["promote_overdue_invoices()"]
     W --> R["Rent-due + overdue reminders<br/>claim_invoice_reminder() per invoice"]
+    W --> X["expire_lapsed_contracts()<br/>(notifies each tenant, §15)"]
+    W --> N["send_lease_end_reminders()<br/>claim: renewal_reminder_sent_at (§15)"]
     W --> K["release_lapsed_parking()"]
     W --> B["post_parking_charge() per Assigned reservation<br/>(only when parking_billing_mode='auto')"]
     W --> L["log_activity 'system' — only if something happened"]
 ```
+
+Visitor overstay alerts (§16) are **not** part of this once-a-day sweep — the threshold is in hours, so `alert_overstayed_visitors()` runs on every `get_notifications.php` call instead (and on `get_visitors.php`), claimed per-visit via `overstay_alerted_at`.
 
 Surface map:
 
@@ -2180,7 +2194,7 @@ flowchart LR
 2. **Tenant — set preferences** · `/notifications` → Preferences panel → `get_notification_preferences.php` / `update_notification_preferences.php`. Categories that can't be muted are listed under "Always delivered".
 3. **Admin — review the action queue** · `/admin-notifications` (or `AdminDashboardHeader.jsx` bell) → `get_notifications.php` returns only `Pending` queue rows plus anything addressed to that admin. Occupancy/lease requests decide inline (`process_tenant_request.php`); everything else has a "Review Request" button routing to the owning admin page, where its own decision endpoint calls `resolve_admin_queue()`.
 4. **Admin — reminder settings** · `/admin-notifications` settings panel → `update_system_settings.php` sets `rent_due_reminder_days` / `overdue_reminder_interval_days` and whether each is enabled. "Run reminder check now" force-runs the sweep for immediate feedback.
-5. **Automation, unattended** · the first `get_notifications.php` call of the day runs `run_notification_sweep()`: promotes overdue invoices, sends due/overdue reminders (claim-first, so at most one per invoice per day), releases lapsed parking permits, and — in `auto` billing mode — posts that month's parking fee. For a guarantee independent of anyone opening the app, register `backend/cron/daily_sweep.php` in Windows Task Scheduler (`C:\xampp\php\php.exe C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\daily_sweep.php`, daily).
+5. **Automation, unattended** · the first `get_notifications.php` call of the day runs `run_notification_sweep()`: promotes overdue invoices, sends due/overdue reminders (claim-first, so at most one per invoice per day), expires lapsed lease contracts and sends lease-end reminders (§15), releases lapsed parking permits, and — in `auto` billing mode — posts that month's parking fee. For a guarantee independent of anyone opening the app, register `backend/cron/daily_sweep.php` in Windows Task Scheduler (`C:\xampp\php\php.exe C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\daily_sweep.php`, daily). Every `get_notifications.php` call (not just the first of the day) also checks for visitor overstays (§16).
 6. **Admin — announcements** · `/admin-announcements` → `create_announcement.php` → one row in `announcements`, plus an in-app notice to every current tenant (or just the named unit's tenant), respecting each tenant's `announcements` preference.
 
 ### 13.4 Test Conditions
@@ -2201,7 +2215,7 @@ flowchart LR
 | **M6-12** | Happy | Announcement respects the audience | 2+ current tenants | `create_announcement.php {"sendTo":"Specific unit","unit":"A"}` | Only Unit A's tenant is notified | `recipient_count` = 1; `SELECT COUNT(*) FROM notifications WHERE title=<title>;` = 1 (before preferences) |
 | **M6-13** | Sec | Unauthenticated notification creation | — | `POST create_notification.php` with no token | `401` | No row inserted |
 
-**Restore:** see [§17.3](#173-standard-restore) (`notification_preferences`, `notification_sweep_last_run`).
+**Restore:** see [§19.3](#193-standard-restore) (`notification_preferences`, `notification_sweep_last_run`).
 
 ---
 
@@ -2353,33 +2367,306 @@ Seed fixtures: reservation **1** (Dante, user 9) Assigned slot 1; reservation **
 | **M10-17** | Negative | `max_parking_slots` can't drop below assigned | Slots 1 and 2 Assigned | `update_system_settings.php {"max_parking_slots":"1"}` | `422 "Slot #2 is still assigned…"` | Setting unchanged |
 | **M10-18** | Sec | Tenant cancel doesn't bypass ownership | Row belongs to another tenant | `cancel_request.php {"id":<other's id>,"type":"Parking"}` | `409` "Only your own pending requests…" | Row unchanged |
 
-**Restore:** see [§17.3](#173-standard-restore) — resets `parking_reservations` 1–3 to seed state, clears `parking_charges`, deletes any test rows, and resets `max_parking_slots`/`parking_billing_mode`/`parking_monthly_fee`.
+**Restore:** see [§19.3](#193-standard-restore) — resets `parking_reservations` 1–3 to seed state, clears `parking_charges`, deletes any test rows, and resets `max_parking_slots`/`parking_billing_mode`/`parking_monthly_fee`.
 
 ---
 
-## 15. Date-Dependent Testing
+## 15. Module 9 — Contract & Document Generation
 
-Several behaviours here only fire when a date passes: overdue promotion and the late fee ([§6.4](#64-test-conditions) M3-08…M3-10, M3-17), lease expiry, reservation holds ([§5.4](#54-test-conditions) M2-10), reminder cadence and parking permit expiry ([§14.4](#144-test-conditions) M10-15).
+> Audited September 2026. The panel's contract flow calls for a draft generated on approval, admin review before it binds, and either renewal or termination at the end of the lease. Remediation: `update_contract_status.php` had no transition rules at all — "Clear eviction flag" turned a `draft` contract `active` with no review, and reactivated an already-`terminated` contract; `flag` worked from any status. A `CONTRACT_TRANSITIONS` map (mirroring `PARKING_TRANSITIONS`) now gates every action. The admin "Generate Contract" modal (`create_contract.php`) never checked for an existing contract — every approved application already gets one automatically, so this created a second row that every consumer query (`get_contracts.php`, `my_room.php`, `get_rooms.php`) then joined with `LIMIT 1` and picked between arbitrarily; a `UNIQUE KEY` on `rent_application_id` now makes a duplicate impossible, and the endpoint itself checks first and validates dates. A tenant uploading a document (`upload_lease_document.php`) while their application was still Pending Review used to auto-create a blank, ₱0, dateless contract row — when the application was later approved, the real contract was never created because one "already existed"; the auto-create is gone, and a tenant can only attach documents to a contract behind an approved application. There was no way to reach `Terminated` at all; a new `terminate` action exists, and — since ending a lease early means ending the tenancy — it now vacates the room, cancels pending invoices, releases parking and cancels pending visitor pre-registrations via the same `vacate_tenant_room()` helper the ordinary move-out flow uses. Lease expiry (`expire_lapsed_contracts()`) never notified the tenant it happened to, and nothing implemented the panel flow's "Lease approaching end?" step; both now run from the daily sweep, the second via a new `send_lease_end_reminders()`.
+
+### 15.1 API Contract
+
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `get_contracts.php` | GET | `require_user` | `?userId=` (self, or admin for anyone), `?email=` (admin-only preview), or neither (admin: full list) | `contract`/`contracts[]` including `status`; admin list also carries `overdueInfo` per tenant | `403` a tenant naming another user's id or using `?email=` |
+| `create_contract.php` | POST | `require_admin` | `rentApplicationId`, `depositAmount` (defaults to monthly rent), `leaseStart`, `leaseEnd` (≤ 24 months) | `success`, `contractId` (created as `draft`) | `422` application not found, not yet approved, or bad/inverted dates · `409` a contract already exists for this application |
+| `update_contract_status.php` | POST | `require_admin` | `contractId`, `action` = `activate` / `flag` / `clear` / `terminate` (+ `reason`) / `edit` (+ `leaseStart`, `leaseEnd`) | `success` | `404` unknown contract · `422` the action isn't valid from the contract's current status (`CONTRACT_TRANSITIONS`), or bad dates · `409` status changed concurrently, or (`terminate`) the tenant already moved out |
+| `upload_lease_document.php` | POST (multipart or form) | `require_user`, owner or admin | `contractId` or `rentApplicationId`, `docType` (`signedLease`/`notarizedLease`), `action` (`upload`/`remove`); file ≤ 10MB, PDF/JPG/PNG | `success`, `filePath`, `contractId` | `403` not your contract · `409` application not yet approved (no contract to attach to), or a tenant removing a document from a non-`draft` contract · `422` bad/oversized/wrong-type file |
+| `expire_contracts.php` | GET/POST | **None** — deliberately public, a documented cron target (`docs/deployment/saas_deployment_guide.md` §9), same shape as `expire_reservations.php` | — | `success`, `expired` (count) | Idempotent: a lease either has lapsed or it hasn't |
+| `extend_lease.php` | POST | `require_user` | `additionalMonths` (`minLeaseDuration`–12) | `success` — files a `lease_extension_request` notification | `400` out of range, or an open request already pending |
+| `process_tenant_request.php` | POST | `require_admin` | `notificationId`, `action` (`approve`/`reject`) | `success` — approval extends the contract in place and adds a `lease_renewals` row | `404` id isn't an occupancy/lease request |
+
+**`CONTRACT_TRANSITIONS`** (`backend/config.php`) — keyed by current status, listing the actions allowed from it:
+
+| Current status | Allowed actions |
+|---|---|
+| `draft` | `activate` |
+| `active` | `flag`, `terminate`, `edit` |
+| `eviction-pending` | `clear` (resolves to `active` or `expired`, whichever the lease's own dates now imply), `terminate`, `edit` |
+| `expired` | `terminate`, `edit` |
+| `terminated` | *(none — terminal)* |
+
+`active → expired` also happens outside this map, via `expire_lapsed_contracts()` (opportunistic and the daily sweep) rather than an admin action.
+
+### 15.2 API Diagrams
+
+Generation through termination:
+
+```mermaid
+sequenceDiagram
+    actor A as Admin
+    participant UT as update_tenant_status.php
+    participant DB as ams_db
+    participant AC as AdminContracts.jsx
+    participant U as update_contract_status.php
+
+    A->>UT: Approve rent application
+    UT->>DB: INSERT lease_contracts status='draft'
+    A->>AC: Review the draft, Activate
+    AC->>U: {action:'activate'}
+    U->>DB: UPDATE status='active' WHERE status='draft'
+
+    Note over A,DB: Early termination ends the tenancy, not just the contract
+    A->>AC: Terminate Lease (reason required)
+    AC->>U: {action:'terminate', reason}
+    U->>DB: UPDATE lease_contracts SET status='terminated', termination_reason, terminated_at
+    U->>DB: UPDATE rent_applications SET status='moved-out'
+    U->>DB: vacate_tenant_room() — room vacant, pending invoices cancelled,<br/>release_user_parking(), cancel_user_visitor_registrations()
+    U->>DB: create_notification(tenant, 'Lease Terminated')
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        AC[AdminContracts.jsx]
+        VC[ViewContract.jsx]
+    end
+    subgraph Endpoints
+        E1[get_contracts.php]
+        E2[create_contract.php]
+        E3[update_contract_status.php]
+        E4[upload_lease_document.php]
+        E5[expire_contracts.php]
+        E6[extend_lease.php / process_tenant_request.php]
+    end
+    subgraph Tables
+        T1[(lease_contracts)]
+        T2[(lease_renewals)]
+        T3[(rent_applications)]
+        T4[(rooms)]
+        T5[(notifications)]
+    end
+    AC --> E1 & E2 & E3 & E4
+    VC --> E1 & E4
+    E1 --> T1 & T3
+    E2 --> T1 & T3
+    E3 --> T1 & T3 & T4 & T5
+    E4 --> T1
+    E5 --> T1 & T5
+    E6 --> T1 & T2 & T3 & T5
+```
+
+Status lifecycle:
+
+```mermaid
+flowchart LR
+    D[draft] -->|Admin activates| Ac[active]
+    Ac -->|Admin flags eviction| E[eviction-pending]
+    E -->|Admin clears — lease_end future| Ac
+    E -->|Admin clears — lease_end past| Ex[expired]
+    Ac -->|lease_end passes<br/>sweep / opportunistic| Ex[expired]
+    D -->|Admin terminates| T[terminated]
+    Ac -->|Admin terminates| T
+    E -->|Admin terminates| T
+    Ex -->|Admin terminates| T
+
+    classDef open fill:#fff3cd,stroke:#c69500
+    classDef done fill:#d4edda,stroke:#28a745
+    classDef dead fill:#f8d7da,stroke:#dc3545
+    class D,E open
+    class Ac done
+    class Ex,T dead
+```
+
+### 15.3 Step-by-Step Workflow
+
+1. **System — auto-generate on approval** · `update_tenant_status.php {"status":"Approved"}` inserts a `draft` `lease_contracts` row (deposit = one month's rent, dates from the application's `months_of_rent`).
+2. **Admin — review and activate** · `/admin-contracts` → open the draft → *Activate Contract* → `update_contract_status.php {action:'activate'}` → `active`; tenant notified.
+3. **Tenant — view and print** · `/view-contract` → `get_contracts.php?userId=` → `ViewContract.jsx`'s `@media print` layout. A non-`active` contract shows a status banner on screen (hidden on print) so a draft doesn't read as final.
+4. **Tenant or admin — attach signed/notarized documents** · `TrackApplication.jsx` (tenant, once approved) or the Contracts preview modal (admin) → `upload_lease_document.php`. A tenant may remove a document only while the contract is still `draft`.
+5. **Admin — edit lease dates** · Contracts preview → *Edit Dates* → `update_contract_status.php {action:'edit'}`. Validated (format, end > start, ≤ 24 months), syncs `rooms.lease_start/lease_end`, and re-derives status if the new end date crosses today.
+6. **Admin — flag / clear eviction** · Overdue-payment banner or per-contract panel → `flag` (only from `active`) / `clear` (only from `eviction-pending`, target status date-derived).
+7. **Admin — terminate early** · Contracts preview → *Terminate Lease* (reason required, confirmation prompt since it ends the tenancy) → `update_contract_status.php {action:'terminate', reason}` → contract `terminated`, tenant moved out, room vacated, pending invoices cancelled, parking/visitor requests released.
+8. **Tenant — request an extension** · `/my-room` → `extend_lease.php` → `lease_extension_request` notification. **Admin — approve** · `/admin-notifications` → `process_tenant_request.php` extends `lease_contracts.lease_end` in place and records the extension in `lease_renewals` (reactivating an `expired` contract if the tenant is continuing occupancy).
+9. **System — daily sweep** · `expire_lapsed_contracts()` expires any `active` contract whose `lease_end` has passed and notifies the tenant; `send_lease_end_reminders()` notifies a tenant once, `lease_end_reminder_days` (default 30) before `lease_end`, with a link to request an extension.
+
+### 15.4 Test Conditions
+
+Seed fixtures: **LC-0001** (Maria, app 1, `active`, `lease_end` 2026-11-01). **LC-0004** (Ben, app 4, `eviction-pending`, `eviction_status='flagged'`). **LC-0005** (Lita, app 5, `draft`). **LC-0010** (Mark, app 11, room L, `active`, `lease_end` 2026-09-20 — closest to "today" in the seed, useful for expiry/reminder tests).
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M9-01** | Sec | `clear` refused from `draft` | LC-0005 | Admin `POST update_contract_status.php {"contractId":"LC-0005","action":"clear"}` | `422 "A draft contract cannot be cleared."` | Status unchanged — verified live |
+| **M9-02** | Happy | `activate` a draft | LC-0005 | `{"action":"activate"}` | `200`, contract → `active`, tenant notified | Verified live |
+| **M9-03** | Sec | `create_contract` refuses a duplicate | Application 1 already has LC-0001 | `POST create_contract.php {"rentApplicationId":1,...}` | `409 "A contract already exists for this application (LC-0001)."` | No second row inserted — verified live |
+| **M9-04** | Negative | `create_contract` refuses a Pending application | Application 6 (Gloria), status `Pending Review` | `POST create_contract.php {"rentApplicationId":6,...}` | `422 "A contract can only be generated for an approved tenant."` | — |
+| **M9-05** | Negative | `edit` refuses inverted dates | Any contract | `{"action":"edit","leaseStart":"2026-05-01","leaseEnd":"2026-01-01"}` | `422 "Lease end must be after lease start."` | Verified live |
+| **M9-06** | Negative | `edit` unknown contract | — | `{"contractId":"LC-9999","action":"edit",...}` | `404 "Contract not found."` | Verified live |
+| **M9-07** | Sec | `terminate` requires a reason | LC-0004 | `{"contractId":"LC-0004","action":"terminate"}` | `422 "Give a reason for terminating this contract."` | Verified live |
+| **M9-08** | Happy | Terminate ends the tenancy | LC-0004 (Ben, app 4, room D) | `{"action":"terminate","reason":"Repeated lease violations"}` | Contract → `terminated` with `termination_reason`; application 4 → `moved-out`; room D → `vacant`; Ben notified | Verified live: `SELECT status FROM lease_contracts WHERE id='LC-0004'; SELECT status FROM rent_applications WHERE id=4; SELECT status,tenant_name FROM rooms WHERE id='D';` |
+| **M9-09** | Sec | Terminated contract accepts no further transition | Immediately after M9-08 | `clear`, then `terminate` again | Both `422` (`CONTRACT_TRANSITIONS['terminated'] = []`) | Verified live |
+| **M9-10** | Negative | Uploading before approval | Application 6 (Gloria), `Pending Review` | Tenant `POST upload_lease_document.php {rentApplicationId:6,...}` | `409 "Your contract is generated once your application is approved."` | No `lease_contracts` row created for application 6 — verified live |
+| **M9-11** | Happy | `expire_contracts.php` needs no login | — | `GET expire_contracts.php` with no `Authorization` header | `200`, `{"success":true,"expired":0}` (deliberate — see §15's summary) | Verified live |
+| **M9-12** | Boundary | Lease-end reminder fires once | LC-0010 `lease_end` within `lease_end_reminder_days` | Force the sweep (`check_due_date_reminders.php`) twice | First run notifies Mark and sets `renewal_reminder_sent_at`; second run sends 0 new | Verified live: `lease_end_reminders_sent` in the sweep result, then `0` |
+| **M9-13** | Happy | Tenant contract view includes status | Maria (LC-0001, `active`) | `GET get_contracts.php` as Maria | Response `contract.status` present | Verified live |
+| **M9-14** | Sec | A tenant cannot read another tenant's contract | — | `GET get_contracts.php?userId=<other>` as a tenant | `403` | — |
+| **M9-15** | Boundary | `edit` re-derives status from the new dates | An `expired` contract, application still `active` | `edit` with a `leaseEnd` in the future | Contract → `active` (not left `expired`) | `SELECT status FROM lease_contracts WHERE id='<id>';` |
+
+**Restore:** see [§19.3](#193-standard-restore) — resets LC-0001…LC-0011 to seed status/eviction flags, application 4 and room D back to Ben's seed occupancy, clears `renewal_reminder_sent_at`, and deletes any `LC-`/`CTR-` test rows.
+
+---
+
+## 16. Module 12 — Visitor Management
+
+> Audited September 2026. The panel flow calls for tenant pre-authorization reaching admin review, a full visitor history, and an actual overstay *alert* — not just a label. Remediation: `get_visitors.php` scoped a tenant's view to `user_id = ? OR room_name IN (their current rooms)` — the room clause meant a new occupant could see a **previous tenant's** visitors for the same unit, names/phone/ID numbers included; it now scopes strictly to `user_id`. A tenant's pre-registration (`check_in_visitor.php`) never reached the admin action queue — `notify_admins_queue()`/`resolve_admin_queue()` now wire it in, the same pattern every other request type uses. "Overstayed" was only a label computed at read time; nobody was actually notified. A new `alert_overstayed_visitors()` (claimed per-visit via `overstay_alerted_at`, since the threshold is in hours rather than a daily cadence) now queues an admin alert and notifies the host, called from `get_notifications.php` on every poll and from `get_visitors.php`. A tenant could not withdraw their own pending registration (new `cancel` action) and a moved-out or archived tenant's pending registrations sat open forever (`cancel_user_visitor_registrations()`, called next to `release_user_parking()`). The module's on/off toggle (`service_visitor_management_active`) only hid the Services card; the endpoint kept accepting registrations. `check_in_visitor.php` had no input validation, which matters because the database has no `STRICT` `sql_mode` and silently truncates over-length values instead of rejecting them.
+
+### 16.1 API Contract
+
+| Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
+|---|---|---|---|---|---|
+| `check_in_visitor.php` | POST (multipart or form) | `require_user` | `visitorName`, `contactNumber`, `purpose`, `idType` (allowlisted), `idNumber`, `vehiclePlate`, `expectedAt` (tenant only — required, now…+30 days); admin walk-in: `unit`; file `idPhoto` (image, ≤5MB) | `success`, `visitorId`, `status` | `403` no active lease (tenant), or the module is switched off · `422` missing/invalid/oversized field, bad ID photo · `unit does not exist` (admin) |
+| `get_visitors.php` | GET | `require_user` | Admin: `unit`, `status`, `search`, date range. Tenant: none — always scoped to the caller | `visitors[]` (own only, for a tenant), `stats` | `401` — also runs `alert_overstayed_visitors()` as a side effect |
+| `update_visitor_status.php` | POST | `require_user`; role/ownership per action | `id`, `action` = `approve`/`checked_in` (admin), `denied`/`reject` (admin), `cancel` (tenant, own `pending_approval` only), `checked_out`/`checkout` (either, from `checked_in`) | `success` | `403` wrong role or not your own record · `404` unknown id · `409` invalid transition, or (`approve`) the tenant's lease has since ended |
+| `update_system_settings.php` | POST | `require_admin` | `visitor_overstay_hours` (1–168), `service_visitor_management_active` | `success`, `changed` | `422` out-of-range/non-numeric threshold |
+
+**Status vocabulary and transitions** (`visitor_logs.status`): `pending_approval → checked_in \| denied \| cancelled` (tenant pre-registration only; a walk-in starts at `checked_in`); `checked_in → checked_out`; `overstayed` is a **derived display value**, not a stored status — the underlying row stays `checked_in` until checked out. `denied`, `cancelled`, `checked_out` are terminal. Every move is guarded on its `FROM` status (`$guarded_update()`), so a denied or checked-out visitor can't be re-approved.
+
+### 16.2 API Diagrams
+
+Pre-registration through overstay alert:
+
+```mermaid
+sequenceDiagram
+    actor T as Tenant
+    participant UV as UserVisitors.jsx
+    participant C as check_in_visitor.php
+    participant DB as ams_db
+    actor A as Admin
+    participant AV as AdminVisitors.jsx
+    participant U as update_visitor_status.php
+    participant N as get_notifications.php
+
+    T->>UV: Visitor details + expected arrival
+    UV->>C: POST (multipart if a photo)
+    C->>DB: INSERT visitor_logs status='pending_approval'
+    C->>DB: notify_admins_queue('visitor_registration', id)
+    C-->>UV: {success, visitorId}
+
+    A->>AV: Pending tab → Approve
+    AV->>U: {action:'approve'}
+    U->>DB: UPDATE status='checked_in', check_in_at=NOW()
+    U->>DB: resolve_admin_queue('visitor_registration', id)
+    U->>DB: create_notification(tenant, 'visitor_log')
+
+    Note over N,DB: Every notification poll, not just once a day
+    N->>DB: alert_overstayed_visitors()<br/>claim: overstay_alerted_at IS NULL
+    N->>DB: notify_admins_queue('visitor_overstay', id) + notify host
+```
+
+Surface map:
+
+```mermaid
+flowchart LR
+    subgraph Pages
+        UV[UserVisitors.jsx]
+        AV[AdminVisitors.jsx]
+    end
+    subgraph Endpoints
+        E1[check_in_visitor.php]
+        E2[get_visitors.php]
+        E3[update_visitor_status.php]
+    end
+    subgraph Tables
+        T1[(visitor_logs)]
+        T2[(notifications)]
+        T3[(activity_logs)]
+    end
+    UV --> E1 & E2 & E3
+    AV --> E1 & E2 & E3
+    E1 --> T1 & T2 & T3
+    E2 --> T1 & T2
+    E3 --> T1 & T2 & T3
+```
+
+Status lifecycle:
+
+```mermaid
+flowchart LR
+    P[pending_approval] -->|Admin approves| C[checked_in]
+    P -->|Admin denies| D[denied]
+    P -->|Tenant cancels own| X[cancelled]
+    C -->|Checkout — tenant or admin| O[checked_out]
+
+    classDef open fill:#fff3cd,stroke:#c69500
+    classDef done fill:#d4edda,stroke:#28a745
+    classDef dead fill:#f8d7da,stroke:#dc3545
+    class P open
+    class C done
+    class D,X,O dead
+```
+
+### 16.3 Step-by-Step Workflow
+
+1. **Tenant — pre-register a visitor** · `/visitor-management` → *Log New Visitor* (name, contact, purpose, ID type/number, plate, expected arrival, optional ID photo) → `check_in_visitor.php` → `pending_approval`, admin notified.
+2. **Admin — log a walk-in** · `/admin-visitors` → *Log New Visitor* (unit picked from a live list) → same endpoint → `checked_in` immediately, no review needed.
+3. **Admin — review a pre-registration** · Pending tab → *Approve* (refused if the tenant's lease has since ended) or *Deny* (reason shown to the tenant) → `update_visitor_status.php`; either way the admin queue row resolves.
+4. **Tenant — cancel a still-pending registration** · Pending card → *Cancel Registration* → `update_visitor_status.php {action:'cancel'}` → `cancelled`.
+5. **Either party — check out** · Active card/row → *Mark Departed* / *Check Out* → `checked_in → checked_out`.
+6. **Automatic — overstay alert** · once a checked-in visit exceeds `visitor_overstay_hours` (default 24), the next `get_notifications.php` poll or `get_visitors.php` load queues an admin alert and notifies the host — once per visit (`overstay_alerted_at`).
+7. **Admin — visitor history** · `/admin-visitors` → search/filter by unit, status, date range; the ID photo link opens via `fileUrl()`.
+8. **Move-out / archive** · `update_tenant_status.php` (moved-out, via the shared `vacate_tenant_room()`) and `archive_tenant.php` both cancel the tenant's remaining `pending_approval` registrations.
+9. **Admin — settings** · `/admin-settings` → overstay threshold (1–168 hours) and the module on/off toggle (`service_visitor_management_active`) — off refuses new tenant pre-registrations but not admin walk-ins.
+
+### 16.4 Test Conditions
+
+Seed fixtures: visitor **1** (Liza Santos, Maria's unit A, `checked_out`); **2** (Carmen Dela Cruz, Rosa's unit C, `checked_out`); **3** (Ricky Abad, Dante's unit F, `checked_in` since **2026-08-25** — already past the default 24h threshold, useful for overstay tests without back-dating); **4** (Unknown Visitor, Carlo's unit H, `denied`).
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M12-01** | Sec | A tenant cannot see a previous occupant's visitors | Insert a visitor row for unit F with a different/`NULL` `user_id` | `GET get_visitors.php` as Dante | Dante's list does **not** include the inserted row | Verified live |
+| **M12-02** | Happy | Pre-registration reaches the admin queue | Dante, no open registration | `POST check_in_visitor.php` (tenant) with a valid `expectedAt` | `200`; a `Pending` `visitor_registration` notification appears for the admin | Verified live |
+| **M12-03** | Negative | `expectedAt` is required for a tenant | Same | Omit `expectedAt` | `422 "Expected arrival date/time is required."` | Verified live |
+| **M12-04** | Negative | Over-length name is rejected, not truncated | Same | `visitorName` = 200 characters | `422 "Visitor name must be 150 characters or fewer."` | Verified live — no `sql_mode` truncation |
+| **M12-05** | Sec | Cancel is owner-only | Another tenant's `pending_approval` row | `POST update_visitor_status.php {"id":<id>,"action":"cancel"}` | `403 "Forbidden: You cannot cancel another tenant's registration."` | Verified live |
+| **M12-06** | Happy | Tenant cancels their own pending registration | The row from M12-02 | Same call as the owning tenant | `200`; row → `cancelled`; admin queue row resolved | Verified live |
+| **M12-07** | Sec | Module toggle blocks tenant registration, not walk-ins | `service_visitor_management_active=false` | Tenant `check_in_visitor.php`, then an admin walk-in | Tenant → `403`; admin → `200` | Verified live; toggle restored after |
+| **M12-08** | Negative | Overstay threshold validation | — | `update_system_settings.php {"visitor_overstay_hours":"0"}` | `422` | Setting unchanged — verified live |
+| **M12-09** | Happy | Overstay alert fires once per visit | Visitor 3 (Ricky, already overstayed in seed data) | `GET get_notifications.php` (admin), then again | First call queues a `Pending` `visitor_overstay` notification and notifies Dante; second call adds none | Verified live: `overstay_alerted_at` claim column |
+| **M12-10** | Happy | Checkout resolves the overstay queue | Immediately after M12-09 | `POST update_visitor_status.php {"id":3,"action":"checked_out",...}` | Visitor → `checked_out`; the `visitor_overstay` queue row → `Resolved` | Verified live |
+| **M12-11** | Sec | Approving after the tenant moved out is refused | A `pending_approval` row whose tenant has since moved out | Admin `approve` | `409 "This tenant no longer has an active lease — the registration can only be denied."` | — |
+| **M12-12** | Boundary | Move-out cancels pending registrations | A tenant with an open `pending_approval` visitor | `update_tenant_status.php {"status":"moved-out",...}` | The registration → `cancelled` | `SELECT status FROM visitor_logs WHERE user_id=<id> AND status='pending_approval';` → 0 rows |
+| **M12-13** | Negative | ID photo type/size enforced | — | Upload a 6MB file, or a `.txt` renamed `.jpg` | `422` (size, then content-type mismatch) | — |
+
+**Restore:** see [§19.3](#193-standard-restore) — deletes visitor test rows beyond id 4, resets visitor 3 to `checked_in` with `overstay_alerted_at=NULL`, and restores `visitor_overstay_hours`/`service_visitor_management_active`.
+
+---
+
+## 17. Date-Dependent Testing
+
+Several behaviours here only fire when a date passes: overdue promotion and the late fee ([§6.4](#64-test-conditions) M3-08…M3-10, M3-17), lease expiry and lease-end reminders ([§15.4](#154-test-conditions) M9-12, M9-15), reservation holds ([§5.4](#54-test-conditions) M2-10), reminder cadence and parking permit expiry ([§14.4](#144-test-conditions) M10-15).
 
 The techniques — moving the row versus moving the system clock, and which columns drive which feature — live in **[`date_dependent_testing.md`](../date_dependent_testing.md)** and are not duplicated here.
 
 > Prefer **moving the row** (back-date `due_date`, `lease_end`, `hold_expires_at`, `assigned_at`). Changing the Windows system clock affects MySQL timestamps and every other process on the machine.
 
-**There is now a daily sweep**, but still no OS-level scheduler doing the calling on its own: `run_notification_sweep()` (`backend/config.php`) runs overdue promotion, rent-due/overdue reminders, parking-permit expiry and automatic parking billing together, claimed at most once per calendar day via the `notification_sweep_last_run` setting. It fires two ways — opportunistically from `get_notifications.php` (so the first signed-in page load of the day runs it) and forced (bypassing the once-a-day claim) from `check_due_date_reminders.php` or the CLI script `backend/cron/daily_sweep.php`, which is meant to be registered in Windows Task Scheduler (see [§14.3](#143-step-by-step-workflow)). To force a re-run within the same day for testing:
+**There is now a daily sweep**, but still no OS-level scheduler doing the calling on its own: `run_notification_sweep()` (`backend/config.php`) runs overdue promotion, rent-due/overdue reminders, contract expiry and lease-end reminders, parking-permit expiry and automatic parking billing together, claimed at most once per calendar day via the `notification_sweep_last_run` setting. Visitor overstay alerts (§16) are the one exception — their threshold is in hours, so they run on every `get_notifications.php`/`get_visitors.php` call instead of once a day. It fires two ways — opportunistically from `get_notifications.php` (so the first signed-in page load of the day runs it) and forced (bypassing the once-a-day claim) from `check_due_date_reminders.php` or the CLI script `backend/cron/daily_sweep.php`, which is meant to be registered in Windows Task Scheduler (see [§14.3](#143-step-by-step-workflow)). To force a re-run within the same day for testing:
 > ```sql
 > UPDATE system_settings SET setting_value = '2000-01-01' WHERE setting_key = 'notification_sweep_last_run';
 > ```
 > then call `check_due_date_reminders.php` (forced) or `get_notifications.php` (opportunistic — runs once, then the claim above is needed again).
 
-Room-status and contract-status expiry are unchanged: reservation expiry happens when rooms are listed; contract expiry happens when `my_room.php` is called. If a state change seems not to have happened, the usual cause is that nothing has invoked the endpoint that performs it.
+Room-status expiry is unchanged: reservation expiry happens when rooms are listed. Contract expiry now runs from three places — opportunistically from `get_contracts.php` (after auth) and `my_room.php`, and from the daily sweep — so it no longer depends on any one specific page being opened. If a state change seems not to have happened, the usual cause is that nothing has invoked the endpoint (or the sweep hasn't run yet today) that performs it.
 
 ---
 
-## 16. Known Issues & Blocked Tests
+## 18. Known Issues & Blocked Tests
 
 Open defects as of this document's version. Each affects testing, so check here before filing a bug.
 
-### 16.1 Defects
+### 18.1 Defects
 
 | # | Issue | Evidence | Effect on testing |
 |---|---|---|---|
@@ -2388,20 +2675,24 @@ Open defects as of this document's version. Each affects testing, so check here 
 | 3 | ✅ **Fixed Sept 2026** — forgot-password dev link did not route | `Login.jsx` built `/#/reset-password?…` under `BrowserRouter` | The link now opens `/reset-password?email=…&token=…` directly |
 | 4 | **PayMongo return URLs never reach the app** | `create_checkout_session.php:87,90` return `…/dist/index.html#/pay-bills?status=…`; `BrowserRouter` has no `basename` and there is no catch-all route | Returning from checkout renders a blank page, so the cancel → `release_checkout_session.php` wiring does not fire in a browser. The endpoint itself is correct (M3-15 passes by curl), and M3-17's overdue promotion still rescues the invoice — but only once it is past due |
 
-### 16.2 Legacy identity headers (resolved)
+### 18.2 Legacy identity headers (resolved)
 
 Every endpoint previously listed here as trusting `X-User-Id` or a body `userId` now takes identity from the session — see the table in [§12.1](#121-api-contract). In addition, `config.php` overwrites both headers from the session before any endpoint code runs, so no endpoint anywhere can be fooled by a forged header. A test that sends one should behave exactly as if it weren't sent.
 
-Also: `expire_contracts.php` and `expire_reservations.php` mutate rows **before** their admin check runs, so both have an unauthenticated side effect.
+Also: `expire_contracts.php` and `expire_reservations.php` mutate rows with **no session check at all**. This is deliberate, not a leftover bug — both are documented cron targets (`docs/deployment/saas_deployment_guide.md` §9) meant to be hit by an external scheduler with no login, and the mutation is idempotent (a lease or a hold has either lapsed or it hasn't). `get_contracts.php`'s own opportunistic expiry, by contrast, now runs *after* `require_user()` — it has no reason to mutate before auth, since it isn't a cron target.
 
-### 16.3 Sharp edges (working as designed, but easy to misread)
+### 18.3 Sharp edges (working as designed, but easy to misread)
 
 - **Failed logins lock the account for everyone's tests.** Five wrong passwords — including wrong *current* passwords on `change_password.php` — lock that account for 15 minutes. Run `DELETE FROM login_attempts;` between runs that exercise failures.
 - **Changing a role, password or archive state signs the user out.** Any token you captured for that user before the change is dead; sign in again.
 - **`sessions.role` is informational.** Access is decided by `users.role`, read live. Editing `sessions.role` in the database changes nothing.
 - **Exporting the activity log writes to it.** An `Exported Activity Log` entry appears after every export, so a count taken immediately after an export is one higher.
 - **Saving settings with no changes logs nothing.** `update_system_settings.php` only writes and logs keys whose value actually changed.
-- **The daily sweep runs at most once per real day, even forced.** `check_due_date_reminders.php` (forced) bypasses the once-a-day claim on the sweep as a whole, but each reminder and each parking month underneath it still claims individually (`claim_invoice_reminder()`, the `parking_charges` unique key), so a forced re-run the same day reports zero new sends rather than duplicating them. Back-date `notification_sweep_last_run` (§15) to force a genuinely fresh run.
+- **The daily sweep runs at most once per real day, even forced.** `check_due_date_reminders.php` (forced) bypasses the once-a-day claim on the sweep as a whole, but each reminder, each lease-end reminder and each parking month underneath it still claims individually (`claim_invoice_reminder()`, `renewal_reminder_sent_at`, the `parking_charges` unique key), so a forced re-run the same day reports zero new sends rather than duplicating them. Back-date `notification_sweep_last_run` (§17) to force a genuinely fresh run.
+- **Recording the move-in payment also activates a Draft contract.** `record_payment_admin.php` promotes `lease_contracts.status` from `draft`/`expired` to `active` as a side effect of the first payment — a contract an admin hasn't explicitly reviewed yet can become binding this way, bypassing the `activate` action entirely. Not touched by this audit; documented here as a sharp edge.
+- **Terminating a contract ends the tenancy, not just the lease record.** `update_contract_status.php`'s `terminate` action calls the same `vacate_tenant_room()` helper as an ordinary move-out: the room is vacated, pending invoices are cancelled, and parking/visitor requests are released. There is no separate "just mark the contract terminated" option.
+- **A visitor's overstay alert fires once per visit, not on a timer.** `alert_overstayed_visitors()` claims via `overstay_alerted_at`; clearing that column (as a test might) re-arms the alert for the same visit rather than it firing again on its own.
+- **`get_visitors.php`'s tenant scope is `user_id`, not "anyone visiting my current room."** A visitor logged under a previous occupant of the same unit will not appear in the current tenant's list, even though they're in the same physical unit — this is the fix for the M12-01 privacy issue, not a bug.
 - **A parking charge is billed per calendar month of the permit term**, not per admin action — `post_parking_charge()` refuses a month outside `[assigned_at, assigned_at + duration_months)`. Testing a later month means back-dating `parking_reservations.assigned_at`, not the invoice.
 - **No `status` allowlist on `rooms`** — `update_room.php` writes any string, so a typo persists silently.
 - **Seed data predates the 1.7 gate** — see [§1.5](#15--the-seed-data-predates-the-acceptance-criteria-gate). No seeded application can be approved.
@@ -2413,9 +2704,9 @@ Also: `expire_contracts.php` and `expire_reservations.php` mutate rows **before*
 
 ---
 
-## 17. Appendix — Recipes & Reference
+## 19. Appendix — Recipes & Reference
 
-### 17.1 Curl recipes
+### 19.1 Curl recipes
 
 ```bash
 BASE=http://localhost:8080/ApartmentManagementSystem_React/backend/api
@@ -2442,7 +2733,7 @@ curl -s "$BASE/get_invoices.php?userId=2"      # expect 401
 
 PHP has no access to Git Bash's `/tmp`. To parse a response with the PHP CLI, write the file somewhere Windows-visible (e.g. the project directory) and delete it afterwards.
 
-### 17.2 Useful queries
+### 19.2 Useful queries
 
 ```sql
 -- Tenant → room → application → contract, in one view
@@ -2488,7 +2779,7 @@ WHERE ROUND(ur.water_amount + ur.water_other_fees - i.water, 2) <> 0
 
 On the stock seed this returns **no rows**. A row here means a reading and the invoice it was billed on disagree.
 
-### 17.3 Standard restore
+### 19.3 Standard restore
 
 ```sql
 DELETE FROM invoices          WHERE id LIKE 'INV-TEST%';
@@ -2557,11 +2848,27 @@ UPDATE parking_reservations SET status='Pending', slot_number=NULL, assigned_at=
 UPDATE system_settings SET setting_value='3' WHERE setting_key='max_parking_slots';
 UPDATE system_settings SET setting_value='manual' WHERE setting_key='parking_billing_mode';
 UPDATE system_settings SET setting_value='300' WHERE setting_key='parking_monthly_fee';
+
+-- Contract & document generation fixtures (§15.4)
+DELETE FROM lease_contracts WHERE id NOT IN ('LC-0001','LC-0002','LC-0003','LC-0004','LC-0005','LC-0006','LC-0007','LC-0008','LC-0009','LC-0010','LC-0011');
+UPDATE lease_contracts SET renewal_reminder_sent_at = NULL;
+UPDATE lease_contracts SET status='eviction-pending', eviction_status='flagged', termination_reason=NULL, terminated_at=NULL WHERE id='LC-0004';
+UPDATE lease_contracts SET status='draft' WHERE id='LC-0005';
+UPDATE lease_contracts SET lease_end='2026-09-20' WHERE id='LC-0010';
+UPDATE rent_applications SET status='Approved' WHERE id=4; -- Ben (LC-0004's application)
+UPDATE rooms SET status='occupied', tenant_name='Ben Flores', lease_start='2025-11-01', lease_end='2026-11-01', occupants=2, last_tenant=NULL WHERE id='D';
+UPDATE system_settings SET setting_value = '2000-01-01' WHERE setting_key = 'notification_sweep_last_run';
+
+-- Visitor management fixtures (§16.4) — back to the seed's 4 rows
+DELETE FROM visitor_logs WHERE id > 4;
+UPDATE visitor_logs SET status='checked_in', check_out_at=NULL, checkout_notes=NULL, overstay_alerted_at=NULL, check_in_at='2026-08-25 16:00:00' WHERE id=3;
+UPDATE system_settings SET setting_value='24' WHERE setting_key='visitor_overstay_hours';
+UPDATE system_settings SET setting_value='true' WHERE setting_key='service_visitor_management_active';
 ```
 
 Then re-run the baseline check in [§1.6](#16-restore-discipline).
 
-### 17.4 Settings each module reads
+### 19.4 Settings each module reads
 
 | Module | `system_settings` keys |
 |---|---|
@@ -2576,6 +2883,8 @@ Then re-run the baseline check in [§1.6](#16-restore-discipline).
 | 6 — Notifications & automation | `rent_due_reminders_enabled`, `rent_due_reminder_days`, `overdue_reminders_enabled`, `overdue_reminder_interval_days` (see below), `notification_sweep_last_run` (the daily-sweep claim) |
 | 10 — Parking | `max_parking_slots`, `parking_allowed_vehicle_types`, `parking_monthly_fee`, `parking_billing_mode` (`manual` / `auto`), `service_parking_active` |
 | 11 — Role-based access | None. Limits are constants in `config.php` / `manage_users.php`: `PASSWORD_MIN_LENGTH` 8, `LOGIN_MAX_FAILURES_PER_ACCOUNT` 5, `LOGIN_MAX_FAILURES_PER_IP` 20, `LOGIN_LOCKOUT_MINUTES` 15, `MAX_ADMIN_ACCOUNTS` 3 |
+| 9 — Contracts | `lease_end_reminder_days` (absent = 30, via `send_lease_end_reminders()`) |
+| 12 — Visitors | `visitor_overstay_hours` (absent = 24), `service_visitor_management_active` (absent = enabled) |
 
 Not every key exists as a row. The reminder settings — `rent_due_reminders_enabled`, `rent_due_reminder_days`, `overdue_reminders_enabled`, `overdue_reminder_interval_days` — are **absent from the seed database** and fall back to code defaults (enabled, 3 days, enabled, 3 days) in `check_due_date_reminders.php`. To test a different cadence, `INSERT` the key rather than expecting an `UPDATE` to match a row:
 
