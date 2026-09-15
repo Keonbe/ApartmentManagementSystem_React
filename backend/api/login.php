@@ -48,6 +48,11 @@ $stmt->close();
 // email address that the account existed, without knowing its password.
 if (!$user || !password_verify($password, $user["password"])) {
     record_login_failure($conn, $ip, $email);
+    // login_attempts is cleared on success, so it is not an audit trail. The
+    // address is masked; the password is never logged.
+    $at = strpos($email, '@');
+    $masked = $at !== false ? substr($email, 0, min(2, $at)) . '***' . substr($email, $at) : '***';
+    log_activity($conn, null, 'auth', 'Failed Sign-in', "Failed sign-in for $masked from $ip", 0);
     echo json_encode(["message" => "Invalid email or password", "valid" => false]);
     $conn->close();
     exit;
@@ -75,10 +80,12 @@ $userData = [
 // proof of identity every endpoint trusts (see get_authenticated_user()).
 $sessionToken = create_session($conn, (int)$user["id"], $user["role"]);
 
-// Admin sign-ins are part of the audit trail; tenant sign-ins are too frequent to be useful there.
-if ($user["role"] === 'admin') {
-    log_activity($conn, (int)$user["id"], 'auth', 'Admin Signed In', "Admin {$user['email_address']} signed in from $ip");
-}
+// Every sign-in is recorded against the account that signed in — explicitly, since
+// the request may still carry an older session token for someone else.
+log_activity($conn, (int)$user["id"], 'auth',
+    $user["role"] === 'admin' ? 'Admin Signed In' : 'Tenant Signed In',
+    ($user["role"] === 'admin' ? 'Admin' : 'Tenant') . " {$user['email_address']} signed in from $ip",
+    (int)$user["id"]);
 
 echo json_encode([
     "message" => "Login successful",

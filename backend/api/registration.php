@@ -46,6 +46,8 @@ $stmt = $conn->prepare("INSERT INTO users (first_name, middle_name, last_name, s
 $stmt->bind_param("ssssss", $first_name, $middle_name, $last_name, $suffix, $email_address, $hashed_password);
 
 if ($stmt->execute()) {
+    $new_user_id = (int)$stmt->insert_id;
+    log_activity($conn, $new_user_id, 'user', 'Account Registered', "New tenant account #$new_user_id ($email_address)", $new_user_id);
     echo json_encode(["message" => "Account created successfully", "success" => true]);
 } else {
     echo json_encode(["message" => "Failed to create account", "success" => false]);

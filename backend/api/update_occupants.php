@@ -76,6 +76,7 @@ if ($user && $user['room_name']) {
     $stmt->bind_param("isss", $userId, $title, $msg, $occupants);
     
     if ($stmt->execute()) {
+        log_activity($conn, $userId, 'tenant', "Requested Occupancy Change", "Unit $roomName: $occupants occupant(s)");
         echo json_encode(["success" => true, "message" => "Occupancy update request submitted for admin review."]);
     } else {
         echo json_encode(["success" => false, "message" => "Failed to submit request."]);

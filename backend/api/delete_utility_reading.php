@@ -65,7 +65,7 @@ if ($deleted === 0) {
     exit;
 }
 
-log_activity($conn, $admin_id, 'utilities', 'delete_reading', "Deleted utility reading #{$id} for Unit {$reading['room_name']} ({$reading['billing_period']})");
+log_activity($conn, $admin_id, 'utilities', 'Deleted Utility Reading', "Deleted utility reading #{$id} for Unit {$reading['room_name']} ({$reading['billing_period']})");
 echo json_encode(["success" => true, "message" => "Reading deleted."]);
 $conn->close();
 ?>

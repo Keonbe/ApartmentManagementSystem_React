@@ -83,7 +83,7 @@ if ($action === 'remove') {
     $stmt = $conn->prepare("UPDATE lease_contracts SET $column_name = NULL WHERE id = ?");
     $stmt->bind_param("s", $contract_id);
     if ($stmt->execute()) {
-        log_activity($conn, $admin_id ?: $user_id, 'tenant', "Removed Lease Document", "Document: $doc_type from Contract: $contract_id");
+        log_activity($conn, $admin_id ?: $user_id, 'contract', "Removed Lease Document", "Document: $doc_type from Contract: $contract_id");
         echo json_encode(["success" => true, "message" => "Document removed successfully"]);
     } else {
         echo json_encode(["success" => false, "message" => "Failed to remove document"]);
@@ -128,7 +128,7 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
         $stmt->bind_param("ss", $destination, $contract_id);
         
         if ($stmt->execute()) {
-            log_activity($conn, $admin_id ?: $user_id, 'tenant', "Uploaded Lease Document", "Document: $doc_type to Contract: $contract_id");
+            log_activity($conn, $admin_id ?: $user_id, 'contract', "Uploaded Lease Document", "Document: $doc_type to Contract: $contract_id");
             echo json_encode(["success" => true, "message" => "Document uploaded successfully", "filePath" => $destination, "contractId" => $contract_id]);
         } else {
             echo json_encode(["success" => false, "message" => "Database update failed"]);

@@ -3,7 +3,7 @@
 > **Project:** Apartment Management System
 > **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
 > **Context:** Small-to-medium scale apartment building (15–100 units)
-> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking, Utility Usage, Reports & Activity Log, and Role-Based Access audited)
+> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking, Utility Usage, Reports & Activity Log, Role-Based Access, Notification/Automation and Parking Reservation audited)
 
 ---
 
@@ -18,9 +18,9 @@
 | [x] | **Maintenance Management**              | [x] Issue type: plumbing, electrical, structural/physical, water supply, general repair, others; [x] problem description, [x] location, [x] priority level: low/medium/high/urgent (admin-assigned during triage, not tenant-selected), [x] photo upload, [x] status: pending/in progress/completed, [x] date and time reported, [x] date and time resolved |
 | [x] | **Service Management**                  | [x] Cleaning, [x] laundry, [x] other services, [x] priced catalog, [x] tenant booking, [x] billing integration                                                                                                                                                          |
 | [ ] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [ ] two-way chat (admin ↔ tenant messaging)                                                                                                                                                                            |
-| [ ] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [ ] SMS notifications, [ ] email notifications, [ ] automated reports, [ ] notification preferences                                                                                      |
+| [~] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [x] notification preferences (in-app only), [x] a daily automated sweep drives reminders/overdue/parking, [ ] SMS notifications, [ ] email notifications, [ ] automated reports         |
 | [x] | **Inquiry & Reservation Management**    | [x] Inquiry handling, [x] reservation tracking, [x] room/unit availability tracking, [x] reservation module                                                                                                                                                             |
-| [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [~] slot assignment management (status-based, no numbered slots), [~] parking fee integration into billing (manual admin entry, not auto-synced)                                                                   |
+| [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [x] slot assignment management (numbered slots, admin picks a free one, released on move-out/archive/term end), [x] parking fee integration into billing (manual "Bill this month" or automatic monthly posting, admin-configurable, never billed twice) |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
 | [x] | **Utility Usage**                       | [x] Water usage, [x] electricity usage, [x] utility tracking per unit, [x] month-over-month change & usage-spike flags, [x] billing sync to invoices                                                                                                                  |
 | [x] | **Report Generation / Admin Dashboard** | [x] Occupancy statistics, [x] income reports, [x] tenant monitoring, [x] maintenance monitoring, [x] utility usage, [x] system activity logs, [x] reports, [x] revenue stream analysis                                                                                  |
@@ -215,23 +215,24 @@ flowchart TD
 
 ```mermaid
 flowchart LR
+    S["Daily Sweep<br/>run_notification_sweep()<br/>claimed once/day, or forced"] --> A
     A(["Trigger Event"]) --> B{"Event Type"}
-    B -->|Rent Due in 3-5 days| C["Rent Due Reminder"]
-    B -->|Invoice Past Due Date| D["Overdue Alert"]
+    B -->|Rent Due in N days| C["Rent Due Reminder<br/>claimed per invoice"]
+    B -->|Invoice Past Due Date| D["Overdue Alert<br/>claimed per invoice"]
     B -->|Maintenance Status Change| E["Maintenance Update"]
     B -->|Admin Broadcast| F["Building Announcement"]
-    B -->|New Message| G["Chat Notification"]
-    C --> H{"Delivery Channel"}
-    D --> H
-    E --> H
+    B -->|Parking Decision / Term End| M["Parking Notice"]
+    C --> H{"Muted by tenant<br/>preference?"}
+    D --> H2["Always delivered<br/>(can't be muted)"]
+    E --> H2
     F --> H
-    G --> H
-    H -->|Always| I["In-App Notification<br/>Bell Icon + Notification Center"]
-    H -->|If Enabled| J["Email<br/>PHPMailer + Gmail SMTP"]
-    H -->|If Enabled| K["SMS<br/>Semaphore API"]
-    I --> L(["Tenant/Admin Notified"])
-    J --> L
-    K --> L
+    M --> H
+    H -->|No| I["In-App Notification<br/>Bell Icon + Notification Center"]
+    H -->|Yes| SKIP["Not delivered"]
+    H2 --> I
+    I --> J["Email<br/>Not built (6.6)"]
+    I --> K["SMS<br/>Not built (6.7)"]
+    I --> L(["Tenant/Admin Notified — in-app only, today"])
 ```
 
 ### Visitor Management Flow
@@ -281,17 +282,19 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A(["Tenant Requests Parking"]) --> B["Submit Reservation<br/>parking_reservation.php"]
-    B --> C["Check Slot Availability<br/>get_available_parking_slots.php"]
-    C --> D{"Slots Available?"}
-    D -->|No| E["Notify Tenant: No Slots Available"]
-    D -->|Yes| F["Admin Reviews Request"]
-    F -->|Reject| G["Notify Tenant: Rejected"]
-    F -->|Approve + Assign Slot| H["Status: Assigned<br/>Specific Slot Allocated"]
-    H --> I["Parking Fee Added to Monthly Invoice"]
-    I --> J(["Tenant Using Assigned Slot"])
-    J --> K{"Tenant Moves Out?"}
-    K -->|Yes| L["Release Parking Slot<br/>Status: Available"]
+    A(["Tenant Requests Parking"]) --> B{"Lot full, or tenant<br/>already has an open<br/>reservation?"}
+    B -->|Yes| E["Refused — 409"]
+    B -->|No| C["Submit Reservation<br/>parking_reservation.php<br/>Status: Pending"]
+    C --> F["Admin Reviews Request"]
+    F -->|Reject + reason| G["Notify Tenant: Rejected"]
+    F -->|Approve + pick a free slot| H["Status: Assigned<br/>Numbered Slot Allocated"]
+    H --> I{"Billing Mode"}
+    I -->|Automatic| I1["Fee Posted Immediately<br/>and Each Following Month"]
+    I -->|Manual| I2["Admin Clicks 'Bill This Month'<br/>Per Month, Never Twice"]
+    I1 --> J(["Tenant Using Assigned Slot"])
+    I2 --> J
+    J --> K{"Tenant Moves Out,<br/>Archived, or Term Ends?"}
+    K -->|Yes| L["Release Parking Slot<br/>Status: Released"]
     L --> M(["Slot Available for Others"])
 ```
 
@@ -445,14 +448,15 @@ flowchart TD
 > Tenant Pages: [UserNotifications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) · [UserAnnouncements.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserAnnouncements.jsx)
 > Related Docs: [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md)
 
-- [x] **6.1 In-App Notifications** ✅ — Bell icon + notification center
-- [x] **6.2 Rent Due Reminders** ✅ — Implemented via `check_due_date_reminders.php` and `send_payment_reminder.php`
-- [x] **6.3 Overdue Alerts** ✅ — Implemented with overdue status transitions & recurring in-app alerts
-- [ ] **6.4 Maintenance Status Updates** 🔧 — In-app works; external channels pending
-- [x] **6.5 Building Announcements** ✅ — `create_announcement.php`
+- [x] **6.1 In-App Notifications** ✅ — Bell icon (polling every 60s) + notification center, scoped so an admin's "mark all read"/"clear all" can never touch a tenant's own notices
+- [x] **6.2 Rent Due Reminders** ✅ — Sent by a daily automated sweep (`run_notification_sweep()` in `backend/config.php`), claimed per invoice so the same reminder is never sent twice; also available on demand via `check_due_date_reminders.php` / `send_payment_reminder.php`
+- [x] **6.3 Overdue Alerts** ✅ — Same daily sweep promotes lapsed invoices and sends the alert, with the same once-per-invoice claim
+- [x] **6.4 Maintenance Status Updates** ✅ — In-app on every status change; external channels pending (6.6/6.7)
+- [x] **6.5 Building Announcements** ✅ — `create_announcement.php`, targets all current tenants or one unit's tenant, respects each tenant's announcement preference
 - [ ] **6.6 Email Notifications** 📋 — PHPMailer + Gmail SMTP designed
 - [ ] **6.7 SMS Notifications** 📋 — Semaphore API designed
-- [ ] **6.8 Notification Preferences** 📋 — Schema designed
+- [x] **6.8 Notification Preferences** ✅ (in-app only) — Server-side per-category opt-out (`notification_preferences` table, `get_/update_notification_preferences.php`); critical notices (overdue, billing, decisions, maintenance/contract/move-out updates) can't be muted. Email/SMS channel preferences await 6.6/6.7
+- **Automation** ✅ — A daily sweep (opportunistic on the first sign-in of the day, plus a CLI script `backend/cron/daily_sweep.php` for Windows Task Scheduler) drives reminders, overdue alerts, parking-permit expiry and automatic parking billing — see Module 10
 
 ---
 
@@ -484,7 +488,9 @@ flowchart TD
   - **Export:** real CSV export, and each export is itself logged.
   - **Append-only:** there is no way to clear the log from the UI.
   - **Attribution:** the performer always comes from the verified session.
-  - **What's logged:** admin sign-ins, password changes and resets, role changes, archives, and which settings changed
+  - **What's logged:** admin **and tenant** sign-ins (and failed sign-ins, masked, no password), password changes and resets, role changes, archives, which settings changed, plus (as of this round) rental applications, inquiries, occupancy/lease requests, profile changes, registration, sign-out, checkout starts, and parking activity — 13 previously-silent endpoints now log
+  - **Search fixed:** LIKE wildcards (`%`/`_`) are escaped so they match literally, and log-id search (`LOG-0012`) matches the exact id instead of stripping characters
+  - **Export honesty:** a `truncated` flag and "Exported N of M" wording replace the old claim of exporting everything when a search actually hit the 5,000-row cap; CSV cells starting with `= + - @` are now escaped against formula injection
 - [x] **8.7 Utility Usage Tracking** ✅ — `utility_readings` table (now in `SetupDB.sql`), `AdminUtilities.jsx`, `UserUtilities.jsx`. Each unit has one water and electricity reading per billing month. Readings are validated: a meter can't read lower than last month, readings are recorded oldest-first, and rates carry forward. Each reading shows the change from the previous month and flags a usage spike above 30%. A mistyped reading is corrected by deleting the latest un-invoiced one. `sync_utility_to_invoice.php` posts the charge onto the tenant's open invoice for that month, or onto a utilities-only invoice — rent is never billed twice. Reports show units read vs. occupied and which units are still unread. Tenants see only their own readings (session-scoped)
 - [ ] **8.8 Sampling Data / Demo Data** 📋 — Needed for demo (SQL seed script)
 
@@ -509,10 +515,10 @@ flowchart TD
 > Admin Pages: [AdminParking.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminParking.jsx)
 > Tenant Pages: [ParkingReservation.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ParkingReservation.jsx)
 
-- [x] **10.1 Parking Slot Listing** ✅ — `get_available_parking_slots.php`
-- [x] **10.2 Reservation Request** ✅ — `parking_reservation.php`
-- [ ] **10.3 Parking Fee Integration** 🔧 — `invoices.parking` column exists and flows through billing/reporting, but the amount is still typed in manually on `create_invoice.php`; nothing auto-copies a reservation's `total_cost` onto the tenant's invoice
-- [ ] **10.4 Slot Assignment Management** 🔧 — `update_parking_status.php` lets admin move a reservation to `Assigned`/`Approved`/`Rejected` and notifies the tenant, but there is no numbered-slot column — "assignment" is a status change, not allocation of a specific physical slot
+- [x] **10.1 Parking Slot Listing** ✅ — `get_available_parking_slots.php` returns real capacity, the monthly fee and the caller's own reservation; a tenant page that used to always read "3/3 free" now shows the true count
+- [x] **10.2 Reservation Request** ✅ — `parking_reservation.php`, one open reservation per tenant (enforced by a unique key, not just an application check), refused once the lot is full or the parking module is switched off
+- [x] **10.3 Parking Fee Integration** ✅ — `post_parking_charge()` posts the fee onto the tenant's invoice per calendar month of the permit term, claimed by a `(reservation_id, billing_period)` unique key so a month is never billed twice. Admin-configurable: **manual** ("Bill this month" button, reversible while unpaid) or **automatic** (posted on assignment and by the daily sweep each following month)
+- [x] **10.4 Slot Assignment Management** ✅ — Numbered slots (`slot_number`, 1..`max_parking_slots`); the admin picks a free slot from a live picker, and the database itself refuses two `Assigned` rows on one slot. Status transitions are enforced (`Pending → Assigned \| Rejected \| Cancelled`, `Assigned → Released`). The slot is released automatically on move-out, on archiving, or when its term ends (daily sweep) — previously a moved-out tenant's slot stayed occupied forever
 
 ---
 
@@ -552,16 +558,16 @@ flowchart TD
 | 3. Payment & Billing | 12 | 11 | 1 | 0 | 0 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
-| 6. Notification | 8 | 4 | 1 | 3 | 0 |
+| 6. Notification | 8 | 6 | 0 | 2 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
 | 8. Dashboard & Reports | 8 | 7 | 0 | 1 | 0 |
 | 9. Contracts | 6 | 6 | 0 | 0 | 0 |
-| 10. Parking | 4 | 2 | 2 | 0 | 0 |
+| 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 3 | 3 | 0 | 0 | 0 |
-| **TOTAL** | **83** | **67** | **5** | **11** | **0** |
+| **TOTAL** | **83** | **71** | **2** | **10** | **0** |
 
-> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026. Modules 3, 6 and 8 and the totals had drifted out of step with the item list.
+> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation.
 
 ### Core Functionality Coverage
 
@@ -723,18 +729,19 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 ### Module 6 — Notification Module
 
-**Context:** Tenants need to be informed about rent due dates, overdue payments, maintenance updates, and building announcements. The system supports three channels: in-app, email, and SMS.
+**Context:** Tenants need to be informed about rent due dates, overdue payments, maintenance updates, and building announcements. Delivery today is in-app only; email and SMS remain designed.
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 6.1 | **In-App Notifications** | Bell icon with unread count; notification center listing all notifications with read/unread status | Small+ | `notifications` table, `get_notifications.php`, TopBar bell | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 6.2 | **Rent Due Reminders** | Automatic notification 3-5 days before rent due date: "Your rent for Unit H is due soon" | Small+ | `check_due_date_reminders.php`, `send_payment_reminder.php`, `AdminPayments.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 6.3 | **Overdue Alerts** | When invoice passes due date: "Your rent payment is overdue. Please settle immediately." | Small+ | `check_due_date_reminders.php`, `AdminPayments.jsx`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 6.4 | **Maintenance Status Updates** | When admin changes maintenance request status: "Your request REQ-003 is now In Progress" | Small+ | `process_tenant_request.php` triggers notification | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 6.5 | **Building Announcements** | Admin broadcasts to all tenants: building maintenance schedule, policy updates, emergency alerts | Small+ | `create_announcement.php` → creates notification per tenant | — |
+| 6.1 | **In-App Notifications** | Bell icon (polling every 60s) with unread count; notification center with per-type links. Scoped so an admin's bulk actions never reach a tenant's own inbox — previously "mark all read"/"clear all" shared the same queue types as tenant decision notices | Small+ | `notifications` table, `get_notifications.php`, `mark_notification_read.php`, `delete_notification.php`, `TopBar.jsx`, `AdminDashboardHeader.jsx` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 6.2 | **Rent Due Reminders** | Sent by the daily automated sweep before the configured due-date window; each invoice is claimed so it is reminded at most once per day, whichever trigger fires it | Small+ | `run_notification_sweep()` / `claim_invoice_reminder()` in `backend/config.php`, `check_due_date_reminders.php`, `send_payment_reminder.php`, `backend/cron/daily_sweep.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.3 | **Overdue Alerts** | Same sweep promotes lapsed invoices and alerts the tenant, same per-invoice claim | Small+ | `run_notification_sweep()`, `promote_overdue_invoices()`, `AdminPayments.jsx`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.4 | **Maintenance Status Updates** | On every status change: "Your request … is now In Progress", including the rejection reason | Small+ | `update_maintenance_status.php` → `create_notification()` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.5 | **Building Announcements** | Admin broadcasts to all current tenants or one unit's tenant; respects each tenant's announcement preference | Small+ | `create_announcement.php` → `create_notification()` per recipient | — |
 | 6.6 | **Email Notifications** | Send email via PHPMailer + Gmail SMTP for important events (payment receipt, lease expiry, announcements) | Small+ | `send_email.php`, PHPMailer + Gmail SMTP | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.7 | **SMS Notifications** | Send SMS via Semaphore API for urgent alerts (overdue rent, emergency announcements) | Medium | `send_sms.php`, Semaphore cURL | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 6.8 | **Notification Preferences** | Tenant opts in/out per channel: "I want email but not SMS for payment reminders" | Medium | `notification_preferences` table | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.8 | **Notification Preferences** | Tenant opts out per category (announcements, rent-due reminders, service/CCTV/parking updates, visitor updates, inquiry updates) in-app; overdue alerts, billing, and any decision notice can't be muted. Per-channel (email/SMS) preferences await 6.6/6.7 | Medium | `notification_preferences` table, `get_/update_notification_preferences.php`, `NOTIFICATION_PREF_CATEGORIES` in `backend/config.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| — | **Automation** | Reminders, overdue alerts, parking-permit expiry and automatic parking billing all run from one daily sweep, claimed once per calendar day. It fires opportunistically (the first signed-in page load of the day) and can be forced (admin "Run now", or the CLI script for Windows Task Scheduler) | Small+ | `run_notification_sweep()` in `backend/config.php`, `backend/cron/daily_sweep.php` | [module_verification_guide.md §13](../documentation/module_verification_guide.md) |
 
 ---
 
@@ -791,10 +798,10 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 10.1 | **Parking Slot Listing** | View all parking slots with status: Available / Assigned / Reserved / Under Maintenance | Small+ | `get_available_parking_slots.php` | — |
-| 10.2 | **Reservation Request** | Tenant requests a parking slot; admin approves/rejects based on availability | Small+ | `parking_reservation.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
-| 10.3 | **Parking Fee Integration** | `invoices.parking` line item exists and flows through billing/reporting/reversal like other charges, but the amount is a manual field on invoice creation — a reservation's `total_cost` is not auto-copied onto the invoice | Small+ | `create_invoice.php` (`parking` input field); `sync_utility_to_invoice.php` adds utility charges to `total_amount` instead of recomputing it, so a parking charge already on the invoice survives | — |
-| 10.4 | **Slot Assignment Management** | Admin moves a reservation to Assigned/Approved/Rejected and the tenant is notified; there is no numbered-slot column, so a specific physical slot is not tracked or transferred on move-out | Small+ | `parking_reservations` table (status field only, no `slot_number`), `update_parking_status.php`, `AdminParking.jsx` | — |
+| 10.1 | **Parking Slot Listing** | Real slot counts: max slots, occupied count, free count and the caller's own reservation (status, slot number, term, billed months). The tenant page previously read this from an admin-only endpoint and always showed every slot free | Small+ | `get_available_parking_slots.php` | — |
+| 10.2 | **Reservation Request** | Tenant requests a slot; only one open reservation per tenant (backed by a database unique key, not just an application check), refused once the lot is full or the module is switched off | Small+ | `parking_reservation.php` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 10.3 | **Parking Fee Integration** | The fee is posted onto the tenant's invoice per calendar month of the permit term, claimed by a unique `(reservation, month)` key so a month can never be billed twice. Admin chooses **manual** ("Bill this month" per month, reversible while unpaid) or **automatic** (posted on assignment and by the daily sweep thereafter) | Small+ | `post_parking_charge()` / `reverse_parking_charge()` in `backend/config.php`, `sync_parking_to_invoice.php`, `parking_charges` table, `system_settings.parking_billing_mode` / `parking_monthly_fee` | — |
+| 10.4 | **Slot Assignment Management** | Numbered slots (`slot_number`, 1..`max_parking_slots`); the admin picks a free slot, and the database refuses two `Assigned` rows on one slot. Enforced transitions (`Pending → Assigned \| Rejected \| Cancelled`, `Assigned → Released`); the slot releases automatically on move-out, archive, or when its term ends | Small+ | `parking_reservations.slot_number`/`assigned_at`/`released_at`, `PARKING_TRANSITIONS` in `config.php`, `update_parking_status.php`, `release_user_parking()`, `release_lapsed_parking()`, `AdminParking.jsx` | — |
 
 ---
 
@@ -835,3 +842,6 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 | Payment System Design | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) | Payment flow, GCash/bank/cash handling, proof upload |
 | Move-In / Move-Out | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) | Move-in/move-out lifecycle, inspection, archiving |
 | Inquiry & Reservation | [inquiry_reservation_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/inquiry_reservation_design.md) | Inquiry funnel, unit reservation holds, expiry, conflict checks |
+| Module Verification — Notifications & Automation | [module_verification_guide.md §13](../documentation/module_verification_guide.md#13-module-6--notifications--automation) | Audited API contract, diagrams, workflow and test matrix for Module 6 |
+| Module Verification — Parking Reservation | [module_verification_guide.md §14](../documentation/module_verification_guide.md#14-module-10--parking-reservation) | Audited API contract, diagrams, workflow and test matrix for Module 10 |
+| Module Verification — Reports & Activity Log | [module_verification_guide.md §11](../documentation/module_verification_guide.md#11-module-8--reports--activity-log) | Includes the §11.5 logging-coverage remediation and tests |

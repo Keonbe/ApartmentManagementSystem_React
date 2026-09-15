@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Id, x-user-id");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 require_once "../config.php";
 
@@ -11,32 +11,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Same scoping as mark_notification_read.php. A single id used to be deleted
-// with no check (even unauthenticated), and an admin "clear all" deleted every
-// non-pending notification in the system — every tenant's inbox included.
+// Deleting is narrower than marking read: anyone may delete only notifications
+// addressed to them, and never a row that is still waiting on a decision.
+//
+// Previously an admin could delete any row whose type was a queue type — which
+// included tenants' own decision notices — and a tenant could delete their own
+// Pending occupancy / lease request, which is the row that stops a duplicate
+// request from being filed and the row the admin approves from.
 $auth = require_user($conn);
-$is_admin = $auth['role'] === 'admin';
 
 $input = json_decode(file_get_contents("php://input"), true) ?? [];
 $notification_id = (int)($input['notificationId'] ?? $input['id'] ?? 0);
 
-$scope = $is_admin ? "(user_id = ? OR type IN " . admin_queue_types_sql() . ")" : "user_id = ?";
-
 if ($notification_id) {
-    $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ? AND $scope");
+    $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ? AND status <> 'Pending'");
     $stmt->bind_param("ii", $notification_id, $auth['id']);
     $stmt->execute();
     $deleted = $stmt->affected_rows;
     $stmt->close();
 
     if ($deleted === 0) {
-        http_response_code(404);
-        echo json_encode(["success" => false, "message" => "Notification not found."]);
+        $check = $conn->prepare("SELECT status FROM notifications WHERE id = ? AND user_id = ?");
+        $check->bind_param("ii", $notification_id, $auth['id']);
+        $check->execute();
+        $row = $check->get_result()->fetch_assoc();
+        $check->close();
+
+        if ($row) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This request is still awaiting a decision and cannot be removed."]);
+        } else {
+            http_response_code(404);
+            echo json_encode(["success" => false, "message" => "Notification not found."]);
+        }
         exit;
     }
 } else {
-    // Bulk clear keeps anything still Pending, so an open request is never lost.
-    $stmt = $conn->prepare("DELETE FROM notifications WHERE status != 'Pending' AND $scope");
+    $stmt = $conn->prepare("DELETE FROM notifications WHERE user_id = ? AND status <> 'Pending'");
     $stmt->bind_param("i", $auth['id']);
     $stmt->execute();
     $deleted = $stmt->affected_rows;

@@ -234,7 +234,17 @@ if ($id > 0 && !empty($status)) {
             $cancel_inv->execute();
             $cancel_inv->close();
 
-            log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance", "Application ID: $id, $clearance_notes");
+            // A moved-out tenant's parking slot used to stay Assigned forever,
+            // holding capacity nobody could use (checklist 10.4).
+            $owner_id = get_rent_application_owner($conn, $id);
+            $parking_released = 0;
+            if ($owner_id) {
+                $parking_released = release_user_parking($conn, $owner_id, 'Tenant moved out');
+                create_notification($conn, $owner_id, 'move_out_update', 'Move-Out Completed',
+                    "Your move-out has been completed and your clearance recorded. Thank you for staying with us.");
+            }
+
+            log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance", "Application ID: $id, $clearance_notes" . ($parking_released ? "; parking released" : ""));
         } else {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         }
@@ -256,11 +266,9 @@ if ($id > 0 && !empty($status)) {
                     $notif_msg .= " Reason: $rejection_reason";
                 }
                 
-                $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'application_update', ?, ?, 'Resolved', 0)");
-                $notif_stmt->bind_param("iss", $tenant_id, $notif_title, $notif_msg);
-                $notif_stmt->execute();
-                $notif_stmt->close();
+                create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
             }
+            resolve_admin_queue($conn, 'rent_application', $id);
         }
 
         $conn->commit();

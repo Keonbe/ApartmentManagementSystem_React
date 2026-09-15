@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 require_once "../config.php";
 
@@ -27,7 +27,8 @@ if (!$user_id || $title === '' || $message === '') {
     echo json_encode(["success" => false, "message" => "User ID, title, and message are required."]);
     exit;
 }
-if (mb_strlen($title) > 255 || !preg_match('/^[a-z_]{1,50}$/', $type)) {
+// A queue type would make the message look like a request awaiting a decision.
+if (mb_strlen($title) > 255 || !preg_match('/^[a-z_]{1,50}$/', $type) || in_array($type, ADMIN_QUEUE_NOTIFICATION_TYPES, true)) {
     http_response_code(422);
     echo json_encode(["success" => false, "message" => "Invalid title or notification type."]);
     exit;
@@ -44,15 +45,9 @@ if (!$exists) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)");
-$stmt->bind_param("isss", $user_id, $title, $message, $type);
+$id = create_notification($conn, $user_id, $type, $title, $message);
+log_activity($conn, $admin_id, 'communication', 'Sent Notification', "To user #$user_id: $title");
+echo json_encode(["success" => true, "message" => $id ? "Notification created successfully" : "The user has muted this kind of notification.", "delivered" => (bool)$id]);
 
-if ($stmt->execute()) {
-    echo json_encode(["success" => true, "message" => "Notification created successfully"]);
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to create notification"]);
-}
-
-$stmt->close();
 $conn->close();
 ?>

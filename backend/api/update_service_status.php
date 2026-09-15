@@ -109,18 +109,12 @@ try {
         $notif_msg = "Your \"$service_name\" booking has been " . strtolower($status) . ".";
     }
 
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'service_status', ?, ?, 'Resolved', 0)");
-    $notif_stmt->bind_param("iss", $old['user_id'], $notif_title, $notif_msg);
-    $notif_stmt->execute();
-    $notif_stmt->close();
+    create_notification($conn, $old['user_id'], 'service_status', $notif_title, $notif_msg);
 
     //ClearTheOriginalIntakeRowFromTheAdminBellOnceTheRequestIsSettled
-    if (in_array($status, ['Completed', 'Rejected', 'Cancelled'], true)) {
-        $metadata = "service_request:$id";
-        $resolve = $conn->prepare("UPDATE notifications SET status = 'Resolved' WHERE type = 'service_request' AND metadata_value = ?");
-        $resolve->bind_param("s", $metadata);
-        $resolve->execute();
-        $resolve->close();
+    // (Once the booking leaves Pending the admin has acted on it.)
+    if ($status !== 'Pending') {
+        resolve_admin_queue($conn, 'service_request', $id);
     }
 
     log_activity($conn, $admin_id, 'service', "Updated Service Request Status", "Service Request ID: $id status {$old['status']} -> $status");

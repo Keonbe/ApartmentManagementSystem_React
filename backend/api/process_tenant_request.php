@@ -11,18 +11,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+$admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true);
-$notification_id = $input['notificationId'] ?? 0;
+$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$notification_id = (int)($input['notificationId'] ?? 0);
 $action = $input['action'] ?? ''; // 'approve' or 'reject'
 
-if (!$notification_id || !in_array($action, ['approve', 'reject'])) {
+if (!$notification_id || !in_array($action, ['approve', 'reject'], true)) {
+    http_response_code(422);
     echo json_encode(["success" => false, "message" => "Invalid parameters"]);
     exit;
 }
@@ -30,15 +26,21 @@ if (!$notification_id || !in_array($action, ['approve', 'reject'])) {
 $conn->begin_transaction();
 
 try {
-    // 1. Fetch the original notification details
-    $stmt = $conn->prepare("SELECT * FROM notifications WHERE id = ?");
+    // 1. Fetch the original notification. Only the two request types this
+    // endpoint knows how to apply may be decided here. It used to load any id,
+    // so an admin could "approve" a tenant's rent reminder or bill notice, which
+    // flipped its status and sent the tenant a meaningless "Request Approved".
+    $stmt = $conn->prepare("SELECT * FROM notifications WHERE id = ? AND type IN ('occupancy_request', 'lease_extension_request')");
     $stmt->bind_param("i", $notification_id);
     $stmt->execute();
     $notif = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     if (!$notif) {
-        throw new Exception("Notification request not found.");
+        $conn->rollback();
+        http_response_code(404);
+        echo json_encode(["success" => false, "message" => "Occupancy or lease extension request not found."]);
+        exit;
     }
 
     // Claim the request atomically before doing anything else: only a
@@ -190,25 +192,21 @@ try {
         log_activity($conn, $admin_id, 'tenant', "Rejected " . str_replace('_', ' ', $type), "User ID: $target_user_id");
     }
 
-    // 3. (Notification already marked resolved by the claim step above.)
+    // 3. (Notification already marked decided by the claim step above.)
 
-    // 4. Notify Tenant of decision
-    // FIX APPLIED HERE: We explicitly insert 'Resolved' into the status column so it doesn't trigger the action buttons again.
+    // 4. Notify the tenant of the decision (never Pending, so it can't be re-decided).
+    $label = $type === 'occupancy_request' ? 'occupancy change request' : 'lease extension request';
     $title = ($action === 'approve') ? "Request Approved" : "Request Declined";
-    $msg = "Your " . str_replace('_', ' ', $type) . " has been " . strtolower($statusText) . " by management.";
-
-    $userNotif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, ?, ?, ?, 'Resolved', 0)");
-    $userNotif->bind_param("isss", $target_user_id, $type, $title, $msg);
-    $userNotif->execute();
-    $userNotif->close();
+    $msg = "Your $label has been " . strtolower($statusText) . " by management.";
+    create_notification($conn, $target_user_id, $type, $title, $msg, 'Resolved');
 
     $conn->commit();
     echo json_encode(["success" => true, "message" => "Request $statusText successfully."]);
 
 } catch (Exception $e) {
     $conn->rollback();
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Server error: " . $e->getMessage()]);
+    server_error_response($e, $e->getMessage() === "This request has already been processed."
+        ? "This request has already been processed." : "Could not process the request.");
 }
 
 $conn->close();

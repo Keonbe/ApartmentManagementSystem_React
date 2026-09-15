@@ -12,6 +12,24 @@ import {
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 
+// Keyed on the 12 activity-log categories (LOG_CATEGORIES in config.php). The
+// widget used to key on legacy names (invoice, payment, rent_application), so
+// most entries fell through to the generic icon.
+const LOG_CATEGORY_STYLE = {
+  billing: { icon: faDollarSign, color: 'bg-emerald-100 text-emerald-600' },
+  utilities: { icon: faChartLine, color: 'bg-cyan-100 text-cyan-600' },
+  maintenance: { icon: faWrench, color: 'bg-amber-100 text-amber-600' },
+  tenant: { icon: faUserPlus, color: 'bg-blue-100 text-blue-600' },
+  user: { icon: faUsers, color: 'bg-blue-100 text-blue-600' },
+  auth: { icon: faKey, color: 'bg-violet-100 text-violet-600' },
+  unit: { icon: faBuilding, color: 'bg-indigo-100 text-indigo-600' },
+  contract: { icon: faFileSignature, color: 'bg-indigo-100 text-indigo-600' },
+  service: { icon: faClipboardList, color: 'bg-teal-100 text-teal-600' },
+  inquiry: { icon: faInfoCircle, color: 'bg-sky-100 text-sky-600' },
+  communication: { icon: faBullhorn, color: 'bg-rose-100 text-rose-600' },
+  system: { icon: faCogs, color: 'bg-slate-100 text-slate-600' },
+};
+
 const formatCurrency = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 const formatLogDate = (dateStr) => {
@@ -753,8 +771,8 @@ const AdminDashboard = () => {
                         <div className="divide-y divide-slate-100">
                           {(activityLogs || []).map(log => (
                             <div key={log.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start gap-3 hover:bg-slate-50/50 rounded-lg transition-colors">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${['billing', 'invoice', 'payment'].includes(log.entity_type) ? 'bg-emerald-100 text-emerald-600' : log.entity_type === 'maintenance' ? 'bg-amber-100 text-amber-600' : ['tenant', 'rent_application'].includes(log.entity_type) ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
-                                <FontAwesomeIcon icon={['billing', 'invoice', 'payment'].includes(log.entity_type) ? faDollarSign : log.entity_type === 'maintenance' ? faWrench : ['tenant', 'rent_application'].includes(log.entity_type) ? faUserPlus : faCogs} className="text-xs" />
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${(LOG_CATEGORY_STYLE[log.category] || LOG_CATEGORY_STYLE.system).color}`}>
+                                <FontAwesomeIcon icon={(LOG_CATEGORY_STYLE[log.category] || LOG_CATEGORY_STYLE.system).icon} className="text-xs" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-2">
@@ -764,7 +782,7 @@ const AdminDashboard = () => {
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                                  {log.details || `Performed by ${log.first_name ? log.first_name + ' ' + (log.last_name || '') : 'Admin #' + log.admin_id}`}
+                                  {log.details || `Performed by ${log.first_name ? `${log.first_name} ${log.last_name || ''}`.trim() : 'System'}`}
                                 </p>
                               </div>
                             </div>

@@ -123,14 +123,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($user_id) {
             $notif_title = "New Invoice Issued: {$billing_period}";
             $notif_msg = "Your billing invoice for {$billing_period} (Total: ₱" . number_format($total_amount, 2) . ") is now ready. Due date: {$due_date}.";
-            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, is_read, created_at) VALUES (?, ?, ?, 'billing', 0, NOW())");
-            $notif_stmt->bind_param("iss", $user_id, $notif_title, $notif_msg);
-            $notif_stmt->execute();
-            $notif_stmt->close();
+            create_notification($conn, $user_id, 'billing', $notif_title, $notif_msg);
         }
 
         // Log admin activity audit trail
-        log_activity($conn, $admin_id, 'invoice', 'create', "Generated & issued invoice {$invoice_id} for {$tenant_name} (Unit {$unit}) — Total: ₱" . number_format($total_amount, 2));
+        log_activity($conn, $admin_id, 'billing', 'Created Invoice',"Generated & issued invoice {$invoice_id} for {$tenant_name} (Unit {$unit}) — Total: ₱" . number_format($total_amount, 2));
 
         echo json_encode([
             "success" => true,

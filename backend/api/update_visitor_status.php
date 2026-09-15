@@ -64,10 +64,7 @@ if ($action === 'checked_in' || $action === 'approve') {
     if ($target_user_id) {
         $n_title = "Visitor Approved: $visitor_name";
         $n_msg = "Management has approved the entry of your visitor $visitor_name for Unit $unit.";
-        $n_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'visitor_log', ?, ?, 'Approved', 0)");
-        $n_stmt->bind_param("iss", $target_user_id, $n_title, $n_msg);
-        $n_stmt->execute();
-        $n_stmt->close();
+        create_notification($conn, $target_user_id, 'visitor_log', $n_title, $n_msg);
     }
     log_activity($conn, $auth['id'], 'service', "Approved Visitor Entry", "Visitor $visitor_name entry approved for Unit $unit");
 
@@ -80,10 +77,7 @@ if ($action === 'checked_in' || $action === 'approve') {
     if ($target_user_id) {
         $n_title = "Visitor Entry Declined";
         $n_msg = "Visitor registration for $visitor_name (Unit $unit) was declined by management. Note: " . ($admin_notes ?: 'No additional notes provided.');
-        $n_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'visitor_log', ?, ?, 'Resolved', 0)");
-        $n_stmt->bind_param("iss", $target_user_id, $n_title, $n_msg);
-        $n_stmt->execute();
-        $n_stmt->close();
+        create_notification($conn, $target_user_id, 'visitor_log', $n_title, $n_msg);
     }
     log_activity($conn, $auth['id'], 'service', "Denied Visitor Entry", "Visitor $visitor_name entry denied for Unit $unit");
 

@@ -34,8 +34,8 @@ const AdminPayments = () => {
   const [batchSending, setBatchSending] = useState(false);
   
   useEffect(() => {
-    // Run automated reminder check silently in the background on load
-    api.get('/check_due_date_reminders.php').catch(() => {});
+    // Reminders and overdue alerts run from the daily sweep (run_notification_sweep()
+    // in config.php); this page no longer triggers them on every visit.
     fetchInvoices();
     fetchContracts();
   }, []);

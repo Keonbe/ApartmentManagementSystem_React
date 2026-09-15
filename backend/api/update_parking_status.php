@@ -2,7 +2,7 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -10,77 +10,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+// Admin decision on a parking reservation (checklist 10.2 / 10.4):
+//   Pending  -> Assigned (with a numbered slot) | Rejected (with a reason)
+//   Assigned -> Released (with a reason)
+//
+// This used to accept any status from any status (a rejected or cancelled row
+// could be assigned, an assigned row put back to Pending), reported success for
+// ids that did not exist, and had no way to free a slot at all.
+$admin_id = require_admin($conn);
+
+function parking_status_fail($code, $message) {
+    http_response_code($code);
+    echo json_encode(["success" => false, "message" => $message]);
     exit;
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
-$rawId = $input['rawId'] ?? $input['id'] ?? null;
-$status = $input['status'] ?? null;
+$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$id = (int)($input['rawId'] ?? $input['id'] ?? 0);
+$status = trim((string)($input['status'] ?? ''));
+$slot_number = isset($input['slotNumber']) && $input['slotNumber'] !== '' ? (int)$input['slotNumber'] : null;
+$reason = trim((string)($input['reason'] ?? ''));
 
-if (!$rawId || !in_array($status, ['Assigned', 'Approved', 'Rejected', 'Pending'])) {
-    echo json_encode(["success" => false, "message" => "Invalid parameters."]);
-    exit;
+if ($status === 'Approved') $status = 'Assigned'; // legacy spelling
+
+if (!$id || !in_array($status, ['Assigned', 'Rejected', 'Released'], true)) {
+    parking_status_fail(422, "Invalid parameters.");
+}
+if (in_array($status, ['Rejected', 'Released'], true) && ($reason === '' || mb_strlen($reason) > 255)) {
+    parking_status_fail(422, $status === 'Rejected' ? "Give a reason for rejecting this request." : "Give a reason for releasing this slot.");
 }
 
-// ── Slot Capacity Re-check (admin-configurable) ──
-if ($status === 'Assigned' || $status === 'Approved') {
-    $max_slots = 3;
-    $max_slots_stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'max_parking_slots'");
-    $max_slots_stmt->execute();
-    $max_slots_row = $max_slots_stmt->get_result()->fetch_assoc();
-    $max_slots_stmt->close();
-    if ($max_slots_row && is_numeric($max_slots_row['setting_value'])) {
-        $max_slots = (int)$max_slots_row['setting_value'];
-    }
-
-    $occupied_stmt = $conn->prepare("SELECT COUNT(*) AS occupied FROM parking_reservations WHERE status IN ('Pending', 'Assigned', 'Approved', 'Active') AND id != ?");
-    $occupied_stmt->bind_param("i", $rawId);
-    $occupied_stmt->execute();
-    $occupied_count = (int)$occupied_stmt->get_result()->fetch_assoc()['occupied'];
-    $occupied_stmt->close();
-
-    if ($occupied_count >= $max_slots) {
-        http_response_code(409);
-        echo json_encode(["success" => false, "message" => "Cannot approve — parking slot capacity ($max_slots) already reached."]);
-        exit;
-    }
-}
-
+$conn->begin_transaction();
 try {
-    $stmt = $conn->prepare("UPDATE parking_reservations SET status = ? WHERE id = ?");
-    $stmt->bind_param("si", $status, $rawId);
+    $stmt = $conn->prepare("SELECT id, user_id, status, vehicle_model, plate_number, duration_months FROM parking_reservations WHERE id = ? FOR UPDATE");
+    $stmt->bind_param("i", $id);
     $stmt->execute();
+    $current = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    // Get reservation details for notification & logging
-    $infoStmt = $conn->prepare("SELECT user_id, vehicle_model, plate_number FROM parking_reservations WHERE id = ?");
-    $infoStmt->bind_param("i", $rawId);
-    $infoStmt->execute();
-    $parking = $infoStmt->get_result()->fetch_assoc();
-    $infoStmt->close();
-
-    if ($parking) {
-        $userId = $parking['user_id'];
-        $notifTitle = ($status === 'Assigned' || $status === 'Approved') ? "Parking Slot Assigned" : "Parking Request " . $status;
-        $notifMsg = "Your parking reservation request for " . $parking['vehicle_model'] . " (" . $parking['plate_number'] . ") has been " . strtolower($status) . ".";
-        
-        $notifStmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'parking_reservation', ?, ?, 'Resolved', 0)");
-        $notifStmt->bind_param("iss", $userId, $notifTitle, $notifMsg);
-        $notifStmt->execute();
-        $notifStmt->close();
+    if (!$current) {
+        $conn->rollback();
+        parking_status_fail(404, "Parking reservation not found.");
+    }
+    if (!in_array($status, PARKING_TRANSITIONS[$current['status']] ?? [], true)) {
+        $conn->rollback();
+        parking_status_fail(422, "A {$current['status']} reservation cannot be changed to $status.");
     }
 
-    log_activity($conn, $admin_id, 'service', "Updated Parking Status", "Parking Reservation ID: $rawId status set to $status");
+    if ($status === 'Assigned') {
+        $max = parking_max_slots($conn);
+        if ($slot_number === null || $slot_number < 1 || $slot_number > $max) {
+            $conn->rollback();
+            parking_status_fail(422, "Choose a slot between 1 and $max.");
+        }
+        // Lock the assigned rows so two admins cannot hand out the same slot or overfill the lot.
+        $taken = $conn->query("SELECT slot_number FROM parking_reservations WHERE status = 'Assigned' FOR UPDATE")->fetch_all(MYSQLI_ASSOC);
+        $taken_slots = array_map('intval', array_column($taken, 'slot_number'));
+        if (count($taken_slots) >= $max) {
+            $conn->rollback();
+            parking_status_fail(409, "All $max parking slots are already assigned.");
+        }
+        if (in_array($slot_number, $taken_slots, true)) {
+            $conn->rollback();
+            parking_status_fail(409, "Slot #$slot_number is already assigned to another tenant.");
+        }
+        if (!get_active_tenancy($conn, (int)$current['user_id'])) {
+            $conn->rollback();
+            parking_status_fail(409, "This tenant no longer has an active lease.");
+        }
 
-    echo json_encode(["success" => true, "message" => "Parking reservation status updated successfully."]);
+        $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Assigned', slot_number = ?, assigned_at = NOW() WHERE id = ? AND status = 'Pending'");
+        $upd->bind_param("ii", $slot_number, $id);
+        $title = "Parking Slot Assigned";
+        $message = "Your parking request for {$current['vehicle_model']} ({$current['plate_number']}) has been approved. You have been assigned slot #$slot_number for {$current['duration_months']} month(s).";
+        $log = "Reservation ID: $id assigned slot #$slot_number";
+    } elseif ($status === 'Rejected') {
+        $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Rejected', rejection_reason = ? WHERE id = ? AND status = 'Pending'");
+        $upd->bind_param("si", $reason, $id);
+        $title = "Parking Request Rejected";
+        $message = "Your parking request for {$current['vehicle_model']} ({$current['plate_number']}) was not approved. Reason: $reason";
+        $log = "Reservation ID: $id rejected. Reason: $reason";
+    } else {
+        $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Released', released_at = NOW(), release_reason = ? WHERE id = ? AND status = 'Assigned'");
+        $upd->bind_param("si", $reason, $id);
+        $title = "Parking Slot Released";
+        $message = "Your parking slot for {$current['vehicle_model']} ({$current['plate_number']}) has been released. Reason: $reason";
+        $log = "Reservation ID: $id released. Reason: $reason";
+    }
+
+    if (!$upd->execute()) {
+        $duplicate = $upd->errno === 1062;
+        $upd->close();
+        $conn->rollback();
+        if ($duplicate) {
+            parking_status_fail(409, "That slot was just assigned to someone else. Refresh and pick another.");
+        }
+        throw new Exception("Parking status update failed: " . $conn->error);
+    }
+    $changed = $upd->affected_rows;
+    $upd->close();
+    if ($changed === 0) {
+        $conn->rollback();
+        parking_status_fail(409, "This reservation was changed by someone else. Refresh and try again.");
+    }
+
+    $conn->commit();
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    $conn->rollback();
+    server_error_response($e, "Failed to update the parking reservation.");
+    $conn->close();
+    exit;
 }
 
+resolve_admin_queue($conn, 'parking_reservation', $id);
+create_notification($conn, (int)$current['user_id'], 'parking_reservation', $title, $message);
+log_activity($conn, $admin_id, 'service', "Updated Parking Reservation", $log);
+
+// In automatic billing mode the first month is posted as soon as the slot is assigned.
+$billing = null;
+if ($status === 'Assigned' && get_setting($conn, 'parking_billing_mode', 'manual') === 'auto') {
+    $billing = post_parking_charge($conn, $id, new DateTime('now', new DateTimeZone('Asia/Manila')));
+    if ($billing['ok']) {
+        log_activity($conn, $admin_id, 'billing', "Billed Parking Fee", "Reservation ID: $id — " . $billing['message']);
+    }
+}
+
+echo json_encode([
+    "success" => true,
+    "message" => "Parking reservation " . strtolower($status) . ".",
+    "billing" => $billing,
+]);
 $conn->close();
 ?>

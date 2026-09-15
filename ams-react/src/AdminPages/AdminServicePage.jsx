@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -140,6 +141,7 @@ const CONFIRM_MESSAGES = {
 };
 
 const AdminServicePage = () => {
+  const navigate = useNavigate();
   const [services, setServices] = useState(initialServices);
   const [activeTab, setActiveTab] = useState('services');
   const [cctvRequests, setCctvRequests] = useState([]);
@@ -209,19 +211,22 @@ const AdminServicePage = () => {
       }
 
       if (parkingRes.data.success) {
+        // Slot assignment, rejection/release and billing now live only on the
+        // dedicated Parking page (/admin-parking), which enforces the transition
+        // rules and numbered-slot capacity. This tab is a read-only summary.
         setParkingReservations(parkingRes.data.reservations.map(r => ({
           id: r.id,
-          rawId: r.rawId || r.id,
-          tenant: r.tenant || r.tenant_name || 'Unknown',
-          unit: r.unit || r.room_name || '—',
-          vehicleType: r.vehicleType || r.vehicle_type,
-          model: r.vehicleModel || r.vehicle_model,
-          plate: r.plateNumber || r.plate_number,
+          tenant: r.tenant || 'Unknown',
+          unit: r.unit || '—',
+          vehicleType: r.vehicleType,
+          model: r.vehicleModel,
+          plate: r.plateNumber,
           transmission: r.transmission,
-          duration: r.durationMonths || r.duration_months,
-          totalCost: parseFloat(r.totalCost || r.total_cost || 0),
+          duration: r.durationMonths,
+          totalCost: parseFloat(r.totalCost || 0),
           status: r.status,
-          documentPath: r.documentPath || r.document_path,
+          slotNumber: r.slotNumber,
+          documentPath: r.documentPath,
         })));
       }
     } catch (err) {
@@ -398,22 +403,6 @@ const AdminServicePage = () => {
     if (items.length === 0) return { ...service, price: 'No active items', unit: '' };
     const cheapest = items.reduce((a, b) => (Number(b.price) < Number(a.price) ? b : a));
     return { ...service, price: `From ₱${Number(cheapest.price).toLocaleString()}`, unit: `/ ${cheapest.pricingUnit}` };
-  };
-
-  const handleParkingStatus = async (item, newStatus) => {
-    const rawId = typeof item === 'object' ? (item.rawId || item.id) : item;
-    const targetId = typeof item === 'object' ? item.id : item;
-    setParkingReservations(prev => prev.map(r => r.id === targetId ? { ...r, status: newStatus } : r));
-    try {
-      const res = await api.post('update_parking_status.php', { rawId, status: newStatus });
-      if (!res.data.success) {
-        fetchData();
-        alert('Failed to update parking status: ' + (res.data.message || 'Unknown error'));
-      }
-    } catch (err) {
-      fetchData();
-      console.error('Parking status update failed:', err);
-    }
   };
 
   return (
@@ -610,6 +599,9 @@ const AdminServicePage = () => {
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors border-0 cursor-pointer ${activeTab === 'parking' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'}`}
                   >
                     Parking Reservations
+                    {pendingParkingCount > 0 && (
+                      <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{pendingParkingCount}</span>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -823,79 +815,86 @@ const AdminServicePage = () => {
                       </div>
                     )}
 
-                    {/*ParkingTable*/}
+                    {/*ParkingTable — read-only summary; slot assignment, rejection, release and
+                        billing are one workflow on /admin-parking, which owns the transition
+                        rules and numbered-slot capacity. This used to duplicate those actions
+                        here with no rules at all (any status could go to any status).*/}
                     {activeTab === 'parking' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[940px] text-left text-sm">
-                          <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            <tr>
-                              <th className="px-4 py-3">Tenant</th>
-                              <th className="px-4 py-3">Unit</th>
-                              <th className="px-4 py-3">Vehicle</th>
-                              <th className="px-4 py-3">Plate No.</th>
-                              <th className="px-4 py-3">Duration</th>
-                              <th className="px-4 py-3">Total Cost</th>
-                              <th className="px-4 py-3 text-center">OR/CR</th>
-                              <th className="px-4 py-3 text-center">Status</th>
-                              <th className="px-4 py-3 text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {parkingReservations.length > 0 ? (
-                              parkingReservations.map(req => (
-                                <tr key={req.id} className="transition-colors hover:bg-slate-50">
-                                  <td className="px-4 py-3 font-medium text-slate-800">{req.tenant}</td>
-                                  <td className="px-4 py-3 text-slate-600">{req.unit}</td>
-                                  <td className="px-4 py-3 text-slate-600">
-                                    {req.model}
-                                    <br />
-                                    <span className="text-[10px] text-slate-400">{req.vehicleType} • {req.transmission}</span>
-                                  </td>
-                                  <td className="px-4 py-3 uppercase font-mono text-xs text-slate-600">{req.plate}</td>
-                                  <td className="px-4 py-3 text-slate-600">{req.duration} mos</td>
-                                  <td className="px-4 py-3 font-semibold text-indigo-600">₱{Number(req.totalCost || 0).toLocaleString()}</td>
-                                  <td className="px-4 py-3 text-center">
-                                    {req.documentPath ? (
-                                      <a
-                                        href={fileUrl(req.documentPath)}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="mx-auto flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline no-underline"
-                                      >
-                                        <FontAwesomeIcon icon={faEye} /> View
-                                      </a>
-                                    ) : (
-                                      <span className="text-xs text-slate-400 italic">—</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${req.status === 'Pending' ? 'bg-amber-100 text-amber-700' : req.status === 'Assigned' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                                      {req.status}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    {req.status === 'Pending' ? (
-                                      <div className="flex justify-end gap-2">
-                                        <button type="button" onClick={() => handleParkingStatus(req.id, 'Assigned')} className="rounded p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 border-0 cursor-pointer" title="Assign Slot">
-                                          <FontAwesomeIcon icon={faCheck} />
-                                        </button>
-                                        <button type="button" onClick={() => handleParkingStatus(req.id, 'Rejected')} className="rounded p-1.5 text-red-600 transition-colors hover:bg-red-50 border-0 cursor-pointer" title="Reject">
-                                          <FontAwesomeIcon icon={faTimes} />
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs font-medium italic text-slate-400">Resolved</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-slate-500 m-0">Assign, reject, release or bill parking on the dedicated Parking page.</p>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/admin-parking')}
+                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white border-0 cursor-pointer hover:bg-indigo-700 transition-colors"
+                          >
+                            <FontAwesomeIcon icon={faSquareParking} /> Manage in Parking
+                          </button>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[860px] text-left text-sm">
+                            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                               <tr>
-                                <td colSpan="9" className="px-4 py-8 text-center italic text-slate-500">No parking reservations found.</td>
+                                <th className="px-4 py-3">Tenant</th>
+                                <th className="px-4 py-3">Unit</th>
+                                <th className="px-4 py-3">Vehicle</th>
+                                <th className="px-4 py-3">Plate No.</th>
+                                <th className="px-4 py-3">Slot</th>
+                                <th className="px-4 py-3">Total Cost</th>
+                                <th className="px-4 py-3 text-center">OR/CR</th>
+                                <th className="px-4 py-3 text-center">Status</th>
                               </tr>
-                            )}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {parkingReservations.length > 0 ? (
+                                parkingReservations.map(req => (
+                                  <tr key={req.id} className="transition-colors hover:bg-slate-50">
+                                    <td className="px-4 py-3 font-medium text-slate-800">{req.tenant}</td>
+                                    <td className="px-4 py-3 text-slate-600">{req.unit}</td>
+                                    <td className="px-4 py-3 text-slate-600">
+                                      {req.model}
+                                      <br />
+                                      <span className="text-[10px] text-slate-400 capitalize">{req.vehicleType} • {req.transmission}</span>
+                                    </td>
+                                    <td className="px-4 py-3 uppercase font-mono text-xs text-slate-600">{req.plate}</td>
+                                    <td className="px-4 py-3 text-slate-600">{req.slotNumber ? `#${req.slotNumber}` : '—'}</td>
+                                    <td className="px-4 py-3 font-semibold text-indigo-600">₱{Number(req.totalCost || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      {req.documentPath && req.documentPath !== 'placeholder' ? (
+                                        <a
+                                          href={fileUrl(req.documentPath)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="mx-auto flex items-center justify-center gap-1 text-xs text-blue-600 hover:underline no-underline"
+                                        >
+                                          <FontAwesomeIcon icon={faEye} /> View
+                                        </a>
+                                      ) : (
+                                        <span className="text-xs text-slate-400 italic">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      {/* Assigned is the only slot-holding status — shown green, same as elsewhere.
+                                          Released is grey; only Pending, awaiting a decision, is amber. */}
+                                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                                        req.status === 'Pending' ? 'bg-amber-100 text-amber-700'
+                                        : req.status === 'Assigned' ? 'bg-emerald-100 text-emerald-700'
+                                        : req.status === 'Released' ? 'bg-slate-100 text-slate-600'
+                                        : 'bg-red-100 text-red-700'
+                                      }`}>
+                                        {req.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan="8" className="px-4 py-8 text-center italic text-slate-500">No parking reservations found.</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </>

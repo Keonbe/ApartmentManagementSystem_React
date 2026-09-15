@@ -411,7 +411,56 @@ const AdminAccountSettings = () => {
                           />
                           <span className="text-sm text-slate-500">slots</span>
                         </div>
-                        <p className="text-[11px] text-slate-400 m-0">Total number of parking slots that can be reserved at once. New reservations are blocked once this cap is reached.</p>
+                        <p className="text-[11px] text-slate-400 m-0">Numbered slots #1 to #N. Only assigned slots count; new requests are refused once every slot is assigned. Can't go below the highest slot still assigned.</p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
+                          Monthly Parking Fee
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-slate-500">₱</span>
+                          <input
+                            type="number"
+                            min="1"
+                            step="50"
+                            value={settings.parkingMonthlyFee}
+                            onChange={(e) => updateSetting('parkingMonthlyFee', Number(e.target.value))}
+                            className="w-28 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
+                          />
+                          <span className="text-sm text-slate-500">per slot / month</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0">Added to the tenant's invoice for each month of the permit term.</p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
+                          Parking Fee Billing
+                        </label>
+                        <div className="flex gap-2">
+                          {[
+                            { value: 'manual', label: 'Manual' },
+                            { value: 'auto', label: 'Automatic' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => updateSetting('parkingBillingMode', opt.value)}
+                              className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-colors duration-200 cursor-pointer ${
+                                settings.parkingBillingMode === opt.value
+                                  ? 'bg-indigo-500 border-indigo-500 text-white'
+                                  : 'bg-slate-50 border-slate-200 text-slate-500'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0">
+                          Manual: bill each month with "Bill this month" on the Parking page. Automatic: the fee is added when a slot is assigned and on each following month by the daily sweep. A month is never billed twice either way.
+                        </p>
                       </div>
 
                       <div className="flex flex-col space-y-1.5">

@@ -52,15 +52,17 @@ if ($affected === 0) {
     exit;
 }
 
-if ($type === 'Service') {
-    $metadata = "service_request:$id";
-    $resolve = $conn->prepare("UPDATE notifications SET status = 'Resolved' WHERE type = 'service_request' AND metadata_value = ?");
-    $resolve->bind_param("s", $metadata);
-    $resolve->execute();
-    $resolve->close();
-}
+// A cancelled request no longer needs the admin's attention, whatever its type.
+// Only service bookings used to be cleared from the admin bell.
+$queue_types = [
+    'Maintenance' => 'maintenance_request',
+    'CCTV' => 'cctv_request',
+    'Parking' => 'parking_reservation',
+    'Service' => 'service_request',
+];
+resolve_admin_queue($conn, $queue_types[$type], $id);
 
-log_activity($conn, $user_id, 'service', "Cancelled Request", "$type Request ID: $id cancelled by tenant");
+log_activity($conn, $user_id, $type === 'Maintenance' ? 'maintenance' : 'service', "Cancelled $type Request", "$type Request ID: $id cancelled by tenant");
 
 echo json_encode(["success" => true, "message" => "Request cancelled successfully."]);
 $conn->close();

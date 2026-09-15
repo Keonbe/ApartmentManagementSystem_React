@@ -65,16 +65,8 @@ if (!$stmt->execute()) {
 $request_id = $stmt->insert_id;
 $stmt->close();
 
-$admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
-if ($admin_row) {
-    $notif_admin_id = (int)$admin_row['id'];
-    $notif_title = "New CCTV Request";
-    $notif_msg = "A new CCTV footage request has been submitted for an incident at $location_details.";
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'cctv_request', ?, ?, 'Pending', 0)");
-    $notif_stmt->bind_param("iss", $notif_admin_id, $notif_title, $notif_msg);
-    $notif_stmt->execute();
-    $notif_stmt->close();
-}
+notify_admins_queue($conn, 'cctv_request', $request_id, "New CCTV Request",
+    "A new CCTV footage request has been submitted for an incident at $location_details.");
 
 log_activity($conn, $user_id, 'service', "Submitted CCTV Request", "CCTV Request ID: $request_id at $location_details on $incident_date");
 

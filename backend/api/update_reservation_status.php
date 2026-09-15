@@ -98,10 +98,7 @@ try {
         $notif_msg = $status === 'Converted'
             ? "Your reservation for Unit $room_name has moved forward to a rent application."
             : "Your reservation for Unit $room_name is no longer active (" . strtolower($status) . ")." . ($reason_val ? " Reason: $reason_val" : "");
-        $notif = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read) VALUES (?, 'unit_reservation', ?, ?, 'Resolved', 0)");
-        $notif->bind_param("iss", $user_id, $notif_title, $notif_msg);
-        $notif->execute();
-        $notif->close();
+        create_notification($conn, $user_id, 'unit_reservation', $notif_title, $notif_msg);
     }
 
     echo json_encode(["success" => true, "message" => "Reservation marked $status."]);

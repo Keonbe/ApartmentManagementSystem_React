@@ -97,7 +97,7 @@ The AMS already has a **notification infrastructure** that is partially built:
 
 | What Exists | Details |
 |---|---|
-| `notifications` table | `user_id`, `title`, `message`, `type`, `is_read` |
+| `notifications` table | `user_id`, `title`, `message`, `type`, `is_read`, plus `status` (`Pending`/`Resolved` — the admin action queue) and `metadata_value` (links a queue row back to its request, e.g. `"parking_reservation:12"`), added when Module 6 was audited (September 2026) |
 | `announcements.channels` | Stores `["in-app", "sms", "email"]` as JSON — **but only `in-app` is implemented** |
 | Channel toggle UI | `AdminAnnouncements.jsx` renders SMS/email toggle buttons (non-functional) |
 | User contact data | `users.email_address` ✅ and `users.contact_no` ✅ already in DB |
@@ -654,7 +654,7 @@ erDiagram
 | `backend/api/create_announcement.php` | After in-app insert, call `send_notification()` for email/SMS |
 | `backend/api/update_tenant_status.php` | Notify tenant on approval/rejection |
 | `backend/api/pay_bill.php` | Confirm payment via email/SMS |
-| `backend/api/process_tenant_request.php` | Notify on maintenance/CCTV/parking status change |
+| `backend/api/process_tenant_request.php` | Notify on occupancy-change / lease-extension decisions — the only two request types this endpoint handles; maintenance, CCTV and parking status changes each notify from their own decision endpoint (`update_maintenance_status.php`, `update_cctv_status.php`, `update_parking_status.php`) |
 | `ams-react/src/UserPages/ProfileSettings.jsx` | Add notification preferences toggle UI |
 | `ams-react/src/AdminPages/AdminAccountSettings.jsx` | Add SMTP/SMS provider config section |
 
@@ -754,7 +754,7 @@ This is where notifications become genuinely useful — not just "we added SMS b
 | `create_announcement.php` | Email + SMS to all tenants (based on channel selection) |
 | `update_tenant_status.php` | "Your application has been approved/rejected" |
 | `pay_bill.php` | "Payment of ₱X received for invoice #INV-xxx" |
-| `process_tenant_request.php` | "Your [maintenance/CCTV/parking] request status: [status]" |
+| `process_tenant_request.php` | "Your occupancy/lease extension request has been approved/declined" (maintenance/CCTV/parking each notify from their own decision endpoint, not this one) |
 | `extend_lease.php` | "Your lease has been extended to [date]" |
 
 #### Concrete examples of what tenants receive

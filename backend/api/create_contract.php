@@ -40,7 +40,7 @@ $stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, de
 $stmt->bind_param("sidss", $id, $rent_application_id, $deposit_amount, $lease_start, $lease_end);
 
 if ($stmt->execute()) {
-    log_activity($conn, $admin_id, 'tenant', "Generated Lease Contract", "Contract ID: $id for Application: $rent_application_id");
+    log_activity($conn, $admin_id, 'contract', "Generated Lease Contract", "Contract ID: $id for Application: $rent_application_id");
     echo json_encode(["success" => true, "message" => "Contract created successfully", "contractId" => $id]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to create contract", "error" => $stmt->error]);

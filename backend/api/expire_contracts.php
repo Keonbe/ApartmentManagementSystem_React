@@ -24,7 +24,7 @@ $expired = expire_lapsed_contracts($conn);
 // triggered it (a cron run has no admin id to attribute).
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 if ($expired > 0 && verify_admin($conn, $admin_id)) {
-    log_activity($conn, (int)$admin_id, 'tenant', "Expired Lapsed Contracts", "$expired contract(s) auto-expired (lease_end passed)");
+    log_activity($conn, (int)$admin_id, 'contract', "Expired Lapsed Contracts", "$expired contract(s) auto-expired (lease_end passed)");
 }
 
 echo json_encode([
