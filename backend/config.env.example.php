@@ -3,6 +3,7 @@
 // Copy this file to `config.env.php` and adjust credentials for your environment.
 
 define('DB_HOST', 'localhost');
+define('DB_PORT', 3306);
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_NAME', 'ams_db');

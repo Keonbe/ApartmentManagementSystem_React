@@ -4,12 +4,22 @@ if (file_exists(__DIR__ . '/config.env.php')) {
     require_once __DIR__ . '/config.env.php';
 }
 
-// Fallback defaults if constants are not defined
-if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
-if (!defined('DB_USER')) define('DB_USER', 'root');
-if (!defined('DB_PASS')) define('DB_PASS', '');
-if (!defined('DB_NAME')) define('DB_NAME', 'ams_db');
-if (!defined('APP_ENV')) define('APP_ENV', 'development');
+// Settings come from, in order: config.env.php constants (XAMPP), environment
+// variables (Railway / Docker), then local defaults. $_ENV/$_SERVER are checked
+// too because some SAPI configurations leave getenv() empty.
+$ams_env = function ($key, $default) {
+    foreach ([getenv($key), $_ENV[$key] ?? false, $_SERVER[$key] ?? false] as $value) {
+        if ($value !== false && $value !== '') return $value;
+    }
+    return $default;
+};
+
+if (!defined('DB_HOST')) define('DB_HOST', $ams_env('DB_HOST', 'localhost'));
+if (!defined('DB_PORT')) define('DB_PORT', (int) $ams_env('DB_PORT', 3306));
+if (!defined('DB_USER')) define('DB_USER', $ams_env('DB_USER', 'root'));
+if (!defined('DB_PASS')) define('DB_PASS', $ams_env('DB_PASS', ''));
+if (!defined('DB_NAME')) define('DB_NAME', $ams_env('DB_NAME', 'ams_db'));
+if (!defined('APP_ENV')) define('APP_ENV', $ams_env('APP_ENV', 'development'));
 
 // Error reporting & resource limits (D-1, D-6)
 if (APP_ENV === 'production') {
@@ -21,7 +31,7 @@ if (APP_ENV === 'production') {
 @ini_set('post_max_size', '12M');
 @ini_set('memory_limit', '128M');
 
-$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
 
 // An uncaught exception used to print PHP's own error page — or, in the many
 // endpoints that catch and echo $e->getMessage(), the raw SQL error — to the

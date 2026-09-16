@@ -32,17 +32,25 @@
 
 [`saas_fallback_strategy.md`](saas_fallback_strategy.md) decides **whether** to move to SaaS. This guide is the **how**: every click, command and setting needed to run AMS on Railway and Vercel.
 
+> [!NOTE]
+> **Closed — these §2 changes are now in the repository** (done 2026-09-16, after a Railway build failed with *"Railpack could not determine how to build the app"*):
+>
+> | Gap | Now |
+> |---|---|
+> | No container / runtime definition at the repository root | `Dockerfile` + `.dockerignore` exist — Railway builds with Docker, not Railpack. §2.4 documents them |
+> | Database credentials only came from the gitignored `backend/config.env.php`, with no port | `backend/config.php` reads `config.env.php` → environment variables (`getenv`, then `$_ENV`/`$_SERVER`) → localhost defaults, and connects with `DB_PORT` (§2.1). XAMPP is unaffected |
+> | API address hardcoded in `ams-react/src/api/axiosConfig.js` | Reads `import.meta.env.VITE_API_BASE_URL`, falling back to the XAMPP URL; `ams-react/.env.example` documents it (§2.2) |
+
 > [!WARNING]
-> **The repository cannot be deployed to this stack unchanged.** It was built for XAMPP, and these gaps must be closed first. [§2](#2-prepare-the-code-required) walks through each change with code:
+> **Still open — close these before the stack is fully usable.** [§2](#2-prepare-the-code-required) walks through each with code:
 >
 > | Gap | Where | Why it breaks in the cloud |
 > |---|---|---|
-> | Database credentials only come from `backend/config.env.php` | `backend/config.php` | That file is gitignored, so a Git-based deploy falls back to `localhost` / `root` and cannot connect. No port setting exists either |
-> | API address is hardcoded to `http://localhost:8080/…` | `ams-react/src/api/axiosConfig.js` + 5 other files | The deployed site would call the visitor's own computer |
-> | Deep links such as `/admin-dashboard` have no server route | `ams-react` (`BrowserRouter`, no rewrite config) | Refreshing any page on Vercel returns 404 |
-> | No container / runtime definition | repository root | Railway doesn't know how to run PHP with the needed extensions |
-> | Uploads are written to local disk | 7 endpoints + `store_maintenance_attachment()` | Railway's filesystem is wiped on every redeploy |
+> | 5 components still build `http://localhost:8080/…` file URLs by hand | `AdminPayments.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `UserPaymentHistory.jsx`, `TopBar.jsx` | Attachments and avatars point at the visitor's own computer — use the existing `src/api/fileUrl.js` helper (§2.2) |
+> | Deep links such as `/admin-dashboard` have no server route | `ams-react` (`BrowserRouter`, no rewrite config) | Refreshing any page on Vercel returns 404 — add `vercel.json` (§2.3) |
+> | Uploads are written to local disk | 7 endpoints + `store_maintenance_attachment()` | Railway's filesystem is wiped on every redeploy unless a volume is mounted at `/var/www/html/uploads` (§2.5) |
 > | `SetupDB.sql` uses MariaDB-only syntax (`ADD COLUMN IF NOT EXISTS`) | `backend/api/migrations/` | Fails on a plain MySQL 8 server — use MariaDB |
+> | Every `backend/api/*.php` sends `Access-Control-Allow-Origin: *` | 79 of 80 endpoints | Once the frontend is on a different origin, credentialed cross-origin calls need a real allowlist (§2.6) |
 
 > [!NOTE]
 > **Email and SMS are not implemented in the code yet.** There is no PHPMailer, Resend or Semaphore integration — password resets and reminders are in-app only. [§8](#8-email-resend--sms-semaphore) covers account setup so they are ready when the code is written, but deploying does not turn them on.
@@ -113,24 +121,25 @@ git checkout -b chore/saas-deploy-prep
 
 ### 2.1 Read database settings from environment variables
 
-**File:** `backend/config.php`. Today it only reads constants from `config.env.php` and connects without a port.
-
-Replace the block from `// Fallback defaults` down to the `new mysqli(...)` line with:
+**File:** `backend/config.php` — **already done**; this is what it now contains (kept here as the reference for a fresh checkout):
 
 ```php
 // Settings come from, in order: config.env.php constants (XAMPP), environment
-// variables (Railway / Docker), then local defaults.
-$env = function ($key, $default) {
-    $value = getenv($key);
-    return ($value !== false && $value !== '') ? $value : $default;
+// variables (Railway / Docker), then local defaults. $_ENV/$_SERVER are checked
+// too because some SAPI configurations leave getenv() empty.
+$ams_env = function ($key, $default) {
+    foreach ([getenv($key), $_ENV[$key] ?? false, $_SERVER[$key] ?? false] as $value) {
+        if ($value !== false && $value !== '') return $value;
+    }
+    return $default;
 };
 
-if (!defined('DB_HOST')) define('DB_HOST', $env('DB_HOST', 'localhost'));
-if (!defined('DB_PORT')) define('DB_PORT', (int)$env('DB_PORT', 3306));
-if (!defined('DB_USER')) define('DB_USER', $env('DB_USER', 'root'));
-if (!defined('DB_PASS')) define('DB_PASS', $env('DB_PASS', ''));
-if (!defined('DB_NAME')) define('DB_NAME', $env('DB_NAME', 'ams_db'));
-if (!defined('APP_ENV')) define('APP_ENV', $env('APP_ENV', 'development'));
+if (!defined('DB_HOST')) define('DB_HOST', $ams_env('DB_HOST', 'localhost'));
+if (!defined('DB_PORT')) define('DB_PORT', (int) $ams_env('DB_PORT', 3306));
+if (!defined('DB_USER')) define('DB_USER', $ams_env('DB_USER', 'root'));
+if (!defined('DB_PASS')) define('DB_PASS', $ams_env('DB_PASS', ''));
+if (!defined('DB_NAME')) define('DB_NAME', $ams_env('DB_NAME', 'ams_db'));
+if (!defined('APP_ENV')) define('APP_ENV', $ams_env('APP_ENV', 'development'));
 ```
 
 …and change the connection line to include the port:
@@ -139,14 +148,14 @@ if (!defined('APP_ENV')) define('APP_ENV', $env('APP_ENV', 'development'));
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
 ```
 
-Also add `define('DB_PORT', 3306);` to `backend/config.env.example.php` so local setups stay documented.
+`backend/config.env.example.php` also carries `define('DB_PORT', 3306);` so local setups stay documented.
 
 > [!TIP]
 > XAMPP keeps working unchanged: `config.env.php` still wins when it exists. On Railway the file doesn't exist, so the environment variables from §4.3 are used.
 
 ### 2.2 Make the API address configurable
 
-**File:** `ams-react/src/api/axiosConfig.js`
+**File:** `ams-react/src/api/axiosConfig.js` — **already done** (`ams-react/.env.example` too):
 
 ```js
 // Before
@@ -198,7 +207,7 @@ The app uses `BrowserRouter`, so a direct visit to `/admin-dashboard` must still
 
 Railway deploys any repository with a `Dockerfile`. The official `php:8.2-apache` image is the closest match to XAMPP, so relative paths (`../config.php`, `../uploads/`), `getallheaders()` and the Authorization header all behave exactly as they do locally.
 
-**New file:** `Dockerfile` (repository root)
+**File:** `Dockerfile` (repository root) — **already committed**; reproduced here for reference
 
 ```dockerfile
 FROM php:8.2-apache
@@ -246,7 +255,7 @@ CMD sed -i "s/Listen 80/Listen ${PORT:-80}/" /etc/apache2/ports.conf \
  && exec apache2-foreground
 ```
 
-**New file:** `.dockerignore` (repository root)
+**File:** `.dockerignore` (repository root) — **already committed** (it also excludes `.agents`, `.claude`, `CLAUDE.md`, `TASK.md`)
 
 ```text
 .git
