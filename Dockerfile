@@ -35,9 +35,17 @@ RUN { \
 COPY backend/ /var/www/html/
 RUN mkdir -p /var/www/html/uploads && chown -R www-data:www-data /var/www/html/uploads
 
-# Railway provides $PORT. Re-own the uploads folder at start because a freshly
-# mounted volume belongs to root.
-CMD sed -i "s/Listen 80/Listen ${PORT:-80}/" /etc/apache2/ports.conf \
- && sed -i "s/<VirtualHost \*:80>/<VirtualHost *:${PORT:-80}>/" /etc/apache2/sites-available/000-default.conf \
+# mod_php requires the prefork MPM. On Railway the container has started with a
+# second MPM enabled (AH00534 "More than one MPM loaded"), so drop the others both
+# at build time and again at start.
+RUN rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.* \
+ && a2enmod mpm_prefork
+
+# Railway provides $PORT. The substitutions are anchored so a restarted container
+# (same filesystem) doesn't turn "Listen 8080" into "Listen 808080". Re-own the
+# uploads folder at start because a freshly mounted volume belongs to root.
+CMD rm -f /etc/apache2/mods-enabled/mpm_event.* /etc/apache2/mods-enabled/mpm_worker.* \
+ && sed -i "s/^Listen [0-9]*$/Listen ${PORT:-80}/" /etc/apache2/ports.conf \
+ && sed -i "s/<VirtualHost \*:[0-9]*>/<VirtualHost *:${PORT:-80}>/" /etc/apache2/sites-available/000-default.conf \
  && chown -R www-data:www-data /var/www/html/uploads \
  && exec apache2-foreground
