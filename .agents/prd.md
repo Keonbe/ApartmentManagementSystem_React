@@ -1031,16 +1031,18 @@ Core tenant, admin, payments, contracts, visitor management, and maintenance wor
 
 ## Open Questions
 
-| No. | Question | Impact |
-|---|---|---|
-| Q1 | Should occupant count changes require admin approval? | Affects `update_occupants.php` flow |
-| Q2 | How to handle lease extension when room already has a pending applicant? | Backend conflict check needed |
-| Q3 | Should the parking slot count be tracked as a hard inventory limit? | Needs counter in `system_settings` or a `parking_slots` table |
-| Q4 | Should the expenses field in reports be entered manually or auto-calculated? | Determines whether a separate `expenses` table is needed |
-| Q5 | Should multiple occupants in one unit share one login or have separate accounts? | Significant schema and billing impact |
-| Q6 | Should CCTV requests include a Data Privacy consent checkbox? | Required for DPA compliance in the Philippines |
-| Q7 | When should the `dev_token` password reset bypass be removed? | Must be removed before any public user access |
-| Q8 | Should PayMongo sandbox mode be switched to Live before pilot deployment? | Requires PayMongo business account verification |
+| No. | Question | Impact | Decision |
+|---|---|---|---|
+| Q1 | Should occupant count changes require admin approval? | Affects `update_occupants.php` flow | **Yes** (2026-09-16) — every occupant change is a tenant request approved by an admin |
+| Q2 | How to handle lease extension when room already has a pending applicant? | Backend conflict check needed | |
+| Q3 | Should the parking slot count be tracked as a hard inventory limit? | Needs counter in `system_settings` or a `parking_slots` table | |
+| Q4 | Should the expenses field in reports be entered manually or auto-calculated? | Determines whether a separate `expenses` table is needed | **Both** (2026-09-16) — an `expenses` table with manual entry, added to the maintenance costs the report already derives |
+| Q5 | Should multiple occupants in one unit share one login or have separate accounts? | Significant schema and billing impact | **One shared lease, one login** (2026-09-16) — the lease holder logs in; co-occupants are listed on a household roster with no accounts |
+| Q6 | Should CCTV requests include a Data Privacy consent checkbox? | Required for DPA compliance in the Philippines | |
+| Q7 | When should the `dev_token` password reset bypass be removed? | Must be removed before any public user access | |
+| Q8 | Should PayMongo sandbox mode be switched to Live before pilot deployment? | Requires PayMongo business account verification | |
+
+Details of the 2026-09-16 decisions are in [`docs/todo.md`](../docs/todo.md) (Account Management, Room & Occupancy, Unit Information, Reports, Open Questions).
 
 ---
 

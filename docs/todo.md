@@ -11,9 +11,14 @@
   * [x] Notification page with history, filters, read/unread, and delete.
   * [x] TopBar notification bell reads live from `notifications` table.
   * [x] Creating an announcement auto-creates notifications for all tenants.
-* [ ] Clarify and enforce password reset/change policy.
-  * Maximum number of password changes?
-  * Cooldown period between resets?
+* [x] Clarify password reset/change policy — **decided 2026-09-16 (light policy):**
+  * No cap on the number of password changes, no cooldown between changes, no forced expiry.
+  * The new password must differ from the current one (change, reset and admin reset).
+  * At most **3 reset requests per email per hour**, plus a per-IP ceiling; the response stays generic so it doesn't reveal whether the email exists.
+  * Unchanged: 8-character minimum (`PASSWORD_MIN_LENGTH`), lockout after 5 failures per account / 20 per IP for 15 minutes, 30-minute single-use reset link, all sessions ended after a reset, other devices signed out after a change.
+* [ ] Enforce the password policy:
+  * [ ] Reject a new password equal to the current one in `change_password.php`, `reset_password.php` and the admin reset in `manage_users.php`.
+  * [ ] Throttle `forgot_password.php` to 3 requests per email per hour, plus a per-IP limit.
 
 ---
 
@@ -36,8 +41,16 @@
 * [ ] Define occupant change workflow:
   * User requests an occupant count change (form in `MyRoom.jsx`).
   * Admin approval step before count is updated.
-* [ ] Support multiple user accounts linked to a single room.
-  * Example: 3 occupants = 3 separate accounts under one unit.
+* [x] Decide the model for multiple occupants — **decided 2026-09-16: one shared lease, lease holder plus household roster.**
+  * Only the lease holder has a login and is responsible for rent and the unit. Co-occupants don't get accounts.
+  * Co-occupants are recorded as household members (name, relationship, contact, status, added/removed dates).
+  * Adding, removing or replacing a member is a tenant request that needs admin approval (same flow as today's occupant-count change); the >4 occupant surcharge is recalculated on approval.
+  * Move-out or archive ends the whole household.
+* [ ] Build the household roster:
+  * [ ] Migration: `household_members` table linked to `rent_applications` (mirror into `SetupDB.sql`).
+  * [ ] Endpoints to list the roster and to request add/remove/replace; approval through `process_tenant_request.php`.
+  * [ ] Roster section in `MyRoom.jsx`; read-only roster in the admin tenant/unit views.
+  * [ ] Keep the occupant count in step with the roster (lease holder + active members), capped by a max-occupants setting.
 * [ ] Add occupancy Terms & Conditions:
   * Shared occupancy responsibilities.
   * Separation of occupants.
@@ -93,7 +106,8 @@
 
 * [x] Rooms seeded in DB with type, floor, monthly rent, and status.
 * [x] Room images included in Preview page and `AdminUnits` modals.
-* [ ] Support for 360° room view (optional enhancement for the Preview page).
+* [x] Decide on 360° room view — **decided 2026-09-16: not planned.** There are no panorama images to show; revisit only if they become available.
+* [ ] Add a `room_preview_mode` setting (`images` or `floor_plan`) that the admin switches in settings; `RoomPreviewModal.jsx` shows only the selected panel (today it shows a stock image and the SVG floor plan side by side).
 
 ---
 
@@ -168,6 +182,11 @@ Generate reports by:
   * `AdminReports.jsx` fetches from backend and mock engine has been removed.
   * Extended `get_report_data.php` to return array lists for the detailed tables.
 * [ ] Per-module reservation reports (parking, CCTV, maintenance per unit).
+* [ ] **Expenses table with manual entry** (decided 2026-09-16):
+  * [ ] Migration: `expenses` table (category, amount, expense_date, description, created_by, created_at).
+  * [ ] Admin screen or form to add, edit and delete building expenses, each write logged with `log_activity`.
+  * [ ] `get_report_data.php`: expenses = maintenance actual costs (still derived from `maintenance_requests`, not copied) + expense rows in the period + the optional `report_overhead_pct`.
+* [ ] **Inquiry conversion-rate report** in `AdminReports.jsx` — see [inquiry_reservation_design.md §8](features/inquiry_reservation_design.md#8-planned-and-deferred).
 
 ---
 
@@ -261,11 +280,13 @@ Generate reports by:
 
 # Open Questions
 
-* Should occupant changes require admin approval or allow direct self-service?
+* ~~Should occupant changes require admin approval or allow direct self-service?~~ **Decided 2026-09-16:** admin approval (see Room & Occupancy).
 * How should lease extension conflicts be resolved when a room is already reserved by another applicant?
-* What is the password change/reset policy (max changes, cooldown period)?
+* ~~What is the password change/reset policy (max changes, cooldown period)?~~ **Decided 2026-09-16:** light policy — no cap or cooldown, new ≠ current, 3 reset requests per email per hour (see Account Management).
 * Is CCTV request approval manual (admin reviews) or automatic?
-* Should 360° room viewing be required or optional for listing?
-* Should multiple occupants share one lease or have individual agreements?
+* ~~Should 360° room viewing be required or optional for listing?~~ **Decided 2026-09-16:** not planned; admin chooses images or floor plan (see Unit Information).
+* ~~Should multiple occupants share one lease or have individual agreements?~~ **Decided 2026-09-16:** one shared lease; lease holder has the only login; co-occupants go on a household roster (see Room & Occupancy).
 * Should parking/CCTV/maintenance status change notifications be sent automatically when admin updates status?
-* Should the `expenses` field in reports be manually entered by admin or calculated from a separate `expenses` table?
+* ~~Should the `expenses` field in reports be manually entered by admin or calculated from a separate `expenses` table?~~ **Decided 2026-09-16:** an `expenses` table with manual entry, added to the derived maintenance costs (see Reports).
+* ~~Should the inquiry module add a waitlist, conversion-rate reporting, or email/SMS on new inquiries?~~ **Decided 2026-09-16:** conversion report yes, basic waitlist yes, email/SMS TBA (see [inquiry_reservation_design.md §8](features/inquiry_reservation_design.md#8-planned-and-deferred)).
+* ~~Feature branches or direct pushes to `main`?~~ **Decided 2026-09-16:** routine work and bug fixes go straight to `main`; big implementations use a `feature/` branch (see [cicd_pipeline.md](deployment/cicd_pipeline.md#git-branching-strategy)).

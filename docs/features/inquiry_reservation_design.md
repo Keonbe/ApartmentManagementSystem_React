@@ -203,9 +203,25 @@ Policy, and stored as `reservation_hold_days` in `system_settings`.
 
 ---
 
-## 8. Not included
+## 8. Planned and deferred
 
-- **Waitlist** for occupied units (notify when a unit frees up).
-- **Inquiry conversion-rate reporting** in `AdminReports.jsx`.
-- **Email/SMS on inquiry receipt** — in-app notification only, since Module 6.6
-  and 6.7 are still unbuilt.
+None of these are built yet. Decided 2026-09-16.
+
+- **Inquiry conversion-rate report — planned.** A section in `AdminReports.jsx`
+  (data from `get_report_data.php`) for the selected period:
+  - inquiries received, broken down by status;
+  - conversion rate = inquiries that reached `Converted` ÷ inquiries received;
+  - unit reservations that converted vs. expired or were cancelled.
+- **Basic waitlist — planned.** For a guest or tenant who wants a unit that
+  isn't vacant:
+  - a `unit_waitlist` table (inquiry id or user id, room, status
+    `Waiting` / `Notified` / `Removed`, created_at), with its migration mirrored
+    into `SetupDB.sql`;
+  - the admin adds and removes entries from `AdminInquiries.jsx`, in
+    first-come order;
+  - when a unit becomes vacant (move-out, or a hold released or expired), the
+    first `Waiting` entry is marked `Notified`. A tenant gets an in-app
+    notification; for a guest, the admin gets a queue item to contact them;
+  - no automatic hold — the admin still places a reservation as in §6.
+- **Email/SMS on inquiry receipt — TBA.** In-app notification only until
+  Modules 6.6 and 6.7 exist.

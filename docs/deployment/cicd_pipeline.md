@@ -176,6 +176,14 @@ main branch updated
 
 ## Git Branching Strategy
 
+> [!IMPORTANT]
+> **Adopted rule (decided 2026-09-16) — this overrides the "never push directly to `main`" rule below.** This is a personal private repo, so:
+> - **Bug fixes and routine work** are committed and pushed straight to `main`.
+> - **Big implementations** (e.g. the chat module, SaaS/deployment integration, a new module) are built on a `feature/<name>` branch and merged into `main` once verified.
+> - CI stays a safety net: its results are visible on every push, but `main` has **no** "require a pull request" or "require status checks" protection, because either would block direct pushes.
+>
+> The rest of this section describes the full PR model, kept for reference in case the team grows.
+
 > **Note:** this is a behavior change, not just a config change. `git log` on this repo shows 20 commits, all pushed directly to `main`, no pull requests ever opened, and no branch other than `main` created. Adopting the model below means changing how you actually work day-to-day — it's not something the CI workflow file enables by itself. If you'd rather keep pushing straight to `main` and use CI purely as a safety net, that's a legitimate choice too (see the Week 2 note in the [Adoption Roadmap](#adoption-roadmap)); just don't enable "require a pull request before merging" if so, since that setting would block your own pushes.
 
 Adopt a simple feature-branch workflow:
@@ -893,8 +901,8 @@ Implement CI/CD incrementally. Don't try to do everything at once.
 
 - [ ] Add the database schema validation job (MariaDB service, per the correction above)
 - [ ] Add the CI status badge to `README.md`
-- [ ] **Now** enable branch protection on `main` — only after the frontend job has been genuinely green for a few pushes
-- [ ] Decide deliberately whether to adopt the feature-branch/PR workflow described above, or keep pushing to `main` directly with CI purely as a safety net (`push: branches: [main]`, no required PR) — both are legitimate; the PR model is a bigger process change than "add a workflow file," given this repo's history
+- [ ] ~~**Now** enable branch protection on `main`~~ — not adopted (see the decision below). Instead, keep CI results visible on every push and act on red runs.
+- [x] Decide deliberately whether to adopt the feature-branch/PR workflow described above, or keep pushing to `main` directly with CI purely as a safety net — **decided 2026-09-16:** push routine work and bug fixes straight to `main`; use a `feature/` branch for big implementations; no required-PR protection (see [Git Branching Strategy](#git-branching-strategy))
 
 ### 🟠 Week 3 — Test (Stretch)
 

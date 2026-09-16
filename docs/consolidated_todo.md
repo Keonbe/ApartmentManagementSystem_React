@@ -26,15 +26,15 @@
 
 | Category | Open tasks | High |
 |---|---|---|
-| Backend | 29 | 10 |
-| Frontend | 10 | 0 |
-| Security | 19 | 6 |
+| Backend | 33 | 10 |
+| Frontend | 12 | 0 |
+| Security | 20 | 6 |
 | Deployment | 16 | 0 |
 | Testing and quality | 8 | 0 |
 | Documentation | 11 | 0 |
-| **Total** | **93** | **16** |
+| **Total** | **100** | **16** |
 
-Another 9 open decisions are listed under [Needs decision](#needs-decision). They are not counted above.
+Another 2 open decisions are listed under [Needs decision](#needs-decision). They are not counted above. Seven questions were decided on 2026-09-16 (see [Decided 2026-09-16](#decided-2026-09-16)).
 
 **Known blockers**
 
@@ -43,7 +43,7 @@ Another 9 open decisions are listed under [Needs decision](#needs-decision). The
 - **Least-privilege DB user (A-3)** is blocked by the DDL that still runs at request time (D-9 / L2).
 - **Going live with PayMongo** and the live-mode webhook check (H9a) are blocked until PayMongo verifies the business.
 - **Email and SMS** are blocked until provider accounts exist (Resend or Gmail SMTP, and Semaphore).
-- **Required lint check and branch protection** are blocked by the 178 existing ESLint errors.
+- **Blocking lint check in CI** (removing `continue-on-error`) is blocked by the 178 existing ESLint errors. Branch protection is not planned (see the branch rule decided 2026-09-16).
 - **Chat:** phases 2 and 3 depend on phase 1.
 
 **Recommended execution order**
@@ -87,10 +87,14 @@ Another 9 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | Low | **Maint** L10: `service_request.php` writes its queue row by hand. Use `notify_admins_queue()`. | [Audit L10](audits/ams_security_workflow_audit_2026-09-16.md#l10) |
 | [ ] | Unprioritized | **Enh** Adjust billing pro rata when a lease is extended (checklist 3.10, partial). | [Checklist Module 3](features/panelist_feature_checklist.md#module-3--rental-payment--billing) |
 | [ ] | Unprioritized | **Enh** Generate monthly invoices automatically (no scheduler exists yet; prd v2.0). | [date_dependent_testing §14](date_dependent_testing.md#14-tips--gotchas), [prd v2.0](../.agents/prd.md#v20--future-backlog-post-defense) |
-| [ ] | Unprioritized | **Enh** Email and SMS notifications (checklist 6.6/6.7), including real password-reset email and a notification queue with retries. *Blocked by:* provider accounts. Maintenance update notices (4.10) are waiting on this. | [Checklist Module 6](features/panelist_feature_checklist.md#module-6--notification-module), [notification_services §10](features/notification_services.md#10-implementation-plan--phased), [saas guide §8](deployment/saas_deployment_guide.md#8-email-resend--sms-semaphore), [external_services §1](documentation/external_services.md#1-external-service-integration-matrix), [prd v1.1](../.agents/prd.md#v11--sms--email-notification-activation) |
+| [ ] | Unprioritized | **Enh** Email and SMS notifications (checklist 6.6/6.7), including real password-reset email and a notification queue with retries. *Blocked by:* provider accounts. Maintenance update notices (4.10) are waiting on this. Email/SMS on new inquiries is TBA. | [Checklist Module 6](features/panelist_feature_checklist.md#module-6--notification-module), [notification_services §10](features/notification_services.md#10-implementation-plan--phased), [saas guide §8](deployment/saas_deployment_guide.md#8-email-resend--sms-semaphore), [external_services §1](documentation/external_services.md#1-external-service-integration-matrix), [prd v1.1](../.agents/prd.md#v11--sms--email-notification-activation) |
 | [ ] | Unprioritized | **Enh** Two-way chat, phase 1: migration plus `start_conversation`, `get_messages`, `send_message` and `get_conversations` (checklist 7.1–7.6, prd v1.2). | [chat_design §9](features/chat_design.md#9-implementation-checklist), [Checklist Module 7](features/panelist_feature_checklist.md#module-7--communication-two-way-chat) |
 | [ ] | Unprioritized | **Enh** Complaints management channel (checklist 7.7). | [Checklist Module 7](features/panelist_feature_checklist.md#module-7--communication-two-way-chat) |
 | [ ] | Unprioritized | **Enh** Scheduled announcements (FR-10.6), and reservation reports per module (parking, CCTV, maintenance per unit). | [todo.md Announcements](todo.md#announcements), [todo.md Reports](todo.md#reports) |
+| [ ] | Unprioritized | **Enh** Household roster, backend (decided 2026-09-16): a `household_members` table linked to `rent_applications`, endpoints to list and request add/remove/replace, approval through `process_tenant_request.php`, and an occupant count kept in step with the roster and capped by a setting (ties to L9). | [todo.md Room & Occupancy](todo.md#room--occupancy) |
+| [ ] | Unprioritized | **Enh** Expenses table with manual entry (decided 2026-09-16): migration, admin CRUD with `log_activity`, and report expenses = maintenance costs + expense rows + optional overhead %. | [todo.md Reports](todo.md#reports), [Checklist Module 8](features/panelist_feature_checklist.md#module-8--admin-dashboard--reports) |
+| [ ] | Unprioritized | **Enh** Inquiry conversion-rate report in `AdminReports.jsx`: inquiries by status, conversion %, and reservations converted vs expired (decided 2026-09-16). | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-planned-and-deferred) |
+| [ ] | Unprioritized | **Enh** Basic unit waitlist: a `unit_waitlist` table, admin-managed from `AdminInquiries`, with the first person in line notified when a unit frees up and no automatic hold (decided 2026-09-16). | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-planned-and-deferred) |
 | [ ] | Unprioritized | **Enh / Bug** Service-management known limitations: no recurring bookings, no staff-assignment UI, reversal after payment is manual, and `parking_reservation.php` still stores `../uploads/` paths. | [service_management_design §8](features/service_management_design.md#8-known-limitations) |
 
 ## Frontend
@@ -106,7 +110,9 @@ Another 9 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | Unprioritized | **Enh** Add min/max limits to form inputs, including a plate-number `maxLength` in `ParkingReservation.jsx`. The backend already validates both. | [todo.md Registration & Application](todo.md#registration--application), [todo.md Parking Reservation](todo.md#parking-reservation) |
 | [ ] | Unprioritized | **Enh** Let a rejected applicant edit and resubmit their application. Today they can only file a new one. | [todo.md Registration & Application](todo.md#registration--application) |
 | [ ] | Unprioritized | **Enh** Documents: accept Police Clearance and Proof of Billing uploads, and let an admin request more documents from a tenant (with a notification). | [todo.md Documents](todo.md#documents) |
-| [ ] | Unprioritized | **Enh** Housekeeping pages (garbage schedule, house rules), terms for occupancy and tenant responsibility, multiple accounts per unit, and restricting CCTV requests to incidents. **Optional:** 360° room view. | [todo.md Housekeeping](todo.md#housekeeping), [todo.md Room & Occupancy](todo.md#room--occupancy), [todo.md CCTV](todo.md#cctv-footage-request), [todo.md Unit Information](todo.md#unit-information) |
+| [ ] | Unprioritized | **Enh** Housekeeping pages (garbage schedule, house rules), terms for occupancy and tenant responsibility, and restricting CCTV requests to incidents. | [todo.md Housekeeping](todo.md#housekeeping), [todo.md Room & Occupancy](todo.md#room--occupancy), [todo.md CCTV](todo.md#cctv-footage-request) |
+| [ ] | Unprioritized | **Enh** Household roster, frontend: a roster section with add/remove/replace requests in `MyRoom.jsx`, and a read-only roster in the admin tenant and unit views. *Depends on:* the roster backend. | [todo.md Room & Occupancy](todo.md#room--occupancy) |
+| [ ] | Unprioritized | **Enh** `room_preview_mode` setting (`images` or `floor_plan`), switched by the admin; `RoomPreviewModal.jsx` shows only the selected panel. 360° view is not planned (decided 2026-09-16). | [todo.md Unit Information](todo.md#unit-information) |
 
 ## Security
 
@@ -119,7 +125,7 @@ Another 9 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | High | **Risk** A-1: change the seeded admin password (`admin123`), and never import `seed_mock_data.sql` into production. | [security_audit §1](security_audit.md#section-1--authentication--access-control), [saas guide §2.6](deployment/saas_deployment_guide.md#26-production-hardening-checklist) |
 | [ ] | High | **Risk** E-7: run `npm audit fix`. There are 6 high and 1 moderate dependency advisories. | [security_audit §5](security_audit.md#section-5--frontend--react) |
 | [ ] | Medium | **Risk** M1: a tenant can replace the signed or notarized lease after the contract is activated. | [Audit M1](audits/ams_security_workflow_audit_2026-09-16.md#m1) |
-| [ ] | Medium | **Risk** M13 / A-9: the account lockout can be abused to lock out any account (key it on account + IP), and registration and reset requests have no throttling. | [Audit M13](audits/ams_security_workflow_audit_2026-09-16.md#m13), [security_audit §1](security_audit.md#section-1--authentication--access-control) |
+| [ ] | Medium | **Risk** M13 / A-9: the account lockout can be abused to lock out any account (key it on account + IP), and registration has no throttling. The reset-request throttle is covered by the password-policy row below. | [Audit M13](audits/ams_security_workflow_audit_2026-09-16.md#m13), [security_audit §1](security_audit.md#section-1--authentication--access-control) |
 | [ ] | Medium | **Risk** D-8 / L1: raw `$stmt->error` or exception text is still returned to clients (about 12 sites). Use `server_error_response()`. | [Audit L1](audits/ams_security_workflow_audit_2026-09-16.md#l1), [security_audit §4](security_audit.md#section-4--server--configuration) |
 | [ ] | Medium | **Maint** D-9 / L2: remove the request-time DDL from `submit_inquiry`, `get_inquiries` and `send_payment_reminder`, and move the pre-auth writes in `get_rooms` and `my_room` after authentication. | [Audit L2](audits/ams_security_workflow_audit_2026-09-16.md#l2), [security_audit §4](security_audit.md#section-4--server--configuration) |
 | [ ] | Medium | **Risk** A-3: create a least-privilege DB user instead of `root`. *Blocked by:* D-9 / L2. | [security_audit §1](security_audit.md#section-1--authentication--access-control) |
@@ -131,6 +137,7 @@ Another 9 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | Low | **Risk** L4: public settings are filtered by a denylist. Switch to an allowlist. | [Audit L4](audits/ams_security_workflow_audit_2026-09-16.md#l4) |
 | [ ] | Low | **Risk** L9: an email change doesn't require re-authentication, one admin can reset another admin's password, `create_contract` accepts a client-chosen id, `ProfileSettings.jsx` uses `innerHTML`, and the occupant count has no upper bound. | [Audit L9](audits/ams_security_workflow_audit_2026-09-16.md#l9) |
 | [ ] | Low | **Risk** Hygiene: the uploads `.htaccess` uses Apache 2.2 syntax and its denylist misses `phar`/`phtml`/`html`/`svg`, and `registration.php` reveals which emails are already registered. | [security_audit §6](security_audit.md#6-low--hygiene), [security_audit §5](security_audit.md#5-moderate-additional-findings) |
+| [ ] | Unprioritized | **Risk** Enforce the password policy (decided 2026-09-16): reject a new password equal to the current one (change, reset and admin reset), and limit `forgot_password.php` to 3 requests per email per hour plus a per-IP ceiling. No cap on changes, no cooldown, no forced expiry. | [todo.md Account Management](todo.md#account-management), [security_audit §1](security_audit.md#section-1--authentication--access-control), [Audit M13](audits/ams_security_workflow_audit_2026-09-16.md#m13) |
 
 ## Deployment
 
@@ -147,7 +154,7 @@ Another 9 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | Unprioritized | **Maint** Run the post-deployment and go/no-go checklist, including a test from an outside network and a ₱1 test payment. | [saas guide §11](deployment/saas_deployment_guide.md#11-post-deployment-verification-checklist), [localhost_to_production §5](deployment/localhost_to_production.md#5-pre-deployment-gono-go-checklist) |
 | [ ] | Unprioritized | **Enh** Switch PayMongo to live mode: live keys and webhook, and remove the hardcoded `disabled` on the Live option in `AdminAccountSettings.jsx`. *Blocked by:* PayMongo business verification. | [paymongo guide §3](paymongo_integration_guide.md#3-production-deployment), [saas guide §7.4](deployment/saas_deployment_guide.md#74-going-live) |
 | [ ] | Unprioritized | **Maint** Set up email and SMS provider accounts (Resend or Gmail SMTP, and Semaphore). This unblocks the Backend email/SMS task. | [saas guide §8](deployment/saas_deployment_guide.md#8-email-resend--sms-semaphore) |
-| [ ] | Unprioritized | **Maint** Decide whether to keep pushing straight to `main` or move to feature branches and PRs, then turn on branch protection. *Depends on:* lint passing cleanly. | [cicd Week 2](deployment/cicd_pipeline.md#-week-2--refine-now-gate-on-it) |
+| [ ] | Unprioritized | **Maint** Keep CI results visible on every push and act on red runs. Branch rule adopted 2026-09-16: routine work goes straight to `main`, big features use a `feature/` branch, and there is no required-PR protection. | [cicd Git Branching Strategy](deployment/cicd_pipeline.md#git-branching-strategy), [cicd Week 2](deployment/cicd_pipeline.md#-week-2--refine-now-gate-on-it) |
 | [ ] | Unprioritized | **Optional** Custom domains (frontend and API). | [saas guide §10](deployment/saas_deployment_guide.md#10-custom-domains--https) |
 | [ ] | Unprioritized | **Optional** CD workflow (`deploy.yml`) for a single target, then for two targets (Week 4 / 5+). *Depends on:* CI green. | [cicd Week 4](deployment/cicd_pipeline.md#-week-4--deploy-single-target-optional), [cicd Week 5+](deployment/cicd_pipeline.md#-week-5--deploy-dual-target-optional-stretch) |
 | [ ] | Unprioritized | **Optional** Self-hosted path: `vite.config` base, server `php.ini`, SPA `.htaccess`, DB export and import, and checking the DB for stored Windows paths. Applies only if you host on your own server. | [localhost_to_production §2](deployment/localhost_to_production.md#2-changes-checklist) |
@@ -188,15 +195,22 @@ Open questions that block or shape tasks above. Questions the sources have since
 
 | Status | Priority | Question | Source |
 |---|---|---|---|
-| [ ] | Unprioritized | Password change and reset policy: maximum number of changes, cooldown. | [todo.md Account Management](todo.md#account-management), [todo.md Open Questions](todo.md#open-questions) |
-| [ ] | Unprioritized | Multiple occupants: one shared lease or individual agreements? Shared or separate logins? | [todo.md Open Questions](todo.md#open-questions), [prd Open Questions](../.agents/prd.md#open-questions) |
-| [ ] | Unprioritized | Should 360° room viewing be required or optional? | [todo.md Open Questions](todo.md#open-questions) |
-| [ ] | Unprioritized | Should the report `expenses` figure be entered manually or come from an `expenses` table? Today it is maintenance cost plus an optional overhead %. | [todo.md Open Questions](todo.md#open-questions), [Guide §18.3](documentation/module_verification_guide.md#183-sharp-edges-working-as-designed-but-easy-to-misread) |
 | [ ] | Unprioritized | Should the `dev_token` bypass be removed entirely, and when? This ties to C4. | [prd Open Questions](../.agents/prd.md#open-questions) |
 | [ ] | Unprioritized | When should PayMongo switch to live mode? | [prd Open Questions](../.agents/prd.md#open-questions) |
-| [ ] | Unprioritized | Should occupant-count changes need admin approval? Currently they do, via `process_tenant_request.php`. Confirm this is final. | [prd Open Questions](../.agents/prd.md#open-questions) |
-| [ ] | Unprioritized | Should the frontend use a feature-branch/PR workflow or keep pushing straight to `main`? | [cicd Week 2](deployment/cicd_pipeline.md#-week-2--refine-now-gate-on-it) |
-| [ ] | Unprioritized | Should the inquiry module add a waitlist, a conversion-rate report, or email/SMS on new inquiries? The design lists these as not included. | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-not-included) |
+
+### Decided 2026-09-16
+
+These are no longer open questions. The resulting work is in the tables above.
+
+| Status | Question | Decision | Source |
+|---|---|---|---|
+| [x] | Password change and reset policy | Light policy: no cap on changes, no cooldown, no forced expiry; the new password must differ from the current one; at most 3 reset requests per email per hour | [todo.md Account Management](todo.md#account-management) |
+| [x] | Multiple occupants: shared or individual lease, shared or separate logins | One shared lease. Only the lease holder logs in; co-occupants go on a household roster | [todo.md Room & Occupancy](todo.md#room--occupancy), [prd Open Questions](../.agents/prd.md#open-questions) |
+| [x] | Do occupant-count changes need admin approval? | Yes, as a tenant request approved by an admin | [prd Open Questions](../.agents/prd.md#open-questions) |
+| [x] | 360° room viewing | Not planned (no panorama images). The admin chooses between images and floor plan | [todo.md Unit Information](todo.md#unit-information) |
+| [x] | Where report expenses come from | An `expenses` table with manual entry, added to the derived maintenance costs | [todo.md Reports](todo.md#reports), [prd Open Questions](../.agents/prd.md#open-questions) |
+| [x] | Feature branches or direct pushes to `main` | Routine work and bug fixes go to `main`; big implementations use a `feature/` branch; no required PRs | [cicd Git Branching Strategy](deployment/cicd_pipeline.md#git-branching-strategy), [CLAUDE.md](../CLAUDE.md) |
+| [x] | Inquiry waitlist, conversion report, email/SMS | Conversion report: yes. Basic waitlist: yes. Email/SMS on new inquiries: TBA | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-planned-and-deferred) |
 
 ---
 
