@@ -20,6 +20,11 @@ if (!defined('DB_USER')) define('DB_USER', $ams_env('DB_USER', 'root'));
 if (!defined('DB_PASS')) define('DB_PASS', $ams_env('DB_PASS', ''));
 if (!defined('DB_NAME')) define('DB_NAME', $ams_env('DB_NAME', 'ams_db'));
 if (!defined('APP_ENV')) define('APP_ENV', $ams_env('APP_ENV', 'development'));
+// Public origin of the frontend (for building links in emails etc.). Empty
+// until a frontend is deployed. CORS origins are handled in cors.php.
+if (!defined('APP_URL')) define('APP_URL', rtrim($ams_env('APP_URL', ''), '/'));
+
+require_once __DIR__ . '/cors.php';
 
 // Error reporting & resource limits (D-1, D-6)
 if (APP_ENV === 'production') {
@@ -30,8 +35,6 @@ if (APP_ENV === 'production') {
 @ini_set('upload_max_filesize', '10M');
 @ini_set('post_max_size', '12M');
 @ini_set('memory_limit', '128M');
-
-$conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
 
 // An uncaught exception used to print PHP's own error page — or, in the many
 // endpoints that catch and echo $e->getMessage(), the raw SQL error — to the
@@ -56,13 +59,26 @@ function server_error_response($e, $public_message = "Server error. Please try a
     echo json_encode(["success" => false, "message" => $public_message]);
 }
 
-if ($conn->connect_error) {
+// PHP 8.0 (XAMPP) reports a failed connect through connect_error; PHP 8.1+
+// (the Docker image) throws instead. Handle both the same way, and log the
+// cause so a production failure isn't just a blank 500.
+$db_error = null;
+try {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+    if ($conn->connect_error) $db_error = $conn->connect_error;
+} catch (mysqli_sql_exception $e) {
+    $db_error = $e->getMessage();
+}
+
+if ($db_error !== null) {
+    error_log('[AMS] Database connection failed (' . DB_HOST . ':' . DB_PORT . '/' . DB_NAME . '): ' . $db_error);
     if (APP_ENV === 'production') {
+        if (!headers_sent()) header('Content-Type: application/json');
         http_response_code(500);
         echo json_encode(["success" => false, "message" => "Database connection failed"]);
         exit;
     } else {
-        die("Connection failed: " . $conn->connect_error);
+        die("Connection failed: " . $db_error);
     }
 }
 

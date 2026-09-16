@@ -4,7 +4,7 @@
 > **Project:** Apartment Management System (AMS)
 > **Stack:** React 19 + Vite 8 (Vercel) → PHP 8 on Apache (Railway) → MariaDB (Railway)
 > **Last Updated:** September 2026
-> **Companion docs:** [saas_fallback_strategy.md](saas_fallback_strategy.md) (why and when), [localhost_to_production.md](localhost_to_production.md) (self-hosted VPS), [database_schema.md](../documentation/database_schema.md), [security_audit.md](../security_audit.md)
+> **Companion docs:** [environment_config.md](environment_config.md) (local vs production settings, CORS), [saas_fallback_strategy.md](saas_fallback_strategy.md) (why and when), [localhost_to_production.md](localhost_to_production.md) (self-hosted VPS), [database_schema.md](../documentation/database_schema.md), [security_audit.md](../security_audit.md)
 
 ---
 
@@ -39,18 +39,19 @@
 > |---|---|
 > | No container / runtime definition at the repository root | `Dockerfile` + `.dockerignore` exist — Railway builds with Docker, not Railpack. §2.4 documents them |
 > | Database credentials only came from the gitignored `backend/config.env.php`, with no port | `backend/config.php` reads `config.env.php` → environment variables (`getenv`, then `$_ENV`/`$_SERVER`) → localhost defaults, and connects with `DB_PORT` (§2.1). XAMPP is unaffected |
-> | API address hardcoded in `ams-react/src/api/axiosConfig.js` | Reads `import.meta.env.VITE_API_BASE_URL`, falling back to the XAMPP URL; `ams-react/.env.example` documents it (§2.2) |
+> | API address hardcoded in `ams-react/src/api/axiosConfig.js` | Reads `import.meta.env.VITE_API_BASE_URL`, falling back to the XAMPP URL; `ams-react/.env.development` / `.env.production` set it per build mode (§2.2) |
+> | Components built `http://localhost…` file URLs by hand | All file links and avatars go through `src/api/fileUrl.js` (§2.2) |
+> | Every endpoint sent `Access-Control-Allow-Origin: *` | Endpoints include `backend/cors.php`, driven by `ALLOWED_ORIGINS` (§2.6) |
+> | A failed DB connect on PHP 8.2 gave a blank 500 | `config.php` catches it, logs the cause, and returns `Database connection failed` JSON (§13) |
 
 > [!WARNING]
 > **Still open — close these before the stack is fully usable.** [§2](#2-prepare-the-code-required) walks through each with code:
 >
 > | Gap | Where | Why it breaks in the cloud |
 > |---|---|---|
-> | 5 components still build `http://localhost:8080/…` file URLs by hand | `AdminPayments.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `UserPaymentHistory.jsx`, `TopBar.jsx` | Attachments and avatars point at the visitor's own computer — use the existing `src/api/fileUrl.js` helper (§2.2) |
 > | Deep links such as `/admin-dashboard` have no server route | `ams-react` (`BrowserRouter`, no rewrite config) | Refreshing any page on Vercel returns 404 — add `vercel.json` (§2.3) |
 > | Uploads are written to local disk | 7 endpoints + `store_maintenance_attachment()` | Railway's filesystem is wiped on every redeploy unless a volume is mounted at `/var/www/html/uploads` (§2.5) |
 > | `SetupDB.sql` uses MariaDB-only syntax (`ADD COLUMN IF NOT EXISTS`) | `backend/api/migrations/` | Fails on a plain MySQL 8 server — use MariaDB |
-> | Every `backend/api/*.php` sends `Access-Control-Allow-Origin: *` | 79 of 80 endpoints | Once the frontend is on a different origin, credentialed cross-origin calls need a real allowlist (§2.6) |
 
 > [!NOTE]
 > **Email and SMS are not implemented in the code yet.** There is no PHPMailer, Resend or Semaphore integration — password resets and reminders are in-app only. [§8](#8-email-resend--sms-semaphore) covers account setup so they are ready when the code is written, but deploying does not turn them on.
@@ -166,29 +167,24 @@ baseURL: import.meta.env.VITE_API_BASE_URL
     || "http://localhost:8080/ApartmentManagementSystem_React/backend/api/",
 ```
 
-Create `ams-react/.env.example` to document it:
+The value is set per Vite mode by committed files (no secrets — `VITE_*` values are public):
 
-```bash
-# Full URL of the PHP API folder, including the trailing slash.
-VITE_API_BASE_URL=http://localhost:8080/ApartmentManagementSystem_React/backend/api/
-```
-
-**Replace the other hardcoded hosts** with the existing helper `ams-react/src/api/fileUrl.js`. It already derives the file host from the API base URL and strips `../` prefixes:
-
-| File | Current hardcoded URL | Change to |
+| File | Used by | `VITE_API_BASE_URL` |
 |---|---|---|
-| `src/AdminPages/AdminPayments.jsx` | local helper returning `http://localhost:8080/…/backend/${clean}` | `return fileUrl(clean);` |
-| `src/AdminPages/AdminParking.jsx` | `` href={`http://localhost:8080/…/backend/${res.documentPath…}`} `` | `href={fileUrl(res.documentPath)}` |
-| `src/AdminPages/AdminVisitors.jsx` | `` href={`http://localhost:8080/…/backend/${v.idPhotoPath}`} `` | `href={fileUrl(v.idPhotoPath)}` |
-| `src/UserPages/UserPaymentHistory.jsx` | `` href={`http://localhost:8080/…/backend/${receiptData.proofPath}`} `` | `href={fileUrl(receiptData.proofPath)}` |
-| `src/Components/TopBar.jsx` | avatar URL `http://localhost/…/backend/${cleanPath}` (note: **no port** — already broken on XAMPP port 8080) | `return fileUrl(cleanPath);` |
+| `ams-react/.env.development` | `npm run dev`, `npm run build -- --mode development` | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` |
+| `ams-react/.env.production` | `npm run build` (and Vercel) | `https://apartmentmanagementsystemreact-production.up.railway.app/api/` |
+| `ams-react/.env.local` (gitignored, optional) | every mode, overrides both | your own value |
 
-In each file add `import fileUrl from '../api/fileUrl';` (adjust the relative path for `Components/`: `'../api/fileUrl'` also works from there).
+> [!IMPORTANT]
+> A plain `npm run build` now targets Railway. To rebuild the `dist/` that XAMPP serves (`…/ams-react/dist/index.html`), run `npm run build -- --mode development`. A variable set in the Vercel dashboard overrides `.env.production`.
+
+**File URLs — done.** Attachments and avatars all go through `ams-react/src/api/fileUrl.js`, which derives the file host from the API base URL and strips `../` prefixes (`AdminPayments.jsx`, `AdminParking.jsx`, `AdminVisitors.jsx`, `UserPaymentHistory.jsx`, `TopBar.jsx`).
 
 Confirm nothing is left:
 
 ```bash
 grep -rn "localhost" ams-react/src      # should only show the fallback in axiosConfig.js
+npm run build && grep -o ".\{30\}localhost.\{30\}" dist/assets/*.js   # only react-router/axios internals (`http://localhost` as a URL-parsing base)
 ```
 
 ### 2.3 Add the SPA rewrite for Vercel
@@ -358,7 +354,7 @@ Do these before real tenants use the deployment. The full list is in [security_a
 | 2 | Change the admin password right after the first login (Admin → Account Settings → Security & Password) | `SetupDB.sql` seeds `admin@gmail.com` / `admin123` |
 | 3 | Do **not** import `seed_mock_data.sql` into a production database | It creates 12 tenant accounts that share the password `tenant123` |
 | 4 | Confirm `backend/api/migrations` is excluded from the image (§2.4) | The SQL files would otherwise be downloadable |
-| 5 | Optional: replace `Access-Control-Allow-Origin: *` with your `<APP_DOMAIN>` | Not required — auth uses bearer tokens, not cookies — but it narrows who can call the API (the header is set in each endpoint file) |
+| 5 | Set `ALLOWED_ORIGINS=https://<APP_DOMAIN>` on Railway once the frontend exists (§4.3) | Every endpoint includes `backend/cors.php`: a listed `Origin` is echoed back; with the variable unset, production sends no `Access-Control-Allow-Origin` at all (so browsers on another origin are blocked) and development allows everything. Auth is a bearer token, so no credentials header is needed |
 
 Commit and merge:
 
@@ -463,6 +459,8 @@ After importing, go back to **Settings → Networking** and **disable the TCP Pr
 | `DB_PASS` | reference → MariaDB root password | |
 | `DB_NAME` | `ams_db` | Typed value, not a reference — see §3.2 note |
 | `APP_ENV` | `production` | Hides the reset token and error details |
+| `ALLOWED_ORIGINS` | `https://<APP_DOMAIN>` (comma-separate several; add `http://localhost:5173` to run `npm run dev` against production) | Leave unset until a frontend exists — see §2.6 row 5 |
+| `APP_URL` | `https://<APP_DOMAIN>` | Frontend origin for links in emails; unused until email is implemented (§8) |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET` | from §6.2 | **Option B only** |
 
 Railway redeploys automatically after you save the variables.
@@ -470,6 +468,8 @@ Railway redeploys automatically after you save the variables.
 ### 4.4 Public domain
 
 **Service → Settings → Networking → Generate Domain.** Railway assigns something like `ams-api-production.up.railway.app` — this is your `<API_DOMAIN>`. Your API base URL is `https://<API_DOMAIN>/api/`.
+
+**Current deployment:** `<API_DOMAIN>` = `apartmentmanagementsystemreact-production.up.railway.app` (the PHP API service — the database is the separate MariaDB service, reachable only on its private host). `ams-react/.env.production` points at `https://apartmentmanagementsystemreact-production.up.railway.app/api/`.
 
 ### 4.5 Smoke test the API
 
@@ -768,7 +768,8 @@ Figures from [saas_fallback_strategy.md §7](saas_fallback_strategy.md#7-recomme
 | Deployment is **Crashed**; deploy log repeats `AH00534: More than one MPM loaded` | A second Apache MPM is enabled alongside `mpm_prefork` | The §2.4 Dockerfile removes `mpm_event`/`mpm_worker` at build and at start — make sure the deployed commit includes it |
 | Vercel page is blank or shows 404 after refreshing a route | `vercel.json` missing, or Root Directory isn't `ams-react` | Add §2.3's file; check Project Settings → Root Directory |
 | Site loads but every action says "failed to load"; Network tab shows calls to `localhost` | `VITE_API_BASE_URL` not set when the site was built | Set it (§5.1) and **Redeploy** |
-| Browser console shows a CORS error | The API returned an HTML error page (a PHP fatal or Apache 500) instead of JSON, so no CORS header was sent | Open Railway logs for the real error; also check the base URL ends in `/api/` |
+| Browser console shows a CORS error | The page's origin is not in `ALLOWED_ORIGINS`, or the API returned an HTML error page (a PHP fatal or Apache 500) instead of JSON | Add the exact origin (scheme + host + port, no trailing slash) to `ALLOWED_ORIGINS` (§4.3); otherwise open Railway logs for the real error and check the base URL ends in `/api/` |
+| API returns HTTP 500 with an **empty** body | Deployed commit predates the `config.php` connect fix: on PHP 8.2 a failed DB connect throws before any handler is set | Deploy the latest commit; the response then becomes `Database connection failed` and the log shows `[AMS] Database connection failed (host:port/db): …` — fix per the next row |
 | API returns `Connection failed: …` (or `Database connection failed` in production) | Wrong `DB_*` variables, or `DB_NAME` still `railway` | Recheck §4.3 references; confirm `DB_NAME=ams_db` and that the tables are in `ams_db` (§3.3) |
 | `DB_*` variables seem ignored | §2.1 not merged, or `getenv()` blocked by the web server | Confirm the deployed `config.php` has the `getenv` block; if needed add `PassEnv DB_HOST DB_PORT DB_USER DB_PASS DB_NAME APP_ENV` to the Apache config in the Dockerfile |
 | Every request returns `401` even right after logging in | The `Authorization` header is stripped | The `php:apache` image keeps it by default; if you changed the image, add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to the Apache config |
