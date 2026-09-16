@@ -415,8 +415,6 @@ const translations = {
     'parking.success': 'Parking Reservation Submitted Successfully',
 
     // --- Pay Bills ---
-    'payBills.heading': 'Payment Processing Portal',
-    'payBills.subtext': 'Review and settle your billing statements with instant validation.',
     'payBills.heading': 'Current Bill',
     'payBills.subtext': 'Review your unit breakdown ledger utilities and authorize transaction clearings securely.',
     'payBills.noPending': 'No Pending Invoices',

@@ -1,0 +1,82 @@
+# .github/workflows/ci.yml
+# Continuous Integration for AMS — React + PHP + MariaDB
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Frontend — React 19 + Vite 8
+  # ──────────────────────────────────────────────
+  frontend:
+    name: Frontend (Lint & Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ams-react
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"   # matches Vite 8 / ESLint 10's declared engine floor — don't loosen to a bare "20"
+          cache: npm
+          cache-dependency-path: ams-react/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        # De-risk while the pre-existing lint backlog is cleared (see
+        # docs/deployment/cicd_pipeline.md "Known Gaps & Fixes"). Remove this
+        # line once `npm run lint` exits clean — that's the signal this check
+        # is safe to make required/blocking.
+        continue-on-error: true
+
+      - name: Build production bundle
+        run: npm run build
+
+  # ──────────────────────────────────────────────
+  # Job 2: Backend — PHP 8 Syntax Check
+  # ──────────────────────────────────────────────
+  backend:
+    name: Backend (PHP Checks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mysqli, pdo, pdo_mysql, fileinfo, mbstring
+          coverage: none
+
+      - name: PHP syntax check (all files)
+        run: |
+          echo "Checking PHP syntax across all backend files..."
+          error_count=0
+          while IFS= read -r file; do
+            if ! php -l "$file" > /dev/null 2>&1; then
+              php -l "$file"
+              error_count=$((error_count + 1))
+            fi
+          done < <(find backend/ -name "*.php" -type f)
+
+          if [ $error_count -gt 0 ]; then
+            echo "❌ Found $error_count file(s) with syntax errors."
+            exit 1
+          else
+            echo "✅ All PHP files passed syntax check."
+          fi
