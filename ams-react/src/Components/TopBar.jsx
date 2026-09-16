@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
@@ -69,12 +70,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         setIsNotificationOpen(false);
     }, [location.pathname]);
 
-    const getFullAvatarUrl = (url) => {
-        if (!url) return null;
-        if (url.startsWith('http://') || url.startsWith('https://')) return url;
-        const cleanPath = url.replace(/^\//, ''); 
-        return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
-    };
+    const getFullAvatarUrl = (url) => (url ? fileUrl(url.replace(/^\//, '')) : null);
 
     // Identity comes from the session token; the bell used to send ?userId=.
     const fetchNotifications = async () => {

@@ -44,7 +44,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 |---|---|---|---|
 | C-1 | Enable HTTPS via Let's Encrypt (`certbot --apache`) | Login credentials, session tokens, and uploaded documents transmitted in plain text | `[ ]` |
 | C-2 | Redirect all HTTP to HTTPS in Apache vhost | Users who type `http://` bypass TLS entirely | `[ ]` |
-| C-3 | Lock CORS from `*` to your exact domain in `config.php` | Re-rated **Medium**: auth is a bearer token in a custom header (not a cookie), so a foreign site can't silently ride a logged-in session via a simple cross-origin form/fetch — but the wildcard still widens the blast radius of every endpoint in A-7, and `get_available_parking_slots.php` also sends `Access-Control-Allow-Headers: *` | `[ ]` |
+| C-3 | Lock CORS from `*` to your exact domain in `config.php` | Re-rated **Medium**: auth is a bearer token in a custom header (not a cookie), so a foreign site can't silently ride a logged-in session via a simple cross-origin form/fetch — but the wildcard still widens the blast radius of every endpoint in A-7, and `get_available_parking_slots.php` also sends `Access-Control-Allow-Headers: *` | `[x]` 2026-09-16 — all endpoints include `backend/cors.php` (allowlist from `ALLOWED_ORIGINS`; production with no list sends no ACAO); the parking endpoint's `Allow-Headers: *` was already gone |
 | C-4 | Add `Strict-Transport-Security` (HSTS) response header | Browsers allow HTTP downgrade even after first HTTPS visit | `[ ]` |
 
 ### SECTION 4 — Server & Configuration
@@ -65,11 +65,11 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 
 | # | Check | Risk if Missed | Status |
 |---|---|---|---|
-| E-1 | Replace all hardcoded `http://localhost` / `http://localhost:8080` strings with `VITE_API_BASE_URL` env var (10 occurrences across `axiosConfig.js`, `TopBar.jsx`, `AdminPayments.jsx`, `AdminMaintainance.jsx`, `AdminParking.jsx`, `AdminServicePage.jsx`, `AdminVisitors.jsx`, `UserMyRequests.jsx`, `UserPaymentHistory.jsx`) | All API calls fail on production; app is broken | `[ ]` |
+| E-1 | Replace all hardcoded `http://localhost` / `http://localhost:8080` strings with `VITE_API_BASE_URL` env var (10 occurrences across `axiosConfig.js`, `TopBar.jsx`, `AdminPayments.jsx`, `AdminMaintainance.jsx`, `AdminParking.jsx`, `AdminServicePage.jsx`, `AdminVisitors.jsx`, `UserMyRequests.jsx`, `UserPaymentHistory.jsx`) | All API calls fail on production; app is broken | `[x]` 2026-09-16 — `axiosConfig.js` reads `VITE_API_BASE_URL` (`ams-react/.env.development` / `.env.production`); all file links use `src/api/fileUrl.js`. Only the XAMPP fallback in `axiosConfig.js` remains |
 | E-2 | Add `X-Frame-Options: SAMEORIGIN` response header | App can be embedded in an iframe for clickjacking attacks | `[ ]` |
 | E-3 | Add `X-Content-Type-Options: nosniff` response header | Browser MIME-sniffing can execute uploaded files as scripts | `[ ]` |
 | E-4 | Add `Referrer-Policy: strict-origin-when-cross-origin` response header | Referrer headers leak internal URLs to third parties | `[ ]` |
-| E-5 | Run `grep -r "localhost" ams-react/dist/` after build — must return nothing | Production bundle silently calls localhost instead of real API | `[ ]` |
+| E-5 | Run `grep -r "localhost" ams-react/dist/` after build — must return nothing | Production bundle silently calls localhost instead of real API | `[x]` 2026-09-16 — the only remaining hits are react-router/axios internals using `http://localhost` as a URL-parsing base, not requests |
 | E-6 | Confirm admin route guard: only `role === 'admin'` can reach admin pages | `AdminProtectedRoute` in `App.jsx` does this correctly — but it is a UX convenience only, since the real control has to live server-side (see A-7); a tenant who spoofs `X-Admin-Id` cannot get past `require_admin()`/hardened `verify_admin()`, only past endpoints that still skip that check | `[x]` (client-side guard confirmed; server-side is the binding control) |
 | E-7 | Run `npm audit fix` in `ams-react` | 6 high + 1 moderate advisory in dependencies (direct: `react-router-dom`; transitive: `postcss`, `nanoid`, `brace-expansion`, `browserslist`, `react-router`) — all have fixes available | `[ ]` |
 
@@ -89,8 +89,8 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 |---|---|---|
 | **Critical** (unauthenticated IDOR / account takeover) | 0 — A-7 resolved 2026-09-14 (§6d) | — |
 | **High** | 5 | A-1, D-7, B-6, B-8, E-7 |
-| **Moderate** | 7 | A-3, A-9 (partial), C-1, C-2, C-3, D-8, D-9 |
-| **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-1, E-2, E-3, E-4, E-5 |
+| **Moderate** | 6 | A-3, A-9 (partial), C-1, C-2, D-8, D-9 |
+| **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-2, E-3, E-4 |
 
 > All **Critical** items must be resolved before any external user (pilot or production) touches the system. **High** items must be done before public access.
 

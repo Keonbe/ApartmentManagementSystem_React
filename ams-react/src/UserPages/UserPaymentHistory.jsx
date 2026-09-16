@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint, faArrowRight, faExclamationTriangle, faClock } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
@@ -216,7 +217,7 @@ export default function UserPaymentHistory() {
                             {receiptData.proofPath && (
                                 <div className="text-xs text-slate-600 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100 flex items-center justify-between flex-wrap gap-2">
                                     <span>{t('paymentHistory.proofAttached')}</span>
-                                    <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${receiptData.proofPath}`} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">{t('paymentHistory.viewScreenshot')}</a>
+                                    <a href={fileUrl(receiptData.proofPath)} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">{t('paymentHistory.viewScreenshot')}</a>
                                 </div>
                             )}
                             <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-slate-200">

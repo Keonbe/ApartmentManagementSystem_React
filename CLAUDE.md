@@ -11,7 +11,8 @@ React 18 + Vite SPA (`ams-react/`) → plain PHP 8 endpoints (`backend/api/*.php
 ## Run / verify
 
 - Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`
-- Frontend: `cd ams-react && npm run build` (no test runner exists)
+- Frontend: `cd ams-react && npm run build` (no test runner exists). Plain `build` targets Railway (`.env.production`); for the XAMPP-served `dist/` use `npm run build -- --mode development`
+- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, included by every endpoint. Prod API: `https://apartmentmanagementsystemreact-production.up.railway.app/api/`
 - PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
 - DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seed_mock_data.sql`
 - Live API checks: curl with a Bearer token — recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`)

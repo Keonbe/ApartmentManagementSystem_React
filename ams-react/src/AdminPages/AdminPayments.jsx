@@ -10,15 +10,11 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
-const getBackendAssetUrl = (path) => {
-  if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  const clean = path.replace(/^(\.\.\/)+/, '').replace(/^\//, '');
-  return `http://localhost:8080/ApartmentManagementSystem_React/backend/${clean}`;
-};
+const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : '');
 
 const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
