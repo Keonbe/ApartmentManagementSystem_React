@@ -30,16 +30,18 @@ const typeConfig = {
   visitor_log: { label: 'Visitor', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
   inquiry_update: { label: 'Inquiry', icon: faInfoCircle, color: 'bg-sky-50 text-sky-600 border-sky-100', badge: 'bg-sky-100 text-sky-700' },
   unit_reservation: { label: 'Unit Hold', icon: faHome, color: 'bg-sky-50 text-sky-600 border-sky-100', badge: 'bg-sky-100 text-sky-700' },
+  waitlist_update: { label: 'Waitlist', icon: faHome, color: 'bg-sky-50 text-sky-600 border-sky-100', badge: 'bg-sky-100 text-sky-700' },
   contract_update: { label: 'Lease', icon: faFileContract, color: 'bg-violet-50 text-violet-600 border-violet-100', badge: 'bg-violet-100 text-violet-700' },
   move_out_update: { label: 'Move-Out', icon: faHome, color: 'bg-violet-50 text-violet-600 border-violet-100', badge: 'bg-violet-100 text-violet-700' },
+  household_request: { label: 'Household Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
   occupancy_request: { label: 'Occupancy Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
   lease_extension_request: { label: 'Lease Extension', icon: faFileContract, color: 'bg-emerald-50 text-emerald-600 border-emerald-100', badge: 'bg-emerald-100 text-emerald-700' },
 };
 
 const TAB_TYPES = {
   billing: ['rent_due', 'overdue', 'billing', 'payment'],
-  requests: ['maintenance_update', 'service_status', 'cctv_request', 'parking_reservation', 'visitor_log', 'occupancy_request', 'lease_extension_request'],
-  lease: ['application_update', 'contract_update', 'move_out_update', 'inquiry_update', 'unit_reservation'],
+  requests: ['maintenance_update', 'service_status', 'cctv_request', 'parking_reservation', 'visitor_log', 'occupancy_request', 'household_request', 'lease_extension_request'],
+  lease: ['application_update', 'contract_update', 'move_out_update', 'inquiry_update', 'unit_reservation', 'waitlist_update'],
   announcements: ['info', 'warning', 'action'],
 };
 

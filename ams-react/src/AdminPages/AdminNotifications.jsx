@@ -18,6 +18,7 @@ import { ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, formatRelativeTime
 // admin feed), so those tabs were always empty.
 const typeConfig = {
   occupancy_request: { label: 'Occupancy Request', icon: faUsers, color: 'bg-purple-100 text-purple-600', badge: 'bg-purple-100 text-purple-700' },
+  household_request: { label: 'Household Change', icon: faUsers, color: 'bg-violet-100 text-violet-600', badge: 'bg-violet-100 text-violet-700' },
   lease_extension_request: { label: 'Lease Extension', icon: faCalendarPlus, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
   rent_application: { label: 'Rent Application', icon: faFileContract, color: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-100 text-indigo-700' },
   maintenance_request: { label: 'Maintenance', icon: faWrench, color: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700' },
@@ -25,19 +26,20 @@ const typeConfig = {
   cctv_request: { label: 'CCTV Request', icon: faVideo, color: 'bg-slate-100 text-slate-600', badge: 'bg-slate-100 text-slate-700' },
   service_request: { label: 'Service Booking', icon: faConciergeBell, color: 'bg-cyan-100 text-cyan-600', badge: 'bg-cyan-100 text-cyan-700' },
   inquiry: { label: 'Inquiry', icon: faInfoCircle, color: 'bg-sky-100 text-sky-600', badge: 'bg-sky-100 text-sky-700' },
+  unit_waitlist: { label: 'Waitlist', icon: faClock, color: 'bg-sky-100 text-sky-600', badge: 'bg-sky-100 text-sky-700' },
   payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
 };
 
 const FILTERS = [
   { key: 'all', label: 'All', types: null },
-  { key: 'decide', label: 'Occupancy & Lease', types: ['occupancy_request', 'lease_extension_request'] },
-  { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'inquiry'] },
+  { key: 'decide', label: 'Occupancy & Lease', types: ['occupancy_request', 'household_request', 'lease_extension_request'] },
+  { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'inquiry', 'unit_waitlist'] },
   { key: 'maintenance', label: 'Maintenance', types: ['maintenance_request'] },
   { key: 'services', label: 'Services, CCTV & Parking', types: ['service_request', 'cctv_request', 'parking_reservation'] },
   { key: 'payments', label: 'Payments', types: ['payment_verification'] },
 ];
 
-const DECIDED_HERE = ['occupancy_request', 'lease_extension_request'];
+const DECIDED_HERE = ['occupancy_request', 'household_request', 'lease_extension_request'];
 
 const AdminNotifications = () => {
   const navigate = useNavigate();

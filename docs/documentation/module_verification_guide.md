@@ -1803,6 +1803,10 @@ Values marked *audit DB* came from the database this audit ran against (its bill
 | **M8R-05** | Happy | Open maintenance by priority | Admin token | Monthly report | `maintOpenByPriority` matches (*audit DB*: Low 1, Medium 2) | `SELECT urgency, COUNT(*) FROM maintenance_requests WHERE status IN ('Pending','In Progress') GROUP BY urgency;` |
 | **M8R-06** | Happy | Tenant list statuses | Admin token | Monthly report | `tenantList` has one row per current tenant; `pending-move-out` tenants show as such | `SELECT status, COUNT(*) FROM rent_applications WHERE status IN ('Approved','active','pending-move-out') GROUP BY status;` |
 | **M8R-07** | Happy | Move-ins by lease start | Admin token | `timeframe=yearly&year=2026` | `moveIns` equals the query (*audit DB*: 2) | `SELECT COUNT(*) FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id=ra.id WHERE ra.status IN ('Approved','active','pending-move-out','moved-out','archived') AND YEAR(COALESCE(lc.lease_start, DATE(ra.created_at)))=2026;` |
+| **M8R-08** | Happy | Manual expenses enter the report | Admin token; `expenses` empty | `manage_expenses.php {"action":"create","category":"supplies","amount":1500,"expenseDate":"<today>"}`, then this month's report | `incomeStatement.otherExpenses` = 1500, `expenseBreakdown` = supplies 1500, `operatingExpenses` rises by 1500, current `trendPoints` month includes it | `DELETE FROM expenses;` afterwards |
+| **M8R-09** | Negative | Invalid expense | Admin token | `create` with `category:"x"`, `amount:-1` or a date in the future | `422` naming the problem | — |
+| **M8R-10** | Sec | Expenses are admin-only | Maria's token; no token | `GET manage_expenses.php` | `403`; `401` | — |
+| **M8R-11** | Happy | Inquiry conversion | Two inquiries this month, one `Converted` | This month's report | `inquiryConversion.received` 2, `converted` 1, `conversionRatePct` 50 | `SELECT status, COUNT(*) FROM inquiries WHERE YEAR(created_at)=YEAR(CURDATE()) AND MONTH(created_at)=MONTH(CURDATE()) GROUP BY status;` |
 
 **Restore:**
 
@@ -2054,6 +2058,10 @@ Fixtures: notification **#2** belongs to Jose (user 3); contract **LC-0004** bel
 | **M11-25** | Sec | Archive ends sessions and hides status from guessers | Mark's token | Archive Mark; use his token; sign in with a wrong password; with the right one; restore | `200`; `401`; *"Invalid email or password"*; *"…archived…"*; `200` | — |
 | **M11-26** | Happy | Apostrophes are stored as typed | Admin token | `update` user 13 with `last_name` `O'Brien` | `200` | `SELECT last_name FROM users WHERE id=13;` → `O'Brien`, not `O\'Brien` |
 | **M11-27** | Happy | The browser signs out on a revoked session (UI) | Tenant signed in in one browser | In another browser, reset that tenant's password from `/admin-users`; in the first, navigate | Redirected to `/login?expired=1` showing *"Your session has ended…"*; storage cleared | Manual check |
+| **M11-28** | Negative | Reset to the current password | A fresh reset token for Maria | `reset_password.php` with `new_password: "tenant123"` | `422 "New password must be different from the current password."`; the token still works | `SELECT COUNT(*) FROM password_resets WHERE email='maria.santos@gmail.com';` → 1 |
+| **M11-29** | Negative | Admin reset to the current password | Admin token | `manage_users.php {"action":"reset_password","user_id":2,"new_password":"tenant123"}` | `422 "…different from the user's current password."` | — |
+| **M11-30** | Sec | Reset requests are throttled | `password_reset_requests` empty | `forgot_password.php` four times for one email (registered or not) | 1–3 → `200` with the generic message; 4th → `429 "Too many password reset requests…"` | `DELETE FROM password_reset_requests;` afterwards |
+| **M11-31** | Happy | Reset link is valid right after it is issued | `password_resets` empty | `forgot_password.php` for Maria, then `reset_password.php` with the `dev_token` and a new password | `200 "Password successfully reset"` | Reset back to `tenant123` the same way |
 
 **Restore:**
 
@@ -2674,6 +2682,7 @@ Open defects as of this document's version. Each affects testing, so check here 
 | 2 | ✅ **Fixed Sept 2026** — `change_password.php` had no authentication | It changed whichever account's email was posted | Now `require_user` and throttled — see M11-17…M11-19 |
 | 3 | ✅ **Fixed Sept 2026** — forgot-password dev link did not route | `Login.jsx` built `/#/reset-password?…` under `BrowserRouter` | The link now opens `/reset-password?email=…&token=…` directly |
 | 4 | **PayMongo return URLs never reach the app** | `create_checkout_session.php:87,90` return `…/dist/index.html#/pay-bills?status=…`; `BrowserRouter` has no `basename` and there is no catch-all route | Returning from checkout renders a blank page, so the cancel → `release_checkout_session.php` wiring does not fire in a browser. The endpoint itself is correct (M3-15 passes by curl), and M3-17's overdue promotion still rescues the invoice — but only once it is past due |
+| 5 | ✅ **Fixed Sept 2026** — every password-reset link was already expired | `forgot_password.php` wrote `expires_at` from PHP's clock (Europe/Berlin on a default XAMPP) while `reset_password.php` compared it with MySQL's `NOW()` | Expiry is now set by the database — see M11-31 |
 
 ### 18.2 Legacy identity headers (resolved)
 
@@ -2701,6 +2710,32 @@ Also: `expire_contracts.php` and `expire_reservations.php` mutate rows with **no
 - **Overhead is 0 until configured.** `report_overhead_pct` is not seeded and has no admin UI; set it with SQL ([§9.3](#93-step-by-step-workflow)).
 - **Older databases can hold orphan utility readings.** Before `utility_readings` was in `SetupDB.sql`, rows could be saved for units that don't exist in `rooms` (the audit machine had units `101`, `102`, `104`). `room_name` has no FK, so they still count in report unit totals. Drop and re-import to clear them.
 - **No catch-all route** — an unknown path renders a blank page, not a 404.
+- **The occupant count is not simply the household list.** Seeded tenants have counts but no named members. Approving a new household member raises the count only when the named total (lease holder + active members) would exceed it; approving a removal lowers it by one, never below the named total. `update_occupants.php` refuses a count below the named total or above `max_occupants_per_unit`.
+
+### 18.4 Household roster, waitlist and room preview (added Sept 2026)
+
+Built from the 2026-09-16 decisions (`docs/todo.md`). These tests will move into their module sections at the next audit of Modules 1, 2 and 8. Use Jose (`jose.reyes@gmail.com`, application 2, Unit B, 2 occupants) as the tenant, and take a `mysqldump` first — the archive test ends his tenancy.
+
+| ID | Type | Scenario | Precondition | Action | Expected | Verify |
+|---|---|---|---|---|---|---|
+| **M1H-01** | Happy | Request a household member | Jose's token | `household_members.php {"action":"add","fullName":"Ana Reyes","relationship":"Spouse/Partner","contactNo":"09171234567"}` | `200`; a `Pending` member and a `Pending` `household_request` notification (`add:<id>`) | `SELECT status FROM household_members WHERE full_name='Ana Reyes';` |
+| **M1H-02** | Negative | Bad relationship / duplicate name | Jose's token | `add` with `relationship:"Boss"`; `add` "ana reyes" again | `422 "Choose a relationship…"`; `409 "…already on your household list."` | — |
+| **M1H-03** | Happy | Approving a name within the count | Admin token | `process_tenant_request.php` approve on the M1H-01 notification | Member `Active`; occupants stay 2, rent 4000 | `SELECT occupants, monthly_rent FROM rent_applications WHERE id=2;` |
+| **M1H-04** | Happy | Approving past 4 adds the surcharge | M1H-03 | Add and approve three more members | occupants 5, rent 5000 | same query |
+| **M1H-05** | Happy | Removal needs approval | M1H-04 | `{"action":"remove","memberId":<id>}` twice, then approve | 1st `200`; 2nd `409 "…already waiting…"`; after approval member `Removed`, occupants 4, rent 4000 | same query |
+| **M1H-06** | Negative | Count below the named household | M1H-05 | `update_occupants.php {"occupants":2}` | `"Your household list names 4 occupant(s)…"` | — |
+| **M1H-07** | Happy | Withdraw / reject | Jose's token | `add` then `remove` the pending member; `add` another and have the admin reject it | `Cancelled` with its notification `Rejected`; `Rejected`; counts unchanged | `SELECT full_name, status FROM household_members WHERE rent_application_id=2;` |
+| **M1H-08** | Negative | Occupant cap | `max_occupants_per_unit` = 4, M1H-05 | `add` one more | `409 "Your unit is limited to 4 occupants…"` | Set the setting back to 8 |
+| **M1H-09** | Sec | Admin reads, doesn't write | Admin token | `GET household_members.php?userId=3`; `POST` any action | `200` roster; `403` | — |
+| **M1W-01** | Happy | Waitlist an occupied unit | Two inquiries for Unit B | `manage_waitlist.php {"action":"add","inquiryId":<id>}` for each; add the first again; add it for vacant Unit I | Positions 1 and 2; `409 "…already on the waitlist…"`; `409 "Unit I is vacant…"` | `GET manage_waitlist.php` |
+| **M1W-02** | Happy | Vacating notifies the first in line and ends the household | M1W-01, M1H-05 | `archive_tenant.php {"id":2}` | Room B `vacant`; household members `Removed`; entry 1 `Notified`, entry 2 still `Waiting`; a `Pending` `unit_waitlist` admin item for entry 1 | `SELECT status, notified_at FROM unit_waitlist;` |
+| **M1W-03** | Happy | Converting the inquiry clears it | M1W-02 | `update_inquiry_status.php` → `Converted` for inquiry 1 | Entry 1 `Removed`; its admin item `Resolved` | `SELECT status FROM notifications WHERE type='unit_waitlist';` |
+| **M1W-04** | Negative | Remove twice | M1W-03 | `{"action":"remove","id":<entry 2>}` twice | `200`; `404` | — |
+| **M1W-05** | Sec | Waitlist is admin-only | Maria's token | `GET manage_waitlist.php` | `403` | — |
+| **M2P-01** | Negative | Preview mode validation | Admin token | `update_system_settings.php {"room_preview_mode":"360"}` | `422 "Room preview mode must be images or floor_plan."` | — |
+| **M2P-02** | Happy | Preview follows the setting (UI) | Setting `floor_plan` | Open a unit preview on the public page | Only the 2D floor plan panel shows; with `images`, only the room image | Manual check |
+
+**Restore:** re-import the dump, then `DELETE FROM expenses; DELETE FROM password_reset_requests; DELETE FROM login_attempts;` and set `room_preview_mode` back to `images`.
 
 ---
 

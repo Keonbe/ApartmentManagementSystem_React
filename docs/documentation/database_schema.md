@@ -286,6 +286,34 @@ erDiagram
         timestamp updated_at
     }
 
+    HOUSEHOLD_MEMBERS {
+        int id PK
+        int rent_application_id FK
+        varchar full_name
+        varchar relationship
+        varchar contact_no
+        varchar status "Pending | Active | Removed | Rejected | Cancelled"
+        datetime added_at
+        datetime removed_at
+        datetime removal_requested_at
+    }
+    UNIT_WAITLIST {
+        int id PK
+        int inquiry_id FK
+        int user_id FK
+        varchar room_name "soft ref to rooms.id"
+        varchar full_name
+        varchar status "Waiting | Notified | Removed"
+        datetime notified_at
+    }
+    EXPENSES {
+        int id PK
+        varchar category
+        decimal amount
+        date expense_date
+        varchar description
+        int created_by
+    }
     UNIT_RESERVATIONS {
         int id PK
         int inquiry_id FK "nullable, ON DELETE SET NULL"
@@ -391,6 +419,8 @@ erDiagram
     RENT_APPLICATIONS ||--o{ LEASE_CONTRACTS : "produces (1 in practice)"
     LEASE_CONTRACTS ||--o{ LEASE_RENEWALS : "extended by"
     INQUIRIES ||--o{ UNIT_RESERVATIONS : "converts to hold"
+    INQUIRIES ||--o{ UNIT_WAITLIST : "waits for a unit"
+    RENT_APPLICATIONS ||--o{ HOUSEHOLD_MEMBERS : "household of the lease"
     SERVICE_CATALOG ||--o{ SERVICE_REQUESTS : "priced by"
 ```
 
@@ -409,12 +439,14 @@ erDiagram
 |---|---|
 | `rent_applications` | One row per submitted application. `room_name` is the **only** soft-referenced-room column that's actually FK-enforced (`ON DELETE RESTRICT` — a room can't be deleted while it has application history). `status` drives the whole tenant lifecycle (`Pending Review → Approved/Rejected → pending-move-out → moved-out/archived`). |
 | `lease_contracts` | One row per approved application, enforced by a `UNIQUE` key on `rent_application_id` (added September 2026 — the admin "Generate Contract" button used to insert a second row with no check). `status` is a real `ENUM`: `draft` (created on approval, not yet admin-reviewed) → `active` → `expired` (auto-swept, see §4) / `eviction-pending` / `terminated` (ends the tenancy — see `update_contract_status.php`'s `terminate` action). Every transition is gated server-side by `CONTRACT_TRANSITIONS` in `config.php`, not just checked at the UI. `termination_reason`/`terminated_at` and `renewal_reminder_sent_at` (a lease-end-reminder claim column) were added the same cycle. `deposit_amount` is one month's rent; there's deliberately no `monthly_rent` column here — the rate is always read live from `rent_applications.monthly_rent`, so it can never drift from the source of truth. |
+| `household_members` | Co-occupants on a lease (decided 2026-09-16: one shared lease, only the lease holder has a login). `status`: `Pending` (tenant request) → `Active` / `Rejected` / `Cancelled` (withdrawn); `Active` → `Removed`. A removal request is `removal_requested_at` on the `Active` row. Requests are `household_request` notifications (metadata `add:<id>` / `remove:<id>`) decided in `process_tenant_request.php`. `rent_applications.occupants` never drops below 1 + active members and never exceeds `max_occupants_per_unit`. `end_household()` removes everyone on move-out, contract termination or archive. `ON DELETE CASCADE` from `rent_applications`. |
 | `lease_renewals` | Append-only audit trail for lease extensions. The contract itself is extended **in place** (not versioned as a new row) because every consumer query (`get_contracts.php`, `my_room.php`) assumes one `lease_contracts` row per application; this table exists purely so a renewal's history (old end date, new end date, rate at the time) isn't lost when the contract row is mutated. |
 
 ### Billing
 | Table | Purpose |
 |---|---|
 | `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. `base_rent`/`water`/`electricity`/`parking`/`services`/`late_fee` are itemized and summed into `total_amount`; `services` accumulates (can hold more than one completed service booking's cost in the same month). `water`/`electricity` are set once from a single utility reading — `sync_utility_to_invoice.php` refuses to merge into an invoice that already carries them, and adds to `total_amount` rather than recomputing it. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. |
+| `expenses` | Building expenses an admin enters by hand (`manage_expenses.php`): utilities, supplies, salaries, common-area upkeep, taxes and fees, insurance, other. `get_report_data.php` adds them to the maintenance costs it derives from `maintenance_requests` — repairs are never entered here, so nothing is counted twice. |
 | `utility_readings` | One row per unit per billing month (`UNIQUE (room_name, billing_period)`). `billing_period` is `YYYY-MM`, while invoices label the same month `"September 2026"` — always convert with `utility_period_label()` before matching. Previous/current readings form a chain per unit, so readings are recorded oldest-first and only the latest un-invoiced one may be deleted. `is_invoiced` is claimed atomically before the charge is posted, and `invoice_id` records the invoice it landed on. |
 
 ### Requests & Services
@@ -432,6 +464,7 @@ erDiagram
 | `visitor_logs` | Front-desk check-in/out log. `status` is a real `ENUM`: `pending_approval` (tenant pre-registration) → `checked_in` → `checked_out`, or `denied`/`cancelled`; `overstayed` is a **derived display value** computed at read time, not a stored status. `expected_at` (a pre-registration's expected arrival) and `overstay_alerted_at` (the once-per-visit claim for `alert_overstayed_visitors()`) were added September 2026. `id_photo_path` (the uploaded government ID) was missing from the schema until September 2026, which made every check-in fail. A tenant's own list is scoped strictly to `user_id` — matching by current room as well used to leak a previous occupant's visitors to the next tenant of the same unit. |
 | `inquiries` | Public/walk-in "tell me about a unit" leads. `room_name` is intentionally **not** FK-enforced — an inquiry doesn't have to name a specific unit. |
 | `unit_reservations` | A short hold on a room after a promising inquiry. "One active hold per room" is enforced at the application layer (`SELECT ... FOR UPDATE` inside a transaction) rather than a DB constraint, because MySQL has no native partial/conditional unique index. |
+| `unit_waitlist` | Basic first-come waitlist for a unit that isn't vacant, added from an inquiry (`manage_waitlist.php`). When the unit is vacated or a hold is released, `notify_unit_waitlist()` marks the first `Waiting` row `Notified`, notifies a tenant account in-app and queues an admin item (`unit_waitlist`). No hold is placed automatically. Converting or closing the inquiry removes its entries. `room_name` is a soft reference, like `inquiries`. |
 | `announcements` | Broadcast messages; `channels` is a JSON array stored as `longtext` with a `CHECK (json_valid(...))` constraint. |
 | `notifications` | Shared inbox row for **both** tenant-facing status updates and admin-facing "new request" alerts — disambiguated by `user_id` (whose inbox) and `status`/`type`, not by a separate table. `status` and `metadata_value` were added via `ALTER TABLE` after the initial `CREATE TABLE` (see the file — they're relied on everywhere but weren't in the original dump). |
 | `activity_logs` | Audit trail (checklist 8.6), append-only. `performed_by` is always the session user when there is one (set by `log_activity()`), and nullable so a deleted account doesn't cascade-delete history. `category` is one of the 12 keys in `LOG_CATEGORIES`; `normalize_log_category()` maps legacy spellings on write. |
@@ -440,7 +473,8 @@ erDiagram
 | Table | Purpose |
 |---|---|
 | `system_settings` | Generic `setting_key`/`setting_value` pair store. Every admin-configurable value in the app (lease duration, overdue threshold, payment channel toggles, parking caps, landlord identity for the lease contract, etc.) lives here rather than as dedicated columns — see [`ams-react/src/config/systemSettings.js`](../../ams-react/src/config/systemSettings.js) for the full key list and camelCase↔snake_case mapping. |
-| `password_resets` | Token storage for `forgot_password.php`/`reset_password.php`. |
+| `password_resets` | Token storage for `forgot_password.php`/`reset_password.php`. `expires_at` is set by the database (`NOW() + 30 min`) — it used to be PHP's clock, whose timezone differed from MySQL's. |
+| `password_reset_requests` | One row per reset request, counted by `password_reset_throttle_message()`: at most 3 per email and 10 per IP per hour. Rows older than a day are purged on insert. |
 | `sessions` | Server-issued bearer tokens. `role` is a snapshot from login and is **not** used for access decisions — `get_authenticated_user()` joins `users` for the live role and archive state. Rows are deleted by `revoke_user_sessions()` on password change/reset, role change and archive. |
 | `login_attempts` | Failed sign-ins and wrong current passwords, counted per account (`email`, lowercased) and per IP over 15 minutes by `login_throttle_message()`. Previously created by `login.php` at request time. |
 
@@ -454,7 +488,7 @@ All migration files live in `backend/api/migrations/`.
 The single source of truth for every `CREATE TABLE`. Structure:
 1. `CREATE DATABASE IF NOT EXISTS ams_db` + all `DROP TABLE IF EXISTS` / `CREATE TABLE` statements for the 12 "original" tables (`users`, `rooms`, `invoices`, `lease_contracts`, `maintenance_requests`, `notifications`, `parking_reservations`, `rent_applications`, `cctv_requests`, `announcements`, `activity_logs`, `system_settings`).
 2. The one seed row that must exist for the app to be usable at all: the **admin account** (`admin@gmail.com` / `admin123`) and the **14-room inventory**.
-3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `visitor_logs`, `inquiries`, `unit_reservations`, `service_catalog`, `service_requests`, `utility_readings`, `sessions`, `login_attempts`, `password_resets`) — additive, so re-running this file against an existing DB won't wipe those.
+3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `visitor_logs`, `inquiries`, `unit_reservations`, `household_members`, `expenses`, `unit_waitlist`, `service_catalog`, `service_requests`, `utility_readings`, `sessions`, `login_attempts`, `password_resets`, `password_reset_requests`) — additive, so re-running this file against an existing DB won't wipe those.
 4. Two `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements patching `notifications` (`status`, `metadata_value`) and `invoices` (`services`) — columns the API code depends on that were never added to the original `CREATE TABLE notifications`/`invoices` blocks.
 5. The default `system_settings` rows.
 
@@ -472,6 +506,9 @@ Must run **after** `SetupDB.sql` in the same import — it resolves the admin's 
 
 ### `2026_09_rbac_activity_logs.sql` — upgrade for existing databases
 Idempotent. It creates `login_attempts` if missing and adds the `(email, attempt_time)` index for the per-account lockout. It adds the missing `visitor_logs.id_photo_path` column. It also rewrites existing `activity_logs.category` values into the 12 standard categories. A fresh `SetupDB.sql` import does not need it.
+
+### `2026_09_decisions_features.sql` — upgrade for existing databases
+Idempotent. Creates `password_reset_requests`, `household_members`, `expenses` and `unit_waitlist`, and adds the `room_preview_mode` (`images`) and `max_occupants_per_unit` (`8`) settings. A fresh `SetupDB.sql` import does not need it.
 
 ### `clear_and_seed.sql` and `seed_reset.sql` — ⚠️ currently out of sync
 Both predate the current schema and the `seed_mock_data.sql` rewrite above, and have **not** been kept in sync:

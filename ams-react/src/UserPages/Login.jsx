@@ -63,7 +63,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 setForgotToken(res.data.dev_token);
             }
         } catch (error) {
-            setForgotMessage("Failed to send reset link.");
+            setForgotMessage(error.response?.data?.message || "Failed to send reset link.");
         } finally {
             setIsSubmittingForgot(false);
         }

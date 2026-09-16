@@ -16,9 +16,9 @@
   * The new password must differ from the current one (change, reset and admin reset).
   * At most **3 reset requests per email per hour**, plus a per-IP ceiling; the response stays generic so it doesn't reveal whether the email exists.
   * Unchanged: 8-character minimum (`PASSWORD_MIN_LENGTH`), lockout after 5 failures per account / 20 per IP for 15 minutes, 30-minute single-use reset link, all sessions ended after a reset, other devices signed out after a change.
-* [ ] Enforce the password policy:
-  * [ ] Reject a new password equal to the current one in `change_password.php`, `reset_password.php` and the admin reset in `manage_users.php`.
-  * [ ] Throttle `forgot_password.php` to 3 requests per email per hour, plus a per-IP limit.
+* [x] Enforce the password policy (built 2026-09-17):
+  * [x] Reject a new password equal to the current one in `change_password.php`, `reset_password.php` and the admin reset in `manage_users.php`.
+  * [x] Throttle `forgot_password.php` to 3 requests per email per hour, plus 10 per IP (`password_reset_requests` table).
 
 ---
 
@@ -46,11 +46,12 @@
   * Co-occupants are recorded as household members (name, relationship, contact, status, added/removed dates).
   * Adding, removing or replacing a member is a tenant request that needs admin approval (same flow as today's occupant-count change); the >4 occupant surcharge is recalculated on approval.
   * Move-out or archive ends the whole household.
-* [ ] Build the household roster:
-  * [ ] Migration: `household_members` table linked to `rent_applications` (mirror into `SetupDB.sql`).
-  * [ ] Endpoints to list the roster and to request add/remove/replace; approval through `process_tenant_request.php`.
-  * [ ] Roster section in `MyRoom.jsx`; read-only roster in the admin tenant/unit views.
-  * [ ] Keep the occupant count in step with the roster (lease holder + active members), capped by a max-occupants setting.
+* [x] Build the household roster (built 2026-09-17):
+  * [x] Migration: `household_members` table linked to `rent_applications` (`2026_09_decisions_features.sql`, mirrored into `SetupDB.sql`).
+  * [x] `household_members.php` lists the roster and files add/remove requests (replace = remove + add); admins approve in Notifications through `process_tenant_request.php`.
+  * [x] Household section in `MyRoom.jsx`; read-only list in the `AdminTenants` profile.
+  * [x] Occupant count never drops below the lease holder + active members and never exceeds `max_occupants_per_unit` (default 8, set in Settings → Lease Policy). Naming someone already counted doesn't change the rent.
+  * [x] Move-out, contract termination and archive end the household.
 * [ ] Add occupancy Terms & Conditions:
   * Shared occupancy responsibilities.
   * Separation of occupants.
@@ -107,7 +108,7 @@
 * [x] Rooms seeded in DB with type, floor, monthly rent, and status.
 * [x] Room images included in Preview page and `AdminUnits` modals.
 * [x] Decide on 360° room view — **decided 2026-09-16: not planned.** There are no panorama images to show; revisit only if they become available.
-* [ ] Add a `room_preview_mode` setting (`images` or `floor_plan`) that the admin switches in settings; `RoomPreviewModal.jsx` shows only the selected panel (today it shows a stock image and the SVG floor plan side by side).
+* [x] `room_preview_mode` setting (`images` or `floor_plan`), switched in Settings → Lease Policy; `RoomPreviewModal.jsx` shows only the selected panel (built 2026-09-17).
 
 ---
 
@@ -182,11 +183,11 @@ Generate reports by:
   * `AdminReports.jsx` fetches from backend and mock engine has been removed.
   * Extended `get_report_data.php` to return array lists for the detailed tables.
 * [ ] Per-module reservation reports (parking, CCTV, maintenance per unit).
-* [ ] **Expenses table with manual entry** (decided 2026-09-16):
-  * [ ] Migration: `expenses` table (category, amount, expense_date, description, created_by, created_at).
-  * [ ] Admin screen or form to add, edit and delete building expenses, each write logged with `log_activity`.
-  * [ ] `get_report_data.php`: expenses = maintenance actual costs (still derived from `maintenance_requests`, not copied) + expense rows in the period + the optional `report_overhead_pct`.
-* [ ] **Inquiry conversion-rate report** in `AdminReports.jsx` — see [inquiry_reservation_design.md §8](features/inquiry_reservation_design.md#8-planned-and-deferred).
+* [x] **Expenses table with manual entry** (decided 2026-09-16, built 2026-09-17):
+  * [x] Migration: `expenses` table (category, amount, expense_date, description, created_by, created_at).
+  * [x] `manage_expenses.php` + the "Manage" button on the Reports income statement add, edit and delete building expenses, each write logged.
+  * [x] `get_report_data.php`: expenses = maintenance actual costs (still derived from `maintenance_requests`, not copied) + expense rows in the period + the optional `report_overhead_pct`, with a per-category breakdown and CSV lines.
+* [x] **Inquiry conversion-rate report** in `AdminReports.jsx` (Reservations tab, built 2026-09-17) — see [inquiry_reservation_design.md §8](features/inquiry_reservation_design.md#8-planned-and-deferred).
 
 ---
 

@@ -54,7 +54,7 @@ export default function ResetPassword() {
                 setMessage(res.data.message);
             }
         } catch (error) {
-            setMessage("Failed to reset password. The link might be expired.");
+            setMessage(error.response?.data?.message || "Failed to reset password. The link might be expired.");
         } finally {
             setIsSubmitting(false);
         }

@@ -86,6 +86,17 @@ foreach ($input as $key => $value) {
         exit;
     }
 
+    if ($key === 'room_preview_mode' && !in_array($value, ['images', 'floor_plan'], true)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Room preview mode must be images or floor_plan."]);
+        exit;
+    }
+    if ($key === 'max_occupants_per_unit' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 20)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Maximum occupants per unit must be a whole number between 1 and 20."]);
+        exit;
+    }
+
     if (array_key_exists($key, $existing) && $existing[$key] === $value) continue;
 
     $stmt->bind_param("sss", $key, $value, $value);

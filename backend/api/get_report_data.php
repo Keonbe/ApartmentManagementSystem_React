@@ -224,13 +224,34 @@ if ($stmt) {
     $stmt->close();
 }
 
-// Operating expenses = recorded maintenance cost + the configured overhead (0% unless set)
+// Other building expenses entered by an admin (expenses table, decided 2026-09-16).
+// Maintenance is not in that table, so nothing is counted twice.
+function period_condition($col, $timeframe, $year, $month, $quarter) {
+    $year = (int)$year; $month = (int)$month; $quarter = (int)$quarter;
+    if ($timeframe === 'yearly') return "YEAR($col) = $year";
+    if ($timeframe === 'quarterly') return "YEAR($col) = $year AND QUARTER($col) = $quarter";
+    return "YEAR($col) = $year AND MONTH($col) = $month";
+}
+function sum_manual_expenses($conn, $condition) {
+    $row = $conn->query("SELECT COALESCE(SUM(amount), 0) AS total FROM expenses WHERE $condition")->fetch_assoc();
+    return (float)($row['total'] ?? 0);
+}
+$otherExpenses = sum_manual_expenses($conn, period_condition('expense_date', $timeframe, $year, $month, $quarter));
+$prevOtherExpenses = sum_manual_expenses($conn, period_condition('expense_date', $timeframe, $prevYear, $prevMonth, $prevQuarter));
+
+$expenseBreakdown = [];
+$res = $conn->query("SELECT category, SUM(amount) AS total FROM expenses WHERE " . period_condition('expense_date', $timeframe, $year, $month, $quarter) . " GROUP BY category ORDER BY total DESC");
+while ($row = $res->fetch_assoc()) {
+    $expenseBreakdown[] = ['category' => $row['category'], 'amount' => (float)$row['total']];
+}
+
+// Operating expenses = recorded maintenance cost + admin-entered expenses + the configured overhead (0% unless set)
 $operatingOverhead = round($grossRevenue * $overheadPct / 100, 2);
-$operatingExpenses = $actualMaintExpenses + $operatingOverhead;
+$operatingExpenses = $actualMaintExpenses + $otherExpenses + $operatingOverhead;
 $data['expenses'] = $operatingExpenses;
 
 $prevOperatingOverhead = round($prevGrossRevenue * $overheadPct / 100, 2);
-$prevOperatingExpenses = $prevMaintExpenses + $prevOperatingOverhead;
+$prevOperatingExpenses = $prevMaintExpenses + $prevOtherExpenses + $prevOperatingOverhead;
 
 $netIncome = $grossRevenue - $operatingExpenses;
 $prevNetIncome = $prevGrossRevenue - $prevOperatingExpenses;
@@ -265,6 +286,8 @@ $data['incomeStatement'] = [
     'depositRevenue' => $data['depositCollected'],
     'lateFeeRevenue' => $data['lateFeesCollected'],
     'maintenanceExpenses' => $actualMaintExpenses,
+    'otherExpenses' => $otherExpenses,
+    'expenseBreakdown' => $expenseBreakdown,
     'operatingOverhead' => $operatingOverhead,
     'overheadPct' => $overheadPct,
     'operatingExpenses' => $operatingExpenses,
@@ -516,7 +539,8 @@ for ($i = 5; $i >= 0; $i--) {
     $m_cost = (float)($maint_stmt->get_result()->fetch_assoc()['cost'] ?? 0);
     $maint_stmt->close();
     
-    $monthExpenses = $m_cost + round($monthRevenue * $overheadPct / 100, 2);
+    $m_other = sum_manual_expenses($conn, period_condition('expense_date', 'monthly', $target_year, $target_month, 0));
+    $monthExpenses = $m_cost + $m_other + round($monthRevenue * $overheadPct / 100, 2);
     $monthNet = $monthRevenue - $monthExpenses;
     
     // Occupied rooms in target month from database lease contracts & approved applications
@@ -811,6 +835,28 @@ while ($row = $res->fetch_assoc()) {
     ];
 }
 $stmt->close();
+
+// Inquiry conversion (decided 2026-09-16, inquiry_reservation_design.md §8).
+// Inquiries are counted by when they were received; conversion = reached Converted.
+$inqCondition = period_condition('created_at', $timeframe, $year, $month, $quarter);
+$inquiryStatusCounts = ['New' => 0, 'Contacted' => 0, 'Scheduled' => 0, 'Reserved' => 0, 'Converted' => 0, 'Closed' => 0];
+$res = $conn->query("SELECT status, COUNT(*) AS c FROM inquiries WHERE $inqCondition GROUP BY status");
+while ($row = $res->fetch_assoc()) {
+    $inquiryStatusCounts[$row['status']] = (int)$row['c'];
+}
+$inquiriesReceived = array_sum($inquiryStatusCounts);
+$reservationCounts = ['Active' => 0, 'Converted' => 0, 'Expired' => 0, 'Cancelled' => 0];
+$res = $conn->query("SELECT status, COUNT(*) AS c FROM unit_reservations WHERE $inqCondition GROUP BY status");
+while ($row = $res->fetch_assoc()) {
+    $reservationCounts[$row['status']] = (int)$row['c'];
+}
+$data['inquiryConversion'] = [
+    'received' => $inquiriesReceived,
+    'byStatus' => $inquiryStatusCounts,
+    'converted' => $inquiryStatusCounts['Converted'],
+    'conversionRatePct' => $inquiriesReceived > 0 ? round($inquiryStatusCounts['Converted'] / $inquiriesReceived * 100, 1) : 0,
+    'reservations' => $reservationCounts,
+];
 
 echo json_encode(['success' => true, 'data' => $data]);
 $conn->close();

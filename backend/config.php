@@ -135,6 +135,7 @@ function release_expired_reservations($conn) {
         $res_stmt->execute();
         $room_stmt->bind_param("s", $row['room_name']);
         $room_stmt->execute();
+        if ($room_stmt->affected_rows > 0) notify_unit_waitlist($conn, $row['room_name']);
         $released++;
     }
 
@@ -265,6 +266,9 @@ function vacate_tenant_room($conn, $app_id, $room_condition = 'Good') {
         $room_stmt->close();
     }
 
+    // The household leaves with the lease holder.
+    end_household($conn, $app_id);
+
     $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
     $cancel_inv->bind_param("i", $app_id);
     $cancel_inv->execute();
@@ -276,6 +280,8 @@ function vacate_tenant_room($conn, $app_id, $room_condition = 'Good') {
         $parking_released = release_user_parking($conn, $user_id, 'Tenant moved out');
         $visitors_cancelled = cancel_user_visitor_registrations($conn, $user_id, 'Tenant moved out');
     }
+
+    if (!empty($room_name)) notify_unit_waitlist($conn, $room_name);
 
     return ['room_name' => $room_name, 'user_id' => $user_id, 'parking_released' => $parking_released, 'visitors_cancelled' => $visitors_cancelled];
 }
@@ -915,6 +921,42 @@ function record_login_failure($conn, $ip, $email) {
     $stmt->close();
 }
 
+// Password-reset request throttle (policy decided 2026-09-16, docs/todo.md).
+// Every request counts, whether or not the email has an account, so the limit
+// can't be used to find out which addresses are registered.
+const RESET_MAX_REQUESTS_PER_EMAIL = 3;
+const RESET_MAX_REQUESTS_PER_IP = 10;
+const RESET_WINDOW_MINUTES = 60;
+
+function password_reset_throttle_message($conn, $ip, $email) {
+    $email = strtolower(trim((string)$email));
+    $stmt = $conn->prepare("SELECT
+            SUM(ip_address = ?) AS by_ip,
+            SUM(email = ?) AS by_email
+        FROM password_reset_requests
+        WHERE requested_at > DATE_SUB(NOW(), INTERVAL " . RESET_WINDOW_MINUTES . " MINUTE)");
+    $stmt->bind_param("ss", $ip, $email);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ((int)($row['by_email'] ?? 0) >= RESET_MAX_REQUESTS_PER_EMAIL
+        || (int)($row['by_ip'] ?? 0) >= RESET_MAX_REQUESTS_PER_IP) {
+        return "Too many password reset requests. Please try again in an hour.";
+    }
+    return null;
+}
+
+function record_password_reset_request($conn, $ip, $email) {
+    $email = strtolower(trim((string)$email));
+    $stmt = $conn->prepare("INSERT INTO password_reset_requests (email, ip_address, requested_at) VALUES (?, ?, NOW())");
+    $stmt->bind_param("ss", $email, $ip);
+    $stmt->execute();
+    $stmt->close();
+    // Only the last window is ever counted; older rows are just clutter.
+    $conn->query("DELETE FROM password_reset_requests WHERE requested_at < DATE_SUB(NOW(), INTERVAL 1 DAY)");
+}
+
 function clear_login_failures($conn, $email) {
     $email = strtolower(trim((string)$email));
     $stmt = $conn->prepare("DELETE FROM login_attempts WHERE email = ?");
@@ -929,7 +971,8 @@ function clear_login_failures($conn, $email) {
 const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     'rent_application', 'maintenance_request', 'cctv_request', 'parking_reservation',
     'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request',
-    'payment_verification', 'visitor_registration', 'visitor_overstay'
+    'payment_verification', 'visitor_registration', 'visitor_overstay',
+    'household_request', 'unit_waitlist'
 ];
 
 function admin_queue_types_sql() {
@@ -952,7 +995,7 @@ const NOTIFICATION_PREF_CATEGORIES = [
     'payment_reminders' => ['label' => 'Rent due reminders (before due date)', 'types' => ['rent_due']],
     'service_updates'   => ['label' => 'Service, CCTV and parking updates',  'types' => ['service_status', 'cctv_request', 'parking_reservation']],
     'visitor_updates'   => ['label' => 'Visitor updates',                    'types' => ['visitor_log']],
-    'inquiry_updates'   => ['label' => 'Inquiry and unit hold updates',      'types' => ['inquiry_update', 'unit_reservation']],
+    'inquiry_updates'   => ['label' => 'Inquiry and unit hold updates',      'types' => ['inquiry_update', 'unit_reservation', 'waitlist_update']],
 ];
 
 function notification_pref_category_for_type($type) {
@@ -1006,6 +1049,115 @@ function resolve_admin_queue($conn, $type, $entity_id) {
     $n = $stmt->affected_rows;
     $stmt->close();
     return $n;
+}
+
+// ── Household roster & unit waitlist (decided 2026-09-16, docs/todo.md) ──
+
+// Upper bound on a unit's occupant count (lease holder + household members).
+function max_occupants_per_unit($conn) {
+    $row = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'max_occupants_per_unit'")->fetch_assoc();
+    $max = $row ? (int)$row['setting_value'] : 8;
+    return $max > 0 ? $max : 8;
+}
+
+// Named co-occupants currently on the lease (the lease holder is not a row).
+function household_active_count($conn, $app_id) {
+    $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM household_members WHERE rent_application_id = ? AND status = 'Active'");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $count = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+    $stmt->close();
+    return $count;
+}
+
+// Sets a lease's occupant count and recalculates its rent: the room's base rate
+// plus the per-person surcharge above 4. rooms.monthly_rent (the catalog rate)
+// is never written here. Returns the new monthly rent, or null if not found.
+function apply_occupant_count($conn, $app_id, $occupants) {
+    $stmt = $conn->prepare("SELECT ra.room_name, r.monthly_rent AS base_rent FROM rent_applications ra LEFT JOIN rooms r ON r.id = ra.room_name WHERE ra.id = ?");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $app = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$app) return null;
+
+    $base_rent = $app['base_rent'] !== null ? (float)$app['base_rent'] : 4000;
+    $setting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'occupant_surcharge_per_person'")->fetch_assoc();
+    $surcharge = $setting ? (float)$setting['setting_value'] : 1000;
+    $new_rent = $base_rent + ($occupants > 4 ? ($occupants - 4) * $surcharge : 0);
+
+    $upd = $conn->prepare("UPDATE rent_applications SET occupants = ?, monthly_rent = ? WHERE id = ?");
+    $upd->bind_param("idi", $occupants, $new_rent, $app_id);
+    $upd->execute();
+    $upd->close();
+
+    $room = $conn->prepare("UPDATE rooms SET occupants = ? WHERE id = ?");
+    $room->bind_param("is", $occupants, $app['room_name']);
+    $room->execute();
+    $room->close();
+
+    return $new_rent;
+}
+
+// Moving out or archiving ends the whole household: every member leaves with
+// the lease holder, and any open add/remove request is closed.
+function end_household($conn, $app_id) {
+    $stmt = $conn->prepare("SELECT id FROM household_members WHERE rent_application_id = ? AND (status = 'Pending' OR removal_requested_at IS NOT NULL)");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $open = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'id');
+    $stmt->close();
+
+    $upd = $conn->prepare("UPDATE household_members SET status = IF(status = 'Pending', 'Cancelled', 'Removed'), removed_at = NOW(), removal_requested_at = NULL WHERE rent_application_id = ? AND status IN ('Active', 'Pending')");
+    $upd->bind_param("i", $app_id);
+    $upd->execute();
+    $ended = $upd->affected_rows;
+    $upd->close();
+
+    if ($open) {
+        $close = $conn->prepare("UPDATE notifications SET status = 'Rejected', is_read = 1 WHERE type = 'household_request' AND status = 'Pending' AND metadata_value IN (?, ?)");
+        foreach ($open as $member_id) {
+            $add = "add:$member_id";
+            $remove = "remove:$member_id";
+            $close->bind_param("ss", $add, $remove);
+            $close->execute();
+        }
+        $close->close();
+    }
+    return $ended;
+}
+
+// Basic unit waitlist (inquiry_reservation_design.md §8). When a unit becomes
+// vacant, the first person still waiting for it is marked Notified. A tenant
+// account gets an in-app notice; the admin always gets a queue item to follow
+// up, since there is no automatic hold. Returns 1 if someone was notified.
+function notify_unit_waitlist($conn, $room_name) {
+    if (empty($room_name)) return 0;
+    $stmt = $conn->prepare("SELECT id, user_id, full_name, contact_no, email FROM unit_waitlist WHERE room_name = ? AND status = 'Waiting' ORDER BY created_at, id LIMIT 1");
+    if (!$stmt) return 0; // table not migrated yet
+    $stmt->bind_param("s", $room_name);
+    $stmt->execute();
+    $entry = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$entry) return 0;
+
+    $claim = $conn->prepare("UPDATE unit_waitlist SET status = 'Notified', notified_at = NOW() WHERE id = ? AND status = 'Waiting'");
+    $claim->bind_param("i", $entry['id']);
+    $claim->execute();
+    $claimed = $claim->affected_rows > 0;
+    $claim->close();
+    if (!$claimed) return 0;
+
+    $id = (int)$entry['id'];
+    if (!empty($entry['user_id'])) {
+        create_notification($conn, (int)$entry['user_id'], 'waitlist_update', "Unit $room_name is now available",
+            "You are first on the waitlist for Unit $room_name. The office will contact you to arrange a viewing or a hold.");
+    }
+    $contact = $entry['contact_no'] ?: ($entry['email'] ?: 'no contact on file');
+    notify_admins_queue($conn, 'unit_waitlist', $id, "Waitlist: Unit $room_name is vacant",
+        "{$entry['full_name']} ($contact) is first on the waitlist for Unit $room_name. Contact them to arrange a viewing or place a hold.");
+    log_activity($conn, null, 'inquiry', 'Notified Waitlist', "Unit $room_name vacant; waitlist entry #$id ({$entry['full_name']}) notified");
+    return 1;
 }
 
 // Invoices a rent-due reminder is sent for. 'processing' (checkout at the gateway)

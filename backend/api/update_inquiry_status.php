@@ -70,6 +70,22 @@ $stmt->close();
 
 log_activity($conn, $admin_id_int, 'inquiry', "Updated Inquiry Status", "Inquiry ID: $id, New Status: $status");
 
+// A converted or closed inquiry no longer waits for a unit.
+if ($status === 'Converted' || $status === 'Closed') {
+    $wl = $conn->prepare("SELECT id FROM unit_waitlist WHERE inquiry_id = ? AND status IN ('Waiting', 'Notified')");
+    $wl->bind_param("i", $id);
+    $wl->execute();
+    $wl_ids = array_column($wl->get_result()->fetch_all(MYSQLI_ASSOC), 'id');
+    $wl->close();
+    if ($wl_ids) {
+        $wl_upd = $conn->prepare("UPDATE unit_waitlist SET status = 'Removed' WHERE inquiry_id = ? AND status IN ('Waiting', 'Notified')");
+        $wl_upd->bind_param("i", $id);
+        $wl_upd->execute();
+        $wl_upd->close();
+        foreach ($wl_ids as $wl_id) resolve_admin_queue($conn, 'unit_waitlist', (int)$wl_id);
+    }
+}
+
 // Notify only when the inquiry is linked to a real account. Guest inquiries
 // have no user_id to notify — the admin follows up by phone or email.
 if (!empty($inquiry['user_id'])) {

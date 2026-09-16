@@ -23,6 +23,10 @@ if (!$notification_id || !in_array($action, ['approve', 'reject'], true)) {
     exit;
 }
 
+// A request that can't be applied as asked (limits, stale state). The message is
+// safe to show the admin, unlike an unexpected server error.
+class RequestRefused extends Exception {}
+
 $conn->begin_transaction();
 
 try {
@@ -30,7 +34,7 @@ try {
     // endpoint knows how to apply may be decided here. It used to load any id,
     // so an admin could "approve" a tenant's rent reminder or bill notice, which
     // flipped its status and sent the tenant a meaningless "Request Approved".
-    $stmt = $conn->prepare("SELECT * FROM notifications WHERE id = ? AND type IN ('occupancy_request', 'lease_extension_request')");
+    $stmt = $conn->prepare("SELECT * FROM notifications WHERE id = ? AND type IN ('occupancy_request', 'lease_extension_request', 'household_request')");
     $stmt->bind_param("i", $notification_id);
     $stmt->execute();
     $notif = $stmt->get_result()->fetch_assoc();
@@ -39,7 +43,7 @@ try {
     if (!$notif) {
         $conn->rollback();
         http_response_code(404);
-        echo json_encode(["success" => false, "message" => "Occupancy or lease extension request not found."]);
+        echo json_encode(["success" => false, "message" => "Occupancy, household or lease extension request not found."]);
         exit;
     }
 
@@ -66,45 +70,24 @@ try {
     // 2. Only perform database updates if APPROVED
     if ($action === 'approve') {
         if ($type === 'occupancy_request') {
-            $new_occupants = (int) $notif['metadata_value']; 
-            
-            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
+            $new_occupants = (int) $notif['metadata_value'];
+
+            $appStmt = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
             $appStmt->bind_param("i", $target_user_id);
             $appStmt->execute();
             $app_res = $appStmt->get_result()->fetch_assoc();
             $appStmt->close();
 
-            $new_monthly_rent = 4000;
+            $new_monthly_rent = null;
             if ($app_res) {
-                $room_name = $app_res['room_name'];
-                $clean_room = strtoupper(trim(str_ireplace('Room', '', $room_name)));
-
-                // Base rate is read live from rooms.monthly_rent (the admin-
-                // configurable rate), not a hardcoded per-letter table.
-                $room_rate_stmt = $conn->prepare("SELECT monthly_rent FROM rooms WHERE id = ?");
-                $room_rate_stmt->bind_param("s", $clean_room);
-                $room_rate_stmt->execute();
-                $room_rate_row = $room_rate_stmt->get_result()->fetch_assoc();
-                $room_rate_stmt->close();
-                $base_room_rent = $room_rate_row ? (float)$room_rate_row['monthly_rent'] : 4000;
-
-                $occupant_surcharge_setting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'occupant_surcharge_per_person'")->fetch_assoc();
-                $occupant_surcharge = $occupant_surcharge_setting ? (float)$occupant_surcharge_setting['setting_value'] : 1000;
-                $new_monthly_rent = $base_room_rent + ($new_occupants > 4 ? ($new_occupants - 4) * $occupant_surcharge : 0);
-
-                $updateStmt = $conn->prepare("UPDATE rent_applications SET occupants = ?, monthly_rent = ? WHERE id = ?");
-                $updateStmt->bind_param("idi", $new_occupants, $new_monthly_rent, $app_res['id']);
-                $updateStmt->execute();
-                $updateStmt->close();
-
-                // Only the occupant count belongs on rooms — rooms.monthly_rent is the
-                // unit's catalog rate and must only ever be changed via update_room.php.
-                // Writing this tenant's surcharged rent here used to permanently inflate
-                // the room's base rate for every future applicant.
-                $roomStmt = $conn->prepare("UPDATE rooms SET occupants = ? WHERE id = ?");
-                $roomStmt->bind_param("is", $new_occupants, $room_name);
-                $roomStmt->execute();
-                $roomStmt->close();
+                // The count can't drop below the lease holder plus the named
+                // household members, or rise above the configured maximum.
+                $app_id = (int)$app_res['id'];
+                $floor = 1 + household_active_count($conn, $app_id);
+                $max = max_occupants_per_unit($conn);
+                if ($new_occupants < $floor) throw new RequestRefused("The unit has $floor named occupant(s); remove household members before lowering the count.");
+                if ($new_occupants > $max) throw new RequestRefused("The maximum is $max occupants per unit.");
+                $new_monthly_rent = apply_occupant_count($conn, $app_id, $new_occupants);
             }
 
             log_activity($conn, $admin_id, 'tenant', "Approved Occupancy Change", "User ID: $target_user_id updated to $new_occupants occupants (Rent: ₱$new_monthly_rent)");
@@ -188,14 +171,70 @@ try {
         }
     }
 
-    if ($action === 'reject') {
+    $household_label = null;
+    if ($type === 'household_request') {
+        $parts = explode(':', (string)$notif['metadata_value'], 2);
+        $op = $parts[0] ?? '';
+        $member_id = (int)($parts[1] ?? 0);
+
+        $mStmt = $conn->prepare("SELECT hm.*, ra.user_id AS holder_id, ra.occupants FROM household_members hm JOIN rent_applications ra ON ra.id = hm.rent_application_id WHERE hm.id = ?");
+        $mStmt->bind_param("i", $member_id);
+        $mStmt->execute();
+        $member = $mStmt->get_result()->fetch_assoc();
+        $mStmt->close();
+        if (!$member || (int)$member['holder_id'] !== (int)$target_user_id) {
+            throw new RequestRefused("Household member not found.");
+        }
+        $app_id = (int)$member['rent_application_id'];
+        $name = $member['full_name'];
+        $current = (int)$member['occupants'];
+
+        if ($op === 'add') {
+            if ($member['status'] !== 'Pending') throw new RequestRefused("This household request is no longer open.");
+            if ($action === 'approve') {
+                $new_count = max($current, 2 + household_active_count($conn, $app_id));
+                $max = max_occupants_per_unit($conn);
+                if ($new_count > $max) throw new RequestRefused("Adding $name would exceed the maximum of $max occupants per unit.");
+                $upd = $conn->prepare("UPDATE household_members SET status = 'Active', added_at = NOW() WHERE id = ? AND status = 'Pending'");
+            } else {
+                $upd = $conn->prepare("UPDATE household_members SET status = 'Rejected' WHERE id = ? AND status = 'Pending'");
+            }
+            $household_label = "request to add $name to your household";
+        } elseif ($op === 'remove') {
+            if ($member['status'] !== 'Active' || $member['removal_requested_at'] === null) throw new RequestRefused("This household request is no longer open.");
+            if ($action === 'approve') {
+                $upd = $conn->prepare("UPDATE household_members SET status = 'Removed', removed_at = NOW(), removal_requested_at = NULL WHERE id = ? AND status = 'Active'");
+            } else {
+                $upd = $conn->prepare("UPDATE household_members SET removal_requested_at = NULL WHERE id = ?");
+            }
+            $household_label = "request to remove $name from your household";
+        } else {
+            throw new RequestRefused("Unknown household request.");
+        }
+        $upd->bind_param("i", $member_id);
+        $upd->execute();
+        $upd->close();
+
+        if ($action === 'approve') {
+            // Naming someone already counted doesn't change the count; a new
+            // person raises it by one. Removing lowers it, never below the
+            // lease holder plus the members still named.
+            $active = household_active_count($conn, $app_id);
+            $new_count = $op === 'add' ? max($current, 1 + $active) : max(1 + $active, $current - 1);
+            $new_rent = apply_occupant_count($conn, $app_id, $new_count);
+            log_activity($conn, $admin_id, 'tenant', $op === 'add' ? "Approved Household Member" : "Approved Household Removal",
+                "User ID: $target_user_id — $name; occupants now $new_count (Rent: ₱$new_rent)");
+        } else {
+            log_activity($conn, $admin_id, 'tenant', $op === 'add' ? "Rejected Household Member" : "Rejected Household Removal", "User ID: $target_user_id — $name");
+        }
+    } elseif ($action === 'reject') {
         log_activity($conn, $admin_id, 'tenant', "Rejected " . str_replace('_', ' ', $type), "User ID: $target_user_id");
     }
 
     // 3. (Notification already marked decided by the claim step above.)
 
     // 4. Notify the tenant of the decision (never Pending, so it can't be re-decided).
-    $label = $type === 'occupancy_request' ? 'occupancy change request' : 'lease extension request';
+    $label = $household_label ?? ($type === 'occupancy_request' ? 'occupancy change request' : 'lease extension request');
     $title = ($action === 'approve') ? "Request Approved" : "Request Declined";
     $msg = "Your $label has been " . strtolower($statusText) . " by management.";
     create_notification($conn, $target_user_id, $type, $title, $msg, 'Resolved');
@@ -203,6 +242,10 @@ try {
     $conn->commit();
     echo json_encode(["success" => true, "message" => "Request $statusText successfully."]);
 
+} catch (RequestRefused $e) {
+    $conn->rollback();
+    http_response_code(409);
+    echo json_encode(["success" => false, "message" => $e->getMessage()]);
 } catch (Exception $e) {
     $conn->rollback();
     server_error_response($e, $e->getMessage() === "This request has already been processed."

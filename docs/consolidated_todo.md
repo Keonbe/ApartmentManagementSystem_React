@@ -26,15 +26,15 @@
 
 | Category | Open tasks | High |
 |---|---|---|
-| Backend | 33 | 10 |
-| Frontend | 12 | 0 |
-| Security | 20 | 6 |
+| Backend | 29 | 10 |
+| Frontend | 10 | 0 |
+| Security | 19 | 6 |
 | Deployment | 16 | 0 |
 | Testing and quality | 8 | 0 |
 | Documentation | 11 | 0 |
-| **Total** | **100** | **16** |
+| **Total** | **93** | **16** |
 
-Another 2 open decisions are listed under [Needs decision](#needs-decision). They are not counted above. Seven questions were decided on 2026-09-16 (see [Decided 2026-09-16](#decided-2026-09-16)).
+Another 2 open decisions are listed under [Needs decision](#needs-decision). They are not counted above. Seven questions were decided on 2026-09-16 (see [Decided 2026-09-16](#decided-2026-09-16)); the resulting features were built on 2026-09-17 (see [Recently Completed](#recently-completed)).
 
 **Known blockers**
 
@@ -91,10 +91,6 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | Unprioritized | **Enh** Two-way chat, phase 1: migration plus `start_conversation`, `get_messages`, `send_message` and `get_conversations` (checklist 7.1–7.6, prd v1.2). | [chat_design §9](features/chat_design.md#9-implementation-checklist), [Checklist Module 7](features/panelist_feature_checklist.md#module-7--communication-two-way-chat) |
 | [ ] | Unprioritized | **Enh** Complaints management channel (checklist 7.7). | [Checklist Module 7](features/panelist_feature_checklist.md#module-7--communication-two-way-chat) |
 | [ ] | Unprioritized | **Enh** Scheduled announcements (FR-10.6), and reservation reports per module (parking, CCTV, maintenance per unit). | [todo.md Announcements](todo.md#announcements), [todo.md Reports](todo.md#reports) |
-| [ ] | Unprioritized | **Enh** Household roster, backend (decided 2026-09-16): a `household_members` table linked to `rent_applications`, endpoints to list and request add/remove/replace, approval through `process_tenant_request.php`, and an occupant count kept in step with the roster and capped by a setting (ties to L9). | [todo.md Room & Occupancy](todo.md#room--occupancy) |
-| [ ] | Unprioritized | **Enh** Expenses table with manual entry (decided 2026-09-16): migration, admin CRUD with `log_activity`, and report expenses = maintenance costs + expense rows + optional overhead %. | [todo.md Reports](todo.md#reports), [Checklist Module 8](features/panelist_feature_checklist.md#module-8--admin-dashboard--reports) |
-| [ ] | Unprioritized | **Enh** Inquiry conversion-rate report in `AdminReports.jsx`: inquiries by status, conversion %, and reservations converted vs expired (decided 2026-09-16). | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-planned-and-deferred) |
-| [ ] | Unprioritized | **Enh** Basic unit waitlist: a `unit_waitlist` table, admin-managed from `AdminInquiries`, with the first person in line notified when a unit frees up and no automatic hold (decided 2026-09-16). | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-planned-and-deferred) |
 | [ ] | Unprioritized | **Enh / Bug** Service-management known limitations: no recurring bookings, no staff-assignment UI, reversal after payment is manual, and `parking_reservation.php` still stores `../uploads/` paths. | [service_management_design §8](features/service_management_design.md#8-known-limitations) |
 
 ## Frontend
@@ -111,8 +107,6 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | Unprioritized | **Enh** Let a rejected applicant edit and resubmit their application. Today they can only file a new one. | [todo.md Registration & Application](todo.md#registration--application) |
 | [ ] | Unprioritized | **Enh** Documents: accept Police Clearance and Proof of Billing uploads, and let an admin request more documents from a tenant (with a notification). | [todo.md Documents](todo.md#documents) |
 | [ ] | Unprioritized | **Enh** Housekeeping pages (garbage schedule, house rules), terms for occupancy and tenant responsibility, and restricting CCTV requests to incidents. | [todo.md Housekeeping](todo.md#housekeeping), [todo.md Room & Occupancy](todo.md#room--occupancy), [todo.md CCTV](todo.md#cctv-footage-request) |
-| [ ] | Unprioritized | **Enh** Household roster, frontend: a roster section with add/remove/replace requests in `MyRoom.jsx`, and a read-only roster in the admin tenant and unit views. *Depends on:* the roster backend. | [todo.md Room & Occupancy](todo.md#room--occupancy) |
-| [ ] | Unprioritized | **Enh** `room_preview_mode` setting (`images` or `floor_plan`), switched by the admin; `RoomPreviewModal.jsx` shows only the selected panel. 360° view is not planned (decided 2026-09-16). | [todo.md Unit Information](todo.md#unit-information) |
 
 ## Security
 
@@ -125,7 +119,7 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | High | **Risk** A-1: change the seeded admin password (`admin123`), and never import `seed_mock_data.sql` into production. | [security_audit §1](security_audit.md#section-1--authentication--access-control), [saas guide §2.6](deployment/saas_deployment_guide.md#26-production-hardening-checklist) |
 | [ ] | High | **Risk** E-7: run `npm audit fix`. There are 6 high and 1 moderate dependency advisories. | [security_audit §5](security_audit.md#section-5--frontend--react) |
 | [ ] | Medium | **Risk** M1: a tenant can replace the signed or notarized lease after the contract is activated. | [Audit M1](audits/ams_security_workflow_audit_2026-09-16.md#m1) |
-| [ ] | Medium | **Risk** M13 / A-9: the account lockout can be abused to lock out any account (key it on account + IP), and registration has no throttling. The reset-request throttle is covered by the password-policy row below. | [Audit M13](audits/ams_security_workflow_audit_2026-09-16.md#m13), [security_audit §1](security_audit.md#section-1--authentication--access-control) |
+| [ ] | Medium | **Risk** M13 / A-9: the account lockout can be abused to lock out any account (key it on account + IP), and registration has no throttling. (Reset requests were throttled on 2026-09-17.) | [Audit M13](audits/ams_security_workflow_audit_2026-09-16.md#m13), [security_audit §1](security_audit.md#section-1--authentication--access-control) |
 | [ ] | Medium | **Risk** D-8 / L1: raw `$stmt->error` or exception text is still returned to clients (about 12 sites). Use `server_error_response()`. | [Audit L1](audits/ams_security_workflow_audit_2026-09-16.md#l1), [security_audit §4](security_audit.md#section-4--server--configuration) |
 | [ ] | Medium | **Maint** D-9 / L2: remove the request-time DDL from `submit_inquiry`, `get_inquiries` and `send_payment_reminder`, and move the pre-auth writes in `get_rooms` and `my_room` after authentication. | [Audit L2](audits/ams_security_workflow_audit_2026-09-16.md#l2), [security_audit §4](security_audit.md#section-4--server--configuration) |
 | [ ] | Medium | **Risk** A-3: create a least-privilege DB user instead of `root`. *Blocked by:* D-9 / L2. | [security_audit §1](security_audit.md#section-1--authentication--access-control) |
@@ -137,7 +131,6 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 | [ ] | Low | **Risk** L4: public settings are filtered by a denylist. Switch to an allowlist. | [Audit L4](audits/ams_security_workflow_audit_2026-09-16.md#l4) |
 | [ ] | Low | **Risk** L9: an email change doesn't require re-authentication, one admin can reset another admin's password, `create_contract` accepts a client-chosen id, `ProfileSettings.jsx` uses `innerHTML`, and the occupant count has no upper bound. | [Audit L9](audits/ams_security_workflow_audit_2026-09-16.md#l9) |
 | [ ] | Low | **Risk** Hygiene: the uploads `.htaccess` uses Apache 2.2 syntax and its denylist misses `phar`/`phtml`/`html`/`svg`, and `registration.php` reveals which emails are already registered. | [security_audit §6](security_audit.md#6-low--hygiene), [security_audit §5](security_audit.md#5-moderate-additional-findings) |
-| [ ] | Unprioritized | **Risk** Enforce the password policy (decided 2026-09-16): reject a new password equal to the current one (change, reset and admin reset), and limit `forgot_password.php` to 3 requests per email per hour plus a per-IP ceiling. No cap on changes, no cooldown, no forced expiry. | [todo.md Account Management](todo.md#account-management), [security_audit §1](security_audit.md#section-1--authentication--access-control), [Audit M13](audits/ams_security_workflow_audit_2026-09-16.md#m13) |
 
 ## Deployment
 
@@ -200,7 +193,7 @@ Open questions that block or shape tasks above. Questions the sources have since
 
 ### Decided 2026-09-16
 
-These are no longer open questions. The resulting work is in the tables above.
+These are no longer open questions. The features they called for were built on 2026-09-17 and are listed under [Recently Completed](#recently-completed).
 
 | Status | Question | Decision | Source |
 |---|---|---|---|
@@ -234,4 +227,9 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 | [x] | Announcements aimed at one unit's tenant † (`create_announcement.php`) | [todo.md Announcements](todo.md#announcements) |
 | [x] | Occupant-change request with admin approval † (`process_tenant_request.php`) | [todo.md Room & Occupancy](todo.md#room--occupancy) |
 | [x] | Proof-of-payment upload and admin verification | [todo.md](todo.md) |
+| [x] | Password policy (2026-09-17): new password must differ from the current one on every reset path; `forgot_password.php` limited to 3 per email / 10 per IP per hour; reset links no longer expire on issue (timezone bug) | [todo.md Account Management](todo.md#account-management), [Guide §18.1](documentation/module_verification_guide.md#181-defects) |
+| [x] | Household roster (2026-09-17): `household_members`, `household_members.php`, approval in Notifications, My Room section, admin read-only list, `max_occupants_per_unit` cap, household ends with the tenancy | [todo.md Room & Occupancy](todo.md#room--occupancy), [Guide §18.4](documentation/module_verification_guide.md#184-household-roster-waitlist-and-room-preview-added-sept-2026) |
+| [x] | Room preview setting (2026-09-17): admin chooses images or floor plan; 360° dropped | [todo.md Unit Information](todo.md#unit-information) |
+| [x] | Expenses table with manual entry in Reports (2026-09-17) | [todo.md Reports](todo.md#reports), [database_schema.md](documentation/database_schema.md) |
+| [x] | Inquiry conversion report and basic unit waitlist (2026-09-17) | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-planned-and-deferred) |
 | [x] | Server-side notification preferences † (`get_/update_notification_preferences.php`) | [external_services §1](documentation/external_services.md#1-external-service-integration-matrix) |

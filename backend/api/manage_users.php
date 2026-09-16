@@ -104,6 +104,14 @@ switch ($action) {
     case 'reset_password':
         $new_pass = (string)($data['new_password'] ?? '');
         if (strlen($new_pass) < PASSWORD_MIN_LENGTH) fail(422, "Password must be at least " . PASSWORD_MIN_LENGTH . " characters.");
+        $stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $current_hash = (string)($stmt->get_result()->fetch_assoc()['password'] ?? '');
+        $stmt->close();
+        if ($current_hash !== '' && password_verify($new_pass, $current_hash)) {
+            fail(422, "New password must be different from the user's current password.");
+        }
         $hash = password_hash($new_pass, PASSWORD_BCRYPT);
         $stmt = $conn->prepare("UPDATE users SET password=? WHERE id=?");
         $stmt->bind_param("si", $hash, $user_id);

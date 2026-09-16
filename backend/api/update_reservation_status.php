@@ -66,7 +66,9 @@ try {
         $room_upd = $conn->prepare("UPDATE rooms SET status = 'vacant' WHERE id = ? AND status = 'reserved'");
         $room_upd->bind_param("s", $room_name);
         $room_upd->execute();
+        $room_freed = $room_upd->affected_rows > 0;
         $room_upd->close();
+        if ($room_freed) notify_unit_waitlist($conn, $room_name);
 
         // Send the source inquiry back to Contacted so it stays in the pipeline.
         if (!empty($reservation['inquiry_id'])) {

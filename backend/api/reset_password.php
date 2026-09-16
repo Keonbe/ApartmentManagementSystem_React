@@ -46,7 +46,7 @@ if (!$valid) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ?");
+$stmt = $conn->prepare("SELECT id, password FROM users WHERE email_address = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -58,6 +58,15 @@ if (!$user) {
     exit;
 }
 $user_id = (int)$user['id'];
+
+// Password policy: the new password must differ from the current one. The
+// token stays valid, so the user can simply choose another password.
+if (password_verify($new_password, $user['password'])) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "New password must be different from the current password."]);
+    $conn->close();
+    exit;
+}
 
 // 2. Update the password, then burn every reset token for this address
 $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);

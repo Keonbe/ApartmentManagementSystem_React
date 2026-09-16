@@ -48,6 +48,24 @@ if ($user && $user['room_name']) {
         exit;
     }
 
+    // The count covers the lease holder plus the named household members, and
+    // is capped by the max_occupants_per_unit setting.
+    $appStmt = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
+    $appStmt->bind_param("i", $userId);
+    $appStmt->execute();
+    $appRow = $appStmt->get_result()->fetch_assoc();
+    $appStmt->close();
+    $floor = $appRow ? 1 + household_active_count($conn, (int)$appRow['id']) : 1;
+    $max = max_occupants_per_unit($conn);
+    if ($occupants < $floor) {
+        echo json_encode(["success" => false, "message" => "Your household list names $floor occupant(s) including you. Remove members from the list first."]);
+        exit;
+    }
+    if ($occupants > $max) {
+        echo json_encode(["success" => false, "message" => "The maximum is $max occupants per unit."]);
+        exit;
+    }
+
     // Any still-open request blocks a new one, regardless of age — a request
     // pending for more than 24 hours used to stop blocking, letting a tenant
     // stack multiple independently-approvable occupancy changes.

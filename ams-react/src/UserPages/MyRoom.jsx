@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
+import HouseholdPanel from '../Components/HouseholdPanel';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
@@ -462,6 +463,8 @@ export default function MyRoom() {
                     </div>
 
                 </div>
+
+                <HouseholdPanel />
 
                 <div className="my-room-operations-grid grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
 

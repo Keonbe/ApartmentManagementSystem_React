@@ -33,7 +33,9 @@ const DEFAULTS = {
   landlordName: 'Elizabeth Angcanan',          // shown as the Owner/Lessor on the lease contract
   landlordAddress: 'Tamak, Maguyam, Silang, Cavite',
   landlordContact: '*********** (Smart)',
-  propertyAddress: 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite'
+  propertyAddress: 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite',
+  roomPreviewMode: 'images',            // public room preview: 'images' or 'floor_plan'
+  maxOccupantsPerUnit: 8                     // lease holder + household members
 };
 
 
@@ -78,6 +80,8 @@ export const getSystemSettings = async () => {
         landlordAddress: dbSettings.landlord_address || DEFAULTS.landlordAddress,
         landlordContact: dbSettings.landlord_contact || DEFAULTS.landlordContact,
         propertyAddress: dbSettings.property_address || DEFAULTS.propertyAddress,
+        roomPreviewMode: dbSettings.room_preview_mode === 'floor_plan' ? 'floor_plan' : 'images',
+        maxOccupantsPerUnit: parseInt(dbSettings.max_occupants_per_unit || DEFAULTS.maxOccupantsPerUnit),
       };
     }
   } catch (e) {
@@ -114,6 +118,8 @@ export const saveSystemSettings = async (settings) => {
       landlord_address: settings.landlordAddress || '',
       landlord_contact: settings.landlordContact || '',
       property_address: settings.propertyAddress || '',
+      room_preview_mode: settings.roomPreviewMode === 'floor_plan' ? 'floor_plan' : 'images',
+      max_occupants_per_unit: String(settings.maxOccupantsPerUnit ?? DEFAULTS.maxOccupantsPerUnit),
     };
     await api.post('update_system_settings.php', payload);
   } catch (e) {

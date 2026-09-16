@@ -37,6 +37,14 @@ if ($auth['role'] !== 'user') {
 }
 $user_id = $auth['id'];
 $app_id = $_POST['appId'] ?? null;
+
+// Occupants: the applicant plus their household, up to the configured maximum.
+$max_occupants = max_occupants_per_unit($conn);
+if (!ctype_digit((string)$occupants) || (int)$occupants < 1 || (int)$occupants > $max_occupants) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Occupants must be between 1 and $max_occupants."]);
+    exit;
+}
 $agree_terms = filter_var($_POST['agreeTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
 if (empty($app_id) && !empty($user_id)) {

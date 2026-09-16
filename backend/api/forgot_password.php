@@ -26,6 +26,18 @@ if (empty($email)) {
     exit;
 }
 
+// 0. Throttle before looking the email up, so the limit behaves the same for
+// registered and unregistered addresses.
+$ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+$throttled = password_reset_throttle_message($conn, $ip, $email);
+if ($throttled) {
+    http_response_code(429);
+    echo json_encode(["success" => false, "message" => $throttled]);
+    $conn->close();
+    exit;
+}
+record_password_reset_request($conn, $ip, $email);
+
 // 1. Check if email exists
 $stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ?");
 $stmt->bind_param("s", $email);
@@ -48,7 +60,9 @@ $stmt->close();
 // 2. Generate secure token
 $token = bin2hex(random_bytes(32));
 $token_hash = hash('sha256', $token);
-$expires_at = date('Y-m-d H:i:s', strtotime('+30 minutes'));
+// Expiry is computed by the database, the same clock reset_password.php checks it
+// against. PHP's timezone (Europe/Berlin on a default XAMPP) differs from
+// MySQL's, which made every link expire before it could be used.
 
 // 3. Delete any existing tokens for this email to prevent spam/abuse
 $stmt = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
@@ -57,8 +71,8 @@ $stmt->execute();
 $stmt->close();
 
 // 4. Store the new token hash
-$stmt = $conn->prepare("INSERT INTO password_resets (email, token_hash, expires_at) VALUES (?, ?, ?)");
-$stmt->bind_param("sss", $email, $token_hash, $expires_at);
+$stmt = $conn->prepare("INSERT INTO password_resets (email, token_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))");
+$stmt->bind_param("ss", $email, $token_hash);
 if ($stmt->execute()) {
     
     // In a real application, you would send an email here using PHPMailer or similar.

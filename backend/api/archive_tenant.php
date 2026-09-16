@@ -66,7 +66,11 @@ if ($id > 0) {
         $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ? AND tenant_name = ?");
         $room_stmt->bind_param("sss", $full_name, $room_name, $full_name);
         $room_stmt->execute();
+        $room_freed = $room_stmt->affected_rows > 0;
         $room_stmt->close();
+
+        end_household($conn, (int)$id);
+        if ($room_freed) notify_unit_waitlist($conn, $room_name);
 
         if ($user_id > 0) {
             $user_stmt = $conn->prepare("UPDATE users SET is_archived = 1 WHERE id = ?");

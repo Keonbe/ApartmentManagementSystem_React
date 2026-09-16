@@ -13,6 +13,8 @@ import {
   faChartPie, faSave, faSpinner, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import ExpensesModal from '../Components/ExpensesModal';
+import { expenseCategoryLabel } from '../config/expenseCategories';
 
 const monthsList = [
   { value: 1, label: 'January' },
@@ -75,6 +77,7 @@ const AdminReports = () => {
   const [utilityData, setUtilityData] = useState(null);
   const [trendPoints, setTrendPoints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showExpensesModal, setShowExpensesModal] = useState(false);
 
   useEffect(() => {
     fetchReportData();
@@ -126,7 +129,7 @@ const AdminReports = () => {
           // percentages — a report that can't load should show zeros, not a plausible story.
           incomeStatement: bd.incomeStatement || {
             grossRevenue: 0, rentalRevenue: 0, utilityRevenue: 0, serviceRevenue: 0, depositRevenue: 0, lateFeeRevenue: 0,
-            maintenanceExpenses: 0, operatingOverhead: 0, overheadPct: 0, operatingExpenses: 0, netOperatingIncome: 0,
+            maintenanceExpenses: 0, otherExpenses: 0, expenseBreakdown: [], operatingOverhead: 0, overheadPct: 0, operatingExpenses: 0, netOperatingIncome: 0,
             netMarginPct: 0, collectionEfficiency: 0, totalOutstanding: 0,
             prevGrossRevenue: 0, revenueGrowthPct: 0, prevNetIncome: 0, netGrowthPct: 0
           },
@@ -154,7 +157,8 @@ const AdminReports = () => {
             parkingCount: bd.parkingReservationsCount || 0,
             parkingRevenue: bd.parkingCollected || 0,
             parkingList: bd.parkingList || [],
-            roomList: bd.roomList || []
+            roomList: bd.roomList || [],
+            inquiryConversion: bd.inquiryConversion || null
           }
         });
 
@@ -298,6 +302,8 @@ const AdminReports = () => {
       csvContent += `Rental Revenue,${data?.incomeStatement?.rentalRevenue || 0}\r\n`;
       csvContent += `Add-On Service Revenue,${data?.incomeStatement?.serviceRevenue || 0}\r\n`;
       csvContent += `Utility Recovery,${data?.incomeStatement?.utilityRevenue || 0}\r\n`;
+      csvContent += `Maintenance Expenses,${data?.incomeStatement?.maintenanceExpenses || 0}\r\n`;
+      csvContent += `Other Building Expenses,${data?.incomeStatement?.otherExpenses || 0}\r\n`;
       csvContent += `Operating Expenses,${data?.incomeStatement?.operatingExpenses || 0}\r\n`;
       csvContent += `Net Operating Income,${data?.incomeStatement?.netOperatingIncome || 0}\r\n`;
       csvContent += `Net Margin,${data?.incomeStatement?.netMarginPct || 0}%\r\n`;
@@ -642,7 +648,7 @@ const AdminReports = () => {
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Operating Deductions</p>
                     <p className="text-xl font-bold text-red-600 m-0 mt-1">{formatCurrency(data.incomeStatement.operatingExpenses)}</p>
                     <span className="text-[9px] text-slate-500 mt-2 block">
-                      Maint: {formatCurrency(data.incomeStatement.maintenanceExpenses)} • Ops: {formatCurrency(data.incomeStatement.operatingOverhead)}
+                      Maint: {formatCurrency(data.incomeStatement.maintenanceExpenses)} • Other: {formatCurrency(data.incomeStatement.otherExpenses)} • Ops: {formatCurrency(data.incomeStatement.operatingOverhead)}
                     </span>
                   </div>
 
@@ -939,6 +945,25 @@ const AdminReports = () => {
                           <span className="flex items-center gap-2"><FontAwesomeIcon icon={faWrench} className="text-red-500 w-3.5" /> Direct Maintenance & Repairs</span>
                           <span className="font-semibold text-red-600">({formatCurrency(data.incomeStatement.maintenanceExpenses)})</span>
                         </div>
+                        <div className="flex justify-between items-center text-xs py-1 text-slate-700">
+                          <span className="flex items-center gap-2">
+                            <FontAwesomeIcon icon={faReceipt} className="text-red-500 w-3.5" /> Other Building Expenses
+                            <button
+                              type="button"
+                              onClick={() => setShowExpensesModal(true)}
+                              className="print:hidden text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5 cursor-pointer"
+                            >
+                              Manage
+                            </button>
+                          </span>
+                          <span className="font-semibold text-red-600">({formatCurrency(data.incomeStatement.otherExpenses)})</span>
+                        </div>
+                        {(data.incomeStatement.expenseBreakdown || []).map((b) => (
+                          <div key={b.category} className="flex justify-between text-[11px] pl-6 text-slate-500">
+                            <span>{expenseCategoryLabel(b.category)}</span>
+                            <span>({formatCurrency(b.amount)})</span>
+                          </div>
+                        ))}
                         <div className="flex justify-between text-xs py-1 text-slate-700">
                           <span className="flex items-center gap-2"><FontAwesomeIcon icon={faSlidersH} className="text-slate-500 w-3.5" /> Facility & Operations Overhead ({data.incomeStatement.overheadPct ? `${data.incomeStatement.overheadPct}%` : 'not configured'})</span>
                           <span className="font-semibold text-red-600">({formatCurrency(data.incomeStatement.operatingOverhead)})</span>
@@ -1753,6 +1778,50 @@ const AdminReports = () => {
               </div>
             )}
 
+            {/* Inquiry conversion (inquiry_reservation_design.md §8) */}
+            {(activeModule === 'all' || activeModule === 'reservations') && data.reservations.inquiryConversion && (
+              <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 print:border-slate-300 print:break-inside-avoid">
+                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2 m-0 mb-4">
+                  <FontAwesomeIcon icon={faHandshake} className="text-indigo-600" />
+                  Inquiry Conversion
+                  <span className="text-[10px] font-medium text-slate-400">(inquiries received this period)</span>
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Received</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.reservations.inquiryConversion.received}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Converted</p>
+                    <p className="text-xl font-bold text-emerald-600 m-0 mt-1">{data.reservations.inquiryConversion.converted}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Conversion Rate</p>
+                    <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.reservations.inquiryConversion.conversionRatePct}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Holds Converted / Expired</p>
+                    <p className="text-xl font-bold text-slate-800 m-0 mt-1">
+                      {data.reservations.inquiryConversion.reservations.Converted} / {data.reservations.inquiryConversion.reservations.Expired}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(data.reservations.inquiryConversion.byStatus).map(([status, count]) => (
+                    <span key={status} className="text-[11px] font-semibold bg-slate-50 border border-slate-200 text-slate-600 rounded-full px-2.5 py-1">
+                      {status}: {count}
+                    </span>
+                  ))}
+                  <span className="text-[11px] font-semibold bg-slate-50 border border-slate-200 text-slate-600 rounded-full px-2.5 py-1">
+                    Holds cancelled: {data.reservations.inquiryConversion.reservations.Cancelled}
+                  </span>
+                  <span className="text-[11px] font-semibold bg-slate-50 border border-slate-200 text-slate-600 rounded-full px-2.5 py-1">
+                    Holds active: {data.reservations.inquiryConversion.reservations.Active}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Reservations Table */}
             {(activeModule === 'all' || activeModule === 'reservations') && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-1">
@@ -2025,6 +2094,14 @@ const AdminReports = () => {
       </main>
 
       {/* Invoice Generation & Preview Modal */}
+      {showExpensesModal && (
+      <ExpensesModal
+        onClose={() => setShowExpensesModal(false)}
+        onChanged={fetchReportData}
+        month={timeframe === 'monthly' ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}` : null}
+      />
+      )}
+
       {showInvoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto print:static print:p-0 print:bg-transparent print:block print:overflow-visible" onClick={() => { setShowInvoiceModal(false); setShowInvoicePreview(false); }}>
           <div className={`bg-white rounded-2xl shadow-2xl w-full ${showInvoicePreview ? 'max-w-3xl' : 'max-w-xl'} mx-auto overflow-hidden transition-all duration-200 print:shadow-none print:border-none print:max-w-none print:w-full`} onClick={e => e.stopPropagation()}>

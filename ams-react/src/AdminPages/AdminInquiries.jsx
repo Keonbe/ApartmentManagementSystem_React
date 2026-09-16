@@ -6,10 +6,11 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faEnvelopeOpenText, faSearch, faSync, faTimes, faClock, faCheckCircle,
   faBuilding, faCalendarAlt, faPhone, faEnvelope, faBookmark, faPlus,
-  faUsers, faBan, faArrowRight, faHourglassHalf, faComment
+  faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
+import WaitlistPanel from '../Components/WaitlistPanel';
 
 const INQUIRY_TABS = ['all', 'new', 'contacted', 'scheduled', 'reserved', 'converted', 'closed'];
 const RESERVATION_TABS = ['all', 'active', 'converted', 'expired', 'cancelled'];
@@ -20,6 +21,10 @@ export default function AdminInquiries() {
   const [inquiries, setInquiries] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [occupiedRooms, setOccupiedRooms] = useState([]);
+  const [waitlistRoom, setWaitlistRoom] = useState('');
+  const [waitlistMsg, setWaitlistMsg] = useState(null);
+  const [waitlistKey, setWaitlistKey] = useState(0);
   const [holdDays, setHoldDays] = useState(7);
 
   const [loading, setLoading] = useState(true);
@@ -75,6 +80,8 @@ export default function AdminInquiries() {
       ]);
       if (roomRes.data.success && Array.isArray(roomRes.data.rooms)) {
         setRooms(roomRes.data.rooms.filter(r => r.status && r.status.toLowerCase() === 'vacant'));
+        // The waitlist is for units that aren't free right now.
+        setOccupiedRooms(roomRes.data.rooms.filter(r => !r.status || r.status.toLowerCase() !== 'vacant'));
       }
       const days = Number(settings.reservationHoldDays) || 7;
       setHoldDays(days);
@@ -195,9 +202,31 @@ export default function AdminInquiries() {
     setNotes(inquiry.adminNotes || '');
     setViewingDate(inquiry.viewingDate ? inquiry.viewingDate.replace(' ', 'T').slice(0, 16) : '');
     setResRoom(inquiry.unit || '');
+    setWaitlistRoom(inquiry.unit || '');
+    setWaitlistMsg(null);
     setResHoldDays(holdDays);
     setActionError(null);
     setShowDetail(true);
+  };
+
+  const addToWaitlist = async () => {
+    setWaitlistMsg(null);
+    if (!waitlistRoom) {
+      setWaitlistMsg({ ok: false, text: 'Choose the unit they are waiting for.' });
+      return;
+    }
+    try {
+      const res = await api.post('manage_waitlist.php', { action: 'add', inquiryId: selected.id, roomName: waitlistRoom });
+      setWaitlistMsg({ ok: res.data.success, text: res.data.message });
+      if (res.data.success) setWaitlistKey(k => k + 1);
+    } catch (err) {
+      setWaitlistMsg({ ok: false, text: err.response?.data?.message || 'Could not add to the waitlist.' });
+    }
+  };
+
+  const openInquiryById = (id) => {
+    const inquiry = inquiries.find(i => i.id === id);
+    if (inquiry) openDetail(inquiry);
   };
 
   const convertToApplication = (inquiry) => {
@@ -568,6 +597,8 @@ export default function AdminInquiries() {
                 )}
               </div>
             </div>
+
+            <WaitlistPanel key={waitlistKey} onOpenInquiry={openInquiryById} />
           </div>
         </main>
       </div>
@@ -697,6 +728,36 @@ export default function AdminInquiries() {
                   <FontAwesomeIcon icon={faArrowRight} /> Convert to Application
                 </button>
               </div>
+
+              {!['Converted', 'Closed'].includes(selected.status) && (
+                <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    <FontAwesomeIcon icon={faListOl} className="mr-1" /> Waitlist for an occupied unit
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={waitlistRoom}
+                      onChange={(e) => setWaitlistRoom(e.target.value)}
+                      className="flex-1 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500"
+                    >
+                      <option value="">Select a unit…</option>
+                      {occupiedRooms.map(r => (
+                        <option key={r.id} value={r.id}>Room {r.id} — {r.status}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={addToWaitlist}
+                      className="rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 cursor-pointer"
+                    >
+                      Add to waitlist
+                    </button>
+                  </div>
+                  {waitlistMsg && (
+                    <p className={`text-xs font-semibold m-0 ${waitlistMsg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{waitlistMsg.text}</p>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-2.5 pt-3 border-t border-slate-200">
                 <button

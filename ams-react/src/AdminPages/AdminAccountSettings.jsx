@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck, faCar } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck, faCar, faUsers, faImage } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 
@@ -384,6 +384,41 @@ const AdminAccountSettings = () => {
                           <span className="text-sm text-slate-500">days</span>
                         </div>
                         <p className="text-[11px] text-slate-400 m-0">Default number of days a reserved unit is held before the hold expires and the unit is released.</p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faUsers} className="text-slate-400 text-xs" />
+                          Maximum Occupants per Unit
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={settings.maxOccupantsPerUnit}
+                            onChange={(e) => updateSetting('maxOccupantsPerUnit', Number(e.target.value))}
+                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
+                          />
+                          <span className="text-sm text-slate-500">people</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0">Lease holder plus household members. Applications and occupant requests above this are refused.</p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <FontAwesomeIcon icon={faImage} className="text-slate-400 text-xs" />
+                          Public Room Preview
+                        </label>
+                        <select
+                          value={settings.roomPreviewMode}
+                          onChange={(e) => updateSetting('roomPreviewMode', e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-semibold"
+                        >
+                          <option value="images">Room images</option>
+                          <option value="floor_plan">2D floor plan</option>
+                        </select>
+                        <p className="text-[11px] text-slate-400 m-0">What visitors see when they preview a unit on the public page.</p>
                       </div>
                     </div>
                   </div>

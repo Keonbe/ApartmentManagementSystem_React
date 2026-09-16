@@ -538,6 +538,65 @@ CREATE TABLE IF NOT EXISTS `unit_reservations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
+-- 2026-09-16 decisions (migrations/2026_09_decisions_features.sql)
+--
+
+-- status: Pending (requested by the tenant) -> Active | Rejected; Active -> Removed.
+-- A removal request is a notification on the Active row (metadata), not a status.
+CREATE TABLE IF NOT EXISTS `household_members` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `full_name` varchar(150) NOT NULL,
+  `relationship` varchar(50) NOT NULL,
+  `contact_no` varchar(30) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'Pending',
+  `added_at` datetime DEFAULT NULL,
+  `removed_at` datetime DEFAULT NULL,
+  `removal_requested_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_hm_app_status` (`rent_application_id`,`status`),
+  CONSTRAINT `fk_hm_application` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Maintenance costs are not copied here: the report still derives them from
+-- maintenance_requests, so a repair is never counted twice.
+CREATE TABLE IF NOT EXISTS `expenses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `category` varchar(30) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `expense_date` date NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_expense_date` (`expense_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- status: Waiting -> Notified -> Removed (or Waiting -> Removed).
+-- room_name references rooms.id but is not an FK, like inquiries/unit_reservations.
+CREATE TABLE IF NOT EXISTS `unit_waitlist` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `inquiry_id` int(11) DEFAULT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `room_name` varchar(50) NOT NULL,
+  `full_name` varchar(150) NOT NULL,
+  `contact_no` varchar(30) DEFAULT NULL,
+  `email` varchar(150) DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'Waiting',
+  `notified_at` datetime DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_wl_room_status` (`room_name`,`status`,`created_at`),
+  KEY `fk_wl_inquiry` (`inquiry_id`),
+  KEY `fk_wl_user` (`user_id`),
+  CONSTRAINT `fk_wl_inquiry` FOREIGN KEY (`inquiry_id`) REFERENCES `inquiries` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_wl_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
 -- Notifications columns relied on by the API but absent from the dump above.
 -- Every notification INSERT writes `status`; get_notifications.php filters on
 -- it. `metadata_value` is used by extend_lease / update_occupants /
@@ -835,6 +894,18 @@ CREATE TABLE IF NOT EXISTS `password_resets` (
   KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- One row per reset request, kept only long enough to count the last hour.
+-- Separate from password_resets, whose rows are replaced on every request.
+CREATE TABLE IF NOT EXISTS `password_reset_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `email` varchar(255) NOT NULL,
+  `ip_address` varchar(45) NOT NULL,
+  `requested_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `email_time` (`email`,`requested_at`),
+  KEY `ip_time` (`ip_address`,`requested_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
@@ -878,6 +949,10 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 -- Late fee applied automatically when an invoice lapses past its due date
 -- (promote_overdue_invoices() in config.php). type: 'flat' (peso amount) or
 -- 'percent' (of the invoice's recurring charges, excluding any deposit).
+-- Which panel the public room preview shows: 'images' or 'floor_plan'.
+('room_preview_mode', 'images'),
+-- Upper bound on a unit's occupant count (lease holder + household members).
+('max_occupants_per_unit', '8'),
 ('late_fee_enabled', 'false'),
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200');

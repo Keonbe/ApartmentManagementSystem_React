@@ -10,6 +10,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
+import AdminHouseholdList from '../Components/AdminHouseholdList';
 
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
@@ -677,6 +678,10 @@ const AdminTenants = () => {
                     </div>
                     )}
                   </div>
+
+                  {['Approved', 'active', 'pending-move-out'].includes(selectedTenant.status) && (
+                    <AdminHouseholdList userId={selectedTenant.user_id} />
+                  )}
 
                   {/* Verification Documents */}
                   {(selectedTenant.valid_id_front_path || selectedTenant.valid_id_back_path || selectedTenant.nbi_clearance_path) && (

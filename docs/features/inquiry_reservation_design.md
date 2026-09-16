@@ -205,23 +205,28 @@ Policy, and stored as `reservation_hold_days` in `system_settings`.
 
 ## 8. Planned and deferred
 
-None of these are built yet. Decided 2026-09-16.
+Decided 2026-09-16; the report and the waitlist were built 2026-09-17.
 
-- **Inquiry conversion-rate report — planned.** A section in `AdminReports.jsx`
-  (data from `get_report_data.php`) for the selected period:
+- **Inquiry conversion-rate report — built.** "Inquiry Conversion" on the
+  Reports *Reservations* tab (`inquiryConversion` in `get_report_data.php`), for
+  the selected period:
   - inquiries received, broken down by status;
   - conversion rate = inquiries that reached `Converted` ÷ inquiries received;
   - unit reservations that converted vs. expired or were cancelled.
-- **Basic waitlist — planned.** For a guest or tenant who wants a unit that
+- **Basic waitlist — built.** For a guest or tenant who wants a unit that
   isn't vacant:
-  - a `unit_waitlist` table (inquiry id or user id, room, status
-    `Waiting` / `Notified` / `Removed`, created_at), with its migration mirrored
-    into `SetupDB.sql`;
-  - the admin adds and removes entries from `AdminInquiries.jsx`, in
-    first-come order;
-  - when a unit becomes vacant (move-out, or a hold released or expired), the
-    first `Waiting` entry is marked `Notified`. A tenant gets an in-app
-    notification; for a guest, the admin gets a queue item to contact them;
+  - a `unit_waitlist` table (inquiry id, user id, room, contact snapshot,
+    status `Waiting` / `Notified` / `Removed`), managed by `manage_waitlist.php`;
+  - the admin adds an entry from the inquiry detail view ("Add to waitlist",
+    occupied units only) and removes it from the *Unit Waitlist* panel on
+    `AdminInquiries.jsx`, in first-come order;
+  - when a unit becomes vacant (move-out, contract termination, archive, or a
+    hold cancelled/expired), `notify_unit_waitlist()` marks the first `Waiting`
+    entry `Notified`. A tenant account gets an in-app notice
+    (`waitlist_update`), and the admin always gets a `unit_waitlist` queue item
+    to follow up;
+  - converting or closing the inquiry removes its entries and clears the queue
+    item;
   - no automatic hold — the admin still places a reservation as in §6.
 - **Email/SMS on inquiry receipt — TBA.** In-app notification only until
   Modules 6.6 and 6.7 exist.
