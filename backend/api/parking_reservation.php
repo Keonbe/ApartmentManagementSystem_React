@@ -124,14 +124,16 @@ $total_cost = $duration_months * parking_monthly_fee($conn);
 $stmt = $conn->prepare("INSERT INTO parking_reservations (user_id, vehicle_type, vehicle_model, plate_number, status, transmission, duration_months, total_cost, document_path) VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?, ?)");
 $stmt->bind_param("issssids", $user_id, $vehicle_type, $vehicle_model, $plate_number, $transmission, $duration_months, $total_cost, $document_path);
 
-if (!$stmt->execute()) {
-    $duplicate = $stmt->errno === 1062;
+try {
+    $stmt->execute();
+} catch (mysqli_sql_exception $e) {
+    $duplicate = $e->getCode() === 1062;
     $stmt->close();
     @unlink($upload_dir . $unique_file_name);
     if ($duplicate) {
         parking_fail(409, "You already have an open parking reservation.");
     }
-    error_log('[AMS] parking_reservation insert failed: ' . $conn->error);
+    error_log('[AMS] parking_reservation insert failed: ' . $e->getMessage());
     parking_fail(500, "Failed to create the reservation. Please try again.");
 }
 $reservation_id = $stmt->insert_id;

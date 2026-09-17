@@ -211,10 +211,10 @@ if ($action === 'edit') {
     }
 } else if ($action === 'terminate') {
     // Terminating a lease ends the tenancy — it isn't just a status label.
-    // vacate_tenant_room() below is the same helper the ordinary move-out
-    // flow (update_tenant_status.php) uses: it vacates the room, cancels
-    // pending invoices, releases parking and cancels pending visitor
-    // pre-registrations.
+    // end_tenancy() below is the same helper the ordinary move-out flow
+    // (update_tenant_status.php) and tenant archiving (archive_tenant.php)
+    // use: it vacates the room, cancels open invoices, releases parking and
+    // cancels pending visitor pre-registrations (M3).
     if (!contract_action_allowed($current_status, 'terminate')) {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "A $current_status contract cannot be terminated."]);
@@ -253,8 +253,17 @@ if ($action === 'edit') {
             throw new Exception("Contract status changed before this could be applied. Try again.");
         }
 
-        $app_stmt = $conn->prepare("UPDATE rent_applications SET status = 'moved-out' WHERE id = ? AND status NOT IN ('moved-out', 'archived')");
-        $app_stmt->bind_param("i", $app_id);
+        $app_status_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE id = ?");
+        $app_status_stmt->bind_param("i", $app_id);
+        $app_status_stmt->execute();
+        $app_status_row = $app_status_stmt->get_result()->fetch_assoc();
+        $app_status_stmt->close();
+        if (!$app_status_row || !application_transition_allowed($app_status_row['status'], 'moved-out')) {
+            throw new Exception("This tenant has already moved out.");
+        }
+
+        $app_stmt = $conn->prepare("UPDATE rent_applications SET status = 'moved-out' WHERE id = ? AND status = ?");
+        $app_stmt->bind_param("is", $app_id, $app_status_row['status']);
         $app_stmt->execute();
         $app_changed = $app_stmt->affected_rows > 0;
         $app_stmt->close();
@@ -262,7 +271,7 @@ if ($action === 'edit') {
             throw new Exception("This tenant has already moved out.");
         }
 
-        $vacated = vacate_tenant_room($conn, $app_id);
+        $vacated = end_tenancy($conn, $app_id, 'Contract Terminated');
         if ($vacated === null) {
             throw new Exception("The application behind this contract no longer exists.");
         }

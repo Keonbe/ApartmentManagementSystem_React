@@ -68,7 +68,7 @@ $existing_back = null;
 $existing_nbi = null;
 
 if (!empty($app_id) && !empty($user_id)) {
-    $check_stmt = $conn->prepare("SELECT valid_id_front_path, valid_id_back_path, nbi_clearance_path FROM rent_applications WHERE id = ? AND user_id = ?");
+    $check_stmt = $conn->prepare("SELECT valid_id_front_path, valid_id_back_path, nbi_clearance_path, status FROM rent_applications WHERE id = ? AND user_id = ?");
     $check_stmt->bind_param("ii", $app_id, $user_id);
     $check_stmt->execute();
     $res = $check_stmt->get_result();
@@ -77,6 +77,18 @@ if (!empty($app_id) && !empty($user_id)) {
         $existing_front = $row['valid_id_front_path'];
         $existing_back = $row['valid_id_back_path'];
         $existing_nbi = $row['nbi_clearance_path'];
+        // Resubmission is only for an application the admin sent back. Any other
+        // status (Pending Review, Approved, active, pending-move-out, moved-out) has
+        // a live tenancy or an in-flight review riding on it — resetting it to
+        // Pending Review here would silently drop that tenancy out of every
+        // tenancy-aware query while the room stays occupied (H4).
+        $app_status = strtolower($row['status']);
+        if (!in_array($app_status, ['rejected', 'declined'], true)) {
+            $check_stmt->close();
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This application can no longer be resubmitted."]);
+            exit;
+        }
     } else {
         // An appId that isn't the caller's own is refused. Before, it fell through
         // to the INSERT branch — skipping the one-open-application check above.
@@ -180,13 +192,34 @@ if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     exit;
 }
 
+// The client-supplied rent is a display value only; take the figure that
+// actually governs billing from the room itself (H4).
+$room_rent_stmt = $conn->prepare("SELECT monthly_rent FROM rooms WHERE id = ?");
+$room_rent_stmt->bind_param("s", $room_name);
+$room_rent_stmt->execute();
+$room_rent_row = $room_rent_stmt->get_result()->fetch_assoc();
+$room_rent_stmt->close();
+if ($room_rent_row) {
+    $monthly_rent = $room_rent_row['monthly_rent'];
+}
+
 $conn->begin_transaction();
 try {
     if (!empty($app_id) && $existing_front) {
-        // Update existing application and set status to 'Pending Review' and clear rejection_reason
-        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ?");
+        // Update existing application and set status to 'Pending Review' and clear
+        // rejection_reason. Restricted to Rejected/Declined applications above and
+        // again here so a concurrent status change can't slip through (H4).
+        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
         $stmt->bind_param("sssssssiisssssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path, $app_id, $user_id);
         $stmt->execute();
+        if ($stmt->affected_rows === 0) {
+            $stmt->close();
+            $conn->rollback();
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This application can no longer be resubmitted."]);
+            $conn->close();
+            exit;
+        }
         $stmt->close();
     } else {
         // Insert new application

@@ -98,14 +98,16 @@ try {
         $log = "Reservation ID: $id released. Reason: $reason";
     }
 
-    if (!$upd->execute()) {
-        $duplicate = $upd->errno === 1062;
+    try {
+        $upd->execute();
+    } catch (mysqli_sql_exception $e) {
+        $duplicate = $e->getCode() === 1062;
         $upd->close();
         $conn->rollback();
         if ($duplicate) {
             parking_status_fail(409, "That slot was just assigned to someone else. Refresh and pick another.");
         }
-        throw new Exception("Parking status update failed: " . $conn->error);
+        throw $e;
     }
     $changed = $upd->affected_rows;
     $upd->close();

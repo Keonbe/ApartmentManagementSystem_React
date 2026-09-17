@@ -66,52 +66,66 @@ if ($id > 0) {
         }
 
         // 3. Undo the move-out settlement on the lease contract, if one
-        // exists and was actually settled (archive_tenant.php doesn't touch
-        // lease_contracts itself, but update_tenant_status.php's move-out
-        // branch sets it to 'expired' with deposit/refund fields before the
-        // tenant is later archived — that settlement needs to be reversed
-        // too, or the restored tenant comes back to an already-refunded,
-        // expired lease).
-        if (!empty($app['contract_id']) && $app['contract_status'] === 'expired') {
-            $ctr_stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active', deposit_status = 'Held', damage_deduction = 0.00, utility_deduction = 0.00, refund_amount = 0.00, refund_date = NULL WHERE id = ?");
+        // exists and was actually settled (archive_tenant.php terminates the
+        // contract rather than settling it, but update_tenant_status.php's
+        // move-out branch sets it to 'expired' with deposit/refund fields
+        // before the tenant is later archived — that settlement needs to be
+        // reversed too, or the restored tenant comes back to an
+        // already-refunded, expired lease). Only when the tenant is actually
+        // going back to a live tenancy (H6) — restoring to 'moved-out' should
+        // leave the contract exactly as it was.
+        $reactivate_tenancy = in_array($restore_status, ['active', 'Approved'], true);
+        if ($reactivate_tenancy && !empty($app['contract_id']) && in_array($app['contract_status'], ['expired', 'terminated'], true)) {
+            $ctr_stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active', deposit_status = 'Held', damage_deduction = 0.00, utility_deduction = 0.00, refund_amount = 0.00, refund_date = NULL, termination_reason = NULL, terminated_at = NULL WHERE id = ?");
             $ctr_stmt->bind_param("s", $app['contract_id']);
             $ctr_stmt->execute();
             $ctr_stmt->close();
         }
 
-        // 4. Restore invoices archive_tenant.php cancelled back to pending —
-        // we don't retain each invoice's exact prior sub-state (some may
-        // have been 'pending-verification' or 'scheduled'), so 'pending' is
-        // the closest safe default: it puts the balance back as owed without
-        // falsely claiming a payment proof is already under review.
-        $inv_stmt = $conn->prepare("UPDATE invoices SET status = 'pending' WHERE rent_application_id = ? AND status = 'cancelled'");
+        // 4. Restore only the invoices THIS archive cancelled (cancel_reason
+        // = 'Archived', set by end_tenancy() in archive_tenant.php) — not
+        // ones cancelled for an unrelated reason, such as an earlier move-out
+        // that this same application went through before being archived
+        // (H6). We don't retain each invoice's exact prior sub-state (some
+        // may have been 'pending-verification' or 'scheduled'), so 'pending'
+        // is the closest safe default: it puts the balance back as owed
+        // without falsely claiming a payment proof is already under review.
+        $inv_stmt = $conn->prepare("UPDATE invoices SET status = 'pending', cancel_reason = NULL WHERE rent_application_id = ? AND status = 'cancelled' AND cancel_reason = 'Archived'");
         $inv_stmt->bind_param("i", $id);
         $inv_stmt->execute();
         $invoices_restored = $inv_stmt->affected_rows;
         $inv_stmt->close();
 
-        // 5. Try to reoccupy the room if it is currently vacant
-        $room_check = $conn->prepare("SELECT status FROM rooms WHERE id = ?");
-        $room_check->bind_param("s", $room_name);
-        $room_check->execute();
-        $room_res = $room_check->get_result()->fetch_assoc();
-        $room_check->close();
-
+        // 5. Try to reoccupy the room if it is currently vacant — only when
+        // the tenant is going back to a live tenancy (H6); restoring to
+        // 'moved-out' shouldn't re-assign a room nobody is coming back to.
         $room_restored = false;
-        if ($room_res && $room_res['status'] === 'vacant') {
-            $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND status = 'vacant'");
-            $room_stmt->bind_param("sssis", $full_name, $lease_start, $lease_end, $occupants, $room_name);
-            $room_stmt->execute();
-            $room_restored = $room_stmt->affected_rows > 0;
-            $room_stmt->close();
+        if ($reactivate_tenancy) {
+            $room_check = $conn->prepare("SELECT status FROM rooms WHERE id = ?");
+            $room_check->bind_param("s", $room_name);
+            $room_check->execute();
+            $room_res = $room_check->get_result()->fetch_assoc();
+            $room_check->close();
+
+            if ($room_res && $room_res['status'] === 'vacant') {
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND status = 'vacant'");
+                $room_stmt->bind_param("sssis", $full_name, $lease_start, $lease_end, $occupants, $room_name);
+                $room_stmt->execute();
+                $room_restored = $room_stmt->affected_rows > 0;
+                $room_stmt->close();
+            }
         }
 
         $conn->commit();
         log_activity($conn, $admin_id, 'Tenant Management', 'Restore Tenant', "Restored archived tenant $full_name (ID $id) to status '$restore_status'" . ($invoices_restored > 0 ? ", $invoices_restored invoice(s) reinstated" : ""));
+        $message = "Tenant restored successfully.";
+        if ($reactivate_tenancy) {
+            $message = $room_restored ? "Tenant and unit restored successfully." : "Tenant restored successfully, but room $room_name is no longer vacant.";
+        }
         echo json_encode([
             "success" => true,
             "room_restored" => $room_restored,
-            "message" => $room_restored ? "Tenant and unit restored successfully." : "Tenant restored successfully, but room $room_name is no longer vacant."
+            "message" => $message
         ]);
     } catch (Exception $e) {
         $conn->rollback();

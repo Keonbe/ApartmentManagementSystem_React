@@ -50,28 +50,21 @@ if ($id > 0) {
         }
         $stmt->close();
 
-        // Cancel any remaining unpaid invoices for this application
-        $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'scheduled')");
-        $cancel_inv->bind_param("i", $id);
-        $cancel_inv->execute();
-        $cancel_inv->close();
+        // end_tenancy() vacates the room (only if this tenant still occupies
+        // it), cancels open invoices tagged with this reason, releases
+        // parking and cancels pending visitor pre-registrations — the same
+        // cleanup ordinary move-out and contract termination do (M3).
+        $vacated = end_tenancy($conn, (int)$id, 'Archived');
 
-        $room_name = $room_res['room_name'];
-        $full_name = $room_res['first_name'] . ' ' . $room_res['last_name'];
+        // Close out any still-active contract so the daily sweep doesn't later
+        // send an already-archived tenant a "Lease Contract Expired" notice
+        // for a lease that was never formally ended (M3).
+        $ctr_stmt = $conn->prepare("UPDATE lease_contracts SET status = 'terminated', termination_reason = ?, terminated_at = NOW() WHERE rent_application_id = ? AND status = 'active'");
+        $ctr_stmt->bind_param("si", $archiveReason, $id);
+        $ctr_stmt->execute();
+        $ctr_stmt->close();
+
         $user_id = $room_res['user_id'] ? (int)$room_res['user_id'] : 0;
-
-        // Only vacate the room if it's still THIS tenant occupying it — an
-        // old, already-moved-out application being archived late shouldn't
-        // blank out whoever has since re-let the unit.
-        $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ? AND tenant_name = ?");
-        $room_stmt->bind_param("sss", $full_name, $room_name, $full_name);
-        $room_stmt->execute();
-        $room_freed = $room_stmt->affected_rows > 0;
-        $room_stmt->close();
-
-        end_household($conn, (int)$id);
-        if ($room_freed) notify_unit_waitlist($conn, $room_name);
-
         if ($user_id > 0) {
             $user_stmt = $conn->prepare("UPDATE users SET is_archived = 1 WHERE id = ?");
             $user_stmt->bind_param("i", $user_id);
@@ -79,13 +72,8 @@ if ($id > 0) {
             $user_stmt->close();
         }
 
-        // Free the tenant's parking slot (checklist 10.4). Restoring the tenant
-        // does not re-assign it — the slot may have been given to someone else.
-        $parking_released = $user_id > 0 ? release_user_parking($conn, $user_id, 'Tenant archived') : 0;
-
-        // A pending visitor pre-registration otherwise stayed open forever
-        // for a tenant who is no longer here to be visited (checklist 12.2).
-        $visitors_cancelled = $user_id > 0 ? cancel_user_visitor_registrations($conn, $user_id, 'Tenant archived') : 0;
+        $parking_released = $vacated ? $vacated['parking_released'] : 0;
+        $visitors_cancelled = $vacated ? $vacated['visitors_cancelled'] : 0;
 
         log_activity($conn, $admin_id, 'tenant', "Archived Tenant", "Application ID: $id, Reason: $archiveReason" . ($archiveNotes ? ", Notes: $archiveNotes" : "") . ($parking_released ? "; parking released" : "") . ($visitors_cancelled ? "; visitor pre-registrations cancelled" : ""));
 

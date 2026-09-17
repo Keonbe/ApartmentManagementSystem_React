@@ -59,6 +59,13 @@ function server_error_response($e, $public_message = "Server error. Please try a
     echo json_encode(["success" => false, "message" => $public_message]);
 }
 
+// Make a failed statement throw instead of silently returning false (PHP 8.0
+// doesn't do this by default). Endpoints that wrap writes in begin_transaction
+// / try / catch now roll back on a real failure instead of committing partial
+// writes; uncaught mysqli_sql_exceptions fall through to the exception handler
+// above, which already returns safe JSON.
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
 // PHP 8.0 (XAMPP) reports a failed connect through connect_error; PHP 8.1+
 // (the Docker image) throws instead. Handle both the same way, and log the
 // cause so a production failure isn't just a blank 500.
@@ -233,21 +240,54 @@ function contract_action_allowed($current_status, $action) {
     return in_array($action, $allowed, true);
 }
 
+// ── Rent applications / tenant lifecycle (H5) ──
+// Keyed by current rent_applications.status; each entry lists the statuses
+// update_tenant_status.php may set it to. 'active' is reached only through
+// record_payment_admin.php (move-in payment confirmed), not this map's own
+// endpoint, but is listed as a destination so that write stays consistent
+// with the same rules. Resubmission out of Rejected/Declined is handled
+// separately by rent_application.php (H4); restore_tenant.php has its own
+// dedicated path back out of moved-out. Anything not listed here — including
+// every status not itself a key — has no allowed transitions.
+const APPLICATION_TRANSITIONS = [
+    'Pending Review'   => ['Approved', 'Rejected', 'Declined'],
+    // 'moved-out' from Approved/active covers for-cause contract termination
+    // (update_contract_status.php's 'terminate' action), which ends a tenancy
+    // immediately rather than through the ordinary move-out notice period.
+    'Approved'         => ['active', 'pending-move-out', 'moved-out', 'Rejected', 'Declined'],
+    'active'           => ['pending-move-out', 'moved-out'],
+    'pending-move-out' => ['moved-out', 'active'],
+];
+
+function application_transition_allowed($current_status, $new_status) {
+    $allowed = APPLICATION_TRANSITIONS[$current_status] ?? [];
+    return in_array($new_status, $allowed, true);
+}
+
 // Ends a tenant's occupancy of their room: vacates the unit, cancels any
-// still-pending invoices for the application, releases parking
-// (release_user_parking()) and cancels pending visitor pre-registrations
-// (cancel_user_visitor_registrations()) — both of which notify the tenant on
-// their own. Does NOT touch rent_applications.status or lease_contracts;
-// callers own those. Shared by the ordinary move-out clearance flow
-// (update_tenant_status.php) and contract termination
-// (update_contract_status.php's 'terminate' action), so terminating a lease
-// actually ends the tenancy instead of leaving the contract out of step with
-// a still-active application.
+// still-open invoices for the application (tagged with $reason so
+// restore_tenant.php can tell which ones it is responsible for reinstating —
+// H6), releases parking (release_user_parking()) and cancels pending visitor
+// pre-registrations (cancel_user_visitor_registrations()) — both of which
+// notify the tenant on their own. Does NOT touch rent_applications.status or
+// lease_contracts; callers own those. The single path every tenancy-ending
+// endpoint shares — ordinary move-out clearance (update_tenant_status.php),
+// contract termination (update_contract_status.php's 'terminate' action) and
+// tenant archiving (archive_tenant.php) — so all three cancel the same set of
+// invoices, release the same things, and can be reversed by restore_tenant.php
+// the same way (M3).
 //
-// Returns null if the application doesn't exist; otherwise
-// ['room_name' => ?string, 'user_id' => ?int, 'parking_released' => int,
+// $reason is stored on every invoice this cancels (invoices.cancel_reason)
+// and in the room's last_tenant / activity log — pass something distinct per
+// caller ('Moved Out', 'Contract Terminated', 'Archived', ...).
+//
+// Returns null if the application doesn't exist, or if the room is occupied
+// by someone other than this application's tenant (H5's last line of
+// defense — APPLICATION_TRANSITIONS already stops most such calls before
+// they reach here). Otherwise returns ['room_name' => ?string,
+// 'user_id' => ?int, 'invoices_cancelled' => int, 'parking_released' => int,
 // 'visitors_cancelled' => int].
-function vacate_tenant_room($conn, $app_id, $room_condition = 'Good') {
+function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
     $stmt = $conn->prepare("SELECT first_name, last_name, room_name, user_id FROM rent_applications WHERE id = ?");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
@@ -260,30 +300,46 @@ function vacate_tenant_room($conn, $app_id, $room_condition = 'Good') {
     $user_id = $app['user_id'] ? (int)$app['user_id'] : null;
 
     if (!empty($room_name)) {
-        $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0, last_inspection_date = CURDATE(), room_condition = ? WHERE id = ?");
-        $room_stmt->bind_param("sss", $full_name, $room_condition, $room_name);
+        $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', last_tenant = ?, tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0, last_inspection_date = CURDATE(), room_condition = ? WHERE id = ? AND tenant_name = ?");
+        $room_stmt->bind_param("ssss", $full_name, $room_condition, $room_name, $full_name);
         $room_stmt->execute();
+        $room_vacated = $room_stmt->affected_rows > 0;
         $room_stmt->close();
+        if (!$room_vacated) return null;
     }
 
     // The household leaves with the lease holder.
     end_household($conn, $app_id);
 
-    $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
-    $cancel_inv->bind_param("i", $app_id);
+    // Invoices that never got as far as an actual payment attempt — 'overdue'
+    // and further-along statuses ('processing', 'payment-failed', 'paid') are
+    // left for the caller to reconcile against the deposit itself (M4), since
+    // blindly cancelling them here would just erase a debt instead of
+    // settling it. Tagging cancel_reason means restore_tenant.php can
+    // reinstate exactly the invoices THIS call cancelled, not ones cancelled
+    // for an unrelated reason (H6).
+    $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'scheduled')");
+    $cancel_inv->bind_param("si", $reason, $app_id);
     $cancel_inv->execute();
+    $invoices_cancelled = $cancel_inv->affected_rows;
     $cancel_inv->close();
 
     $parking_released = 0;
     $visitors_cancelled = 0;
     if ($user_id) {
-        $parking_released = release_user_parking($conn, $user_id, 'Tenant moved out');
-        $visitors_cancelled = cancel_user_visitor_registrations($conn, $user_id, 'Tenant moved out');
+        $parking_released = release_user_parking($conn, $user_id, $reason);
+        $visitors_cancelled = cancel_user_visitor_registrations($conn, $user_id, $reason);
     }
 
     if (!empty($room_name)) notify_unit_waitlist($conn, $room_name);
 
-    return ['room_name' => $room_name, 'user_id' => $user_id, 'parking_released' => $parking_released, 'visitors_cancelled' => $visitors_cancelled];
+    return [
+        'room_name' => $room_name,
+        'user_id' => $user_id,
+        'invoices_cancelled' => $invoices_cancelled,
+        'parking_released' => $parking_released,
+        'visitors_cancelled' => $visitors_cancelled,
+    ];
 }
 
 // Posts a completed service request's cost onto the tenant's invoice for the

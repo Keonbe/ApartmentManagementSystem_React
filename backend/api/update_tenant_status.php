@@ -33,9 +33,30 @@ if ($id > 0 && !empty($status)) {
     // Start transaction to ensure data integrity
     $conn->begin_transaction();
     try {
+        // APPLICATION_TRANSITIONS (H5): read the current status inside the
+        // transaction and refuse a move it doesn't allow — e.g. a Pending
+        // Review application can't be pushed straight to moved-out, and an
+        // application that's already Rejected can't be moved again from here.
+        $cur_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE id = ?");
+        $cur_stmt->bind_param("i", $id);
+        $cur_stmt->execute();
+        $cur_row = $cur_stmt->get_result()->fetch_assoc();
+        $cur_stmt->close();
+        if (!$cur_row) {
+            throw new Exception("Application not found.");
+        }
+        $current_status = $cur_row['status'];
+        if (!application_transition_allowed($current_status, $status)) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "Cannot move this application from \"$current_status\" to \"$status\"."]);
+            $conn->rollback();
+            $conn->close();
+            exit;
+        }
+
         if ($status === 'Rejected' || $status === 'Declined') {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ?");
-            $stmt->bind_param("ssi", $status, $rejection_reason, $id);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?");
+            $stmt->bind_param("ssis", $status, $rejection_reason, $id, $current_status);
         } else if ($status === 'pending-move-out') {
             $requested_move_out_date = $input['requested_move_out_date'] ?? null;
             if (empty($requested_move_out_date)) {
@@ -53,15 +74,19 @@ if ($id > 0 && !empty($status)) {
                 throw new Exception("Move-out notice cannot exceed 30 days in advance.");
             }
 
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ?");
-            $stmt->bind_param("ssi", $status, $requested_move_out_date, $id);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
+            $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
         } else {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ?");
-            $stmt->bind_param("si", $status, $id);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
+            $stmt->bind_param("sis", $status, $id, $current_status);
         }
         $stmt->execute();
+        if ($stmt->affected_rows === 0) {
+            $stmt->close();
+            throw new Exception("This application was changed by someone else. Refresh and try again.");
+        }
         $stmt->close();
-        
+
         if ($status === 'Approved') {
             // Get application details to update the room and generate invoice
             $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, user_id, monthly_rent, occupants, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at FROM rent_applications WHERE id = ?");
@@ -183,9 +208,27 @@ if ($id > 0 && !empty($status)) {
             $utility_deduction = isset($input['utility_deduction']) ? (float)$input['utility_deduction'] : 0.0;
             $room_condition = ($damage_deduction > 0) ? 'Needs Repair' : 'Good';
 
+            // M4: what's left owed after the deposit — every still-open invoice
+            // (whatever its status) plus the damage/utility deductions, less the
+            // deposit itself. Read before end_tenancy() touches any invoice.
+            $deposit_stmt = $conn->prepare("SELECT deposit_amount FROM lease_contracts WHERE rent_application_id = ? AND status = 'active'");
+            $deposit_stmt->bind_param("i", $id);
+            $deposit_stmt->execute();
+            $deposit_row = $deposit_stmt->get_result()->fetch_assoc();
+            $deposit_stmt->close();
+            $deposit_amount = $deposit_row ? (float)$deposit_row['deposit_amount'] : 0.0;
+
+            $open_stmt = $conn->prepare("SELECT COALESCE(SUM(total_amount), 0) AS open_total FROM invoices WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
+            $open_stmt->bind_param("i", $id);
+            $open_stmt->execute();
+            $open_total = (float)$open_stmt->get_result()->fetch_assoc()['open_total'];
+            $open_stmt->close();
+
+            $balance = round($open_total + $damage_deduction + $utility_deduction - $deposit_amount, 2);
+
             // Update lease contract to store the security deposit allocation
             // (non-refundable: refund_amount is always 0.00). Only settles an
-            // 'active' contract — vacate_tenant_room() below handles the
+            // 'active' contract — end_tenancy() below handles the
             // room/invoices/parking/visitors every move-out shares, whatever
             // state the contract itself is in (also used by contract
             // termination, which ends the tenancy the same way).
@@ -214,13 +257,28 @@ if ($id > 0 && !empty($status)) {
                 $notes_stmt->close();
             }
 
-            $vacated = vacate_tenant_room($conn, $id, $room_condition);
-            if ($vacated && $vacated['user_id']) {
-                create_notification($conn, $vacated['user_id'], 'move_out_update', 'Move-Out Completed',
-                    "Your move-out has been completed and your clearance recorded. Thank you for staying with us.");
+            $vacated = end_tenancy($conn, $id, 'Moved Out', $room_condition);
+
+            // The deposit covers the balance in full: clear whatever end_tenancy()
+            // left open (overdue/processing/payment-failed) instead of leaving a
+            // debt the tenant already paid off through the deposit. Otherwise the
+            // remainder stays due and is reported back to the admin at clearance.
+            if ($balance <= 0) {
+                $clear_stmt = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Settled from deposit' WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
+                $clear_stmt->bind_param("i", $id);
+                $clear_stmt->execute();
+                $clear_stmt->close();
             }
 
-            log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance", "Application ID: $id, $clearance_notes" . ($vacated && $vacated['parking_released'] ? "; parking released" : ""));
+            if ($vacated && $vacated['user_id']) {
+                create_notification($conn, $vacated['user_id'], 'move_out_update', 'Move-Out Completed',
+                    "Your move-out has been completed and your clearance recorded. Thank you for staying with us."
+                    . ($balance > 0 ? " An outstanding balance of ₱" . number_format($balance, 2) . " remains after your deposit." : ""));
+            }
+
+            log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance",
+                "Application ID: $id, $clearance_notes" . ($vacated && $vacated['parking_released'] ? "; parking released" : "")
+                . ($balance > 0 ? "; balance due after deposit: ₱" . number_format($balance, 2) : "; deposit covered the balance in full"));
         } else {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         }
@@ -248,8 +306,12 @@ if ($id > 0 && !empty($status)) {
         }
 
         $conn->commit();
-        echo json_encode(["success" => true]);
-        
+        $response = ["success" => true];
+        if ($status === 'moved-out') {
+            $response["balance_due"] = $balance > 0 ? round($balance, 2) : 0;
+        }
+        echo json_encode($response);
+
     } catch (Exception $e) {
         $conn->rollback();
         echo json_encode(["success" => false, "message" => $e->getMessage()]);

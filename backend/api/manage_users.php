@@ -147,6 +147,17 @@ switch ($action) {
     case 'delete':
         if ($target['role'] === 'admin') fail(409, "Admin accounts cannot be archived. Revoke admin access first.");
         if ((int)$target['is_archived'] === 1) fail(409, "This account is already archived.");
+        // Archiving here used to skip the tenancy cascade entirely: the room
+        // stayed occupied, parking stayed assigned and utilities kept
+        // billing (M3). archive_tenant.php is the endpoint that actually
+        // ends a tenancy (end_tenancy() + tenant record archiving); this one
+        // only ever archives the login, so it refuses while a lease is live.
+        $open_app = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') LIMIT 1");
+        $open_app->bind_param("i", $user_id);
+        $open_app->execute();
+        $has_open_tenancy = $open_app->get_result()->num_rows > 0;
+        $open_app->close();
+        if ($has_open_tenancy) fail(409, "This tenant has an active lease. Archive them from Tenant Management first.");
         $stmt = $conn->prepare("UPDATE users SET is_archived=1 WHERE id=?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();

@@ -111,6 +111,7 @@ CREATE TABLE `invoices` (
   `sender_name` varchar(150) DEFAULT NULL,
   `billing_period` varchar(50) NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `cancel_reason` varchar(50) DEFAULT NULL,
   `paid_at` timestamp NULL DEFAULT NULL,
   `due_date` date DEFAULT NULL,
   `scheduled_date` date DEFAULT NULL,
