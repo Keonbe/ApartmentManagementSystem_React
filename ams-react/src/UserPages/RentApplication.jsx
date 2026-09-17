@@ -26,7 +26,7 @@ export default function RentApplication() {
     // this used to be the permanent source of truth, silently ignoring any rate
     // an admin configured via update_room.php.
     const getRoomPriceFallback = (id) => {
-        if (['K', 'L', 'M', 'N'].includes(id)) return 3500;
+        if (['I', 'J', 'K', 'L', 'M', 'N'].includes(id)) return 3500;
         return 4000;
     };
 

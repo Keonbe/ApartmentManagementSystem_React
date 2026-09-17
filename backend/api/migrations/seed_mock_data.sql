@@ -4,8 +4,8 @@
 -- Passwords: tenant123 (bcrypt)
 -- Run AFTER SetupDB.sql (schema + admin + rooms + settings)
 --
--- Room layout (see SetupDB.sql): 1F = A-F (PHP4,000), 2F = G-J (PHP4,000),
--- 3F = K-N (PHP3,500).
+-- Room layout (see SetupDB.sql): 1F = A-D (PHP4,000), 2F = E-H (PHP4,000),
+-- 3F = I-N (PHP3,500).
 --
 -- Roster (12 tenants across 14 rooms; I and J left vacant):
 --   SCRIPTED (built to exercise a specific admin feature):
@@ -303,8 +303,8 @@ INSERT IGNORE INTO `visitor_logs` (`user_id`, `room_name`, `visitor_name`, `cont
 -- Room I is held (Active); Room J is genuinely open (no inquiry/hold).
 -- ============================================================
 INSERT IGNORE INTO `inquiries` (`id`, `user_id`, `full_name`, `email`, `contact_no`, `room_name`, `occupants`, `preferred_move_in`, `message`, `source`, `status`, `viewing_date`, `handled_by`, `created_at`) VALUES
-(1, NULL, 'Katrina Villareal', 'katrina.v@gmail.com', '+63 9201234567', 'I', 1, '2026-09-05', 'Interested in a 1F unit, prefer ground-level access.', 'web', 'Reserved', '2026-08-28 14:00:00', @admin_id, '2026-08-26 10:00:00'),
-(2, NULL, 'Noel Ramirez',      'noel.ramirez@gmail.com', '+63 9201234568', 'J', 1, '2026-09-15', 'Asking about monthly rate and deposit terms for 2F.', 'web', 'Contacted', NULL, @admin_id, '2026-08-30 11:00:00'),
+(1, NULL, 'Katrina Villareal', 'katrina.v@gmail.com', '+63 9201234567', 'I', 1, '2026-09-05', 'Interested in a 3F unit, likes that it is quieter at the top.', 'web', 'Reserved', '2026-08-28 14:00:00', @admin_id, '2026-08-26 10:00:00'),
+(2, NULL, 'Noel Ramirez',      'noel.ramirez@gmail.com', '+63 9201234568', 'J', 1, '2026-09-15', 'Asking about monthly rate and deposit terms for 3F.', 'web', 'Contacted', NULL, @admin_id, '2026-08-30 11:00:00'),
 (3, 11,   'Carlo Villanueva',  'carlo.villanueva@gmail.com', '+63 9171234509', 'H', 1, '2025-12-01', 'Inquired before applying; later converted to a full application.', 'walk-in', 'Converted', '2025-11-20 10:00:00', @admin_id, '2025-11-18 09:00:00');
 
 INSERT IGNORE INTO `unit_reservations` (`inquiry_id`, `user_id`, `room_name`, `reserved_for_name`, `contact_no`, `email`, `hold_expires_at`, `reservation_fee`, `status`, `notes`, `created_by`, `created_at`) VALUES

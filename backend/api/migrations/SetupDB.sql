@@ -404,25 +404,25 @@ INSERT IGNORE INTO `users` (`first_name`, `last_name`, `email_address`, `passwor
 VALUES ('Admin', 'User', 'admin@gmail.com', '$2y$10$kyF64U0j2xVl0PN1wiqJ5eaDR14ZhjAxjVTnRC0yLleTl9Rdi4Nli', 'admin'); -- admin123
 
 -- 2. Initial Units
--- Layout: 1F = A-F (6 rooms, PHP4,000), 2F = G-J (4 rooms, PHP4,000), 3F = K-N (4 rooms, PHP3,500).
--- 3F is deliberately kept as exactly K/L/M/N because RentApplication.jsx,
--- process_tenant_request.php and update_tenant_status.php hardcode that
--- letter set to derive the PHP3,500 rate without querying rooms.floor.
+-- Layout: 1F = A-D (4 rooms, PHP4,000), 2F = E-H (4 rooms, PHP4,000), 3F = I-N (6 rooms, PHP3,500).
+-- 3F is deliberately kept as exactly I/J/K/L/M/N because RentApplication.jsx
+-- hardcodes that letter set to derive the PHP3,500 rate without querying
+-- rooms.floor (used only as a fallback before the real rooms.monthly_rent loads).
 INSERT IGNORE INTO `rooms` (`id`, `type`, `floor`, `monthly_rent`, `status`, `tenant_name`, `lease_start`, `lease_end`, `last_tenant`, `maintenance_flag`, `occupants`) VALUES
 ('A', 'Studio', '1F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
 ('B', 'Studio', '1F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
-('C', 'Studio',    '1F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
+('C', 'Studio', '1F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
 ('D', 'Studio', '1F', 4000, 'vacant', NULL, NULL, NULL, 'S.A', 0, 0),
-('E', 'Studio', '1F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
-('F', 'Studio',    '1F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
+('E', 'Studio', '2F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
+('F', 'Studio', '2F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
 ('G', 'Studio', '2F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
 ('H', 'Studio', '2F', 4000, 'vacant', NULL, NULL, NULL, 'R.G', 0, 0),
-('I', 'Studio',    '2F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
-('J', 'Studio', '2F', 4000, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
+('I', 'Studio', '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
+('J', 'Studio', '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
 ('K', 'Studio', '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
-('L', 'Studio',    '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
+('L', 'Studio', '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
 ('M', 'Studio', '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0),
-('N', 'Studio',    '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0);
+('N', 'Studio', '3F', 3500, 'vacant', NULL, NULL, NULL, NULL, 0, 0);
 
 --
 -- Table structure for table `visitor_logs`
