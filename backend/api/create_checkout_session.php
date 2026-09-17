@@ -107,7 +107,7 @@ if ($settings_res) {
         $settings[$row['setting_key']] = $row['setting_value'];
     }
 }
-$secret_key = $settings['paymongo_secret_key'] ?? '';
+$secret_key = ams_env_setting('paymongo_secret_key') ?? ($settings['paymongo_secret_key'] ?? '');
 
 if (empty($secret_key)) {
     release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
@@ -116,10 +116,25 @@ if (empty($secret_key)) {
 }
 
 // 3. Build PayMongo Checkout Session request
-$success_url = $data['success_url'] ?? ("http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html#/pay-bills?status=success&invoice_id=" . urlencode($invoice_id));
+// Return links. The SPA sends its own (it knows its path); once APP_URL is set
+// they are accepted only if they point into this deployment's frontend, so a
+// checkout can never hand the tenant back to another deployment.
+$return_base = APP_URL !== ''
+    ? APP_URL . '/'
+    : 'http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html';
+$own_return_url = function ($url) {
+    if (!is_string($url) || $url === '') return false;
+    if (APP_URL === '') return APP_ENV !== 'production';
+    return $url === APP_URL || str_starts_with($url, APP_URL . '/') || str_starts_with($url, APP_URL . '#');
+};
+$success_url = $own_return_url($data['success_url'] ?? null)
+    ? $data['success_url']
+    : $return_base . "#/pay-bills?status=success&invoice_id=" . urlencode($invoice_id);
 // The invoice id must ride along on the cancel URL too, so the app can release
 // the 'processing' hold this endpoint is about to place on it.
-$cancel_url = $data['cancel_url'] ?? ("http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html#/pay-bills?status=cancelled&invoice_id=" . urlencode($invoice_id));
+$cancel_url = $own_return_url($data['cancel_url'] ?? null)
+    ? $data['cancel_url']
+    : $return_base . "#/pay-bills?status=cancelled&invoice_id=" . urlencode($invoice_id);
 
 $payload = [
     'data' => [

@@ -38,6 +38,9 @@ foreach ($input as $key => $value) {
         echo json_encode(["success" => false, "message" => "Invalid setting key."]);
         exit;
     }
+    // Owned by cron/check_environment.php --claim; the settings page echoes it
+    // back with everything else, so it is skipped rather than refused.
+    if ($key === 'deployment_id') continue;
     if (is_bool($value)) {
         $value = $value ? 'true' : 'false';
     } elseif (is_array($value)) {

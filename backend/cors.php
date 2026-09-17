@@ -29,6 +29,11 @@ $ams_cors_list = array_values(array_filter(array_map(
     fn($o) => rtrim(trim($o), '/'),
     explode(',', $ams_cors_env('ALLOWED_ORIGINS'))
 )));
+// A wildcard entry is never honoured: origins must be listed exactly.
+if (in_array('*', $ams_cors_list, true)) {
+    error_log('[AMS] ALLOWED_ORIGINS contains "*"; ignoring it. List exact origins instead.');
+    $ams_cors_list = array_values(array_diff($ams_cors_list, ['*']));
+}
 $ams_cors_origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 header_remove('Access-Control-Allow-Origin');

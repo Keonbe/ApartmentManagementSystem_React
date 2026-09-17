@@ -2,3 +2,13 @@ backend/api/get_notifications.log
 backend/config.env.php
 TASK.md
 docs/audits/ams_security_workflow_audit_2026-09-16.md
+
+# Filled-in deployment env files (templates are *.example)
+deploy/env/*.env
+.env
+.env.*
+!.env.example
+!ams-react/.env.development
+!ams-react/.env.production
+!ams-react/.env.example
+!ams-react/.env.selfhosted.example
