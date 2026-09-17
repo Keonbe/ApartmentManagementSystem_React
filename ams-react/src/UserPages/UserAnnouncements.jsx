@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBullhorn, faCalendarAlt, faTag } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -10,13 +10,8 @@ export default function UserAnnouncements() {
     const [loading, setLoading] = useState(true);
     const { t } = useLang();
 
-    useEffect(() => {
-        fetchAnnouncements();
-    }, []);
-
     const fetchAnnouncements = async () => {
         try {
-            setLoading(true);
             const response = await api.get('get_announcements.php?public=1');
             if (response.data.success) {
                 setAnnouncements(response.data.announcements);
@@ -27,6 +22,11 @@ export default function UserAnnouncements() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        const load = async () => { await fetchAnnouncements(); };
+        load();
+    }, []);
 
     return (
         <div className="user-announcements-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">

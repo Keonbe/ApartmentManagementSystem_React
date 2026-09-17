@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import api from '../api/axiosConfig';
@@ -6,7 +6,7 @@ import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
-    faBell, faCheck, faTrash, faInfoCircle, faExclamationTriangle, faFileContract, faCheckCircle, faHistory,
+    faBell, faFileContract, faHistory,
     faHome, faCompass, faConciergeBell, faBed, faUserPlus
 } from '@fortawesome/free-solid-svg-icons';
 import { TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, formatRelativeTime } from '../config/notificationLinks';
@@ -34,7 +34,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const notificationRef = useRef(null);
     const mobileMenuRef = useRef(null);
 
-    const [loggedInUser, setLoggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
+    const [loggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
     const [dbAvatarUrl, setDbAvatarUrl] = useState(loggedInUser.avatar_url || ''); // Real-time avatar tracker
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -63,12 +63,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         }
     }, [loggedInUser.email_address, isLoggedIn]);
 
-    // Close mobile menu on route change
-    useEffect(() => {
+    // Close menus on route change (adjusted during render rather than in an effect)
+    const [seenPath, setSeenPath] = useState(location.pathname);
+    if (seenPath !== location.pathname) {
+        setSeenPath(location.pathname);
         setIsMobileMenuOpen(false);
         setIsDropdownOpen(false);
         setIsNotificationOpen(false);
-    }, [location.pathname]);
+    }
 
     const getFullAvatarUrl = (url) => (url ? fileUrl(url.replace(/^\//, '')) : null);
 
@@ -98,7 +100,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     // notices never appeared until a full reload.
     useEffect(() => {
         if (!isLoggedIn) return;
-        fetchNotifications();
+        const load = async () => { await fetchNotifications(); };
+        load();
         const timer = setInterval(() => {
             if (document.visibilityState === 'visible') fetchNotifications();
         }, NOTIFICATION_POLL_MS);

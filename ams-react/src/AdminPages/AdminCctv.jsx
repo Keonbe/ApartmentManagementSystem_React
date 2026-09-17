@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -15,13 +15,7 @@ export default function AdminCctv() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    fetchCctvRequests();
-  }, []);
-
-  const fetchCctvRequests = async () => {
-    setLoading(true);
-    setError(null);
+  const loadCctvRequests = async () => {
     try {
       const res = await api.get('get_cctv_requests.php');
       if (res.data.success) {
@@ -36,6 +30,17 @@ export default function AdminCctv() {
       setLoading(false);
     }
   };
+
+  const fetchCctvRequests = () => {
+    setLoading(true);
+    setError(null);
+    return loadCctvRequests();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadCctvRequests(); };
+    load();
+  }, []);
 
   const handleStatusUpdate = async (id, newStatus) => {
     try {

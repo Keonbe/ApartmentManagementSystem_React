@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -15,15 +15,9 @@ export default function ResetPassword() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [message, setMessage] = useState('');
+    const [message, setMessage] = useState(() => (!email || !token ? "Invalid password reset link." : ''));
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
-
-    useEffect(() => {
-        if (!email || !token) {
-            setMessage("Invalid password reset link.");
-        }
-    }, [email, token]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faEdit, faKey, faTrash, faTimes, faUserShield, faUser,
-  faCheck, faExclamationTriangle, faChevronDown, faChevronUp, faPlus,
+  faCheck, faExclamationTriangle,
   faUsers, faFilter
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -36,16 +36,23 @@ const AdminUsers = () => {
   const [saving, setSaving]             = useState(false);
   const [toast, setToast]               = useState(null); // {msg, type}
 
-  useEffect(() => { fetchUsers(); }, []);
-
-  const fetchUsers = async () => {
-    setLoading(true);
+  const loadUsers = async () => {
     try {
       const res = await api.get('/manage_users.php');
       if (res.data.success) setUsers(res.data.users);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
+
+  const fetchUsers = () => {
+    setLoading(true);
+    return loadUsers();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadUsers(); };
+    load();
+  }, []);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowRight, faCircleNotch, faEnvelopeOpenText } from '@fortawesome/free-solid-svg-icons';
+import { faArrowRight, faEnvelopeOpenText } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from '../api/axiosConfig';

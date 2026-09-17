@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPrint, faArrowLeft, faHourglassHalf, faFileSignature, faDownload } from '@fortawesome/free-solid-svg-icons';
@@ -35,10 +35,13 @@ export default function ViewContract() {
     const [landlord, setLandlord] = useState({ name: '', address: '', contact: '', propertyAddress: '' });
     const [language, setLanguage] = useState(lang === 'fil' ? 'tl' : 'en'); // 'tl' | 'en'
 
-    // Keep the contract body in step with the global language switcher (TopBar).
-    useEffect(() => {
+    // Keep the contract body in step with the global language switcher (TopBar);
+    // adjusted during render rather than in an effect.
+    const [seenLang, setSeenLang] = useState(lang);
+    if (seenLang !== lang) {
+        setSeenLang(lang);
         setLanguage(lang === 'fil' ? 'tl' : 'en');
-    }, [lang]);
+    }
 
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
 

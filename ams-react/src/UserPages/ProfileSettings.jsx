@@ -1,12 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileAlt, faKey, faSave, faCamera, faUpload, faTrash, faUndo, faUser } from '@fortawesome/free-solid-svg-icons';
+import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo } from '@fortawesome/free-solid-svg-icons';
 import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
+
+// Stand-in photos for the camera fallback when no camera stream is available.
+const MOCK_PHOTOS = [
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
+    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200",
+    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200"
+];
+const pickMockPhoto = () => MOCK_PHOTOS[Math.floor(Math.random() * MOCK_PHOTOS.length)];
 
 export default function ProfileSettings() {
     const { t } = useLang();
@@ -116,13 +124,7 @@ export default function ProfileSettings() {
             }
         } else {
             // Static simulation fallback photo
-            const mockPhotos = [
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
-                "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200",
-                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200"
-            ];
-            const randomMock = mockPhotos[Math.floor(Math.random() * mockPhotos.length)];
-            setTempAvatar(randomMock);
+            setTempAvatar(pickMockPhoto());
             setIsCameraActive(false);
         }
     };

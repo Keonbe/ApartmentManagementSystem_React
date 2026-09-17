@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faSearch, faTimes, faUser, faBuilding, faCalendarAlt, faPhone, faEnvelope, 
+  faSearch, faTimes, faCalendarAlt, faPhone, faEnvelope,
   faCheckCircle, faClock, faUsers, faVenusMars,
   faFileAlt, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
@@ -18,13 +18,7 @@ const AdminApplications = () => {
   const [errorMsg, setErrorMsg] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchApplications();
-  }, []);
-
-  const fetchApplications = async () => {
-    setLoading(true);
-    setErrorMsg(null);
+  const loadApplications = async () => {
     try {
       const res = await api.get('/get_applications.php');
       if (res.data.success) {
@@ -39,6 +33,17 @@ const AdminApplications = () => {
       setLoading(false);
     }
   };
+
+  const fetchApplications = () => {
+    setLoading(true);
+    setErrorMsg(null);
+    return loadApplications();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadApplications(); };
+    load();
+  }, []);
 
 
   const updateStatus = async (id, status, rejectionReason = null) => {

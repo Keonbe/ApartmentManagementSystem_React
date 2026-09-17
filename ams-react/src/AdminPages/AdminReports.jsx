@@ -1,15 +1,15 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faDownload, faFileInvoiceDollar, faChartBar, faChartLine, faBuilding,
-  faDollarSign, faExclamationTriangle, faTimes, faUser, faCalendarAlt,
+  faDollarSign, faExclamationTriangle, faTimes,
   faBolt, faTint, faCheckCircle, faClock, faPrint, faArrowUp, faArrowDown,
-  faWrench, faSquareParking, faChevronRight, faUserFriends, faClipboardList, faConciergeBell,
-  faFilePdf, faCalendarCheck, faCheck, faTools, faSlidersH, faInfoCircle,
-  faShieldAlt, faGavel, faHandshake, faFileUpload, faLayerGroup, faReceipt,
+  faWrench, faSquareParking, faChevronRight, faClipboardList, faConciergeBell,
+  faSlidersH,
+  faShieldAlt, faHandshake, faLayerGroup, faReceipt,
   faChartPie, faSave, faSpinner, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -43,12 +43,15 @@ const AdminReports = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear()); // Current year
   const [activeModule, setActiveModule] = useState('all'); // 'all', 'income', 'streams', 'occupancy', 'payments', 'maintenance', 'reservations', 'gaps', 'utilities'
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get('tab') === 'utilities') {
+  // Opening the page with ?tab=utilities selects that module (adjusted during render,
+  // not in an effect, so there is no extra render pass).
+  const [seenSearch, setSeenSearch] = useState(null);
+  if (location.search !== seenSearch) {
+    setSeenSearch(location.search);
+    if (new URLSearchParams(location.search).get('tab') === 'utilities') {
       setActiveModule('utilities');
     }
-  }, [location.search]);
+  }
 
   // Modal Invoice Generation States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -76,17 +79,16 @@ const AdminReports = () => {
   const [data, setData] = useState(null);
   const [utilityData, setUtilityData] = useState(null);
   const [trendPoints, setTrendPoints] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Loading is derived from the filters the data belongs to; refreshes after a write
+  // keep the page (and any open modal) on screen.
+  const reportQuery = `timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`;
+  const [loadedQuery, setLoadedQuery] = useState(null);
+  const loading = loadedQuery !== reportQuery;
   const [showExpensesModal, setShowExpensesModal] = useState(false);
 
-  useEffect(() => {
-    fetchReportData();
-  }, [timeframe, selectedMonth, selectedQuarter, selectedYear]);
-
-  const fetchReportData = async () => {
-    setLoading(true);
+  const loadReportData = async (query) => {
     try {
-      const response = await api.get(`get_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`);
+      const response = await api.get(`get_report_data.php?${query}`);
       if (response.data.success) {
         const bd = response.data.data;
         // Gross revenue comes from the server, which counts every paid line item; the old
@@ -165,15 +167,22 @@ const AdminReports = () => {
         setTrendPoints(bd.trendPoints || []);
       }
       
-      const utilResponse = await api.get(`get_utilities_report_data.php?timeframe=${timeframe}&month=${selectedMonth}&quarter=${selectedQuarter}&year=${selectedYear}`);
+      const utilResponse = await api.get(`get_utilities_report_data.php?${query}`);
       if (utilResponse.data.success) {
         setUtilityData(utilResponse.data.data);
       }
     } catch (e) {
       console.error(e);
     }
-    setLoading(false);
+    setLoadedQuery(query);
   };
+
+  const fetchReportData = () => loadReportData(reportQuery);
+
+  useEffect(() => {
+    const load = async () => { await loadReportData(reportQuery); };
+    load();
+  }, [reportQuery]);
 
   // Max value for revenue scaling in chart
   const maxRevenueTrend = useMemo(() => {

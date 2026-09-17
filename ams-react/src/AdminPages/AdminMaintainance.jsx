@@ -645,7 +645,8 @@ const AdminMaintainance = () => {
   }, []);
 
   useEffect(() => {
-    fetchRequests();
+    const load = async () => { await fetchRequests(); };
+    load();
     getSystemSettings().then(setSettings).catch(() => setSettings(null));
     api.get('get_rooms.php').then(res => { if (res.data?.success) setRooms(res.data.rooms || []); }).catch(() => {});
   }, [fetchRequests]);

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faIdBadge, faUserPlus, faCheck, faTimes, faSignOutAlt, 
-  faExclamationTriangle, faClock, faSearch, faFilter, faCar, 
+  faExclamationTriangle, faClock, faSearch, faCar,
   faBuilding, faSync, faSlidersH, faPhone, faUserCheck, faUserClock,
-  faDoorOpen, faInfoCircle, faEye
+  faDoorOpen, faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
@@ -23,8 +23,9 @@ export default function AdminVisitors() {
     total_count: 0,
     overstay_threshold_hours: 24
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadedFilters, setLoadedFilters] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [failure, setFailure] = useState(null); // { filters, message }
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,14 +54,13 @@ export default function AdminVisitors() {
   const [thresholdHours, setThresholdHours] = useState(24);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchVisitors();
-    fetchRooms();
-  }, [statusFilter, unitFilter]);
+  // Loading and error are derived from the filters they belong to, so a filter change
+  // shows the spinner without setting state inside the effect.
+  const filterKey = `${statusFilter}|${unitFilter}`;
+  const loading = refreshing || loadedFilters !== filterKey;
+  const error = failure && failure.filters === filterKey ? failure.message : null;
 
-  const fetchVisitors = async () => {
-    setLoading(true);
-    setError(null);
+  const loadVisitors = async () => {
     try {
       let url = `get_visitors.php?status=${statusFilter}&unit=${unitFilter}`;
       if (searchQuery.trim()) {
@@ -69,19 +69,27 @@ export default function AdminVisitors() {
       const res = await api.get(url);
       if (res.data.success) {
         setVisitors(res.data.visitors || []);
+        setFailure(null);
         if (res.data.stats) {
           setStats(res.data.stats);
           setThresholdHours(res.data.stats.overstay_threshold_hours || 24);
         }
       } else {
-        setError(res.data.message || 'Failed to fetch visitor records.');
+        setFailure({ filters: filterKey, message: res.data.message || 'Failed to fetch visitor records.' });
       }
     } catch (err) {
       console.error('Failed to load visitor data:', err);
-      setError('Unable to load visitor logs. Please check connection and try again.');
+      setFailure({ filters: filterKey, message: 'Unable to load visitor logs. Please check connection and try again.' });
     } finally {
-      setLoading(false);
+      setLoadedFilters(filterKey);
+      setRefreshing(false);
     }
+  };
+
+  const fetchVisitors = () => {
+    setRefreshing(true);
+    setFailure(null);
+    return loadVisitors();
   };
 
   const fetchRooms = async () => {
@@ -94,6 +102,11 @@ export default function AdminVisitors() {
       console.error('Failed to fetch rooms list:', err);
     }
   };
+
+  useEffect(() => {
+    const load = async () => { await Promise.all([loadVisitors(), fetchRooms()]); };
+    load();
+  }, [statusFilter, unitFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

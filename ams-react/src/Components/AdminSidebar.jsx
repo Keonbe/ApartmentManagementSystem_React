@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -69,7 +69,8 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   };
 
   useEffect(() => {
-    fetchSettings();
+    const load = async () => { await fetchSettings(); };
+    load();
 
     const handleSettingsUpdate = (e) => {
       if (e && e.detail) {
@@ -85,9 +86,16 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     };
   }, []);
 
+  // Auto close the mobile drawer on navigation. The internal state is adjusted during
+  // render; the parent's onClose is an external callback, so it stays in an effect.
+  const [seenPath, setSeenPath] = useState(location.pathname);
+  if (seenPath !== location.pathname) {
+    setSeenPath(location.pathname);
+    setInternalIsOpen(false);
+  }
+
   useEffect(() => {
-    // Auto close mobile drawer on navigation
-    handleClose();
+    if (propOnClose) propOnClose();
   }, [location.pathname]);
 
   useEffect(() => {

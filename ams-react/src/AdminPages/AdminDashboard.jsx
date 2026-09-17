@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -6,7 +6,7 @@ import {
   faDollarSign, faUsers, faBuilding, faExclamationTriangle, 
   faCheckCircle, faClock, faChartLine, faChartPie, faWrench, faKey,
   faChartBar, faTable, faArrowUp, faArrowDown, faUserPlus, faInfoCircle,
-  faFileContract, faFileAlt, faDownload, faHistory, faFileInvoiceDollar, faCogs, faFileSignature,
+  faDownload, faHistory, faFileInvoiceDollar, faCogs, faFileSignature,
   faClipboardList, faArrowRight, faBullhorn, faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
@@ -74,12 +74,7 @@ const AdminDashboard = () => {
   const [activityLogs, setActivityLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
   const fetchDashboardData = async () => {
-    setLoading(true);
     try {
       const statsRes = await api.get('dashboard_stats.php');
       if (statsRes.data && statsRes.data.success) {
@@ -103,6 +98,11 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const load = async () => { await fetchDashboardData(); };
+    load();
+  }, []);
 
   const maxValue = Math.max(
     ...incomeData.map(d => Math.max(d.billed || 0, (d.collected || 0) + (d.pending || 0))),

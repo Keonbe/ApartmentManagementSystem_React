@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faBullhorn, faSave, faEdit, faTrashAlt, faTimes, faMobileAlt, faEnvelope, 
-  faDesktop, faCalendarAlt, faUsers, faClock, faCheckCircle, faPaperPlane
+  faSave, faEdit, faTrashAlt, faMobileAlt, faEnvelope,
+  faDesktop, faCalendarAlt, faUsers, faClock, faPaperPlane
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
@@ -18,16 +18,10 @@ const statusConfig = {
 
 const AdminAnnouncements = () => {
   const [announcements, setAnnouncements] = useState([]);
-  const [editingId, setEditingId] = useState(null);
   const [tenantCount, setTenantCount] = useState(0);
   
   // Compose form
   const [form, setForm] = useState({ sendTo: 'All tenants', type: 'General', title: '', body: '', channels: ['in-app'], scheduleEnabled: false, scheduleDate: '' });
-
-  useEffect(() => {
-    fetchAnnouncements();
-    fetchTenantCount();
-  }, []);
 
   const fetchTenantCount = async () => {
     try {
@@ -58,7 +52,12 @@ const AdminAnnouncements = () => {
     }
   };
 
-  const handleSend = async (asDraft = false) => {
+  useEffect(() => {
+    const load = async () => { await Promise.all([fetchAnnouncements(), fetchTenantCount()]); };
+    load();
+  }, []);
+
+  const handleSend = async () => {
     if (!form.title || !form.body) return;
     try {
       const payload = {

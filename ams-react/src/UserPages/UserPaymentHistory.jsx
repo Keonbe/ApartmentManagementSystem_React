@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint, faArrowRight, faExclamationTriangle, faClock } from '@fortawesome/free-solid-svg-icons';
+import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
@@ -16,10 +16,6 @@ export default function UserPaymentHistory() {
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const [showReceipt, setShowReceipt] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
-
-    useEffect(() => {
-        fetchInvoices();
-    }, []);
 
     const handleViewReceipt = (inv) => {
         let breakdown = `Rent: ${formatCurrency(inv.base_rent)}`;
@@ -61,7 +57,6 @@ export default function UserPaymentHistory() {
 
     const fetchInvoices = async () => {
         try {
-            setLoading(true);
             const response = await api.get(`get_invoices.php?userId=${loggedInUser.id}`);
             if (response.data.success) {
                 // Filter only paid ones or show all? The prompt said "Timeline of paid invoices".
@@ -74,6 +69,11 @@ export default function UserPaymentHistory() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        const load = async () => { await fetchInvoices(); };
+        load();
+    }, []);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);

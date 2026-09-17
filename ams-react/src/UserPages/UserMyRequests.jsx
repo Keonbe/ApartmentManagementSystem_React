@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -13,13 +13,8 @@ export default function UserMyRequests() {
     const [loading, setLoading] = useState(true);
     const { t } = useLang();
 
-    useEffect(() => {
-        fetchRequests();
-    }, []);
-
-    const fetchRequests = async () => {
+    const loadRequests = async () => {
         try {
-            setLoading(true);
             const response = await api.get('get_my_requests.php');
             if (response.data.success) {
                 setRequests(response.data.requests);
@@ -30,6 +25,16 @@ export default function UserMyRequests() {
             setLoading(false);
         }
     };
+
+    const fetchRequests = () => {
+      setLoading(true);
+      return loadRequests();
+    };
+
+    useEffect(() => {
+        const load = async () => { await loadRequests(); };
+        load();
+    }, []);
 
     const handleCancel = async (id, type) => {
         if (!window.confirm(t('myRequests.cancelConfirm'))) return;

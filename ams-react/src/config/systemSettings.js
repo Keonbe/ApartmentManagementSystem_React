@@ -70,7 +70,7 @@ export const getSystemSettings = async () => {
             try {
               const parsed = JSON.parse(raw);
               if (Array.isArray(parsed)) return parsed;
-            } catch (e) { /* fall through to default */ }
+            } catch { /* fall through to default */ }
           }
           return DEFAULTS.parkingAllowedVehicleTypes;
         })(),

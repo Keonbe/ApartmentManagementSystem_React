@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
@@ -27,7 +27,8 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   // Polled while the tab is visible. The bell used to load once per page, and
   // rendered a "time" field the API never returns.
   useEffect(() => {
-    fetchNotifications();
+    const load = async () => { await fetchNotifications(); };
+    load();
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') fetchNotifications();
     }, NOTIFICATION_POLL_MS);

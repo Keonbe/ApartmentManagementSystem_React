@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faBell } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
@@ -113,7 +113,6 @@ export default function PayBills() {
         fetchChannels();
         fetchInvoice();
 
-        const params = new URLSearchParams(window.location.search);
         // Wait, the router is using HashRouter, so the search might be after the hash like #/pay-bills?status=...
         // Let's parse the hash string
         const hash = window.location.hash;

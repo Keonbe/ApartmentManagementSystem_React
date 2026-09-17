@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle, faFilePdf, faEye, faTimes, faUndo } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle, faFilePdf, faEye, faTimes } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
@@ -68,7 +68,7 @@ export default function RentApplication() {
     const [phoneRawNumber, setPhoneRawNumber] = useState(editApp?.contact_no?.replace('+63 ', '') || '');
     const [phoneError, setPhoneError] = useState('');
 
-    const [email, setEmail] = useState(editApp?.email || defaultEmail);
+    const [email] = useState(editApp?.email || defaultEmail);
     const [gender, setGender] = useState(editApp?.gender || '');
     const [occupants, setOccupants] = useState(editApp?.occupants || '');
     const [monthsOfRent, setMonthsOfRent] = useState(editApp?.months_of_rent || '');

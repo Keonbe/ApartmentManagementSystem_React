@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faCheckCircle, faUndo, faFilePdf, faEye, faTimes, faExclamationTriangle, faCar, faClock, faBan } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faFilePdf, faEye, faTimes, faExclamationTriangle, faCar, faClock, faBan } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";

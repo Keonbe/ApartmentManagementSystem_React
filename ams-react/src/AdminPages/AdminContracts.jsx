@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faPlus, faSearch, faTimes, faFileContract, faEye, faDownload, faCalendarAlt,
-  faUser, faBuilding, faCheckCircle, faClock, faExclamationTriangle, faFileSignature,
-  faArrowRight, faArrowLeft, faPrint, faEdit, faTrashAlt, faUpload, faShieldAlt,
+  faPlus, faSearch, faTimes, faEye, faDownload,
+  faCheckCircle, faClock, faExclamationTriangle, faFileSignature,
+  faArrowRight, faArrowLeft, faPrint, faEdit, faUpload, faShieldAlt,
   faGavel, faFileUpload, faFile, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
@@ -39,11 +39,6 @@ const AdminContracts = () => {
   const [editForm, setEditForm] = useState({ leaseStart: '', leaseEnd: '' });
 
   const [form, setForm] = useState({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
-
-  useEffect(() => {
-    fetchContracts();
-    fetchTenants();
-  }, []);
 
   const fetchContracts = async () => {
     try {
@@ -100,6 +95,11 @@ const AdminContracts = () => {
       console.error(err);
     }
   };
+
+  useEffect(() => {
+    const load = async () => { await Promise.all([fetchContracts(), fetchTenants()]); };
+    load();
+  }, []);
 
   // Only an application the tenant has actually moved into can have a
   // contract generated for it, and only if one doesn't already exist —

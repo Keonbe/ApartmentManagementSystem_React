@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -80,7 +80,8 @@ const AdminNotifications = () => {
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
+    const load = async () => { await fetchNotifications(); };
+    load();
     window.addEventListener(ADMIN_NOTIFICATIONS_EVENT, fetchNotifications);
     return () => window.removeEventListener(ADMIN_NOTIFICATIONS_EVENT, fetchNotifications);
   }, [fetchNotifications]);

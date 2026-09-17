@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faSearch, faTimes, faUser, faBuilding, faCalendarAlt, faPhone, faEnvelope, 
-  faExclamationTriangle, faCheckCircle, faEye, faChevronRight, faClock, 
-  faShieldAlt, faArchive, faHistory, faDollarSign, faWrench, faFileAlt,
-  faSignOutAlt, faBoxOpen, faUserSlash, faChevronDown, faChevronUp, faClipboardCheck
+  faSearch, faTimes, faUser, faCalendarAlt,
+  faExclamationTriangle, faCheckCircle, faEye,
+  faArchive, faDollarSign, faWrench, faFileAlt,
+  faSignOutAlt, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
@@ -56,60 +56,6 @@ const AdminTenants = () => {
   const [damageNotes, setDamageNotes] = useState('');
   const [utilityDeduction, setUtilityDeduction] = useState(0);
 
-  const openClearanceModal = (tenant) => {
-    setClearanceTarget(tenant);
-    setDamageDeduction(0);
-    setDamageNotes('');
-    setUtilityDeduction(0);
-    setShowProfileModal(false);
-    setShowClearanceModal(true);
-  };
-
-  const handleConfirmClearance = async () => {
-    if (!clearanceTarget) return;
-
-    const rentStr = clearanceTarget.rent ? String(clearanceTarget.rent) : '4000';
-    const baseDeposit = parseFloat(rentStr.replace(/[^0-9.]/g, '')) || 4000;
-    const damages = parseFloat(damageDeduction) || 0;
-    const utilities = parseFloat(utilityDeduction) || 0;
-    const netRefund = Math.max(0, baseDeposit - damages - utilities);
-
-    const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
-
-    try {
-      const res = await api.post('/update_tenant_status.php', {
-        id: clearanceTarget.id,
-        status: 'moved-out',
-        damage_deduction: damages,
-        damage_notes: damageNotes,
-        utility_deduction: utilities,
-        clearance_notes: summaryNotes
-      });
-
-      if (res.data.success) {
-        alert("Move-out clearance completed successfully. Room is now marked vacant.");
-        setShowClearanceModal(false);
-        setClearanceTarget(null);
-        fetchTenants();
-      } else {
-        alert(res.data.message || "Failed to complete move-out clearance.");
-      }
-    } catch (err) {
-      console.error("Error confirming clearance:", err);
-      alert("Failed to submit move-out clearance.");
-    }
-  };
-
-  // Profile modal tab state
-  const [profileTab, setProfileTab] = useState('overview');
-
-  useEffect(() => {
-    fetchTenants();
-    fetchInvoices();
-    fetchMaintenanceRequests();
-    fetchContracts();
-  }, []);
-
   const fetchInvoices = async () => {
     try {
       const res = await api.get('/get_invoices.php');
@@ -157,6 +103,58 @@ const AdminTenants = () => {
       console.error("Error fetching tenants:", err);
     }
   };
+
+  useEffect(() => {
+    const load = async () => { await Promise.all([fetchTenants(), fetchInvoices(), fetchMaintenanceRequests(), fetchContracts()]); };
+    load();
+  }, []);
+
+  const openClearanceModal = (tenant) => {
+    setClearanceTarget(tenant);
+    setDamageDeduction(0);
+    setDamageNotes('');
+    setUtilityDeduction(0);
+    setShowProfileModal(false);
+    setShowClearanceModal(true);
+  };
+
+  const handleConfirmClearance = async () => {
+    if (!clearanceTarget) return;
+
+    const rentStr = clearanceTarget.rent ? String(clearanceTarget.rent) : '4000';
+    const baseDeposit = parseFloat(rentStr.replace(/[^0-9.]/g, '')) || 4000;
+    const damages = parseFloat(damageDeduction) || 0;
+    const utilities = parseFloat(utilityDeduction) || 0;
+    const netRefund = Math.max(0, baseDeposit - damages - utilities);
+
+    const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
+
+    try {
+      const res = await api.post('/update_tenant_status.php', {
+        id: clearanceTarget.id,
+        status: 'moved-out',
+        damage_deduction: damages,
+        damage_notes: damageNotes,
+        utility_deduction: utilities,
+        clearance_notes: summaryNotes
+      });
+
+      if (res.data.success) {
+        alert("Move-out clearance completed successfully. Room is now marked vacant.");
+        setShowClearanceModal(false);
+        setClearanceTarget(null);
+        fetchTenants();
+      } else {
+        alert(res.data.message || "Failed to complete move-out clearance.");
+      }
+    } catch (err) {
+      console.error("Error confirming clearance:", err);
+      alert("Failed to submit move-out clearance.");
+    }
+  };
+
+  // Profile modal tab state
+  const [profileTab, setProfileTab] = useState('overview');
 
   const handleInitiateMoveOutClick = (tenant) => {
     setMoveOutTarget(tenant);
@@ -250,7 +248,6 @@ const AdminTenants = () => {
   };
 
   // Count logic
-  const pendingReviewCount = tenants.filter(t => t.status === 'Pending Review').length;
   const activeTenantCount = tenants.filter(t => t.status === 'active' || t.status === 'Approved').length;
   const pendingMoveOutCount = tenants.filter(t => t.status === 'pending-move-out').length;
   const movedOutCount = tenants.filter(t => t.status === 'moved-out').length;
@@ -272,7 +269,7 @@ const AdminTenants = () => {
   ];
 
   // Determine displayed list
-  let displayed = [];
+  let displayed;
   if (activeFilter === 'archived') {
     displayed = [...archivedTenants];
   } else if (activeFilter === 'all') {

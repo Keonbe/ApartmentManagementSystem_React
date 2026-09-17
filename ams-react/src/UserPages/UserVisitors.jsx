@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faIdBadge, faUserPlus, faClock, faCheckCircle, 
-  faTimesCircle, faCar, faBuilding, faPhone, faTimes,
-  faDoorOpen, faSync, faInfoCircle, faArrowLeft
+  faIdBadge, faUserPlus, faClock,
+  faTimes,
+  faSync, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
@@ -21,6 +21,17 @@ export default function UserVisitors() {
   const [error, setError] = useState(null);
 
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  // The allowed arrival window (now to 30 days ahead) is fixed when the form opens.
+  const [expectedBounds, setExpectedBounds] = useState({ min: '', max: '' });
+
+  const openRegisterModal = () => {
+    const now = Date.now();
+    setExpectedBounds({
+      min: new Date(now).toISOString().slice(0, 16),
+      max: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    });
+    setShowRegisterModal(true);
+  };
   const [registerForm, setRegisterForm] = useState({
     visitorName: '',
     contactNumber: '',
@@ -33,13 +44,7 @@ export default function UserVisitors() {
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
 
-  useEffect(() => {
-    fetchTenantData();
-  }, []);
-
-  const fetchTenantData = async () => {
-    setLoading(true);
-    setError(null);
+  const loadTenantData = async () => {
     try {
       // 1. Get tenant's approved room
       if (loggedInUser.email_address) {
@@ -64,6 +69,17 @@ export default function UserVisitors() {
       setLoading(false);
     }
   };
+
+  const fetchTenantData = () => {
+    setLoading(true);
+    setError(null);
+    return loadTenantData();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadTenantData(); };
+    load();
+  }, []);
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
@@ -90,8 +106,8 @@ export default function UserVisitors() {
         payload.append('idPhoto', registerForm.idPhoto);
         headers = { 'Content-Type': 'multipart/form-data' };
       } else {
-        const { idPhoto, ...rest } = registerForm;
-        payload = rest;
+        payload = { ...registerForm };
+        delete payload.idPhoto;
       }
 
       const res = await api.post('check_in_visitor.php', payload, { headers });
@@ -157,7 +173,6 @@ export default function UserVisitors() {
 
   const activeVisitors = visitors.filter(v => v.status === 'checked_in' || v.status === 'overstayed');
   const pendingVisitors = visitors.filter(v => v.status === 'pending_approval');
-  const pastVisitors = visitors.filter(v => v.status === 'checked_out' || v.status === 'denied' || v.status === 'cancelled');
 
   return (
     <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
@@ -197,7 +212,7 @@ export default function UserVisitors() {
 
               <button
                 type="button"
-                onClick={() => setShowRegisterModal(true)}
+                onClick={openRegisterModal}
                 className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white transition-all shadow-md active:scale-[0.98] border-0 cursor-pointer"
               >
                 <FontAwesomeIcon icon={faUserPlus} />
@@ -309,6 +324,10 @@ export default function UserVisitors() {
                 {loading ? (
                   <tr>
                     <td colSpan="6" className="px-5 py-10 text-center text-slate-400">{t('visitors.loading')}</td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-10 text-center text-rose-600 text-sm">{error}</td>
                   </tr>
                 ) : visitors.length === 0 ? (
                   <tr>
@@ -447,8 +466,8 @@ export default function UserVisitors() {
                 <input
                   type="datetime-local"
                   required
-                  min={new Date().toISOString().slice(0, 16)}
-                  max={new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)}
+                  min={expectedBounds.min}
+                  max={expectedBounds.max}
                   value={registerForm.expectedAt}
                   onChange={(e) => setRegisterForm({ ...registerForm, expectedAt: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"

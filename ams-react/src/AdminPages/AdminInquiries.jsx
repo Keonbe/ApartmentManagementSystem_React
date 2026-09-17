@@ -52,9 +52,7 @@ export default function AdminInquiries() {
   // Walk-in / phone log modal state
   const [logForm, setLogForm] = useState({ full_name: '', contact_no: '', email: '', room_name: '', message: '', source: 'walk-in' });
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadData = useCallback(async () => {
     try {
       const res = await api.get('get_inquiries.php');
       if (res.data.success) {
@@ -70,6 +68,12 @@ export default function AdminInquiries() {
       setLoading(false);
     }
   }, []);
+
+  const fetchData = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    return loadData();
+  }, [loadData]);
 
   // Vacant rooms feed the reserve picker; the hold period seeds its default.
   const fetchSupporting = useCallback(async () => {
@@ -92,9 +96,9 @@ export default function AdminInquiries() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-    fetchSupporting();
-  }, [fetchData, fetchSupporting]);
+    const load = async () => { await Promise.all([loadData(), fetchSupporting()]); };
+    load();
+  }, [loadData, fetchSupporting]);
 
   const runExpirySweep = async () => {
     try {

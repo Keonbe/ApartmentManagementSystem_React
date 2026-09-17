@@ -1,14 +1,13 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faSearch, faCheckCircle, faPrint, faUser, faCalendarAlt, 
+  faSearch, faCheckCircle, faPrint, faCalendarAlt,
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
-  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight, faShieldAlt, faEye, faExternalLinkAlt,
-  faBell, faClock
+  faTrash, faChartBar, faBalanceScale, faShieldAlt, faEye, faExternalLinkAlt,
+  faBell
 } from '@fortawesome/free-solid-svg-icons';
-import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
 
@@ -29,13 +28,6 @@ const AdminPayments = () => {
   const [sendingReminder, setSendingReminder] = useState(false);
   const [batchSending, setBatchSending] = useState(false);
   
-  useEffect(() => {
-    // Reminders and overdue alerts run from the daily sweep (run_notification_sweep()
-    // in config.php); this page no longer triggers them on every visit.
-    fetchInvoices();
-    fetchContracts();
-  }, []);
-
   const handleSendReminder = async (invoiceId) => {
     if (!invoiceId) return;
     setSendingReminder(true);
@@ -74,8 +66,7 @@ const AdminPayments = () => {
     }
   };
 
-  const fetchInvoices = async () => {
-    setLoading(true);
+  const loadInvoices = async () => {
     try {
       const res = await api.get('/get_invoices.php');
       if (res.data.success) {
@@ -163,6 +154,11 @@ const AdminPayments = () => {
     }
   };
 
+  const fetchInvoices = () => {
+    setLoading(true);
+    return loadInvoices();
+  };
+
   const fetchContracts = async () => {
     try {
       const res = await api.get('/get_contracts.php');
@@ -173,6 +169,13 @@ const AdminPayments = () => {
       console.error("Error fetching contracts for security deposit ledger:", err);
     }
   };
+
+  useEffect(() => {
+    // Reminders and overdue alerts run from the daily sweep (run_notification_sweep()
+    // in config.php); this page no longer triggers them on every visit.
+    const load = async () => { await Promise.all([loadInvoices(), fetchContracts()]); };
+    load();
+  }, []);
   
   const [billingPeriod, setBillingPeriod] = useState('July 2026');
   const [isExtendedRent, setIsExtendedRent] = useState(false);
@@ -180,7 +183,7 @@ const AdminPayments = () => {
   const [customAddOns, setCustomAddOns] = useState(0);
 
   // Payment Recording States
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [methodChoice, setMethodChoice] = useState({ tenant: null, method: 'Cash' });
   const [amountTendered, setAmountTendered] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -193,11 +196,7 @@ const AdminPayments = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
 
-  const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
-  const [historyForm, setHistoryForm] = useState(null);
 
-
-  const settings = getSystemSettings();
 
   const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0] || null;
   const filteredTenants = useMemo(() => {
@@ -232,14 +231,10 @@ const AdminPayments = () => {
     });
   }, [tenants, searchTerm, sortOption, statusFilter]);
 
-  // Switch dynamic admin selection method parameters on tenant changes
-  useEffect(() => {
-    if (activeTenant && activeTenant.preferredMethod) {
-      setPaymentMethod(activeTenant.preferredMethod);
-    } else {
-      setPaymentMethod('Cash');
-    }
-  }, [selectedTenantId, activeTenant]);
+  // The method defaults to the selected tenant's preferred one; a manual choice only
+  // sticks while that same tenant record is selected.
+  const paymentMethod = methodChoice.tenant === activeTenant ? methodChoice.method : (activeTenant?.preferredMethod || 'Cash');
+  const setPaymentMethod = (method) => setMethodChoice({ tenant: activeTenant, method });
 
   const calculateTotal = () => {
     if (!activeTenant) return 0;
@@ -362,39 +357,6 @@ const handleMarkAsPaid = async () => {
     if (window.confirm('Are you sure you want to delete this payment record?')) {
       setTenants(prev => prev.map(t => t.id === selectedTenantId ? { ...t, history: t.history.filter(h => h.id !== recordId) } : t));
     }
-  };
-
-  const handleEditHistoryClick = (record) => {
-    setHistoryForm({ ...record });
-    setShowEditHistoryModal(true);
-  };
-
-  const handleAddAdHocClick = () => {
-    setHistoryForm({ 
-      id: `RCT-${Math.floor(1000 + Math.random() * 9000)}`, 
-      period: '', 
-      amount: '', 
-      method: 'Cash', 
-      breakdown: '', 
-      datePaid: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), 
-      status: 'paid' 
-    });
-    setShowEditHistoryModal(true);
-  };
-
-  const handleSaveHistory = () => {
-    setTenants(prev => prev.map(t => {
-      if (t.id === selectedTenantId) {
-        const existing = t.history.find(h => h.id === historyForm.id);
-        if (existing) {
-          return { ...t, history: t.history.map(h => h.id === historyForm.id ? { ...h, ...historyForm, amount: Number(historyForm.amount) } : h) };
-        } else {
-          return { ...t, history: [{ ...historyForm, amount: Number(historyForm.amount) }, ...t.history] };
-        }
-      }
-      return t;
-    }));
-    setShowEditHistoryModal(false);
   };
 
   const filteredHistory = useMemo(() => {
@@ -838,7 +800,6 @@ const handleMarkAsPaid = async () => {
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3">
                       <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-400" /> Payment History</h3>
-                      <button onClick={handleAddAdHocClick} className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-xs font-semibold border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPlus} /> Add Past Payment</button>
                     </div>
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus-within:border-indigo-400 transition-colors">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
@@ -889,7 +850,6 @@ const handleMarkAsPaid = async () => {
                             <td className="py-3 px-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
                             <td className="py-3 px-3 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                <button onClick={() => handleEditHistoryClick(record)} className="text-slate-500 hover:text-indigo-600 border-0 bg-transparent cursor-pointer p-1 transition-colors"><FontAwesomeIcon icon={faEdit} /></button>
                                 <button onClick={() => handleDeleteHistory(record.id)} className="text-slate-500 hover:text-red-600 border-0 bg-transparent cursor-pointer p-1 transition-colors"><FontAwesomeIcon icon={faTrash} /></button>
                               </div>
                             </td>

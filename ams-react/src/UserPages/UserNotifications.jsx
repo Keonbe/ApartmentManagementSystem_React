@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -96,14 +96,14 @@ export default function UserNotifications() {
         setAlwaysOn(res.data.always_on || []);
         setPrefDirty(false);
       }
-    } catch (e) {
+    } catch {
       setPrefMessage({ ok: false, text: 'Could not load your preferences.' });
     }
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
-    fetchPreferences();
+    const load = async () => { await Promise.all([fetchNotifications(), fetchPreferences()]); };
+    load();
     window.addEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
     return () => window.removeEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
   }, [fetchNotifications, fetchPreferences]);

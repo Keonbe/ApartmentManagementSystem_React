@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { getSystemSettings } from '../config/systemSettings';
 

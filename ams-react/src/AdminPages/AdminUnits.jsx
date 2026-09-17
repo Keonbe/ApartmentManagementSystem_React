@@ -1,16 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faSearch, faPlus, faTimes, faBuilding, faUser, faCalendarAlt, faClock,
-  faCheckCircle, faExclamationTriangle, faEye, faUserPlus, faArrowRight,
-  faHistory, faLayerGroup, faSync, faWrench, faMoneyBillWave, faFileContract,
+  faSearch, faPlus, faTimes, faBuilding, faUser, faClock,
+  faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
+  faHistory, faLayerGroup, faSync, faWrench, faFileContract,
   faInfoCircle, faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
-import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
-const initialUnits = [];
 
 const daysRemaining = (leaseEnd) => {
   if (!leaseEnd) return null;
@@ -56,11 +54,6 @@ const AdminUnits = () => {
   
   const minLeaseDuration = 6;
 
-  useEffect(() => {
-    fetchRooms();
-    fetchUsers();
-  }, []);
-
   const fetchUsers = async () => {
     try {
       const res = await api.get('get_users.php');
@@ -97,6 +90,11 @@ const AdminUnits = () => {
       console.error('Failed to fetch rooms:', error);
     }
   };
+
+  useEffect(() => {
+    const load = async () => { await Promise.all([fetchRooms(), fetchUsers()]); };
+    load();
+  }, []);
 
   const counts = {
     all: units.length,

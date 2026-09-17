@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -41,9 +41,7 @@ export default function AdminParking() {
   // { mode: 'assign' | 'reject' | 'release', reservation, slot, reason }
   const [dialog, setDialog] = useState(null);
 
-  const fetchParkingReservations = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadParkingReservations = useCallback(async () => {
     try {
       const res = await api.get('get_parking_reservations.php');
       if (res.data.success) {
@@ -62,7 +60,16 @@ export default function AdminParking() {
     }
   }, []);
 
-  useEffect(() => { fetchParkingReservations(); }, [fetchParkingReservations]);
+  const fetchParkingReservations = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    return loadParkingReservations();
+  }, [loadParkingReservations]);
+
+  useEffect(() => {
+    const load = async () => { await loadParkingReservations(); };
+    load();
+  }, [loadParkingReservations]);
 
   const freeSlots = Array.from({ length: capacity.max_slots }, (_, i) => i + 1)
     .filter(n => !capacity.taken_slots.includes(n));

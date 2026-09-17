@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -52,9 +52,10 @@ export default function AdminActivityLogs() {
   const [pages, setPages] = useState(1);
   const [categories, setCategories] = useState({});
   const [categoryCounts, setCategoryCounts] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loadedQuery, setLoadedQuery] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState(null);
+  const [failure, setFailure] = useState(null); // { query, message }
   const [selectedLog, setSelectedLog] = useState(null);
 
   // Filters are applied by the server, over the whole log.
@@ -80,29 +81,44 @@ export default function AdminActivityLogs() {
     return params;
   }, [category, performer, page, search, from, to]);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Loading and error are derived from the query they belong to, so changing a
+  // filter shows the spinner without setting state inside the effect.
+  const query = buildParams().toString();
+  const loading = refreshing || loadedQuery !== query;
+  const error = failure && failure.query === query ? failure.message : null;
+
+  const loadLogs = useCallback(async (q) => {
     try {
-      const res = await api.get(`get_activity_logs.php?${buildParams()}`);
+      const res = await api.get(`get_activity_logs.php?${q}`);
       if (res.data.success) {
         setLogs(res.data.logs);
         setTotal(res.data.total);
         setPages(res.data.pages);
         setCategories(res.data.categories || {});
         setCategoryCounts(res.data.categoryCounts || {});
+        setFailure(null);
       } else {
-        setError(res.data.message || 'Failed to load activity logs.');
+        setFailure({ query: q, message: res.data.message || 'Failed to load activity logs.' });
       }
     } catch (e) {
       console.error('Failed to fetch logs:', e);
-      setError(e?.response?.data?.message || 'Failed to load activity logs.');
+      setFailure({ query: q, message: e?.response?.data?.message || 'Failed to load activity logs.' });
     } finally {
-      setLoading(false);
+      setLoadedQuery(q);
+      setRefreshing(false);
     }
-  }, [buildParams]);
+  }, []);
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => {
+    const load = async () => { await loadLogs(query); };
+    load();
+  }, [loadLogs, query]);
+
+  const fetchLogs = () => {
+    setRefreshing(true);
+    setFailure(null);
+    return loadLogs(query);
+  };
 
   // Real export of every entry matching the current filters (the old button only showed an alert).
   const handleExport = async () => {

@@ -7,12 +7,10 @@ import {
   faBroom,
   faTshirt,
   faCar,
-  faWifi,
   faVideo,
   faCheck,
   faTimes,
   faEye,
-  faShieldAlt,
   faSquareParking,
   faTools,
   faSync,
@@ -157,13 +155,7 @@ const AdminServicePage = () => {
   const [savingService, setSavingService] = useState(false);
   const [modalSession, setModalSession] = useState(0);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
+  const loadData = async () => {
     try {
       //1.FetchActiveServicesStatusFromSystemSettings
       const settingsRes = await api.get('get_system_settings.php');
@@ -236,6 +228,17 @@ const AdminServicePage = () => {
       setLoading(false);
     }
   };
+
+  const fetchData = () => {
+    setLoading(true);
+    setError(null);
+    return loadData();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadData(); };
+    load();
+  }, []);
 
   const activeServiceCount = services.filter(s => s.isActive).length;
   const pendingCctvCount = cctvRequests.filter(r => r.status === 'Pending').length;
