@@ -12,6 +12,7 @@ export const ChatProvider = ({ children }) => {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [userId, setUserId] = useState(null);
     const [userRole, setUserRole] = useState(null);
+    const [socketStatus, setSocketStatus] = useState('offline');
 
     const activeChatRef = useRef(null);
     const historyPollRef = useRef(null);
@@ -20,6 +21,8 @@ export const ChatProvider = ({ children }) => {
 
     const ensureSocketConnection = useCallback(() => {
         if (!userId || socketRef.current) return;
+
+        setSocketStatus('connecting');
 
         const socket = io('http://localhost:3001', {
             transports: ['websocket'],
@@ -31,7 +34,20 @@ export const ChatProvider = ({ children }) => {
         socketRef.current = socket;
 
         socket.on('connect', () => {
+            setSocketStatus('live');
             socket.emit('join', userId);
+        });
+
+        socket.on('connect_error', () => {
+            setSocketStatus('offline');
+        });
+
+        socket.on('reconnect_attempt', () => {
+            setSocketStatus('connecting');
+        });
+
+        socket.on('reconnect', () => {
+            setSocketStatus('live');
         });
 
         socket.on('receive_message', (incomingMessage) => {
@@ -99,6 +115,7 @@ export const ChatProvider = ({ children }) => {
         });
 
         socket.on('disconnect', () => {
+            setSocketStatus('offline');
             // Keep the ref so reconnects can happen automatically.
         });
     }, [userId]);
@@ -115,6 +132,7 @@ export const ChatProvider = ({ children }) => {
             const loggedInUser = JSON.parse(loggedInUserStr);
             setUserId(loggedInUser.id || null);
             setUserRole(loggedInUser.role || null);
+            setSocketStatus('offline');
         } catch (error) {
             console.error('Error parsing loggedInUser', error);
         }
@@ -297,7 +315,10 @@ export const ChatProvider = ({ children }) => {
     }, [userId]);
 
     useEffect(() => {
-        if (!userId) return undefined;
+        if (!userId) {
+            setSocketStatus('offline');
+            return undefined;
+        }
 
         ensureSocketConnection();
         refreshChatState();
@@ -338,6 +359,7 @@ export const ChatProvider = ({ children }) => {
                 socketRef.current.disconnect();
                 socketRef.current = null;
             }
+            setSocketStatus('offline');
         };
     }, [ensureSocketConnection, fetchConversations, refreshChatState, userId]);
 
@@ -393,6 +415,7 @@ export const ChatProvider = ({ children }) => {
                 fetchChatHistory,
                 handleTyping,
                 openSupportChat,
+                socketStatus,
             }}
         >
             {children}
