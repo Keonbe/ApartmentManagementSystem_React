@@ -415,7 +415,7 @@ $MYSQL -h $HOST -P $PORT -u root -p ams_db < backend/api/migrations/2026_09_rbac
 ```
 
 > [!CAUTION]
-> Never run `SetupDB.sql` against a database that already has data — its original tables use `DROP TABLE IF EXISTS`. Don't use `clear_and_seed.sql` or `seed_reset.sql` either; both are out of sync with the schema ([database_schema.md §3](../documentation/database_schema.md)).
+> Never run `SetupDB.sql` against a database that already has data — its original tables use `DROP TABLE IF EXISTS`. `clear_and_seed.sql` is safe to run against an existing database (it truncates and reseeds rather than dropping tables), but it resets every account to the shared demo admin password — **never run it against production** ([database_schema.md §3](../documentation/database_schema.md)).
 
 ### 3.3 Verify the import
 

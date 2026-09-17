@@ -497,7 +497,7 @@ flowchart TD
   - **Search fixed:** LIKE wildcards (`%`/`_`) are escaped so they match literally, and log-id search (`LOG-0012`) matches the exact id instead of stripping characters
   - **Export honesty:** a `truncated` flag and "Exported N of M" wording replace the old claim of exporting everything when a search actually hit the 5,000-row cap; CSV cells starting with `= + - @` are now escaped against formula injection
 - [x] **8.7 Utility Usage Tracking** ✅ — `utility_readings` table (now in `SetupDB.sql`), `AdminUtilities.jsx`, `UserUtilities.jsx`. Each unit has one water and electricity reading per billing month. Readings are validated: a meter can't read lower than last month, readings are recorded oldest-first, and rates carry forward. Each reading shows the change from the previous month and flags a usage spike above 30%. A mistyped reading is corrected by deleting the latest un-invoiced one. `sync_utility_to_invoice.php` posts the charge onto the tenant's open invoice for that month, or onto a utilities-only invoice — rent is never billed twice. Reports show units read vs. occupied and which units are still unread. Tenants see only their own readings (session-scoped)
-- [ ] **8.8 Sampling Data / Demo Data** 📋 — Needed for demo (SQL seed script)
+- [x] **8.8 Sampling Data / Demo Data** ✅ — `backend/api/migrations/seed_mock_data.sql`: 12 tenants across 14 rooms (2 vacant, 1 with a pending application), 8 months of invoices (Jan–Aug 2026, mixing paid/overdue/pending-verification and all three payment methods), plus maintenance requests, parking reservations, CCTV requests, service bookings, visitor logs, inquiries/waitlist, announcements, notifications and activity-log rows — enough to demo every Module 8 report tab without an empty state. `seed_reset.sql` removes it cleanly and `clear_and_seed.sql` restores the bare `SetupDB.sql` defaults; both are exercised by CI (`.github/workflows/ci.yml`, the `database` job)
 
 ---
 
@@ -567,14 +567,14 @@ flowchart TD
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
 | 6. Notification | 8 | 6 | 0 | 2 | 0 |
 | 7. Communication | 7 | 0 | 0 | 7 | 0 |
-| 8. Dashboard & Reports | 8 | 7 | 0 | 1 | 0 |
+| 8. Dashboard & Reports | 8 | 8 | 0 | 0 | 0 |
 | 9. Contracts | 7 | 7 | 0 | 0 | 0 |
 | 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 4 | 4 | 0 | 0 | 0 |
-| **TOTAL** | **85** | **73** | **2** | **10** | **0** |
+| **TOTAL** | **85** | **74** | **2** | **9** | **0** |
 
-> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4).
+> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data).
 
 ### Core Functionality Coverage
 
@@ -781,7 +781,7 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 | 8.5 | **Maintenance Monitoring** | Overview: open requests by priority (untriaged first), average resolution time, requests by category, cost vs. monthly budget | Small+ | `get_maintenance_requests.php`, `get_report_data.php` (`maintOpenByPriority`, `maintCategoryCounts`, `maintAvgResolutionHours`, `maintenanceBudget`) | [module_verification_guide.md §11](../documentation/module_verification_guide.md) |
 | 8.6 | **System Activity Logs** | Audit trail: who did what, when. The performer comes from the session and categories are standardised (12). Server-side search and filters; CSV export (itself logged); append-only. Logs admin actions plus security events (admin sign-in, password change/reset, role change, archive, settings keys changed) | Small+ | `get_activity_logs.php`, `activity_logs` table, `log_activity()` / `LOG_CATEGORIES` in `config.php` | [module_verification_guide.md §11](../documentation/module_verification_guide.md) |
 | 8.7 | **Utility Usage Tracking** | Track water/electricity consumption per unit over time and identify unusual usage patterns. Monthly sub-meter readings per unit are validated: no backwards meters, recorded in order, rates carried forward. Each shows the change from the previous month, with a spike flag above 30%. Readings are billed onto invoices without ever re-billing rent, and a mistake is corrected by deleting the latest un-invoiced reading. Reports show consumption, recovery, and occupied units not yet read. Tenants see their own history and averages | Medium | `utility_readings` table, `save_utility_reading.php`, `get_utility_readings.php`, `delete_utility_reading.php`, `sync_utility_to_invoice.php`, `get_utilities_report_data.php`, `AdminUtilities.jsx`, `UserUtilities.jsx` | [module_verification_guide.md §10](../documentation/module_verification_guide.md) |
-| 8.8 | **Sampling Data / Demo Data** | Pre-populated realistic data for demo: 10-20 tenants, 6 months of payment history, maintenance records | Small+ | SQL seed script in `backend/api/migrations/` | — |
+| 8.8 | **Sampling Data / Demo Data** | Pre-populated realistic data for demo: 10-20 tenants, 6 months of payment history, maintenance records | Small+ | `seed_mock_data.sql`, `seed_reset.sql`, `clear_and_seed.sql` in `backend/api/migrations/` | — |
 
 ---
 

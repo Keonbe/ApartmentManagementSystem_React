@@ -135,9 +135,7 @@ If a start script reports "could not be started" but the port is already listeni
 /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/seed_mock_data.sql
 ```
 
-> `seed_mock_data.sql` uses `INSERT IGNORE` throughout, so re-running it is a **no-op, not a refresh**. To genuinely reset, drop and recreate `ams_db` before importing.
->
-> Two other files, `clear_and_seed.sql` and `seed_reset.sql`, are **out of sync with the current schema** — do not use them.
+> `seed_mock_data.sql` uses `INSERT IGNORE` throughout, so re-running it is a **no-op, not a refresh**. To genuinely reset, either drop and recreate `ams_db` before importing, or run `backend/api/migrations/seed_reset.sql` (removes just the seed rows, keeps the admin and settings) before re-importing.
 >
 > **Upgrading an existing database** (not needed after a fresh import): run the idempotent migrations once, in order. The first adds `utility_readings` and its `invoice_id` column. The second adds `login_attempts` with its per-account index and the missing `visitor_logs.id_photo_path` column, and normalises activity-log categories. The third adds `notification_preferences`, `parking_charges`, numbered-slot columns on `parking_reservations`, indexes on `notifications`/`activity_logs`, the parking/sweep settings, and recategorises a handful of existing log rows (contract, unit).
 > ```bash
@@ -239,7 +237,7 @@ Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded Ju
 | 5 | Service Management | ✅ Documented (add-on catalog, bookings, billing, CCTV) | [§8](#8-module-5--service-management) |
 | 6 | Notification Module | ✅ Documented — in-app only; email/SMS remain designed (6.6/6.7) | [§13](#13-module-6--notifications--automation) |
 | 7 | Communication (Two-Way Chat) | ⬜ Not yet audited | — |
-| 8 | Admin Dashboard & Reports | 🟡 Documented except demo data (8.8) — Financial Tracking (8.1–8.3), Utility Usage (8.7), and Reports & Activity Log (8.4–8.6, extended for logging coverage) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
+| 8 | Admin Dashboard & Reports | ✅ Documented — Financial Tracking (8.1–8.3), Utility Usage (8.7), Reports & Activity Log (8.4–8.6, extended for logging coverage), and demo data (8.8, `seed_mock_data.sql`) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
 | 9 | Contract & Document Generation | ✅ Documented — transition guards, one contract per application, termination ends the tenancy | [§15](#15-module-9--contract--document-generation) |
 | 10 | Parking Reservation | ✅ Documented — numbered slots, release on move-out/archive, manual or automatic fee billing | [§14](#14-module-10--parking-reservation) |
 | 11 | Security & Access Control | ✅ Documented — role-based access, authentication and password management (11.1–11.4). CCTV requests (11.5) are in §8 | [§12](#12-module-11--role-based-access) |

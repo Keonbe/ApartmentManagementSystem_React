@@ -1,0 +1,11 @@
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 0
+    phpVersion: 80000 # production runs PHP 8.0; CI's setup-php image is newer
+    paths:
+        - backend
+    excludePaths:
+        - backend/uploads/*
+        - backend/api/migrations/*

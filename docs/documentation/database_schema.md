@@ -510,13 +510,13 @@ Idempotent. It creates `login_attempts` if missing and adds the `(email, attempt
 ### `2026_09_decisions_features.sql` — upgrade for existing databases
 Idempotent. Creates `password_reset_requests`, `household_members`, `expenses` and `unit_waitlist`, and adds the `room_preview_mode` (`images`) and `max_occupants_per_unit` (`8`) settings. A fresh `SetupDB.sql` import does not need it.
 
-### `clear_and_seed.sql` and `seed_reset.sql` — ⚠️ currently out of sync
-Both predate the current schema and the `seed_mock_data.sql` rewrite above, and have **not** been kept in sync:
+### `clear_and_seed.sql` and `seed_reset.sql`
+Both were rewritten in September 2026 to match the current schema and `seed_mock_data.sql`, and CI (`.github/workflows/ci.yml`, the `database` job) imports and runs both on every push to prove they stay in sync:
 
-- **`clear_and_seed.sql`** seeds tenants with the bcrypt hash `$2y$10$92IXUNpkjO0rOQ5byMi...` — this is the same broken hash that was identified and replaced everywhere else in the project because it does not actually verify against `tenant123`. Logging in with tenants seeded by this file will fail. It also assumes the admin lands on `id=1` (explicitly inserted with that id) and only seeds 13 rooms in the old 5/4/4 layout, not the current 6/4/4 one.
-- **`seed_reset.sql`** assumes mock users occupy a contiguous `id BETWEEN 2 AND 9` range, mock `rent_applications` are `id BETWEEN 1 AND 10`, and mock `lease_contracts` are exactly `LC-0001`..`LC-0005` — all of which no longer match `seed_mock_data.sql`'s current ids (12 tenants with non-contiguous ids, 12 applications, 11 contracts) or its announcement titles (this file's `DELETE ... WHERE title IN (...)` list uses the old 2025-dated titles with en-dash characters; the current seed file's titles are 2026-dated with plain hyphens, so none of them match and rooms `A`, `B`, `C`, `F` — occupied by the current seed — are missing from its final "reset rooms to vacant" list).
+- **`clear_and_seed.sql`** truncates every table `SetupDB.sql` creates and re-inserts exactly its default rows: the admin account (`admin@gmail.com` / `admin123`), the 14 rooms in the current 4/4/6 layout, the service catalog, and `system_settings`. It never drops or creates a table, so — unlike `SetupDB.sql` — it's safe to run against a database that already has the current schema. **Never run it against production**: the admin password it restores is the shared demo password, not a real credential.
+- **`seed_reset.sql`** removes exactly what `seed_mock_data.sql` inserts (matched by tenant email, announcement title and audit timestamp, not by id range, so it stays correct however ids were assigned) and resets the rooms it occupied back to vacant. It leaves the admin account, `system_settings` and the service catalog untouched, and `seed_mock_data.sql` can be re-run afterward to restore the demo.
 
-Both need a rewrite to match the current schema and `seed_mock_data.sql` before they're safe to use again — treat them as reference/historical only until that happens.
+Both files carry a comment that they must be kept in sync with `seed_mock_data.sql`; when that file's tenant list, rooms or announcement titles change, update these two in the same commit.
 
 ### Recommended fresh-setup order
 ```bash

@@ -4,8 +4,8 @@
 > Stack: **React 19 + Vite 8** frontend, **PHP 8 REST API** backend, **MySQL/MariaDB** database.
 
 > ⚠️ **Verified against the repo (Sept 2026) before adopting this as-is:**
-> - `npm run lint` currently fails with **191 problems (178 errors)**. `.github/workflows/ci.yml` has been created with the lint step de-risked per **Option (A)** below (`continue-on-error: true`), so CI is wired up and green without blocking on the remaining backlog. See [Known Gaps & Fixes](#known-gaps--fixes-before-adopting-this-as-is) below for what's left.
-> - Local dev (XAMPP) and `backend/api/migrations/SetupDB.sql` are **MariaDB**, not MySQL — the Database Job below has been updated to use `mariadb:10.11` instead of `mysql:8.0` for this reason (the file uses `ADD COLUMN IF NOT EXISTS`, a MariaDB-only extension that real MySQL rejects).
+> - `npm run lint` is clean (0 errors) as of the September 2026 lint-backlog cleanup. `.github/workflows/ci.yml`'s lint step is a real, blocking check — `continue-on-error` was removed once the backlog was cleared. See [Known Gaps & Fixes](#known-gaps--fixes-before-adopting-this-as-is) below.
+> - Local dev (XAMPP) and `backend/api/migrations/SetupDB.sql` are **MariaDB**, not MySQL — the Database Job below has been updated to use `mariadb:10.11` instead of `mysql:8.0` for this reason (the file uses `ADD COLUMN IF NOT EXISTS`, a MariaDB-only extension that real MySQL rejects). This job, plus a live-endpoint smoke-test job and PHPStan in the backend job, are wired up in `.github/workflows/ci.yml`.
 > - This project has **20 commits, 100% pushed directly to `main`, no PRs opened, no other branch ever created**. The "Git Branching Strategy" section below is a genuine workflow change, not just a config change — read it with that in mind before flipping on branch protection.
 >
 > Everything else in this document — the 80-endpoint PHP syntax check, the stack versions, the deployment target guidance — was verified accurate against the current codebase.
@@ -61,24 +61,16 @@ For a capstone with 80+ PHP endpoints and 30+ React pages, a broken import or a 
 
 This section documents three things that were checked against the live repo and don't match what the rest of this document originally assumed. Read this before running the Week 1 checklist.
 
-### 1. Lint currently fails — 191 problems, 178 errors (Option A adopted)
+### 1. Lint backlog cleared — the lint step is now a required, blocking check
 
-Running `cd ams-react && npm run lint` today reports **191 problems (178 errors, 13 warnings)** — mostly a repo-wide `'React' is defined but never used` pattern (leftover default imports under the new JSX transform) plus a handful of real bugs (the duplicate `payBills.*` keys below have already been fixed). This isn't a defect in the CI plan itself, but it means:
+`npm run lint` used to report 191 problems (178 errors), mostly a repo-wide `'React' is defined but never used` pattern (leftover default imports under the new JSX transform) plus ~40 React Compiler ESLint rule violations (`react-hooks/immutability`: a fetch function used in a `useEffect` above the point it was declared; `react-hooks/set-state-in-effect`: state set synchronously in an effect body before the first `await`). Those were cleared in September 2026:
 
-- If you add the `frontend` job exactly as written and immediately enable **"Require status checks to pass before merging"**, every push and PR will show a red ❌ from day one, with no way to merge until all 216 errors are fixed.
-- Since this repo's entire history is direct pushes to `main` (no PRs), enabling that protection rule also blocks your own future direct pushes — you'd lock yourself out of your own repo.
+- Unused `React` and icon imports were removed (the new JSX transform doesn't need the default `React` import).
+- Effects that call a `fetch*` helper declared later in the component were reordered so the helper is declared first, or the fetch was wrapped in an inline `async` function inside the effect.
+- Effects that set state synchronously before their first `await` (loading flags, filter-derived resets) were rewritten to derive that state from render-time values instead, or to set it in the event handler that triggers the fetch rather than in the effect.
+- Two small dead-code cleanups fell out of this pass: `AdminPayments.jsx`'s unused ad-hoc payment-history editor (`showEditHistoryModal`/`handleSaveHistory`, dead since nothing wired it to a save endpoint — tracked separately as `M10`) and an unused `pendingReviewCount` in `AdminTenants.jsx`.
 
-**Two ways to de-risk this**, pick one:
-
-- **(A) Recommended for a capstone timeline — adopted)** Add the lint step as *visible but non-blocking* first, so it reports without failing the build:
-  ```yaml
-  - name: Run ESLint
-    run: npm run lint
-    continue-on-error: true   # remove once the backlog below is cleared
-  ```
-  This is what `.github/workflows/ci.yml` does today. Burn down the errors incrementally, and remove `continue-on-error` once `npm run lint` exits clean — *that's* the point where "require this check" becomes safe to enable.
-
-- **(B) Fix first, gate second)** Spend an afternoon clearing the backlog (most of it is the same one-line fix repeated ~180 times: remove the unused `import React from 'react'` line, since the new JSX transform doesn't need it), then add the job as a required, blocking check from the start. This is cleaner but costs upfront time you may not have mid-capstone.
+`.github/workflows/ci.yml`'s lint step no longer has `continue-on-error` — a red lint run now fails the `frontend` job.
 
 One bug that was worth fixing regardless of CI has already been fixed: `ams-react/src/config/i18n.js` defined `'payBills.heading'` and `'payBills.subtext'` twice in the same object. In a JS object literal the second definition silently wins — the first pair ("Payment Processing Portal" / "instant validation" copy) was dead code that could never render. `no-dupe-keys` flagged this exact case; the dead pair has been deleted, which is reflected in the lower problem count above.
 
@@ -394,7 +386,7 @@ If any step fails, the entire job fails, and the PR is blocked from merging.
 | Step | Purpose |
 |---|---|
 | `php -l` on all files | Catches syntax errors (missing semicolons, unclosed brackets, invalid PHP) across all 80+ endpoint files |
-| PHPStan (optional) | Static analysis — finds type errors, undefined variables, dead code |
+| PHPStan (`phpstan.neon`, level 0) | Static analysis — finds type errors, undefined variables, dead code. Pinned to `phpVersion: 80000` to match production PHP 8.0 rather than the CI image's 8.2; a `phpstan-baseline.neon` ignores 7 pre-existing findings caused by this codebase's endpoint-local `function fail(...)` name reuse (see Week 3 above) |
 
 This is particularly valuable because PHP doesn't have a "compile" step. A syntax error in `get_report_data.php` won't surface until someone actually hits that endpoint — CI catches it immediately.
 
@@ -405,11 +397,23 @@ This is particularly valuable because PHP doesn't have a "compile" step. A synta
 | Start MariaDB 10.11 service | Spins up a real MariaDB instance inside the GitHub Actions runner — matches local XAMPP and `SetupDB.sql`'s own dialect (see [Known Gaps & Fixes](#known-gaps--fixes-before-adopting-this-as-is)) |
 | Import `SetupDB.sql` | Verifies the schema SQL is valid and can create all tables from scratch |
 | Validate table count | Sanity check that the expected tables were created |
+| Import `seed_mock_data.sql`, then `seed_reset.sql`, then re-import | Proves the demo seed and its reset script stay in sync with each other and can round-trip |
+| Import `clear_and_seed.sql` | Proves it restores exactly the `SetupDB.sql` defaults (1 admin, 14 rooms, service catalog, settings) without dropping any table |
+| Apply every `2026_09_*.sql` upgrade migration | Proves the idempotent upgrade migrations still apply cleanly on top of a fresh schema |
 
 This catches issues like:
 - Broken foreign key references
 - SQL syntax errors in migration files
 - Missing table definitions
+- The seed and reset scripts drifting out of sync with each other (the exact failure mode that caused `clear_and_seed.sql`/`seed_reset.sql` to go stale before their September 2026 rewrite — see `database_schema.md`)
+
+#### 🟪 Smoke-Test Job
+
+| Step | Purpose |
+|---|---|
+| Seed schema + demo data, boot `php -S` | Runs the real backend against a real database, the same way XAMPP does, instead of just checking syntax |
+| Hit unauthenticated `get_*.php` endpoints | Catches a bad `JOIN` or wrong bind-param type that only surfaces at request time, not at `php -l` |
+| Log in as the seeded admin, hit an authenticated endpoint with the returned Bearer token | Exercises the session/auth path (`require_admin`, `config.php`'s session lookup) end to end |
 
 ---
 
@@ -892,14 +896,14 @@ Implement CI/CD incrementally. Don't try to do everything at once.
 ### 🟢 Week 1 — Foundation (get CI green)
 
 - [x] Create `.github/workflows/ci.yml` with the frontend and backend jobs — pinned Node `20.19`, `continue-on-error` on lint (Option A)
-- [ ] Push to GitHub and verify the workflow runs
+- [x] Push to GitHub and verify the workflow runs
 - [x] Fix the two-line `payBills.heading`/`payBills.subtext` duplicate-key bug in `i18n.js` (a real, tool-confirmed defect, independent of CI)
-- [ ] Start burning down the remaining 178 lint errors — even a handful of commits knocking out the repeated `'React' is defined but never used` pattern gets you most of the way there
-- [ ] Once `npm run lint` exits clean locally, remove `continue-on-error` from the lint step so it becomes a real, blocking check
+- [x] Start burning down the remaining 178 lint errors — even a handful of commits knocking out the repeated `'React' is defined but never used` pattern gets you most of the way there
+- [x] Once `npm run lint` exits clean locally, remove `continue-on-error` from the lint step so it becomes a real, blocking check
 
 ### 🟡 Week 2 — Refine (now gate on it)
 
-- [ ] Add the database schema validation job (MariaDB service, per the correction above)
+- [x] Add the database schema validation job (MariaDB service, per the correction above) — plus steps that round-trip `seed_mock_data.sql` → `seed_reset.sql` → re-seed → `clear_and_seed.sql` and apply every `2026_09_*.sql` upgrade migration, so the seed/reset scripts and the idempotent migrations are proven on every push, not just the schema
 - [ ] Add the CI status badge to `README.md`
 - [ ] ~~**Now** enable branch protection on `main`~~ — not adopted (see the decision below). Instead, keep CI results visible on every push and act on red runs.
 - [x] Decide deliberately whether to adopt the feature-branch/PR workflow described above, or keep pushing to `main` directly with CI purely as a safety net — **decided 2026-09-16:** push routine work and bug fixes straight to `main`; use a `feature/` branch for big implementations; no required-PR protection (see [Git Branching Strategy](#git-branching-strategy))
@@ -908,45 +912,10 @@ Implement CI/CD incrementally. Don't try to do everything at once.
 
 - [ ] Install Vitest and write 3–5 basic component tests
 - [ ] Uncomment the test step in CI
-- [ ] Consider adding PHPStan for static PHP analysis
-- [ ] **Coverage gap worth closing:** none of the jobs above ever run PHP against a live database — syntax-checking and schema-import don't catch a bad `JOIN` or wrong bind-param type in one of the 80 endpoints. A cheap fourth job that boots PHP's built-in server against the CI MariaDB instance and `curl`s a few read-only `get_*.php` endpoints is far less work than full PHPUnit coverage and catches a real class of bug the other three jobs can't:
-  ```yaml
-  smoke-test:
-    name: Backend (Live Endpoint Smoke Test)
-    runs-on: ubuntu-latest
-    needs: database   # reuse the schema once it's proven to import cleanly
-    services:
-      mariadb:
-        image: mariadb:10.11
-        env:
-          MARIADB_ROOT_PASSWORD: root
-          MARIADB_DATABASE: ams_db
-        ports: ["3306:3306"]
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s --health-timeout=5s --health-retries=5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.2"
-          extensions: mysqli, pdo, pdo_mysql, fileinfo, mbstring
-      - name: Seed schema
-        run: mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/SetupDB.sql
-      - name: Boot PHP built-in server
-        working-directory: backend
-        run: php -S 127.0.0.1:8080 &
-      - name: Wait for server
-        run: until curl -s http://127.0.0.1:8080/api/get_system_settings.php > /dev/null; do sleep 1; done
-      - name: Smoke-test a few read-only endpoints
-        run: |
-          for ep in get_system_settings.php get_rooms.php get_announcements.php; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8080/api/$ep")
-            echo "$ep -> $code"
-            [ "$code" = "200" ] || { echo "❌ $ep returned $code"; exit 1; }
-          done
-  ```
-  (Adjust `config.env.php`/`DB_HOST` handling as needed — the CI runner's MariaDB is on `127.0.0.1`, not `localhost` XAMPP's default.)
+- [x] Consider adding PHPStan for static PHP analysis — added at level 0 with `phpVersion: 80000` (matching production PHP 8.0, not the CI image's 8.2) in the `backend` job. A `phpstan-baseline.neon` ignores 7 `arguments.count` findings that are a PHPStan artifact of this codebase's pattern of standalone endpoint files each declaring their own local `function fail(...)` with different signatures — safe at runtime since the files never run in the same request, but PHPStan analyses all of `backend/` as one shared global namespace and cross-checks calls against whichever declaration it saw. Not a real bug; a baseline is the right tool rather than renaming working, endpoint-local helpers.
+- [x] **Coverage gap worth closing:** none of the jobs above ever run PHP against a live database — syntax-checking and schema-import don't catch a bad `JOIN` or wrong bind-param type in one of the 80 endpoints. The `smoke-test` job in `.github/workflows/ci.yml` does this: it seeds the schema and demo data, boots PHP's built-in server, hits three unauthenticated read-only endpoints (`get_system_settings.php`, `get_rooms.php`, `get_service_catalog.php` — `get_announcements.php` turned out to always require `require_user`/`require_admin`, so it doesn't fit an unauthenticated smoke test), then logs in as the seeded admin and hits an authenticated one (`dashboard_stats.php`) with the returned Bearer token.
+
+  The tracked `backend/config.env.php` hardcodes `DB_HOST=localhost` for XAMPP, which makes mysqli use a Unix socket rather than TCP — the job overwrites that file with the CI MariaDB's `127.0.0.1` host before booting the server, since the checked-in file always wins over environment variables (see `config.php`'s load order).
 
 ### 🔴 Week 4 — Deploy, Single Target (Optional)
 

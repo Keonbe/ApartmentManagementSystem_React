@@ -30,9 +30,9 @@
 | Frontend | 10 | 0 |
 | Security | 19 | 6 |
 | Deployment | 16 | 0 |
-| Testing and quality | 8 | 0 |
+| Testing and quality | 2 | 0 |
 | Documentation | 11 | 0 |
-| **Total** | **93** | **16** |
+| **Total** | **87** | **16** |
 
 Another 2 open decisions are listed under [Needs decision](#needs-decision). They are not counted above. Seven questions were decided on 2026-09-16 (see [Decided 2026-09-16](#decided-2026-09-16)); the resulting features were built on 2026-09-17 (see [Recently Completed](#recently-completed)).
 
@@ -43,7 +43,6 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 - **Least-privilege DB user (A-3)** is blocked by the DDL that still runs at request time (D-9 / L2).
 - **Going live with PayMongo** and the live-mode webhook check (H9a) are blocked until PayMongo verifies the business.
 - **Email and SMS** are blocked until provider accounts exist (Resend or Gmail SMTP, and Semaphore).
-- **Blocking lint check in CI** (removing `continue-on-error`) is blocked by the 178 existing ESLint errors. Branch protection is not planned (see the branch rule decided 2026-09-16).
 - **Chat:** phases 2 and 3 depend on phase 1.
 
 **Recommended execution order**
@@ -54,7 +53,7 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 4. **Audit Phase 3 (documents):** H2 / B-8, H3, B-6, and the checkout return URLs.
 5. **Audit Phase 4 (billing integrity):** H8, H9, M12, H10, M8, M9.
 6. **Make the cloud stack usable:** `vercel.json`, the uploads volume, `ALLOWED_ORIGINS`, and HTTPS plus security headers.
-7. **Remaining work:** the Phase 5 Mediums, then the Phase 6 Lows, then the lint backlog and CI hardening.
+7. **Remaining work:** the Phase 5 Mediums, then the Phase 6 Lows.
 8. **Last:** feature enhancements (email/SMS, chat, backlog items) and fixing stale docs.
 
 ---
@@ -157,14 +156,8 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 
 | Status | Priority | Task | Source |
 |---|---|---|---|
-| [ ] | Unprioritized | **Maint** Clear the ESLint backlog (178 errors, mostly unused `React` imports). | [cicd Known Gaps](deployment/cicd_pipeline.md#1-lint-currently-fails--191-problems-178-errors-option-a-adopted), [cicd Week 1](deployment/cicd_pipeline.md#-week-1--foundation-get-ci-green) |
-| [ ] | Unprioritized | **Maint** Remove `continue-on-error` from the lint step in `ci.yml`. *Depends on:* the lint backlog. | [cicd Week 1](deployment/cicd_pipeline.md#-week-1--foundation-get-ci-green) |
-| [ ] | Unprioritized | **Enh** Add a MariaDB schema-validation job to CI (`mariadb:10.11`). | [cicd Week 2](deployment/cicd_pipeline.md#-week-2--refine-now-gate-on-it) |
 | [ ] | Unprioritized | **Optional** Add Vitest with 3–5 tests and enable the CI test step (*Stretch*). | [cicd Week 3](deployment/cicd_pipeline.md#-week-3--test-stretch) |
-| [ ] | Unprioritized | **Optional** Add PHPStan, and run the PHP endpoints against a live DB in CI (*Stretch*). *Depends on:* the schema job. | [cicd Week 3](deployment/cicd_pipeline.md#-week-3--test-stretch) |
-| [ ] | Unprioritized | **Bug** `clear_and_seed.sql` and `seed_reset.sql` are out of sync: the bcrypt hash is broken and the ID ranges are stale. | [database_schema.md (seed scripts section)](documentation/database_schema.md) |
 | [ ] | Unprioritized | **Maint** Run the move-in/move-out lifecycle checklist before deployment (room vacating, `is_archived` toggle, button states, full end-to-end run). | [move_in_move_out_design §6](features/move_in_move_out_design.md#6-pre-deployment-checklist-for-move-inout) |
-| [ ] | Unprioritized | **Maint** Demo/sample data (checklist 8.8 is still 📋, but `seed_mock_data.sql` exists). Confirm it covers the demo, then close the item. | [Checklist Module 8](features/panelist_feature_checklist.md#module-8--admin-dashboard--reports) |
 
 ## Documentation
 
@@ -214,7 +207,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 | Status | Item | Source |
 |---|---|---|
 | [x] | Railway prep (2026-09-16): `Dockerfile`, DB settings read from env, `VITE_API_BASE_URL`, `fileUrl.js` for every file link, `cors.php` allowlist (C-3, E-1, E-5), JSON error on a failed DB connect | [TASK.md](../TASK.md), [environment_config.md](deployment/environment_config.md), [saas guide §0](deployment/saas_deployment_guide.md#0-before-you-start--readiness-status) |
-| [x] | CI workflow: frontend lint (non-blocking) and build, PHP syntax check | [cicd Week 1](deployment/cicd_pipeline.md#-week-1--foundation-get-ci-green) |
+| [x] | CI workflow (2026-09-16): frontend lint (non-blocking) and build, PHP syntax check | [cicd Week 1](deployment/cicd_pipeline.md#-week-1--foundation-get-ci-green) |
 | [x] | Access control: session-only identity (A-7), session revocation (A-8), login and change-password throttle, visitor upload validation (B-7) | [security_audit §6d](security_audit.md#6d-role-based-access--activity-log-hardening-2026-09-14) |
 | [x] | Billing, maintenance and service hardening (webhook replay, invoice state guards, IDOR fixes) | [security_audit §6b](security_audit.md#6b-billing--payments-hardening-2026-09), [§6c](security_audit.md#6c-maintenance--service-management-hardening-2026-09) |
 | [x] | Module audits 1, 2, 5 and 9–12 fully ✅; modules 3, 4 and 8 have one open item each | [Checklist summary](features/panelist_feature_checklist.md#summary--implementation-progress) |
@@ -233,3 +226,8 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 | [x] | Expenses table with manual entry in Reports (2026-09-17) | [todo.md Reports](todo.md#reports), [database_schema.md](documentation/database_schema.md) |
 | [x] | Inquiry conversion report and basic unit waitlist (2026-09-17) | [inquiry_reservation_design §8](features/inquiry_reservation_design.md#8-planned-and-deferred) |
 | [x] | Server-side notification preferences † (`get_/update_notification_preferences.php`) | [external_services §1](documentation/external_services.md#1-external-service-integration-matrix) |
+| [x] | ESLint backlog cleared (2026-09-17): 178 errors → 0, mostly unused `React`/icon imports plus ~40 React Compiler rule fixes (`react-hooks/immutability`, `react-hooks/set-state-in-effect`); `continue-on-error` removed from the CI lint step, which is now a real, blocking check | [cicd Known Gaps §1](deployment/cicd_pipeline.md#1-lint-backlog-cleared--the-lint-step-is-now-a-required-blocking-check), [cicd Week 1](deployment/cicd_pipeline.md#-week-1--foundation-get-ci-green) |
+| [x] | CI `database` job (2026-09-17): imports `SetupDB.sql` against `mariadb:10.11`, validates the table count, then round-trips `seed_mock_data.sql` → `seed_reset.sql` → re-seed → `clear_and_seed.sql` and applies every `2026_09_*.sql` upgrade migration | [cicd Week 2](deployment/cicd_pipeline.md#-week-2--refine-now-gate-on-it) |
+| [x] | PHPStan (2026-09-17, level 0, `phpVersion: 80000`) in the CI `backend` job, plus a `smoke-test` job that boots `php -S` against the CI database and exercises an unauthenticated and an authenticated (login + Bearer token) endpoint | [cicd Week 3](deployment/cicd_pipeline.md#-week-3--test-stretch) |
+| [x] | `clear_and_seed.sql` and `seed_reset.sql` rewritten (2026-09-17) to match the current schema and `seed_mock_data.sql`: `clear_and_seed.sql` truncates and restores exactly the `SetupDB.sql` defaults; `seed_reset.sql` removes exactly what `seed_mock_data.sql` inserts, matched by email/title rather than stale id ranges | [database_schema.md (seed scripts section)](documentation/database_schema.md) |
+| [x] | Demo/sample data confirmed and checklist 8.8 closed (2026-09-17): `seed_mock_data.sql` covers 12 tenants, 8 months of invoices and maintenance/parking/CCTV/service records | [Checklist Module 8](features/panelist_feature_checklist.md#module-8--admin-dashboard--reports) |
