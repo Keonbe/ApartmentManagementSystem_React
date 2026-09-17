@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
     $upload_dir = $base_path . "/uploads/avatars/";
     
     if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
+        mkdir($upload_dir, 0755, true);
     }
     
     $file_extension = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
         exit;
     }
 
-    $file_name = time() . "_" . uniqid() . "." . $file_extension;
+    $file_name = time() . "_" . bin2hex(random_bytes(16)) . "." . $file_extension;
     $server_path = $upload_dir . $file_name;
     
     $relative_path = "uploads/avatars/" . $file_name;

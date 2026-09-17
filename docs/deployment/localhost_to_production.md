@@ -218,21 +218,17 @@ error_log = /var/log/php/ams_errors.log
   chown -R www-data:www-data backend/uploads/
   chmod -R 755 backend/uploads/
   ```
-- [x] ~~**Add `backend/uploads/.htaccess`** to block directory listing and PHP execution in uploads~~ — already exists at `backend/uploads/.htaccess`. Note it uses the Apache 2.2-style directive:
+- [x] ~~**Add `backend/uploads/.htaccess`** to block directory listing and PHP execution in uploads~~ — fixed 2026-09-17 (audit H2/B-8): `backend/uploads/.htaccess` (gitignored, so re-create it on the server — see below) now denies *all* direct requests, not just script execution, using the Apache 2.4-native form (`mod_access_compat`'s `Order`/`Deny from all` isn't on by default on every distro):
   ```apache
   Options -Indexes
-  <FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps|cgi|pl|py|sh)$">
-      Order Deny,Allow
-      Deny from all
-  </FilesMatch>
-  ```
-  `Order`/`Deny from all` requires `mod_access_compat` on Apache 2.4+ (it's not on by default on every distro). **Verify this actually blocks execution on the target production Apache** — if not, switch to the 2.4-native form:
-  ```apache
-  Options -Indexes
-  <FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps|cgi|pl|py|sh)$">
+  <RequireAll>
+      Require all denied
+  </RequireAll>
+  <FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps|phar|pht|cgi|pl|py|sh|html|htm|svg)$">
       Require all denied
   </FilesMatch>
   ```
+  Every document that used to be a static `/uploads/...` link (gov IDs, NBI clearances, payment proofs, leases, avatars, attachments) is now served only through the authenticated `backend/api/download_file.php` endpoint, which checks the resource's owner or admin role before reading the file — `fileUrl.js` on the frontend already points there. The Docker image (`Dockerfile`) applies the same `Require all denied` at the vhost level instead of a `.htaccess`, since a mounted uploads volume hides it.
 - [ ] **Confirm `php.ini` limits** on server:
   ```ini
   upload_max_filesize = 10M
@@ -440,7 +436,8 @@ BACKEND
 [ ] GET https://yourdomain.com/backend/api/get_rooms.php returns JSON (not HTML/500)
 [ ] Login with admin credentials succeeds
 [ ] File upload: submit a maintenance request with a photo — verify it saves
-[ ] Uploaded file accessible: https://yourdomain.com/backend/uploads/maintenance/<file>
+[ ] Direct static access is blocked: https://yourdomain.com/backend/uploads/maintenance/<file> returns 403
+[ ] The same file loads through https://yourdomain.com/backend/api/download_file.php?path=uploads/maintenance/<file>&token=<a valid session token> (H2/B-8 — this replaces the static link)
 [ ] /backend/uploads/ returns 403 (not a directory listing)
 [ ] /backend/uploads/test.php returns 403 (PHP blocked in uploads)
 [ ] PHP error log shows no warnings after login + navigation test

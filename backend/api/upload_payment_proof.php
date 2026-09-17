@@ -67,10 +67,10 @@ if ($proof_file) {
 
     $upload_dir = '../uploads/payment_proofs/';
     if (!file_exists($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
+        mkdir($upload_dir, 0755, true);
     }
-    
-    $file_name = 'proof_' . uniqid() . '.' . $file_extension;
+
+    $file_name = 'proof_' . bin2hex(random_bytes(16)) . '.' . $file_extension;
     $target_file = $upload_dir . $file_name;
     
     if (move_uploaded_file($proof_file['tmp_name'], $target_file)) {

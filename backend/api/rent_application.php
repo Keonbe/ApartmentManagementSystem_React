@@ -154,9 +154,9 @@ foreach ($required_files as $fileKey) {
     }
 }
 
-$upload_dir = "../uploads/applications/"; 
+$upload_dir = "../uploads/applications/";
 if (!is_dir($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
+    mkdir($upload_dir, 0755, true);
 }
 // Update the uploadFile function definition
 function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
@@ -164,12 +164,11 @@ function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
         $file_name = basename($_FILES[$fileInputName]['name']);
         $file_tmp = $_FILES[$fileInputName]['tmp_name'];
         $extension = pathinfo($file_name, PATHINFO_EXTENSION);
-        
-        // Create a clean prefix: remove spaces/special chars from the user's name
-        $safe_name = preg_replace("/[^a-zA-Z0-9]/", "_", $user_name_prefix);
-        
-        // Format: Name_Type_Timestamp_Random.ext
-        $unique_file_name = $safe_name . "_" . $fileInputName . "_" . time() . "_" . uniqid() . "." . $extension;
+
+        // Random, non-guessable name — the filename used to embed the
+        // applicant's name and a time-seeded uniqid(), which brute-forced
+        // gov-ID/NBI files (H2/B-8).
+        $unique_file_name = bin2hex(random_bytes(16)) . "." . $extension;
         $destination = $upload_dir . $unique_file_name;
         
         if (move_uploaded_file($file_tmp, $destination)) {

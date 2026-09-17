@@ -197,7 +197,7 @@ export default function PayBills() {
                     invoice_id: billDetails.invoiceId,
                     channel: currentMethodObj.id,
                     success_url: `${returnBase}#/pay-bills?status=success&invoice_id=${encodeURIComponent(billDetails.invoiceId)}`,
-                    cancel_url: `${returnBase}#/pay-bills?status=cancelled`
+                    cancel_url: `${returnBase}#/pay-bills?status=cancelled&invoice_id=${encodeURIComponent(billDetails.invoiceId)}`
                 });
                 
                 if (res.data.success && res.data.checkout_url) {

@@ -19,8 +19,11 @@ RUN { \
       echo "log_errors=On"; \
     } > /usr/local/etc/php/conf.d/ams.ini
 
-# Never execute scripts or list files inside uploads. This replaces
-# backend/uploads/.htaccess, which a mounted volume would hide.
+# Never execute scripts, list files, or serve raw reads inside uploads. This
+# replaces backend/uploads/.htaccess, which a mounted volume would hide.
+# Uploaded documents (gov IDs, NBI clearances, payment proofs, leases) are
+# only ever read back through the authenticated download_file.php endpoint,
+# never as a static file (H2/B-8).
 RUN { \
       echo "<Directory /var/www/html>"; \
       echo "  Options -Indexes"; \
@@ -28,6 +31,7 @@ RUN { \
       echo "<Directory /var/www/html/uploads>"; \
       echo "  php_admin_flag engine off"; \
       echo "  Options -Indexes"; \
+      echo "  Require all denied"; \
       echo "</Directory>"; \
     } > /etc/apache2/conf-enabled/ams.conf
 

@@ -1,0 +1,105 @@
+<?php
+require_once __DIR__ . '/../cors.php';
+require_once __DIR__ . '/../config.php';
+
+// <img>/<a> tags can't attach an Authorization header, so this is the one
+// endpoint that also accepts the session token as a query parameter and
+// treats it exactly like the header every other endpoint requires.
+if (empty($_SERVER['HTTP_AUTHORIZATION']) && !empty($_GET['token'])) {
+    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];
+}
+
+function download_fail($code, $message) {
+    http_response_code($code);
+    header('Content-Type: application/json');
+    echo json_encode(["success" => false, "message" => $message]);
+    exit;
+}
+
+function find_owner($conn, $sql, $params) {
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? (int)$row['owner_id'] : null;
+}
+
+$path = $_GET['path'] ?? '';
+if (!is_string($path) || $path === '') download_fail(400, "Missing file path.");
+
+// Stored paths are sometimes "uploads/..." and sometimes "../uploads/...";
+// normalize to the former before anything else.
+$normalized = ltrim(preg_replace('#^(\.\./|/)+#', '', $path), '/');
+
+// This alone blocks path traversal, before any filesystem or DB access:
+// only "uploads/<subfolder>/<filename>" with a safe charset is accepted.
+if (!preg_match('#^uploads/[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$#', $normalized)) {
+    download_fail(400, "Invalid file path.");
+}
+
+$base_dir = realpath(__DIR__ . '/../uploads');
+$real_path = realpath(__DIR__ . '/../' . $normalized);
+if ($base_dir === false || $real_path === false || strncmp($real_path, $base_dir, strlen($base_dir)) !== 0) {
+    download_fail(404, "File not found.");
+}
+
+// A download must map to a row that still references this exact path — that
+// both rules out fishing for arbitrary uploads/ files and gives us the
+// owner to check the caller's session against (H2/B-8).
+$candidates = [$normalized, '../' . $normalized];
+$two = [$candidates[0], $candidates[1]];
+$six = [$candidates[0], $candidates[1], $candidates[0], $candidates[1], $candidates[0], $candidates[1]];
+
+$owner = null;
+$access = 'owner';
+
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM rent_applications WHERE valid_id_front_path IN (?,?) OR valid_id_back_path IN (?,?) OR nbi_clearance_path IN (?,?) LIMIT 1", $six);
+}
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE proof_of_payment_path IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) LIMIT 1", [$candidates[0], $candidates[1], $candidates[0], $candidates[1]]);
+}
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT id AS owner_id FROM users WHERE avatar_url IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM service_requests WHERE attachment_path IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM maintenance_requests WHERE attachment_path IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM parking_reservations WHERE document_path IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
+    // Visitor ID photos belong to a third party, not the hosting tenant —
+    // only an admin may view them, regardless of whose unit they visited.
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM visitor_logs WHERE id_photo_path IN (?,?) LIMIT 1", $two);
+    if ($owner !== null) $access = 'admin_only';
+}
+
+if ($owner === null) download_fail(404, "File not found.");
+
+if ($access === 'admin_only') {
+    require_admin($conn);
+} else {
+    require_owner_or_admin($conn, $owner);
+}
+
+$finfo = finfo_open(FILEINFO_MIME_TYPE);
+$mime = finfo_file($finfo, $real_path) ?: 'application/octet-stream';
+finfo_close($finfo);
+
+header_remove('Content-Type');
+header('Content-Type: ' . $mime);
+header('X-Content-Type-Options: nosniff');
+header('Content-Disposition: inline; filename="' . basename($real_path) . '"');
+header('Content-Length: ' . filesize($real_path));
+header('Cache-Control: private, max-age=0, no-cache');
+readfile($real_path);
+$conn->close();
+exit;

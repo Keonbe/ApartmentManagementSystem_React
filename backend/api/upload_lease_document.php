@@ -150,10 +150,11 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
 
     $upload_dir = "../uploads/documents/";
     if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
+        mkdir($upload_dir, 0755, true);
     }
 
-    $unique_file_name = time() . "_" . uniqid() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", $file_name);
+    $doc_extension = pathinfo($file_name, PATHINFO_EXTENSION);
+    $unique_file_name = bin2hex(random_bytes(16)) . "." . $doc_extension;
     $destination = $upload_dir . $unique_file_name;
 
     if (move_uploaded_file($file_tmp, $destination)) {

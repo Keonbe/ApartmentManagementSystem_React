@@ -133,12 +133,11 @@ if (isset($_FILES['uploadedFile']) && $_FILES['uploadedFile']['error'] !== UPLOA
     $upload_dir = "../uploads/services/";
 
     if (!is_dir($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
+        mkdir($upload_dir, 0755, true);
     }
 
-    // SANITIZE: Replace spaces and special characters with underscores
-    $safe_file_name = preg_replace("/[^a-zA-Z0-9.]/", "_", $file_name);
-    $unique_file_name = time() . "_" . uniqid() . "_" . $safe_file_name;
+    $attachment_extension = pathinfo($file_name, PATHINFO_EXTENSION);
+    $unique_file_name = bin2hex(random_bytes(16)) . "." . $attachment_extension;
 
     if (move_uploaded_file($file_tmp, $upload_dir . $unique_file_name)) {
         // Store the WEB-relative path so the frontend can link it directly

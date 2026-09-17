@@ -34,9 +34,9 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | B-3 | Validate file **extension** in `upload_payment_proof.php` (allow: jpg, jpeg, png, webp, pdf) | Same RCE risk | `[x]` |
 | B-4 | Switch all MIME detection to `finfo_file()` — never trust `$_FILES['type']` (client-supplied) | Spoofed MIME bypasses extension-based guards | `[x]` |
 | B-5 | Add `backend/uploads/.htaccess` blocking PHP execution and directory listing | Even if PHP is uploaded, it can be executed from the URL | `[x]` |
-| B-6 | Set upload directory permissions: `chown www-data` + `chmod 755` | World-writable uploads are a server foothold | `[ ]` |
+| B-6 | Set upload directory permissions: `chown www-data` + `chmod 755` | World-writable uploads are a server foothold | `[~]` 2026-09-17 — every `mkdir()` for an upload directory now creates it `0755` (was `0777`) in `profile.php`, `rent_application.php`, `service_request.php`, `upload_lease_document.php`, `upload_payment_proof.php`, matching `parking_reservation.php`/`check_in_visitor.php`/`config.php`, which already did. `chown www-data` on the actual production filesystem is still a post-deploy action, same as A-1/A-2 |
 | B-7 | Validate extension + MIME on `check_in_visitor.php`'s `idPhoto` upload | No check at all today — the client's extension is kept as-is, allowing `.html`/`.svg` (stored XSS) or other types not covered by the uploads `.htaccess` denylist | `[x]` 2026-09-14 — JPG/PNG/WEBP allowlist, `finfo_file()`, 5 MB, random filename |
-| B-8 | Gate access to sensitive uploaded documents (gov-ID, NBI clearance, payment proofs, signed leases) behind an authenticated download endpoint instead of a static, guessable-path file URL | Filenames are `<Name>_<field>_<time>_<uniqid>.ext` — `uniqid()` is time-seeded and brute-forceable, so anyone who finds/guesses one URL can view another tenant's ID photos or bank proof | `[ ]` |
+| B-8 | Gate access to sensitive uploaded documents (gov-ID, NBI clearance, payment proofs, signed leases) behind an authenticated download endpoint instead of a static, guessable-path file URL | Filenames are `<Name>_<field>_<time>_<uniqid>.ext` — `uniqid()` is time-seeded and brute-forceable, so anyone who finds/guesses one URL can view another tenant's ID photos or bank proof | `[x]` 2026-09-17 — `backend/uploads/.htaccess` now denies every direct request (Apache 2.4 `Require all denied`, replacing the 2.2-only `Order`/`Deny`), the Docker image's vhost config does the same; every upload endpoint names files `bin2hex(random_bytes(16))` instead of `uniqid()`; a new `backend/api/download_file.php` resolves the owner of a requested path across `rent_applications`/`invoices`/`lease_contracts`/`users`/`service_requests`/`maintenance_requests`/`parking_reservations`/`visitor_logs` and gates the read with `require_owner_or_admin()` (visitor ID photos are admin-only, since the tenant isn't the document's owner); `fileUrl.js` now builds a `download_file.php?path=...&token=...` URL (the session token travels as a query param because `<img>`/`<a>` tags can't carry an Authorization header) instead of a raw static path. Verified live: direct `/uploads/...` access now 403s, owner and admin downloads succeed, a different tenant gets 403, no token gets 401, and a `../` path traversal attempt gets 400 |
 
 ### SECTION 3 — Network & Transport
 
@@ -88,7 +88,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | Severity | Count | Items |
 |---|---|---|
 | **Critical** (unauthenticated IDOR / account takeover) | 0 — A-7 resolved 2026-09-14 (§6d) | — |
-| **High** | 5 | A-1, D-7, B-6, B-8, E-7 |
+| **High** | 4 | A-1, D-7, B-6 (partial — `chown` is a deploy action), E-7 |
 | **Moderate** | 6 | A-3, A-9 (partial — lockout abuse only), C-1, C-2, D-8, D-9 |
 | **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-2, E-3, E-4 |
 
@@ -176,6 +176,8 @@ move_uploaded_file($_FILES['idPhoto']['tmp_name'], $target_file);
 
 ## 4. High: Sensitive Documents Served From Guessable Static Paths (B-8)
 
+> ✅ **Resolved 2026-09-17.** `backend/uploads/.htaccess` denies every direct request now (Apache 2.4 `Require all denied`; the Docker vhost config mirrors it), every upload endpoint names files `bin2hex(random_bytes(16))` instead of `uniqid()`, and a new `backend/api/download_file.php` serves the bytes after resolving the requested path's owner across every table that stores one and calling `require_owner_or_admin()` (visitor ID photos are admin-only — the tenant they visited isn't the document's owner). `fileUrl.js` builds the new endpoint's URL, with the session token as a query parameter since `<img>`/`<a>` tags can't carry an Authorization header. See B-8 above for the verification notes. The finding is kept below as a record.
+
 Government ID photos, NBI clearances, payment proofs, and signed leases are saved under `backend/uploads/` and referenced back to the frontend as plain relative paths (e.g. `uploads/applications/Juan_Delacruz_validIdFrontFile_1787932504_6a91af58ba3c8.jpg`), then served directly by Apache with no authentication. The uploads `.htaccess` only blocks script execution and directory listing — it does not gate reads.
 
 The filename entropy comes from `uniqid()`, which is time-seeded (default 13 hex characters derived from microtime), not cryptographically random. Combined with the fact that the current timestamp is also embedded in the filename, the search space for a specific tenant's document is small enough to brute-force offline, and any URL that leaks (referrer, browser history, screenshare, support ticket) exposes the file to anyone forever.
@@ -202,8 +204,8 @@ The filename entropy comes from `uniqid()`, which is time-seeded (default 13 hex
 ## 6. Low / Hygiene
 
 - ~~`create_maintenance_request_admin.php` validates the file extension but has no `finfo_file()` MIME check~~ — fixed 2026-09; see §6c.
-- Upload directories are created with `mkdir($dir, 0777, true)` throughout — ties to B-6.
-- `backend/uploads/.htaccess` uses Apache 2.2 `Order allow,deny` syntax (needs `mod_access_compat` on newer Apache/httpd) and its `FilesMatch` denylist for executable extensions doesn't include `phar|pht|phtml|html|svg`. Consider switching to `Require all denied` for the general block and adding those extensions to the denylist, plus `Header set X-Content-Type-Options nosniff`.
+- ~~Upload directories are created with `mkdir($dir, 0777, true)` throughout~~ — fixed 2026-09-17, see B-6.
+- ~~`backend/uploads/.htaccess` uses Apache 2.2 `Order allow,deny` syntax ... and its `FilesMatch` denylist for executable extensions doesn't include `phar|pht|phtml|html|svg`~~ — fixed 2026-09-17, see B-8: now `Require all denied` on every direct request, with the wider extension denylist kept as a second layer. `X-Content-Type-Options: nosniff` is set per-response by `download_file.php` rather than globally in `.htaccess`.
 - No security response headers are set anywhere yet (C-4, E-2, E-3, E-4).
 - 10 hardcoded `http://localhost`/`http://localhost:8080` URLs remain in the frontend (E-1) — the API base and several inline document-viewer links use different ports/paths (`localhost` vs `localhost:8080`), which will also break inconsistently in production even after the main `axiosConfig.js` base URL is fixed.
 - ~~`axiosConfig.js` still attaches `X-User-Id`/`X-Admin-Id` on every request~~ — removed 2026-09-14; only the `Authorization` header is sent, and a `401` now clears the stored session and redirects to `/login`.
