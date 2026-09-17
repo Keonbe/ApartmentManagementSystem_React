@@ -11,6 +11,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once '../config.php';
 
+// This endpoint has no login requirement — the guest Preview page browses it —
+// so it must never leak who lives where. Only a genuinely authenticated admin
+// gets tenant identity, lease dates, occupancy history, lease history and
+// maintenance history; everyone else (guest or logged-in tenant alike) gets
+// only what's needed to browse and apply for a unit (audit H1).
+$caller = get_authenticated_user($conn);
+$is_admin = $caller && $caller['role'] === 'admin';
+
 // Release lapsed unit reservations before listing, so a hold that expired
 // frees the unit for browsing visitors without needing an admin present.
 release_expired_reservations($conn);
@@ -23,9 +31,21 @@ try {
 
     // Format the response to match frontend expectations
     // The frontend expects: id, type, rent, status, tenant, lastTenant, floor, leaseStart, leaseEnd, maintenanceFlag
-    $formattedRooms = array_map(function($room) use ($conn) {
+    $formattedRooms = array_map(function($room) use ($conn, $is_admin) {
         $roomId = $room['id'];
-        
+
+        if (!$is_admin) {
+            return [
+                'id' => $room['id'],
+                'type' => $room['type'],
+                'floor' => $room['floor'],
+                'rent' => (float) $room['monthly_rent'],
+                'status' => $room['status'],
+                'roomCondition' => $room['room_condition'] ?? 'Good',
+                'furnishingStatus' => $room['furnishing_status'] ?? 'Unfurnished',
+            ];
+        }
+
         // Fetch real maintenance requests associated with this room's applicants
         $m_stmt = $conn->prepare("
             SELECT m.issue_category as issue, m.status, m.estimated_cost as cost, DATE(m.created_at) as date

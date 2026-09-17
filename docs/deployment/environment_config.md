@@ -109,6 +109,8 @@ The Docker image runs PHP 8.2, where `new mysqli()` **throws** when it can't con
 
 ## 6. Checklist: bringing production up
 
+> For a step-by-step version, including creating the MariaDB service and importing the schema, see [railway_setup_runbook.md](railway_setup_runbook.md).
+
 1. Railway → API service → **Variables**: set the `DB_*` references, `DB_NAME=ams_db` and `APP_ENV=production`.
 2. **Deploy latest commit**, then test:
    ```bash

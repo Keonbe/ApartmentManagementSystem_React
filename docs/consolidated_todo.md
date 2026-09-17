@@ -26,19 +26,19 @@
 
 | Category | Open tasks | High |
 |---|---|---|
-| Backend | 29 | 10 |
+| Backend | 26 | 7 |
 | Frontend | 10 | 0 |
-| Security | 19 | 6 |
+| Security | 16 | 3 |
 | Deployment | 16 | 0 |
 | Testing and quality | 2 | 0 |
 | Documentation | 11 | 0 |
-| **Total** | **87** | **16** |
+| **Total** | **81** | **10** |
 
 Another 2 open decisions are listed under [Needs decision](#needs-decision). They are not counted above. Seven questions were decided on 2026-09-16 (see [Decided 2026-09-16](#decided-2026-09-16)); the resulting features were built on 2026-09-17 (see [Recently Completed](#recently-completed)).
 
 **Known blockers**
 
-- **Railway API is down:** `login.php` returns a blank 500 because the `DB_*` / `APP_ENV` variables aren't set on Railway yet. This needs the user to act, and it blocks all live verification. See [TASK.md](../TASK.md).
+- **Railway API is down:** `login.php` returns a blank 500 because no database or `DB_*` / `APP_ENV` variables exist on Railway yet. Railway's MySQL template is MySQL 9.4 and rejects the MariaDB schema, so the database runs as a `mariadb:10.11` image instead. This needs the user to act, and it blocks all live verification. Follow [railway_setup_runbook.md](deployment/railway_setup_runbook.md).
 - **`ALLOWED_ORIGINS` / `APP_URL`** can't be set until the frontend is deployed, and that needs `vercel.json` plus a Vercel project.
 - **Least-privilege DB user (A-3)** is blocked by the DDL that still runs at request time (D-9 / L2).
 - **Going live with PayMongo** and the live-mode webhook check (H9a) are blocked until PayMongo verifies the business.
@@ -48,9 +48,9 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 **Recommended execution order**
 
 1. **Unblock production.** Set the Railway variables, including `APP_ENV=production` (fixes C4 / D-7), then redeploy and verify.
-2. **Audit Phase 1 (money and accounts):** C3, C2, C1 and H1, plus changing the admin password (A-1) and `npm audit fix` (E-7).
+2. ~~**Audit Phase 1 (money and accounts):** C3, C2, C1 and H1, plus changing the admin password (A-1) and `npm audit fix` (E-7).~~ Done 2026-09-17 except A-1, which is a post-deploy action blocked on Railway going live (see [Recently Completed](#recently-completed)).
 3. **Audit Phase 2 (trustworthy writes):** H7 first, then H5, then H4, then the combined end-of-tenancy helper (H6, M3, M4).
-4. **Audit Phase 3 (documents):** H2 / B-8, H3, B-6, and the checkout return URLs.
+4. **Audit Phase 3 (documents):** H2 / B-8, B-6, and the checkout return URLs.
 5. **Audit Phase 4 (billing integrity):** H8, H9, M12, H10, M8, M9.
 6. **Make the cloud stack usable:** `vercel.json`, the uploads volume, `ALLOWED_ORIGINS`, and HTTPS plus security headers.
 7. **Remaining work:** the Phase 5 Mediums, then the Phase 6 Lows.
@@ -62,9 +62,6 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 
 | Status | Priority | Task | Source |
 |---|---|---|---|
-| [ ] | High | **Bug** C1: recording any invoice payment re-runs the move-in cascade. Limit it to move-in invoices. The related sharp edge is that the first payment silently activates a draft contract. | [Audit C1](audits/ams_security_workflow_audit_2026-09-16.md#c1), [Guide §18.3](documentation/module_verification_guide.md#183-sharp-edges-working-as-designed-but-easy-to-misread) |
-| [ ] | High | **Bug** C2: concurrent checkout sessions can lose a real payment. Claim the invoice before calling PayMongo. | [Audit C2](audits/ams_security_workflow_audit_2026-09-16.md#c2) |
-| [ ] | High | **Bug** C3: `pay_bill.php` moves an invoice to pending-verification without proof, and it can stay there forever. Require a proof held on the server and add a reject action. | [Audit C3](audits/ams_security_workflow_audit_2026-09-16.md#c3) |
 | [ ] | High | **Bug** H4: resubmitting an application resets a live tenancy to Pending Review. Guard the resubmission. | [Audit H4](audits/ams_security_workflow_audit_2026-09-16.md#h4) |
 | [ ] | High | **Bug** H5: applications have no state machine, so "moved-out" can vacate another tenant's room. Add `APPLICATION_TRANSITIONS`. *Depends on:* H7. | [Audit H5](audits/ams_security_workflow_audit_2026-09-16.md#h5) |
 | [ ] | High | **Bug** H6: restoring an archived tenant reinstates every cancelled invoice and re-occupies the room unconditionally. | [Audit H6](audits/ams_security_workflow_audit_2026-09-16.md#h6) |
@@ -112,11 +109,8 @@ Another 2 open decisions are listed under [Needs decision](#needs-decision). The
 | Status | Priority | Task | Source |
 |---|---|---|---|
 | [ ] | High | **Risk** C4 / D-7: `APP_ENV` defaults to `development`, so `forgot_password.php` returns the reset token to anyone. Set `APP_ENV=production` on every deployment and make the default fail closed. | [Audit C4](audits/ams_security_workflow_audit_2026-09-16.md#c4), [security_audit §4](security_audit.md#section-4--server--configuration), [saas guide §2.6](deployment/saas_deployment_guide.md#26-production-hardening-checklist) |
-| [ ] | High | **Risk** H1: `get_rooms.php` returns current and past tenant names, lease dates and rents without a login. Strip tenant data from the public view. | [Audit H1](audits/ams_security_workflow_audit_2026-09-16.md#h1), [security_audit §5](security_audit.md#5-moderate-additional-findings) |
 | [ ] | High | **Risk** H2 / B-8: IDs, NBI clearances, payment proofs and leases are served from guessable static URLs. Add an authenticated download endpoint, block direct `uploads/` access, and use random file names (with a migration to rename existing files). | [Audit H2](audits/ams_security_workflow_audit_2026-09-16.md#h2), [security_audit §2](security_audit.md#section-2--file-uploads) |
-| [ ] | High | **Risk** H3: `pay_bill.php` accepts the proof-of-payment path verbatim from the client. | [Audit H3](audits/ams_security_workflow_audit_2026-09-16.md#h3) |
-| [ ] | High | **Risk** A-1: change the seeded admin password (`admin123`), and never import `seed_mock_data.sql` into production. | [security_audit §1](security_audit.md#section-1--authentication--access-control), [saas guide §2.6](deployment/saas_deployment_guide.md#26-production-hardening-checklist) |
-| [ ] | High | **Risk** E-7: run `npm audit fix`. There are 6 high and 1 moderate dependency advisories. | [security_audit §5](security_audit.md#section-5--frontend--react) |
+| [ ] | High | **Risk** A-1: change the seeded admin password (`admin123`), and never import `seed_mock_data.sql` into production. *This is a post-deploy action* — already listed as go-live checklist item 2 in the saas guide; nothing left to change in code until Railway is actually live. | [security_audit §1](security_audit.md#section-1--authentication--access-control), [saas guide §2.6](deployment/saas_deployment_guide.md#26-production-hardening-checklist) |
 | [ ] | Medium | **Risk** M1: a tenant can replace the signed or notarized lease after the contract is activated. | [Audit M1](audits/ams_security_workflow_audit_2026-09-16.md#m1) |
 | [ ] | Medium | **Risk** M13 / A-9: the account lockout can be abused to lock out any account (key it on account + IP), and registration has no throttling. (Reset requests were throttled on 2026-09-17.) | [Audit M13](audits/ams_security_workflow_audit_2026-09-16.md#m13), [security_audit §1](security_audit.md#section-1--authentication--access-control) |
 | [ ] | Medium | **Risk** D-8 / L1: raw `$stmt->error` or exception text is still returned to clients (about 12 sites). Use `server_error_response()`. | [Audit L1](audits/ams_security_workflow_audit_2026-09-16.md#l1), [security_audit §4](security_audit.md#section-4--server--configuration) |
@@ -206,6 +200,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | Audit Phase 1 — money and accounts (2026-09-17): C1 limited the move-in cascade in `record_payment_admin.php` to the move-in invoice itself (`security_deposit > 0`, application still `Approved`), guarded the room update so it can't overwrite a different tenant, and dropped `expired` from the contract-promotion set; C2 made `create_checkout_session.php` claim the invoice (`status='processing'`) before calling PayMongo, with the claim released on every failure path and the final `checkout_session_id` write guarded so a second request can't steal it; C3 stopped `pay_bill.php` from trusting a client-supplied proof path (closing H3 too) — a non-cash payment now requires a proof already stored by `upload_payment_proof.php` — and added `reject_payment_proof.php` (+ a "Reject Proof" button in `AdminPayments.jsx`) so a bad proof returns the invoice to `overdue`/`pending` with a reason instead of staying stuck forever; the eviction-monitoring query in `get_contracts.php` now also counts a past-due `pending-verification` invoice; H1 split `get_rooms.php` into a public projection (`id, type, floor, rent, status, roomCondition, furnishingStatus`) for guests/tenants and the full tenant/lease/history payload for authenticated admins only; `npm audit fix` (E-7) cleared all 7 advisories (1 moderate, 6 high) with no `--force`. A-1 (rotate `admin123`) is a post-deploy action already listed in the saas guide's go-live checklist — nothing left to change in code until Railway is live. | [Audit C1](audits/ams_security_workflow_audit_2026-09-16.md#c1), [C2](audits/ams_security_workflow_audit_2026-09-16.md#c2), [C3](audits/ams_security_workflow_audit_2026-09-16.md#c3), [H1](audits/ams_security_workflow_audit_2026-09-16.md#h1), [H3](audits/ams_security_workflow_audit_2026-09-16.md#h3) |
 | [x] | Railway prep (2026-09-16): `Dockerfile`, DB settings read from env, `VITE_API_BASE_URL`, `fileUrl.js` for every file link, `cors.php` allowlist (C-3, E-1, E-5), JSON error on a failed DB connect | [TASK.md](../TASK.md), [environment_config.md](deployment/environment_config.md), [saas guide §0](deployment/saas_deployment_guide.md#0-before-you-start--readiness-status) |
 | [x] | CI workflow (2026-09-16): frontend lint (non-blocking) and build, PHP syntax check | [cicd Week 1](deployment/cicd_pipeline.md#-week-1--foundation-get-ci-green) |
 | [x] | Access control: session-only identity (A-7), session revocation (A-8), login and change-password throttle, visitor upload validation (B-7) | [security_audit §6d](security_audit.md#6d-role-based-access--activity-log-hardening-2026-09-14) |

@@ -342,6 +342,27 @@ const handleMarkAsPaid = async () => {
     }
   };
 
+  const handleRejectProof = async () => {
+    if (!activeTenant || !activeTenant.pendingInvoiceId) return;
+    const reason = window.prompt("Why is this payment proof being rejected? The tenant will see this message.");
+    if (!reason || !reason.trim()) return;
+
+    try {
+      const res = await api.post('/reject_payment_proof.php', {
+        invoiceId: activeTenant.pendingInvoiceId,
+        reason: reason.trim()
+      });
+      if (res.data && res.data.success) {
+        fetchInvoices();
+      } else {
+        alert(res.data?.message || "Failed to reject payment proof.");
+      }
+    } catch (err) {
+      console.error("Reject proof error:", err);
+      alert(err.response?.data?.message || "A network or server error occurred.");
+    }
+  };
+
   const handleGenerateReceipt = (record = null) => {
     if (!activeTenant) return;
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -792,6 +813,14 @@ const handleMarkAsPaid = async () => {
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment
                     </button>
+                    {activeTenant.status === 'pending-verification' && (
+                      <button
+                        onClick={handleRejectProof}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 border-solid cursor-pointer transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faExclamationTriangle} /> Reject Proof
+                      </button>
+                    )}
                     <button onClick={() => handleGenerateReceipt()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> View Draft Receipt</button>
                   </div>
                 </div>

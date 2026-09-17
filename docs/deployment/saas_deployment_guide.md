@@ -32,6 +32,8 @@
 
 [`saas_fallback_strategy.md`](saas_fallback_strategy.md) decides **whether** to move to SaaS. This guide is the **how**: every click, command and setting needed to run AMS on Railway and Vercel.
 
+> **Setting up Railway for the first time?** Follow [railway_setup_runbook.md](railway_setup_runbook.md) instead. It's a shorter, step-by-step path. Railway's MySQL template is MySQL 9.4, which rejects this schema, so the runbook deploys the `mariadb:10.11` image instead.
+
 > [!NOTE]
 > **Closed — these §2 changes are now in the repository** (done 2026-09-16, after a Railway build failed with *"Railpack could not determine how to build the app"*):
 >

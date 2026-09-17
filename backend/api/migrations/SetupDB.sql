@@ -107,6 +107,7 @@ CREATE TABLE `invoices` (
   `payment_method` varchar(50) DEFAULT NULL,
   `payment_reference` varchar(100) DEFAULT NULL,
   `proof_of_payment_path` varchar(255) DEFAULT NULL,
+  `proof_rejection_reason` varchar(255) DEFAULT NULL,
   `sender_name` varchar(150) DEFAULT NULL,
   `billing_period` varchar(50) NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',

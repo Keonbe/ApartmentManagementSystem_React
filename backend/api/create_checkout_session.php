@@ -61,6 +61,37 @@ if (!in_array($invoice['status'], BILLING_OPEN_STATUSES, true) || $invoice['stat
     exit;
 }
 
+// Claim the invoice before calling the gateway (audit C2). The check above is
+// a plain SELECT, and the gateway call below takes roughly a second — without
+// claiming first, two concurrent requests can both pass the check, both open
+// a checkout session, and whichever session's UPDATE lands last silently
+// steals checkout_session_id from the other, so a real payment on the
+// abandoned session gets discarded by the webhook as "superseded".
+$open_statuses = billing_open_status_sql();
+$claim = $conn->prepare("UPDATE invoices SET status = 'processing' WHERE id = ? AND user_id = ? AND status IN $open_statuses AND status <> 'processing'");
+$claim->bind_param("si", $invoice_id, $user_id);
+$claim->execute();
+$claimed = $claim->affected_rows > 0;
+$claim->close();
+
+if (!$claimed) {
+    echo json_encode(["success" => false, "message" => "A payment for this invoice is already in progress. Please finish or cancel it first."]);
+    exit;
+}
+
+// The status this invoice actually held before the claim above, so a failure
+// past this point can hand it back exactly instead of guessing a new one.
+$prev_status = $invoice['status'];
+
+// Any failure below must give the claim back, or the invoice is stuck in
+// 'processing' with no checkout session ever created for it.
+function release_checkout_claim($conn, $invoice_id, $user_id, $prev_status) {
+    $release = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ? AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
+    $release->bind_param("ssi", $prev_status, $invoice_id, $user_id);
+    $release->execute();
+    $release->close();
+}
+
 // Calculate total amount in centavos (PHP)
 $total_amount = (float)($invoice['total_amount'] ?? 0);
 if ($total_amount <= 0) {
@@ -79,6 +110,7 @@ if ($settings_res) {
 $secret_key = $settings['paymongo_secret_key'] ?? '';
 
 if (empty($secret_key)) {
+    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
     echo json_encode(["success" => false, "message" => "PayMongo is not configured. Please contact administrator."]);
     exit;
 }
@@ -148,6 +180,7 @@ if ($ca_bundle && is_readable($ca_bundle)) {
     error_log("PayMongo: no CA bundle found; TLS peer verification disabled (development only).");
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 } else {
+    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
     echo json_encode(["success" => false, "message" => "Payment gateway TLS certificate store is not configured on this server."]);
     exit;
 }
@@ -166,12 +199,14 @@ if ($http_code !== 200 || $response === false) {
             $err_msg = "PayMongo: " . $err_data['errors'][0]['detail'];
         }
     }
+    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
     echo json_encode(["success" => false, "message" => $err_msg]);
     exit;
 }
 
 $response_data = json_decode($response, true);
 if (isset($response_data['errors'])) {
+    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
     echo json_encode(["success" => false, "message" => "Payment gateway error: " . $response_data['errors'][0]['detail']]);
     exit;
 }
@@ -191,15 +226,23 @@ $channel_method_map = [
 ];
 $payment_method = $channel_method_map[$channel] ?? 'Online (Sandbox)';
 
-// 5. Store checkout_session_id and payment_method in invoices table
-$update = $conn->prepare("UPDATE invoices SET status = 'processing', checkout_session_id = ?, payment_gateway = 'paymongo_sandbox', payment_method = ? WHERE id = ?");
+// 5. Store checkout_session_id and payment_method in invoices table. Guarded on
+// still being the 'processing' row this request claimed with no session id yet,
+// so a second request can't overwrite the session id this one just got from the
+// gateway (the other half of the C2 race — see the claim above).
+$update = $conn->prepare("UPDATE invoices SET checkout_session_id = ?, payment_gateway = 'paymongo_sandbox', payment_method = ? WHERE id = ? AND status = 'processing' AND checkout_session_id IS NULL");
 $update->bind_param("sss", $checkout_session_id, $payment_method, $invoice_id);
+$update->execute();
 
-if ($update->execute()) {
+if ($update->affected_rows > 0) {
     log_activity($conn, null, 'billing', 'Started Online Payment', "Invoice $invoice_id sent to checkout via $payment_method");
     echo json_encode(["success" => true, "checkout_url" => $checkout_url]);
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to update invoice status"]);
+    // The claim was ours, but the row no longer matches (e.g. the webhook for
+    // a since-cancelled session already moved it on). The checkout session at
+    // PayMongo still exists and can't be un-created, so this just refuses to
+    // hand back a checkout_url for a slot that's no longer ours to fill.
+    echo json_encode(["success" => false, "message" => "This invoice's payment status changed; please try again."]);
 }
 
 $conn->close();

@@ -59,16 +59,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->close();
 
-        // Check if invoice belongs to a rent application to activate occupancy & contract
-        $inv_q = $conn->prepare("SELECT user_id, rent_application_id FROM invoices WHERE id = ?");
+        // Check if invoice belongs to a rent application to activate occupancy & contract.
+        // security_deposit > 0 marks this as the move-in invoice specifically — every
+        // other invoice type (rent, service, parking, utility, admin-created) also
+        // carries rent_application_id, and must never re-run this cascade (audit C1).
+        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit FROM invoices WHERE id = ?");
         $inv_q->bind_param("s", $invoice_id);
         $inv_q->execute();
         $inv_res = $inv_q->get_result()->fetch_assoc();
         $inv_q->close();
 
-        if ($inv_res && !empty($inv_res['rent_application_id'])) {
+        if ($inv_res && !empty($inv_res['rent_application_id']) && (float)($inv_res['security_deposit'] ?? 0) > 0) {
             $app_id = (int)$inv_res['rent_application_id'];
-            $app_q = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, monthly_rent, occupants FROM rent_applications WHERE id = ?");
+            // Only a still-Approved application is awaiting its move-in payment.
+            // An application already active/rejected/moved-out etc. has nothing
+            // left to activate — settling a stray invoice on it must not reopen
+            // occupancy or contract state.
+            $app_q = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, monthly_rent, occupants FROM rent_applications WHERE id = ? AND status = 'Approved'");
             $app_q->bind_param("i", $app_id);
             $app_q->execute();
             $app_data = $app_q->get_result()->fetch_assoc();
@@ -83,12 +90,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $lease_start = date('Y-m-d');
                 $lease_end = date('Y-m-d', strtotime("+$months months"));
 
-                // Activate room occupancy
-                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ?");
-                $room_stmt->bind_param("sssis", $tenant_name, $lease_start, $lease_end, $occupants, $room_name);
+                // Activate room occupancy — only onto a room that's actually free
+                // for this tenant (vacant/reserved) or already theirs. Without this
+                // guard, settling a leftover invoice for a since-moved-out tenant
+                // silently overwrote whoever occupies the room now.
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ?
+                                              WHERE id = ? AND (status IN ('vacant', 'reserved') OR tenant_name = ?)");
+                $room_stmt->bind_param("sssiss", $tenant_name, $lease_start, $lease_end, $occupants, $room_name, $tenant_name);
                 $room_stmt->execute();
+                if ($room_stmt->affected_rows === 0) {
+                    $room_stmt->close();
+                    throw new Exception("Unit $room_name is occupied by another tenant; cannot activate move-in.");
+                }
                 $room_stmt->close();
-                
+
                 // Activate rent application
                 $app_activate = $conn->prepare("UPDATE rent_applications SET status = 'active' WHERE id = ? AND status = 'Approved'");
                 $app_activate->bind_param("i", $app_id);
@@ -107,13 +122,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $ctr_stmt->execute();
                     $ctr_stmt->close();
                 } else {
-                    // Only promote a contract that's still in a "not yet
-                    // fully active" state (draft, or lapsed and now
-                    // resuming). A contract in 'eviction-pending' must not
-                    // be silently reactivated to plain 'active' just because
-                    // a payment landed — that would clear the eviction flag
-                    // as a side effect instead of an explicit admin action.
-                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE rent_application_id = ? AND status IN ('draft', 'expired')");
+                    // Only promote a contract that's still a draft awaiting this
+                    // very move-in payment. 'expired' is deliberately excluded
+                    // (audit C1) — this cascade is move-in only now, so an expired
+                    // contract must go through the lease-renewal/restore flow
+                    // instead of being silently reactivated by an unrelated invoice.
+                    // 'eviction-pending' stays untouched for the same reason as before.
+                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE rent_application_id = ? AND status = 'draft'");
                     $ctr_upd->bind_param("i", $app_id);
                     $ctr_upd->execute();
                     $ctr_upd->close();

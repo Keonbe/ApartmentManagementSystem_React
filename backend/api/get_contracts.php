@@ -101,7 +101,14 @@ if (!empty($user_id)) {
     // (this used to be a private UPDATE that only moved 'pending' invoices).
     promote_overdue_invoices($conn);
     $overdue_by_user = [];
-    $overdue_res = $conn->query("SELECT user_id, MIN(due_date) AS oldest_due_date, SUM(total_amount) AS outstanding_amount, COUNT(*) AS invoice_count FROM invoices WHERE status = 'overdue' GROUP BY user_id");
+    // A past-due invoice stuck in 'pending-verification' (an unverified proof
+    // submitted against an already-overdue bill) is still money owed and a
+    // real eviction-monitoring signal — it must not disappear from this view
+    // just because a proof, verified or not, was attached (audit C3).
+    $overdue_res = $conn->query("SELECT user_id, MIN(due_date) AS oldest_due_date, SUM(total_amount) AS outstanding_amount, COUNT(*) AS invoice_count
+                                  FROM invoices
+                                  WHERE status = 'overdue' OR (status = 'pending-verification' AND due_date IS NOT NULL AND due_date < CURDATE())
+                                  GROUP BY user_id");
     if ($overdue_res) {
         while ($row = $overdue_res->fetch_assoc()) {
             $overdue_by_user[(int)$row['user_id']] = $row;
