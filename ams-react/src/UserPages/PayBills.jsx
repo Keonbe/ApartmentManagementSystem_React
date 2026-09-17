@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { appReturnBase } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
@@ -191,7 +192,7 @@ export default function PayBills() {
 
         if (currentMethodObj.family === 'sandbox') {
             try {
-                const returnBase = `${window.location.origin}${window.location.pathname}`;
+                const returnBase = appReturnBase();
                 const res = await api.post("/create_checkout_session.php", {
                     invoice_id: billDetails.invoiceId,
                     channel: currentMethodObj.id,

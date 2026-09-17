@@ -7,6 +7,7 @@ import {
     faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faLock
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { appReturnBase } from '../api/env';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/track-application.responsive.css';
@@ -93,7 +94,7 @@ export default function TrackApplication() {
 
         if (currentMethodObj.family === 'sandbox') {
             try {
-                const returnBase = `${window.location.origin}${window.location.pathname}`;
+                const returnBase = appReturnBase();
                 const res = await api.post("/create_checkout_session.php", {
                     invoice_id: application.pending_invoice_id,
                     channel: currentMethodObj.id,

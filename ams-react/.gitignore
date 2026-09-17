@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 
+
+# Deployment env files that hold another operator's URLs (templates are committed)
+.env.selfhosted
+.env.*.local
