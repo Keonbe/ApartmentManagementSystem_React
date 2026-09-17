@@ -11,9 +11,12 @@ if (!$payload || !$signature_header) {
     exit;
 }
 
-// 1. Fetch webhook secret
-$settings_res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'paymongo_webhook_secret'");
-$secret = $settings_res->fetch_assoc()['setting_value'] ?? '';
+// 1. Fetch webhook secret (PAYMONGO_WEBHOOK_SECRET in the environment wins)
+$secret = ams_env_setting('paymongo_webhook_secret');
+if ($secret === null) {
+    $settings_res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'paymongo_webhook_secret'");
+    $secret = $settings_res ? ($settings_res->fetch_assoc()['setting_value'] ?? '') : '';
+}
 
 if (!$secret) {
     http_response_code(500);

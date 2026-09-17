@@ -11,7 +11,8 @@ React 18 + Vite SPA (`ams-react/`) → plain PHP 8 endpoints (`backend/api/*.php
 ## Run / verify
 
 - Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`
-- Frontend: `cd ams-react && npm run build` (no test runner exists). Plain `build` targets Railway (`.env.production`); for the XAMPP-served `dist/` use `npm run build -- --mode development`
+- Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no test runner exists). `build`/`build:saas` target Railway (`.env.production`), `build:selfhosted` uses the gitignored `.env.selfhosted`; a build guard fails production builds with localhost URLs
+- Deployment targets/guardrails: `docs/deployment/dual-deployment-environment-plan.md`; backend check `php backend/cron/check_environment.php`
 - Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, included by every endpoint. Prod API: `https://apartmentmanagementsystemreact-production.up.railway.app/api/`
 - PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
 - DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seed_mock_data.sql`

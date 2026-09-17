@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:local": "vite build --mode development",
+    "build:saas": "vite build --mode production",
+    "build:selfhosted": "vite build --mode selfhosted",
+    "check:deploy": "node scripts/deploy-guard.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

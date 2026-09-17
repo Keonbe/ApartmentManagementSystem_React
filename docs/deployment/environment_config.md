@@ -2,7 +2,7 @@
 
 > **Changed:** 2026-09-16 · **Related:** [saas_deployment_guide.md](saas_deployment_guide.md) (§2.2, §2.6, §4.3, §4.4, §13), [security_audit.md](../security_audit.md) (C-3, E-1, E-5)
 
-This page covers how AMS chooses its settings in each environment, and what changed when the Railway domain went live.
+This page covers how AMS chooses its settings in each environment, and what changed when the Railway domain went live. For the three build/run targets (local, SaaS, self-hosted), the guardrails and the `DEPLOYMENT_ID` claim, see [dual-deployment-environment-plan.md](dual-deployment-environment-plan.md).
 
 ---
 
@@ -35,7 +35,10 @@ The Railway domain is the **API**, not the database. The Dockerfile copies `back
 | `DB_NAME` | `ams_db` | `ams_db` (typed, not a reference) | |
 | `APP_ENV` | `development` | `production` | Hides error detail and the password-reset dev token; turns on strict CORS |
 | `ALLOWED_ORIGINS` | unset | unset until a frontend exists, then `https://<frontend-domain>` | CORS allowlist (§4) |
-| `APP_URL` | unset | `https://<frontend-domain>` later | Frontend origin for links (email, not built yet) |
+| `APP_URL` | unset | `https://<frontend-domain>` later | Public URL of the SPA; PayMongo return links must start with it |
+| `DEPLOYMENT_TARGET` | `local` | `saas` | `local` / `saas` / `selfhosted`; checked by `cron/check_environment.php` |
+| `DEPLOYMENT_ID` | unset | `saas-prod` | Unique deployment name stamped into the DB and uploads by `--claim` |
+| `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET` | unset | optional | Override the values stored in Admin → Settings |
 
 > [!IMPORTANT]
 > A constant in `config.env.php` overrides the environment. Railway's image has no such file, so on Railway only the variables apply.
@@ -44,13 +47,14 @@ The Railway domain is the **API**, not the database. The Dockerfile copies `back
 
 ## 3. Frontend settings
 
-`ams-react/src/api/axiosConfig.js` uses `VITE_API_BASE_URL`, which Vite writes into the bundle **at build time**. The value comes from the file for the build mode:
+`ams-react/src/api/env.js` (read by `axiosConfig.js` and `fileUrl.js`) uses `VITE_API_BASE_URL`, which Vite writes into the bundle **at build time**. The value comes from the file for the build mode:
 
 | File | Committed | Used by | Value |
 |---|---|---|---|
-| `ams-react/.env.development` | yes | `npm run dev`, `npm run build -- --mode development` | XAMPP API URL |
-| `ams-react/.env.production` | yes | `npm run build` | Railway API URL |
-| `ams-react/.env.local` | no (gitignored) | every mode; overrides both | your own value |
+| `ams-react/.env.development` | yes | `npm run dev`, `npm run build:local` | XAMPP API URL |
+| `ams-react/.env.production` | yes | `npm run build`, `npm run build:saas` | Railway API URL |
+| `ams-react/.env.selfhosted` | no (from `.env.selfhosted.example`) | `npm run build:selfhosted` | the self-hosted operator's API URL |
+| `ams-react/.env.local` / `.env.<mode>.local` | no (gitignored) | every mode / that mode | your own value |
 
 These files contain no secrets, since every `VITE_*` value ends up in the public JavaScript.
 
@@ -60,7 +64,7 @@ These files contain no secrets, since every `VITE_*` value ends up in the public
 > cd ams-react && npm run build -- --mode development
 > ```
 
-Uploaded files (payment proofs, avatars, ID photos, lease documents) resolve through `ams-react/src/api/fileUrl.js`. It takes the host from the API base URL, so file links follow the same environment. `TopBar.jsx`, `AdminPayments.jsx` and `UserPaymentHistory.jsx` previously hardcoded `localhost` and now use the helper too.
+Uploaded files (payment proofs, avatars, ID photos, lease documents) resolve through `ams-react/src/api/fileUrl.js`. It uses `VITE_ASSET_BASE_URL`, or else the host from the API base URL, so file links follow the same environment. `TopBar.jsx`, `AdminPayments.jsx` and `UserPaymentHistory.jsx` previously hardcoded `localhost` and now use the helper too.
 
 ---
 

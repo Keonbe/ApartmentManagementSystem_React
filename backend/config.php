@@ -7,22 +7,37 @@ if (file_exists(__DIR__ . '/config.env.php')) {
 // Settings come from, in order: config.env.php constants (XAMPP), environment
 // variables (Railway / Docker), then local defaults. $_ENV/$_SERVER are checked
 // too because some SAPI configurations leave getenv() empty.
-$ams_env = function ($key, $default) {
+function ams_env($key, $default = null) {
     foreach ([getenv($key), $_ENV[$key] ?? false, $_SERVER[$key] ?? false] as $value) {
         if ($value !== false && $value !== '') return $value;
     }
     return $default;
-};
+}
 
-if (!defined('DB_HOST')) define('DB_HOST', $ams_env('DB_HOST', 'localhost'));
-if (!defined('DB_PORT')) define('DB_PORT', (int) $ams_env('DB_PORT', 3306));
-if (!defined('DB_USER')) define('DB_USER', $ams_env('DB_USER', 'root'));
-if (!defined('DB_PASS')) define('DB_PASS', $ams_env('DB_PASS', ''));
-if (!defined('DB_NAME')) define('DB_NAME', $ams_env('DB_NAME', 'ams_db'));
-if (!defined('APP_ENV')) define('APP_ENV', $ams_env('APP_ENV', 'development'));
+if (!defined('DB_HOST')) define('DB_HOST', ams_env('DB_HOST', 'localhost'));
+if (!defined('DB_PORT')) define('DB_PORT', (int) ams_env('DB_PORT', 3306));
+if (!defined('DB_USER')) define('DB_USER', ams_env('DB_USER', 'root'));
+if (!defined('DB_PASS')) define('DB_PASS', ams_env('DB_PASS', ''));
+if (!defined('DB_NAME')) define('DB_NAME', ams_env('DB_NAME', 'ams_db'));
+if (!defined('APP_ENV')) define('APP_ENV', ams_env('APP_ENV', 'development'));
 // Public origin of the frontend (for building links in emails etc.). Empty
 // until a frontend is deployed. CORS origins are handled in cors.php.
-if (!defined('APP_URL')) define('APP_URL', rtrim($ams_env('APP_URL', ''), '/'));
+if (!defined('APP_URL')) define('APP_URL', rtrim(ams_env('APP_URL', ''), '/'));
+// Which deployment this is ('local' | 'saas' | 'selfhosted') and a unique name
+// for it. Neither changes behaviour; cron/check_environment.php uses them to
+// catch a deployment wired to another deployment's database or uploads.
+if (!defined('DEPLOYMENT_TARGET')) define('DEPLOYMENT_TARGET', ams_env('DEPLOYMENT_TARGET', 'local'));
+if (!defined('DEPLOYMENT_ID')) define('DEPLOYMENT_ID', ams_env('DEPLOYMENT_ID', ''));
+define('UPLOADS_DIR', __DIR__ . '/uploads');
+
+// A payment setting from the deployment's environment, when the host keeps it
+// there instead of in system_settings: paymongo_secret_key <- PAYMONGO_SECRET_KEY.
+// Returns null when unset so callers fall back to the database value.
+function ams_env_setting($setting_key) {
+    $key = strtoupper($setting_key);
+    if (defined($key)) return (string) constant($key);
+    return ams_env($key);
+}
 
 require_once __DIR__ . '/cors.php';
 

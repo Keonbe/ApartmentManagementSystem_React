@@ -1,10 +1,9 @@
 import axios from "axios";
+import { API_BASE_URL } from "./env";
 
-// Base URL for all API requests. Vite injects VITE_API_BASE_URL at build time
-// (see ams-react/.env.example); the local XAMPP server is the fallback.
+// Base URL for all API requests, chosen per build target in ./env.js.
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL
-        || "http://localhost:8080/ApartmentManagementSystem_React/backend/api/",
+    baseURL: API_BASE_URL,
     headers: {
         "Content-Type": "application/json"
     }
