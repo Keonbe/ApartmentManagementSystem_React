@@ -1,0 +1,264 @@
+/* =====================================================
+   USER-END ANIMATION SYSTEM — animations.user.css
+   Domain: shared (imported once from src/index.css)
+
+   Zone A  @theme    — Tailwind v4 animation utilities
+   Zone B  plain CSS — interaction hooks (unlayered)
+   Zone C  responsive + reduced-motion
+
+   Only transform / opacity / filter are animated so every
+   effect stays on the compositor (no layout reflow).
+   ===================================================== */
+
+/* ---------------------------------------------------------
+   ZONE A — Tailwind v4 theme tokens
+   Keyframes live inside @theme so Tailwind emits them only
+   when the matching utility is actually used.
+   NOTE: animate-fade-in / animate-fadeIn were already used in
+   13 places across the app but were never defined. Registering
+   them here activates that existing markup with no JSX change.
+   --------------------------------------------------------- */
+@theme {
+  --animate-fade-in: fadeIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in-up: fadeInUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-in-bottom: slideInFromBottom 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-pulse-subtle: pulseSubtle 2.4s ease-in-out infinite;
+  --animate-shimmer: shimmerSkeleton 1.4s linear infinite;
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translate3d(0, 12px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes slideInFromBottom {
+    from { opacity: 0; transform: translate3d(0, 100%, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+
+  @keyframes pulseSubtle {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    50%      { transform: scale(1.03); filter: brightness(1.1); }
+  }
+
+  @keyframes shimmerSkeleton {
+    from { transform: translate3d(-100%, 0, 0); }
+    to   { transform: translate3d(100%, 0, 0); }
+  }
+}
+
+/* ---------------------------------------------------------
+   ZONE B — interaction hooks (plain, unlayered CSS)
+   Unlayered rules outrank Tailwind's @layer utilities, which
+   lets these win without !important.
+   --------------------------------------------------------- */
+
+/* camelCase alias + tailwindcss-animate triple used in existing
+   markup; neither shape can be expressed as a @theme token. */
+.animate-fadeIn {
+  animation: fadeIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-in.fade-in.slide-in-from-bottom-2 {
+  animation: fadeInUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Button tap feedback */
+.btn-interactive {
+  transition:
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.18s ease;
+}
+
+.btn-interactive:active {
+  transform: scale(0.97);
+}
+
+.btn-interactive:disabled:active {
+  transform: none;
+}
+
+/* Card hover elevation */
+.card-interactive {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition:
+    transform 0.24s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* hover:hover keeps the lift off touch devices, where a hover
+   state would otherwise stick after a tap. */
+@media (hover: hover) {
+  .card-interactive:hover {
+    transform: translate3d(0, -3px, 0);
+    box-shadow: 0 12px 28px -12px rgb(15 23 42 / 0.28);
+  }
+}
+
+/* Form focus ring */
+.focus-glow {
+  transition:
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease;
+}
+
+.focus-glow:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(99 102 241 / 0.26);
+}
+
+/* Status badge breathing glow */
+.badge-pulse {
+  animation: pulseSubtle 2.4s ease-in-out infinite;
+  transform: translateZ(0);
+}
+
+/* Staggered entrance for card grids and lists.
+   :nth-child ladder avoids inline styles entirely. */
+.stagger-children > * {
+  animation: fadeInUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2)  { animation-delay: 40ms; }
+.stagger-children > *:nth-child(3)  { animation-delay: 80ms; }
+.stagger-children > *:nth-child(4)  { animation-delay: 120ms; }
+.stagger-children > *:nth-child(5)  { animation-delay: 160ms; }
+.stagger-children > *:nth-child(6)  { animation-delay: 200ms; }
+.stagger-children > *:nth-child(7)  { animation-delay: 240ms; }
+.stagger-children > *:nth-child(8)  { animation-delay: 280ms; }
+.stagger-children > *:nth-child(9)  { animation-delay: 320ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(n + 11) { animation-delay: 400ms; }
+
+/* Modal transitions */
+.modal-overlay-anim {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.modal-card-anim {
+  animation: scaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Skeleton shimmer */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.45),
+    transparent
+  );
+  animation: shimmerSkeleton 1.4s linear infinite;
+}
+
+/* Horizontal scroll container for wide tables */
+.table-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------------------------------------------------------
+   ZONE C — viewport sizing, touch ergonomics, reduced motion
+   --------------------------------------------------------- */
+
+/* dvh accounts for mobile browser toolbars. Unlayered, so this
+   beats the Tailwind min-h-[calc(100vh-76px)] arbitrary value
+   without needing !important. */
+.my-room-root,
+.pay-bills-root,
+.maintenance-root,
+.user-notif-root,
+.profile-settings-root,
+.track-app-root,
+.payment-history-root,
+.my-requests-root,
+.user-utilities-root {
+  min-height: calc(100dvh - 76px);
+  overflow-x: hidden;
+}
+
+@supports not (height: 100dvh) {
+  .my-room-root,
+  .pay-bills-root,
+  .maintenance-root,
+  .user-notif-root,
+  .profile-settings-root,
+  .track-app-root,
+  .payment-history-root,
+  .my-requests-root,
+  .user-utilities-root {
+    min-height: calc(100svh - 76px);
+  }
+}
+
+@media (max-width: 768px) {
+  .btn-interactive {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Collapse metric/operation grids to a single column */
+  .stagger-children {
+    grid-template-columns: 1fr;
+  }
+
+  /* Bottom sheet.
+     Doubled class = specificity (0,2,0), which outranks the
+     single-class !important rules in the per-page stylesheets
+     (e.g. .receipt-modal-card, .modal-content-responsive) that
+     are injected AFTER index.css and would otherwise win. */
+  .sheet-mobile.sheet-mobile {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    max-height: 92svh !important;
+    border-radius: 1.5rem 1.5rem 0 0 !important;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+    animation: slideInFromBottom 0.3s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card-interactive:hover,
+  .btn-interactive:active,
+  .badge-pulse {
+    transform: none !important;
+  }
+}

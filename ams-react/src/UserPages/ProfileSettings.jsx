@@ -326,7 +326,7 @@ export default function ProfileSettings() {
                     </div>
                 </div>
 
-                <div className="profile-settings-card bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8">
+                <div className="profile-settings-card card-interactive bg-white rounded-3xl border border-slate-100 shadow-md p-6 md:p-10 space-y-8">
                     {/* Profile Photo Uploader with Camera Capture */}
                     <div className="space-y-3">
                         <h3 className="text-sm font-bold text-slate-700 m-0">{t('profile.avatarPhoto')}</h3>
@@ -418,7 +418,7 @@ export default function ProfileSettings() {
                                         type="text"
                                         value={firstName}
                                         onChange={(e) => setFirstName(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                         required
                                     />
                                 </div>
@@ -428,7 +428,7 @@ export default function ProfileSettings() {
                                         type="text"
                                         value={lastName}
                                         onChange={(e) => setLastName(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                         required
                                     />
                                 </div>
@@ -438,7 +438,7 @@ export default function ProfileSettings() {
                                         type="text"
                                         value={suffix}
                                         onChange={(e) => setSuffix(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                     />
                                 </div>
                             </div>
@@ -457,7 +457,7 @@ export default function ProfileSettings() {
                                             placeholder="917 123 4567"
                                             value={phoneRawNumber}
                                             onChange={handlePhoneRawInput}
-                                            className={`w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm box-border ${phoneError ? 'border-red-400' : 'border-slate-200'}`}
+                                            className={`focus-glow w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm box-border ${phoneError ? 'border-red-400' : 'border-slate-200'}`}
                                             required
                                         />
                                     </div>
@@ -470,7 +470,7 @@ export default function ProfileSettings() {
                                         type="text"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                         required
                                     />
                                 </div>
@@ -479,7 +479,7 @@ export default function ProfileSettings() {
                                     <select
                                         value={gender}
                                         onChange={(e) => setGender(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                         required
                                     >
                                         <option value="" disabled hidden>Select gender...</option>
@@ -492,7 +492,7 @@ export default function ProfileSettings() {
                         </div>
 
                         <div className="profile-actions-grid grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                            <button type="button" onClick={() => setShowDocsModal(true)} className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
+                            <button type="button" onClick={() => setShowDocsModal(true)} className="btn-interactive bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
                                 <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                                     <FontAwesomeIcon icon={faFileAlt} className="text-base" />
                                 </div>
@@ -501,7 +501,7 @@ export default function ProfileSettings() {
                                     <p className="m-0 text-xs text-slate-400 mt-0.5">Manage Valid ID & NBI Clearance</p>
                                 </div>
                             </button>
-                            <button type="button" onClick={() => setShowPassModal(true)} className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
+                            <button type="button" onClick={() => setShowPassModal(true)} className="btn-interactive bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
                                 <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                                     <FontAwesomeIcon icon={faKey} className="text-base" />
                                 </div>
@@ -515,7 +515,7 @@ export default function ProfileSettings() {
                         <div className="border-t border-slate-100 pt-6 flex justify-end">
                             <button
                                 type="submit"
-                                className="profile-save-btn w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2"
+                                className="profile-save-btn btn-interactive w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2"
                             >
                                 <FontAwesomeIcon icon={faSave} />
                                 <span>{t('profile.saveProfile')}</span>

@@ -304,7 +304,7 @@ export default function TrackApplication() {
                         {/* Status Summary Banner */}
                         <div className="track-app-status-banner bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="space-y-2">
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColorClass} select-none`}>
+                                <span className={`badge-pulse inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColorClass} select-none`}>
                                     <span className="w-2 h-2 rounded-full bg-current mr-2 animate-pulse"></span>
                                     {statusLabel}
                                 </span>
@@ -626,7 +626,7 @@ export default function TrackApplication() {
                             </h3>
                             
                             {statusNormalized === 'moved-out' ? (
-                                <div className="track-app-timeline relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
+                                <div className="track-app-timeline stagger-children relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
                                     {/* Timeline Line (Desktop) */}
                                     <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-indigo-500/80 hidden md:block z-0"></div>
 
@@ -664,7 +664,7 @@ export default function TrackApplication() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="track-app-timeline relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
+                                <div className="track-app-timeline stagger-children relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-0 pt-4 pb-2">
                                     {/* Timeline Line (Desktop) */}
                                     <div className="absolute top-[20px] left-0 right-0 h-0.5 bg-slate-800 hidden md:block z-0"></div>
                                     <div 

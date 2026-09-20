@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faTint, faBolt, faCheckCircle, faClock, faArrowLeft, 
+import {
+  faTint, faBolt, faCheckCircle, faClock, faArrowLeft,
   faCalendarAlt, faInfoCircle, faReceipt
 } from '@fortawesome/free-solid-svg-icons';
+import '../assets/styles/responsive/user/user-utilities.responsive.css';
 
 export default function UserUtilities() {
   const navigate = useNavigate();
@@ -45,7 +46,7 @@ export default function UserUtilities() {
   }, [readings]);
 
   return (
-    <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center text-slate-800">
+    <div className="user-utilities-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center text-slate-800">
       <div className="w-full max-w-5xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
         
         {/* Header Section */}
@@ -109,9 +110,9 @@ export default function UserUtilities() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="stagger-children space-y-4">
             {summary && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="stagger-children grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Avg water / cycle</p>
                   <p className="text-xl font-black text-blue-800 m-0 mt-1">{summary.avgWater} m³</p>
@@ -133,7 +134,7 @@ export default function UserUtilities() {
               const isInvoiced = r.is_invoiced == 1;
 
               return (
-                <div key={r.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 space-y-6">
+                <div key={r.id} className="card-interactive bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 sm:p-7 space-y-6">
                   
                   {/* Top Bar of Card */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">

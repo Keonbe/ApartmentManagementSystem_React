@@ -264,7 +264,7 @@ export default function UserNotifications() {
               ))}
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="stagger-children flex flex-col gap-3">
               {loading ? (
                 <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center text-xs text-slate-400">Loading notifications…</div>
               ) : filteredNotifications.length === 0 ? (
@@ -285,7 +285,7 @@ export default function UserNotifications() {
                   return (
                     <div
                       key={n.id}
-                      className={`user-notif-card bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex gap-3 sm:gap-4 items-start transition-all duration-200 hover:shadow-md group relative overflow-hidden ${n.read ? 'border-slate-200' : 'border-indigo-100 bg-indigo-50/10'}`}
+                      className={`user-notif-card card-interactive bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex gap-3 sm:gap-4 items-start transition-all duration-200 hover:shadow-md group relative overflow-hidden ${n.read ? 'border-slate-200' : 'border-indigo-100 bg-indigo-50/10'}`}
                     >
                       {!n.read && (
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600"></div>
@@ -329,7 +329,7 @@ export default function UserNotifications() {
                             onClick={() => handleMarkRead(n.id)}
                             title="Mark as read"
                             aria-label="Mark as read"
-                            className="user-notif-action-btn w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
+                            className="user-notif-action-btn btn-interactive w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
                           >
                             <FontAwesomeIcon icon={faCheck} className="text-[11px]" />
                           </button>
@@ -339,7 +339,7 @@ export default function UserNotifications() {
                             onClick={() => handleDelete(n.id)}
                             title="Delete"
                             aria-label="Delete"
-                            className="user-notif-action-btn w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
+                            className="user-notif-action-btn btn-interactive w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
                           >
                             <FontAwesomeIcon icon={faTimes} className="text-xs" />
                           </button>

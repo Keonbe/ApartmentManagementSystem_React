@@ -62,11 +62,11 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
     return (
         <div 
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in modal-overlay-anim"
         >
-            <div 
+            <div
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden text-left"
+                className="modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden text-left"
             >
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="text-lg font-bold m-0 text-slate-800">Change Password</h3>

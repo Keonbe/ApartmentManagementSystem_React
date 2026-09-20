@@ -121,7 +121,7 @@ export default function MaintenanceRequest() {
                 </div>
 
                 {/*Form Inputs Panel Layout*/}
-                <form className="maintenance-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
+                <form className="maintenance-form-card animate-fade-in-up bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
 
                     {/*Issue Category Selector*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
@@ -129,7 +129,7 @@ export default function MaintenanceRequest() {
                         <select
                             value={issueType}
                             onChange={(e) => setIssueType(e.target.value)}
-                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -149,7 +149,7 @@ export default function MaintenanceRequest() {
                             max={maxDateString}
                             value={preferredDate}
                             onChange={(e) => setPreferredDate(e.target.value)}
-                            className="maintenance-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="maintenance-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -161,7 +161,7 @@ export default function MaintenanceRequest() {
                         <select
                             value={preferredTime}
                             onChange={(e) => setPreferredTime(e.target.value)}
-                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -179,7 +179,7 @@ export default function MaintenanceRequest() {
                             placeholder={t('maintenance.descPlaceholder')}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="maintenance-textarea w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
+                            className="maintenance-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -263,7 +263,7 @@ export default function MaintenanceRequest() {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="maintenance-submit-btn w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="maintenance-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {t('maintenance.submit')}
                         </button>

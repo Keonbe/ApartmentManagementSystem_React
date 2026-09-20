@@ -106,11 +106,11 @@ export default function UserPaymentHistory() {
                             <p className="text-sm text-slate-500 mt-2">{t('paymentHistory.noneDesc')}</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-100">
+                        <div className="stagger-children divide-y divide-slate-100">
                             {invoices.map((inv, idx) => {
                                 const isPaid = inv.status?.toLowerCase() === 'paid';
                                 return (
-                                    <div key={idx} className="payment-history-item p-4 sm:p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+                                    <div key={idx} className="payment-history-item card-interactive p-4 sm:p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
                                         <div className="flex items-start gap-3 sm:gap-4">
                                             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg sm:text-xl shrink-0 ${isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                                                 <FontAwesomeIcon icon={isPaid ? faCheckCircle : faFileInvoiceDollar} />
@@ -192,8 +192,8 @@ export default function UserPaymentHistory() {
 
             {/* Receipt Modal */}
             {showReceipt && receiptData && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onClick={() => setShowReceipt(false)}>
-                    <div className="receipt-modal-card bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 modal-overlay-anim" onClick={() => setShowReceipt(false)}>
+                    <div className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="bg-slate-900 text-white p-5 sm:p-6 text-center border-b-4 border-indigo-500 shrink-0">
                             <h2 className="text-xl sm:text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
                             <div className="mt-3 pt-3 border-t border-slate-700/50">

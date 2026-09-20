@@ -329,10 +329,10 @@ export default function PayBills() {
                 )}
 
                 {/*Main Workspace Content Segment Panel*/}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
-                    
+                <div className="stagger-children grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
+
                     {/*Left Grid Parameter Block: Billing Items Statement Breakdown Ledger*/}
-                    <div className="pay-bills-card md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
+                    <div className="pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div>
                                 <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
@@ -412,7 +412,7 @@ export default function PayBills() {
                     </div>
 
                     {/*Right Grid Parameter Block: Clearing Channel Allocation Panel Controls*/}
-                    <div className="pay-bills-card md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
+                    <div className="pay-bills-card card-interactive md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3" style={{ color: '#3b4276' }}>{t('payBills.paymentSettings')}</h3>
                         
                         {/*Custom Selected Dropdown Trigger Wrapper*/}
@@ -422,7 +422,7 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                className="pay-bills-method-trigger w-full min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
+                                className="pay-bills-method-trigger btn-interactive focus-glow w-full min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
                             >
                                 <div className="flex items-center space-x-3 text-slate-800 font-semibold text-sm">
                                     {currentMethodObj.id === 'gcash' ? (
@@ -552,7 +552,7 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                className="pay-bills-submit-btn w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center"
+                                className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center"
                             >
                                 {t('payBills.proceedToPay')}
                             </button>
