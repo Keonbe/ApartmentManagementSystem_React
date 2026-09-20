@@ -66,6 +66,7 @@ try {
 
     $target_user_id = $notif['user_id'];
     $type = $notif['type'];
+    $invoices_created = [];
 
     // 2. Only perform database updates if APPROVED
     if ($action === 'approve') {
@@ -111,6 +112,22 @@ try {
             $app_id = (int)$app['id'];
             $room_name = $app['room_name'];
 
+            // Snapshot the pre-extension room lease_end and the current rent
+            // once, before either update below runs — both are needed to bill
+            // the extension (checklist 3.10) and the rent also feeds
+            // lease_renewals.rent_at_renewal.
+            $oldEndStmt = $conn->prepare("SELECT lease_end FROM rooms WHERE id = ?");
+            $oldEndStmt->bind_param("s", $room_name);
+            $oldEndStmt->execute();
+            $old_room_lease_end = $oldEndStmt->get_result()->fetch_assoc()['lease_end'] ?? null;
+            $oldEndStmt->close();
+
+            $rentStmt = $conn->prepare("SELECT monthly_rent FROM rent_applications WHERE id = ?");
+            $rentStmt->bind_param("i", $app_id);
+            $rentStmt->execute();
+            $current_rent = (float)$rentStmt->get_result()->fetch_assoc()['monthly_rent'];
+            $rentStmt->close();
+
             $updateStmt = $conn->prepare("UPDATE rent_applications SET months_of_rent = months_of_rent + ? WHERE id = ?");
             $updateStmt->bind_param("ii", $add_months, $app_id);
             $updateStmt->execute();
@@ -149,12 +166,6 @@ try {
                 $new_lease_end = $newEndStmt->get_result()->fetch_assoc()['lease_end'];
                 $newEndStmt->close();
 
-                $rentStmt = $conn->prepare("SELECT monthly_rent FROM rent_applications WHERE id = ?");
-                $rentStmt->bind_param("i", $app_id);
-                $rentStmt->execute();
-                $current_rent = $rentStmt->get_result()->fetch_assoc()['monthly_rent'];
-                $rentStmt->close();
-
                 $renewalStmt = $conn->prepare("INSERT INTO lease_renewals (contract_id, added_months, previous_lease_end, new_lease_end, rent_at_renewal, approved_by) VALUES (?, ?, ?, ?, ?, ?)");
                 $renewalStmt->bind_param("sissdi", $contract_id, $add_months, $previous_lease_end, $new_lease_end, $current_rent, $admin_id);
                 $renewalStmt->execute();
@@ -167,6 +178,51 @@ try {
                 // dates above are still advanced; note the gap rather than
                 // silently doing nothing to the contract.
                 log_activity($conn, $admin_id, 'contract', "Approved Lease Extension", "User ID: $target_user_id extended by $add_months month(s); no active contract lease_end to extend");
+            }
+
+            // Bill the extension immediately: one invoice per newly added
+            // month, at the current rent, so the tenant's payment schedule
+            // reflects the extension right away — there's no monthly
+            // invoice run yet that would otherwise pick this up (checklist
+            // 3.10). Anchored on the room's pre-extension lease_end so the
+            // new invoices' billing periods pick up exactly where the old
+            // lease left off.
+            if ($old_room_lease_end) {
+                $cursor = new DateTime($old_room_lease_end);
+                for ($i = 0; $i < $add_months; $i++) {
+                    $cursor->modify('+1 month');
+                    $period_label = billing_period_label($cursor);
+
+                    // Defensive only — the claim on the notification above
+                    // already stops this endpoint from running twice for the
+                    // same request, so this just guards against an admin
+                    // having already hand-billed the same month.
+                    $dupStmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND rent_application_id = ? AND billing_period = ? LIMIT 1");
+                    $dupStmt->bind_param("iis", $target_user_id, $app_id, $period_label);
+                    $dupStmt->execute();
+                    $already_billed = (bool)$dupStmt->get_result()->fetch_assoc();
+                    $dupStmt->close();
+                    if ($already_billed) continue;
+
+                    $invoice_id = 'INV-' . $cursor->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+                    $due_date = $cursor->format('Y-m-01');
+
+                    $invStmt = $conn->prepare("INSERT INTO invoices (
+                        id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, NOW())");
+                    $invStmt->bind_param("siidsss", $invoice_id, $target_user_id, $app_id, $current_rent, $current_rent, $period_label, $due_date);
+                    $invStmt->execute();
+                    $invStmt->close();
+
+                    $invoices_created[] = ['period' => $period_label, 'amount' => $current_rent];
+                }
+
+                if ($invoices_created) {
+                    $extension_total = array_sum(array_column($invoices_created, 'amount'));
+                    $periods = implode(', ', array_column($invoices_created, 'period'));
+                    log_activity($conn, $admin_id, 'billing', "Billed Lease Extension",
+                        "User ID: $target_user_id — " . count($invoices_created) . " invoice(s) for $periods, ₱" . number_format($extension_total, 2) . " total");
+                }
             }
         }
     }
@@ -237,10 +293,19 @@ try {
     $label = $household_label ?? ($type === 'occupancy_request' ? 'occupancy change request' : 'lease extension request');
     $title = ($action === 'approve') ? "Request Approved" : "Request Declined";
     $msg = "Your $label has been " . strtolower($statusText) . " by management.";
+    if ($invoices_created) {
+        $extension_total = array_sum(array_column($invoices_created, 'amount'));
+        $msg .= " " . count($invoices_created) . " new invoice(s) totaling ₱" . number_format($extension_total, 2) . " have been added to your billing schedule.";
+    }
     create_notification($conn, $target_user_id, $type, $title, $msg, 'Resolved');
 
     $conn->commit();
-    echo json_encode(["success" => true, "message" => "Request $statusText successfully."]);
+    $response_message = "Request $statusText successfully.";
+    if ($invoices_created) {
+        $extension_total = array_sum(array_column($invoices_created, 'amount'));
+        $response_message .= " " . count($invoices_created) . " new invoice(s) totaling ₱" . number_format($extension_total, 2) . " were created.";
+    }
+    echo json_encode(["success" => true, "message" => $response_message]);
 
 } catch (RequestRefused $e) {
     $conn->rollback();

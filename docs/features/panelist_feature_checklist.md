@@ -408,7 +408,7 @@ flowchart TD
 - [x] **3.7 Overdue Alerts** ✅ — Auto-overdue promotion + configurable late fee (flat or % via `late_fee_*` settings, applied once per invoice by `promote_overdue_invoices()`) + `overdue` notification dispatch + banner in `PayBills.jsx`. Tenants are notified directly; the admin sees overdue totals on the dashboard rather than receiving a separate escalation notification.
 - [x] **3.8 Payment Proof Upload** ✅ — `upload_payment_proof.php` (10MB cap, MIME-validated, session-scoped to the invoice owner)
 - [x] **3.9 Security Deposit Tracking** ✅ — Deposit recorded at move-in and tracked through to move-out, where it is applied to rent, unpaid bills or damages. It is **non-refundable by design** — `refund_amount` is always 0.00 — so there is no refund calculation step.
-- [ ] **3.10 Extended Rent Terms** 🔧 — Lease extension exists; prorated billing adjustment on extension still pending
+- [x] **3.10 Extended Rent Terms** ✅ — Approving a tenant's lease-extension request (`process_tenant_request.php`) now also bills it immediately: one new invoice per added month, at the current rent, anchored to the room's pre-extension `lease_end` so the billing periods pick up exactly where the old lease left off. A defensive check skips a month already billed. Scoped to the tenant-request → admin-approval flow (the one with a `lease_renewals` audit trail); the separate admin-direct extend in `AdminUnits.jsx` (via `update_room.php`) is unchanged
 - [x] **3.11 Payment Methods (GCash, Cash, Bank)** ✅ — Online (PayMongo sandbox: GCash/Maya/card/online banking) or manual transfer channels, **plus** in-person cash, which is always offered alongside whichever remote family is active
 - [x] **3.12 Term of Payment Rules** ✅ — The move-in invoice bills 1 month advance rent + 1 month security deposit, and approval is gated on documents + terms agreement (see 1.7). Enforcement lives in the approval/invoice endpoints, not in DB constraints.
 
@@ -562,7 +562,7 @@ flowchart TD
 |---|---|---|---|---|---|
 | 1. Tenant Management | 8 | 8 | 0 | 0 | 0 |
 | 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
-| 3. Payment & Billing | 12 | 11 | 1 | 0 | 0 |
+| 3. Payment & Billing | 12 | 12 | 0 | 0 | 0 |
 | 4. Maintenance Request | 10 | 9 | 1 | 0 | 0 |
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
 | 6. Notification | 8 | 6 | 0 | 2 | 0 |
@@ -572,9 +572,9 @@ flowchart TD
 | 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 4 | 4 | 0 | 0 | 0 |
-| **TOTAL** | **85** | **74** | **2** | **9** | **0** |
+| **TOTAL** | **85** | **75** | **1** | **9** | **0** |
 
-> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data).
+> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data), then again after closing 3.10 (Extended Rent Terms) on 2026-09-20.
 
 ### Core Functionality Coverage
 
