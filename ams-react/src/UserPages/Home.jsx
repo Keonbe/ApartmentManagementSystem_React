@@ -72,7 +72,7 @@ export default function Home({ onCardClick, username }) {
                         <div className="flex flex-wrap items-center gap-3">
                             <button
                                 onClick={() => navigate('/inquire')}
-                                className="home-inquire-btn bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl text-xs transition-all duration-200 border border-white/20 cursor-pointer flex items-center space-x-2 backdrop-blur-sm"
+                                className="home-inquire-btn btn-interactive bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl text-xs transition-all duration-200 border border-white/20 cursor-pointer flex items-center space-x-2 backdrop-blur-sm"
                             >
                                 <FontAwesomeIcon icon={faEnvelopeOpenText} />
                                 <span>{t('inquiry.homeCta')}</span>
@@ -80,7 +80,7 @@ export default function Home({ onCardClick, username }) {
 
                             <button
                                 onClick={onCardClick}
-                                className="home-cta-btn bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-bold px-6 py-3 rounded-xl text-xs transition-all duration-200 shadow-lg shadow-emerald-950/30 border-0 cursor-pointer flex items-center space-x-2"
+                                className="home-cta-btn btn-interactive bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-bold px-6 py-3 rounded-xl text-xs transition-all duration-200 shadow-lg shadow-emerald-950/30 border-0 cursor-pointer flex items-center space-x-2"
                             >
                                 <span>{t('home.cta')}</span>
                                 <FontAwesomeIcon icon={faArrowRight} />

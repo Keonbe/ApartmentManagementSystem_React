@@ -104,7 +104,7 @@ export default function InquiryForm() {
         }
     };
 
-    const inputClass = "inquiry-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]";
+    const inputClass = "inquiry-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]";
     const labelClass = "text-sm font-bold text-slate-700";
 
     return (
@@ -257,7 +257,7 @@ export default function InquiryForm() {
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="inquiry-submit-btn bg-[#3b4276] hover:bg-[#2f3560] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 cursor-pointer min-h-[48px]"
+                            className="inquiry-submit-btn btn-interactive bg-[#3b4276] hover:bg-[#2f3560] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 cursor-pointer min-h-[48px]"
                         >
                             {submitting ? t('inquiry.submitting') : t('inquiry.submit')}
                         </button>

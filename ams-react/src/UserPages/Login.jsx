@@ -145,7 +145,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 <input
                                     type="email"
                                     placeholder="JuanDelaCruz@email.com"
-                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -162,7 +162,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         placeholder="••••••••••••"
-                                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
+                                        className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
                                         required
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
@@ -183,7 +183,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 </p>
                             )}
 
-                            <button type="submit" className="w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide">
+                            <button type="submit" className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide">
                                 {t('login.submit')}
                             </button>
                         </form>
@@ -209,7 +209,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 <input
                                     type="email"
                                     placeholder="JuanDelaCruz@email.com"
-                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -220,14 +220,14 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 <button
                                     type="submit"
                                     disabled={isSubmittingForgot}
-                                    className="w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70 box-border"
+                                    className="btn-interactive w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70 box-border"
                                 >
                                     {isSubmittingForgot ? 'Sending...' : 'Send Reset Link'}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => { setIsForgotPassword(false); setForgotMessage(''); setForgotToken(''); }}
-                                    className="w-full bg-white text-slate-600 py-3 px-4 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors focus:outline-none border border-slate-200 cursor-pointer box-border"
+                                    className="btn-interactive w-full bg-white text-slate-600 py-3 px-4 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors focus:outline-none border border-slate-200 cursor-pointer box-border"
                                 >
                                     Back to Login
                                 </button>

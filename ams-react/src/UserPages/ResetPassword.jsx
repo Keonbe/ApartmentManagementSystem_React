@@ -117,7 +117,7 @@ export default function ResetPassword() {
                                 </div>
                                 <button
                                     onClick={() => navigate('/login')}
-                                    className="w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors border-0 cursor-pointer shadow-lg mt-2 box-border"
+                                    className="btn-interactive w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors border-0 cursor-pointer shadow-lg mt-2 box-border"
                                 >
                                     Proceed to Login
                                 </button>
@@ -138,7 +138,7 @@ export default function ResetPassword() {
                                                 <input
                                                     type={showPassword ? "text" : "password"}
                                                     placeholder="••••••••••••"
-                                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
+                                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
                                                     required
                                                     value={password}
                                                     onChange={(e) => setPassword(e.target.value)}
@@ -160,7 +160,7 @@ export default function ResetPassword() {
                                                 <input
                                                     type={showPassword ? "text" : "password"}
                                                     placeholder="••••••••••••"
-                                                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
+                                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
                                                     required
                                                     value={confirmPassword}
                                                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -178,7 +178,7 @@ export default function ResetPassword() {
                                         <button
                                             type="submit"
                                             disabled={isSubmitting}
-                                            className="w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70 mt-2"
+                                            className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70 mt-2"
                                         >
                                             {isSubmitting ? 'Resetting...' : 'Reset Password'}
                                         </button>

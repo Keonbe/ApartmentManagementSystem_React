@@ -99,11 +99,11 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                 <p className="text-slate-500 font-medium text-sm m-0">{t('preview.noRooms')}</p>
                             </div>
                         ) : (
-                            <div className="preview-room-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="preview-room-grid stagger-children grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {rooms.map((room) => {
                                     const canPreview = previewMode === 'floor_plan' || (room.images && room.images.length > 0);
                                     return (
-                                    <div key={room.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
+                                    <div key={room.id} className="card-interactive bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
                                         <div>
                                             <h3 className="text-lg font-bold text-slate-800 m-0" style={{ color: '#1e293b' }}>Room {room.id}</h3>
                                             <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>

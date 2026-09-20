@@ -44,7 +44,7 @@ export default function UserAnnouncements() {
                     </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="stagger-children space-y-6">
                     {loading ? (
                         <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200 shadow-sm">
                             {t('announcements.loading')}
@@ -57,7 +57,7 @@ export default function UserAnnouncements() {
                         </div>
                     ) : (
                         announcements.map((item) => (
-                            <div key={item.id} className="user-announcements-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+                            <div key={item.id} className="user-announcements-card card-interactive bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
                                 <div className="user-announcements-card-body p-5 sm:p-6 md:p-8">
                                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                                         <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold uppercase tracking-wider rounded-md flex items-center gap-1.5">

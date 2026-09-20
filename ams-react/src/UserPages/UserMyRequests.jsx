@@ -117,9 +117,9 @@ export default function UserMyRequests() {
                             <p className="text-sm text-slate-500 mt-2">{t('myRequests.noneFoundDesc')}</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-100">
+                        <div className="stagger-children divide-y divide-slate-100">
                             {requests.map((req) => (
-                                <div key={`${req.type}-${req.id}`} className="my-requests-item p-4 sm:p-5 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div key={`${req.type}-${req.id}`} className="my-requests-item card-interactive p-4 sm:p-5 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                                         <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 flex items-center justify-center text-lg sm:text-xl shrink-0">
                                             {getTypeIcon(req.type)}

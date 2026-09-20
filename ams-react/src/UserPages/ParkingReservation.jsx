@@ -338,7 +338,7 @@ export default function ParkingReservation() {
                         <select
                             value={vehicleType}
                             onChange={(e) => setVehicleType(e.target.value)}
-                            className="parking-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                         >
                             {[
@@ -368,7 +368,7 @@ export default function ParkingReservation() {
                             value={vehicleModel}
                             required
                             onChange={(e) => setVehicleModel(e.target.value)}
-                            className="parking-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                         />
                     </div>
@@ -385,7 +385,7 @@ export default function ParkingReservation() {
                             onChange={handlePlateNumberChange}
                             onBlur={() => setPhonePlateError(validatePhilippinePlate(plateNumber))}
                             required
-                            className={`parking-input w-full px-4 py-3 rounded-xl bg-slate-50 border text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px] ${plateError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
+                            className={`parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px] ${plateError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
                             style={{ color: '#1e293b' }}
                         />
                         <span className="text-xs font-normal text-slate-400 leading-tight m-0">{getPlateHint()}</span>
@@ -404,7 +404,7 @@ export default function ParkingReservation() {
                         <select
                             value={transmission}
                             onChange={(e) => setTransmission(e.target.value)}
-                            className="parking-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -429,7 +429,7 @@ export default function ParkingReservation() {
                             value={durationMonths}
                             onChange={handleNumberInput}
                             required
-                            className="parking-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                         />
                     </div>
@@ -441,7 +441,7 @@ export default function ParkingReservation() {
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
-                            className={`w-full border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                            className={`card-interactive w-full border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                         >
                             {!uploadedFile ? (
                                 <>
@@ -507,7 +507,7 @@ export default function ParkingReservation() {
                         <button
                             type="submit"
                             disabled={loadingSlots || availableSlots <= 0 || submitting}
-                            className="parking-submit-btn w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            className="parking-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
                             {submitting ? 'Submitting…' : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
                         </button>
@@ -521,11 +521,11 @@ export default function ParkingReservation() {
             {pdfModalUrl && (
                 <div 
                     onClick={() => setPdfModalUrl(null)}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in modal-overlay-anim"
                 >
-                    <div 
+                    <div
                         onClick={(e) => e.stopPropagation()}
-                        className="parking-pdf-modal bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden"
+                        className="parking-pdf-modal modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden"
                     >
                         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                             <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">

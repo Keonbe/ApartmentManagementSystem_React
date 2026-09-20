@@ -164,7 +164,7 @@ export default function PaymentUpload() {
                                 value={senderName} 
                                 onChange={e => setSenderName(e.target.value)} 
                                 required
-                                className="w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
+                                className="focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
                                 placeholder="E.g. Juan Dela Cruz"
                             />
                         </div>
@@ -177,7 +177,7 @@ export default function PaymentUpload() {
                                 required
                                 inputMode={paymentMethod === 'GCash' ? "numeric" : "text"}
                                 maxLength={paymentMethod === 'GCash' ? 13 : undefined}
-                                className="w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
+                                className="focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
                                 placeholder={paymentMethod === 'GCash' ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
                             />
                             <p className="text-[10px] text-slate-400 m-0 leading-relaxed mt-1 font-medium">
@@ -193,7 +193,7 @@ export default function PaymentUpload() {
                         <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.uploadReceipt')}</label>
                         
                         {!previewUrl ? (
-                            <div className="payment-dropzone relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
+                            <div className="payment-dropzone card-interactive relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
                                 <input 
                                     type="file" 
                                     accept="image/jpeg,image/png,image/jpg" 
@@ -245,7 +245,7 @@ export default function PaymentUpload() {
                         <button 
                             type="submit" 
                             disabled={uploading}
-                            className="payment-submit-btn w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-extrabold py-4 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="payment-submit-btn btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-extrabold py-4 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {uploading ? (
                                 <><FontAwesomeIcon icon={faHourglassHalf} className="animate-spin" /> <span>{t('paymentUpload.submitting')}</span></>

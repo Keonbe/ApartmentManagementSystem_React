@@ -196,7 +196,21 @@
 .track-app-root,
 .payment-history-root,
 .my-requests-root,
-.user-utilities-root {
+.user-utilities-root,
+.home-hero,
+.login-page-root,
+.registration-page-root,
+.inquiry-root,
+.payment-upload-root,
+.rent-app-root,
+.cctv-root,
+.preview-page-root,
+.parking-root,
+.service-booking-root,
+.services-root,
+.user-announcements-root,
+.user-visitors-root,
+.view-contract-root {
   min-height: calc(100dvh - 76px);
   overflow-x: hidden;
 }
@@ -210,7 +224,21 @@
   .track-app-root,
   .payment-history-root,
   .my-requests-root,
-  .user-utilities-root {
+  .user-utilities-root,
+  .home-hero,
+  .login-page-root,
+  .registration-page-root,
+  .inquiry-root,
+  .payment-upload-root,
+  .rent-app-root,
+  .cctv-root,
+  .preview-page-root,
+  .parking-root,
+  .service-booking-root,
+  .services-root,
+  .user-announcements-root,
+  .user-visitors-root,
+  .view-contract-root {
     min-height: calc(100svh - 76px);
   }
 }

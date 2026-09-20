@@ -186,10 +186,10 @@ export default function ViewContract() {
         <div className="view-contract-root w-full min-h-[calc(100vh-76px)] bg-slate-100 py-10 px-4 md:px-12 box-border flex flex-col items-center print:bg-white print:py-0 print:px-0">
             
             {/* Control Actions Toolbar Bar Panel Layout (Hidden on Print) */}
-            <div className="view-contract-controls w-full max-w-3xl flex flex-wrap justify-between items-center gap-4 mb-6 print:hidden select-none">
+            <div className="view-contract-controls animate-fade-in w-full max-w-3xl flex flex-wrap justify-between items-center gap-4 mb-6 print:hidden select-none">
                 <button
                     onClick={() => navigate(-1)}
-                    className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-200 shadow-sm cursor-pointer transition-all"
+                    className="btn-interactive flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-200 shadow-sm cursor-pointer transition-all"
                 >
                     <FontAwesomeIcon icon={faArrowLeft} />
                     <span>{t('contract.goBack')}</span>
@@ -214,7 +214,7 @@ export default function ViewContract() {
 
                     <button
                         onClick={handlePrintAction}
-                        className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs border-0 shadow-md cursor-pointer transition-all"
+                        className="btn-interactive flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs border-0 shadow-md cursor-pointer transition-all"
                     >
                         <FontAwesomeIcon icon={faPrint} />
                         <span>{t('contract.printSave')}</span>

@@ -175,7 +175,7 @@ export default function UserVisitors() {
   const pendingVisitors = visitors.filter(v => v.status === 'pending_approval');
 
   return (
-    <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
+    <div className="user-visitors-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
       <div className="w-full max-w-[1050px] space-y-6 text-left">
 
         {/* Back Link & Header */}
@@ -235,9 +235,9 @@ export default function UserVisitors() {
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="stagger-children grid grid-cols-1 md:grid-cols-2 gap-3">
               {activeVisitors.map(v => (
-                <div key={v.id} className="rounded-xl border border-emerald-200 bg-white p-4 flex items-center justify-between shadow-xs">
+                <div key={v.id} className="card-interactive rounded-xl border border-emerald-200 bg-white p-4 flex items-center justify-between shadow-xs">
                   <div className="space-y-1">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
                     <p className="text-xs text-slate-500 m-0">{t('visitors.colPurpose')}: <span className="font-semibold text-slate-700">{v.purpose}</span></p>
@@ -248,7 +248,7 @@ export default function UserVisitors() {
                   <button
                     type="button"
                     onClick={() => handleCheckoutSelf(v.id)}
-                    className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
+                    className="btn-interactive rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
                   >
                     {t('visitors.markDeparted')}
                   </button>
@@ -269,9 +269,9 @@ export default function UserVisitors() {
               {t('visitors.pendingVerificationDesc')}
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="stagger-children grid grid-cols-1 md:grid-cols-2 gap-3">
               {pendingVisitors.map(v => (
-                <div key={v.id} className="rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
+                <div key={v.id} className="card-interactive rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
                     <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5">Pending Review</span>
@@ -308,7 +308,7 @@ export default function UserVisitors() {
             </div>
           </div>
 
-          <div className="user-visitors-table-container overflow-x-auto">
+          <div className="user-visitors-table-container table-scroll-x overflow-x-auto">
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
@@ -400,8 +400,8 @@ export default function UserVisitors() {
 
       {/* Log Visitor Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowRegisterModal(false)}>
-          <div className="user-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowRegisterModal(false)}>
+          <div className="user-visitors-modal modal-card-anim sheet-mobile w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faUserPlus} className="text-indigo-600" />
@@ -430,7 +430,7 @@ export default function UserVisitors() {
                   placeholder="e.g. Juan Dela Cruz"
                   value={registerForm.visitorName}
                   onChange={(e) => setRegisterForm({ ...registerForm, visitorName: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -442,7 +442,7 @@ export default function UserVisitors() {
                   placeholder="e.g. 0917 123 4567"
                   value={registerForm.contactNumber}
                   onChange={(e) => setRegisterForm({ ...registerForm, contactNumber: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -451,7 +451,7 @@ export default function UserVisitors() {
                 <select
                   value={registerForm.purpose}
                   onChange={(e) => setRegisterForm({ ...registerForm, purpose: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
                 >
                   <option value="Personal Visit">Personal Visit / Friends / Family</option>
                   <option value="Delivery / Courier">Food / Package Delivery</option>
@@ -470,7 +470,7 @@ export default function UserVisitors() {
                   max={expectedBounds.max}
                   value={registerForm.expectedAt}
                   onChange={(e) => setRegisterForm({ ...registerForm, expectedAt: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -480,7 +480,7 @@ export default function UserVisitors() {
                   <select
                     value={registerForm.idType}
                     onChange={(e) => setRegisterForm({ ...registerForm, idType: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
                   >
                     <option value="National ID">National ID</option>
                     <option value="Driver's License">Driver's License</option>
@@ -496,7 +496,7 @@ export default function UserVisitors() {
                     placeholder="e.g. D01-19-12345"
                     value={registerForm.idNumber}
                     onChange={(e) => setRegisterForm({ ...registerForm, idNumber: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono"
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
               </div>
@@ -509,7 +509,7 @@ export default function UserVisitors() {
                     placeholder="e.g. N02-1234"
                     value={registerForm.vehiclePlate}
                     onChange={(e) => setRegisterForm({ ...registerForm, vehiclePlate: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
                   />
                 </div>
                 <div>
@@ -527,14 +527,14 @@ export default function UserVisitors() {
                 <button
                   type="button"
                   onClick={() => setShowRegisterModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
+                  className="btn-interactive flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
                 >
                   {t('visitors.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
+                  className="btn-interactive flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
                 >
                   {submitting ? t('visitors.submitting') : t('visitors.submit')}
                 </button>
