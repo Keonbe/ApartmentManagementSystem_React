@@ -1,6 +1,8 @@
 # AMS — External Services Integration & Verification Matrix
 
-> **Scope**: Consolidates all modules in the Apartment Management System that depend on third-party external services (Payment Gateway, Email, SMS). Covers both the local XAMPP/self-hosted setup and SaaS cloud-hosted equivalents.
+> ⚠️ **Dropped (2026-09-20):** the SaaS cloud-hosted target (Railway/Vercel) is no longer part of the deployment plan — the project is deployed locally (self-hosted XAMPP) only. SaaS-equivalent columns/notes below are historical.
+>
+> **Scope**: Consolidates all modules in the Apartment Management System that depend on third-party external services (Payment Gateway, Email, SMS). Covers the local XAMPP/self-hosted setup; SaaS cloud-hosted equivalents noted below are historical.
 > **Stack**: React 19 (Vite SPA) + PHP 8 (XAMPP/Apache) + MySQL/MariaDB 10 (`ams_db`)
 > **Dev URL**: `http://localhost:8080/ApartmentManagementSystem_React/`
 > **Related**: [saas_fallback_strategy.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/deployment/saas_fallback_strategy.md) — full deployment architecture & migration runbook

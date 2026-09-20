@@ -1,5 +1,7 @@
 # AMS — Deployment Architecture: Self-Hosted vs. SaaS Fallback
 
+> ⚠️ **Dropped (2026-09-20):** the SaaS fallback stack (Railway/Vercel) is no longer part of the plan. The project is deployed locally (self-hosted XAMPP) only, and this comparison is kept for historical reference. CI/CD is unaffected — see `cicd_pipeline.md`.
+
 > **Document:** Infrastructure Options & Service Comparison
 > **Project:** Apartment Management System (AMS)
 > **Stack:** React 19 + Vite 8 → PHP 8 → MySQL/MariaDB (XAMPP)

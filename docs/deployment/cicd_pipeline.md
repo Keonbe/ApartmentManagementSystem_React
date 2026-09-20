@@ -10,7 +10,9 @@
 >
 > Everything else in this document — the 80-endpoint PHP syntax check, the stack versions, the deployment target guidance — was verified accurate against the current codebase.
 
-> 🔗 **Deployment architecture context:** this document assumes the dual-environment strategy defined in [`saas_fallback_strategy.md`](saas_fallback_strategy.md) (self-hosted XAMPP home server as production, SaaS stack as fallback) and the per-service self-hosted/SaaS mapping in [`external_services.md`](../documentation/external_services.md). [Phase 3](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback) below wires those two documents' recommendations into an actual CD workflow that deploys to **both** targets in parallel, rather than treating the SaaS stack as a manual break-glass procedure only.
+> ⚠️ **Dropped (2026-09-20):** the Railway/SaaS deployment target is no longer part of the plan — the project is deployed locally (self-hosted XAMPP) only. [Phase 2](#phase-2--continuous-deployment-cd)'s SaaS deployment target and all of [Phase 3](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback) (dual-target/SaaS-parallel-fallback CD) are historical and should not be followed. [Phase 1](#phase-1--continuous-integration-ci) (CI: lint, build, PHP syntax/PHPStan, the mariadb-based DB job) remains accurate and in effect via `.github/workflows/ci.yml`.
+>
+> 🔗 **Deployment architecture context (historical):** this document originally assumed the dual-environment strategy defined in [`saas_fallback_strategy.md`](saas_fallback_strategy.md) (self-hosted XAMPP home server as production, SaaS stack as fallback) and the per-service self-hosted/SaaS mapping in [`external_services.md`](../documentation/external_services.md). [Phase 3](#phase-3--dual-target-deployment-self-hosted-production--saas-parallel-fallback) wired those two documents' recommendations into a CD workflow that deployed to **both** targets in parallel — dropped along with the SaaS stack.
 
 ---
 

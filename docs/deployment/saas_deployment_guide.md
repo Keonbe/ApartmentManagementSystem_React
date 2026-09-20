@@ -1,5 +1,7 @@
 # AMS — SaaS Deployment Guide (Railway + Vercel)
 
+> ⚠️ **Dropped (2026-09-20):** the Railway/Vercel SaaS stack is no longer part of the deployment plan. The project is deployed locally (self-hosted XAMPP) only. This guide is kept for historical reference; do not follow it for current deployments. CI/CD (build/lint/test) is unaffected — see `cicd_pipeline.md`.
+
 > **Document:** Step-by-step setup and deployment for the SaaS fallback stack
 > **Project:** Apartment Management System (AMS)
 > **Stack:** React 19 + Vite 8 (Vercel) → PHP 8 on Apache (Railway) → MariaDB (Railway)

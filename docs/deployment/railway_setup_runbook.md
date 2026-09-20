@@ -1,5 +1,7 @@
 # Railway Setup Runbook: API + MariaDB
 
+> ⚠️ **Dropped (2026-09-20):** Railway is no longer a deployment target. The project runs locally (self-hosted XAMPP) only. This runbook is kept for historical reference only.
+
 > **Changed:** 2026-09-17 · **For:** a first-time Railway user bringing the AMS API up · **Related:** [environment_config.md](environment_config.md), [saas_deployment_guide.md](saas_deployment_guide.md), [consolidated_todo.md](../consolidated_todo.md)
 
 Follow the steps in order. Each step says what you should see when it worked. You only need to come back to Claude for the final check (§9) or if the troubleshooting table (§10) doesn't cover your problem.

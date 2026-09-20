@@ -11,9 +11,9 @@ React 18 + Vite SPA (`ams-react/`) → plain PHP 8 endpoints (`backend/api/*.php
 ## Run / verify
 
 - Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`
-- Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no test runner exists). `build`/`build:saas` target Railway (`.env.production`), `build:selfhosted` uses the gitignored `.env.selfhosted`; a build guard fails production builds with localhost URLs
+- Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no test runner exists). `build:selfhosted` uses the gitignored `.env.selfhosted` for other self-hosted deployments; a build guard fails production builds with localhost URLs
 - Deployment targets/guardrails: `docs/deployment/dual-deployment-environment-plan.md`; backend check `php backend/cron/check_environment.php`
-- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, included by every endpoint. Prod API: `https://apartmentmanagementsystemreact-production.up.railway.app/api/`
+- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, included by every endpoint.
 - PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
 - DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seed_mock_data.sql`
 - Live API checks: curl with a Bearer token — recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`)
@@ -38,7 +38,7 @@ React 18 + Vite SPA (`ams-react/`) → plain PHP 8 endpoints (`backend/api/*.php
 
 ## Workflow rules
 
-- Git: bug fixes and routine work are committed straight to `main`. Big implementations (e.g. the chat module, SaaS/deployment integration, a new module) go on a `feature/<name>` branch, then merge to `main` once verified. No required-PR branch protection.
+- Git: bug fixes and routine work are committed straight to `main`. Big implementations (e.g. the chat module, a new module) go on a `feature/<name>` branch, then merge to `main` once verified. No required-PR branch protection.
 
 - Work directly by default. Use a subagent only for broad read-only sweeps whose raw output the main thread doesn't need (e.g. "which endpoints lack `log_activity`"); prefer `repo-sweep` (Sonnet). Don't spawn subagents for single-area fixes, edits, or verification.
 - Prefer Edit over full-file Write unless most of the file changes.

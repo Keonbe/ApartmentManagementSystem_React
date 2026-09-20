@@ -1,5 +1,7 @@
 # Dual Deployment Environment Plan — SaaS + Self-Hosted from One Branch
 
+> ⚠️ **Dropped (2026-09-20):** the Railway/SaaS target described here is no longer part of the plan. The project is deployed locally (XAMPP) only; `local` and `selfhosted` sections below remain accurate, but the `saas`/Railway rows, steps, and guardrails are historical and should not be followed. CI/CD (lint/build/syntax checks) is unaffected — see `cicd_pipeline.md`.
+
 Status: implemented on `feature/dual-deployment-env` (2026-09-17). This document is both the plan and the record of what was built.
 
 Goal: the same Git branch builds and runs three targets without source edits:
