@@ -22,7 +22,7 @@ if (!$id) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT user_id, status, issue_category, title FROM maintenance_requests WHERE id = ?");
+$stmt = $conn->prepare("SELECT user_id, status, issue_category, title, tenant_responsible, actual_cost, estimated_cost, is_invoiced FROM maintenance_requests WHERE id = ?");
 $stmt->bind_param("i", $id);
 $stmt->execute();
 $current = $stmt->get_result()->fetch_assoc();
@@ -168,5 +168,35 @@ if ($status_changed && $new_status !== 'Pending') {
     resolve_admin_queue($conn, 'maintenance_request', $id);
 }
 
-echo json_encode(["success" => true, "message" => "Maintenance request updated."]);
+// Audit H10: a ticket flagged tenant-responsible was excluded from building
+// expenses and totalled in the UI as "tenant charged", but nothing ever
+// billed it. Post the charge the moment a Completed ticket is (or becomes)
+// tenant-responsible, and reverse it if the flag is cleared or the ticket
+// is reopened out of Completed — mirroring how service charges are posted
+// and reversed.
+$final_status = $status_changed ? $new_status : $current['status'];
+$final_tenant_responsible = array_key_exists('tenantResponsible', $input)
+    ? (!empty($input['tenantResponsible']) ? 1 : 0)
+    : (int)$current['tenant_responsible'];
+
+$billing_message = null;
+
+if ($final_status === 'Completed' && $final_tenant_responsible === 1 && !(int)$current['is_invoiced']) {
+    $charge = post_maintenance_charge($conn, $id);
+    if ($charge['ok'] && $charge['invoice_id']) {
+        log_activity($conn, $admin_id, 'billing', "Posted Maintenance Charge", "Maintenance Ticket #$id billed to invoice " . $charge['invoice_id']);
+    }
+    $billing_message = $charge['message'];
+} elseif ((int)$current['is_invoiced'] && (
+    $final_tenant_responsible === 0
+    || ($status_changed && $current['status'] === 'Completed' && $new_status !== 'Completed')
+)) {
+    $reversal = reverse_maintenance_charge($conn, $id);
+    if ($reversal['ok']) {
+        log_activity($conn, $admin_id, 'billing', "Reversed Maintenance Charge", "Maintenance Ticket #$id: " . $reversal['message']);
+    }
+    $billing_message = $reversal['message'];
+}
+
+echo json_encode(["success" => true, "message" => "Maintenance request updated.", "billing" => $billing_message]);
 $conn->close();

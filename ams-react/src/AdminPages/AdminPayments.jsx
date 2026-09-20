@@ -85,7 +85,7 @@ const AdminPayments = () => {
               termOfPayment: 'Monthly',
               dueDate: inv.due_date ?? "",
               dueDateDay: 5,
-              billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, addOns: 0 },
+              billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, maintenance: 0, addOns: 0 },
               history: [],
               outstandingBalance: 0,
               pendingInvoiceId: null,
@@ -109,6 +109,7 @@ const AdminPayments = () => {
             t.billing.electricity = parseFloat(inv.electricity || 0);
             t.billing.parking = parseFloat(inv.parking || 0);
             t.billing.services = parseFloat(inv.services || 0);
+            t.billing.maintenance = parseFloat(inv.maintenance || 0);
             t.billing.securityDeposit = parseFloat(inv.security_deposit || 0);
             t.billing.lateFee = parseFloat(inv.late_fee || 0);
             t.outstandingBalance += parseFloat(inv.total_amount || 0);
@@ -249,7 +250,7 @@ const AdminPayments = () => {
   const totalCollected = tenants.reduce((sum, t) => sum + t.history.filter(h => h.status === 'paid').reduce((s, h) => s + h.amount, 0), 0);
   const overdueCount = tenants.filter(t => t.status === 'overdue' || t.status === 'payment-failed').length;
   const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification' || t.status === 'scheduled' || t.status === 'processing').length;
-  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services)), 0);
+  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance)), 0);
 
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
@@ -268,7 +269,7 @@ const AdminPayments = () => {
     tenants.forEach(t => {
       if (t.status === 'paid') return;
       const daysOverdue = t.dueDate ? Math.max(0, Math.ceil((now - new Date(t.dueDate)) / (1000 * 60 * 60 * 24))) : 0;
-      const balance = t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services);
+      const balance = t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance);
       if (daysOverdue <= 0) result.current += balance;
       else if (daysOverdue <= 15) result.days15 += balance;
       else if (daysOverdue <= 30) result.days30 += balance;
@@ -281,7 +282,7 @@ const AdminPayments = () => {
   // leaving them out measured collection against a smaller base than the
   // amounts tenants were billed — overstating the collection rate on any
   // move-in or overdue invoice.
-  const billedTotal = (t) => t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + (t.billing.securityDeposit || 0) + (t.billing.lateFee || 0);
+  const billedTotal = (t) => t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance + (t.billing.securityDeposit || 0) + (t.billing.lateFee || 0);
   const monthlyTarget = tenants.reduce((sum, t) => sum + billedTotal(t), 0);
   const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + billedTotal(t), 0);
   const collectionPct = monthlyTarget > 0 ? Math.round((monthlyCollected / monthlyTarget) * 100) : 0;
@@ -538,7 +539,7 @@ const handleMarkAsPaid = async () => {
                   {filteredTenants.map(t => {
                     const days = getDaysUntilDue(t.dueDate);
                     const isDueSoon = t.status !== 'paid' && days !== null && days >= 0 && days <= 5;
-                    const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services;
+                    const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance;
                     const tenantTotalDue = t.outstandingBalance > 0 ? t.outstandingBalance : fallbackTotal;
                     return (
                       <div key={t.id} onClick={() => {setSelectedTenantId(t.id); setHistoryPage(1);}} className={`flex items-center justify-between p-4 border-b border-slate-100 cursor-pointer ${selectedTenantId === t.id ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}`}>
@@ -688,6 +689,7 @@ const handleMarkAsPaid = async () => {
                         {activeTenant.billing.electricity > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Electricity:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.electricity)}</span></div>}
                         {activeTenant.billing.parking > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Parking:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.parking)}</span></div>}
                         {activeTenant.billing.services > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-On Services:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.services)}</span></div>}
+                        {activeTenant.billing.maintenance > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Maintenance Recharge:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.maintenance)}</span></div>}
                         {Number(customAddOns) > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-ons:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(customAddOns)}</span></div>}
                         <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
                       </div>

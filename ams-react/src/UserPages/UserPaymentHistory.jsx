@@ -31,6 +31,9 @@ export default function UserPaymentHistory() {
         if (parseFloat(inv.parking) > 0) {
             breakdown += `\nParking: ${formatCurrency(inv.parking)}`;
         }
+        if (parseFloat(inv.maintenance) > 0) {
+            breakdown += `\nMaintenance Recharge: ${formatCurrency(inv.maintenance)}`;
+        }
         if (parseFloat(inv.late_fee) > 0) {
             breakdown += `\nLate Fee Penalty (Overdue): ${formatCurrency(inv.late_fee)}`;
         }
@@ -138,6 +141,9 @@ export default function UserPaymentHistory() {
                                                         )}
                                                         {parseFloat(inv.parking) > 0 && (
                                                             <span>{t('paymentHistory.parking')} {formatCurrency(inv.parking)}</span>
+                                                        )}
+                                                        {parseFloat(inv.maintenance) > 0 && (
+                                                            <span>{t('paymentHistory.maintenance')} {formatCurrency(inv.maintenance)}</span>
                                                         )}
                                                     </div>
                                                 </div>

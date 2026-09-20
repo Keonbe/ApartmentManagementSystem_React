@@ -86,6 +86,12 @@ $update_stmt->execute();
 
 if ($update_stmt->affected_rows > 0) {
     log_activity($conn, $user_id, 'tenant', "Requested Move Out", "Application ID: $app_id, Room: $room_name, Scheduled: $move_out_date");
+
+    // The admin has to schedule clearance and final billing for this move-out
+    // — it was logged before but never reached the action queue (audit M12).
+    notify_admins_queue($conn, 'move_out_request', $app_id, 'Move-Out Notice Filed',
+        "A tenant filed a move-out notice for Room $room_name, scheduled $move_out_date. Clearance and final billing required.");
+
     echo json_encode(["success" => true, "message" => "Move-out request recorded successfully."]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to submit move-out request — your application may have already changed status."]);

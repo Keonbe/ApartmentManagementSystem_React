@@ -427,7 +427,7 @@ flowchart TD
 - [x] **4.5 Status Tracking** ✅ — Pending → In Progress → Completed, plus Rejected (admin, with a reason) and Cancelled (tenant, while Pending); invalid transitions are refused
 - [x] **4.6 Date / Time Tracking** ✅ — `created_at`, `acknowledged_at`, `started_at` and `resolved_at` are stamped automatically on status changes, and the total resolution time is shown to the admin
 - [x] **4.7 Admin Assignment** ✅ — `assigned_to`, editable independently of status
-- [x] **4.8 Cost Estimation** ✅ — `estimated_cost`, plus a separate `actual_cost` recorded at completion; `tenant_responsible` flag
+- [x] **4.8 Cost Estimation** ✅ — `estimated_cost`, plus a separate `actual_cost` recorded at completion; `tenant_responsible` flag. Flagging a *Completed* ticket tenant-responsible now actually bills `COALESCE(actual_cost, estimated_cost)` onto the tenant's invoice (`invoices.maintenance`, `post_maintenance_charge()`) — until 2026-09-20 (audit H10) the flag was stored and excluded from building expenses, but nothing posted the charge
 - [x] **4.9 Work Notes** ✅ — `work_notes`, appended as timestamped entries
 - [ ] **4.10 Tenant Notification on Update** 🔧 — In-app notification on every status change (including the rejection reason) via `update_maintenance_status.php`; SMS/email channels pending
 

@@ -28,6 +28,7 @@ export default function PayBills() {
         electricity: 0,
         parking: 0,
         services: 0,
+        maintenance: 0,
         securityDeposit: 0,
         lateFee: 0,
         invoiceId: null,
@@ -74,6 +75,7 @@ export default function PayBills() {
                                 electricity: parseFloat(activeInv.electricity) || 0,
                                 parking: parseFloat(activeInv.parking) || 0,
                                 services: parseFloat(activeInv.services) || 0,
+                                maintenance: parseFloat(activeInv.maintenance) || 0,
                                 securityDeposit: parseFloat(activeInv.security_deposit) || 0,
                                 lateFee: parseFloat(activeInv.late_fee) || 0,
                                 invoiceId: activeInv.id,
@@ -145,7 +147,7 @@ export default function PayBills() {
         }
     }, [navigate]);
 
-    const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.services + billDetails.securityDeposit + billDetails.lateFee;
+    const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.services + billDetails.maintenance + billDetails.securityDeposit + billDetails.lateFee;
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
 
@@ -387,6 +389,12 @@ export default function PayBills() {
                                 <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
                                     <span>{t('payBills.services')}</span>
                                     <span className="font-bold text-slate-900">₱{billDetails.services.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
+                            {billDetails.maintenance > 0 && (
+                                <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                    <span>{t('payBills.maintenance')}</span>
+                                    <span className="font-bold text-slate-900">₱{billDetails.maintenance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
                             )}
                             {billDetails.lateFee > 0 && (

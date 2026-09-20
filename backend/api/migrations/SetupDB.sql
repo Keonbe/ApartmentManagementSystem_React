@@ -772,6 +772,19 @@ ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `resolved_at` dateti
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `actual_cost` decimal(10,2) DEFAULT NULL;
 ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `rejection_reason` varchar(255) DEFAULT NULL;
 
+-- Audit Phase 4 (H10): repair costs flagged tenant-responsible had nowhere to
+-- post to, so they were tracked in reports and on the ticket but never
+-- billed. `maintenance` accumulates the same way `services` does — several
+-- billed tickets in one period add into the one column instead of
+-- overwriting it. maintenance_requests gets the same claim-first billing
+-- columns service_requests already has, so a ticket can be billed exactly
+-- once (see post_maintenance_charge() / reverse_maintenance_charge()).
+ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `maintenance` decimal(10,2) NOT NULL DEFAULT 0.00 AFTER `services`;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `is_invoiced` tinyint(1) NOT NULL DEFAULT 0;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `invoice_id` varchar(50) DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD COLUMN IF NOT EXISTS `billing_period` varchar(50) DEFAULT NULL;
+ALTER TABLE `maintenance_requests` ADD INDEX IF NOT EXISTS `idx_maint_invoiced` (`is_invoiced`);
+
 -- Upgrade existing rows to the canonical categories (checklist 4.2) and urgencies, then backfill the timeline.
 UPDATE `maintenance_requests` SET `issue_category` = 'General Maintenance' WHERE LOWER(`issue_category`) IN ('appliance', 'pest control', 'general', 'general maintenance');
 UPDATE `maintenance_requests` SET `issue_category` = 'Structural/Physical' WHERE LOWER(`issue_category`) IN ('structural', 'carpentry', 'structural/physical');

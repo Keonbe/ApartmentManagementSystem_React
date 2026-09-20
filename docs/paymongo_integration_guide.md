@@ -18,7 +18,9 @@ The integration handles digital payments (GCash, Maya, QR Ph) through PayMongo's
   - Updates the invoice `status` to `processing` and saves the `checkout_session_id`.
 - `paymongo_webhook.php`: 
   - Receives `POST` events from PayMongo.
-  - Calculates the HMAC-SHA256 hash using the `paymongo_webhook_secret` and compares it against the `paymongo-signature` header for security.
+  - Calculates the HMAC-SHA256 hash using the `paymongo_webhook_secret` and compares it against the `paymongo-signature` header for security. The signature header carries **both** a `te` (test) and `li` (live) key, with whichever mode isn't active sent as an *empty string* — the key to verify against is chosen by the event's own `livemode` flag, not by which key happens to be non-null (fixed 2026-09-20, audit H9a; the old `??`-based lookup 401'd every real live-mode event).
+  - Before marking an invoice paid, compares `payments[0].attributes.amount` (centavos) against the invoice's current `total_amount` — a mismatch (e.g. the total changed after checkout because a late fee was added) leaves the invoice `pending-verification` and queues it for manual review instead of trusting the stale total (audit H9b).
+  - Settles a matched payment through the same `settle_invoice()` helper the front desk uses, so an online move-in payment activates the room/application/contract just like a desk payment (audit M12).
   - Updates the invoice status to `paid` or `payment-failed` automatically.
 
 ### Database Schema

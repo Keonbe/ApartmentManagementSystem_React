@@ -79,6 +79,16 @@ if ($stmt->execute()) {
         exit;
     }
     log_activity($conn, $user_id, 'payment', "Tenant payment action", "Invoice ID: $invoice_id, Method: $payment_method, Status: $status, Ref: $payment_reference");
+
+    // A cash-on-hand declaration means the tenant intends to pay at the desk —
+    // an admin should see it in the queue rather than only finding it by
+    // scanning the billing list (audit M12). A non-cash declaration is
+    // already queued by upload_payment_proof.php.
+    if ($is_cash) {
+        notify_admins_queue($conn, 'cash_payment_declared', $invoice_id, 'Cash Payment Declared',
+            "A tenant declared a cash-on-hand payment for invoice $invoice_id. Expect them at the desk.");
+    }
+
     echo json_encode(["success" => true, "message" => "Payment processed successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to process payment", "error" => $stmt->error]);

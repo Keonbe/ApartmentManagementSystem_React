@@ -87,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'electricity' => $row['electricity'] ?? 0,
                 'parking' => $row['parking'] ?? 0,
                 'services' => $row['services'] ?? 0,
+                'maintenance' => $row['maintenance'] ?? 0,
                 'security_deposit' => $row['security_deposit'] ?? 0,
                 'late_fee' => $row['late_fee'] ?? 0.00,
                 'total_amount' => $row['total_amount'] ?? 0.00,

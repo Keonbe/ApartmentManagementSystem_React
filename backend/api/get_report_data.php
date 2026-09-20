@@ -102,6 +102,7 @@ $data = [
     'electricCollected' => 0,
     'parkingCollected' => 0,
     'servicesCollected' => 0,
+    'maintenanceCollected' => 0,
     'depositCollected' => 0,
     'lateFeesCollected' => 0,
     'expenses' => 0,
@@ -141,6 +142,7 @@ $stmt = $conn->prepare("SELECT
     SUM(electricity) as electric, 
     SUM(parking) as parking,
     SUM(COALESCE(services, 0)) as services,
+    SUM(COALESCE(maintenance, 0)) as maintenance,
     SUM(COALESCE(security_deposit, 0)) as deposit,
     SUM(late_fee) as late_fee,
     SUM(total_amount) as total
@@ -155,6 +157,7 @@ if ($row = $res->fetch_assoc()) {
     $data['electricCollected'] = (float)($row['electric'] ?? 0);
     $data['parkingCollected'] = (float)($row['parking'] ?? 0);
     $data['servicesCollected'] = (float)($row['services'] ?? 0);
+    $data['maintenanceCollected'] = (float)($row['maintenance'] ?? 0);
     $data['depositCollected'] = (float)($row['deposit'] ?? 0);
     $data['lateFeesCollected'] = (float)($row['late_fee'] ?? 0);
     $grossRevenue = (float)($row['total'] ?? 0);
@@ -167,16 +170,18 @@ $prevWater = 0.0;
 $prevElectric = 0.0;
 $prevParking = 0.0;
 $prevServices = 0.0;
+$prevMaintenance = 0.0;
 $prevDeposit = 0.0;
 $prevLateFee = 0.0;
 $prevGrossRevenue = 0.0;
 
-$stmt = $conn->prepare("SELECT 
-    SUM(base_rent) as rent, 
-    SUM(water) as water, 
-    SUM(electricity) as electric, 
+$stmt = $conn->prepare("SELECT
+    SUM(base_rent) as rent,
+    SUM(water) as water,
+    SUM(electricity) as electric,
     SUM(parking) as parking,
     SUM(COALESCE(services, 0)) as services,
+    SUM(COALESCE(maintenance, 0)) as maintenance,
     SUM(COALESCE(security_deposit, 0)) as deposit,
     SUM(late_fee) as late_fee,
     SUM(total_amount) as total
@@ -191,6 +196,7 @@ if ($stmt) {
         $prevElectric = (float)($row['electric'] ?? 0);
         $prevParking = (float)($row['parking'] ?? 0);
         $prevServices = (float)($row['services'] ?? 0);
+        $prevMaintenance = (float)($row['maintenance'] ?? 0);
         $prevDeposit = (float)($row['deposit'] ?? 0);
         $prevLateFee = (float)($row['late_fee'] ?? 0);
         $prevGrossRevenue = (float)($row['total'] ?? 0);
@@ -283,6 +289,7 @@ $data['incomeStatement'] = [
     'rentalRevenue' => $data['rentCollected'] + $data['parkingCollected'],
     'utilityRevenue' => $data['waterCollected'] + $data['electricCollected'],
     'serviceRevenue' => $data['servicesCollected'],
+    'maintenanceRevenue' => $data['maintenanceCollected'],
     'depositRevenue' => $data['depositCollected'],
     'lateFeeRevenue' => $data['lateFeesCollected'],
     'maintenanceExpenses' => $actualMaintExpenses,
@@ -353,6 +360,19 @@ $streams = [
         'color' => '#8b5cf6',
         'icon' => 'faConciergeBell'
     ],
+    // Audit H10: tenant-caused repair costs, recharged onto the tenant's
+    // invoice — kept out of "Add-On Services" so a repair recharge doesn't
+    // blend into voluntary service bookings.
+    [
+        'id' => 'maintenance',
+        'category' => 'Maintenance Recharge',
+        'amount' => $data['maintenanceCollected'],
+        'pct' => $grossRevenue > 0 ? round(($data['maintenanceCollected'] / $grossRevenue) * 100, 1) : 0,
+        'prevAmount' => $prevMaintenance,
+        'growthPct' => $prevMaintenance > 0 ? round((($data['maintenanceCollected'] - $prevMaintenance) / $prevMaintenance) * 100, 1) : 0,
+        'color' => '#14b8a6',
+        'icon' => 'faScrewdriverWrench'
+    ],
     [
         'id' => 'deposit',
         'category' => 'Security Deposits & Fees',
@@ -409,6 +429,7 @@ $stmt = $conn->prepare("SELECT
     SUM(i.electricity) as electric_total,
     SUM(i.parking) as parking_total,
     SUM(COALESCE(i.services, 0)) as services_total,
+    SUM(COALESCE(i.maintenance, 0)) as maintenance_total,
     SUM(COALESCE(i.security_deposit, 0)) as deposit_total,
     SUM(i.late_fee) as late_fee_total,
     SUM(i.total_amount) as total_collected,
@@ -433,6 +454,7 @@ if ($stmt) {
             'electric' => (float)$row['electric_total'],
             'parking' => (float)$row['parking_total'],
             'services' => (float)$row['services_total'],
+            'maintenance' => (float)$row['maintenance_total'],
             'deposit' => (float)$row['deposit_total'],
             'lateFee' => (float)$row['late_fee_total'],
             'total' => $uTotal,

@@ -348,6 +348,11 @@ function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
 
     if (!empty($room_name)) notify_unit_waitlist($conn, $room_name);
 
+    // Whatever the exit path (archive, completed move-out, contract
+    // termination), the move-out notice this tenancy may have filed is
+    // decided now — clear it from the admin queue (audit M12).
+    resolve_admin_queue($conn, 'move_out_request', $app_id);
+
     return [
         'room_name' => $room_name,
         'user_id' => $user_id,
@@ -519,6 +524,169 @@ function reverse_service_charge($conn, $service_request_id) {
 
         $conn->commit();
         return ['ok' => true, 'message' => 'Service charge reversed from invoice ' . $request['invoice_id'] . '.'];
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['ok' => false, 'message' => $e->getMessage()];
+    }
+}
+
+// Posts a completed, tenant-caused repair's cost onto the tenant's invoice
+// for the current billing period — the same accumulate-not-overwrite pattern
+// post_service_charge() uses for `services`, but landing on its own
+// `maintenance` column so a repair recharge never blends into "Add-On
+// Service Revenue" in Reports (audit H10). Before this existed, a ticket
+// flagged tenant_responsible = 1 was excluded from building expenses and
+// totalled in the UI as "tenant charged", but nothing ever billed it — the
+// revenue reports counted as collected was never actually invoiced.
+//
+// The is_invoiced flag is claimed FIRST, inside the transaction, exactly like
+// post_service_charge(), so a repeated call can never bill twice.
+//
+// Returns ['ok' => bool, 'invoice_id' => string|null, 'message' => string].
+function post_maintenance_charge($conn, $maintenance_request_id) {
+    $conn->begin_transaction();
+
+    try {
+        $claim = $conn->prepare("UPDATE maintenance_requests SET is_invoiced = 1 WHERE id = ? AND is_invoiced = 0");
+        $claim->bind_param("i", $maintenance_request_id);
+        $claim->execute();
+        $claimed = $claim->affected_rows;
+        $claim->close();
+
+        if ($claimed === 0) {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => 'This maintenance request has already been billed.'];
+        }
+
+        $stmt = $conn->prepare("SELECT user_id, actual_cost, estimated_cost FROM maintenance_requests WHERE id = ? FOR UPDATE");
+        $stmt->bind_param("i", $maintenance_request_id);
+        $stmt->execute();
+        $request = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$request) {
+            $conn->rollback();
+            return ['ok' => false, 'invoice_id' => null, 'message' => 'Maintenance request not found.'];
+        }
+
+        $user_id = (int)$request['user_id'];
+        $amount = (float)($request['actual_cost'] ?? $request['estimated_cost'] ?? 0);
+
+        if ($amount <= 0) {
+            $conn->commit();
+            return ['ok' => true, 'invoice_id' => null, 'message' => 'No charge for this ticket.'];
+        }
+
+        $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
+        $period = billing_period_label($now);
+        $legacy_period = $now->format('Y-m');
+
+        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
+        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable ORDER BY created_at ASC LIMIT 1");
+        $stmt->bind_param("iss", $user_id, $period, $legacy_period);
+        $stmt->execute();
+        $invoice = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $invoice_id = $invoice ? $invoice['id'] : null;
+
+        if (!$invoice_id) {
+            $lease = get_active_tenancy($conn, $user_id);
+
+            if (!$lease) {
+                $conn->rollback();
+                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved lease — cannot post maintenance charge.'];
+            }
+
+            $invoice_id = 'INV-' . $now->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $due_date = (clone $now)->modify('first day of next month')->modify('+4 days')->format('Y-m-d');
+
+            $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date)
+                                    VALUES (?, ?, ?, 0, 0, ?, 'pending', ?)");
+            $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $period, $due_date);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                throw new Exception("Failed to create maintenance invoice: " . $conn->error);
+            }
+            $stmt->close();
+        }
+
+        $stmt = $conn->prepare("UPDATE invoices SET maintenance = maintenance + ?, total_amount = total_amount + ? WHERE id = ?");
+        $stmt->bind_param("dds", $amount, $amount, $invoice_id);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception("Failed to post maintenance charge: " . $conn->error);
+        }
+        $stmt->close();
+
+        $stmt = $conn->prepare("UPDATE maintenance_requests SET invoice_id = ?, billing_period = ? WHERE id = ?");
+        $stmt->bind_param("ssi", $invoice_id, $period, $maintenance_request_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        return ['ok' => true, 'invoice_id' => $invoice_id, 'message' => "Charge posted to invoice $invoice_id ($period)."];
+
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['ok' => false, 'invoice_id' => null, 'message' => $e->getMessage()];
+    }
+}
+
+// Backs a tenant-responsibility repair charge out of its invoice, mirroring
+// reverse_service_charge(). Only possible while that invoice is still
+// unpaid — once settled the money has changed hands, so the admin must issue
+// a manual credit instead.
+//
+// Returns ['ok' => bool, 'message' => string].
+function reverse_maintenance_charge($conn, $maintenance_request_id) {
+    $conn->begin_transaction();
+
+    try {
+        $stmt = $conn->prepare("SELECT actual_cost, estimated_cost, invoice_id, is_invoiced FROM maintenance_requests WHERE id = ? FOR UPDATE");
+        $stmt->bind_param("i", $maintenance_request_id);
+        $stmt->execute();
+        $request = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$request || !(int)$request['is_invoiced'] || !$request['invoice_id']) {
+            $conn->rollback();
+            return ['ok' => true, 'message' => 'Nothing to reverse.'];
+        }
+
+        $amount = (float)($request['actual_cost'] ?? $request['estimated_cost'] ?? 0);
+
+        $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
+        $stmt = $conn->prepare("UPDATE invoices SET maintenance = GREATEST(maintenance - ?, 0), total_amount = GREATEST(total_amount - ?, 0) WHERE id = ? AND status IN $adjustable");
+        $stmt->bind_param("dds", $amount, $amount, $request['invoice_id']);
+        $stmt->execute();
+        $reversed = $stmt->affected_rows;
+        $stmt->close();
+
+        if ($reversed === 0) {
+            $conn->rollback();
+            $inv = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
+            $inv->bind_param("s", $request['invoice_id']);
+            $inv->execute();
+            $inv_status = $inv->get_result()->fetch_assoc()['status'] ?? null;
+            $inv->close();
+            $reason = match ($inv_status) {
+                'processing' => 'has an online payment in progress',
+                'pending-verification' => 'has a payment under verification',
+                'paid' => 'is already paid; issue a manual credit instead',
+                default => 'can no longer be adjusted',
+            };
+            return ['ok' => false, 'message' => 'Invoice ' . $request['invoice_id'] . ' ' . $reason . '.'];
+        }
+
+        $stmt = $conn->prepare("UPDATE maintenance_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
+        $stmt->bind_param("i", $maintenance_request_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        return ['ok' => true, 'message' => 'Maintenance charge reversed from invoice ' . $request['invoice_id'] . '.'];
 
     } catch (Exception $e) {
         $conn->rollback();
@@ -700,6 +868,142 @@ function billing_open_status_sql() {
     return "('" . implode("','", BILLING_OPEN_STATUSES) . "')";
 }
 
+// Settles an invoice in full, whichever channel the money actually arrived
+// through — the front desk (record_payment_admin.php) or a verified PayMongo
+// webhook event (paymongo_webhook.php). Before this existed each path ran its
+// own copy of the move-in cascade, so an online move-in payment never
+// activated the room/application/contract the way a desk payment did (audit
+// M12) — an online-paid move-in invoice left the application 'Approved' and
+// the contract a draft forever.
+//
+// $amount_paid is the desk-only short-payment guard — this system settles in
+// full, there is no partial-payment ledger. The webhook validates the paid
+// amount against total_amount itself before calling this (audit H9b), so it
+// always passes null here.
+//
+// The move-in cascade below is copied from the pre-Phase-4 record_payment_admin.php
+// verbatim, including every existing guard: security_deposit > 0 marks the
+// move-in invoice specifically (every other invoice type also carries
+// rent_application_id and must never re-run this cascade — audit C1); only a
+// still-Approved application is awaiting its move-in payment; the room update
+// only lands on a room that's actually free for this tenant or already theirs;
+// 'expired'/'eviction-pending' contracts are deliberately excluded from the
+// draft->active promotion.
+//
+// Returns ['ok' => bool, 'message' => string, 'invoice_id', 'user_id', 'activated' => bool].
+function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference = null, $amount_paid = null) {
+    $conn->begin_transaction();
+
+    try {
+        if ($amount_paid !== null) {
+            $due_q = $conn->prepare("SELECT total_amount FROM invoices WHERE id = ?");
+            $due_q->bind_param("s", $invoice_id);
+            $due_q->execute();
+            $due_row = $due_q->get_result()->fetch_assoc();
+            $due_q->close();
+            if ($due_row && $amount_paid + 0.009 < (float)$due_row['total_amount']) {
+                throw new Exception("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the invoice total (₱" . number_format((float)$due_row['total_amount'], 2) . "). Partial payments are not supported.");
+            }
+        }
+
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, payment_reference = COALESCE(?, payment_reference), paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
+        $stmt->bind_param("sss", $payment_method, $payment_reference, $invoice_id);
+        $stmt->execute();
+        if ($stmt->affected_rows === 0) {
+            throw new Exception("Invoice not found or already settled.");
+        }
+        $stmt->close();
+
+        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit FROM invoices WHERE id = ?");
+        $inv_q->bind_param("s", $invoice_id);
+        $inv_q->execute();
+        $inv_res = $inv_q->get_result()->fetch_assoc();
+        $inv_q->close();
+
+        $activated = false;
+
+        if ($inv_res && !empty($inv_res['rent_application_id']) && (float)($inv_res['security_deposit'] ?? 0) > 0) {
+            $app_id = (int)$inv_res['rent_application_id'];
+            $app_q = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, monthly_rent, occupants FROM rent_applications WHERE id = ? AND status = 'Approved'");
+            $app_q->bind_param("i", $app_id);
+            $app_q->execute();
+            $app_data = $app_q->get_result()->fetch_assoc();
+            $app_q->close();
+
+            if ($app_data) {
+                $tenant_name = $app_data['first_name'] . ' ' . $app_data['last_name'];
+                $room_name = $app_data['room_name'];
+                $months = (int)$app_data['months_of_rent'];
+                $monthly_rent = (double)$app_data['monthly_rent'];
+                $occupants = (int)$app_data['occupants'];
+                $lease_start = date('Y-m-d');
+                $lease_end = date('Y-m-d', strtotime("+$months months"));
+
+                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ?
+                                              WHERE id = ? AND (status IN ('vacant', 'reserved') OR tenant_name = ?)");
+                $room_stmt->bind_param("sssiss", $tenant_name, $lease_start, $lease_end, $occupants, $room_name, $tenant_name);
+                $room_stmt->execute();
+                if ($room_stmt->affected_rows === 0) {
+                    $room_stmt->close();
+                    throw new Exception("Unit $room_name is occupied by another tenant; cannot activate move-in.");
+                }
+                $room_stmt->close();
+
+                $app_activate = $conn->prepare("UPDATE rent_applications SET status = 'active' WHERE id = ? AND status = 'Approved'");
+                $app_activate->bind_param("i", $app_id);
+                $app_activate->execute();
+                $app_activate->close();
+
+                $ctr_check = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ?");
+                $ctr_check->bind_param("i", $app_id);
+                $ctr_check->execute();
+                $ctr_res = $ctr_check->get_result();
+                if ($ctr_res->num_rows === 0) {
+                    $contract_id = 'CTR-' . uniqid();
+                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'active')");
+                    $ctr_stmt->bind_param("sidss", $contract_id, $app_id, $monthly_rent, $lease_start, $lease_end);
+                    $ctr_stmt->execute();
+                    $ctr_stmt->close();
+                } else {
+                    // Only promote a contract that's still a draft awaiting this
+                    // very move-in payment (audit C1) — an expired contract goes
+                    // through the lease-renewal/restore flow instead, and
+                    // 'eviction-pending' stays untouched.
+                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE rent_application_id = ? AND status = 'draft'");
+                    $ctr_upd->bind_param("i", $app_id);
+                    $ctr_upd->execute();
+                    $ctr_upd->close();
+                }
+                $ctr_check->close();
+                $activated = true;
+            }
+        }
+
+        $conn->commit();
+
+        // The tenant is told the payment landed, and a proof/cash declaration
+        // awaiting verification leaves the admin queue — regardless of which
+        // channel settled it.
+        resolve_admin_queue($conn, 'payment_verification', $invoice_id);
+        resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
+        if ($inv_res && !empty($inv_res['user_id'])) {
+            create_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Received',
+                "Your payment for invoice $invoice_id has been received and recorded ($payment_method). Thank you!");
+        }
+
+        return [
+            'ok' => true,
+            'message' => 'Payment successfully finalized and saved.',
+            'invoice_id' => $invoice_id,
+            'user_id' => $inv_res['user_id'] ?? null,
+            'activated' => $activated,
+        ];
+    } catch (Exception $e) {
+        $conn->rollback();
+        return ['ok' => false, 'message' => $e->getMessage(), 'invoice_id' => $invoice_id, 'user_id' => null, 'activated' => false];
+    }
+}
+
 // Maintenance vocabulary (checklist 4.2 / 4.3), enforced server-side.
 const MAINTENANCE_CATEGORIES = ['Plumbing', 'Electrical', 'Structural/Physical', 'Water Supply', 'General Maintenance', 'Others'];
 const MAINTENANCE_URGENCIES = ['Low', 'Medium', 'High', 'Urgent'];
@@ -735,6 +1039,12 @@ const SERVICE_TRANSITIONS = [
 // Invoices a service charge may be added to or reversed from. Excludes 'processing'
 // (amount already at the gateway) and 'pending-verification' (tenant already paid it).
 const SERVICE_ADJUSTABLE_INVOICE_STATUSES = ['pending', 'unpaid', 'overdue', 'scheduled', 'payment-failed'];
+
+// Invoices an admin may hand-adjust the manual lines of (audit H8). Same set
+// as SERVICE_ADJUSTABLE_INVOICE_STATUSES today, but named separately so the
+// two can diverge — an admin adjustment and a system-posted accumulation
+// aren't guaranteed to stay under the same rules forever.
+const INVOICE_ADJUSTABLE_STATUSES = ['pending', 'unpaid', 'overdue', 'scheduled', 'payment-failed'];
 
 function normalize_maintenance_category($value) {
     $map = [
@@ -887,8 +1197,8 @@ function promote_overdue_invoices($conn) {
     if (($settings['late_fee_type'] ?? 'flat') === 'percent') {
         $stmt = $conn->prepare("
             UPDATE invoices
-            SET late_fee = ROUND((base_rent + water + electricity + parking + services) * ? / 100, 2),
-                total_amount = total_amount + ROUND((base_rent + water + electricity + parking + services) * ? / 100, 2)
+            SET late_fee = ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2),
+                total_amount = total_amount + ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2)
             WHERE status = 'overdue' AND late_fee = 0
         ");
         $stmt->bind_param("dd", $value, $value);
@@ -1043,7 +1353,11 @@ const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     'rent_application', 'maintenance_request', 'cctv_request', 'parking_reservation',
     'service_request', 'inquiry', 'occupancy_request', 'lease_extension_request',
     'payment_verification', 'visitor_registration', 'visitor_overstay',
-    'household_request', 'unit_waitlist'
+    'household_request', 'unit_waitlist',
+    // Audit M12: a move-out notice needs an admin to schedule clearance, and a
+    // cash-on-hand declaration needs an admin to expect the tenant at the desk
+    // — neither reached the queue before.
+    'move_out_request', 'cash_payment_declared'
 ];
 
 function admin_queue_types_sql() {
