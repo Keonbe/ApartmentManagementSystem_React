@@ -6,9 +6,10 @@ import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
   faHistory, faLayerGroup, faSync, faWrench, faFileContract,
-  faInfoCircle, faChevronRight
+  faInfoCircle, faChevronRight, faImages, faUpload, faTrash
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { publicAssetUrl } from '../api/fileUrl';
 
 const daysRemaining = (leaseEnd) => {
   if (!leaseEnd) return null;
@@ -525,6 +526,58 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
   const [editFurnishing, setEditFurnishing] = useState(unit.furnishingStatus || 'Unfurnished');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Unit showcase gallery states
+  const [galleryImages, setGalleryImages] = useState(unit.images || []);
+  const [galleryError, setGalleryError] = useState('');
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [deletingImagePath, setDeletingImagePath] = useState(null);
+
+  const handleUploadImages = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setGalleryError('');
+    setIsUploadingImages(true);
+    try {
+      const formData = new FormData();
+      formData.append('room_id', unit.id);
+      Array.from(files).forEach(file => formData.append('images[]', file));
+
+      const res = await api.post('upload_room_images.php', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data.success) {
+        setGalleryImages(res.data.gallery);
+        if (onUpdateSuccess) onUpdateSuccess();
+      } else {
+        setGalleryError(res.data.message || 'Failed to upload images.');
+      }
+    } catch (err) {
+      setGalleryError(err.response?.data?.message || 'Failed to upload images.');
+    } finally {
+      setIsUploadingImages(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteImage = async (path) => {
+    if (!window.confirm('Remove this showcase image?')) return;
+    setGalleryError('');
+    setDeletingImagePath(path);
+    try {
+      const res = await api.post('delete_room_image.php', { room_id: unit.id, path });
+      if (res.data.success) {
+        setGalleryImages(res.data.gallery);
+        if (onUpdateSuccess) onUpdateSuccess();
+      } else {
+        setGalleryError(res.data.message || 'Failed to remove image.');
+      }
+    } catch (err) {
+      setGalleryError(err.response?.data?.message || 'Failed to remove image.');
+    } finally {
+      setDeletingImagePath(null);
+    }
+  };
+
   const handleSaveMonitoring = async () => {
     setIsUpdating(true);
     try {
@@ -552,6 +605,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
 
   const tabs = [
     { key: 'overview', label: 'Overview', icon: faLayerGroup },
+    { key: 'gallery', label: 'Gallery', icon: faImages },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
     { key: 'occupancyHistory', label: 'Occupancy History', icon: faHistory },
     { key: 'leaseHistory', label: 'Lease History', icon: faFileContract },
@@ -696,6 +750,59 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'gallery' && (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <p className="text-xs text-slate-500 m-0 leading-relaxed">
+                  Showcase photos shown to guests on the public Preview page. Rooms with no images hide the "View Layout" button entirely (max 8 images).
+                </p>
+                <label className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors ${galleryImages.length >= 8 || isUploadingImages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+                  <FontAwesomeIcon icon={faUpload} className="text-[10px]" />
+                  {isUploadingImages ? 'Uploading...' : 'Upload Images'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleUploadImages}
+                    disabled={galleryImages.length >= 8 || isUploadingImages}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {galleryError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
+                  {galleryError}
+                </div>
+              )}
+
+              {galleryImages.length === 0 ? (
+                <div className="text-center py-12">
+                  <FontAwesomeIcon icon={faImages} className="text-slate-300 text-4xl mb-3 mx-auto block" />
+                  <p className="text-sm text-slate-400 m-0">No showcase images uploaded for this unit yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {galleryImages.map((path) => (
+                    <div key={path} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square bg-slate-100">
+                      <img src={publicAssetUrl(path)} alt={`Unit ${unit.id} showcase`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteImage(path)}
+                        disabled={deletingImagePath === path}
+                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-50"
+                        title="Remove image"
+                      >
+                        <FontAwesomeIcon icon={faTrash} className="text-[11px]" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

@@ -34,6 +34,11 @@ try {
     $formattedRooms = array_map(function($room) use ($conn, $is_admin) {
         $roomId = $room['id'];
 
+        // Showcase photos are meant for guests browsing Preview.jsx, so they're
+        // included regardless of $is_admin — unlike everything else below,
+        // which is tenant-identifying and admin-only (H1).
+        $images = json_decode($room['gallery'] ?? '[]', true) ?: [];
+
         if (!$is_admin) {
             return [
                 'id' => $room['id'],
@@ -43,6 +48,7 @@ try {
                 'status' => $room['status'],
                 'roomCondition' => $room['room_condition'] ?? 'Good',
                 'furnishingStatus' => $room['furnishing_status'] ?? 'Unfurnished',
+                'images' => $images,
             ];
         }
 
@@ -139,7 +145,8 @@ try {
             'lastInspectionDate' => $room['last_inspection_date'],
             'maintenanceHistory' => $maintHistory,
             'occupancyHistory' => $occupancyHistory,
-            'leaseHistory' => $leaseHistory
+            'leaseHistory' => $leaseHistory,
+            'images' => $images
         ];
     }, $rooms);
 

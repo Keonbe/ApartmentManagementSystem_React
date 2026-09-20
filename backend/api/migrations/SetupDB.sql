@@ -339,6 +339,7 @@ CREATE TABLE `rooms` (
   `room_condition` varchar(100) DEFAULT 'Good',
   `furnishing_status` varchar(50) DEFAULT 'Unfurnished',
   `last_inspection_date` date DEFAULT NULL,
+  `gallery` JSON DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

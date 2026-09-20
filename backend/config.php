@@ -1151,6 +1151,37 @@ function store_maintenance_attachment($file) {
     return ['uploads/maintenance/' . $name, null];
 }
 
+// Validates and stores an admin-uploaded unit showcase photo. Unlike other
+// uploads, these are deliberately public (guests browsing Preview.jsx have
+// no session) so they're stored under backend/room_images/, NOT
+// backend/uploads/ — that directory is blanket-denied at the webserver
+// level and everything in it is only reachable through the
+// owner-authenticated download_file.php, which has no concept of a
+// "showcase photo" owner. Returns [path|null, error|null].
+function store_room_image($file) {
+    if (!$file || $file['error'] === UPLOAD_ERR_NO_FILE) return [null, null];
+    if ($file['error'] !== UPLOAD_ERR_OK) return [null, 'File upload failed. Images must be 10MB or smaller.'];
+    if ($file['size'] > 10 * 1024 * 1024) return [null, 'Images must be 10MB or smaller.'];
+
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)) {
+        return [null, 'Allowed formats: JPG, PNG, GIF or WEBP images.'];
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!in_array($mime, $allowed_mimes, true)) return [null, 'File content does not match an allowed image format.'];
+
+    $dir = __DIR__ . '/room_images/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    $name = time() . '_' . bin2hex(random_bytes(6)) . '_' . preg_replace('/[^a-zA-Z0-9.]/', '_', basename($file['name']));
+    if (!move_uploaded_file($file['tmp_name'], $dir . $name)) return [null, 'Failed to save the uploaded image.'];
+
+    return ['room_images/' . $name, null];
+}
+
 // Promotes lapsed invoices to 'overdue' and applies the configured late fee.
 //
 // Both the promotion and the fee live here because they must always happen
