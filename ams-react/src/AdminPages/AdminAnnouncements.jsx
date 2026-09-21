@@ -105,13 +105,13 @@ const AdminAnnouncements = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Send to</label>
-                  <select value={form.sendTo} onChange={e => setForm(p => ({...p, sendTo: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all">
+                  <select value={form.sendTo} onChange={e => setForm(p => ({...p, sendTo: e.target.value}))} className="focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all">
                     <option>All tenants</option><option>Specific unit</option>
                   </select>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Type</label>
-                  <select value={form.type} onChange={e => setForm(p => ({...p, type: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all">
+                  <select value={form.type} onChange={e => setForm(p => ({...p, type: e.target.value}))} className="focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all">
                     <option>General</option><option>Urgent</option><option>Reminder</option>
                   </select>
                 </div>
@@ -119,12 +119,12 @@ const AdminAnnouncements = () => {
 
               <div className="mb-3">
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Title</label>
-                <input type="text" placeholder="Announcement title..." value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 outline-none focus:border-indigo-500 transition-all" />
+                <input type="text" placeholder="Announcement title..." value={form.title} onChange={e => setForm(p => ({...p, title: e.target.value}))} className="focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 outline-none focus:border-indigo-500 transition-all" />
               </div>
 
               <div className="mb-4">
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Message</label>
-                <textarea placeholder="Type your message here..." rows={4} value={form.body} onChange={e => setForm(p => ({...p, body: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                <textarea placeholder="Type your message here..." rows={4} value={form.body} onChange={e => setForm(p => ({...p, body: e.target.value}))} className="focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" />
               </div>
 
               {/* Delivery Channels */}
@@ -133,7 +133,7 @@ const AdminAnnouncements = () => {
                 <div className="flex gap-2">
                   {[{ key: 'in-app', label: 'In-App', icon: faDesktop }, { key: 'sms', label: 'SMS', icon: faMobileAlt }, { key: 'email', label: 'Email', icon: faEnvelope }].map(ch => (
                     <button key={ch.key} onClick={() => toggleChannel(ch.key)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${form.channels.includes(ch.key) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400'}`}>
+                      className={`btn-interactive flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${form.channels.includes(ch.key) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400'}`}>
                       <FontAwesomeIcon icon={ch.icon} /> {ch.label}
                     </button>
                   ))}
@@ -158,11 +158,11 @@ const AdminAnnouncements = () => {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => handleSend(false)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
+                <button onClick={() => handleSend(false)} className="btn-interactive flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
                   <FontAwesomeIcon icon={form.scheduleEnabled ? faClock : faPaperPlane} />
                   {form.scheduleEnabled ? 'Schedule' : 'Send to all tenants'}
                 </button>
-                <button onClick={() => handleSend(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">
+                <button onClick={() => handleSend(true)} className="btn-interactive flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">
                   <FontAwesomeIcon icon={faSave} /> Save draft
                 </button>
               </div>
@@ -171,9 +171,9 @@ const AdminAnnouncements = () => {
             {/* Announcement History */}
             <div>
               <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-3 m-0">Announcement History</h4>
-              <div className="space-y-3 mt-2">
+              <div className="stagger-children space-y-3 mt-2">
                 {announcements.map(item => (
-                  <div key={item.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-all hover:border-indigo-400 group">
+                  <div key={item.id} className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm transition-all hover:border-indigo-400 group">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-semibold ${item.tagStyle}`}>{item.tag}</span>
@@ -181,8 +181,8 @@ const AdminAnnouncements = () => {
                         <span className="text-sm font-semibold text-slate-800">{item.title}</span>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="w-7 h-7 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEdit} className="text-xs" /></button>
-                        <button onClick={() => handleDelete(item.id)} className="w-7 h-7 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faTrashAlt} className="text-xs" /></button>
+                        <button className="btn-interactive w-7 h-7 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEdit} className="text-xs" /></button>
+                        <button onClick={() => handleDelete(item.id)} className="btn-interactive w-7 h-7 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faTrashAlt} className="text-xs" /></button>
                       </div>
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed m-0 mb-3">{item.body}</p>

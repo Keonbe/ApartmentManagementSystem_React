@@ -176,7 +176,7 @@ const AdminAccountSettings = () => {
                         type="text"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                         required
                       />
                     </div>
@@ -186,7 +186,7 @@ const AdminAccountSettings = () => {
                         type="text"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                         required
                       />
                     </div>
@@ -199,7 +199,7 @@ const AdminAccountSettings = () => {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                         required
                       />
                     </div>
@@ -210,7 +210,7 @@ const AdminAccountSettings = () => {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="09123456789"
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                       />
                     </div>
                   </div>
@@ -219,7 +219,7 @@ const AdminAccountSettings = () => {
                     <button
                       type="submit"
                       disabled={savingProfile}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
+                      className="btn-interactive bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
                     >
                       <FontAwesomeIcon icon={savingProfile ? faSpinner : faSave} className={savingProfile ? 'animate-spin' : ''} />
                       {savingProfile ? 'Saving…' : 'Save Changes'}
@@ -249,7 +249,7 @@ const AdminAccountSettings = () => {
                       type="password"
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
+                      className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
                       required
                     />
                   </div>
@@ -261,7 +261,7 @@ const AdminAccountSettings = () => {
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
+                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
                         required
                       />
                     </div>
@@ -271,7 +271,7 @@ const AdminAccountSettings = () => {
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
+                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
                         required
                       />
                     </div>
@@ -281,7 +281,7 @@ const AdminAccountSettings = () => {
                     <button
                       type="submit"
                       disabled={savingPassword}
-                      className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
+                      className="btn-interactive bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
                     >
                       <FontAwesomeIcon icon={savingPassword ? faSpinner : faSave} className={savingPassword ? 'animate-spin' : ''} />
                       {savingPassword ? 'Updating…' : 'Update Password'}
@@ -413,7 +413,7 @@ const AdminAccountSettings = () => {
                         <select
                           value={settings.roomPreviewMode}
                           onChange={(e) => updateSetting('roomPreviewMode', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-semibold"
+                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-semibold"
                         >
                           <option value="images">Room images</option>
                           <option value="floor_plan">2D floor plan</option>
@@ -558,7 +558,7 @@ const AdminAccountSettings = () => {
                           type="text"
                           value={settings.landlordName}
                           onChange={(e) => updateSetting('landlordName', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                         />
                       </div>
 
@@ -571,7 +571,7 @@ const AdminAccountSettings = () => {
                           type="text"
                           value={settings.landlordAddress}
                           onChange={(e) => updateSetting('landlordAddress', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                         />
                       </div>
 
@@ -584,7 +584,7 @@ const AdminAccountSettings = () => {
                           type="text"
                           value={settings.propertyAddress}
                           onChange={(e) => updateSetting('propertyAddress', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                         />
                         <p className="text-[11px] text-slate-400 m-0">The building's location, shown under "Description of the Apartment".</p>
                       </div>
@@ -598,7 +598,7 @@ const AdminAccountSettings = () => {
                           type="text"
                           value={settings.landlordContact}
                           onChange={(e) => updateSetting('landlordContact', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                         />
                         <p className="text-[11px] text-slate-400 m-0">Shown on the contract exactly as entered — mask it if it should not be public.</p>
                       </div>
@@ -848,7 +848,7 @@ const AdminAccountSettings = () => {
                             value={settings.paymongoSecretKey || ''}
                             onChange={(e) => updateSetting('paymongoSecretKey', e.target.value)}
                             placeholder="sk_test_..."
-                            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
                           />
                         </div>
                         <div className="flex flex-col space-y-1.5">
@@ -858,7 +858,7 @@ const AdminAccountSettings = () => {
                             value={settings.paymongoPublicKey || ''}
                             onChange={(e) => updateSetting('paymongoPublicKey', e.target.value)}
                             placeholder="pk_test_..."
-                            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
                           />
                         </div>
                       </div>
@@ -870,7 +870,7 @@ const AdminAccountSettings = () => {
                           value={settings.paymongoWebhookSecret || ''}
                           onChange={(e) => updateSetting('paymongoWebhookSecret', e.target.value)}
                           placeholder="whsk_..."
-                          className="w-full md:w-1/2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                          className="focus-glow w-full md:w-1/2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
                         />
                         <p className="text-[11px] text-slate-400 m-0 mt-1">Required for signature verification. Obtain this from the PayMongo Webhooks dashboard.</p>
                       </div>
@@ -929,7 +929,7 @@ const AdminAccountSettings = () => {
                         value={settings.tenantResponsibilityClause}
                         onChange={(e) => updateSetting('tenantResponsibilityClause', e.target.value)}
                         rows={4}
-                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 shadow-inner text-sm resize-y leading-relaxed"
+                        className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 shadow-inner text-sm resize-y leading-relaxed"
                       />
                       <p className="text-[11px] text-slate-400 m-0 mt-1.5">
                         This clause is referenced when flagging maintenance requests as "Tenant Responsible." 
@@ -958,7 +958,7 @@ const AdminAccountSettings = () => {
                       <button
                         type="submit"
                         disabled={isSavingSettings}
-                        className={`w-full sm:w-auto font-bold px-7 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-md flex items-center justify-center gap-2 border-0 cursor-pointer ${
+                        className={`btn-interactive w-full sm:w-auto font-bold px-7 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-md flex items-center justify-center gap-2 border-0 cursor-pointer ${
                           settingsSaved
                             ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                             : isSavingSettings

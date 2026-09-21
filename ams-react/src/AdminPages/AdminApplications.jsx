@@ -85,7 +85,7 @@ const AdminApplications = () => {
   const ApplicationCard = ({ app, isPending }) => (
     <div 
       onClick={() => openProfile(app)}
-      className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+      className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer group"
     >
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -140,7 +140,7 @@ const AdminApplications = () => {
               </div>
               <div className="flex items-center gap-3 w-full max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
-                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
+                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="focus-glow flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
               </div>
             </div>
 
@@ -169,7 +169,7 @@ const AdminApplications = () => {
                   </h3>
                   <span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full text-xs">{pendingApps.length}</span>
                 </div>
-                <div className="space-y-3">
+                <div className="stagger-children space-y-3">
                   {pendingApps.length === 0 ? (
                     <div className="text-center p-6 border border-dashed border-slate-300 rounded-xl text-slate-400 text-sm">No pending applications</div>
                   ) : (
@@ -186,7 +186,7 @@ const AdminApplications = () => {
                   </h3>
                   <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full text-xs">{approvedApps.length}</span>
                 </div>
-                <div className="space-y-3 opacity-70 hover:opacity-100 transition-opacity">
+                <div className="stagger-children space-y-3 opacity-70 hover:opacity-100 transition-opacity">
                   {approvedApps.length === 0 ? (
                     <div className="text-center p-6 border border-dashed border-slate-300 rounded-xl text-slate-400 text-sm">No approved applications</div>
                   ) : (
@@ -203,7 +203,7 @@ const AdminApplications = () => {
                   </h3>
                   <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full text-xs">{rejectedApps.length}</span>
                 </div>
-                <div className="space-y-3 opacity-70 hover:opacity-100 transition-opacity">
+                <div className="stagger-children space-y-3 opacity-70 hover:opacity-100 transition-opacity">
                   {rejectedApps.length === 0 ? (
                     <div className="text-center p-6 border border-dashed border-slate-300 rounded-xl text-slate-400 text-sm">No rejected applications</div>
                   ) : (
@@ -220,8 +220,8 @@ const AdminApplications = () => {
 
       {/* ─── APPLICANT REVIEW MODAL ─── */}
       {showProfileModal && selectedApp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowProfileModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowProfileModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
             
             {/* Modal Header */}
             <div className={`px-8 py-6 flex items-center justify-between shrink-0 text-white ${
@@ -270,20 +270,20 @@ const AdminApplications = () => {
                 </div>
               )}
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+              <div className="stagger-children grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faVenusMars} className="mr-1"/> Gender</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.gender || 'Not Specified'}</p>
                 </div>
-                <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faUsers} className="mr-1"/> Occupants</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.occupants} Person(s)</p>
                 </div>
-                <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Lease Term</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.months_of_rent} Months</p>
                 </div>
-                <div className="bg-white rounded-xl p-4 border border-indigo-200 shadow-sm bg-indigo-50/30">
+                <div className="card-interactive bg-white rounded-xl p-4 border border-indigo-200 shadow-sm bg-indigo-50/30">
                   <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1 m-0">Monthly Rent</p>
                   <p className="text-sm font-bold text-indigo-700 m-0">{selectedApp.rent}</p>
                 </div>

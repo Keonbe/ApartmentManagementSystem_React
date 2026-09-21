@@ -233,7 +233,7 @@ export default function AdminActivityLogs() {
                   <button
                     key={key}
                     onClick={() => setFilter(setCategory)(key)}
-                    className={`px-3 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer border-0 ${
+                    className={`btn-interactive px-3 py-2 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer border-0 ${
                       category === key ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'
                     }`}
                   >
@@ -260,7 +260,7 @@ export default function AdminActivityLogs() {
                       <th className="px-6 py-4">Performed By</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody className="stagger-children divide-y divide-slate-100 text-sm">
                     {error ? (
                       <tr><td colSpan="6" className="text-center py-12 text-rose-600 text-sm">{error}</td></tr>
                     ) : !loading && logs.length === 0 ? (
@@ -328,8 +328,8 @@ export default function AdminActivityLogs() {
       </main>
 
       {selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedLog(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setSelectedLog(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden border border-slate-200" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
