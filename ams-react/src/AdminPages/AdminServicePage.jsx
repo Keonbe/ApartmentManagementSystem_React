@@ -427,20 +427,20 @@ const AdminServicePage = () => {
                     Enable or disable modular features for tenant portals in real-time.
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
+                <div className="stagger-children grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
                     <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Active Modules</p>
                     <p className="mt-1 text-2xl font-semibold">{activeServiceCount}</p>
                   </div>
-                  <div className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
+                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
                     <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Catalog Items</p>
                     <p className="mt-1 text-2xl font-semibold">{loading ? '…' : activeCatalogCount}</p>
                   </div>
-                  <div className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
+                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
                     <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Pending Bookings</p>
                     <p className="mt-1 text-2xl font-semibold">{loading ? '…' : pendingServiceCount}</p>
                   </div>
-                  <div className="rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
+                  <div className="card-interactive rounded-xl bg-white/15 px-4 py-3 backdrop-blur-sm">
                     <p className="text-xs uppercase tracking-[0.2em] text-indigo-100">Pending CCTV / Parking</p>
                     <p className="mt-1 text-2xl font-semibold">{loading ? '…' : pendingCctvCount + pendingParkingCount}</p>
                   </div>
@@ -452,7 +452,7 @@ const AdminServicePage = () => {
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center justify-between">
                 <p className="text-sm font-medium text-red-700">{error}</p>
-                <button onClick={fetchData} className="flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-200 transition-colors">
+                <button onClick={fetchData} className="btn-interactive flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-200 transition-colors">
                   <FontAwesomeIcon icon={faSync} /> Retry
                 </button>
               </div>
@@ -470,7 +470,7 @@ const AdminServicePage = () => {
                   {activeServiceCount} Active Modules
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+              <div className="stagger-children grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
                 {services.map(service => (
                   <ServiceCard key={service.id} service={withCatalogPrice(service)} onToggle={() => toggleService(service.id)} />
                 ))}
@@ -514,7 +514,7 @@ const AdminServicePage = () => {
                           <th className="px-4 py-3 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="stagger-children divide-y divide-slate-100">
                         {catalog.length > 0 ? (
                           catalog.map(item => (
                             <tr key={item.id} className={`transition-colors hover:bg-slate-50 ${item.isActive ? '' : 'opacity-60'}`}>
@@ -650,7 +650,7 @@ const AdminServicePage = () => {
                                 <th className="px-4 py-3 text-right">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="stagger-children divide-y divide-slate-100">
                               {serviceRequests.length > 0 ? (
                                 serviceRequests.map(req => (
                                   <tr key={req.id} className="transition-colors hover:bg-slate-50">
@@ -774,7 +774,7 @@ const AdminServicePage = () => {
                               <th className="px-4 py-3 text-right">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100">
+                          <tbody className="stagger-children divide-y divide-slate-100">
                             {cctvRequests.length > 0 ? (
                               cctvRequests.map(req => (
                                 <tr key={req.id} className="transition-colors hover:bg-slate-50">
@@ -848,7 +848,7 @@ const AdminServicePage = () => {
                                 <th className="px-4 py-3 text-center">Status</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="stagger-children divide-y divide-slate-100">
                               {parkingReservations.length > 0 ? (
                                 parkingReservations.map(req => (
                                   <tr key={req.id} className="transition-colors hover:bg-slate-50">
@@ -924,7 +924,7 @@ const AdminServicePage = () => {
 
 const ServiceCard = ({ service, onToggle }) => {
   return (
-    <div className={`flex h-full flex-col rounded-2xl border p-5 shadow-sm transition-all ${service.isActive ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-75'}`}>
+    <div className={`card-interactive flex h-full flex-col rounded-2xl border p-5 shadow-sm transition-all ${service.isActive ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-75'}`}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">

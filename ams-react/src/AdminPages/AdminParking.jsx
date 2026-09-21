@@ -147,8 +147,8 @@ export default function AdminParking() {
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Stat cards — all from the database */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+            <div className="stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Slots In Use</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600"><FontAwesomeIcon icon={faParking} /></div>
@@ -157,7 +157,7 @@ export default function AdminParking() {
                 <p className="mt-1 text-xs text-emerald-600 font-medium m-0">{capacity.available_slots} free{freeSlots.length > 0 ? ` (#${freeSlots.join(', #')})` : ''}</p>
               </div>
 
-              <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Requests</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600"><FontAwesomeIcon icon={faClock} /></div>
@@ -166,7 +166,7 @@ export default function AdminParking() {
                 <p className="mt-1 text-xs text-amber-600 font-medium m-0">Awaiting slot assignment</p>
               </div>
 
-              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Monthly Parking Fees</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"><FontAwesomeIcon icon={faReceipt} /></div>
@@ -175,7 +175,7 @@ export default function AdminParking() {
                 <p className="mt-1 text-xs text-indigo-600 font-medium m-0">{peso(monthlyFee)} per slot · {billingMode === 'auto' ? 'billed automatically' : 'billed manually'}</p>
               </div>
 
-              <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-rose-700">Closed</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600"><FontAwesomeIcon icon={faTimesCircle} /></div>
@@ -249,7 +249,7 @@ export default function AdminParking() {
                       <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr><td colSpan="8" className="px-5 py-12 text-center text-slate-400 font-medium">Loading parking reservations...</td></tr>
                     ) : error ? (
@@ -385,8 +385,8 @@ export default function AdminParking() {
 
       {/* Assign / Reject / Release dialog */}
       {dialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => busyId === null && setDialog(null)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 modal-overlay-anim" onClick={() => busyId === null && setDialog(null)}>
+          <div className="modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-slate-800 m-0">
               {dialog.mode === 'assign' ? 'Assign a parking slot' : dialog.mode === 'reject' ? 'Reject parking request' : 'Release parking slot'}
             </h3>

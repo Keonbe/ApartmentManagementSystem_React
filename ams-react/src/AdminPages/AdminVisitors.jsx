@@ -256,10 +256,10 @@ export default function AdminVisitors() {
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Top KPI Metrics Banner */}
-            <div className="admin-visitors-metrics-grid grid grid-cols-2 lg:grid-cols-4 gap-4">
-              
+            <div className="admin-visitors-metrics-grid stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+
               {/* Checked In */}
-              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Currently On-Premise</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
@@ -271,7 +271,7 @@ export default function AdminVisitors() {
               </div>
 
               {/* Pending Review */}
-              <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
@@ -283,7 +283,7 @@ export default function AdminVisitors() {
               </div>
 
               {/* Today's Check-ins */}
-              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Today's Check-Ins</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
@@ -295,7 +295,7 @@ export default function AdminVisitors() {
               </div>
 
               {/* Overstay Alerts */}
-              <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-rose-700">Overstay Alerts</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
@@ -307,7 +307,7 @@ export default function AdminVisitors() {
                   <button 
                     type="button" 
                     onClick={() => setShowThresholdModal(true)}
-                    className="text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline bg-transparent border-0 cursor-pointer p-0 flex items-center gap-1"
+                    className="btn-interactive text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline bg-transparent border-0 cursor-pointer p-0 flex items-center gap-1"
                   >
                     <FontAwesomeIcon icon={faSlidersH} className="text-[10px]" />
                     <span>&gt; {stats.overstay_threshold_hours >= 24 ? `${Math.round(stats.overstay_threshold_hours / 24)}d (${stats.overstay_threshold_hours}h)` : `${stats.overstay_threshold_hours}h`}</span>
@@ -422,7 +422,7 @@ export default function AdminVisitors() {
                       <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">
@@ -634,8 +634,8 @@ export default function AdminVisitors() {
 
       {/* Check-In / Register Visitor Modal */}
       {showCheckInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowCheckInModal(false)}>
-          <div className="admin-visitors-modal w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowCheckInModal(false)}>
+          <div className="admin-visitors-modal modal-card-anim w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 text-base">
@@ -784,8 +784,8 @@ export default function AdminVisitors() {
 
       {/* Check Out Modal */}
       {showCheckoutModal && selectedVisitorForCheckout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowCheckoutModal(false)}>
-          <div className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowCheckoutModal(false)}>
+          <div className="admin-visitors-modal modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h3 className="text-lg font-bold text-slate-800 m-0">Confirm Visitor Checkout</h3>
               <button
@@ -839,8 +839,8 @@ export default function AdminVisitors() {
 
       {/* Configurable Overstay Threshold Modal */}
       {showThresholdModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowThresholdModal(false)}>
-          <div className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowThresholdModal(false)}>
+          <div className="admin-visitors-modal modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faSlidersH} className="text-indigo-600" />

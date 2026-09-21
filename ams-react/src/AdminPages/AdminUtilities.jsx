@@ -289,10 +289,10 @@ export default function AdminUtilities() {
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Top KPI Summary Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
               {/* Water Card */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 text-xl">
                   <FontAwesomeIcon icon={faTint} />
                 </div>
@@ -304,7 +304,7 @@ export default function AdminUtilities() {
               </div>
 
               {/* Electric Card */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0 text-xl">
                   <FontAwesomeIcon icon={faBolt} />
                 </div>
@@ -316,7 +316,7 @@ export default function AdminUtilities() {
               </div>
 
               {/* Pending Sync Card */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 text-xl">
                   <FontAwesomeIcon icon={faFileInvoiceDollar} />
                 </div>
@@ -328,7 +328,7 @@ export default function AdminUtilities() {
               </div>
 
               {/* Total Utility Card */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
+              <div className="card-interactive bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 text-xl">
                   <FontAwesomeIcon icon={faReceipt} />
                 </div>
@@ -549,7 +549,7 @@ export default function AdminUtilities() {
                       <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">
@@ -774,8 +774,8 @@ function SyncOptionsModal({ readingId, onClose, onSync }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 modal-overlay-anim" onClick={onClose}>
+      <div className="modal-card-anim bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-slate-800 m-0 text-sm">Sync Utility to Invoice</h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer text-lg">
@@ -944,11 +944,11 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/70 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/70 overflow-y-auto modal-overlay-anim"
       onClick={onClose}
     >
-      <div 
-        className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto"
+      <div
+        className="modal-card-anim bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden my-auto"
         style={{ transform: 'translateZ(0)' }}
         onClick={e => e.stopPropagation()}
       >

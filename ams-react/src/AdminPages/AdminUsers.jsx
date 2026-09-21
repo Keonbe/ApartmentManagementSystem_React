@@ -164,13 +164,13 @@ const AdminUsers = () => {
           <div className="max-w-6xl mx-auto space-y-6">
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="stagger-children grid grid-cols-3 gap-4">
               {[
                 { label: 'Total Accounts', value: counts.all, color: 'bg-indigo-500' },
                 { label: 'Regular Users', value: counts.user, color: 'bg-slate-500' },
                 { label: 'Admins', value: counts.admin, color: 'bg-violet-500' },
               ].map(s => (
-                <div key={s.label} className="bg-white rounded-xl shadow-sm border border-slate-200 px-5 py-4 flex items-center gap-4">
+                <div key={s.label} className="card-interactive bg-white rounded-xl shadow-sm border border-slate-200 px-5 py-4 flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center`}>
                     <FontAwesomeIcon icon={faUsers} className="text-white text-sm" />
                   </div>
@@ -190,7 +190,7 @@ const AdminUsers = () => {
                   <input
                     type="text" value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Search by name or email..."
-                    className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
+                    className="focus-glow flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
                   />
                 </div>
 
@@ -198,7 +198,7 @@ const AdminUsers = () => {
                   <FontAwesomeIcon icon={faFilter} className="text-slate-400 text-xs" />
                   {ROLES.map(r => (
                     <button key={r} onClick={() => setRoleFilter(r)}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold border-0 cursor-pointer transition-colors ${roleFilter === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 bg-transparent'}`}>
+                      className={`btn-interactive px-3 py-1 rounded-md text-xs font-semibold border-0 cursor-pointer transition-colors ${roleFilter === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 bg-transparent'}`}>
                       {r === 'all' ? `All` : r === 'admin' ? `Admin` : `User`}
                     </button>
                   ))}
@@ -208,18 +208,18 @@ const AdminUsers = () => {
               {/* Status Tabs */}
               <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1.5 shadow-sm">
                 <button onClick={() => setStatusFilter('active')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'active' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
+                  className={`btn-interactive px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'active' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
                   Active ({counts.active})
                 </button>
                 <button onClick={() => setStatusFilter('archived')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'archived' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
+                  className={`btn-interactive px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'archived' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
                   Archived ({counts.archived})
                 </button>
               </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden table-scroll-x">
               {loading ? (
                 <div className="py-20 text-center text-slate-400 text-sm">Loading users...</div>
               ) : filtered.length === 0 ? (
@@ -236,7 +236,7 @@ const AdminUsers = () => {
                       <th className="px-4 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="stagger-children divide-y divide-slate-100">
                     {filtered.map(u => (
                       <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3">
@@ -313,8 +313,8 @@ const AdminUsers = () => {
 
       {/* Edit Modal */}
       {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setEditUser(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setEditUser(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
               <button onClick={() => setEditUser(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
@@ -363,8 +363,8 @@ const AdminUsers = () => {
 
       {/* Reset Password Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowResetModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowResetModal(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faKey} className="text-amber-500" /> Reset Password
@@ -395,8 +395,8 @@ const AdminUsers = () => {
 
       {/* Archive Confirm Modal */}
       {archiveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setArchiveTarget(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setArchiveTarget(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200">
               <h3 className="text-base font-bold text-amber-700 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faExclamationTriangle} /> Archive User
