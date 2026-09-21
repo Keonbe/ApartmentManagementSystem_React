@@ -62,6 +62,7 @@ export default function HouseholdPanel() {
 
   const named = 1 + data.members.filter((m) => m.status === 'Active').length;
   const queued = data.members.filter((m) => m.status === 'Pending').length;
+  const isSoloOccupant = data.members.length === 0;
   const full = named + queued >= data.maxOccupants;
   const inputCls = 'w-full px-3 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border';
 
@@ -75,7 +76,9 @@ export default function HouseholdPanel() {
           <div>
             <h3 className="text-lg font-bold text-white m-0">Household</h3>
             <p className="text-[11px] text-slate-400 m-0">
-              You are the lease holder and the only account for this unit. List everyone who lives with you.
+              {isSoloOccupant
+                ? "You're currently the only registered occupant of this unit. Add household members below if others live with you."
+                : 'You are the lease holder and the only account for this unit. List everyone who lives with you.'}
             </p>
           </div>
         </div>
