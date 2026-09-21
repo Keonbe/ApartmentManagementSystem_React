@@ -142,7 +142,7 @@ const AdminDashboard = () => {
           <div className="max-w-7xl mx-auto space-y-8">
 
             {/* Core KPI Cards Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="stagger-children grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <StatCard 
                 icon={faDollarSign} 
                 title="Monthly Revenue" 
@@ -728,22 +728,22 @@ const AdminDashboard = () => {
                             <span>Vacant ({stats.vacant_rooms})</span>
                           </span>
                         </div>
-                        <button 
+                        <button
                           onClick={() => navigate('/admin-units')}
-                          className="text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0"
+                          className="btn-interactive text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0"
                         >
                           Manage All Units →
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      <div className="stagger-children grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {(roomsSummary || []).map(room => {
                           const isOccupied = room.status === 'occupied';
                           return (
-                            <div 
+                            <div
                               key={room.id}
                               onClick={() => navigate('/admin-units')}
-                              className={`p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${isOccupied ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' : 'bg-slate-50 border-slate-200 hover:border-indigo-400'}`}
+                              className={`card-interactive p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${isOccupied ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' : 'bg-slate-50 border-slate-200 hover:border-indigo-400'}`}
                             >
                               <div className="flex justify-between items-start">
                                 <span className="font-extrabold text-sm text-slate-800">{room.id}</span>
@@ -930,7 +930,7 @@ const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showP
 
   return (
     <div 
-      className={`bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative group ${hoverable || onClick ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all' : ''}`}
+      className={`card-interactive bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative group ${hoverable || onClick ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all' : ''}`}
       onClick={onClick}
     >
       {tooltip && (

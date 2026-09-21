@@ -268,22 +268,22 @@ const AdminUnits = () => {
             </div>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="stagger-children grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Units</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1 m-0">{counts.all}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Occupied</p>
                 <p className="text-2xl font-bold text-emerald-600 mt-1 m-0">{counts.occupied}</p>
                 <p className="text-[10px] text-slate-400 m-0 mt-0.5">{counts.all > 0 ? Math.round((counts.occupied / counts.all) * 100) : 0}% occupancy</p>
               </div>
-              <div className="bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Vacant</p>
                 <p className="text-2xl font-bold text-amber-500 mt-1 m-0">{counts.vacant}</p>
                 <p className="text-[10px] text-slate-400 m-0 mt-0.5">Available now</p>
               </div>
-              <div className="bg-white border-l-4 border-l-red-400 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-red-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Under Repair</p>
                 <p className="text-2xl font-bold text-red-500 mt-1 m-0">{counts.repair}</p>
               </div>
@@ -300,7 +300,7 @@ const AdminUnits = () => {
               {filters.map(f => (
                 <button
                   key={f.key} onClick={() => setActiveFilter(f.key)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
+                  className={`btn-interactive px-4 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
                     activeFilter === f.key
                       ? 'bg-indigo-600 text-white border-indigo-600'
                       : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'
@@ -312,13 +312,13 @@ const AdminUnits = () => {
             </div>
 
             {/* Units Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {displayed.map(unit => {
                 const remaining = daysRemaining(unit.leaseEnd);
                 return (
                   <div
                     key={unit.id}
-                    className={`bg-white border rounded-xl p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 group relative ${
+                    className={`card-interactive bg-white border rounded-xl p-4 transition-all hover:shadow-lg hover:-translate-y-0.5 group relative ${
                       unit.status === 'vacant' ? 'border-amber-300' : unit.maintenanceFlag ? 'border-red-200' : 'border-slate-200'
                     }`}
                   >
@@ -378,8 +378,8 @@ const AdminUnits = () => {
 
       {/* Add New Unit Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddModal(false); setAddUnitError(''); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => { setShowAddModal(false); setAddUnitError(''); }}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
@@ -388,7 +388,7 @@ const AdminUnits = () => {
                   <p className="text-xs text-slate-400 m-0 mt-0.5">Create a new apartment unit</p>
                 </div>
               </div>
-              <button onClick={() => { setShowAddModal(false); setAddUnitError(''); }} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button onClick={() => { setShowAddModal(false); setAddUnitError(''); }} className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               {addUnitError && (
@@ -429,8 +429,8 @@ const AdminUnits = () => {
 
       {/* Assign Tenant Modal */}
       {showAssignModal && selectedUnit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => { setShowAssignModal(false); setLeaseError(''); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => { setShowAssignModal(false); setLeaseError(''); }}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
@@ -439,7 +439,7 @@ const AdminUnits = () => {
                   <p className="text-xs text-slate-400 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
                 </div>
               </div>
-              <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -618,8 +618,8 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
   const progressPct = totalDays > 0 ? Math.min(100, Math.max(0, (elapsed / totalDays) * 100)) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
+      <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0 bg-slate-50">
           <div className="flex items-center gap-4">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md ${unit.status === 'occupied' ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' : 'bg-gradient-to-br from-amber-400 to-amber-600'}`}>
@@ -630,7 +630,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               <p className="text-xs text-slate-400 m-0 mt-0.5">{unit.type} · {unit.floor} · {formatCurrency(unit.rent)}/mo</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+          <button onClick={onClose} className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
         </div>
 
         <div className="flex border-b border-slate-200 px-3 shrink-0 bg-white overflow-x-auto">
@@ -684,7 +684,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       setEditFurnishing(unit.furnishingStatus || 'Unfurnished');
                       setShowStatusEdit(true);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors"
+                    className="btn-interactive flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors"
                   >
                     <FontAwesomeIcon icon={faWrench} className="text-[10px]" /> Update Status & Inspection Details
                   </button>
@@ -759,7 +759,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 <p className="text-xs text-slate-500 m-0 leading-relaxed">
                   Showcase photos shown to guests on the public Preview page. Rooms with no images hide the "View Layout" button entirely (max 8 images).
                 </p>
-                <label className={`shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors ${galleryImages.length >= 8 || isUploadingImages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+                <label className={`btn-interactive shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors ${galleryImages.length >= 8 || isUploadingImages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
                   <FontAwesomeIcon icon={faUpload} className="text-[10px]" />
                   {isUploadingImages ? 'Uploading...' : 'Upload Images'}
                   <input
@@ -786,15 +786,15 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   <p className="text-sm text-slate-400 m-0">No showcase images uploaded for this unit yet.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="stagger-children grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {galleryImages.map((path) => (
-                    <div key={path} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-square bg-slate-100">
+                    <div key={path} className="card-interactive relative group rounded-xl overflow-hidden border border-slate-200 aspect-square bg-slate-100">
                       <img src={publicAssetUrl(path)} alt={`Unit ${unit.id} showcase`} className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => handleDeleteImage(path)}
                         disabled={deletingImagePath === path}
-                        className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-50"
+                        className="btn-interactive absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-50"
                         title="Remove image"
                       >
                         <FontAwesomeIcon icon={faTrash} className="text-[11px]" />
@@ -891,11 +891,11 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 All Tenants Who Occupied This Unit
               </h4>
               {unit.occupancyHistory && unit.occupancyHistory.length > 0 ? (
-                <div className="space-y-3">
+                <div className="stagger-children space-y-3">
                   {[...unit.occupancyHistory].reverse().map((occ, idx) => {
                     const duration = monthsBetween(occ.leaseStart, occ.leaseEnd);
                     return (
-                      <div key={idx} className={`rounded-xl p-4 border ${occ.status === 'current' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                      <div key={idx} className={`card-interactive rounded-xl p-4 border ${occ.status === 'current' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${occ.status === 'current' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600'}`}>
@@ -945,7 +945,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 Lease Event Log
               </h4>
               {unit.leaseHistory && unit.leaseHistory.length > 0 ? (
-                <div className="relative pl-6">
+                <div className="stagger-children relative pl-6">
                   <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-indigo-200"></div>
                   {[...unit.leaseHistory].reverse().map((entry, idx) => (
                     <div key={idx} className="relative mb-4 last:mb-0">
@@ -1001,7 +1001,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
           )}
 
           {activeTab === 'maintenance' && (
-            <div className="space-y-3">
+            <div className="stagger-children space-y-3">
               {unit.maintenanceHistory && unit.maintenanceHistory.length > 0 ? (
                 <>
                   {/* Cost summary */}
@@ -1010,7 +1010,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                     <span className="text-sm font-bold text-amber-700">{formatCurrency(unit.maintenanceHistory.reduce((sum, m) => sum + (m.cost || 0), 0))}</span>
                   </div>
                   {[...unit.maintenanceHistory].reverse().map((entry, idx) => (
-                    <div key={idx} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div key={idx} className="card-interactive flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                       <div className={`w-8 h-8 rounded-full ${entry.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'} flex items-center justify-center shrink-0 mt-0.5 text-xs`}><FontAwesomeIcon icon={faWrench} /></div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-slate-800 m-0">{entry.issue}</p>

@@ -418,24 +418,24 @@ const AdminTenants = () => {
             </div>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="stagger-children grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Records</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1 m-0">{counts.all}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active</p>
                 <p className="text-2xl font-bold text-emerald-600 mt-1 m-0">{counts.active}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Pending Move-Out</p>
                 <p className="text-2xl font-bold text-amber-500 mt-1 m-0">{counts['pending-move-out']}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-slate-400 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-slate-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Moved Out</p>
                 <p className="text-2xl font-bold text-slate-500 mt-1 m-0">{counts['moved-out']}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-violet-500 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-violet-500 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Archived</p>
                 <p className="text-2xl font-bold text-violet-600 mt-1 m-0">{counts.archived}</p>
               </div>
@@ -444,14 +444,14 @@ const AdminTenants = () => {
             {/* Filter Tabs */}
             <div className="flex items-center gap-3 flex-wrap">
               {filters.map(f => (
-                <button key={f.key} onClick={() => setActiveFilter(f.key)} className={`px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-all ${activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+                <button key={f.key} onClick={() => setActiveFilter(f.key)} className={`btn-interactive px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-all ${activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
                   {f.label}
                 </button>
               ))}
             </div>
 
             {/* Tenant Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm table-scroll-x">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
@@ -590,8 +590,8 @@ const AdminTenants = () => {
 
       {/* ─── TENANT PROFILE MODAL ─── */}
       {showProfileModal && selectedTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowProfileModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowProfileModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
@@ -787,20 +787,20 @@ const AdminTenants = () => {
               {/* Payment History Tab */}
               {profileTab === 'payments' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
+                  <div className="stagger-children grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="card-interactive bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-emerald-700 m-0">₱{totalPaid.toLocaleString()}</p>
                       <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Total Paid</p>
                     </div>
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
+                    <div className="card-interactive bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-indigo-700 m-0">{monthsPaid}</p>
                       <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">Invoices Paid</p>
                     </div>
-                    <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
+                    <div className="card-interactive bg-red-50 border border-red-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-red-700 m-0">{overdueCount}</p>
                       <p className="text-[10px] text-red-600 font-semibold m-0 mt-0.5">Overdue Invoices</p>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                    <div className="card-interactive bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
                       <p className="text-sm font-bold text-slate-700 m-0 truncate">{lastPayment}</p>
                       <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Last Payment</p>
                     </div>
@@ -879,8 +879,8 @@ const AdminTenants = () => {
 
       {/* ─── ARCHIVE CONFIRMATION MODAL ─── */}
       {showArchiveModal && archiveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowArchiveModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowArchiveModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
@@ -954,8 +954,8 @@ const AdminTenants = () => {
       )}
         {/* ─── ADMIN MOVE OUT SCHEDULING MODAL ─── */}
         {showMoveOutModal && moveOutTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowMoveOutModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowMoveOutModal(false)}>
+            <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
@@ -1020,8 +1020,8 @@ const AdminTenants = () => {
         )}
         {/* ─── MOVE-OUT INSPECTION & CLEARANCE MODAL ─── */}
         {showClearanceModal && clearanceTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowClearanceModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowClearanceModal(false)}>
+            <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold">
