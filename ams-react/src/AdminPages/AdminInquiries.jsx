@@ -301,8 +301,8 @@ export default function AdminInquiries() {
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Stat Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+            <div className="stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Inquiries</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
@@ -313,7 +313,7 @@ export default function AdminInquiries() {
                 <p className="mt-1 text-xs text-indigo-600 font-medium m-0">All time</p>
               </div>
 
-              <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Needs Response</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
@@ -324,7 +324,7 @@ export default function AdminInquiries() {
                 <p className="mt-1 text-xs text-amber-600 font-medium m-0">Not yet contacted</p>
               </div>
 
-              <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-violet-700">Units on Hold</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
@@ -335,7 +335,7 @@ export default function AdminInquiries() {
                 <p className="mt-1 text-xs text-violet-600 font-medium m-0">Active reservations</p>
               </div>
 
-              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Converted</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
@@ -440,7 +440,7 @@ export default function AdminInquiries() {
                         <th className="px-5 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="stagger-children divide-y divide-slate-100">
                       {loading ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">Loading inquiries...</td></tr>
                       ) : error ? (
@@ -516,7 +516,7 @@ export default function AdminInquiries() {
                         <th className="px-5 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="stagger-children divide-y divide-slate-100">
                       {loading ? (
                         <tr><td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">Loading reservations...</td></tr>
                       ) : error ? (
@@ -609,8 +609,8 @@ export default function AdminInquiries() {
 
       {/* ─── INQUIRY DETAIL MODAL ─── */}
       {showDetail && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowDetail(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowDetail(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
 
             <div className="px-6 py-5 flex items-center justify-between shrink-0 text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
               <div>
@@ -794,8 +794,8 @@ export default function AdminInquiries() {
 
       {/* ─── RESERVE UNIT MODAL ─── */}
       {showReserveModal && selected && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowReserveModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowReserveModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-violet-600 to-violet-800">
               <h3 className="text-lg font-bold m-0">Reserve a Unit</h3>
               <button onClick={() => setShowReserveModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
@@ -883,8 +883,8 @@ export default function AdminInquiries() {
 
       {/* ─── LOG WALK-IN / PHONE INQUIRY MODAL ─── */}
       {showLogModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowLogModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowLogModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
               <h3 className="text-lg font-bold m-0">Log an Inquiry</h3>
               <button onClick={() => setShowLogModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">

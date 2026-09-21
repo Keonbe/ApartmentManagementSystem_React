@@ -417,27 +417,27 @@ const AdminContracts = () => {
             )}
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><FontAwesomeIcon icon={faCheckCircle} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'active').length}</p></div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Expired</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'expired').length}</p></div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><FontAwesomeIcon icon={faGavel} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Eviction Pending</p><p className="text-2xl font-bold text-red-600 m-0">{contracts.filter(c => c.status === 'eviction-pending').length}</p></div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center"><FontAwesomeIcon icon={faFileUpload} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Docs Incomplete</p><p className="text-2xl font-bold text-amber-600 m-0">{contracts.filter(c => !c.signedLease?.uploaded || !c.notarizedLease?.uploaded).length}</p></div>
@@ -456,26 +456,26 @@ const AdminContracts = () => {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm focus-within:border-indigo-500 transition-all max-w-xs w-full">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                  <input type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
+                  <input type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
                 </div>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
                   <option value="all">All Status</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="eviction-pending">Eviction Pending</option>
                 </select>
               </div>
-              <button onClick={() => { setShowCreateModal(true); setCreateStep(1); }} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
+              <button onClick={() => { setShowCreateModal(true); setCreateStep(1); }} className="btn-interactive flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
                 <FontAwesomeIcon icon={faPlus} /> New Contract
               </button>
             </div>
 
             {/* Contract Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm table-scroll-x">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
                     <th className="py-3 px-4">Contract ID</th><th className="py-3 px-4">Tenant</th><th className="py-3 px-4">Unit</th><th className="py-3 px-4">Lease Period</th><th className="py-3 px-4">Rent</th><th className="py-3 px-4">Documents</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="stagger-children">
                   {filtered.map(c => {
                     const docStatus = getDocumentStatus(c);
                     return (
@@ -516,8 +516,8 @@ const AdminContracts = () => {
 
       {/* Create Contract Modal — Multi-Step */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-bold text-slate-800 m-0">Create New Contract</h2>
@@ -655,8 +655,8 @@ const AdminContracts = () => {
 
       {/* Preview Modal — Enhanced with Document Upload */}
       {showPreviewModal && selectedContract && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPreviewModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowPreviewModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{selectedContract.id}</span>

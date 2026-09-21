@@ -111,7 +111,7 @@ const timelineFor = (r) => {
 // search change without touching row content, not the modal-typing case below.
 const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
   return (
-    <div onClick={() => onOpen(req)} className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group">
+    <div onClick={() => onOpen(req)} className="card-interactive bg-white rounded-lg p-4 border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group">
       <div className="flex justify-between items-start mb-2">
         <div className="flex gap-1.5 flex-wrap">
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${urgencyColor(req.urgency)}`}>{req.urgency || '—'}</span>
@@ -188,10 +188,10 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
       {/* max-h + flex column keeps the modal within the viewport instead of
           growing to the height of its content; only the body scrolls. */}
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 m-0">Create New Request</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
@@ -309,8 +309,8 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden flex flex-col md:flex-row max-h-[90vh]" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
+      <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden flex flex-col md:flex-row max-h-[90vh]" onClick={e => e.stopPropagation()}>
 
         {/* Left side: Detail & Timeline */}
         <div className="flex-1 flex flex-col border-r border-slate-200 max-h-[90vh]">
@@ -556,8 +556,8 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
+      <div className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">
           {type === 'start' ? 'Start Work' : type === 'complete' ? 'Mark as Completed' : 'Reject Request'}
         </h3>
@@ -781,7 +781,7 @@ const AdminMaintainance = () => {
                 <span className="text-[11px] text-slate-400">Monthly Budget: <strong className="text-slate-700">{formatCurrency(monthlyBudget)}</strong> · Counts requests resolved this month</span>
               </div>
               <div className="p-6">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                <div className="stagger-children grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
                     <p className="text-lg font-bold text-slate-800 m-0">{formatCurrency(monthlyBudget)}</p>
                     <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Monthly Budget</p>
@@ -912,7 +912,7 @@ const AdminMaintainance = () => {
                         </div>
                         <span className="bg-white text-slate-500 text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200">{reqs.length}</span>
                       </div>
-                      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                      <div className="stagger-children flex-1 overflow-y-auto space-y-3 pr-1">
                         {reqs.map(req => <RequestCard key={req.dbId} req={req} onOpen={openDetail} />)}
                         {reqs.length === 0 && <p className="text-xs text-slate-400 text-center mt-6">Nothing here.</p>}
                       </div>
@@ -934,7 +934,7 @@ const AdminMaintainance = () => {
                       <th className="py-3 px-4">Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="stagger-children">
                     {filteredRequests.map(req => (
                       <tr key={req.dbId} onClick={() => openDetail(req)} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
                         <td className="py-3 px-4 font-mono text-xs text-slate-500">{req.code}</td>

@@ -232,7 +232,7 @@ const AdminNotifications = () => {
                     const count = f.types ? notifications.filter(n => f.types.includes(n.type) && n.status === 'Pending').length : openCount;
                     return (
                       <button key={f.key} onClick={() => setActiveFilter(f.key)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap border-0 cursor-pointer transition-colors ${activeFilter === f.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>
+                        className={`btn-interactive px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap border-0 cursor-pointer transition-colors ${activeFilter === f.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>
                         {f.label}
                         {count > 0 && (
                           <span className="ml-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
@@ -243,7 +243,7 @@ const AdminNotifications = () => {
                 </div>
 
                 {/* Notification Cards */}
-                <div className="space-y-2">
+                <div className="stagger-children space-y-2">
                   {loading ? (
                     <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-sm text-slate-400">Loading…</div>
                   ) : filtered.length === 0 && (
@@ -260,7 +260,7 @@ const AdminNotifications = () => {
                     const reviewPath = isPending && !DECIDED_HERE.includes(n.type) ? ADMIN_NOTIFICATION_LINKS[n.type] : null;
 
                     return (
-                      <div key={n.id} className={`bg-white rounded-xl border shadow-sm p-4 flex gap-4 items-start transition-all hover:shadow-md group ${n.read ? 'border-slate-200' : 'border-indigo-200 bg-indigo-50/30'}`}>
+                      <div key={n.id} className={`card-interactive bg-white rounded-xl border shadow-sm p-4 flex gap-4 items-start transition-all hover:shadow-md group ${n.read ? 'border-slate-200' : 'border-indigo-200 bg-indigo-50/30'}`}>
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${cfg.color}`}>
                           <FontAwesomeIcon icon={cfg.icon} className="text-sm" />
                         </div>
