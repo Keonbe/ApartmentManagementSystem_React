@@ -105,18 +105,18 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
         });
     };
 
-    const inputClass = "w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+    const inputClass = "focus-glow w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500";
     const labelClass = "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
     const isSession = form.pricingUnit === 'session';
 
     return (
         <div
             onClick={onClose}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md modal-overlay-anim"
         >
             <div
                 onClick={(e) => e.stopPropagation()}
-                className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+                className="modal-card-anim max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
             >
                 {/*ModalHeader*/}
                 <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -132,7 +132,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         type="button"
                         onClick={onClose}
                         aria-label="Close"
-                        className="cursor-pointer border-0 bg-transparent p-2 text-slate-400 hover:text-slate-700"
+                        className="btn-interactive cursor-pointer border-0 bg-transparent p-2 text-slate-400 hover:text-slate-700"
                     >
                         <FontAwesomeIcon icon={faTimes} />
                     </button>
@@ -270,14 +270,14 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         <button
                             type="button"
                             onClick={onClose}
-                            className="cursor-pointer rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                            className="btn-interactive cursor-pointer rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             disabled={saving}
-                            className="cursor-pointer rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="btn-interactive cursor-pointer rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {saving ? 'Saving...' : service ? 'Save Changes' : 'Create Service'}
                         </button>

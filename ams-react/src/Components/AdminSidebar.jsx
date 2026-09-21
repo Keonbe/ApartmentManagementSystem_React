@@ -133,7 +133,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
             type="button"
             onClick={handleClose}
             aria-label="Close Sidebar"
-            className="admin-sidebar-close-btn text-slate-400 hover:text-white bg-transparent border-0 cursor-pointer p-2 text-xl focus:outline-none"
+            className="admin-sidebar-close-btn btn-interactive text-slate-400 hover:text-white bg-transparent border-0 cursor-pointer p-2 text-xl focus:outline-none"
           >
             <FontAwesomeIcon icon={faTimes} />
           </button>
@@ -156,7 +156,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
                       to={item.to}
                       onClick={isMobile ? handleClose : undefined}
                       className={({ isActive }) =>
-                        `admin-sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
+                        `admin-sidebar-nav-link btn-interactive flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
                           isActive
                             ? 'bg-indigo-600 text-white font-semibold shadow-sm'
                             : 'text-slate-300 hover:bg-slate-800'
@@ -189,7 +189,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {isDrawerOpen && (
         <div 
           onClick={handleClose}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-opacity"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-opacity modal-overlay-anim"
           aria-hidden="true"
         />
       )}
