@@ -12,3 +12,4 @@ deploy/env/*.env
 !ams-react/.env.production
 !ams-react/.env.example
 !ams-react/.env.selfhosted.example
+docs/progress_report.md

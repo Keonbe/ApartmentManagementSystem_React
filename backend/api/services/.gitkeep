@@ -1,0 +1,2 @@
+Notification channel services (SMS, email, templates, dispatcher) live here.
+See docs/features/sms_email_implementation.md §1.3-§1.6.

@@ -1,7 +1,7 @@
 # AMS — SMS & Email Notification Implementation Guide
 
-> **Version:** 1.1 — audited against the codebase on **2026-09-20** (branch `main`, commit `8352371`)
-> **Status:** Design reviewed — read [§0](#0-pre-implementation-review) before writing code
+> **Version:** 1.2 — audited against the codebase on **2026-09-20** (branch `main`, commit `8352371`); §0.1 findings implemented **2026-09-22**
+> **Status:** Design reviewed, §0.1 groundwork shipped — read [§0](#0-pre-implementation-review) before writing code
 > **Prerequisite:** Provider accounts (see [Quick-Start Checklist](#quick-start-checklist))
 > **Closes:** Panelist checklist items **4.10** (🔧), **6.6** (📋), **6.7** (📋); extends **6.8**
 
@@ -11,6 +11,7 @@
 
 - [§0 Pre-Implementation Review](#0-pre-implementation-review)
   - [0.1 Compatibility findings](#01-compatibility-findings)
+  - [0.1a What shipped](#01a-what-shipped)
   - [0.2 Architecture decision — queue first](#02-architecture-decision--queue-first)
   - [0.3 Cost model](#03-cost-model)
   - [0.4 Philippine SMS rules & compliance](#04-philippine-sms-rules--compliance)
@@ -58,8 +59,8 @@
 - [ ] Create a Gmail App Password: Google Account → Security → 2FA → App Passwords
 - [ ] Run `cd backend && composer require phpmailer/phpmailer:^6.9` — **pin the 6.x line**; local XAMPP is PHP 8.0.30 and PHPMailer 7 requires 8.1+
 - [ ] Do **not** install `twilio/sdk` or `vonage/client`. The cURL drivers in §1.3 cover every call this project makes, and the SDKs pull in Guzzle/PSR-7 for no benefit.
-- [ ] Update the `Dockerfile` so Railway gets `vendor/` ([§1.2](#12-install-phpmailer))
-- [ ] Run the migration SQL ([§1.1](#11-database-migration))
+- [ ] ~~Update the `Dockerfile` so Railway gets `vendor/`~~ — deferred; Railway is on indefinite hold, so XAMPP is the only target ([§1.2](#12-install-phpmailer))
+- [x] Run the migration SQL — shipped as `backend/api/migrations/2026_09_sms_email_channels.sql` ([§0.1a](#01a-what-shipped))
 
 ---
 
@@ -68,6 +69,8 @@
 This section is the result of auditing the rest of this guide against the code on `main` at commit `8352371`. Everything below either corrects a wrong assumption, or names a decision that must be made before Phase 1.
 
 ### 0.1 Compatibility findings
+
+**Status (2026-09-22).** Every finding that could be closed against code that exists today has been. Shipped: **C1**, **C2**, **C3**, **C4**, **C9**, **C11**, **C12**, **C14**, **C15** — see [§0.1a](#01a-what-shipped). Still open, because they are corrections to files Phase 1 has yet to create or constraints on how it is written: **C5** (queue before wiring — the tables exist, the dispatcher does not), **C6** (Composer in the deploy path), **C7** (Railway cron), **C8** (write to the PHP 8.0 floor), **C10** (escape template values), **C13** (anchor Phase 2 edits to call text). C6 and C7 are **deferred**: Railway is on indefinite hold, so the XAMPP path is the only deploy target this feature targets for now.
 
 | # | Finding | Where | Action |
 |---|---|---|---|
@@ -79,13 +82,46 @@ This section is the result of auditing the rest of this guide against the code o
 | **C6** | **No Composer anywhere in the deploy path.** The `Dockerfile` is `php:8.2-apache`, has no `composer` binary, and does `COPY backend/ /var/www/html/`. §1.2's "the Dockerfile must run `composer install`" would fail the build as written. `vendor/` is also **not** in `.gitignore`. | `Dockerfile`, `.gitignore` | Pick one of the two options in [§1.2](#12-install-phpmailer). Committing `vendor/` is the lower-risk choice for this project. |
 | **C7** | **Railway has no cron.** `process_queue.php` is documented as a Windows Task Scheduler job, which only covers the XAMPP install. The SaaS deployment would queue notifications and never drain them. | §4.1 | Drain the queue from `run_notification_sweep()` / the `get_notifications.php` poll, the same trick `config.php:1585-1595` already uses for the daily sweep. Details in [§4.1](#41-notification-queue--process_queuephp). |
 | **C8** | **PHP version split: local 8.0.30, container 8.2.** `match` and named arguments are fine on 8.0. `readonly`, enums-in-interfaces, `never`, and PHPMailer 7 are not. | — | Write to the 8.0 floor; pin `phpmailer/phpmailer:^6.9`. |
-| **C9** | **Preference API payload shape is a breaking change.** `update_notification_preferences.php:33-38` validates that each value is a bool/0/1 and **422s on anything else**. §3.1's new `{"in_app":…,"sms":…}` object payload would be rejected before it reached the insert, and `ProfileSettings.jsx` still sends the old shape. | `update_notification_preferences.php` | Accept **both** shapes ([§3.1](#31-extend-preferences-api)); ship the backend before the frontend. |
+| **C9** | **Preference API payload shape is a breaking change.** `update_notification_preferences.php:33-38` validates that each value is a bool/0/1 and **422s on anything else**. §3.1's new `{"in_app":…,"sms":…}` object payload would be rejected before it reached the insert, and `UserNotifications.jsx` (C13 — the guide said `ProfileSettings.jsx`) still sends the old shape. | `update_notification_preferences.php` | Accept **both** shapes ([§3.1](#31-extend-preferences-api)); ship the backend before the frontend. |
 | **C10** | **Email templates interpolate unescaped values.** `email_status_update_template()` inserts `$details`, `$request_label` and `$tenant_name` straight into HTML; `email_payment_template()` does the same with `$room` and `$ref`. A tenant-supplied maintenance description is enough to inject markup into an email the admin also receives. | §1.5 | `htmlspecialchars()` every interpolated value ([§1.5](#15-email-templates--email_templatesphp)). |
 | **C11** | **`notification_log` stores full message bodies forever** — names, unit numbers, amounts, phone numbers and email addresses, with no retention policy. Under RA 10173 that is personal data held without a purpose limit, and the table grows unbounded. | §1.1 | Store a truncated body and prune on a schedule ([§1.1](#11-database-migration)). |
 | **C12** | **Phone normalisation is too naive.** `preg_replace('/^0/', '+63', trim($phone))` does not strip spaces, dashes or parentheses, so `0917 123 4567` fails the regex and is logged as invalid. `users.contact_no` is free-text `varchar(30)` with no format enforcement. | §1.3 | Strip non-digits first ([§1.3](#13-sms-service--send_smsphp)). |
-| **C13** | **Line numbers in Phase 2 are already drifting.** Several "after line N" anchors no longer point where the guide says (`create_announcement.php:23` still holds, `config.php`'s sweep is at ~1585 not 1590). | §2 | Anchor edits to the `create_notification(...)` call text, not to line numbers. |
+| **C13** | **Line numbers in Phase 2 are already drifting.** Several "after line N" anchors no longer point where the guide says (`create_announcement.php:23` still holds, `config.php`'s sweep is at ~1585 not 1590). **§3.1 also names the wrong file:** the legacy flat preferences payload is sent by `UserNotifications.jsx`, not `ProfileSettings.jsx`, which contains no preferences UI at all. | §2, §3.1 | Anchor edits to the `create_notification(...)` call text, not to line numbers. File names corrected below. |
 | **C14** | **Link fix:** the footer points at `docs/documentation/notification_services.md`, which does not exist. The file is `docs/features/notification_services.md`. | footer | Corrected below. |
 | **C15** | `backend/api/services/` does not exist yet; `backend/cron/` does (`check_environment.php`, `daily_sweep.php`). | — | Create the one directory; the cron additions sit beside the existing scripts. |
+
+### 0.1a What shipped
+
+Implemented 2026-09-22. Phase 1 builds on these rather than restating them.
+
+**Migration — `backend/api/migrations/2026_09_sms_email_channels.sql`**, mirrored into `SetupDB.sql` (idempotent; verified by running it twice and by a clean `SetupDB.sql` + `seed_mock_data.sql` import producing the same schema).
+
+- **C4** — `users.email_address` is now `varchar(190)`. Nothing assumed the old width: `registration.php` validates with `FILTER_VALIDATE_EMAIL` only, and no form sets a `maxLength` on an email field.
+- **C1 / C2** — `users.sms_opt_out`, `users.email_opt_out`, `users.sms_consent_at`; `notification_preferences.sms_enabled`, `.email_enabled`.
+- **C11** — `notification_log` (with `idx_log_sent_at`) and `notification_log_retention_days`, default 90.
+- `notification_queue` is created here too, so the schema is settled in one migration. Nothing writes to it until the dispatcher lands.
+- **C3** — the full settings key block is seeded, and the legacy `semaphore_api_key` / `smtp_user` / `smtp_pass` rows are deleted.
+
+**Both channels ship off.** `notifications_email_enabled` and `notifications_sms_enabled` seed to `'0'`, so the per-category columns above are dormant until an admin turns a channel on. That, not a column default, is the cost control from [§0.3](#03-cost-model).
+
+**C3 — secret masking.** `get_system_settings.php` `$sensitive_keys` and `update_system_settings.php` `$secret_keys` now carry the same provider-scoped list (`smtp_username`, `smtp_password`, `sms_api_key`, and every provider-specific credential). The two lists must be edited together; both say so.
+
+**C2 / C11 / C12 — helpers in `backend/config.php`**, beside `create_notification()`:
+
+| Helper | Closes | Behaviour |
+|---|---|---|
+| `user_channel_allowed($conn, $user_id, $type, $channel)` | C2 | The one gate before any send. Checks `users.<channel>_opt_out` **first**, then the building-wide `notifications_<channel>_enabled`, then the per-category row (absent row = allowed, category-less type = allowed). |
+| `normalize_ph_mobile($phone)` | C12 | Strips non-digits first, then normalises `09…` / `639…` / `+639…` / `00639…` to E.164; `null` when it is not a PH mobile. `0917 123 4567` and `(0917)123-4567` both work. |
+| `gsm7_safe($text)` | §0.3 | Folds `₱`→`PHP `, em/en dash, smart quotes and ellipsis to GSM-7 and drops the rest, so a message cannot silently bill as three UCS-2 segments. |
+| `sms_single_segment($text, $limit = 160)` | §0.3 | One segment, hard. |
+| `log_notification_delivery(...)` | C11 | The only writer into `notification_log`; truncates the body to 500 chars. |
+| `prune_notification_log($conn, $limit = 5000)` | C11 | Deletes past the retention setting, capped per call. Not yet wired to a caller — the queue drain will call it. |
+
+**C9 — preferences API takes both payload shapes.** `update_notification_preferences.php` accepts `"<category>": true|false` and `"<category>": {in_app, sms, email}`, plus top-level `sms_opt_out` / `email_opt_out`. An omitted channel is written back **as it was stored**, read once before the loop — the flat payload the notifications page still sends can no longer re-enable SMS. Turning SMS back on stamps `sms_consent_at`. `get_notification_preferences.php` returns `sms_enabled` / `email_enabled` per category plus `channels`, `sms_opt_out`, `email_opt_out`, `has_contact_no`, `has_email`. The frontend is unchanged and still works, which was the C9 ship-order requirement.
+
+**C15** — `backend/api/services/` exists (placeholder only).
+
+**C14** — verified: the footer already points at `docs/features/notification_services.md`.
 
 ### 0.2 Architecture decision — queue first
 
@@ -178,11 +214,9 @@ Email is the honest win here: it is free, has no registration lead time, and dem
 
 ### 1.1 Database Migration
 
-**File:** `backend/api/migrations/add_sms_email_channels.sql` **[NEW]**
+**File:** [`backend/api/migrations/2026_09_sms_email_channels.sql`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/migrations/2026_09_sms_email_channels.sql) — **shipped 2026-09-22** and mirrored into `SetupDB.sql`. `seed_mock_data.sql` needed no change: it seeds neither `system_settings` nor `notification_preferences`.
 
-Mirror every change into [`SetupDB.sql`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/migrations/SetupDB.sql) and `seed_mock_data.sql` after verification (CLAUDE.md migration rule).
-
-> **Revised in v1.1** for findings **C1** (global opt-out), **C3** (settings key collision), **C4** (`email_address` width) and **C11** (log retention).
+> **Revised in v1.1** for findings **C1** (global opt-out), **C3** (settings key collision), **C4** (`email_address` width) and **C11** (log retention). The listing below is what was applied, with two deliberate differences: the file is named for the migration convention already in the directory, and `payload` is `longtext` rather than `JSON` — MariaDB 10.4 aliases `JSON` to `longtext` anyway, so the dump and the source now agree.
 
 ```sql
 -- ============================================================
@@ -387,25 +421,23 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
     // --- Guard: is SMS globally enabled? ---
     $enabled = get_setting($conn, 'notifications_sms_enabled', '0');
     if ($enabled !== '1' && $enabled !== 'true') {
-        log_notification($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'skipped', 'SMS globally disabled');
+        log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'skipped', 'SMS globally disabled');
         return false;
     }
 
     // C12 — users.contact_no is free-text varchar(30), so "0917 123-4567" and
     // "+63 917 123 4567" both occur. Strip to digits before deciding anything.
-    $phone = normalise_ph_number($phone);
+    $phone = normalize_ph_mobile($phone);
     if ($phone === null) {
-        log_notification($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'failed', 'Invalid phone number');
+        log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'failed', 'Invalid phone number');
         return false;
     }
 
     // Cost control (§0.3): force GSM-7 and hard-cap at one 160-char segment.
     // A single "₱" or em dash makes the message UCS-2 (70 chars/segment), so a
-    // message that looks like one segment bills as three.
-    $message = gsm7_safe($message);
-    if (strlen($message) > 160) {
-        $message = substr($message, 0, 157) . '...';
-    }
+    // message that looks like one segment bills as three. sms_single_segment()
+    // in config.php does both (it calls gsm7_safe() itself).
+    $message = sms_single_segment($message);
 
     // --- Route to the configured provider ---
     $provider = strtolower(get_setting($conn, 'sms_provider', 'log'));
@@ -421,11 +453,11 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
     };
 
     if ($result['ok']) {
-        log_notification($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'sent');
+        log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'sent');
         return true;
     }
 
-    log_notification($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'failed', $result['error']);
+    log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'failed', $result['error']);
     return false;
 }
 
@@ -688,59 +720,10 @@ function _send_via_itexmo($conn, $phone, $message) {
     return ['ok' => false, 'error' => 'iTexMo error ' . $code . ': ' . ($errors[$code] ?? 'Unknown')];
 }
 
-// ──────────────────────────────────────────────
-//  Helpers
-// ──────────────────────────────────────────────
-
-/**
- * C12 — normalise any PH number to E.164 (+639XXXXXXXXX). Returns null if the
- * value cannot be a Philippine mobile number.
- *   0917 123 4567 / (0917) 123-4567 / +63 917 123 4567 / 639171234567 → +639171234567
- */
-function normalise_ph_number($raw) {
-    $d = preg_replace('/\D+/', '', (string)$raw);   // digits only
-    if ($d === '') return null;
-    if (str_starts_with($d, '0'))  $d = '63' . substr($d, 1);   // 09xx  → 639xx
-    if (str_starts_with($d, '9'))  $d = '63' . $d;              // 9xx   → 639xx
-    // PH mobile is 63 + 9 + 9 digits = 12 digits.
-    if (!preg_match('/^639\d{9}$/', $d)) return null;
-    return '+' . $d;
-}
-
-/**
- * Cost control (§0.3). Fold the characters that force a UCS-2 encoding — and
- * therefore 70-char segments — back into GSM-7. Anything still outside the
- * alphabet is dropped rather than silently tripling the bill.
- */
-function gsm7_safe($text) {
-    $map = [
-        '₱' => 'PHP ', '—' => '-', '–' => '-', '…' => '...',
-        '“' => '"', '”' => '"', '‘' => "'", '’' => "'", '•' => '-',
-    ];
-    $text = strtr($text, $map);
-    $text = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}]/u', '', $text); // emoji
-    $text = preg_replace('/\s+/u', ' ', $text);
-    // GSM 03.38 basic set (a conservative subset — no extension table).
-    $text = preg_replace('/[^A-Za-z0-9 @£$¥èéùìòÇØøÅå\r\n\.,:;!\?\'"\-\/\(\)&#%\+\*=<>]/u', '', $text);
-    return trim($text);
-}
-
-/**
- * Insert a row into notification_log.
- * C11 — the body is truncated; process_queue.php prunes rows past the
- * notification_log_retention_days setting.
- */
-function log_notification($conn, $user_id, $channel, $event_type, $recipient, $subject, $body, $status, $error = null) {
-    $body = $body === null ? null : mb_substr($body, 0, 500);
-    $stmt = $conn->prepare("INSERT INTO notification_log (user_id, channel, event_type, recipient, subject, message_body, status, error_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("isssssss", $user_id, $channel, $event_type, $recipient, $subject, $body, $status, $error);
-    $stmt->execute();
-    $stmt->close();
-}
 ?>
 ```
 
-> **`log_notification()` lives here but is used by `send_email.php` too.** Both files `require_once` this one, so it is declared once — but if you ever split it out, move it to `config.php` rather than duplicating it, or the second `require` fatals on a redeclare.
+> **The helpers this file calls already exist** — `normalize_ph_mobile()`, `gsm7_safe()`, `sms_single_segment()` and `log_notification_delivery()` shipped in `config.php` ([§0.1a](#01a-what-shipped)), which every endpoint already includes. Do not redeclare them here: `send_email.php` needs the same logger, and a second declaration is a fatal redeclare.
 
 > **Rate limiting.** None of the drivers throttles. iTexMo's carrier limit is 10 messages to the same number per day, and Semaphore rate-limits bursts. The queue processor is where this belongs — see [§4.1](#41-notification-queue--process_queuephp).
 
@@ -766,13 +749,13 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
-require_once __DIR__ . '/send_sms.php'; // for log_notification()
+require_once __DIR__ . '/send_sms.php'; // for log_notification_delivery()
 
 function send_email($conn, $to_email, $subject, $html_body, $event_type = 'general', $user_id = null) {
     // --- Guard: is email globally enabled? ---
     $enabled = get_setting($conn, 'notifications_email_enabled', '0');
     if ($enabled !== '1' && $enabled !== 'true') {
-        log_notification($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'skipped', 'Email globally disabled');
+        log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'skipped', 'Email globally disabled');
         return false;
     }
 
@@ -784,7 +767,7 @@ function send_email($conn, $to_email, $subject, $html_body, $event_type = 'gener
     $from_email    = get_setting($conn, 'smtp_from_email', $smtp_username);
 
     if ($smtp_username === '' || $smtp_password === '') {
-        log_notification($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'failed', 'SMTP credentials not configured');
+        log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'failed', 'SMTP credentials not configured');
         return false;
     }
 
@@ -809,11 +792,11 @@ function send_email($conn, $to_email, $subject, $html_body, $event_type = 'gener
         $mail->AltBody = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $html_body));
 
         $mail->send();
-        log_notification($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'sent');
+        log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'sent');
         return true;
     } catch (Exception $e) {
         $error = $mail->ErrorInfo ?: $e->getMessage();
-        log_notification($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'failed', $error);
+        log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'failed', $error);
         return false;
     }
 }
@@ -1252,6 +1235,8 @@ require_once __DIR__ . '/api/services/send_notification.php';
 
 ### 3.1 Extend Preferences API
 
+> **Shipped 2026-09-22** — both endpoints below are done, including the C9 dual-shape handling. See [§0.1a](#01a-what-shipped). The listings that follow describe what was applied; the frontend (§3.2) is still outstanding.
+
 #### get_notification_preferences.php
 
 **File:** [`backend/api/get_notification_preferences.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_notification_preferences.php)
@@ -1322,7 +1307,7 @@ Accept per-channel preferences in the payload:
 }
 ```
 
-> **C9 — this is a breaking change, and the diff below is incomplete.** The endpoint validates each value with `if (!is_bool($enabled) && !in_array($enabled, [0, 1, '0', '1'], true))` and **422s before reaching the insert**, so an object payload is rejected outright. `ProfileSettings.jsx` also still sends the old flat shape, so a backend-only deploy would break saving entirely.
+> **C9 — this is a breaking change, and the diff below is incomplete.** The endpoint validates each value with `if (!is_bool($enabled) && !in_array($enabled, [0, 1, '0', '1'], true))` and **422s before reaching the insert**, so an object payload is rejected outright. [`UserNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) — **not** `ProfileSettings.jsx`, which has no preferences UI — also still sends the old flat shape, so a backend-only deploy would break saving entirely.
 >
 > Accept both shapes. Replace the validation loop with:
 >
@@ -1391,7 +1376,7 @@ Accept per-channel preferences in the payload:
 
 ### 3.2 Profile Settings UI
 
-**File:** [`ams-react/src/UserPages/ProfileSettings.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ProfileSettings.jsx)
+**File:** [`ams-react/src/UserPages/UserNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) — the preferences panel lives here, not in `ProfileSettings.jsx` (C13).
 
 Add a "Notification Preferences" section with three toggles per category.
 
@@ -1667,7 +1652,7 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | ID | Test | Expected |
 |---|---|---|
 | M6-01 | Migration applied twice in a row | Second run is a no-op; no error (idempotency, CLAUDE.md rule) |
-| M6-02 | `normalise_ph_number()` over `09171234567`, `0917 123-4567`, `+63 917 123 4567`, `639171234567`, `9171234567` | All five → `+639171234567` |
+| M6-02 | `normalize_ph_mobile()` over `09171234567`, `0917 123-4567`, `+63 917 123 4567`, `639171234567`, `9171234567` | All five → `+639171234567` |
 | M6-03 | Same over `12345`, `''`, `+14155551234`, `abc` | All → `null`, logged `failed` / "Invalid phone number" |
 | M6-04 | `gsm7_safe("AMS: ₱4,500 rent — due Oct 5 ✅")` | No `₱`, no em dash, no emoji; `strlen === mb_strlen` |
 | M6-05 | Message longer than 160 chars | Truncated to 160 with `...`; one segment |
@@ -1747,21 +1732,21 @@ After all tests pass:
 
 ## Appendix A — File Inventory
 
-> `backend/api/services/` does not exist yet (C15) — create it. `backend/cron/` does, alongside `check_environment.php` and `daily_sweep.php`.
+> **Updated 2026-09-22.** `backend/api/services/` now exists (C15, placeholder only). `backend/cron/` holds `check_environment.php` and `daily_sweep.php`. Rows marked ✅ below shipped with the §0.1 findings.
 
 ### New Files (10)
 
 | File | Phase | Purpose |
 |---|---|---|
-| `backend/api/services/send_sms.php` | 1 | Multi-provider SMS dispatcher + `log_notification()` |
+| `backend/api/services/send_sms.php` | 1 | Multi-provider SMS dispatcher + `log_notification_delivery()` |
 | `backend/api/services/send_email.php` | 1 | PHPMailer SMTP wrapper |
 | `backend/api/services/email_templates.php` | 1 | HTML email template builder |
 | `backend/api/services/send_notification.php` | 1 | Central dispatcher |
-| `backend/api/migrations/add_sms_email_channels.sql` | 1 | Schema migration |
+| ✅ `backend/api/migrations/2026_09_sms_email_channels.sql` | 1 | Schema migration — **shipped** |
 | `backend/cron/process_queue.php` | 4 | Async queue processor |
 | `backend/api/get_notification_log.php` | 4 | Admin delivery log API |
 | `backend/composer.json` + `composer.lock` | 1 | PHPMailer 6.9 only — no provider SDKs |
-| `Dockerfile` | 1 | Composer stage, or nothing if `vendor/` is committed (C6) |
+| ~~`Dockerfile`~~ | 1 | Deferred — Railway on indefinite hold (C6/C7) |
 | `.gitattributes` | 1 | `backend/vendor/** linguist-vendored` if Option A |
 
 ### Modified Files (18)
@@ -1775,16 +1760,16 @@ After all tests pass:
 | `backend/api/update_parking_status.php` | 2 | SMS/email on decision |
 | `backend/api/update_service_status.php` | 2 | SMS/email on status change |
 | `backend/api/process_tenant_request.php` | 2 | SMS/email on lease/occupancy decision |
-| `backend/config.php` | 2 | `require_once` for dispatcher in sweep |
-| `backend/api/get_notification_preferences.php` | 3 | Return sms/email columns |
-| `backend/api/update_notification_preferences.php` | 3 | Accept sms/email toggles |
+| ✅ `backend/config.php` | 1 | **Shipped:** `user_channel_allowed()`, `normalize_ph_mobile()`, `gsm7_safe()`, `sms_single_segment()`, `log_notification_delivery()`, `prune_notification_log()`. Still to come: `require_once` for the dispatcher in the sweep (Phase 2) |
+| ✅ `backend/api/get_notification_preferences.php` | 3 | **Shipped:** per-channel columns, `channels`, global opt-outs, reachability flags |
+| ✅ `backend/api/update_notification_preferences.php` | 3 | **Shipped:** both payload shapes (C9), global opt-outs, consent stamp |
 | `ams-react/src/AdminPages/AdminAccountSettings.jsx` | 3 | SMTP/SMS config section |
-| `ams-react/src/UserPages/ProfileSettings.jsx` | 3 | Per-channel toggles + global opt-out + consent line |
-| `backend/api/get_system_settings.php` | 3 | Replace the legacy secret list (C3) |
-| `backend/api/update_system_settings.php` | 3 | Same list, and mask on save |
-| `backend/api/get_notifications.php` | 4 | Drain the queue on poll, Railway path (C7) |
+| `ams-react/src/UserPages/UserNotifications.jsx` | 3 | Per-channel toggles + global opt-out + consent line |
+| ✅ `backend/api/get_system_settings.php` | 3 | **Shipped:** legacy secret list replaced (C3) |
+| ✅ `backend/api/update_system_settings.php` | 3 | **Shipped:** same list, masked on save (C3) |
+| `backend/api/get_notifications.php` | 4 | Drain the queue on poll (the XAMPP path; the Railway motivation in C7 is deferred) |
 | `backend/cron/daily_sweep.php` | 4 | Drain after the sweep |
-| `backend/api/migrations/SetupDB.sql`, `seed_mock_data.sql` | 1 | Mirror the migration |
+| ✅ `backend/api/migrations/SetupDB.sql` | 1 | **Shipped:** migration mirrored. `seed_mock_data.sql` needed no change |
 
 ---
 

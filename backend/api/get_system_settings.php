@@ -24,12 +24,24 @@ if ($result) {
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 $is_admin = verify_admin($conn, $admin_id);
 
+// Never returned to a non-admin. Keep this list identical to $secret_keys in
+// update_system_settings.php, which decides what the audit log hides. The
+// legacy semaphore_api_key / smtp_user / smtp_pass names were never read or
+// written anywhere; the channels migration deletes them.
 $sensitive_keys = [
     'paymongo_secret_key',
     'paymongo_webhook_secret',
-    'semaphore_api_key',
-    'smtp_pass',
-    'smtp_user'
+    'smtp_username',
+    'smtp_password',
+    'sms_api_key',
+    'sms_twilio_sid',
+    'sms_twilio_auth_token',
+    'sms_vonage_api_key',
+    'sms_vonage_api_secret',
+    'sms_movider_api_key',
+    'sms_movider_api_secret',
+    'sms_itexmo_api_code',
+    'sms_itexmo_password'
 ];
 
 if (!$is_admin) {

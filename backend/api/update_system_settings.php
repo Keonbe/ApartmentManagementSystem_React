@@ -20,8 +20,17 @@ if (!is_array($input) || !$input) {
     exit;
 }
 
-// Values the log must never contain in clear text.
-$secret_keys = ['paymongo_secret_key', 'paymongo_webhook_secret', 'semaphore_api_key', 'smtp_pass', 'smtp_user'];
+// Values the log must never contain in clear text. Keep this list identical to
+// $sensitive_keys in get_system_settings.php, which hides the same keys from
+// non-admins.
+$secret_keys = [
+    'paymongo_secret_key', 'paymongo_webhook_secret',
+    'smtp_username', 'smtp_password',
+    'sms_api_key', 'sms_twilio_sid', 'sms_twilio_auth_token',
+    'sms_vonage_api_key', 'sms_vonage_api_secret',
+    'sms_movider_api_key', 'sms_movider_api_secret',
+    'sms_itexmo_api_code', 'sms_itexmo_password',
+];
 
 $existing = [];
 $res = $conn->query("SELECT setting_key, setting_value FROM system_settings");

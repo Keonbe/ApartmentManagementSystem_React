@@ -376,8 +376,11 @@ CREATE TABLE `users` (
   `last_name` varchar(30) NOT NULL,
   `suffix` varchar(20) DEFAULT NULL,
   `contact_no` varchar(30) DEFAULT NULL,
+  `sms_opt_out` tinyint(1) NOT NULL DEFAULT 0,
+  `email_opt_out` tinyint(1) NOT NULL DEFAULT 0,
+  `sms_consent_at` datetime DEFAULT NULL,
   `gender` varchar(20) DEFAULT NULL,
-  `email_address` varchar(30) NOT NULL,
+  `email_address` varchar(190) NOT NULL,
   `password` varchar(200) NOT NULL,
   `role` varchar(20) DEFAULT 'user',
   `avatar_url` varchar(255) DEFAULT NULL,
@@ -611,15 +614,60 @@ ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `metadata_value` varchar(25
 ALTER TABLE `notifications` ADD INDEX IF NOT EXISTS `idx_type_status` (`type`, `status`);
 ALTER TABLE `notifications` ADD INDEX IF NOT EXISTS `idx_user_read` (`user_id`, `is_read`);
 
--- Per-category in-app notification opt-outs (checklist 6.8). No row = enabled.
+-- Per-category notification opt-outs (checklist 6.8). No row = enabled on every channel.
 -- Categories and the types they cover: NOTIFICATION_PREF_CATEGORIES in config.php.
 CREATE TABLE IF NOT EXISTS `notification_preferences` (
   `user_id` int(11) NOT NULL,
   `category` varchar(40) NOT NULL,
   `in_app_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `sms_enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `email_enabled` tinyint(1) NOT NULL DEFAULT 1,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`user_id`, `category`),
   CONSTRAINT `fk_notif_pref_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Outbound SMS/email delivery log (checklist 6.6 / 6.7). log_notification_delivery()
+-- in config.php is the only writer and truncates message_body to 500 chars;
+-- prune_notification_log() drops rows past notification_log_retention_days, so
+-- tenant contact details are not retained indefinitely (RA 10173).
+CREATE TABLE IF NOT EXISTS `notification_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `channel` enum('in-app','email','sms') NOT NULL,
+  `event_type` varchar(50) NOT NULL,
+  `recipient` varchar(255) DEFAULT NULL COMMENT 'email address or phone number',
+  `subject` varchar(255) DEFAULT NULL,
+  `message_body` text DEFAULT NULL COMMENT 'truncated to 500 chars by the writer',
+  `status` enum('sent','failed','skipped') NOT NULL DEFAULT 'sent',
+  `error_message` text DEFAULT NULL,
+  `sent_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_log_channel_status` (`channel`, `status`),
+  KEY `idx_log_user` (`user_id`),
+  KEY `idx_log_sent_at` (`sent_at`),
+  CONSTRAINT `fk_notif_log_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Async send queue. A web request never blocks on an SMS/SMTP provider: the
+-- dispatcher enqueues here and the queue processor is the only sender.
+CREATE TABLE IF NOT EXISTS `notification_queue` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `channel` enum('email','sms') NOT NULL,
+  `event_type` varchar(50) NOT NULL,
+  `payload` longtext NOT NULL COMMENT '{"to","subject","body","template","vars"}',
+  `status` enum('pending','processing','sent','failed') NOT NULL DEFAULT 'pending',
+  `claim_token` char(16) DEFAULT NULL COMMENT 'set by the claiming drain',
+  `attempts` tinyint(4) NOT NULL DEFAULT 0,
+  `max_attempts` tinyint(4) NOT NULL DEFAULT 3,
+  `next_attempt_at` datetime DEFAULT current_timestamp(),
+  `error_message` text DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `processed_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_queue_pending` (`status`, `next_attempt_at`),
+  CONSTRAINT `fk_notif_queue_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- One row per parking reservation per billed month (checklist 10.3). Inserting the
@@ -971,4 +1019,41 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('max_occupants_per_unit', '8'),
 ('late_fee_enabled', 'false'),
 ('late_fee_type', 'flat'),
-('late_fee_value', '200');
+('late_fee_value', '200'),
+-- SMS and email notification channels (checklist 6.6 / 6.7). sms_provider accepts
+-- 'log', 'semaphore', 'twilio', 'vonage', 'movider' or 'itexmo'; 'log' is the
+-- dry-run driver, which records to notification_log and sends nothing. The
+-- secret-valued keys here are masked by get_system_settings.php.
+('smtp_host', 'smtp.gmail.com'),
+('smtp_port', '587'),
+('smtp_username', ''),
+('smtp_password', ''),
+('smtp_from_name', 'AMS Notifications'),
+('smtp_from_email', ''),
+('sms_provider', 'log'),
+('sms_api_key', ''),
+('sms_sender_name', 'AMS'),
+('sms_twilio_sid', ''),
+('sms_twilio_auth_token', ''),
+('sms_twilio_from_number', ''),
+('sms_vonage_api_key', ''),
+('sms_vonage_api_secret', ''),
+('sms_movider_api_key', ''),
+('sms_movider_api_secret', ''),
+('sms_itexmo_api_code', ''),
+('sms_itexmo_password', ''),
+-- Building-wide kill switches. Both ship off: email needs SMTP credentials and
+-- SMS costs money and needs a carrier-registered sender ID.
+('notifications_email_enabled', '0'),
+('notifications_sms_enabled', '0'),
+-- queue | sync. 'sync' blocks the HTTP request and exists only for demos.
+('notifications_dispatch_mode', 'queue'),
+-- Quiet hours (24h, local). Overdue and urgent announcements are exempt.
+('notifications_quiet_start', '21'),
+('notifications_quiet_end', '07'),
+-- Retention for notification_log (prune_notification_log() in config.php).
+('notification_log_retention_days', '90'),
+-- Claimed by the queue drain, same pattern as notification_sweep_last_run.
+('notification_queue_last_run', '2000-01-01 00:00:00'),
+-- Peso cost of one SMS segment, for the announcement cost preview.
+('sms_unit_cost', '0.50');

@@ -1445,6 +1445,127 @@ function create_notification($conn, $user_id, $type, $title, $message, $status =
     return $id;
 }
 
+// ── External channels: SMS & email (checklist 6.6 / 6.7) ──
+// These helpers are the shared rules every sender must obey. The services that
+// actually talk to a provider are built on top of them; nothing here sends.
+
+// May this user be contacted on 'sms' or 'email' about this notification type?
+//
+// Order matters. Most notification types belong to no preference category at
+// all (maintenance_update, overdue, payment_received, lease_expiring, every
+// decision notice), so the per-category table cannot switch them off — without
+// the per-user flag below a tenant could not stop SMS at all. That is fine for
+// an in-app row; it is not fine for a paid, regulated channel. So:
+//   1. the tenant's own global opt-out on users, then
+//   2. the building-wide switch an admin controls, then
+//   3. the per-category row, where an absent row still means "opted in".
+function user_channel_allowed($conn, $user_id, $type, $channel) {
+    $user_id = (int)$user_id;
+    if ($user_id <= 0 || !in_array($channel, ['sms', 'email'], true)) return false;
+
+    $column = $channel === 'sms' ? 'sms_opt_out' : 'email_opt_out';
+    $stmt = $conn->prepare("SELECT `$column` AS opted_out FROM users WHERE id = ?");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row || (int)$row['opted_out'] === 1) return false;
+
+    $switch = $channel === 'sms' ? 'notifications_sms_enabled' : 'notifications_email_enabled';
+    if (get_setting($conn, $switch, '0') !== '1') return false;
+
+    $category = notification_pref_category_for_type($type);
+    if ($category === null) return true;
+
+    $column = $channel === 'sms' ? 'sms_enabled' : 'email_enabled';
+    $pref = $conn->prepare("SELECT `$column` AS enabled FROM notification_preferences WHERE user_id = ? AND category = ?");
+    $pref->bind_param("is", $user_id, $category);
+    $pref->execute();
+    $row = $pref->get_result()->fetch_assoc();
+    $pref->close();
+    return $row ? (int)$row['enabled'] === 1 : true;
+}
+
+// users.contact_no is free-text varchar(30), so numbers arrive as '0917 123 4567',
+// '(0917) 123-4567' or '+63 917 123 4567'. Strip everything that is not a digit
+// first, then decide — matching on the raw string silently loses real numbers.
+// Returns E.164 (+639XXXXXXXXX), or null when it is not a PH mobile.
+function normalize_ph_mobile($phone) {
+    $digits = preg_replace('/\D+/', '', (string)$phone);
+    if ($digits === '') return null;
+
+    if (strpos($digits, '00') === 0)  $digits = substr($digits, 2);   // 0063...
+    if (strpos($digits, '63') === 0)  $digits = substr($digits, 2);   // 63...
+    elseif (strpos($digits, '0') === 0) $digits = substr($digits, 1); // 0917...
+
+    // A PH mobile subscriber number is always 9 digits after the 63, starting 9.
+    return preg_match('/^9\d{9}$/', $digits) ? '+63' . $digits : null;
+}
+
+// An SMS holding a peso sign, an em dash or a smart quote is UCS-2 encoded, and
+// the segment size drops from 160 characters to 70 — so a message that looks
+// like one SMS silently bills as three. Fold those characters to their GSM-7
+// equivalents and drop anything still outside the alphabet.
+function gsm7_safe($text) {
+    $map = [
+        '₱' => 'PHP ', '—' => '-', '–' => '-', '…' => '...',
+        '“' => '"', '”' => '"', '‘' => "'", '’' => "'",
+        '•' => '*', '₽' => '', '°' => 'deg', '™' => '', '®' => '', '©' => '',
+        "\xC2\xA0" => ' ',
+    ];
+    $text = strtr((string)$text, $map);
+    // GSM-7 basic set, minus the extension table we do not need.
+    $text = preg_replace('/[^A-Za-z0-9@£$¥èéùìòÇØøÅåÆæßÉ\r\n .,:;!?"#%&\'()*+\-\/<=>¡¿§_@]/u', '', $text);
+    return preg_replace('/[ \t]+/', ' ', $text);
+}
+
+// One SMS segment, hard. Anything longer belongs in an email: a second segment
+// costs the same as the first and the tail is usually the disposable part.
+function sms_single_segment($text, $limit = 160) {
+    $text = trim(gsm7_safe($text));
+    return mb_strlen($text) <= $limit ? $text : rtrim(mb_substr($text, 0, $limit - 1)) . '.';
+}
+
+// The only writer into notification_log. message_body is truncated because the
+// log otherwise keeps names, unit numbers, amounts, phone numbers and email
+// addresses in full and forever; prune_notification_log() bounds how long.
+// $status is 'sent', 'failed' or 'skipped'.
+function log_notification_delivery($conn, $user_id, $channel, $event_type, $recipient, $subject, $body, $status = 'sent', $error = null) {
+    if (!in_array($channel, ['in-app', 'email', 'sms'], true)) return 0;
+    if (!in_array($status, ['sent', 'failed', 'skipped'], true)) $status = 'sent';
+
+    $user_id   = (int)$user_id > 0 ? (int)$user_id : null;
+    $recipient = $recipient === null ? null : mb_substr((string)$recipient, 0, 255);
+    $subject   = $subject === null ? null : mb_substr((string)$subject, 0, 255);
+    $body      = $body === null ? null : mb_substr((string)$body, 0, 500);
+
+    $stmt = $conn->prepare("INSERT INTO notification_log (user_id, channel, event_type, recipient, subject, message_body, status, error_message)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    if (!$stmt) return 0;
+    $stmt->bind_param("isssssss", $user_id, $channel, $event_type, $recipient, $subject, $body, $status, $error);
+    $stmt->execute();
+    $id = $stmt->insert_id;
+    $stmt->close();
+    return $id;
+}
+
+// Retention (RA 10173): the log holds personal data, so it is not kept without
+// a limit. Capped per call so a long-neglected table cannot lock up the drain
+// that calls it; idx_log_sent_at makes the scan cheap. Returns rows removed.
+function prune_notification_log($conn, $limit = 5000) {
+    $days = (int)get_setting($conn, 'notification_log_retention_days', '90');
+    if ($days <= 0) return 0;
+
+    $limit = max(1, (int)$limit);
+    $stmt = $conn->prepare("DELETE FROM notification_log WHERE sent_at < DATE_SUB(NOW(), INTERVAL ? DAY) LIMIT $limit");
+    if (!$stmt) return 0;
+    $stmt->bind_param("i", $days);
+    $stmt->execute();
+    $n = $stmt->affected_rows;
+    $stmt->close();
+    return $n;
+}
+
 // Adds a row to the admin action queue. metadata "<type>:<id>" is what lets the
 // decision endpoint clear exactly this row later (resolve_admin_queue()).
 function notify_admins_queue($conn, $type, $entity_id, $title, $message) {
