@@ -26,6 +26,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             store.removeItem("loggedInUser");
             store.removeItem("sessionToken");
         }
+        window.dispatchEvent(new Event('auth-changed'));
         navigate('/login');
     };
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);

@@ -16,6 +16,7 @@ export function clearStoredSession() {
         store.removeItem("loggedInUser");
         store.removeItem("sessionToken");
     }
+    window.dispatchEvent(new Event('auth-changed'));
 }
 
 api.interceptors.request.use((config) => {

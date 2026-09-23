@@ -10,7 +10,10 @@ export default function RoomPreviewModal({ isOpen, onClose, roomId, mode, images
     const [activeIndex, setActiveIndex] = useState(0);
 
     useEffect(() => {
-        if (isOpen) setActiveIndex(0);
+        if (!isOpen) return undefined;
+
+        const timeoutId = window.setTimeout(() => setActiveIndex(0), 0);
+        return () => window.clearTimeout(timeoutId);
     }, [isOpen, roomId]);
 
     if (!isOpen) return null;

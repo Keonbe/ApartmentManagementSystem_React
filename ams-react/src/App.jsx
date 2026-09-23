@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import api from './api/axiosConfig';
+import { ChatProvider } from './context/ChatContext';
+import ChatWidget from './Components/ChatWidget';
 
 // Components
 import TopBar from './Components/TopBar';
@@ -52,8 +54,10 @@ import AdminCctv from './AdminPages/AdminCctv';
 import AdminParking from './AdminPages/AdminParking';
 import AdminUtilities from './AdminPages/AdminUtilities';
 import AdminInquiries from './AdminPages/AdminInquiries';
+import AdminMessages from './AdminPages/AdminMessages';
 
 function ProtectedRoute({ children }) {
+  useLocation();
   const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   
   if (!loggedInUser) {
@@ -63,6 +67,7 @@ function ProtectedRoute({ children }) {
 }
 
 function AdminProtectedRoute({ children }) {
+  useLocation();
   const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   
   if (!loggedInUserStr) {
@@ -192,7 +197,8 @@ function AppContent() {
   };
 
   return (
-    <>
+    <ChatProvider>
+      <>
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -246,8 +252,13 @@ function AppContent() {
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
         <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
         <Route path="/admin-utilities" element={<AdminProtectedRoute><AdminUtilities /></AdminProtectedRoute>} />
+        <Route path="/admin-messages" element={<AdminProtectedRoute><AdminMessages /></AdminProtectedRoute>} />
       </Routes>
-    </>
+        {!['/login', '/register', '/admin-messages'].includes(location.pathname)
+          && (sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser'))
+          && <ChatWidget />}
+      </>
+    </ChatProvider>
   );
 }
 

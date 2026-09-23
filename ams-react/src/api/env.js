@@ -17,6 +17,12 @@ export const API_BASE_URL = withSlash(
     || (import.meta.env.DEV ? 'http://localhost:8080/ApartmentManagementSystem_React/backend/api/' : '/api/')
 );
 
+// Optional origin for the chat Socket.IO service. Local development uses the
+// sidecar's default port; production defaults to the current origin (which can
+// be reverse-proxied to the WebSocket service).
+export const CHAT_SOCKET_URL = import.meta.env.VITE_CHAT_SOCKET_URL
+    || (import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin);
+
 // Base URL that stored upload paths ("uploads/...") are resolved against.
 // Defaults to the backend root, i.e. the API URL without its trailing "api/".
 export const ASSET_BASE_URL = withSlash(

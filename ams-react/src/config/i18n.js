@@ -49,13 +49,20 @@ const translations = {
 
     // --- Home ---
     'home.badge': 'Premium Rental Property',
+    'home.rentedBadge': 'Tenant Portal',
     'home.heading': 'Renting, Made Easy',
     'home.welcomeBack': 'Welcome Back,',
+    'home.rentedWelcome': 'Welcome Back,',
+    'home.rentedHeading': 'Your Room Is Ready',
     'home.location': 'Maguyam Silang, Cavite',
     'home.description': 'Convenient housing situated perfectly for your daily commute. Enjoy a restful, reliable utilities, and accessible support services designed around your shift schedule.',
+    'home.rentedSubheading': 'Manage your lease, bills, and requests from one place.',
+    'home.rentedDescription': 'You are already a tenant, so we made this dashboard focused on your room status, payments, announcements, and support requests.',
     'home.totalUnits': 'Total Units',
     'home.availableRooms': 'Available Rooms',
     'home.cta': 'Explore Available Rooms',
+    'home.goMyRoom': 'Go to My Room',
+    'home.viewServices': 'View Services',
 
     // --- Preview ---
     'preview.featured': 'Featured Listing',
@@ -635,13 +642,20 @@ const translations = {
 
     // --- Home ---
     'home.badge': 'Premium na Pag-aarkila',
+    'home.rentedBadge': 'Portal ng Upa',
     'home.heading': 'Pag-upa, Pinadali',
     'home.welcomeBack': 'Maligayang Pagbabalik,',
+    'home.rentedWelcome': 'Maligayang pagbabalik,',
+    'home.rentedHeading': 'Handa na ang Iyong Kwarto',
     'home.location': 'Maguyam Silang, Cavite',
     'home.description': 'Maginhawang tirahan na perpektong malapit sa iyong trabaho. Mag-enjoy ng maayos na pahinga, maaasahang utilities, at mga serbisyong naaayon sa iyong schedule.',
+    'home.rentedSubheading': 'Pamahalaan ang iyong kontrata, bayarin, at mga request sa iisang lugar.',
+    'home.rentedDescription': 'Isa ka nang tenant, kaya ang dashboard na ito ay nakatuon sa status ng iyong room, bayarin, announcements, at support requests.',
     'home.totalUnits': 'Kabuuang Yunit',
     'home.availableRooms': 'Mga Bakanteng Kwarto',
     'home.cta': 'Tingnan ang mga Bakanteng Kwarto',
+    'home.goMyRoom': 'Pumunta sa My Room',
+    'home.viewServices': 'Tingnan ang Services',
 
     // --- Preview ---
     'preview.featured': 'Tampok na Listahan',
