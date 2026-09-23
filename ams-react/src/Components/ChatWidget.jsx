@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
+import { getAvatarUrl } from '../utils/avatarUrl';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faComment, 
@@ -35,13 +36,6 @@ const ChatWidget = () => {
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    const getFullAvatarUrl = (url) => {
-        if (!url) return null;
-        if (url.startsWith('http://') || url.startsWith('https://')) return url;
-        const cleanPath = url.replace(/^\//, '');
-        return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
     };
 
     const getSenderLabel = (senderId, otherUserName) => {
@@ -201,7 +195,7 @@ const ChatWidget = () => {
                                     >
                                         <div className="relative shrink-0">
                                             <img 
-                                                src={getFullAvatarUrl(conv.other_user_avatar) || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.other_user_name || 'User')} 
+                                                src={getAvatarUrl(conv.other_user_avatar) || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(conv.other_user_name || 'User')}
                                                 alt={conv.other_user_name}
                                                 className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
                                             />

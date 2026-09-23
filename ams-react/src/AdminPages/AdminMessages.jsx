@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSearch, faPaperPlane, faComments, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
+import { getAvatarUrl } from '../utils/avatarUrl';
 
 const formatTime = (date) => {
   if (!date) return '';
   const parsed = new Date(date);
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+};
+
+const TenantAvatar = ({ conversation, sizeClass = 'w-11 h-11' }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const avatarUrl = getAvatarUrl(conversation.other_user_avatar);
+  const initials = (conversation.other_user_name || 'T').trim().charAt(0).toUpperCase();
+
+  if (!avatarUrl || imageFailed) {
+    return <div className={`${sizeClass} rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0`}>{initials}</div>;
+  }
+
+  return <img src={avatarUrl} alt={`${conversation.other_user_name || 'Tenant'} profile`} onError={() => setImageFailed(true)} className={`${sizeClass} rounded-full object-cover border border-slate-200 shrink-0`} />;
 };
 
 const AdminMessages = () => {
@@ -19,6 +32,8 @@ const AdminMessages = () => {
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const messagesContainerRef = useRef(null);
+  const selectedConversationIdRef = useRef(null);
 
   useEffect(() => {
     fetchConversations?.();
@@ -31,9 +46,20 @@ const AdminMessages = () => {
       .filter((conversation) => !query || `${conversation.other_user_name || ''} ${conversation.last_message || ''}`.toLowerCase().includes(query));
   }, [conversations, search]);
 
-  const selectConversation = (conversation) => {
+  const selectConversation = async (conversation) => {
+    selectedConversationIdRef.current = String(conversation.other_user_id);
     setActiveChat(conversation);
-    fetchChatHistory?.(conversation.other_user_id);
+    await fetchChatHistory?.(conversation.other_user_id);
+
+    if (selectedConversationIdRef.current !== String(conversation.other_user_id)) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const container = messagesContainerRef.current;
+        if (selectedConversationIdRef.current === String(conversation.other_user_id) && container) {
+          container.scrollTop = container.scrollHeight;
+        }
+      });
+    });
   };
 
   const handleSend = async (event) => {
@@ -80,7 +106,7 @@ const AdminMessages = () => {
                   const unread = Number(conversation.unread_count || 0);
                   return (
                     <button key={conversation.other_user_id} type="button" onClick={() => selectConversation(conversation)} className={`w-full text-left p-4 border-0 border-b border-slate-100 flex gap-3 items-start cursor-pointer transition-colors ${selected ? 'bg-indigo-50' : 'bg-white hover:bg-slate-50'}`}>
-                      <div className="w-11 h-11 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0">{(conversation.other_user_name || 'T').trim().charAt(0).toUpperCase()}</div>
+                      <TenantAvatar conversation={conversation} />
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between gap-2 items-center">
                           <span className="font-semibold text-sm text-slate-900 truncate">{conversation.other_user_name || 'Tenant'}</span>
@@ -102,10 +128,10 @@ const AdminMessages = () => {
                 <>
                   <header className="h-[72px] px-4 md:px-6 border-b border-slate-100 flex items-center gap-3 shrink-0">
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
-                    <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">{(activeChat.other_user_name || 'T').trim().charAt(0).toUpperCase()}</div>
+                    <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
                     <div className="min-w-0"><h3 className="m-0 text-sm font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3><p className="m-0 mt-1 text-xs text-slate-500">Tenant conversation</p></div>
                   </header>
-                  <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
+                  <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
                     {messages.length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">No messages in this conversation yet.</p> : messages.map((message, index) => {
                       const isAdmin = String(message.sender_id) === String(userId);
                       return <div key={message.id || index} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md'}`}><p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p><p className={`m-0 mt-1 text-[10px] text-right ${isAdmin ? 'text-indigo-200' : 'text-slate-400'}`}>{isAdmin ? 'You' : (activeChat.other_user_name || 'Tenant')} · {formatTime(message.created_at)}</p></div></div>;

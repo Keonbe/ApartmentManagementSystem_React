@@ -229,7 +229,7 @@ function AppContent() {
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
         <Route path="/admin-messages" element={<AdminProtectedRoute><AdminMessages /></AdminProtectedRoute>} />
       </Routes>
-      <ChatWidget />
+      {location.pathname !== '/admin-messages' && <ChatWidget />}
     </ChatProvider>
   );
 }

@@ -175,7 +175,20 @@ export const ChatProvider = ({ children }) => {
                 params: { other_user_id: otherUserId },
             });
             if (response.data?.success) {
-                setMessages(response.data.messages || []);
+                const refreshedMessages = response.data.messages || [];
+                setMessages((currentMessages) => {
+                    const hasSameMessages = currentMessages.length === refreshedMessages.length
+                        && currentMessages.every((message, index) => {
+                            const refreshedMessage = refreshedMessages[index];
+                            return String(message.id) === String(refreshedMessage.id)
+                                && String(message.sender_id) === String(refreshedMessage.sender_id)
+                                && String(message.receiver_id) === String(refreshedMessage.receiver_id)
+                                && message.message === refreshedMessage.message
+                                && message.created_at === refreshedMessage.created_at;
+                        });
+
+                    return hasSameMessages ? currentMessages : refreshedMessages;
+                });
             }
         } catch (error) {
             console.error('Error fetching chat history:', error);
