@@ -25,6 +25,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
             if (res.data.valid) {
                 sessionStorage.setItem("loggedInUser", JSON.stringify(res.data.user));
+                window.dispatchEvent(new Event('auth-changed'));
                 
                 if (res.data.role === 'admin') {
                     onAdminRedirect();

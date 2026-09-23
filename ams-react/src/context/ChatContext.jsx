@@ -125,17 +125,35 @@ export const ChatProvider = ({ children }) => {
     }, [activeChat]);
 
     useEffect(() => {
-        const loggedInUserStr = sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser');
-        if (!loggedInUserStr) return;
+        const syncLoggedInUser = () => {
+            const loggedInUserStr = sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser');
+            if (!loggedInUserStr) {
+                setUserId(null);
+                setUserRole(null);
+                setConversations([]);
+                setActiveChat(null);
+                setMessages([]);
+                return;
+            }
 
-        try {
-            const loggedInUser = JSON.parse(loggedInUserStr);
-            setUserId(loggedInUser.id || null);
-            setUserRole(loggedInUser.role || null);
-            setSocketStatus('offline');
-        } catch (error) {
-            console.error('Error parsing loggedInUser', error);
-        }
+            try {
+                const loggedInUser = JSON.parse(loggedInUserStr);
+                setUserId(loggedInUser.id || null);
+                setUserRole(loggedInUser.role || null);
+                setSocketStatus('offline');
+            } catch (error) {
+                console.error('Error parsing loggedInUser', error);
+            }
+        };
+
+        syncLoggedInUser();
+        window.addEventListener('auth-changed', syncLoggedInUser);
+        window.addEventListener('storage', syncLoggedInUser);
+
+        return () => {
+            window.removeEventListener('auth-changed', syncLoggedInUser);
+            window.removeEventListener('storage', syncLoggedInUser);
+        };
     }, []);
 
     const fetchConversations = useCallback(async () => {

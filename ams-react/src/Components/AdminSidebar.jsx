@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
-  faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo
+  faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faEnvelope
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
@@ -24,6 +24,7 @@ const defaultNavSections = [
   {
     title: 'Operations',
     items: [
+      { to: '/admin-messages', icon: faEnvelope, label: 'Messages' },
       { to: '/admin-visitors', icon: faIdBadge, label: 'Visitors', serviceKey: 'service_visitor_management_active' },
       { to: '/admin-parking', icon: faCar, label: 'Parking', serviceKey: 'service_parking_active' },
       { to: '/admin-maintenance', icon: faWrench, label: 'Maintenance', serviceKey: 'service_maintenance_active' },

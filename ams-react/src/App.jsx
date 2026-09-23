@@ -47,6 +47,7 @@ import AdminUsers from './AdminPages/AdminUsers';
 import AdminVisitors from './AdminPages/AdminVisitors';
 import AdminCctv from './AdminPages/AdminCctv';
 import AdminParking from './AdminPages/AdminParking';
+import AdminMessages from './AdminPages/AdminMessages';
 
 function ProtectedRoute({ children }) {
   const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
@@ -226,6 +227,7 @@ function AppContent() {
         <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
         <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
+        <Route path="/admin-messages" element={<AdminProtectedRoute><AdminMessages /></AdminProtectedRoute>} />
       </Routes>
       <ChatWidget />
     </ChatProvider>

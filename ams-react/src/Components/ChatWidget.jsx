@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -10,6 +11,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 const ChatWidget = () => {
+    const navigate = useNavigate();
     const { 
         userId, 
         conversations = [], 
@@ -24,7 +26,6 @@ const ChatWidget = () => {
         handleTyping,
         openSupportChat,
         userRole,
-        socketStatus = 'offline',
     } = useChat();
 
     const [newMessage, setNewMessage] = useState('');
@@ -47,31 +48,6 @@ const ChatWidget = () => {
         if (!senderId) return '';
         return String(senderId) === String(userId) ? 'You' : (otherUserName || 'Admin');
     };
-
-    const getSocketStatusMeta = (status) => {
-        switch (status) {
-            case 'live':
-                return {
-                    label: 'Live',
-                    dotClass: 'text-emerald-300',
-                    badgeClass: 'bg-emerald-500/20 text-emerald-50 border-emerald-300/30',
-                };
-            case 'connecting':
-                return {
-                    label: 'Connecting...',
-                    dotClass: 'text-amber-300 animate-pulse',
-                    badgeClass: 'bg-amber-500/20 text-amber-50 border-amber-300/30',
-                };
-            default:
-                return {
-                    label: 'Offline',
-                    dotClass: 'text-slate-300',
-                    badgeClass: 'bg-white/15 text-white border-white/20',
-                };
-        }
-    };
-
-    const socketStatusMeta = getSocketStatusMeta(socketStatus);
 
     useEffect(() => {
         if (isChatOpen && activeChat) {
@@ -176,10 +152,18 @@ const ChatWidget = () => {
                         </div>
                         
                         <div className="flex items-center gap-3 shrink-0">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold uppercase tracking-wide ${socketStatusMeta.badgeClass}`}>
-                                <FontAwesomeIcon icon={faCircle} className={`text-[8px] ${socketStatusMeta.dotClass}`} />
-                                {socketStatusMeta.label}
-                            </span>
+                            {userRole === 'admin' && !activeChat && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsChatOpen(false);
+                                        navigate('/admin-messages');
+                                    }}
+                                    className="text-xs font-semibold text-indigo-100 hover:text-white bg-transparent border-0 cursor-pointer whitespace-nowrap"
+                                >
+                                    View all
+                                </button>
+                            )}
                             {activeChat && isTyping[activeChat.other_user_id] && (
                                 <span className="flex items-center gap-1 text-[11px] text-indigo-200 animate-pulse">
                                     <FontAwesomeIcon icon={faCircle} className="text-emerald-400 text-[8px]" />
