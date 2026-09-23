@@ -185,9 +185,8 @@
    ZONE C — viewport sizing, touch ergonomics, reduced motion
    --------------------------------------------------------- */
 
-/* dvh accounts for mobile browser toolbars. Unlayered, so this
-   beats the Tailwind min-h-[calc(100vh-76px)] arbitrary value
-   without needing !important. */
+/* dvh accounts for mobile browser toolbars. Site pages exclude the 76px
+   header; standalone login and registration pages use the full viewport. */
 .my-room-root,
 .pay-bills-root,
 .maintenance-root,
@@ -198,8 +197,6 @@
 .my-requests-root,
 .user-utilities-root,
 .home-hero,
-.login-page-root,
-.registration-page-root,
 .inquiry-root,
 .payment-upload-root,
 .rent-app-root,
@@ -215,6 +212,12 @@
   overflow-x: hidden;
 }
 
+.login-page-root,
+.registration-page-root {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
 @supports not (height: 100dvh) {
   .my-room-root,
   .pay-bills-root,
@@ -226,8 +229,6 @@
   .my-requests-root,
   .user-utilities-root,
   .home-hero,
-  .login-page-root,
-  .registration-page-root,
   .inquiry-root,
   .payment-upload-root,
   .rent-app-root,
@@ -240,6 +241,11 @@
   .user-visitors-root,
   .view-contract-root {
     min-height: calc(100svh - 76px);
+  }
+
+  .login-page-root,
+  .registration-page-root {
+    min-height: 100svh;
   }
 }
 

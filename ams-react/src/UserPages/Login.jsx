@@ -71,7 +71,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     };
 
     return (
-        <div className="login-page-root min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-slate-50 text-left">
+        <div className="login-page-root min-h-[100vh] min-h-[100dvh] w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
             <style>
                 {`
           @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
