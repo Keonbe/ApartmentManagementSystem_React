@@ -99,7 +99,7 @@ const AdminMessages = () => {
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden text-left">
         <Header title="Message Manager" />
         <div className="flex-1 min-h-0 p-4 md:p-6">
-          <section className="max-w-7xl mx-auto h-full bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex">
+          <section className="max-w-7xl mx-auto h-full bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex animate-fade-in-up">
             <aside className={`${activeChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 lg:w-96 flex-col border-r border-slate-200 shrink-0`}>
               <div className="p-5 border-b border-slate-100">
                 <div className="flex items-center justify-between gap-3">
