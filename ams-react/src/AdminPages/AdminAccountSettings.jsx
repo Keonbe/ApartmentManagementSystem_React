@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck, faCar, faUsers, faImage } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck, faCar, faUsers, faImage, faBell, faPaperPlane, faEnvelope, faCommentSms } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 
@@ -28,6 +28,7 @@ const AdminAccountSettings = () => {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [toast, setToast] = useState(null);
+  const [testingChannel, setTestingChannel] = useState(null);
 
   // Load settings from backend on mount
   useEffect(() => {
@@ -107,6 +108,48 @@ const AdminAccountSettings = () => {
       showToast('error', 'Password Not Changed', err?.response?.data?.message || err.message || 'Failed to change password.');
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  // Sends a real notification to the admin's own number/address through whatever
+  // driver is configured. The full rendered SMS text and email HTML go to the
+  // browser console: while the drivers are mocks that console output IS the
+  // message, and it stays useful afterwards for checking what a provider was
+  // actually handed. Save the section first — this reads the stored settings,
+  // not the unsaved form.
+  const handleTestNotification = async (channel) => {
+    setTestingChannel(channel);
+    try {
+      const res = await api.post('send_test_notification.php', { channel });
+      const data = res.data;
+
+      console.groupCollapsed(
+        `%cAMS test notification (${channel})${data.dry_run ? ' — DRY RUN, nothing was sent' : ''}`,
+        'color:#2563eb;font-weight:bold'
+      );
+      console.log('Drivers:', data.drivers);
+      console.log('Channel switches:', data.channels);
+      console.log('Results:', data.results);
+      console.log(`SMS text (${data.rendered?.sms_length} chars):\n${data.rendered?.sms_text}`);
+      console.log('Email subject:', data.rendered?.subject);
+      console.log('Email HTML:\n' + data.rendered?.email_html);
+      console.groupEnd();
+
+      const outcomes = Object.entries(data.results || {});
+      const failed = outcomes.filter(([, r]) => r.status !== 'sent');
+      if (!outcomes.length) {
+        showToast('error', 'Nothing Sent', 'No channel was eligible. Check the switches above.');
+      } else if (failed.length) {
+        showToast('error', 'Test Incomplete',
+          failed.map(([ch, r]) => `${ch}: ${r.reason || r.status}`).join(' · '));
+      } else {
+        showToast('success', data.dry_run ? 'Test Sent (Dry Run)' : 'Test Sent',
+          `${outcomes.map(([ch]) => ch).join(' and ')} delivered. Full message printed to the browser console (F12).`);
+      }
+    } catch (err) {
+      showToast('error', 'Test Failed', err?.response?.data?.message || err.message || 'Could not send the test notification.');
+    } finally {
+      setTestingChannel(null);
     }
   };
 
@@ -873,6 +916,341 @@ const AdminAccountSettings = () => {
                           className="focus-glow w-full md:w-1/2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
                         />
                         <p className="text-[11px] text-slate-400 m-0 mt-1">Required for signature verification. Obtain this from the PayMongo Webhooks dashboard.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notification Services Section — SMS & email channels */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                      <FontAwesomeIcon icon={faBell} className="text-violet-500 text-sm" />
+                      <h3 className="text-sm font-bold text-slate-700 m-0">Notification Services (SMS &amp; Email)</h3>
+                    </div>
+
+                    {(settings.smsProvider === 'log' || settings.emailDriver === 'log') && (
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-violet-50 border border-violet-100">
+                        <FontAwesomeIcon icon={faInfoCircle} className="text-violet-500 text-xs mt-0.5" />
+                        <p className="text-[11px] text-violet-800 m-0 leading-relaxed">
+                          <strong>Dry run active.</strong> A driver set to <span className="font-mono">Log</span> runs the whole
+                          pipeline — preferences, opt-outs, queue, retries — and records every message without contacting a
+                          provider. Nothing is sent and nothing is charged. Use <strong>Send test</strong> below and read the
+                          message in the browser console (F12), or in <span className="font-mono">backend/logs/notification_outbox/</span>.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Email */}
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                          <FontAwesomeIcon icon={faEnvelope} className="text-slate-400" />
+                          Email Notifications
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={!!settings.notificationsEmailEnabled}
+                          onChange={(e) => updateSetting('notificationsEmailEnabled', e.target.checked)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                        />
+                      </label>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="flex flex-col space-y-1.5">
+                          <label className="text-sm font-bold text-slate-700">Delivery Method</label>
+                          <select
+                            value={settings.emailDriver || 'log'}
+                            onChange={(e) => updateSetting('emailDriver', e.target.value)}
+                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          >
+                            <option value="log">Log (dry run — records, sends nothing)</option>
+                            <option value="smtp">SMTP (requires PHPMailer)</option>
+                          </select>
+                          {settings.emailDriver === 'smtp' && (
+                            <p className="text-[11px] text-amber-600 m-0 mt-1">
+                              PHPMailer is not installed yet. Until it is, SMTP sends fail and are recorded as failures.
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col space-y-1.5">
+                          <label className="text-sm font-bold text-slate-700">From Name</label>
+                          <input
+                            type="text"
+                            value={settings.smtpFromName || ''}
+                            onChange={(e) => updateSetting('smtpFromName', e.target.value)}
+                            placeholder="AMS Notifications"
+                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {settings.emailDriver === 'smtp' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">SMTP Host</label>
+                            <input
+                              type="text"
+                              value={settings.smtpHost || ''}
+                              onChange={(e) => updateSetting('smtpHost', e.target.value)}
+                              placeholder="smtp.gmail.com"
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">SMTP Port</label>
+                            <input
+                              type="number"
+                              value={settings.smtpPort ?? 587}
+                              onChange={(e) => updateSetting('smtpPort', parseInt(e.target.value) || 587)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">SMTP Username</label>
+                            <input
+                              type="text"
+                              value={settings.smtpUsername || ''}
+                              onChange={(e) => updateSetting('smtpUsername', e.target.value)}
+                              placeholder="you@gmail.com"
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">SMTP Password</label>
+                            <input
+                              type="password"
+                              value={settings.smtpPassword || ''}
+                              onChange={(e) => updateSetting('smtpPassword', e.target.value)}
+                              placeholder="Google App Password"
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">From Email</label>
+                            <input
+                              type="text"
+                              value={settings.smtpFromEmail || ''}
+                              onChange={(e) => updateSetting('smtpFromEmail', e.target.value)}
+                              placeholder="Defaults to the SMTP username"
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SMS */}
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                          <FontAwesomeIcon icon={faCommentSms} className="text-slate-400" />
+                          SMS Notifications
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={!!settings.notificationsSmsEnabled}
+                          onChange={(e) => updateSetting('notificationsSmsEnabled', e.target.checked)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                        />
+                      </label>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="flex flex-col space-y-1.5">
+                          <label className="text-sm font-bold text-slate-700">SMS Provider</label>
+                          <select
+                            value={settings.smsProvider || 'log'}
+                            onChange={(e) => updateSetting('smsProvider', e.target.value)}
+                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          >
+                            <option value="log">Log (dry run — records, sends nothing)</option>
+                            <option value="semaphore">Semaphore (Philippines)</option>
+                            <option value="twilio">Twilio (global)</option>
+                            <option value="vonage">Vonage / Nexmo (global)</option>
+                            <option value="movider">Movider (Southeast Asia)</option>
+                            <option value="itexmo">iTexMo (Philippines, budget)</option>
+                          </select>
+                          {settings.smsProvider && settings.smsProvider !== 'log' && (
+                            <p className="text-[11px] text-amber-600 m-0 mt-1">
+                              This provider's driver is not built yet — sends will be recorded as failures. Philippine carriers
+                              also require a registered sender ID before any message is delivered.
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col space-y-1.5">
+                          <label className="text-sm font-bold text-slate-700">Sender Name</label>
+                          <input
+                            type="text"
+                            value={settings.smsSenderName || ''}
+                            onChange={(e) => updateSetting('smsSenderName', e.target.value)}
+                            placeholder="AMS"
+                            maxLength={11}
+                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {settings.smsProvider === 'semaphore' && (
+                        <div className="flex flex-col space-y-1.5">
+                          <label className="text-sm font-bold text-slate-700">Semaphore API Key</label>
+                          <input type="password" aria-label="Semaphore API key" value={settings.smsApiKey || ''} onChange={(e) => updateSetting('smsApiKey', e.target.value)}
+                            className="focus-glow w-full md:w-1/2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                        </div>
+                      )}
+                      {settings.smsProvider === 'twilio' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">Account SID</label>
+                            <input type="password" aria-label="Twilio account SID" value={settings.smsTwilioSid || ''} onChange={(e) => updateSetting('smsTwilioSid', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">Auth Token</label>
+                            <input type="password" aria-label="Twilio auth token" value={settings.smsTwilioAuthToken || ''} onChange={(e) => updateSetting('smsTwilioAuthToken', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">From Number</label>
+                            <input type="text" aria-label="Twilio from number" value={settings.smsTwilioFromNumber || ''} onChange={(e) => updateSetting('smsTwilioFromNumber', e.target.value)} placeholder="+1..."
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                        </div>
+                      )}
+                      {settings.smsProvider === 'vonage' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">API Key</label>
+                            <input type="password" aria-label="Vonage API key" value={settings.smsVonageApiKey || ''} onChange={(e) => updateSetting('smsVonageApiKey', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">API Secret</label>
+                            <input type="password" aria-label="Vonage API secret" value={settings.smsVonageApiSecret || ''} onChange={(e) => updateSetting('smsVonageApiSecret', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                        </div>
+                      )}
+                      {settings.smsProvider === 'movider' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">API Key</label>
+                            <input type="password" aria-label="Movider API key" value={settings.smsMoviderApiKey || ''} onChange={(e) => updateSetting('smsMoviderApiKey', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">API Secret</label>
+                            <input type="password" aria-label="Movider API secret" value={settings.smsMoviderApiSecret || ''} onChange={(e) => updateSetting('smsMoviderApiSecret', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                        </div>
+                      )}
+                      {settings.smsProvider === 'itexmo' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">API Code</label>
+                            <input type="password" aria-label="iTexMo API code" value={settings.smsItexmoApiCode || ''} onChange={(e) => updateSetting('smsItexmoApiCode', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                          <div className="flex flex-col space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">API Password</label>
+                            <input type="password" aria-label="iTexMo API password" value={settings.smsItexmoPassword || ''} onChange={(e) => updateSetting('smsItexmoPassword', e.target.value)}
+                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Delivery behaviour */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700">Delivery Mode</label>
+                        <select
+                          value={settings.notificationsDispatchMode || 'queue'}
+                          onChange={(e) => updateSetting('notificationsDispatchMode', e.target.value)}
+                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                        >
+                          <option value="queue">Queued (recommended)</option>
+                          <option value="sync">Immediate (demo only)</option>
+                        </select>
+                        <p className="text-[11px] text-slate-400 m-0 mt-1">
+                          Queued returns instantly and delivers in the background. Immediate makes the tenant wait for the
+                          provider on every action — a 30-tenant announcement would hold the request open for all 30 sends.
+                        </p>
+                      </div>
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700">Quiet Hours (SMS)</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number" min="0" max="23"
+                            value={settings.notificationsQuietStart ?? 21}
+                            onChange={(e) => updateSetting('notificationsQuietStart', Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
+                            className="focus-glow w-20 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center"
+                          />
+                          <span className="text-xs text-slate-500">to</span>
+                          <input
+                            type="number" min="0" max="23"
+                            value={settings.notificationsQuietEnd ?? 7}
+                            onChange={(e) => updateSetting('notificationsQuietEnd', Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
+                            className="focus-glow w-20 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center"
+                          />
+                          <span className="text-xs text-slate-500">(24-hour)</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0 mt-1">Non-urgent texts wait until the window ends. Overdue rent and urgent announcements are exempt.</p>
+                      </div>
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700">Delivery Log Retention</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number" min="1" max="3650"
+                            value={settings.notificationLogRetentionDays ?? 90}
+                            onChange={(e) => updateSetting('notificationLogRetentionDays', parseInt(e.target.value) || 90)}
+                            className="focus-glow w-28 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          />
+                          <span className="text-xs text-slate-500">days</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0 mt-1">Delivery records hold tenant numbers and addresses, so older rows are deleted automatically.</p>
+                      </div>
+                      <div className="flex flex-col space-y-1.5">
+                        <label className="text-sm font-bold text-slate-700">Cost per SMS</label>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-slate-500">₱</span>
+                          <input
+                            type="number" step="0.01" min="0"
+                            value={settings.smsUnitCost ?? 0.5}
+                            onChange={(e) => updateSetting('smsUnitCost', parseFloat(e.target.value) || 0)}
+                            className="focus-glow w-28 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-400 m-0 mt-1">Used to estimate the cost of an announcement before it is sent.</p>
+                      </div>
+                    </div>
+
+                    {/* Test send */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <FontAwesomeIcon icon={faPaperPlane} className="text-slate-400 text-xs" />
+                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Send a test notification</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 m-0 leading-relaxed">
+                        Sends to your own contact number and email address using the saved settings — save first if you
+                        just changed something. The complete message is printed to the browser console (F12 → Console).
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {[
+                          { key: 'sms', label: 'Test SMS' },
+                          { key: 'email', label: 'Test Email' },
+                          { key: 'both', label: 'Test Both' },
+                        ].map(({ key, label }) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => handleTestNotification(key)}
+                            disabled={testingChannel !== null}
+                            className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {testingChannel === key
+                              ? <><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Sending…</>
+                              : label}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>

@@ -1445,6 +1445,46 @@ function create_notification($conn, $user_id, $type, $title, $message, $status =
     return $id;
 }
 
+// ── Secret settings ───────────────────────────────────────
+// system_settings rows whose value is a credential. Three things read this:
+// get_system_settings.php (strips them for non-admins, masks them for admins),
+// update_system_settings.php (keeps them out of the audit log, and treats a
+// masked value as "unchanged"), and nothing else. It lives here because the two
+// endpoints used to carry separate copies, which is exactly how they drifted
+// apart into two different key sets.
+const SECRET_SETTING_KEYS = [
+    'paymongo_secret_key',
+    'paymongo_webhook_secret',
+    'smtp_username',
+    'smtp_password',
+    'sms_api_key',
+    'sms_twilio_sid',
+    'sms_twilio_auth_token',
+    'sms_vonage_api_key',
+    'sms_vonage_api_secret',
+    'sms_movider_api_key',
+    'sms_movider_api_secret',
+    'sms_itexmo_api_code',
+    'sms_itexmo_password',
+];
+
+const SECRET_MASK_PREFIX = '••••';
+
+// What an admin's browser receives instead of the real credential. The last
+// four characters are kept so a key can still be told apart from another one.
+// An empty setting stays empty, or the form would show a mask over nothing.
+function mask_secret_value($value) {
+    $value = (string)$value;
+    if ($value === '') return '';
+    return SECRET_MASK_PREFIX . substr($value, -4);
+}
+
+// True when the value posted back is the placeholder this API handed out, which
+// means the admin did not touch that field and the stored secret must stand.
+function is_masked_secret($value) {
+    return is_string($value) && strpos($value, SECRET_MASK_PREFIX) === 0;
+}
+
 // ── External channels: SMS & email (checklist 6.6 / 6.7) ──
 // These helpers are the shared rules every sender must obey. The services that
 // actually talk to a provider are built on top of them; nothing here sends.

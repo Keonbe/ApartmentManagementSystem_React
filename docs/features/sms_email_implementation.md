@@ -1,8 +1,8 @@
 # AMS — SMS & Email Notification Implementation Guide
 
-> **Version:** 1.2 — audited against the codebase on **2026-09-20** (branch `main`, commit `8352371`); §0.1 findings implemented **2026-09-22**
-> **Status:** Design reviewed, §0.1 groundwork shipped — read [§0](#0-pre-implementation-review) before writing code
-> **Prerequisite:** Provider accounts (see [Quick-Start Checklist](#quick-start-checklist))
+> **Version:** 1.3 — Phase 1 built on mock drivers **2026-09-22**; §0.1 findings implemented the same day; audited against the codebase on 2026-09-20 (commit `8352371`)
+> **Status:** Phase 1 built and console-tested on mock drivers — see [§1.0](#10-what-phase-1-shipped) and the [mock testing runbook](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md). Phase 2 wiring is next.
+> **Prerequisite:** none for the dry run. A provider account is needed only to go live (see [Appendix C](#appendix-c--provider-setup)).
 > **Closes:** Panelist checklist items **4.10** (🔧), **6.6** (📋), **6.7** (📋); extends **6.8**
 
 ---
@@ -17,6 +17,7 @@
   - [0.4 Philippine SMS rules & compliance](#04-philippine-sms-rules--compliance)
   - [0.5 Recommended scope](#05-recommended-scope)
 - [Phase 1 — Foundation](#phase-1--foundation)
+  - [1.0 What Phase 1 shipped](#10-what-phase-1-shipped)
   - [1.1 Database Migration](#11-database-migration)
   - [1.2 Install PHPMailer](#12-install-phpmailer)
   - [1.3 SMS Service — send_sms.php](#13-sms-service--send_smsphp)
@@ -45,22 +46,27 @@
 
 ## Quick-Start Checklist
 
-> Do these before writing any code.
+> **Phase 1 is built.** To run and test what exists today, go straight to the
+> **[mock testing runbook](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)** — no account, no credentials, no spend. The list below is what remains before real messages can go out.
 
-- [ ] Read **[§0](#0-pre-implementation-review)** — it changes the build order and the schema in §1.1.
-- [ ] Build and demo against the **`log` (dry-run) provider** first ([§1.3](#13-sms-service--send_smsphp)). It costs nothing, needs no account, and writes to `notification_log` exactly like a real send.
+- [x] Read **[§0](#0-pre-implementation-review)** — it changes the build order and the schema in §1.1.
+- [x] Build and demo against the **`log` (dry-run) driver** first ([§1.3](#13-sms-service--send_smsphp)). Done for both channels — email has a matching `log` driver ([§1.0](#10-what-phase-1-shipped)).
+- [x] Run the migration SQL — shipped as `backend/api/migrations/2026_09_sms_email_channels.sql` ([§0.1a](#01a-what-shipped))
+- [ ] **Phase 2 — wire the endpoints** ([§2](#phase-2--wire-to-existing-endpoints)). Nothing calls the dispatcher yet, so no tenant action produces an SMS or email. This is the next task, and it needs no provider account.
+
+**Then, to go live.** Email first: it is free, has no lead time, and demos reliably.
+
+- [ ] Create a Gmail App Password (Google Account → Security → 2FA → App Passwords), install PHPMailer ([§1.2](#12-install-phpmailer)), fill the SMTP fields in Account Settings and set **Email Driver** to `smtp`
 - [ ] Choose an SMS provider and sign up (see [Appendix C](#appendix-c--provider-setup)). **Start the sender-ID registration on day one** — it is the long pole (1–3 business days on Semaphore, 3–7+ on Twilio/Vonage for PH carriers).
   - **Semaphore** — the default for PH-only traffic; handles sender-ID registration for you
   - **Twilio** — global reach and the best docs, but PH A2P needs a bought number or a registered sender ID
   - **Vonage** — global; alphanumeric sender IDs need Globe/Smart pre-registration
   - **Movider** — Southeast Asia specialist, pay-as-you-go
   - **iTexMo** — budget PH option, shared shortcode, no sender ID
-- [ ] Copy your provider's API key / credentials
-- [ ] Create a Gmail App Password: Google Account → Security → 2FA → App Passwords
-- [ ] Run `cd backend && composer require phpmailer/phpmailer:^6.9` — **pin the 6.x line**; local XAMPP is PHP 8.0.30 and PHPMailer 7 requires 8.1+
-- [ ] Do **not** install `twilio/sdk` or `vonage/client`. The cURL drivers in §1.3 cover every call this project makes, and the SDKs pull in Guzzle/PSR-7 for no benefit.
+- [ ] Write that provider's driver — all five in §1.3 are stubs. Appendix C has the cURL call for each; it is one function plus a line in the `match`.
+- [ ] Put the API key into Account Settings → Notification Services, then switch **SMS Provider** off `log`
+- [ ] Do **not** install `twilio/sdk` or `vonage/client`. The cURL drivers in Appendix C cover every call this project makes, and the SDKs pull in Guzzle/PSR-7 for no benefit.
 - [ ] ~~Update the `Dockerfile` so Railway gets `vendor/`~~ — deferred; Railway is on indefinite hold, so XAMPP is the only target ([§1.2](#12-install-phpmailer))
-- [x] Run the migration SQL — shipped as `backend/api/migrations/2026_09_sms_email_channels.sql` ([§0.1a](#01a-what-shipped))
 
 ---
 
@@ -212,6 +218,36 @@ Email is the honest win here: it is free, has no registration lead time, and dem
 
 ## Phase 1 — Foundation
 
+### 1.0 What Phase 1 shipped
+
+Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end testable; no provider is contacted and nothing is spent.
+
+> **How to run and test it: [`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md).** That runbook replaces the two `php -r` recipes that used to live in [§4.3](#43-verification).
+
+| File | What it is |
+|---|---|
+| `backend/api/services/send_sms.php` | `send_sms()` plus the `log` dry-run driver and `write_mock_outbox()`. The five real providers are **stubs** that return a clear error — see below. |
+| `backend/api/services/send_email.php` | `send_email()` with two drivers chosen by the new **`email_driver`** setting (`log` \| `smtp`). |
+| `backend/api/services/email_templates.php` | §1.5 as written, `esc()` on every interpolated value (C10). |
+| `backend/api/services/send_notification.php` | `dispatch_external_notification()`, `dispatch_external_broadcast()`, `enqueue_notification()`, `process_notification_queue()`. |
+| `backend/cron/process_queue.php` | CLI drain. Task Scheduler entry point. |
+| `backend/cron/notification_selftest.php` | 17 dry-run checks with the `M6-NN` IDs. The verification gate for this module. |
+| `backend/api/send_test_notification.php` | Admin-only test send; returns the rendered message for the settings UI to print to the browser console. |
+| `ams-react/src/AdminPages/AdminAccountSettings.jsx` | §3.3 "Notification Services" section + test-send controls. |
+| `ams-react/src/config/systemSettings.js` | The camelCase map both ways — a key missing here is silently never saved. |
+
+**Deliberate differences from the listings below.**
+
+- **`email_driver` is new**, and is the email mirror of `sms_provider = 'log'`. It means the email path is demonstrable with no Composer, no PHPMailer and no Gmail account. §1.4's `require_once 'vendor/autoload.php'` moved **inside** the `smtp` branch so a checkout with no `vendor/` still parses and runs; a missing PHPMailer is a `failed` row, never a fatal.
+- **The provider drivers are stubs.** Appendix C's cURL calls were not pasted in: untested code that contacts a paid API is worse than an honest error. Adding one is a single function plus a line in the `match`.
+- **The dispatcher calls `user_channel_allowed()`** from `config.php` instead of repeating the opt-out ladder per channel, which is what §1.6's listing does. C2's ordering — global opt-out, then building switch, then category — is decided in one place.
+- **The mock outbox** (`backend/logs/notification_outbox/`, gitignored) holds one file per message: `.txt` for SMS, `.html` for email. Opening the HTML in a browser is the closest thing to seeing the real mail.
+- **Secret masking landed early.** Rendering credential fields in a browser is the moment §3.3's security note matters, so `SECRET_SETTING_KEYS`, `mask_secret_value()` and `is_masked_secret()` now live in `config.php`; admins receive `••••1234` and posting that back means "unchanged". This covers the PayMongo keys too.
+
+**Not built yet:** Phase 2 endpoint wiring (nothing calls the dispatcher in anger), the §3.2 tenant preferences UI, the §4.2 delivery log viewer, real provider drivers, PHPMailer. The web-path queue drain in §4.1 is deliberately absent — with nothing enqueuing from an endpoint it would be untestable; it belongs with the Phase 2 wiring.
+
+---
+
 ### 1.1 Database Migration
 
 **File:** [`backend/api/migrations/2026_09_sms_email_channels.sql`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/migrations/2026_09_sms_email_channels.sql) — **shipped 2026-09-22** and mirrored into `SetupDB.sql`. `seed_mock_data.sql` needed no change: it seeds neither `system_settings` nor `notification_preferences`.
@@ -352,6 +388,8 @@ C:\xampp\php\php.exe -r "
 
 ### 1.2 Install PHPMailer
 
+> **Not done, and not needed yet.** The `email_driver = 'log'` path ([§1.0](#10-what-phase-1-shipped)) renders and records email without PHPMailer, so Phase 1 shipped with no Composer install at all. Do this when you are ready to send real mail; `send_email.php` already has the SMTP branch and will pick it up with no code change. The C6 Dockerfile discussion below is **deferred** with Railway.
+
 ```bash
 cd C:\xampp\htdocs\ApartmentManagementSystem_React\backend
 composer require phpmailer/phpmailer:^6.9
@@ -394,7 +432,7 @@ Either way, confirm before wiring anything up:
 
 ### 1.3 SMS Service — send_sms.php
 
-**File:** `backend/api/services/send_sms.php` **[NEW]**
+**File:** [`backend/api/services/send_sms.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_sms.php) — **shipped**. The `log` driver is built; the five provider functions below are **stubs** returning a readable "not implemented" error, so a misconfigured provider fails loudly instead of appearing to work. Appendix C has the cURL call for each when you add one.
 
 A standalone function that routes SMS through whichever provider is configured in `system_settings.sms_provider`. Each provider has its own private send function. The public `send_sms()` signature never changes — endpoints don't need to know which provider is active.
 
@@ -731,7 +769,10 @@ function _send_via_itexmo($conn, $phone, $message) {
 
 ### 1.4 Email Service — send_email.php
 
-**File:** `backend/api/services/send_email.php` **[NEW]**
+**File:** [`backend/api/services/send_email.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_email.php) — **shipped**, with two changes to the listing below ([§1.0](#10-what-phase-1-shipped)):
+>
+> 1. A **`log` driver** was added alongside this SMTP one, selected by the new `email_driver` setting and used by default. It writes the rendered HTML to the mock outbox and opens no socket, which is what lets the email path be built and demonstrated before any Gmail account exists.
+> 2. `require_once '../../vendor/autoload.php'` moved **inside** the SMTP branch, behind an `is_file()` check. As written below, a checkout without `vendor/` fatals on include — including on the log path, which does not need PHPMailer at all. A missing dependency is now a `failed` row with a readable reason.
 
 ```php
 <?php
@@ -807,7 +848,7 @@ function send_email($conn, $to_email, $subject, $html_body, $event_type = 'gener
 
 ### 1.5 Email Templates — email_templates.php
 
-**File:** `backend/api/services/email_templates.php` **[NEW]**
+**File:** [`backend/api/services/email_templates.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/email_templates.php) — **shipped** as written, `esc()` throughout. Emoji were dropped from the subject lines: they survive in email but the same strings feed SMS, where they force UCS-2 encoding (§0.3).
 
 Returns HTML email bodies. Called by the dispatcher or endpoint before `send_email()`.
 
@@ -918,7 +959,7 @@ function email_lease_reminder_template($tenant_name, $room, $lease_end, $days_le
 
 ### 1.6 Central Dispatcher — send_notification.php
 
-**File:** `backend/api/services/send_notification.php` **[NEW]**
+**File:** [`backend/api/services/send_notification.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_notification.php) — **shipped**, and it holds the queue drain too. The per-channel opt-out ladder written out twice below is now one `user_channel_allowed()` call per channel (config.php), so C2 ordering lives in exactly one place.
 
 The single function every endpoint calls after `create_notification()`. It resolves the user's contact info, checks per-channel preferences, and — by default — **enqueues** rather than sends. In-app is already handled by `create_notification()`.
 
@@ -1422,9 +1463,15 @@ Also note the table headers below are gated on `channels.sms_available`, which i
 
 ### 3.3 Admin Settings UI — SMTP / SMS Config
 
-**File:** [`ams-react/src/AdminPages/AdminAccountSettings.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAccountSettings.jsx)
+**File:** [`ams-react/src/AdminPages/AdminAccountSettings.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAccountSettings.jsx) — **shipped 2026-09-22**, ahead of the rest of Phase 3, because a mock build you cannot drive from the UI is not much of a demo.
 
-Add a "Notification Services" section alongside the existing PayMongo settings:
+> **Three things the table below does not mention.**
+>
+> 1. **The settings map is where the work is.** `settings` on that page is camelCase and passes through [`ams-react/src/config/systemSettings.js`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/config/systemSettings.js), where `saveSystemSettings()` posts a **fixed payload object**. A key missing from that object is silently never saved, so each setting needs an entry in `DEFAULTS`, in `getSystemSettings()` **and** in `saveSystemSettings()` — three places, not one form field.
+> 2. **`log` is the first option in both driver dropdowns**, and an inline note marks the real providers as not yet implemented. The **Email Driver** dropdown (`log` | `smtp`) is the new `email_driver` setting.
+> 3. **A "Send test notification" control** posts to `send_test_notification.php` (admin-only; always to the admin's own number and address, never a tenant's) and prints the full rendered SMS text and email HTML to the **browser console**. On a mock driver that console output *is* the message. The response carries a `dry_run` flag so a log-driver success cannot be read as a delivery.
+
+Fields, alongside the existing PayMongo settings:
 
 | Field | Setting Key | Input Type |
 |---|---|---|
@@ -1473,9 +1520,9 @@ Add a "Notification Services" section alongside the existing PayMongo settings:
 > ];
 > ```
 >
-> Two further points:
-> - **The lists must stay identical.** They are separate arrays in separate files today, which is how the drift above happened. Move the list into `config.php` as a `const NOTIFICATION_SECRET_KEYS` (or extend an existing secrets constant) and have both endpoints read it.
-> - **`get_system_settings.php` only strips secrets for non-admins**, so an admin's browser receives the SMTP password and every API key in cleartext JSON. That is arguably acceptable for a form that has to render them — but return a masked placeholder (`••••1234`) and treat an unchanged placeholder as "no change" on save, so the secrets never sit in browser history, devtools, or a screen-shared demo.
+> Two further points, **both now done** (2026-09-22, when the form that renders these fields landed):
+> - **The lists must stay identical.** ✅ Hoisted into `config.php` as `const SECRET_SETTING_KEYS`; both endpoints read it, so they cannot drift again.
+> - **`get_system_settings.php` only stripped secrets for non-admins**, so an admin's browser received the SMTP password and every API key as cleartext JSON. ✅ Admins now get `••••1234` (`mask_secret_value()`), and `update_system_settings.php` skips any value that comes back still masked (`is_masked_secret()`) — an untouched field cannot overwrite a working key. This covers the three PayMongo secrets, which the same page already rendered.
 
 > **Conditional fields:** The admin UI should show/hide provider-specific fields based on the selected `sms_provider` value. Use a simple conditional render — when the dropdown changes, only the relevant credential fields appear. This keeps the form clean and avoids confusion.
 
@@ -1485,7 +1532,7 @@ Add a "Notification Services" section alongside the existing PayMongo settings:
 
 ### 4.1 Notification Queue — process_queue.php
 
-**File:** `backend/cron/process_queue.php` **[NEW]**
+**File:** [`backend/cron/process_queue.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/cron/process_queue.php) — **shipped**, as a thin CLI wrapper over `process_notification_queue()` in `send_notification.php`. All four corrections below are implemented. The `flock` in the listing was dropped: claiming the batch with a token makes it redundant. The web-path drain (change 1) is deferred to Phase 2 — nothing enqueues from an endpoint yet.
 
 Processes the `notification_queue` table with retry and exponential backoff.
 
@@ -1696,27 +1743,12 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-33 | Queue drains on Railway with no cron | Rows drain via the sweep/poll piggyback (C7) |
 | M6-34 | Outbound port 587 from the Railway container | SMTP connects — verify before relying on it |
 
-**Verification script (manual):**
+**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18 in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
 
-```bash
-# Test SMS directly
-C:\xampp\php\php.exe -r "
-  require_once 'backend/config.php';
-  require_once 'backend/api/services/send_sms.php';
-  echo send_sms(\$conn, '09171234567', 'AMS test message', 'test') ? 'OK' : 'FAILED';
-  \$conn->close();
-"
+> **[`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)**
 
-# Test email directly
-C:\xampp\php\php.exe -r "
-  require_once 'backend/config.php';
-  require_once 'backend/api/services/send_email.php';
-  require_once 'backend/api/services/email_templates.php';
-  \$html = email_announcement_template('Test', 'This is a test announcement.', 'General');
-  echo send_email(\$conn, 'your@email.com', 'AMS Test Email', \$html, 'test') ? 'OK' : 'FAILED';
-  \$conn->close();
-"
-```
+M6-01 (migration idempotency), M6-19 to M6-26 (preferences API, secret masking, the widened `email_address`, the environment check) were verified with the §0.1 work. M6-06, M6-09 and M6-11 need an endpoint to dispatch, so they belong to Phase 2. Tier 3's Railway rows (M6-32, M6-33) are deferred.
+
 
 After all tests pass:
 - Run `php -l` on every changed PHP file, and `npm run build:local` for the JSX
@@ -1732,22 +1764,25 @@ After all tests pass:
 
 ## Appendix A — File Inventory
 
-> **Updated 2026-09-22.** `backend/api/services/` now exists (C15, placeholder only). `backend/cron/` holds `check_environment.php` and `daily_sweep.php`. Rows marked ✅ below shipped with the §0.1 findings.
+> **Updated 2026-09-22.** Rows marked ✅ are built. `backend/api/services/` now holds the four service files; `backend/cron/` holds `check_environment.php`, `daily_sweep.php`, `process_queue.php` and `notification_selftest.php`.
 
-### New Files (10)
+### New Files (12)
 
 | File | Phase | Purpose |
 |---|---|---|
-| `backend/api/services/send_sms.php` | 1 | Multi-provider SMS dispatcher + `log_notification_delivery()` |
-| `backend/api/services/send_email.php` | 1 | PHPMailer SMTP wrapper |
-| `backend/api/services/email_templates.php` | 1 | HTML email template builder |
-| `backend/api/services/send_notification.php` | 1 | Central dispatcher |
+| ✅ `backend/api/services/send_sms.php` | 1 | **Shipped:** `log` driver + mock outbox; real providers stubbed |
+| ✅ `backend/api/services/send_email.php` | 1 | **Shipped:** `log` driver + an SMTP branch that waits for PHPMailer |
+| ✅ `backend/api/services/email_templates.php` | 1 | **Shipped:** escaped throughout (C10) |
+| ✅ `backend/api/services/send_notification.php` | 1 | **Shipped:** dispatcher, enqueue and the queue drain |
 | ✅ `backend/api/migrations/2026_09_sms_email_channels.sql` | 1 | Schema migration — **shipped** |
-| `backend/cron/process_queue.php` | 4 | Async queue processor |
+| ✅ `backend/cron/process_queue.php` | 1 | **Shipped:** CLI drain (moved to Phase 1 per §0.2) |
+| ✅ `backend/cron/notification_selftest.php` | 1 | **Shipped:** 17 dry-run checks (M6-NN), the verification gate |
+| ✅ `backend/api/send_test_notification.php` | 3 | **Shipped:** admin test send; returns the rendered message for the console |
+| ✅ `docs/features/sms_email_mock_testing.md` | 1 | **Shipped:** how to run and test the mock drivers |
 | `backend/api/get_notification_log.php` | 4 | Admin delivery log API |
-| `backend/composer.json` + `composer.lock` | 1 | PHPMailer 6.9 only — no provider SDKs |
+| `backend/composer.json` + `composer.lock` | — | Deferred: the `log` email driver needs no Composer |
 | ~~`Dockerfile`~~ | 1 | Deferred — Railway on indefinite hold (C6/C7) |
-| `.gitattributes` | 1 | `backend/vendor/** linguist-vendored` if Option A |
+| ~~`.gitattributes`~~ | — | Deferred with Composer and Railway |
 
 ### Modified Files (18)
 
@@ -1760,13 +1795,15 @@ After all tests pass:
 | `backend/api/update_parking_status.php` | 2 | SMS/email on decision |
 | `backend/api/update_service_status.php` | 2 | SMS/email on status change |
 | `backend/api/process_tenant_request.php` | 2 | SMS/email on lease/occupancy decision |
-| ✅ `backend/config.php` | 1 | **Shipped:** `user_channel_allowed()`, `normalize_ph_mobile()`, `gsm7_safe()`, `sms_single_segment()`, `log_notification_delivery()`, `prune_notification_log()`. Still to come: `require_once` for the dispatcher in the sweep (Phase 2) |
+| ✅ `backend/config.php` | 1 | **Shipped:** `user_channel_allowed()`, `normalize_ph_mobile()`, `gsm7_safe()`, `sms_single_segment()`, `log_notification_delivery()`, `prune_notification_log()`, plus `SECRET_SETTING_KEYS` / `mask_secret_value()` / `is_masked_secret()`. Still to come: the dispatcher `require_once` in the sweep (Phase 2) |
 | ✅ `backend/api/get_notification_preferences.php` | 3 | **Shipped:** per-channel columns, `channels`, global opt-outs, reachability flags |
 | ✅ `backend/api/update_notification_preferences.php` | 3 | **Shipped:** both payload shapes (C9), global opt-outs, consent stamp |
-| `ams-react/src/AdminPages/AdminAccountSettings.jsx` | 3 | SMTP/SMS config section |
-| `ams-react/src/UserPages/UserNotifications.jsx` | 3 | Per-channel toggles + global opt-out + consent line |
-| ✅ `backend/api/get_system_settings.php` | 3 | **Shipped:** legacy secret list replaced (C3) |
-| ✅ `backend/api/update_system_settings.php` | 3 | **Shipped:** same list, masked on save (C3) |
+| ✅ `ams-react/src/AdminPages/AdminAccountSettings.jsx` | 3 | **Shipped:** Notification Services section + test send (§3.3) |
+| `ams-react/src/UserPages/UserNotifications.jsx` | 3 | Per-channel toggles + global opt-out + consent line (§3.2, not built) |
+| ✅ `ams-react/src/config/systemSettings.js` | 3 | **Shipped:** the camelCase map for every notification setting |
+| ✅ `.gitignore` | 1 | **Shipped:** ignores `backend/logs/` (the mock outbox) |
+| ✅ `backend/api/get_system_settings.php` | 3 | **Shipped:** shared secret list, and credentials masked for admins |
+| ✅ `backend/api/update_system_settings.php` | 3 | **Shipped:** shared list; a returned mask means "unchanged" |
 | `backend/api/get_notifications.php` | 4 | Drain the queue on poll (the XAMPP path; the Railway motivation in C7 is deferred) |
 | `backend/cron/daily_sweep.php` | 4 | Drain after the sweep |
 | ✅ `backend/api/migrations/SetupDB.sql` | 1 | **Shipped:** migration mirrored. `seed_mock_data.sql` needed no change |

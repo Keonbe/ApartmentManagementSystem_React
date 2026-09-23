@@ -24,28 +24,17 @@ if ($result) {
 $admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
 $is_admin = verify_admin($conn, $admin_id);
 
-// Never returned to a non-admin. Keep this list identical to $secret_keys in
-// update_system_settings.php, which decides what the audit log hides. The
-// legacy semaphore_api_key / smtp_user / smtp_pass names were never read or
-// written anywhere; the channels migration deletes them.
-$sensitive_keys = [
-    'paymongo_secret_key',
-    'paymongo_webhook_secret',
-    'smtp_username',
-    'smtp_password',
-    'sms_api_key',
-    'sms_twilio_sid',
-    'sms_twilio_auth_token',
-    'sms_vonage_api_key',
-    'sms_vonage_api_secret',
-    'sms_movider_api_key',
-    'sms_movider_api_secret',
-    'sms_itexmo_api_code',
-    'sms_itexmo_password'
-];
-
-if (!$is_admin) {
-    foreach ($sensitive_keys as $s_key) {
+// Credentials (SECRET_SETTING_KEYS in config.php) are removed entirely for a
+// non-admin, and masked for an admin. The settings form has to render these
+// fields, but it does not need their values: sending the real SMTP password and
+// every API key as cleartext JSON puts them in browser history, devtools and
+// any screen-shared demo. update_system_settings.php treats a returned mask as
+// "leave this one alone".
+foreach (SECRET_SETTING_KEYS as $s_key) {
+    if (!array_key_exists($s_key, $settings)) continue;
+    if ($is_admin) {
+        $settings[$s_key] = mask_secret_value($settings[$s_key]);
+    } else {
         unset($settings[$s_key]);
     }
 }

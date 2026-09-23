@@ -1030,6 +1030,9 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('smtp_password', ''),
 ('smtp_from_name', 'AMS Notifications'),
 ('smtp_from_email', ''),
+-- log | smtp. The email mirror of sms_provider's 'log' dry-run driver: renders
+-- and records the message without opening a socket.
+('email_driver', 'log'),
 ('sms_provider', 'log'),
 ('sms_api_key', ''),
 ('sms_sender_name', 'AMS'),

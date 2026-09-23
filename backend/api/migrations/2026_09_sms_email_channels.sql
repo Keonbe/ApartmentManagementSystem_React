@@ -101,6 +101,10 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('smtp_password', ''),
 ('smtp_from_name', 'AMS Notifications'),
 ('smtp_from_email', ''),
+-- log | smtp. The mirror of sms_provider's 'log': the dry-run driver renders the
+-- email, records it and writes it to the mock outbox without opening a socket,
+-- so the pipeline is demoable with no SMTP account and no PHPMailer installed.
+('email_driver', 'log'),
 ('sms_provider', 'log'),
 ('sms_api_key', ''),
 ('sms_sender_name', 'AMS'),

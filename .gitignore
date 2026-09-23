@@ -13,3 +13,5 @@ deploy/env/*.env
 !ams-react/.env.example
 !ams-react/.env.selfhosted.example
 docs/progress_report.md
+backend/logs/
+docs/AMS_Development_Timeline.xlsx

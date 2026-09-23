@@ -20,17 +20,9 @@ if (!is_array($input) || !$input) {
     exit;
 }
 
-// Values the log must never contain in clear text. Keep this list identical to
-// $sensitive_keys in get_system_settings.php, which hides the same keys from
-// non-admins.
-$secret_keys = [
-    'paymongo_secret_key', 'paymongo_webhook_secret',
-    'smtp_username', 'smtp_password',
-    'sms_api_key', 'sms_twilio_sid', 'sms_twilio_auth_token',
-    'sms_vonage_api_key', 'sms_vonage_api_secret',
-    'sms_movider_api_key', 'sms_movider_api_secret',
-    'sms_itexmo_api_code', 'sms_itexmo_password',
-];
+// Values the log must never contain in clear text. The same list decides what
+// get_system_settings.php masks; it lives in config.php so the two cannot drift.
+$secret_keys = SECRET_SETTING_KEYS;
 
 $existing = [];
 $res = $conn->query("SELECT setting_key, setting_value FROM system_settings");
@@ -50,6 +42,11 @@ foreach ($input as $key => $value) {
     // Owned by cron/check_environment.php --claim; the settings page echoes it
     // back with everything else, so it is skipped rather than refused.
     if ($key === 'deployment_id') continue;
+
+    // The form renders credentials as the mask get_system_settings.php handed
+    // out. Posting that mask back means "unchanged" — writing it would replace
+    // a working API key with four bullets and the last four characters.
+    if (in_array($key, $secret_keys, true) && is_masked_secret($value)) continue;
     if (is_bool($value)) {
         $value = $value ? 'true' : 'false';
     } elseif (is_array($value)) {
