@@ -9,7 +9,23 @@ import { getAvatarUrl } from '../utils/avatarUrl';
 const formatTime = (date) => {
   if (!date) return '';
   const parsed = new Date(date);
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+};
+
+const formatMessageDateTime = (date) => {
+  if (!date) return '';
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  let dayLabel = parsed.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+  if (parsed.toDateString() === today.toDateString()) dayLabel = 'Today';
+  else if (parsed.toDateString() === yesterday.toDateString()) dayLabel = 'Yesterday';
+
+  return `${dayLabel} · ${formatTime(parsed)}`;
 };
 
 const TenantAvatar = ({ conversation, sizeClass = 'w-11 h-11' }) => {
@@ -134,7 +150,40 @@ const AdminMessages = () => {
                   <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
                     {messages.length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">No messages in this conversation yet.</p> : messages.map((message, index) => {
                       const isAdmin = String(message.sender_id) === String(userId);
-                      return <div key={message.id || index} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md'}`}><p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p><p className={`m-0 mt-1 text-[10px] text-right ${isAdmin ? 'text-indigo-200' : 'text-slate-400'}`}>{isAdmin ? 'You' : (activeChat.other_user_name || 'Tenant')} · {formatTime(message.created_at)}</p></div></div>;
+                      const messageDate = new Date(message.created_at);
+                      const previousDate = index > 0 ? new Date(messages[index - 1].created_at) : null;
+                      const minuteGap = previousDate && !Number.isNaN(previousDate.getTime())
+                        ? messageDate.getTime() - previousDate.getTime() >= 5 * 60 * 1000
+                        : false;
+                      const showDateSeparator = !previousDate || Number.isNaN(previousDate.getTime()) || previousDate.toDateString() !== messageDate.toDateString() || minuteGap;
+                      const isLatestSentMessage = isAdmin && !messages.slice(index + 1).some(
+                        (laterMessage) => String(laterMessage.sender_id) === String(userId)
+                      );
+                      return (
+                        <div key={message.id || index}>
+                          {showDateSeparator && (
+                            <div className="flex justify-center my-5">
+                              <span className="text-slate-500 text-[11px] font-medium">
+                                {formatMessageDateTime(message.created_at)}
+                              </span>
+                            </div>
+                          )}
+                          <div className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                            <div className="max-w-[85%] sm:max-w-[70%]">
+                              <div
+                                className={`rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md'}`}
+                              >
+                                <p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p>
+                              </div>
+                              {isLatestSentMessage && (
+                                <p className="m-0 mt-1 text-right text-[10px] text-slate-500 font-medium">
+                                  {Number(message.is_read) === 1 ? 'Seen' : 'Sent'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
                     })}
                   </div>
                   <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-slate-100 flex gap-2 shrink-0">

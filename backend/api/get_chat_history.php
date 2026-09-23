@@ -39,6 +39,7 @@ if (!$user_id) {
 }
 
 $other_user_id = intval($_GET['other_user_id'] ?? 0);
+$mark_as_read = intval($_GET['mark_as_read'] ?? 0) === 1;
 
 if (!$other_user_id) {
     http_response_code(400);
@@ -62,19 +63,29 @@ try {
     $stmt->bind_param("iiii", $user_id, $other_user_id, $other_user_id, $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
-
     $messages = [];
     while ($row = $result->fetch_assoc()) {
         $messages[] = $row;
     }
 
-    if (!empty($messages)) {
+    if ($mark_as_read) {
         $markRead = $conn->prepare(
             "UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0"
         );
+        if (!$markRead) {
+            throw new Exception('Prepare failed: ' . $conn->error);
+        }
         $markRead->bind_param("ii", $other_user_id, $user_id);
         $markRead->execute();
         $markRead->close();
+
+        // Reflect the updated read state in this response.
+        foreach ($messages as &$row) {
+            if ((int) $row['sender_id'] === $other_user_id) {
+                $row['is_read'] = 1;
+            }
+        }
+        unset($row);
     }
 
     echo json_encode(["success" => true, "messages" => $messages]);

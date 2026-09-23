@@ -7,7 +7,6 @@ import {
     faComment, 
     faTimes, 
     faPaperPlane, 
-    faCircle, 
     faArrowLeft 
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -19,7 +18,6 @@ const ChatWidget = () => {
         activeChat, 
         setActiveChat, 
         messages = [], 
-        isTyping = {}, 
         isChatOpen, 
         setIsChatOpen, 
         sendMessage, 
@@ -38,9 +36,20 @@ const ChatWidget = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    const getSenderLabel = (senderId, otherUserName) => {
-        if (!senderId) return '';
-        return String(senderId) === String(userId) ? 'You' : (otherUserName || 'Admin');
+    const formatMessageDateTime = (date) => {
+        if (!date) return '';
+        const parsed = new Date(date);
+        if (Number.isNaN(parsed.getTime())) return '';
+
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        let dayLabel = parsed.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+        if (parsed.toDateString() === today.toDateString()) dayLabel = 'Today';
+        else if (parsed.toDateString() === yesterday.toDateString()) dayLabel = 'Yesterday';
+
+        const timeLabel = parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        return `${dayLabel} · ${timeLabel}`;
     };
 
     useEffect(() => {
@@ -158,12 +167,6 @@ const ChatWidget = () => {
                                     View all
                                 </button>
                             )}
-                            {activeChat && isTyping[activeChat.other_user_id] && (
-                                <span className="flex items-center gap-1 text-[11px] text-indigo-200 animate-pulse">
-                                    <FontAwesomeIcon icon={faCircle} className="text-emerald-400 text-[8px]" />
-                                    Typing...
-                                </span>
-                            )}
                             <button 
                                 type="button"
                                 onClick={() => setIsChatOpen(false)} 
@@ -234,28 +237,38 @@ const ChatWidget = () => {
                             ) : (
                                 messages.map((msg, index) => {
                                     const isMe = String(msg.sender_id) === String(userId);
+                                    const messageDate = new Date(msg.created_at);
+                                    const previousDate = index > 0 ? new Date(messages[index - 1].created_at) : null;
+                                    const minuteGap = previousDate && !Number.isNaN(previousDate.getTime())
+                                        ? messageDate.getTime() - previousDate.getTime() >= 5 * 60 * 1000
+                                        : false;
+                                    const showDateSeparator = !previousDate || Number.isNaN(previousDate.getTime()) || previousDate.toDateString() !== messageDate.toDateString() || minuteGap;
+                                    const isLatestSentMessage = isMe && !messages.slice(index + 1).some(
+                                        (laterMessage) => String(laterMessage.sender_id) === String(userId)
+                                    );
                                     return (
-                                        <div 
-                                            key={msg.id || index} 
-                                            className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                                        >
-                                            <div 
-                                                className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm shadow-sm ${
-                                                    isMe 
-                                                        ? 'bg-indigo-600 text-white rounded-br-none' 
-                                                        : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
-                                                }`}
-                                            >
-                                                <p className="m-0 break-words">
-                                                    <span className="font-semibold mr-1">
-                                                        {getSenderLabel(msg.sender_id, activeChat?.other_user_name)}:
+                                        <div key={msg.id || index} className="mb-3">
+                                            {showDateSeparator && (
+                                                <div className="flex justify-center my-5">
+                                                    <span className="text-slate-500 text-[11px] font-medium">
+                                                        {formatMessageDateTime(msg.created_at)}
                                                     </span>
-                                                    {msg.message}
-                                                </p>
-                                                <div className={`mt-1 flex justify-end ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
-                                                    <span className="text-[10px] leading-none whitespace-nowrap">
-                                                        {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                                    </span>
+                                                </div>
+                                            )}
+                                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                <div className="max-w-[80%]">
+                                                    <div className={`px-4 py-2 rounded-2xl text-sm shadow-sm ${
+                                                        isMe
+                                                            ? 'bg-indigo-600 text-white rounded-br-none'
+                                                            : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
+                                                    }`}>
+                                                        <p className="m-0 break-words">{msg.message}</p>
+                                                    </div>
+                                                    {isLatestSentMessage && (
+                                                        <p className="m-0 mt-1 text-right text-[10px] text-slate-500 font-medium">
+                                                            {Number(msg.is_read) === 1 ? 'Seen' : 'Sent'}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

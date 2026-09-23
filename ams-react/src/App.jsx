@@ -50,6 +50,7 @@ import AdminParking from './AdminPages/AdminParking';
 import AdminMessages from './AdminPages/AdminMessages';
 
 function ProtectedRoute({ children }) {
+  useLocation();
   const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   
   if (!loggedInUser) {
@@ -59,6 +60,7 @@ function ProtectedRoute({ children }) {
 }
 
 function AdminProtectedRoute({ children }) {
+  useLocation();
   const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   
   if (!loggedInUserStr) {
@@ -74,6 +76,7 @@ function AdminProtectedRoute({ children }) {
 }
 
 function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
+  useLocation();
   const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   
   if (!loggedInUserStr) {
@@ -229,7 +232,9 @@ function AppContent() {
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
         <Route path="/admin-messages" element={<AdminProtectedRoute><AdminMessages /></AdminProtectedRoute>} />
       </Routes>
-      {location.pathname !== '/admin-messages' && <ChatWidget />}
+      {!['/login', '/register', '/admin-messages'].includes(location.pathname)
+        && (sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser'))
+        && <ChatWidget />}
     </ChatProvider>
   );
 }

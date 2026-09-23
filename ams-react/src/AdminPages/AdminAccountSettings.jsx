@@ -4,12 +4,21 @@ import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
+import api from '../api/axiosConfig';
 
 const AdminAccountSettings = () => {
-  const [firstName, setFirstName] = useState('Admin');
-  const [lastName, setLastName] = useState('System');
-  const [email, setEmail] = useState('admin@system.com');
-  const [phone, setPhone] = useState('9171234567');
+  const [loggedInUser, setLoggedInUser] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser') || '{}');
+    } catch {
+      return {};
+    }
+  });
+  const [firstName, setFirstName] = useState(loggedInUser.first_name || '');
+  const [lastName, setLastName] = useState(loggedInUser.last_name || '');
+  const [email, setEmail] = useState(loggedInUser.email_address || '');
+  const [phone, setPhone] = useState(loggedInUser.contact_no || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -22,6 +31,26 @@ const AdminAccountSettings = () => {
   const [saveError, setSaveError] = useState(null);
   const [toast, setToast] = useState(null);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      if (!loggedInUser.email_address) return;
+      try {
+        const response = await api.get('profile.php', { params: { email: loggedInUser.email_address } });
+        if (!isMounted || !response.data?.success || !response.data.data) return;
+        const profile = response.data.data;
+        setFirstName(profile.first_name || '');
+        setLastName(profile.last_name || '');
+        setEmail(loggedInUser.email_address);
+        setPhone(profile.contact_no || '');
+      } catch (error) {
+        console.error('Failed to load administrator profile:', error);
+      }
+    };
+    loadProfile();
+    return () => { isMounted = false; };
+  }, [loggedInUser.email_address]);
+
   // Load settings from backend on mount
   useEffect(() => {
     const loadSettings = async () => {
@@ -31,14 +60,49 @@ const AdminAccountSettings = () => {
     loadSettings();
   }, []);
 
-  const handleProfileSubmit = (e) => {
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    setToast({
-      type: 'success',
-      title: 'Profile Updated',
-      message: 'Admin personal details and credentials have been updated successfully.'
-    });
-    setTimeout(() => setToast(null), 4000);
+    if (!loggedInUser.email_address) {
+      setToast({ type: 'error', title: 'Save Failed', message: 'Could not identify the signed-in administrator. Please sign in again.' });
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const response = await api.post('profile.php', {
+        oldEmail: loggedInUser.email_address,
+        email: email.trim(),
+        firstName: firstName.trim(),
+        middleName: loggedInUser.middle_name || '',
+        lastName: lastName.trim(),
+        suffix: loggedInUser.suffix || '',
+        contactNo: phone.trim(),
+        gender: loggedInUser.gender || '',
+      });
+
+      if (!response.data?.success) throw new Error(response.data?.message || 'Profile update failed.');
+
+      const updatedUser = {
+        ...loggedInUser,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email_address: email.trim(),
+        contact_no: phone.trim(),
+      };
+      sessionStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+      if (localStorage.getItem('loggedInUser')) {
+        localStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+      }
+      setLoggedInUser(updatedUser);
+      window.dispatchEvent(new Event('auth-changed'));
+      setToast({ type: 'success', title: 'Profile Updated', message: 'Your administrator profile has been saved.' });
+    } catch (error) {
+      console.error('Failed to save administrator profile:', error);
+      setToast({ type: 'error', title: 'Save Failed', message: error.response?.data?.message || error.message || 'Could not save administrator profile.' });
+    } finally {
+      setIsSavingProfile(false);
+      setTimeout(() => setToast(null), 4000);
+    }
   };
 
   const handlePasswordSubmit = (e) => {
@@ -171,10 +235,11 @@ const AdminAccountSettings = () => {
                   <div className="pt-2 flex justify-end">
                     <button
                       type="submit"
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer"
+                      disabled={isSavingProfile}
+                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer"
                     >
                       <FontAwesomeIcon icon={faSave} />
-                      Save Changes
+                      {isSavingProfile ? 'Saving...' : 'Save Changes'}
                     </button>
                   </div>
                 </form>

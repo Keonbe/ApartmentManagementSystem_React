@@ -47,6 +47,8 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
 
   const handleLogout = () => {
     sessionStorage.removeItem("loggedInUser");
+    localStorage.removeItem("loggedInUser");
+    window.dispatchEvent(new Event('auth-changed'));
     navigate('/login');
   };
 

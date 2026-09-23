@@ -130,6 +130,7 @@ export const ChatProvider = ({ children }) => {
             if (!loggedInUserStr) {
                 setUserId(null);
                 setUserRole(null);
+                setIsChatOpen(false);
                 setConversations([]);
                 setActiveChat(null);
                 setMessages([]);
@@ -168,11 +169,11 @@ export const ChatProvider = ({ children }) => {
         }
     }, [userId]);
 
-    const fetchChatHistory = useCallback(async (otherUserId) => {
+    const fetchChatHistory = useCallback(async (otherUserId, markAsRead = false) => {
         if (!userId || !otherUserId) return;
         try {
             const response = await api.get('get_chat_history.php', {
-                params: { other_user_id: otherUserId },
+                params: { other_user_id: otherUserId, mark_as_read: markAsRead ? 1 : 0 },
             });
             if (response.data?.success) {
                 const refreshedMessages = response.data.messages || [];
@@ -184,7 +185,8 @@ export const ChatProvider = ({ children }) => {
                                 && String(message.sender_id) === String(refreshedMessage.sender_id)
                                 && String(message.receiver_id) === String(refreshedMessage.receiver_id)
                                 && message.message === refreshedMessage.message
-                                && message.created_at === refreshedMessage.created_at;
+                                && message.created_at === refreshedMessage.created_at
+                                && Number(message.is_read) === Number(refreshedMessage.is_read);
                         });
 
                     return hasSameMessages ? currentMessages : refreshedMessages;
@@ -274,19 +276,25 @@ export const ChatProvider = ({ children }) => {
     const openSupportChat = useCallback(async () => {
         if (!userId) return;
 
+        if (userRole === 'admin') {
+            setActiveChat(null);
+            return;
+        }
+
         const admin = await fetchAdminUser();
         if (!admin) return;
 
+        const adminName = `${admin.first_name || ''} ${admin.last_name || ''}`.trim();
         const conversation = {
             other_user_id: admin.id,
-            other_user_name: `${admin.first_name || 'Admin'} ${admin.last_name || 'User'}`.trim(),
+            other_user_name: adminName || 'Admin',
             other_user_avatar: admin.avatar_url || null,
         };
 
         setActiveChat(conversation);
         setIsChatOpen(true);
         await fetchChatHistory(admin.id);
-    }, [fetchAdminUser, fetchChatHistory, userId]);
+    }, [fetchAdminUser, fetchChatHistory, setActiveChat, userId, userRole]);
 
     const sendMessage = useCallback(async (receiverId, message) => {
         if (!message.trim() || !userId) return;
@@ -404,12 +412,19 @@ export const ChatProvider = ({ children }) => {
             return undefined;
         }
 
-        fetchChatHistory(activeChat.other_user_id);
+        const shouldMarkAsRead = () => document.visibilityState === 'visible'
+            && (userRole === 'admin' || isChatOpen)
+            && Number(activeChatRef.current?.other_user_id) === Number(activeChat.other_user_id);
+
+        fetchChatHistory(activeChat.other_user_id, shouldMarkAsRead());
 
         historyPollRef.current = window.setInterval(() => {
             const currentChat = activeChatRef.current;
             if (currentChat?.other_user_id) {
-                fetchChatHistory(currentChat.other_user_id);
+                const shouldMarkAsRead = document.visibilityState === 'visible'
+                    && (userRole === 'admin' || isChatOpen)
+                    && Number(currentChat.other_user_id) === Number(activeChat.other_user_id);
+                fetchChatHistory(currentChat.other_user_id, shouldMarkAsRead);
             }
         }, 2500);
 
@@ -419,7 +434,7 @@ export const ChatProvider = ({ children }) => {
                 historyPollRef.current = null;
             }
         };
-    }, [activeChat, fetchChatHistory, userId]);
+    }, [activeChat, fetchChatHistory, isChatOpen, userId, userRole]);
 
     useEffect(() => {
         if (userRole === 'admin' || !userId) return;
