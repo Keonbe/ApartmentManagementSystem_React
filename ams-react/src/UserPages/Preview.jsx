@@ -8,7 +8,7 @@ import { useLang } from '../config/i18n';
 import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/preview.responsive.css';
 
-export default function Preview({ onRentClick, onInquireClick, hasRentedRoom = false }) {
+export default function Preview({ onRentClick, onInquireClick }) {
     const [selectedRoomId, setSelectedRoomId] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [rooms, setRooms] = useState([]);
