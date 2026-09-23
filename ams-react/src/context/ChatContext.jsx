@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import api from '../api/axiosConfig';
 import { io } from 'socket.io-client';
 import { CHAT_SOCKET_URL } from '../api/env';
@@ -219,61 +219,6 @@ export const ChatProvider = ({ children }) => {
         }
     }, [fetchChatHistory, fetchConversations]);
 
-    const mergeIncomingMessage = useCallback((incomingMessage) => {
-        if (!incomingMessage) return;
-
-        setMessages((prev) => {
-            const exists = prev.some((msg) => msg.id && incomingMessage.id && String(msg.id) === String(incomingMessage.id));
-            if (exists) {
-                return prev.map((msg) => (String(msg.id) === String(incomingMessage.id) ? incomingMessage : msg));
-            }
-            return [...prev, incomingMessage];
-        });
-
-        setConversations((prev) => {
-            const otherUserId = Number(incomingMessage.sender_id) === Number(userId)
-                ? Number(incomingMessage.receiver_id)
-                : Number(incomingMessage.sender_id);
-
-            if (!otherUserId) return prev;
-
-            const currentChat = activeChatRef.current;
-            const isActiveChat = currentChat?.other_user_id && Number(currentChat.other_user_id) === otherUserId;
-            const unreadDelta = Number(incomingMessage.sender_id) === Number(userId) || isActiveChat ? 0 : 1;
-
-            let matched = false;
-            const updated = prev.map((conv) => {
-                if (Number(conv.other_user_id) !== otherUserId) return conv;
-                matched = true;
-                return {
-                    ...conv,
-                    last_message: incomingMessage.message,
-                    last_message_sender_id: Number(incomingMessage.sender_id),
-                    last_message_time: incomingMessage.created_at,
-                    unread_count: Number(incomingMessage.sender_id) === Number(userId)
-                        ? Number(conv.unread_count || 0)
-                        : (isActiveChat ? 0 : Number(conv.unread_count || 0) + 1),
-                };
-            });
-
-            if (!matched) {
-                return prev;
-            }
-
-            return updated;
-        });
-
-        const currentChat = activeChatRef.current;
-        if (currentChat?.other_user_id && Number(currentChat.other_user_id) === Number(incomingMessage.sender_id)) {
-            setMessages((prev) => {
-                if (prev.some((msg) => msg.id && incomingMessage.id && String(msg.id) === String(incomingMessage.id))) {
-                    return prev;
-                }
-                return [...prev, incomingMessage];
-            });
-        }
-    }, [userId]);
-
     const openSupportChat = useCallback(async () => {
         if (!userId) return;
 
@@ -356,6 +301,8 @@ export const ChatProvider = ({ children }) => {
 
     useEffect(() => {
         if (!userId) {
+            // Reset the connection status when authentication disappears.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSocketStatus('offline');
             return undefined;
         }
@@ -405,6 +352,8 @@ export const ChatProvider = ({ children }) => {
 
     useEffect(() => {
         if (!activeChat?.other_user_id || !userId) {
+            // Clear messages when the selected chat is cleared or the user signs out.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setMessages([]);
             if (historyPollRef.current) {
                 window.clearInterval(historyPollRef.current);
@@ -437,12 +386,18 @@ export const ChatProvider = ({ children }) => {
         };
     }, [activeChat, fetchChatHistory, isChatOpen, userId, userRole]);
 
+    // Opening the support conversation is an async response to chat state
+    // becoming ready, so defer it out of the effect's synchronous phase.
     useEffect(() => {
         if (userRole === 'admin' || !userId) return;
 
         if (isChatOpen && conversations.length === 0 && !activeChat) {
-            openSupportChat();
+            const timeoutId = window.setTimeout(() => {
+                openSupportChat();
+            }, 0);
+            return () => window.clearTimeout(timeoutId);
         }
+        return undefined;
     }, [activeChat, conversations.length, isChatOpen, openSupportChat, userId, userRole]);
 
     return (
@@ -470,4 +425,5 @@ export const ChatProvider = ({ children }) => {
     );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useChat = () => useContext(ChatContext);
