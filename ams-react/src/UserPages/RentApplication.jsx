@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle, faFilePdf, faEye, faTimes, faUndo } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faCheckCircle, faHourglassHalf, faCheck, faInfoCircle, faFilePdf, faEye, faTimes } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
@@ -22,11 +22,14 @@ export default function RentApplication() {
     const editApp = location.state?.editApplication;
     const passedRoomId = location.state?.selectedRoomId || editApp?.room_name || 'C';
 
-    const getRoomPrice = (id) => {
-        if (['K', 'L', 'M', 'N'].includes(id)) return 3500;
-        return 4000;                
+    // Fallback only, used until the room's real rooms.monthly_rent loads below —
+    // this used to be the permanent source of truth, silently ignoring any rate
+    // an admin configured via update_room.php.
+    const getRoomPriceFallback = (id) => {
+        if (['I', 'J', 'K', 'L', 'M', 'N'].includes(id)) return 3500;
+        return 4000;
     };
-    
+
     const [applicationStatus, setApplicationStatus] = useState('none');
 
     const [firstName, setFirstName] = useState(editApp?.first_name || defaultFirstName);
@@ -65,13 +68,30 @@ export default function RentApplication() {
     const [phoneRawNumber, setPhoneRawNumber] = useState(editApp?.contact_no?.replace('+63 ', '') || '');
     const [phoneError, setPhoneError] = useState('');
 
-    const [email, setEmail] = useState(editApp?.email || defaultEmail);
+    const [email] = useState(editApp?.email || defaultEmail);
     const [gender, setGender] = useState(editApp?.gender || '');
     const [occupants, setOccupants] = useState(editApp?.occupants || '');
     const [monthsOfRent, setMonthsOfRent] = useState(editApp?.months_of_rent || '');
     const [roomName] = useState(`Room ${passedRoomId}`);
-    const [monthlyRent] = useState(getRoomPrice(passedRoomId));
-    
+    const [monthlyRent, setMonthlyRent] = useState(editApp?.monthly_rent || getRoomPriceFallback(passedRoomId));
+
+    useEffect(() => {
+        if (editApp) return; // editing an existing application already has its own rate
+        const fetchRoomRate = async () => {
+            try {
+                const res = await api.get('/get_rooms.php');
+                const rooms = res.data?.rooms || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+                const match = rooms.find(r => r.id === passedRoomId);
+                if (match && match.rent != null) {
+                    setMonthlyRent(Number(match.rent));
+                }
+            } catch (err) {
+                console.error("Failed to fetch room rate, using fallback pricing:", err);
+            }
+        };
+        fetchRoomRate();
+    }, [passedRoomId, editApp]);
+
     const [validIdFrontFile, setValidIdFrontFile] = useState(null);
     const [validIdBackFile, setValidIdBackFile] = useState(null);
     const [nbiFile, setNbiFile] = useState(null);
@@ -221,6 +241,7 @@ export default function RentApplication() {
         formData.append('monthsOfRent', monthsOfRent);
         formData.append('roomName', passedRoomId);
         formData.append('monthlyRent', finalMonthlyRent);
+        formData.append('agreeTerms', agreePrivacy);
         if (validIdFrontFile) formData.append('validIdFrontFile', validIdFrontFile);
         if (validIdBackFile) formData.append('validIdBackFile', validIdBackFile);
         if (nbiFile) formData.append('nbiFile', nbiFile);
@@ -268,7 +289,7 @@ export default function RentApplication() {
 
                 {hasActiveApplication ? (
                     isTenant ? (
-                        <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-md select-none">
+                        <div className="animate-scale-in bg-white rounded-3xl border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-md select-none">
                             <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                                 <FontAwesomeIcon icon={faCheckCircle} className="text-4xl" />
                             </div>
@@ -280,35 +301,35 @@ export default function RentApplication() {
                                 <button
                                     type="button"
                                     onClick={() => navigate('/my-room')}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow"
+                                    className="btn-interactive bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow"
                                 >
                                     {t('rent.goMyRoom')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/pay-bills')}
-                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                    className="btn-interactive bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
                                 >
                                     {t('rent.payBills')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/maintenance-request')}
-                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                    className="btn-interactive bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
                                 >
                                     {t('rent.requestMaint')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/home')}
-                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                    className="btn-interactive bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
                                 >
                                     {t('rent.goHome')}
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <div className="bg-white rounded-3xl border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-md select-none">
+                        <div className="animate-scale-in bg-white rounded-3xl border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-md select-none">
                             <div className="w-16 h-16 rounded-full bg-indigo-50/15 text-indigo-600 flex items-center justify-center mx-auto">
                                 <FontAwesomeIcon icon={faInfoCircle} className="text-3xl animate-bounce" />
                             </div>
@@ -320,14 +341,14 @@ export default function RentApplication() {
                                 <button
                                     type="button"
                                     onClick={() => navigate('/track-application')}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow"
+                                    className="btn-interactive bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow"
                                 >
                                     {t('rent.trackApp')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => navigate('/services')}
-                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                    className="btn-interactive bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
                                 >
                                     {t('rent.backServices')}
                                 </button>
@@ -375,7 +396,7 @@ export default function RentApplication() {
                                         value={suffix}
                                         disabled={isReadOnly}
                                         onChange={(e) => setSuffix(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
                                     />
                                 </div>
                             </div>
@@ -397,7 +418,7 @@ export default function RentApplication() {
                                             disabled={isReadOnly}
                                             onChange={handlePhoneRawInput}
                                             onBlur={() => setPhoneError(validatePhilippineNumber(phoneRawNumber))}
-                                            className={`w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed box-border ${phoneError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
+                                            className={`focus-glow w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed box-border ${phoneError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
                                             required
                                         />
                                     </div>
@@ -421,7 +442,7 @@ export default function RentApplication() {
                                         value={gender}
                                         disabled={isReadOnly}
                                         onChange={(e) => setGender(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
                                         required
                                     >
                                         <option value="" disabled hidden>{t('rent.selectGender')}</option>
@@ -447,7 +468,7 @@ export default function RentApplication() {
                                         value={occupants}
                                         disabled={isReadOnly}
                                         onChange={handleOccupantsInput}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
                                         required
                                     />
                                 </div>
@@ -466,7 +487,7 @@ export default function RentApplication() {
                                         value={monthsOfRent}
                                         disabled={isReadOnly}
                                         onChange={handleMonthsInput}
-                                        className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
+                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
                                         required
                                     />
                                 </div>
@@ -540,7 +561,7 @@ export default function RentApplication() {
                                                         if (validateFile(file)) setValidIdFrontFile(file);
                                                     }
                                                 }}
-                                                className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingIdFront ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                                className={`card-interactive border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingIdFront ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                             >
                                                 {!validIdFrontFile ? (
                                                     <>
@@ -610,7 +631,7 @@ export default function RentApplication() {
                                                         if (validateFile(file)) setValidIdBackFile(file);
                                                     }
                                                 }}
-                                                className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingIdBack ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                                className={`card-interactive border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingIdBack ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                             >
                                                 {!validIdBackFile ? (
                                                     <>
@@ -681,7 +702,7 @@ export default function RentApplication() {
                                                     if (validateFile(file)) setNbiFile(file);
                                                 }
                                             }}
-                                            className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingNbi ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
+                                            className={`card-interactive border-2 border-dashed rounded-2xl p-5 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[160px] ${isDraggingNbi ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'}`}
                                         >
                                             {!nbiFile ? (
                                                 <>
@@ -775,7 +796,7 @@ export default function RentApplication() {
                             ) : (
                                 <button
                                     type="submit"
-                                    className={`w-full sm:w-auto text-white font-bold px-12 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97]' : 'bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97]'}`}
+                                    className={`btn-interactive w-full sm:w-auto text-white font-bold px-12 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97]' : 'bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97]'}`}
                                 >
                                     {applicationStatus === 'accepted' ? t('rent.proceedPayment') : t('rent.submitApp')}
                                 </button>
@@ -831,17 +852,17 @@ export default function RentApplication() {
             {showTermsModal && (
                 <div 
                     onClick={() => setShowTermsModal(false)}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in modal-overlay-anim"
                 >
-                    <div 
+                    <div
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]"
+                        className="rent-app-terms-modal modal-card-anim bg-slate-50 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]"
                     >
                         <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-white rounded-t-2xl">
                             <h3 className="text-xl font-bold m-0" style={{ color: '#3b4276' }}>{t('rent.termsTitle')}</h3>
                             <button 
                                 onClick={() => setShowTermsModal(false)}
-                                className="text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-lg"
+                                className="btn-interactive text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-lg"
                             >✕</button>
                         </div>
                         <div className="p-6 overflow-y-auto space-y-4 text-sm text-slate-600 leading-relaxed text-left">
@@ -860,7 +881,7 @@ export default function RentApplication() {
                                     setAgreePrivacy(true);
                                     setShowTermsModal(false);
                                 }}
-                                className="bg-[#10b981] hover:bg-[#059669] text-white font-bold px-6 py-2 rounded-xl text-sm border-0 cursor-pointer transition-colors"
+                                className="btn-interactive bg-[#10b981] hover:bg-[#059669] text-white font-bold px-6 py-2 rounded-xl text-sm border-0 cursor-pointer transition-colors"
                             >
                                 {t('rent.acceptAgree')}
                             </button>

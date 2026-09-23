@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faEnvelopeOpenText } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/preview.responsive.css';
 
-export default function Preview({ onRentClick, hasRentedRoom = false }) {
+export default function Preview({ onRentClick, onInquireClick, hasRentedRoom = false }) {
     const [selectedRoomId, setSelectedRoomId] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [previewMode, setPreviewMode] = useState(null);
     const { t } = useLang();
 
     useEffect(() => {
@@ -26,7 +28,8 @@ export default function Preview({ onRentClick, hasRentedRoom = false }) {
                             id: r.id,
                             type: r.type,
                             floor: r.floor,
-                            price: `₱${Number(r.rent).toLocaleString()}/mo`
+                            price: `₱${Number(r.rent).toLocaleString()}/mo`,
+                            images: Array.isArray(r.images) ? r.images : []
                         }));
                     setRooms(vacant);
                 }
@@ -37,7 +40,10 @@ export default function Preview({ onRentClick, hasRentedRoom = false }) {
             }
         };
         fetchAvailableRooms();
+        getSystemSettings().then((s) => setPreviewMode(s.roomPreviewMode)).catch(() => setPreviewMode('images'));
     }, []);
+
+    const selectedRoom = rooms.find(r => r.id === selectedRoomId) || null;
 
     const handleOpenPreview = (roomId) => {
         setSelectedRoomId(roomId);
@@ -93,15 +99,18 @@ export default function Preview({ onRentClick, hasRentedRoom = false }) {
                                 <p className="text-slate-500 font-medium text-sm m-0">{t('preview.noRooms')}</p>
                             </div>
                         ) : (
-                            <div className="preview-room-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {rooms.map((room) => (
-                                    <div key={room.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
+                            <div className="preview-room-grid stagger-children grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {rooms.map((room) => {
+                                    const canPreview = previewMode === 'floor_plan' || (room.images && room.images.length > 0);
+                                    return (
+                                    <div key={room.id} className="card-interactive bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
                                         <div>
                                             <h3 className="text-lg font-bold text-slate-800 m-0" style={{ color: '#1e293b' }}>Room {room.id}</h3>
                                             <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
                                             <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
                                         </div>
-                                        <div className="preview-room-card-actions grid grid-cols-2 gap-2 mt-4">
+                                        <div className={`preview-room-card-actions grid gap-2 mt-4 ${canPreview ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                            {canPreview && (
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenPreview(room.id)}
@@ -110,21 +119,25 @@ export default function Preview({ onRentClick, hasRentedRoom = false }) {
                                                 <FontAwesomeIcon icon={faEye} />
                                                 <span>{t('preview.viewLayout')}</span>
                                             </button>
+                                            )}
                                             <button
-                                                onClick={() => {
-                                                    if (!hasRentedRoom) {
-                                                        onRentClick(room.id);
-                                                    }
-                                                }}
-                                                disabled={hasRentedRoom}
-                                                title={hasRentedRoom ? 'You already have an active room' : ''}
-                                                className={`w-full font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 text-center ${hasRentedRoom ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white cursor-pointer'}`}
+                                                type="button"
+                                                onClick={() => onInquireClick(room.id)}
+                                                className="w-full bg-white hover:bg-slate-50 text-[#3b4276] border border-[#3b4276]/30 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5"
                                             >
-                                                {hasRentedRoom ? 'Already Rented' : t('preview.rentNow')}
+                                                <FontAwesomeIcon icon={faEnvelopeOpenText} />
+                                                <span>{t('preview.inquire')}</span>
+                                            </button>
+                                            <button
+                                                onClick={() => onRentClick(room.id)}
+                                                className="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center"
+                                            >
+                                                {t('preview.rentNow')}
                                             </button>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -146,10 +159,12 @@ export default function Preview({ onRentClick, hasRentedRoom = false }) {
             </div>
 
             {/*Injected Room Visual Layout Overlays*/}
-            <RoomPreviewModal 
+            <RoomPreviewModal
                 isOpen={isPreviewOpen}
                 onClose={() => setIsPreviewOpen(false)}
                 roomId={selectedRoomId}
+                mode={previewMode}
+                images={selectedRoom?.images || []}
             />
         </div>
     );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
@@ -132,7 +132,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={firstname}
                                         type="text"
                                         placeholder="Juan"
-                                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
                                         required
                                         onChange={(e) => setFirstName(e.target.value)}
                                     />
@@ -143,7 +143,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={middlename}
                                         type="text"
                                         placeholder="Optional"
-                                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
                                         onChange={(e) => setMiddleName(e.target.value)}
                                     />
                                 </div>
@@ -157,7 +157,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={lastname}
                                         type="text"
                                         placeholder="Dela Cruz"
-                                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
                                         required
                                         onChange={(e) => setLastName(e.target.value)}
                                     />
@@ -168,7 +168,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={suffix}
                                         type="text"
                                         placeholder="Jr, III (Optional)"
-                                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
                                         onChange={(e) => setSuffix(e.target.value)}
                                     />
                                 </div>
@@ -196,7 +196,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                             value={password}
                                             type={showPass ? "text" : "password"}
                                             placeholder="••••••••••••"
-                                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-10 box-border"
+                                            className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-10 box-border"
                                             required
                                             onChange={(e) => setPassword(e.target.value)}
                                         />
@@ -217,7 +217,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                             value={conPassword}
                                             type={showConfirmPass ? "text" : "password"}
                                             placeholder="••••••••••••"
-                                            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-10 box-border"
+                                            className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-10 box-border"
                                             required
                                             onChange={(e) => setConPassword(e.target.value)}
                                         />
@@ -238,7 +238,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                 </p>
                             )}
 
-                            <button type="submit" className="w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2">
+                            <button type="submit" className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2">
                                 {t('reg.submit')}
                             </button>
                         </form>

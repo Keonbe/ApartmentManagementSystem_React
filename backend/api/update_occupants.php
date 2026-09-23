@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, x-user-id");
 
@@ -8,47 +8,70 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
+// This queues an occupancy-change request that, on admin approval, alters
+// the tenant's billed rent — it must always be filed as the caller's own
+// verified identity, never a client-supplied email.
+$auth = require_user($conn);
+
 $input = json_decode(file_get_contents("php://input"), true);
-$email = $input['email'] ?? '';
 $occupants = (int)($input['occupants'] ?? 0);
 
-if (empty($email) || $occupants < 1) {
-    echo json_encode(["success" => false, "message" => "Email and a valid occupant count are required."]);
+if ($occupants < 1) {
+    echo json_encode(["success" => false, "message" => "A valid occupant count is required."]);
     exit;
 }
 
 // Fetch current active occupancy count from rent_applications
 $userQuery = $conn->prepare("
-    SELECT u.id, u.first_name, u.last_name, ra.room_name, ra.occupants as current_occupants 
-    FROM users u 
-    LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status = 'Approved'
-    WHERE u.email_address = ?
+    SELECT u.id, u.first_name, u.last_name, ra.room_name, ra.occupants as current_occupants
+    FROM users u
+    LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out')
+    WHERE u.id = ?
 ");
-$userQuery->bind_param("s", $email);
+$userQuery->bind_param("i", $auth['id']);
 $userQuery->execute();
 $user = $userQuery->get_result()->fetch_assoc();
 $userQuery->close();
 
-if ($user) {
+if ($user && $user['room_name']) {
     $userId = $user['id'];
     $tenantName = $user['first_name'] . ' ' . $user['last_name'];
-    $roomName = $user['room_name'] ?? 'Unassigned';
+    $roomName = $user['room_name'];
     $currentOccupants = (int)($user['current_occupants'] ?? 0);
 
     // SERVER-SIDE VALIDATION: Rejects request if new occupants equals current count
     if ($occupants === $currentOccupants) {
         echo json_encode([
-            "success" => false, 
+            "success" => false,
             "message" => "Your room is already registered with $occupants occupant(s)."
         ]);
         exit;
     }
 
-    // Cooldown check for pending requests within 24 hours
+    // The count covers the lease holder plus the named household members, and
+    // is capped by the max_occupants_per_unit setting.
+    $appStmt = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
+    $appStmt->bind_param("i", $userId);
+    $appStmt->execute();
+    $appRow = $appStmt->get_result()->fetch_assoc();
+    $appStmt->close();
+    $floor = $appRow ? 1 + household_active_count($conn, (int)$appRow['id']) : 1;
+    $max = max_occupants_per_unit($conn);
+    if ($occupants < $floor) {
+        echo json_encode(["success" => false, "message" => "Your household list names $floor occupant(s) including you. Remove members from the list first."]);
+        exit;
+    }
+    if ($occupants > $max) {
+        echo json_encode(["success" => false, "message" => "The maximum is $max occupants per unit."]);
+        exit;
+    }
+
+    // Any still-open request blocks a new one, regardless of age — a request
+    // pending for more than 24 hours used to stop blocking, letting a tenant
+    // stack multiple independently-approvable occupancy changes.
     $checkStmt = $conn->prepare("
-        SELECT id FROM notifications 
-        WHERE user_id = ? AND type = 'occupancy_request' AND status = 'Pending' 
-        AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        SELECT id FROM notifications
+        WHERE user_id = ? AND type = 'occupancy_request' AND status = 'Pending'
     ");
     $checkStmt->bind_param("i", $userId);
     $checkStmt->execute();
@@ -57,8 +80,8 @@ if ($user) {
 
     if ($hasRecent) {
         echo json_encode([
-            "success" => false, 
-            "message" => "You have already submitted an occupancy request within the last 24 hours. Please wait for admin approval."
+            "success" => false,
+            "message" => "You have already submitted an occupancy request. Please wait for admin approval."
         ]);
         exit;
     }
@@ -71,13 +94,14 @@ if ($user) {
     $stmt->bind_param("isss", $userId, $title, $msg, $occupants);
     
     if ($stmt->execute()) {
+        log_activity($conn, $userId, 'tenant', "Requested Occupancy Change", "Unit $roomName: $occupants occupant(s)");
         echo json_encode(["success" => true, "message" => "Occupancy update request submitted for admin review."]);
     } else {
         echo json_encode(["success" => false, "message" => "Failed to submit request."]);
     }
     $stmt->close();
 } else {
-    echo json_encode(["success" => false, "message" => "User record not found."]);
+    echo json_encode(["success" => false, "message" => "No active room assignment found for this account."]);
 }
 
 $conn->close();

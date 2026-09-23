@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
@@ -10,8 +10,10 @@ import TopBar from './Components/TopBar';
 // User Pages
 import Home from './UserPages/Home';
 import Preview from './UserPages/Preview';
+import InquiryForm from './UserPages/InquiryForm';
 import Login from './UserPages/Login';
 import Registration from './UserPages/Registration';
+import ResetPassword from './UserPages/ResetPassword';
 import Services from './UserPages/Services';
 import PayBills from './UserPages/PayBills';
 import ParkingReservation from './UserPages/ParkingReservation';
@@ -28,6 +30,9 @@ import UserMyRequests from './UserPages/UserMyRequests';
 import UserAnnouncements from './UserPages/UserAnnouncements';
 import UserPaymentHistory from './UserPages/UserPaymentHistory';
 import UserVisitors from './UserPages/UserVisitors';
+import UserUtilities from './UserPages/UserUtilities';
+import ServiceBooking from './UserPages/ServiceBooking';
+import ServiceCatalog from './UserPages/ServiceCatalog';
 
 // Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -47,6 +52,8 @@ import AdminUsers from './AdminPages/AdminUsers';
 import AdminVisitors from './AdminPages/AdminVisitors';
 import AdminCctv from './AdminPages/AdminCctv';
 import AdminParking from './AdminPages/AdminParking';
+import AdminUtilities from './AdminPages/AdminUtilities';
+import AdminInquiries from './AdminPages/AdminInquiries';
 import AdminMessages from './AdminPages/AdminMessages';
 
 function ProtectedRoute({ children }) {
@@ -75,8 +82,8 @@ function AdminProtectedRoute({ children }) {
   return children;
 }
 
+// FIXED: Added isCheckingRoom check to prevent premature redirecting on refresh
 function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
-  useLocation();
   const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
   
   if (!loggedInUserStr) {
@@ -88,6 +95,7 @@ function TenantProtectedRoute({ children, hasRentedRoom, isCheckingRoom }) {
     return children;
   }
 
+  // Hold off on redirecting until the backend room check completes!
   if (isCheckingRoom) {
     return (
       <div className="w-full h-screen flex items-center justify-center bg-slate-900 text-white font-bold">
@@ -135,11 +143,12 @@ function AppContent() {
   const location = useLocation();
   
   const [hasRentedRoom, setHasRentedRoom] = useState(false);
+  // NEW: Track status loading to hold route evaluation
   const [isCheckingRoom, setIsCheckingRoom] = useState(true);
 
   useEffect(() => {
     const checkRoomStatus = async () => {
-      setIsCheckingRoom(true);
+      setIsCheckingRoom(true); // Begin check
       const loggedInUserStr = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
       
       if (!loggedInUserStr) {
@@ -166,11 +175,16 @@ function AppContent() {
         console.error("Error checking room status:", err);
         setHasRentedRoom(false);
       } finally {
-        setIsCheckingRoom(false);
+        setIsCheckingRoom(false); // Complete check
       }
     };
     checkRoomStatus();
   }, [location.pathname]);
+
+  // Inquiries are open to guests, so this needs no login gate — unlike renting.
+  const handleInquireTrigger = (roomId) => {
+    navigate('/inquire', { state: { selectedRoomId: roomId } });
+  };
 
   const handleRentActionTrigger = (roomId) => {
     const loggedInUser = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
@@ -184,17 +198,21 @@ function AppContent() {
 
   return (
     <ChatProvider>
+      <>
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home hasRentedRoom={hasRentedRoom} onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
-        <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} hasRentedRoom={hasRentedRoom} /></BaseAppLayout>} />
+        <Route path="/home" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Home onCardClick={() => navigate('/preview')} username={JSON.parse(sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser") || "{}").first_name} /></BaseAppLayout>} />
+        <Route path="/preview" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><Preview onRentClick={handleRentActionTrigger} onInquireClick={handleInquireTrigger} /></BaseAppLayout>} />
+        <Route path="/inquire" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><InquiryForm /></BaseAppLayout>} />
         
         {/* SECURED TENANT DASHBOARDS */}
         <Route path="/services" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><Services /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/pay-bills" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><PayBills /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/parking-reservation" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ParkingReservation /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/cctv-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><CctvRequest /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/service-catalog" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceCatalog /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/service-booking" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><ServiceBooking /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/maintenance-request" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MaintenanceRequest /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/rent-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><RentApplication /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/track-application" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><TrackApplication /></BaseAppLayout></ProtectedRoute>} />
@@ -207,13 +225,16 @@ function AppContent() {
         <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/visitor-management" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserVisitors /></BaseAppLayout></TenantProtectedRoute>} />
+        <Route path="/user-utilities" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserUtilities /></BaseAppLayout></TenantProtectedRoute>} />
         
         {/* AUTH PATHS */}
         <Route path="/login" element={<Login onRegisterRedirect={() => navigate('/register')} onAdminRedirect={() => navigate('/admin-dashboard')} onHomeRedirect={() => navigate('/home')}/>} />
         <Route path="/register" element={<Registration onLoginRedirect={() => navigate('/login')} onHomeRedirect={() => navigate('/home')} />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* ADMIN WORKSPACES */}
         <Route path="/admin-dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+        <Route path="/admin-inquiries" element={<AdminProtectedRoute><AdminInquiries /></AdminProtectedRoute>} />
         <Route path="/admin-applications" element={<AdminProtectedRoute><AdminApplications /></AdminProtectedRoute>} />
         <Route path="/admin-units" element={<AdminProtectedRoute><AdminUnits /></AdminProtectedRoute>} />
         <Route path="/admin-tenants" element={<AdminProtectedRoute><AdminTenants /></AdminProtectedRoute>} />
@@ -228,13 +249,15 @@ function AppContent() {
         <Route path="/admin-contracts" element={<AdminProtectedRoute><AdminContracts /></AdminProtectedRoute>} />
         <Route path="/admin-services" element={<AdminProtectedRoute><AdminServicePage /></AdminProtectedRoute>} />
         <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
-        <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />
+        <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
+        <Route path="/admin-utilities" element={<AdminProtectedRoute><AdminUtilities /></AdminProtectedRoute>} />
         <Route path="/admin-messages" element={<AdminProtectedRoute><AdminMessages /></AdminProtectedRoute>} />
       </Routes>
-      {!['/login', '/register', '/admin-messages'].includes(location.pathname)
-        && (sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser'))
-        && <ChatWidget />}
+        {!['/login', '/register', '/admin-messages'].includes(location.pathname)
+          && (sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser'))
+          && <ChatWidget />}
+      </>
     </ChatProvider>
   );
 }

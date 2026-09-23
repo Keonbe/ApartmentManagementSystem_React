@@ -58,6 +58,12 @@
 
 /* Room cards: ensure touch targets on action buttons */
 @media (max-width: 768px) {
+  /* Three actions (Layout / Inquire / Rent) are too cramped side by side
+     on a phone — stack them instead. */
+  .preview-room-card-actions {
+    grid-template-columns: 1fr !important;
+  }
+
   .preview-room-card-actions button {
     min-height: 44px !important;
     font-size: 0.8125rem !important;

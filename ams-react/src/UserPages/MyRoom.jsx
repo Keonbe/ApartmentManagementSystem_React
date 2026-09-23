@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
+import HouseholdPanel from '../Components/HouseholdPanel';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
@@ -280,21 +281,24 @@ export default function MyRoom() {
     }
 
     return (
-        <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start overflow-y-auto box-border py-10 px-4 md:px-12">
+        <div className="my-room-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start box-border py-8 sm:py-10 px-4 md:px-12">
 
-            <div className="absolute inset-0 z-0">
+            {/* Hardware-accelerated fixed background prevents re-rasterization on scroll */}
+            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden" style={{ transform: 'translateZ(0)' }}>
                 <img
                     src={ApartmentPic}
                     alt="Apartment Background"
                     className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                 />
-                <div className="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-900/80 to-slate-950/95"></div>
+                <div className="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-900/85 to-slate-950/95"></div>
             </div>
 
             <div className="w-full max-w-6xl z-10 space-y-8 flex flex-col justify-start text-left">
 
                 {daysUntilExpiration !== null && daysUntilExpiration > 0 && daysUntilExpiration <= 30 && (
-                    <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-4 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 backdrop-blur-md">
+                    <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-4 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-center space-x-3">
                             <FontAwesomeIcon icon={faCalendarAlt} className="text-amber-400 text-2xl" />
                             <div>
@@ -307,7 +311,7 @@ export default function MyRoom() {
                     </div>
                 )}
 
-                <div className="my-room-banner bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="my-room-banner animate-fade-in-up bg-slate-900/80 border border-white/10 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="space-y-1">
                         <div className="flex flex-wrap gap-2 items-center">
                             <span className={`text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none ${roomDetails.status === 'Approved' ? 'bg-[#10b981] text-white' : 'bg-[#6366f1] text-white'}`}>
@@ -331,11 +335,22 @@ export default function MyRoom() {
                             {roomDetails.type} — {t('myRoom.subtext')}
                         </p>
                     </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/user-utilities')}
+                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-2xl text-xs border border-indigo-400/30 cursor-pointer transition-all shadow-md hover:shadow-indigo-500/20"
+                        >
+                            <FontAwesomeIcon icon={faBolt} className="text-amber-400" />
+                            <span>Utility Usage &amp; Meters</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div className="my-room-cards-grid grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="my-room-cards-grid stagger-children grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                    <div className="my-room-card bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
+                    <div className="my-room-card card-interactive bg-slate-900/80 rounded-3xl border border-white/10 shadow-xl p-6 flex flex-col justify-between space-y-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
@@ -356,7 +371,7 @@ export default function MyRoom() {
                         </button>
                     </div>
 
-                    <div className="my-room-card bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
+                    <div className="my-room-card card-interactive bg-slate-900/80 rounded-3xl border border-white/10 shadow-xl p-6 flex flex-col justify-between space-y-6">
                         <form onSubmit={handleUpdateOccupants} className="space-y-4 m-0 flex-grow flex flex-col justify-between">
                             <div className="space-y-4">
                                 <div className="flex items-center space-x-3">
@@ -395,7 +410,7 @@ export default function MyRoom() {
                         </form>
                     </div>
 
-                    <div className="my-room-card bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 flex flex-col justify-between space-y-6">
+                    <div className="my-room-card card-interactive bg-slate-900/80 rounded-3xl border border-white/10 shadow-xl p-6 flex flex-col justify-between space-y-6">
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
@@ -428,20 +443,32 @@ export default function MyRoom() {
                                 </div>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => navigate('/pay-bills')}
-                            className="w-full bg-[#10b981] hover:bg-[#059669] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
-                        >
-                            {t('myRoom.payRentBalance')}
-                        </button>
+                        <div className="flex flex-col gap-2">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/pay-bills')}
+                                className="w-full bg-[#10b981] hover:bg-[#059669] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
+                            >
+                                {t('myRoom.payRentBalance')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/user-utilities')}
+                                className="w-full bg-slate-800/80 hover:bg-slate-700 border border-white/10 text-indigo-300 hover:text-white font-bold py-2 rounded-xl text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                            >
+                                <FontAwesomeIcon icon={faBolt} className="text-amber-400 text-[11px]" />
+                                <span>Check Meter Readings</span>
+                            </button>
+                        </div>
                     </div>
 
                 </div>
 
-                <div className="my-room-operations-grid grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
+                <HouseholdPanel />
 
-                    <div className="md:col-span-8 bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 md:p-8">
+                <div className="my-room-operations-grid stagger-children grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
+
+                    <div className="md:col-span-8 bg-slate-900/80 rounded-3xl border border-white/10 shadow-xl p-6 md:p-8">
                         <form onSubmit={handleExtendRent} className="my-room-extend-form grid grid-cols-1 sm:grid-cols-3 gap-6 items-end m-0 text-left">
                             <div className="sm:col-span-2 space-y-3">
                                 <div className="flex items-center space-x-3">
@@ -502,7 +529,7 @@ export default function MyRoom() {
                         </form>
                     </div>
 
-                    <div className="md:col-span-4 bg-rose-950/20 backdrop-blur-md rounded-3xl border border-rose-500/20 p-6 flex flex-col justify-between text-left space-y-4 shadow-2xl">
+                    <div className="md:col-span-4 bg-rose-950/30 rounded-3xl border border-rose-500/20 p-6 flex flex-col justify-between text-left space-y-4 shadow-xl">
                         <div className="space-y-2">
                             <div className="flex items-center space-x-2 text-rose-400 font-bold text-base">
                                 <FontAwesomeIcon icon={faSignOutAlt} className="text-sm" />
@@ -547,8 +574,8 @@ export default function MyRoom() {
 
             {/* ─── MOVE OUT SCHEDULING MODAL ─── */}
             {showMoveOutModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm" onClick={() => setShowMoveOutModal(false)}>
-                    <div className="my-room-modal-content bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowMoveOutModal(false)}>
+                    <div className="my-room-modal-content modal-card-anim sheet-mobile bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20">
@@ -592,15 +619,15 @@ export default function MyRoom() {
                         </div>
 
                         <div className="my-room-modal-actions flex items-center justify-end gap-3 px-6 py-4 bg-slate-950/40 border-t border-white/10">
-                            <button 
-                                onClick={() => setShowMoveOutModal(false)} 
-                                className="px-4 py-2 text-xs text-slate-400 font-bold hover:text-white rounded-xl border-0 bg-transparent cursor-pointer transition-all"
+                            <button
+                                onClick={() => setShowMoveOutModal(false)}
+                                className="btn-interactive px-4 py-2 text-xs text-slate-400 font-bold hover:text-white rounded-xl border-0 bg-transparent cursor-pointer transition-all"
                             >
                                 Cancel
                             </button>
-                            <button 
-                                onClick={handleConfirmMoveOut} 
-                                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md border-0 cursor-pointer transition-all"
+                            <button
+                                onClick={handleConfirmMoveOut}
+                                className="btn-interactive px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md border-0 cursor-pointer transition-all"
                             >
                                 Confirm Notice
                             </button>

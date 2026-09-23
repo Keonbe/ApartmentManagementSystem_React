@@ -1,0 +1,53 @@
+/* =====================================================
+   SERVICE BOOKING — service-booking.responsive.css
+   Domain: user
+   Base: Tailwind utilities in ServiceBooking.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .service-booking-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .service-booking-heading {
+    font-size: 1.75rem !important; /* 28px */
+    line-height: 1.25 !important;
+  }
+
+  .service-booking-subtext {
+    font-size: 0.8125rem !important;
+  }
+
+  .service-booking-form-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+    gap: 1.25rem !important;
+  }
+
+  .service-booking-upload-box {
+    min-height: 120px !important;
+    padding: 1.25rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .service-booking-heading {
+    font-size: 1.5rem !important; /* 24px */
+  }
+
+  .service-booking-form-card {
+    padding: 1rem !important;
+  }
+
+  /* Keep tap targets at the 48px minimum on the smallest screens */
+  .service-booking-input,
+  .service-booking-select,
+  .service-booking-submit-btn {
+    font-size: 0.9375rem !important;
+    min-height: 48px !important;
+  }
+
+  .service-booking-textarea {
+    font-size: 0.9375rem !important;
+  }
+}

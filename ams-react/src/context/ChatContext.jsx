@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import api from '../api/axiosConfig';
 import { io } from 'socket.io-client';
+import { CHAT_SOCKET_URL } from '../api/env';
 
 const ChatContext = createContext();
 
@@ -24,7 +25,7 @@ export const ChatProvider = ({ children }) => {
 
         setSocketStatus('connecting');
 
-        const socket = io('http://localhost:3001', {
+        const socket = io(CHAT_SOCKET_URL, {
             transports: ['websocket'],
             autoConnect: true,
             reconnection: true,

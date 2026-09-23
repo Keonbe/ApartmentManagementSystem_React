@@ -1,16 +1,19 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faSearch, faCheckCircle, faPrint, faUser, faCalendarAlt, 
+  faSearch, faCheckCircle, faPrint, faCalendarAlt,
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
-  faEdit, faTrash, faPlus, faChartBar, faHandshake, faBalanceScale, faArrowRight, faShieldAlt
+  faTrash, faChartBar, faBalanceScale, faShieldAlt, faEye, faExternalLinkAlt,
+  faBell
 } from '@fortawesome/free-solid-svg-icons';
-import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+
+const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : '');
 
 const AdminPayments = () => {
   const [tenants, setTenants] = useState([]);
@@ -21,14 +24,49 @@ const AdminPayments = () => {
   const [contracts, setContracts] = useState([]);
   const [activeTab, setActiveTab] = useState('billing');
   const [loading, setLoading] = useState(true);
+  const [previewProof, setPreviewProof] = useState(null);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [batchSending, setBatchSending] = useState(false);
   
-  useEffect(() => {
-    fetchInvoices();
-    fetchContracts();
-  }, []);
+  const handleSendReminder = async (invoiceId) => {
+    if (!invoiceId) return;
+    setSendingReminder(true);
+    try {
+      const res = await api.post('/send_payment_reminder.php', { invoice_id: invoiceId });
+      if (res.data.success) {
+        alert(res.data.message || 'Payment reminder sent successfully!');
+        fetchInvoices();
+      } else {
+        alert(res.data.message || 'Failed to send reminder.');
+      }
+    } catch (err) {
+      console.error('Failed to send reminder:', err);
+      alert(err.response?.data?.message || 'Error sending payment reminder.');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
 
-  const fetchInvoices = async () => {
-    setLoading(true);
+  const handleBatchReminders = async () => {
+    if (!window.confirm('Send in-app due date reminders to all tenants with pending or overdue bills?')) return;
+    setBatchSending(true);
+    try {
+      const res = await api.post('/send_payment_reminder.php', { all: true });
+      if (res.data.success) {
+        alert(res.data.message || 'Batch reminders dispatched successfully!');
+        fetchInvoices();
+      } else {
+        alert(res.data.message || 'Failed to send batch reminders.');
+      }
+    } catch (err) {
+      console.error('Batch reminders error:', err);
+      alert(err.response?.data?.message || 'Error sending batch reminders.');
+    } finally {
+      setBatchSending(false);
+    }
+  };
+
+  const loadInvoices = async () => {
     try {
       const res = await api.get('/get_invoices.php');
       if (res.data.success) {
@@ -47,11 +85,12 @@ const AdminPayments = () => {
               termOfPayment: 'Monthly',
               dueDate: inv.due_date ?? "",
               dueDateDay: 5,
-              billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, addOns: 0 },
+              billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, maintenance: 0, addOns: 0 },
               history: [],
-              settlements: [],
               outstandingBalance: 0,
-              pendingInvoiceId: null
+              pendingInvoiceId: null,
+              lastReminderDate: inv.last_reminder_date || null,
+              reminderCount: inv.reminder_count || 0
             };
           }
           
@@ -62,17 +101,23 @@ const AdminPayments = () => {
             t.dueDate = inv.due_date;
             t.scheduledDate = inv.scheduled_date;
             t.scheduledTimeSlot = inv.scheduled_time_slot;
+            t.billingPeriod = inv.billing_period;
+            t.lastReminderDate = inv.last_reminder_date;
+            t.reminderCount = inv.reminder_count;
             t.billing.baseRent = parseFloat(inv.base_rent || 0);
             t.billing.water = parseFloat(inv.water || 0);
             t.billing.electricity = parseFloat(inv.electricity || 0);
             t.billing.parking = parseFloat(inv.parking || 0);
+            t.billing.services = parseFloat(inv.services || 0);
+            t.billing.maintenance = parseFloat(inv.maintenance || 0);
             t.billing.securityDeposit = parseFloat(inv.security_deposit || 0);
+            t.billing.lateFee = parseFloat(inv.late_fee || 0);
             t.outstandingBalance += parseFloat(inv.total_amount || 0);
             t.pendingInvoiceId = inv.id;
-            t.proofOfPaymentPath = inv.proof_of_payment_path;
-            t.paymentReference = inv.payment_reference;
-            t.senderName = inv.sender_name;
-            t.paymentGateway = inv.payment_gateway;
+            if (inv.proof_of_payment_path) t.proofOfPaymentPath = inv.proof_of_payment_path;
+            if (inv.payment_reference) t.paymentReference = inv.payment_reference;
+            if (inv.sender_name) t.senderName = inv.sender_name;
+            if (inv.payment_gateway) t.paymentGateway = inv.payment_gateway;
             if (inv.payment_method) {
                t.preferredMethod = inv.payment_method;
             }
@@ -86,8 +131,16 @@ const AdminPayments = () => {
               datePaid: inv.paid_at, 
               status: 'paid', 
               method: methodDisplay,
-              gateway: inv.payment_gateway
+              gateway: inv.payment_gateway,
+              proofOfPaymentPath: inv.proof_of_payment_path,
+              paymentReference: inv.payment_reference,
+              senderName: inv.sender_name
             });
+            if (!t.proofOfPaymentPath && inv.proof_of_payment_path) {
+              t.proofOfPaymentPath = inv.proof_of_payment_path;
+              if (inv.payment_reference) t.paymentReference = inv.payment_reference;
+              if (inv.sender_name) t.senderName = inv.sender_name;
+            }
           }
         });
         
@@ -102,6 +155,11 @@ const AdminPayments = () => {
     }
   };
 
+  const fetchInvoices = () => {
+    setLoading(true);
+    return loadInvoices();
+  };
+
   const fetchContracts = async () => {
     try {
       const res = await api.get('/get_contracts.php');
@@ -112,6 +170,13 @@ const AdminPayments = () => {
       console.error("Error fetching contracts for security deposit ledger:", err);
     }
   };
+
+  useEffect(() => {
+    // Reminders and overdue alerts run from the daily sweep (run_notification_sweep()
+    // in config.php); this page no longer triggers them on every visit.
+    const load = async () => { await Promise.all([loadInvoices(), fetchContracts()]); };
+    load();
+  }, []);
   
   const [billingPeriod, setBillingPeriod] = useState('July 2026');
   const [isExtendedRent, setIsExtendedRent] = useState(false);
@@ -119,8 +184,9 @@ const AdminPayments = () => {
   const [customAddOns, setCustomAddOns] = useState(0);
 
   // Payment Recording States
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [methodChoice, setMethodChoice] = useState({ tenant: null, method: 'Cash' });
   const [amountTendered, setAmountTendered] = useState('');
+  const [paymentReference, setPaymentReference] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // History Table States
@@ -131,13 +197,7 @@ const AdminPayments = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
 
-  const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
-  const [historyForm, setHistoryForm] = useState(null);
 
-  const [showSettlementForm, setShowSettlementForm] = useState(false);
-  const [settlementForm, setSettlementForm] = useState({ amount: '', note: '', type: 'Partial Payment' });
-
-  const settings = getSystemSettings();
 
   const activeTenant = tenants.find(t => t.id === selectedTenantId) || tenants[0] || null;
   const filteredTenants = useMemo(() => {
@@ -172,14 +232,10 @@ const AdminPayments = () => {
     });
   }, [tenants, searchTerm, sortOption, statusFilter]);
 
-  // Switch dynamic admin selection method parameters on tenant changes
-  useEffect(() => {
-    if (activeTenant && activeTenant.preferredMethod) {
-      setPaymentMethod(activeTenant.preferredMethod);
-    } else {
-      setPaymentMethod('Cash');
-    }
-  }, [selectedTenantId, activeTenant]);
+  // The method defaults to the selected tenant's preferred one; a manual choice only
+  // sticks while that same tenant record is selected.
+  const paymentMethod = methodChoice.tenant === activeTenant ? methodChoice.method : (activeTenant?.preferredMethod || 'Cash');
+  const setPaymentMethod = (method) => setMethodChoice({ tenant: activeTenant, method });
 
   const calculateTotal = () => {
     if (!activeTenant) return 0;
@@ -194,7 +250,7 @@ const AdminPayments = () => {
   const totalCollected = tenants.reduce((sum, t) => sum + t.history.filter(h => h.status === 'paid').reduce((s, h) => s + h.amount, 0), 0);
   const overdueCount = tenants.filter(t => t.status === 'overdue' || t.status === 'payment-failed').length;
   const pendingCount = tenants.filter(t => t.status === 'pending' || t.status === 'pending-verification' || t.status === 'scheduled' || t.status === 'processing').length;
-  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking)), 0);
+  const totalOutstanding = tenants.filter(t => t.status !== 'paid').reduce((sum, t) => sum + (t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance)), 0);
 
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
@@ -213,7 +269,7 @@ const AdminPayments = () => {
     tenants.forEach(t => {
       if (t.status === 'paid') return;
       const daysOverdue = t.dueDate ? Math.max(0, Math.ceil((now - new Date(t.dueDate)) / (1000 * 60 * 60 * 24))) : 0;
-      const balance = t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking);
+      const balance = t.outstandingBalance || (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance);
       if (daysOverdue <= 0) result.current += balance;
       else if (daysOverdue <= 15) result.days15 += balance;
       else if (daysOverdue <= 30) result.days30 += balance;
@@ -222,32 +278,14 @@ const AdminPayments = () => {
     return result;
   }, [tenants]);
 
-  const monthlyTarget = tenants.reduce((sum, t) => sum + (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking), 0);
-  const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + (t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking), 0);
+  // Security deposit and late fee are part of what is actually invoiced, so
+  // leaving them out measured collection against a smaller base than the
+  // amounts tenants were billed — overstating the collection rate on any
+  // move-in or overdue invoice.
+  const billedTotal = (t) => t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance + (t.billing.securityDeposit || 0) + (t.billing.lateFee || 0);
+  const monthlyTarget = tenants.reduce((sum, t) => sum + billedTotal(t), 0);
+  const monthlyCollected = tenants.filter(t => t.status === 'paid').reduce((sum, t) => sum + billedTotal(t), 0);
   const collectionPct = monthlyTarget > 0 ? Math.round((monthlyCollected / monthlyTarget) * 100) : 0;
-
-  const handleAddSettlement = () => {
-    if (!settlementForm.amount || Number(settlementForm.amount) <= 0) return;
-    const amt = Number(settlementForm.amount);
-    const newBalance = Math.max(0, (activeTenant.outstandingBalance || totalDue) - amt);
-    const settlement = {
-      id: `STL-${String(Math.floor(100 + Math.random() * 900))}`,
-      date: new Date().toISOString().slice(0, 10),
-      type: settlementForm.type,
-      amount: amt,
-      remaining: newBalance,
-      note: settlementForm.note,
-      status: newBalance === 0 ? 'settled' : 'partial'
-    };
-    setTenants(prev => prev.map(t => t.id === selectedTenantId ? {
-      ...t,
-      settlements: [settlement, ...(t.settlements || [])],
-      outstandingBalance: newBalance,
-      status: newBalance === 0 ? 'paid' : t.status
-    } : t));
-    setSettlementForm({ amount: '', note: '', type: 'Partial Payment' });
-    setShowSettlementForm(false);
-  };
 
   const getDaysUntilDue = (dueDateStr) => {
     if (!dueDateStr) return null;
@@ -276,7 +314,12 @@ const handleMarkAsPaid = async () => {
     try {
       const res = await api.post('/record_payment_admin.php', {
         invoiceId: activeTenant.pendingInvoiceId,
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        // The amount tendered and reference were previously collected in this
+        // form and then thrown away, so nothing about the payment itself was
+        // recorded beyond the method.
+        amountPaid: amountTendered !== '' ? Number(amountTendered) : undefined,
+        paymentReference: paymentReference || undefined
       });
       
       // Safely check if the response is successful
@@ -284,8 +327,9 @@ const handleMarkAsPaid = async () => {
         fetchInvoices();
         setIsExtendedRent(false); 
         setExtendedAmount(0); 
-        setCustomAddOns(0); 
+        setCustomAddOns(0);
         setAmountTendered('');
+        setPaymentReference('');
         setShowConfirmModal(false);
       } else {
         // If it's a string (HTML error) or missing the message property, alert a safe fallback
@@ -295,6 +339,27 @@ const handleMarkAsPaid = async () => {
     } catch(err) {
       console.error("Network or API Error:", err);
       // Safely chain into the error response
+      alert(err.response?.data?.message || "A network or server error occurred.");
+    }
+  };
+
+  const handleRejectProof = async () => {
+    if (!activeTenant || !activeTenant.pendingInvoiceId) return;
+    const reason = window.prompt("Why is this payment proof being rejected? The tenant will see this message.");
+    if (!reason || !reason.trim()) return;
+
+    try {
+      const res = await api.post('/reject_payment_proof.php', {
+        invoiceId: activeTenant.pendingInvoiceId,
+        reason: reason.trim()
+      });
+      if (res.data && res.data.success) {
+        fetchInvoices();
+      } else {
+        alert(res.data?.message || "Failed to reject payment proof.");
+      }
+    } catch (err) {
+      console.error("Reject proof error:", err);
       alert(err.response?.data?.message || "A network or server error occurred.");
     }
   };
@@ -314,39 +379,6 @@ const handleMarkAsPaid = async () => {
     if (window.confirm('Are you sure you want to delete this payment record?')) {
       setTenants(prev => prev.map(t => t.id === selectedTenantId ? { ...t, history: t.history.filter(h => h.id !== recordId) } : t));
     }
-  };
-
-  const handleEditHistoryClick = (record) => {
-    setHistoryForm({ ...record });
-    setShowEditHistoryModal(true);
-  };
-
-  const handleAddAdHocClick = () => {
-    setHistoryForm({ 
-      id: `RCT-${Math.floor(1000 + Math.random() * 9000)}`, 
-      period: '', 
-      amount: '', 
-      method: 'Cash', 
-      breakdown: '', 
-      datePaid: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), 
-      status: 'paid' 
-    });
-    setShowEditHistoryModal(true);
-  };
-
-  const handleSaveHistory = () => {
-    setTenants(prev => prev.map(t => {
-      if (t.id === selectedTenantId) {
-        const existing = t.history.find(h => h.id === historyForm.id);
-        if (existing) {
-          return { ...t, history: t.history.map(h => h.id === historyForm.id ? { ...h, ...historyForm, amount: Number(historyForm.amount) } : h) };
-        } else {
-          return { ...t, history: [{ ...historyForm, amount: Number(historyForm.amount) }, ...t.history] };
-        }
-      }
-      return t;
-    }));
-    setShowEditHistoryModal(false);
   };
 
   const filteredHistory = useMemo(() => {
@@ -404,31 +436,45 @@ const handleMarkAsPaid = async () => {
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
+            <div className="stagger-children grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faDollarSign} /></div>
                 <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Collected</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{formatCurrency(totalCollected)}</p></div>
               </div>
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
+              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                 <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
                 <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Overdue Accounts</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{overdueCount}</p></div>
               </div>
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
+              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex items-center gap-4 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
                 <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faCalendarAlt} /></div>
                 <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Pending Payments</p><p className="text-xl lg:text-2xl font-bold text-slate-800 m-0 mt-0.5">{pendingCount}</p></div>
               </div>
-              <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-sm flex items-center gap-4 text-white">
+              <div className="card-interactive bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-sm flex items-center gap-4 text-white">
                 <div className="w-12 h-12 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center shrink-0 text-lg"><FontAwesomeIcon icon={faMoneyBillWave} /></div>
                 <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Outstanding</p><p className="text-xl lg:text-2xl font-bold text-white m-0 mt-0.5">{formatCurrency(totalOutstanding)}</p></div>
               </div>
             </div>
             
-            {/* Due Date Indicator Bar */}
-            {dueWithin5DaysCount > 0 && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                <FontAwesomeIcon icon={faExclamationTriangle} /> <strong>{dueWithin5DaysCount}</strong> tenant(s) have payments due within the next 5 days.
+            {/* Due Date Indicator Bar with Batch Reminder Button */}
+            {(dueWithin5DaysCount > 0 || overdueCount > 0) && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600 text-base" />
+                  <span>
+                    <strong>{overdueCount}</strong> overdue account(s) and <strong>{dueWithin5DaysCount}</strong> bill(s) due within 5 days.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBatchReminders}
+                  disabled={batchSending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer border-0 shrink-0 self-start sm:self-auto disabled:opacity-50"
+                >
+                  <FontAwesomeIcon icon={faBell} />
+                  {batchSending ? 'Sending Reminders...' : 'Send Due Reminders to All'}
+                </button>
               </div>
             )}
 
@@ -493,7 +539,7 @@ const handleMarkAsPaid = async () => {
                   {filteredTenants.map(t => {
                     const days = getDaysUntilDue(t.dueDate);
                     const isDueSoon = t.status !== 'paid' && days !== null && days >= 0 && days <= 5;
-                    const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking;
+                    const fallbackTotal = t.billing.baseRent + t.billing.water + t.billing.electricity + t.billing.parking + t.billing.services + t.billing.maintenance;
                     const tenantTotalDue = t.outstandingBalance > 0 ? t.outstandingBalance : fallbackTotal;
                     return (
                       <div key={t.id} onClick={() => {setSelectedTenantId(t.id); setHistoryPage(1);}} className={`flex items-center justify-between p-4 border-b border-slate-100 cursor-pointer ${selectedTenantId === t.id ? 'bg-indigo-50 border-l-4 border-l-indigo-600' : 'hover:bg-slate-50'}`}>
@@ -552,11 +598,35 @@ const handleMarkAsPaid = async () => {
                 )}
 
                 <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                  <div className="flex justify-between items-start mb-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                     <div>
                       <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faFileAlt} className="text-indigo-600" /> Billing Details</h3>
                       <p className="text-sm text-slate-500 m-0 mt-0.5">{activeTenant.name} · Unit {activeTenant.unit}</p>
                     </div>
+
+                    {/* Due Date & Reminder Controls */}
+                    {activeTenant.status !== 'paid' && activeTenant.pendingInvoiceId && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {activeTenant.lastReminderDate ? (
+                          <span className="text-[11px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-medium border border-slate-200">
+                            Last Reminded: <strong className="text-slate-700">{new Date(activeTenant.lastReminderDate).toLocaleDateString()}</strong> {activeTenant.reminderCount > 1 ? `(${activeTenant.reminderCount}x)` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                            No reminders sent yet
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleSendReminder(activeTenant.pendingInvoiceId)}
+                          disabled={sendingReminder}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer transition-colors disabled:opacity-50"
+                        >
+                          <FontAwesomeIcon icon={faBell} />
+                          {sendingReminder ? 'Sending...' : 'Send Due Reminder'}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -618,6 +688,8 @@ const handleMarkAsPaid = async () => {
                         {activeTenant.billing.water > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Water:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.water)}</span></div>}
                         {activeTenant.billing.electricity > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Electricity:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.electricity)}</span></div>}
                         {activeTenant.billing.parking > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Parking:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.parking)}</span></div>}
+                        {activeTenant.billing.services > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-On Services:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.services)}</span></div>}
+                        {activeTenant.billing.maintenance > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Maintenance Recharge:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.maintenance)}</span></div>}
                         {Number(customAddOns) > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-ons:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(customAddOns)}</span></div>}
                         <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
                       </div>
@@ -648,25 +720,55 @@ const handleMarkAsPaid = async () => {
                           <div className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-100 text-slate-700 font-semibold">{formatCurrency(change)}</div>
                         </div>
                       </div>
+
+                      {paymentMethod !== 'Cash' && (
+                        <div className="mt-3">
+                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference No.</label>
+                          <input
+                            type="text"
+                            value={paymentReference}
+                            onChange={e => setPaymentReference(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white"
+                            placeholder={activeTenant.paymentReference || 'Transfer / transaction reference'}
+                          />
+                        </div>
+                      )}
                       
-                      {activeTenant.status === 'pending-verification' && (
+                      {(activeTenant.status === 'pending-verification' || activeTenant.proofOfPaymentPath) && (
                         <div className="mt-2 p-4 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3">
-                          <h5 className="text-xs font-bold text-indigo-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
-                            <FontAwesomeIcon icon={faInfoCircle} /> E-Receipt Metadata Verification
-                          </h5>
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-xs font-bold text-indigo-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
+                              <FontAwesomeIcon icon={faInfoCircle} /> E-Receipt Metadata Verification
+                            </h5>
+                            {activeTenant.status === 'pending-verification' && (
+                              <span className="text-[10px] bg-indigo-200/70 text-indigo-900 px-2 py-0.5 rounded-full font-bold">Verification Needed</span>
+                            )}
+                          </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-indigo-950 font-medium">
                              <div><span className="text-indigo-500 font-bold mr-1">Sender Profile Name:</span> {activeTenant.senderName || 'Not Captured'}</div>
                              <div><span className="text-indigo-500 font-bold mr-1">Network Reference No:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200/60 font-bold text-slate-800">{activeTenant.paymentReference || '—'}</span></div>
                           </div>
                           {activeTenant.proofOfPaymentPath && (
-                            <div className="pt-1.5">
+                            <div className="pt-2 flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewProof({
+                                  url: getBackendAssetUrl(activeTenant.proofOfPaymentPath),
+                                  title: `Proof of Payment — ${activeTenant.name} (${activeTenant.unit})`,
+                                  reference: activeTenant.paymentReference,
+                                  sender: activeTenant.senderName
+                                })}
+                                className="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all border-0 cursor-pointer shadow-sm"
+                              >
+                                <FontAwesomeIcon icon={faEye} /> Preview Proof in Modal
+                              </button>
                               <a 
-                                href={`http://localhost/ApartmentManagementSystem_React/backend/${activeTenant.proofOfPaymentPath}`} 
+                                href={getBackendAssetUrl(activeTenant.proofOfPaymentPath)} 
                                 target="_blank" 
                                 rel="noreferrer" 
-                                className="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all no-underline shadow-sm"
+                                className="inline-flex items-center gap-1.5 bg-white text-indigo-700 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-all no-underline shadow-sm"
                               >
-                                <FontAwesomeIcon icon={faFileAlt} /> View Uploaded Receipt Document Asset
+                                <FontAwesomeIcon icon={faExternalLinkAlt} /> Open Full Asset in New Tab
                               </a>
                             </div>
                           )}
@@ -713,6 +815,14 @@ const handleMarkAsPaid = async () => {
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment
                     </button>
+                    {activeTenant.status === 'pending-verification' && (
+                      <button
+                        onClick={handleRejectProof}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-700 rounded-lg text-sm font-semibold hover:bg-red-50 border-solid cursor-pointer transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faExclamationTriangle} /> Reject Proof
+                      </button>
+                    )}
                     <button onClick={() => handleGenerateReceipt()} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> View Draft Receipt</button>
                   </div>
                 </div>
@@ -721,7 +831,6 @@ const handleMarkAsPaid = async () => {
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-3">
                       <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0"><FontAwesomeIcon icon={faHistory} className="text-slate-400" /> Payment History</h3>
-                      <button onClick={handleAddAdHocClick} className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-xs font-semibold border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPlus} /> Add Past Payment</button>
                     </div>
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus-within:border-indigo-400 transition-colors">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
@@ -738,6 +847,7 @@ const handleMarkAsPaid = async () => {
                           <th className="py-2 px-3">Method</th>
                           <th className="py-2 px-3">Breakdown</th>
                           <th className="py-2 px-3">Date Paid</th>
+                          <th className="py-2 px-3 text-center">Proof</th>
                           <th className="py-2 px-3 text-right">Receipt</th>
                           <th className="py-2 px-3 text-right">Actions</th>
                         </tr>
@@ -750,16 +860,33 @@ const handleMarkAsPaid = async () => {
                             <td className="py-3 px-3 text-slate-600"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs border border-slate-200">{record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
                             <td className="py-3 px-3 text-slate-500 text-xs truncate max-w-[150px]" title={record.breakdown}>{record.breakdown}</td>
                             <td className="py-3 px-3 text-slate-500">{record.datePaid}</td>
+                            <td className="py-3 px-3 text-center">
+                              {record.proofOfPaymentPath ? (
+                                <button
+                                  onClick={() => setPreviewProof({
+                                    url: getBackendAssetUrl(record.proofOfPaymentPath),
+                                    title: `Proof of Payment — ${record.period}`,
+                                    reference: record.paymentReference,
+                                    sender: record.senderName
+                                  })}
+                                  className="text-xs inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md border border-indigo-200 cursor-pointer font-semibold transition-colors"
+                                  title="View Uploaded Payment Proof"
+                                >
+                                  <FontAwesomeIcon icon={faEye} /> Proof
+                                </button>
+                              ) : (
+                                <span className="text-slate-300 text-xs">—</span>
+                              )}
+                            </td>
                             <td className="py-3 px-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
                             <td className="py-3 px-3 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                <button onClick={() => handleEditHistoryClick(record)} className="text-slate-500 hover:text-indigo-600 border-0 bg-transparent cursor-pointer p-1 transition-colors"><FontAwesomeIcon icon={faEdit} /></button>
                                 <button onClick={() => handleDeleteHistory(record.id)} className="text-slate-500 hover:text-red-600 border-0 bg-transparent cursor-pointer p-1 transition-colors"><FontAwesomeIcon icon={faTrash} /></button>
                               </div>
                             </td>
                           </tr>
                         )) : (
-                          <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
+                          <tr><td colSpan="8" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -867,16 +994,15 @@ const handleMarkAsPaid = async () => {
                   </div>
                 </div>
                 
-                {/* ─── PAYMENT SETTLEMENT TRACKING ─── */}
+                {/* ─── OUTSTANDING BALANCE ─── */}
+                {/* Invoices are settled in full via Record Payment; there is no
+                    partial-payment ledger, so no settlement entry form here. */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">
-                      <FontAwesomeIcon icon={faHandshake} className="text-violet-600" />
-                      Settlement Tracking — {activeTenant.name}
+                      <FontAwesomeIcon icon={faBalanceScale} className="text-violet-600" />
+                      Outstanding Balance — {activeTenant.name}
                     </h3>
-                    <button onClick={() => setShowSettlementForm(!showSettlementForm)} className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-100 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors">
-                      <FontAwesomeIcon icon={faPlus} /> Record Settlement
-                    </button>
                   </div>
                   <div className="p-6 space-y-4">
                     {/* Outstanding Balance Monitor */}
@@ -1005,8 +1131,8 @@ const handleMarkAsPaid = async () => {
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowConfirmModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowConfirmModal(false)}>
+          <div className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-6">
               <h3 className="text-lg font-bold text-slate-800 mb-2 mt-0">Confirm Payment</h3>
               <p className="text-sm text-slate-600 mb-4">Are you sure you want to process this payment? This action will generate an official receipt record row.</p>
@@ -1027,8 +1153,8 @@ const handleMarkAsPaid = async () => {
 
       {/* Receipt Modal */}
       {showReceipt && receiptData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowReceipt(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowReceipt(false)}>
+          <div className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt" onClick={e => e.stopPropagation()}>
             <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500">
               <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
               <div className="mt-4 pt-4 border-t border-slate-700/50">
@@ -1071,6 +1197,61 @@ const handleMarkAsPaid = async () => {
             <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">
               <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
               <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proof of Payment Preview Modal */}
+      {previewProof && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setPreviewProof(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 m-0">{previewProof.title || 'Uploaded Proof of Payment'}</h3>
+                {(previewProof.reference || previewProof.sender) && (
+                  <p className="text-xs text-slate-500 m-0 mt-0.5">
+                    {previewProof.sender ? `Sender: ${previewProof.sender} ` : ''}
+                    {previewProof.reference ? `· Ref: ${previewProof.reference}` : ''}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewProof.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors no-underline inline-flex items-center gap-1"
+                >
+                  <FontAwesomeIcon icon={faExternalLinkAlt} /> Open in New Tab
+                </a>
+                <button
+                  onClick={() => setPreviewProof(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-auto flex items-center justify-center bg-slate-900/5 min-h-[300px]">
+              {previewProof.url.toLowerCase().endsWith('.pdf') ? (
+                <iframe src={previewProof.url} title="Payment Proof PDF" className="w-full h-[500px] border-0 rounded-lg shadow" />
+              ) : (
+                <img
+                  src={previewProof.url}
+                  alt="Proof of Payment"
+                  className="max-h-[65vh] max-w-full object-contain rounded-lg shadow-md border border-slate-200 bg-white"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.style.display = 'none';
+                    if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                  }}
+                />
+              )}
+              <div style={{ display: 'none' }} className="text-center p-8 text-slate-500">
+                <p className="font-bold text-sm">Image could not be rendered directly.</p>
+                <p className="text-xs mt-1">Please use the "Open in New Tab" link above to view or download.</p>
+              </div>
             </div>
           </div>
         </div>

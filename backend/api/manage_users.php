@@ -1,19 +1,28 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden"]);
+// Admin account management (checklist 11.1). The acting admin is the session
+// user — the old code read X-Admin-Id, so the "cannot modify your own account"
+// guard and every audit entry depended on a header the client chooses.
+$admin_id = require_admin($conn);
+
+const MAX_ADMIN_ACCOUNTS = 3;
+
+function fail($code, $message) {
+    http_response_code($code);
+    echo json_encode(["success" => false, "message" => $message]);
     exit;
 }
 
-// GET: list all users (non-admin)
+function active_admin_count($conn) {
+    return (int)$conn->query("SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_archived = 0")->fetch_assoc()['c'];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $result = $conn->query("
         SELECT id, first_name, middle_name, last_name, suffix, contact_no, gender, email_address, role, is_archived
@@ -32,125 +41,144 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'gender'       => $row['gender'],
             'email'        => $row['email_address'],
             'role'         => $row['role'],
-            'is_archived'  => (int)($row['is_archived'] ?? 0)
+            'is_archived'  => (int)($row['is_archived'] ?? 0),
+            'is_self'      => (int)$row['id'] === $admin_id,
         ];
     }
-    echo json_encode(["success" => true, "users" => $users]);
+    echo json_encode(["success" => true, "users" => $users, "max_admins" => MAX_ADMIN_ACCOUNTS]);
     $conn->close();
     exit;
 }
 
-// POST: actions
 $data = json_decode(file_get_contents('php://input'), true) ?? [];
 $action  = $data['action']  ?? '';
 $user_id = (int)($data['user_id'] ?? 0);
 
-if (!$user_id || !$action) {
-    echo json_encode(["success" => false, "message" => "Missing action or user_id"]);
-    exit;
-}
+if (!$user_id || !$action) fail(422, "Missing action or user_id");
 
-// Prevent acting on self
-if ($user_id === (int)$admin_id) {
-    echo json_encode(["success" => false, "message" => "Cannot modify your own account here."]);
-    exit;
-}
+// An admin changes their own details, password and role from Account Settings,
+// never here — otherwise the last admin could demote or lock out themselves.
+if ($user_id === $admin_id) fail(409, "You cannot change your own account here. Use Account Settings instead.");
+
+$stmt = $conn->prepare("SELECT id, email_address, role, is_archived FROM users WHERE id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$target = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+if (!$target) fail(404, "User not found.");
+$target_label = "{$target['email_address']} (ID $user_id)";
 
 switch ($action) {
     case 'update':
-        $fn = $conn->real_escape_string($data['first_name'] ?? '');
-        $mn = $conn->real_escape_string($data['middle_name'] ?? '');
-        $ln = $conn->real_escape_string($data['last_name'] ?? '');
-        $sx = $conn->real_escape_string($data['suffix'] ?? '');
-        $ph = $conn->real_escape_string($data['contact_no'] ?? '');
-        $gd = $conn->real_escape_string($data['gender'] ?? '');
-        $em = $conn->real_escape_string($data['email'] ?? '');
+        // Plain values into a prepared statement. These used to go through
+        // real_escape_string first as well, so "O'Brien" was stored as "O\'Brien".
+        $fn = trim((string)($data['first_name'] ?? ''));
+        $mn = trim((string)($data['middle_name'] ?? ''));
+        $ln = trim((string)($data['last_name'] ?? ''));
+        $sx = trim((string)($data['suffix'] ?? ''));
+        $ph = trim((string)($data['contact_no'] ?? ''));
+        $gd = trim((string)($data['gender'] ?? ''));
+        $em = trim((string)($data['email'] ?? ''));
 
-        if (!$fn || !$ln || !$em) {
-            echo json_encode(["success" => false, "message" => "First name, last name, and email are required."]);
-            break;
+        if ($fn === '' || $ln === '' || $em === '') fail(422, "First name, last name, and email are required.");
+        if (!filter_var($em, FILTER_VALIDATE_EMAIL)) fail(422, "Please enter a valid email address.");
+        if ($ph !== '' && !preg_match('/^(\+63|0)?9\d{9}$/', preg_replace('/[\s\-]/', '', $ph))) {
+            fail(422, "Invalid Philippine mobile number (e.g. 09123456789).");
         }
 
-        // Check email uniqueness
-        $chk = $conn->prepare("SELECT id FROM users WHERE email_address = ? AND id != ?");
+        $chk = $conn->prepare("SELECT 1 FROM users WHERE email_address = ? AND id != ?");
         $chk->bind_param("si", $em, $user_id);
         $chk->execute();
-        if ($chk->get_result()->num_rows > 0) {
-            echo json_encode(["success" => false, "message" => "Email already in use by another user."]);
-            $chk->close();
-            break;
-        }
+        $taken = (bool)$chk->get_result()->fetch_assoc();
         $chk->close();
+        if ($taken) fail(409, "Email already in use by another user.");
 
         $stmt = $conn->prepare("UPDATE users SET first_name=?, middle_name=?, last_name=?, suffix=?, contact_no=?, gender=?, email_address=? WHERE id=?");
         $stmt->bind_param("sssssssi", $fn, $mn, $ln, $sx, $ph, $gd, $em, $user_id);
         $stmt->execute();
         $stmt->close();
-        log_activity($conn, $admin_id, 'User Management', 'Edit User', "Edited user ID $user_id ($em)");
-        echo json_encode(["success" => true]);
+        log_activity($conn, $admin_id, 'user', 'Edited User', "Edited $target_label" . ($em !== $target['email_address'] ? "; email changed to $em" : ""));
+        echo json_encode(["success" => true, "message" => "User updated."]);
         break;
 
     case 'reset_password':
-        $new_pass = $data['new_password'] ?? '';
-        if (strlen($new_pass) < 6) {
-            echo json_encode(["success" => false, "message" => "Password must be at least 6 characters."]);
-            break;
+        $new_pass = (string)($data['new_password'] ?? '');
+        if (strlen($new_pass) < PASSWORD_MIN_LENGTH) fail(422, "Password must be at least " . PASSWORD_MIN_LENGTH . " characters.");
+        $stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $current_hash = (string)($stmt->get_result()->fetch_assoc()['password'] ?? '');
+        $stmt->close();
+        if ($current_hash !== '' && password_verify($new_pass, $current_hash)) {
+            fail(422, "New password must be different from the user's current password.");
         }
         $hash = password_hash($new_pass, PASSWORD_BCRYPT);
         $stmt = $conn->prepare("UPDATE users SET password=? WHERE id=?");
         $stmt->bind_param("si", $hash, $user_id);
         $stmt->execute();
         $stmt->close();
-        log_activity($conn, $admin_id, 'User Management', 'Reset Password', "Reset password for user ID $user_id");
-        echo json_encode(["success" => true]);
+        $ended = revoke_user_sessions($conn, $user_id);
+        log_activity($conn, $admin_id, 'user', 'Reset User Password', "Reset password for $target_label; $ended session(s) signed out");
+        echo json_encode(["success" => true, "message" => "Password reset. The user has been signed out everywhere."]);
         break;
 
     case 'set_role':
         $role = $data['role'] ?? '';
-        if (!in_array($role, ['user', 'admin'])) {
-            echo json_encode(["success" => false, "message" => "Invalid role."]);
-            break;
-        }
+        if (!in_array($role, ['user', 'admin'], true)) fail(422, "Invalid role.");
+        if ($role === $target['role']) fail(409, "This account already has the '$role' role.");
+
         if ($role === 'admin') {
-            $count_res = $conn->query("SELECT COUNT(*) as admin_count FROM users WHERE role = 'admin'");
-            $count_row = $count_res->fetch_assoc();
-            if ($count_row['admin_count'] >= 3) {
-                echo json_encode(["success" => false, "message" => "Maximum limit of 3 admin accounts reached."]);
-                break;
-            }
+            if ((int)$target['is_archived'] === 1) fail(409, "Restore this account before promoting it.");
+            if (active_admin_count($conn) >= MAX_ADMIN_ACCOUNTS) fail(409, "Maximum limit of " . MAX_ADMIN_ACCOUNTS . " admin accounts reached.");
+        } elseif (active_admin_count($conn) <= 1) {
+            fail(409, "The last remaining admin cannot be demoted.");
         }
+
         $stmt = $conn->prepare("UPDATE users SET role=? WHERE id=?");
         $stmt->bind_param("si", $role, $user_id);
         $stmt->execute();
         $stmt->close();
-        log_activity($conn, $admin_id, 'User Management', 'Set Role', "Changed user ID $user_id role to $role");
-        echo json_encode(["success" => true]);
+        // Their current sessions carry the old privileges in the browser; end them.
+        $ended = revoke_user_sessions($conn, $user_id);
+        log_activity($conn, $admin_id, 'user', 'Changed User Role', "Changed $target_label from {$target['role']} to $role; $ended session(s) signed out");
+        echo json_encode(["success" => true, "message" => "Role changed to $role."]);
         break;
 
     case 'delete':
-        $stmt = $conn->prepare("UPDATE users SET is_archived=1 WHERE id=? AND role != 'admin'");
+        if ($target['role'] === 'admin') fail(409, "Admin accounts cannot be archived. Revoke admin access first.");
+        if ((int)$target['is_archived'] === 1) fail(409, "This account is already archived.");
+        // Archiving here used to skip the tenancy cascade entirely: the room
+        // stayed occupied, parking stayed assigned and utilities kept
+        // billing (M3). archive_tenant.php is the endpoint that actually
+        // ends a tenancy (end_tenancy() + tenant record archiving); this one
+        // only ever archives the login, so it refuses while a lease is live.
+        $open_app = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') LIMIT 1");
+        $open_app->bind_param("i", $user_id);
+        $open_app->execute();
+        $has_open_tenancy = $open_app->get_result()->num_rows > 0;
+        $open_app->close();
+        if ($has_open_tenancy) fail(409, "This tenant has an active lease. Archive them from Tenant Management first.");
+        $stmt = $conn->prepare("UPDATE users SET is_archived=1 WHERE id=?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
-        if ($stmt->affected_rows === 0) {
-            echo json_encode(["success" => false, "message" => "Cannot archive admin accounts."]);
-        } else {
-            log_activity($conn, $admin_id, 'User Management', 'Archive User', "Archived user ID $user_id");
-            echo json_encode(["success" => true]);
-        }
         $stmt->close();
+        $ended = revoke_user_sessions($conn, $user_id);
+        log_activity($conn, $admin_id, 'user', 'Archived User', "Archived $target_label; $ended session(s) signed out");
+        echo json_encode(["success" => true, "message" => "User archived."]);
         break;
 
     case 'unarchive':
-        $stmt = $conn->prepare("UPDATE users SET is_archived=0 WHERE id=? AND role != 'admin'");
+        if ((int)$target['is_archived'] === 0) fail(409, "This account is not archived.");
+        $stmt = $conn->prepare("UPDATE users SET is_archived=0 WHERE id=?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();
-        log_activity($conn, $admin_id, 'User Management', 'Restore User', "Restored archived user ID $user_id");
-        echo json_encode(["success" => true]);
         $stmt->close();
+        log_activity($conn, $admin_id, 'user', 'Restored User', "Restored archived account $target_label");
+        echo json_encode(["success" => true, "message" => "User restored."]);
         break;
 
     default:
-        echo json_encode(["success" => false, "message" => "Unknown action."]);
+        fail(422, "Unknown action.");
 }
 
 $conn->close();

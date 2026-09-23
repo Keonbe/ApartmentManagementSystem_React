@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, x-user-id");
 
@@ -8,17 +8,23 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
+// A lease extension is always requested as the caller's own verified identity.
+$auth = require_user($conn);
+$user_id = $auth['id'];
+
 try {
     $input = json_decode(file_get_contents("php://input"), true);
-    $email = $input['email'] ?? '';
     $additionalMonths = (int)($input['additionalMonths'] ?? 0);
 
-    if (empty($email) || $additionalMonths < 1 || $additionalMonths > 12) {
-        throw new Exception("Invalid request: Extension must be between 1 and 12 months.");
+    $minLeaseSetting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'minLeaseDuration'")->fetch_assoc();
+    $minLeaseDuration = $minLeaseSetting ? (int)$minLeaseSetting['setting_value'] : 3;
+
+    if ($additionalMonths < $minLeaseDuration || $additionalMonths > 12) {
+        throw new Exception("Invalid request: Extension must be between $minLeaseDuration and 12 months.");
     }
 
-    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.room_name FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id WHERE u.email_address = ?");
-    $userQuery->bind_param("s", $email);
+    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.room_name FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out') WHERE u.id = ? ORDER BY ra.id DESC LIMIT 1");
+    $userQuery->bind_param("i", $user_id);
     $userQuery->execute();
     $user = $userQuery->get_result()->fetch_assoc();
     $userQuery->close();
@@ -28,8 +34,10 @@ try {
         $tenantName = $user['first_name'] . ' ' . $user['last_name'];
         $roomName = $user['room_name'] ?? 'Unassigned';
 
-        // Check for recent pending requests in the last 24 hours
-        $checkStmt = $conn->prepare("SELECT id FROM notifications WHERE user_id = ? AND type = 'lease_extension_request' AND status = 'Pending' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+        // Any still-open request blocks a new one, regardless of age — a
+        // request pending for more than 24 hours used to stop blocking,
+        // letting a tenant stack multiple independently-approvable requests.
+        $checkStmt = $conn->prepare("SELECT id FROM notifications WHERE user_id = ? AND type = 'lease_extension_request' AND status = 'Pending'");
         $checkStmt->bind_param("i", $userId);
         $checkStmt->execute();
         $hasRecent = $checkStmt->get_result()->num_rows > 0;
@@ -51,6 +59,7 @@ try {
         $stmt->bind_param("isss", $userId, $title, $msg, $additionalMonths);
 
         if ($stmt->execute()) {
+            log_activity($conn, $userId, 'tenant', "Requested Lease Extension", "Unit $roomName: $additionalMonths month(s)");
             echo json_encode(["success" => true, "message" => "Lease extension request submitted for admin verification."]);
         } else {
             throw new Exception("Failed to save extension request.");

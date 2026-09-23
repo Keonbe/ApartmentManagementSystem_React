@@ -1,0 +1,285 @@
+# .github/workflows/ci.yml
+# Continuous Integration for AMS — React + PHP + MariaDB
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Frontend — React 19 + Vite 8
+  # ──────────────────────────────────────────────
+  frontend:
+    name: Frontend (Lint & Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ams-react
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19"   # matches Vite 8 / ESLint 10's declared engine floor — don't loosen to a bare "20"
+          cache: npm
+          cache-dependency-path: ams-react/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build production bundle
+        run: npm run build
+
+  # ──────────────────────────────────────────────
+  # Job 2: Backend — PHP 8 Syntax Check
+  # ──────────────────────────────────────────────
+  backend:
+    name: Backend (PHP Checks)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mysqli, pdo, pdo_mysql, fileinfo, mbstring
+          coverage: none
+          tools: phpstan
+
+      - name: PHP syntax check (all files)
+        run: |
+          echo "Checking PHP syntax across all backend files..."
+          error_count=0
+          while IFS= read -r file; do
+            if ! php -l "$file" > /dev/null 2>&1; then
+              php -l "$file"
+              error_count=$((error_count + 1))
+            fi
+          done < <(find backend/ -name "*.php" -type f)
+
+          if [ $error_count -gt 0 ]; then
+            echo "❌ Found $error_count file(s) with syntax errors."
+            exit 1
+          else
+            echo "✅ All PHP files passed syntax check."
+          fi
+
+      - name: PHPStan static analysis
+        run: phpstan analyse --configuration=phpstan.neon --no-progress
+
+  # ──────────────────────────────────────────────
+  # Job 3: Database — MariaDB Schema Validation
+  # ──────────────────────────────────────────────
+  database:
+    name: Database (Schema Validation)
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: ams_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for MariaDB to be ready
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -u root -proot --silent; do
+            echo "Waiting for MariaDB..."
+            sleep 2
+          done
+
+      - name: Import schema (SetupDB.sql)
+        run: |
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/SetupDB.sql
+          echo "✅ Schema imported successfully."
+
+      - name: Validate table count
+        run: |
+          TABLE_COUNT=$(mysql -h 127.0.0.1 -u root -proot -N -e \
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'ams_db';")
+          echo "📊 Tables created: $TABLE_COUNT"
+          EXPECTED=$(grep -c "CREATE TABLE" backend/api/migrations/SetupDB.sql)
+          if [ "$TABLE_COUNT" -lt "$EXPECTED" ]; then
+            echo "❌ Expected at least $EXPECTED tables, got $TABLE_COUNT"
+            exit 1
+          fi
+          echo "✅ Schema validation passed ($TABLE_COUNT tables)."
+
+      - name: Import demo data (seed_mock_data.sql)
+        run: |
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_mock_data.sql
+          USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
+          echo "📊 Users after seeding: $USERS"
+          if [ "$USERS" -lt 13 ]; then
+            echo "❌ Expected at least 13 users (1 admin + 12 seed tenants), got $USERS"
+            exit 1
+          fi
+          ADMIN=$(mysql -h 127.0.0.1 -u root -proot -N -e \
+            "SELECT COUNT(*) FROM ams_db.users WHERE email_address = 'admin@gmail.com' AND role = 'admin';")
+          if [ "$ADMIN" -ne 1 ]; then
+            echo "❌ Expected the seeded admin account to still exist."
+            exit 1
+          fi
+          echo "✅ Demo data imported."
+
+      - name: Reset seed data (seed_reset.sql)
+        run: |
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_reset.sql
+          USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
+          if [ "$USERS" -ne 1 ]; then
+            echo "❌ Expected only the admin account to remain after seed_reset.sql, got $USERS users."
+            exit 1
+          fi
+          OCCUPIED=$(mysql -h 127.0.0.1 -u root -proot -N -e \
+            "SELECT COUNT(*) FROM ams_db.rooms WHERE status <> 'vacant';")
+          if [ "$OCCUPIED" -ne 0 ]; then
+            echo "❌ Expected every room to be vacant after seed_reset.sql, found $OCCUPIED occupied."
+            exit 1
+          fi
+          echo "✅ seed_reset.sql removed the demo data and left only the admin."
+
+      - name: Re-seed after reset (idempotency check)
+        run: |
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_mock_data.sql
+          USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
+          if [ "$USERS" -lt 13 ]; then
+            echo "❌ Re-seeding after a reset should reach at least 13 users again, got $USERS."
+            exit 1
+          fi
+          echo "✅ seed_mock_data.sql re-runs cleanly after seed_reset.sql."
+
+      - name: Clear and seed defaults (clear_and_seed.sql)
+        run: |
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/clear_and_seed.sql
+          ROOMS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.rooms;")
+          USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
+          if [ "$ROOMS" -ne 14 ] || [ "$USERS" -ne 1 ]; then
+            echo "❌ Expected 14 rooms and 1 admin after clear_and_seed.sql, got $ROOMS rooms / $USERS users."
+            exit 1
+          fi
+          echo "✅ clear_and_seed.sql restores exactly the SetupDB.sql defaults."
+
+      - name: Apply upgrade migrations (idempotency check)
+        run: |
+          for f in backend/api/migrations/2026_09_*.sql; do
+            echo "Applying $f..."
+            mysql -h 127.0.0.1 -u root -proot ams_db < "$f"
+          done
+          echo "✅ All upgrade migrations applied cleanly on top of a fresh schema."
+
+  # ──────────────────────────────────────────────
+  # Job 4: Backend — Live Endpoint Smoke Test
+  # ──────────────────────────────────────────────
+  smoke-test:
+    name: Backend (Live Endpoint Smoke Test)
+    runs-on: ubuntu-latest
+    needs: database
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: ams_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mysqli, pdo, pdo_mysql, fileinfo, mbstring
+          coverage: none
+
+      - name: Wait for MariaDB to be ready
+        run: |
+          until mysqladmin ping -h 127.0.0.1 -u root -proot --silent; do
+            echo "Waiting for MariaDB..."
+            sleep 2
+          done
+
+      - name: Seed schema and demo data
+        run: |
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/SetupDB.sql
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_mock_data.sql
+
+      - name: Point backend at the CI database
+        run: |
+          # The tracked config.env.php hardcodes localhost/empty-password for XAMPP;
+          # override it so mysqli connects over TCP to the CI MariaDB service.
+          cat > backend/config.env.php <<'PHP'
+          <?php
+          define('DB_HOST', '127.0.0.1');
+          define('DB_USER', 'root');
+          define('DB_PASS', 'root');
+          define('DB_NAME', 'ams_db');
+          define('APP_ENV', 'development');
+          PHP
+
+      - name: Boot PHP built-in server
+        run: nohup php -S 127.0.0.1:8080 -t . > /tmp/php-server.log 2>&1 &
+        working-directory: backend
+
+      - name: Wait for server
+        run: until curl -s http://127.0.0.1:8080/api/get_system_settings.php > /dev/null; do sleep 1; done
+
+      - name: Smoke-test unauthenticated read-only endpoints
+        run: |
+          for ep in get_system_settings.php get_rooms.php get_service_catalog.php; do
+            code=$(curl -s -o /tmp/resp.json -w "%{http_code}" "http://127.0.0.1:8080/api/$ep")
+            echo "$ep -> $code"
+            [ "$code" = "200" ] || { echo "❌ $ep returned $code"; cat /tmp/resp.json; exit 1; }
+            if grep -q "Fatal error" /tmp/resp.json; then
+              echo "❌ $ep returned a PHP fatal error"; cat /tmp/resp.json; exit 1
+            fi
+          done
+
+      - name: Log in as the seeded admin and smoke-test an authenticated endpoint
+        run: |
+          LOGIN_RESPONSE=$(curl -s -X POST http://127.0.0.1:8080/api/login.php \
+            -H "Content-Type: application/json" \
+            -d '{"email_address":"admin@gmail.com","password":"admin123"}')
+          echo "$LOGIN_RESPONSE"
+          TOKEN=$(echo "$LOGIN_RESPONSE" | php -r '$d = json_decode(file_get_contents("php://stdin"), true); echo $d["sessionToken"] ?? "";')
+          if [ -z "$TOKEN" ]; then
+            echo "❌ login.php did not return a sessionToken."
+            exit 1
+          fi
+          code=$(curl -s -o /tmp/resp.json -w "%{http_code}" -H "Authorization: Bearer $TOKEN" \
+            "http://127.0.0.1:8080/api/dashboard_stats.php")
+          echo "dashboard_stats.php -> $code"
+          [ "$code" = "200" ] || { echo "❌ dashboard_stats.php returned $code"; cat /tmp/resp.json; exit 1; }
+          echo "✅ Authenticated smoke test passed."

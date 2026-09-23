@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -32,15 +32,9 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
             return;
         }
 
-        const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
-        if (!loggedInUser || !loggedInUser.email_address) {
-            setMessage("User session expired. Please log in again.");
-            return;
-        }
-
         try {
+            // The account is identified by the session token, not by an email in the body.
             const res = await api.post("/change_password.php", {
-                email_address: loggedInUser.email_address,
                 current_password: currentPassword,
                 new_password: newPassword,
                 confirm_password: confirmPassword
@@ -61,18 +55,18 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
             }
         } catch (error) {
             console.error("Error updating password:", error);
-            setMessage("Unable to save password change. Please try again.");
+            setMessage(error?.response?.data?.message || "Unable to save password change. Please try again.");
         }
     };
 
     return (
         <div 
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in modal-overlay-anim"
         >
-            <div 
+            <div
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden text-left"
+                className="modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden text-left"
             >
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="text-lg font-bold m-0 text-slate-800">Change Password</h3>

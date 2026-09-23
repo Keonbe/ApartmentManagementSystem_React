@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
-  faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faEnvelope
+  faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt,
+  faEnvelopeOpenText, faEnvelope
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
@@ -14,6 +15,7 @@ const defaultNavSections = [
     title: 'Main',
     items: [
       { to: '/admin-dashboard', icon: faHome, label: 'Dashboard' },
+      { to: '/admin-inquiries', icon: faEnvelopeOpenText, label: 'Inquiries' },
       { to: '/admin-applications', icon: faFileAlt, label: 'Applications' },
       { to: '/admin-units', icon: faBuilding, label: 'Units' },
       { to: '/admin-tenants', icon: faUsers, label: 'Tenants' },
@@ -29,6 +31,7 @@ const defaultNavSections = [
       { to: '/admin-parking', icon: faCar, label: 'Parking', serviceKey: 'service_parking_active' },
       { to: '/admin-maintenance', icon: faWrench, label: 'Maintenance', serviceKey: 'service_maintenance_active' },
       { to: '/admin-cctv', icon: faVideo, label: 'CCTV', serviceKey: 'service_cctv_active' },
+      { to: '/admin-utilities', icon: faBolt, label: 'Utilities' },
       { to: '/admin-services', icon: faConciergeBell, label: 'Services' },
       { to: '/admin-announcements', icon: faBullhorn, label: 'Announcements' },
       { to: '/admin-notifications', icon: faBell, label: 'Notifications' },
@@ -67,7 +70,8 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   };
 
   useEffect(() => {
-    fetchSettings();
+    const load = async () => { await fetchSettings(); };
+    load();
 
     const handleSettingsUpdate = (e) => {
       if (e && e.detail) {
@@ -83,9 +87,16 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     };
   }, []);
 
+  // Auto close the mobile drawer on navigation. The internal state is adjusted during
+  // render; the parent's onClose is an external callback, so it stays in an effect.
+  const [seenPath, setSeenPath] = useState(location.pathname);
+  if (seenPath !== location.pathname) {
+    setSeenPath(location.pathname);
+    setInternalIsOpen(false);
+  }
+
   useEffect(() => {
-    // Auto close mobile drawer on navigation
-    handleClose();
+    if (propOnClose) propOnClose();
   }, [location.pathname]);
 
   useEffect(() => {
@@ -123,7 +134,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
             type="button"
             onClick={handleClose}
             aria-label="Close Sidebar"
-            className="admin-sidebar-close-btn text-slate-400 hover:text-white bg-transparent border-0 cursor-pointer p-2 text-xl focus:outline-none"
+            className="admin-sidebar-close-btn btn-interactive text-slate-400 hover:text-white bg-transparent border-0 cursor-pointer p-2 text-xl focus:outline-none"
           >
             <FontAwesomeIcon icon={faTimes} />
           </button>
@@ -146,7 +157,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
                       to={item.to}
                       onClick={isMobile ? handleClose : undefined}
                       className={({ isActive }) =>
-                        `admin-sidebar-nav-link flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
+                        `admin-sidebar-nav-link btn-interactive flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm no-underline ${
                           isActive
                             ? 'bg-indigo-600 text-white font-semibold shadow-sm'
                             : 'text-slate-300 hover:bg-slate-800'
@@ -179,7 +190,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {isDrawerOpen && (
         <div 
           onClick={handleClose}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-opacity"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-opacity modal-overlay-anim"
           aria-hidden="true"
         />
       )}

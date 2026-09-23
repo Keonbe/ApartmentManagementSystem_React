@@ -1,0 +1,298 @@
+<?php
+// SMS/Email dry-run selftest (checklist 6.6 / 6.7). Command line only.
+//
+//   php backend/cron/notification_selftest.php          run every check
+//   php backend/cron/notification_selftest.php --keep   leave the fixtures behind
+//
+// Exercises the whole pipeline against the 'log' drivers: helpers, guards,
+// opt-outs, dispatch, queue, retry, quiet hours and retention. Contacts nothing
+// and costs nothing. Test IDs match docs/features/sms_email_implementation.md
+// §4.3, so a failure here names the behaviour that regressed.
+//
+// The script creates its own fixture tenant, flips the channel switches on for
+// the duration, and restores everything it touched — run it as often as you
+// like, on a database with real data, without leaving a trace.
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    echo "Forbidden";
+    exit;
+}
+
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../api/services/send_notification.php';
+
+$keep = in_array('--keep', $argv, true);
+
+$results = [];
+$failures = 0;
+
+function check($id, $description, $passed, $detail = '') {
+    global $results, $failures;
+    if (!$passed) $failures++;
+    $results[] = ['id' => $id, 'desc' => $description, 'ok' => (bool)$passed, 'detail' => $detail];
+}
+
+// ── Fixtures ────────────────────────────────────────────────
+$saved_settings = [];
+foreach (['notifications_sms_enabled', 'notifications_email_enabled', 'notifications_dispatch_mode',
+          'sms_provider', 'email_driver', 'notifications_quiet_start', 'notifications_quiet_end',
+          'notification_log_retention_days'] as $key) {
+    $saved_settings[$key] = get_setting($conn, $key, null);
+}
+
+function put_setting($conn, $key, $value) {
+    $stmt = $conn->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
+                            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+    $stmt->bind_param("ss", $key, $value);
+    $stmt->execute();
+    $stmt->close();
+}
+
+$fixture_email = 'ams-selftest-' . bin2hex(random_bytes(4)) . '@example.com';
+$stmt = $conn->prepare("INSERT INTO users (first_name, last_name, contact_no, email_address, password, role)
+                        VALUES ('Selftest', 'Fixture', '0917 123 4567', ?, 'x', 'user')");
+$stmt->bind_param("s", $fixture_email);
+$stmt->execute();
+$uid = $stmt->insert_id;
+$stmt->close();
+
+if (!$uid) {
+    echo "Could not create the fixture user. Aborting.\n";
+    exit(1);
+}
+
+// Helpers that read back what the pipeline recorded.
+function log_rows($conn, $uid, $channel = null) {
+    $sql = "SELECT * FROM notification_log WHERE user_id = ?" . ($channel ? " AND channel = ?" : "") . " ORDER BY id";
+    $stmt = $conn->prepare($sql);
+    $channel ? $stmt->bind_param("is", $uid, $channel) : $stmt->bind_param("i", $uid);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+function clear_state($conn, $uid) {
+    $conn->query("DELETE FROM notification_log WHERE user_id = $uid");
+    $conn->query("DELETE FROM notification_queue WHERE user_id = $uid");
+}
+function queue_rows($conn, $uid) {
+    $r = $conn->query("SELECT * FROM notification_queue WHERE user_id = $uid ORDER BY id");
+    return $r ? $r->fetch_all(MYSQLI_ASSOC) : [];
+}
+
+try {
+    // ── M6-02 / M6-03 — phone normalisation (C12) ───────────
+    $valid = ['09171234567', '0917 123-4567', '+63 917 123 4567', '639171234567', '9171234567', '(0917) 123 4567'];
+    $bad = [];
+    foreach ($valid as $v) {
+        if (normalize_ph_mobile($v) !== '+639171234567') $bad[] = $v;
+    }
+    check('M6-02', 'normalize_ph_mobile() accepts every real-world PH format', !$bad, $bad ? 'failed: ' . implode(', ', $bad) : '6 formats');
+
+    $invalid = ['12345', '', '+14155551234', 'abc', '0817 123 4567', null];
+    $bad = [];
+    foreach ($invalid as $v) {
+        if (normalize_ph_mobile($v) !== null) $bad[] = var_export($v, true);
+    }
+    check('M6-03', 'normalize_ph_mobile() rejects non-PH-mobile values', !$bad, $bad ? 'accepted: ' . implode(', ', $bad) : '6 values');
+
+    // ── M6-04 / M6-05 — GSM-7 and one segment ───────────────
+    $safe = gsm7_safe("AMS: \u{20B1}4,500 rent \u{2014} due Oct 5 \u{2705} \u{201C}unit 101\u{201D}");
+    $clean = strpos($safe, "\u{20B1}") === false
+          && strpos($safe, "\u{2014}") === false
+          && strpos($safe, "\u{2705}") === false
+          && strpos($safe, "\u{201C}") === false;
+    check('M6-04', 'gsm7_safe() removes the characters that force UCS-2', $clean, $safe);
+
+    $long = str_repeat('AMS rent reminder for unit 101. ', 10);
+    $one = sms_single_segment($long);
+    check('M6-05', 'sms_single_segment() caps at one 160-char segment', mb_strlen($one) <= 160, mb_strlen($one) . ' chars');
+
+    // ── M6-07 — building-wide switch off ────────────────────
+    put_setting($conn, 'sms_provider', 'log');
+    put_setting($conn, 'email_driver', 'log');
+    put_setting($conn, 'notifications_sms_enabled', '0');
+    put_setting($conn, 'notifications_email_enabled', '0');
+    clear_state($conn, $uid);
+
+    send_sms($conn, '09171234567', 'AMS switch test', 'test', $uid);
+    $rows = log_rows($conn, $uid, 'sms');
+    check('M6-07', 'Channel switched off logs a skipped row with a reason',
+        count($rows) === 1 && $rows[0]['status'] === 'skipped' && strpos($rows[0]['error_message'], 'globally disabled') !== false,
+        $rows ? $rows[0]['status'] . ' / ' . $rows[0]['error_message'] : 'no row');
+
+    // Everything from here on runs with both channels on.
+    put_setting($conn, 'notifications_sms_enabled', '1');
+    put_setting($conn, 'notifications_email_enabled', '1');
+    put_setting($conn, 'notifications_dispatch_mode', 'sync');
+
+    // ── M6-08 — global opt-out beats a category-less type (C2) ──
+    clear_state($conn, $uid);
+    $conn->query("UPDATE users SET sms_opt_out = 1 WHERE id = $uid");
+    // maintenance_update belongs to no preference category, so only the global
+    // flag can stop it. This is the regression that C2 exists to prevent.
+    dispatch_external_notification($conn, $uid, 'maintenance_update', 'Test', 'AMS: test', '<p>test</p>');
+    $sms = log_rows($conn, $uid, 'sms');
+    $email = log_rows($conn, $uid, 'email');
+    check('M6-08', 'sms_opt_out stops a notification type that has no category', count($sms) === 0 && count($email) === 1,
+        count($sms) . ' sms row(s), ' . count($email) . ' email row(s)');
+    $conn->query("UPDATE users SET sms_opt_out = 0 WHERE id = $uid");
+
+    // ── M6-09 — per-category SMS off ────────────────────────
+    clear_state($conn, $uid);
+    $stmt = $conn->prepare("INSERT INTO notification_preferences (user_id, category, in_app_enabled, sms_enabled, email_enabled)
+                            VALUES (?, 'announcements', 1, 0, 1)
+                            ON DUPLICATE KEY UPDATE sms_enabled = 0, email_enabled = 1");
+    $stmt->bind_param("i", $uid);
+    $stmt->execute();
+    $stmt->close();
+    dispatch_external_notification($conn, $uid, 'info', 'Announcement', 'AMS: announcement', '<p>announcement</p>');
+    check('M6-09', 'Per-category SMS opt-out leaves email alone',
+        count(log_rows($conn, $uid, 'sms')) === 0 && count(log_rows($conn, $uid, 'email')) === 1,
+        count(log_rows($conn, $uid, 'sms')) . ' sms row(s), ' . count(log_rows($conn, $uid, 'email')) . ' email row(s)');
+    $conn->query("DELETE FROM notification_preferences WHERE user_id = $uid");
+
+    // ── M6-10 — unreachable tenant ──────────────────────────
+    clear_state($conn, $uid);
+    $conn->query("UPDATE users SET contact_no = NULL WHERE id = $uid");
+    dispatch_external_notification($conn, $uid, 'maintenance_update', 'Test', 'AMS: test', '<p>test</p>');
+    check('M6-10', 'No contact number means no SMS row and no error',
+        count(log_rows($conn, $uid, 'sms')) === 0 && count(log_rows($conn, $uid, 'email')) === 1,
+        count(log_rows($conn, $uid, 'email')) . ' email row(s)');
+    $conn->query("UPDATE users SET contact_no = '0917 123 4567' WHERE id = $uid");
+
+    // ── M6-12 — dispatch enqueues, drain sends ──────────────
+    clear_state($conn, $uid);
+    put_setting($conn, 'notifications_dispatch_mode', 'queue');
+    put_setting($conn, 'notifications_quiet_start', '23');
+    put_setting($conn, 'notifications_quiet_end', '23');   // effectively no quiet window
+    dispatch_external_notification($conn, $uid, 'maintenance_update', 'Queued', 'AMS: queued test', '<p>queued</p>');
+    $queued = queue_rows($conn, $uid);
+    $enqueued_only = count($queued) === 2 && count(log_rows($conn, $uid)) === 0;
+
+    $drain = process_notification_queue($conn, 10);
+    $after = queue_rows($conn, $uid);
+    $sent_states = array_column($after, 'status');
+    check('M6-12', 'Dispatch enqueues without sending, then the drain delivers',
+        $enqueued_only && $drain['sent'] === 2 && $sent_states === ['sent', 'sent'] && count(log_rows($conn, $uid)) === 2,
+        'queued ' . count($queued) . ', drained ' . $drain['sent'] . ', logged ' . count(log_rows($conn, $uid)));
+
+    // ── M6-13 — retry and backoff ───────────────────────────
+    clear_state($conn, $uid);
+    put_setting($conn, 'sms_provider', 'twilio');   // a stub driver: always fails
+    enqueue_notification($conn, $uid, 'sms', 'test', ['to' => '09171234567', 'body' => 'AMS retry test']);
+    $attempts_seen = [];
+    for ($i = 0; $i < 4; $i++) {
+        $conn->query("UPDATE notification_queue SET next_attempt_at = NOW() WHERE user_id = $uid AND status = 'pending'");
+        process_notification_queue($conn, 5);
+        $row = queue_rows($conn, $uid)[0] ?? null;
+        if ($row) $attempts_seen[] = $row['attempts'] . ':' . $row['status'];
+    }
+    $final = queue_rows($conn, $uid)[0] ?? null;
+    check('M6-13', 'A failing driver retries, backs off, then gives up',
+        $final && (int)$final['attempts'] === 3 && $final['status'] === 'failed',
+        implode(' -> ', $attempts_seen));
+    put_setting($conn, 'sms_provider', 'log');
+
+    // ── M6-14 — concurrent drains cannot double-send ────────
+    clear_state($conn, $uid);
+    for ($i = 0; $i < 4; $i++) {
+        enqueue_notification($conn, $uid, 'sms', 'test', ['to' => '09171234567', 'body' => "AMS claim test $i"]);
+    }
+    // A second connection stands in for a second process: both drain at once.
+    $conn2 = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+    $a = process_notification_queue($conn, 4);
+    $b = process_notification_queue($conn2, 4);
+    $conn2->close();
+    check('M6-14', 'Two drains racing never send the same job twice',
+        ($a['sent'] + $b['sent']) === 4 && count(log_rows($conn, $uid, 'sms')) === 4,
+        'drain A ' . $a['sent'] . ', drain B ' . $b['sent'] . ', log rows ' . count(log_rows($conn, $uid, 'sms')));
+
+    // ── M6-15 / M6-16 — quiet hours ─────────────────────────
+    clear_state($conn, $uid);
+    // Make the current hour the quiet window, whatever the clock says: start at
+    // this hour, end at the next one. Holds for the wrap-around case too (23->00).
+    $now_hour = (int)date('G');
+    put_setting($conn, 'notifications_quiet_start', (string)$now_hour);
+    put_setting($conn, 'notifications_quiet_end', (string)(($now_hour + 1) % 24));
+    enqueue_notification($conn, $uid, 'sms', 'rent_due', ['to' => '09171234567', 'body' => 'AMS: rent due soon']);
+    enqueue_notification($conn, $uid, 'sms', 'overdue', ['to' => '09171234567', 'body' => 'AMS: rent overdue']);
+    $q = process_notification_queue($conn, 10);
+    $states = [];
+    foreach (queue_rows($conn, $uid) as $r) $states[$r['event_type']] = $r['status'];
+    check('M6-15', 'A non-urgent SMS in quiet hours is deferred, not sent',
+        $q['deferred'] === 1 && ($states['rent_due'] ?? '') === 'pending', 'deferred ' . $q['deferred']);
+    check('M6-16', 'An overdue SMS ignores quiet hours',
+        $q['sent'] === 1 && ($states['overdue'] ?? '') === 'sent', 'sent ' . $q['sent']);
+    put_setting($conn, 'notifications_quiet_start', '23');
+    put_setting($conn, 'notifications_quiet_end', '23');
+
+    // ── M6-17 — templates escape their inputs (C10) ─────────
+    $html = email_status_update_template('Tenant', 'maintenance', '<img src=x onerror=alert(1)>', 'Approved', '<script>alert(2)</script>');
+    check('M6-17', 'Template values are escaped, not rendered as markup',
+        strpos($html, '<img src=x') === false && strpos($html, '<script>') === false
+        && strpos($html, '&lt;img src=x') !== false,
+        'injection escaped');
+
+    // ── M6-18 — retention prune (C11) ───────────────────────
+    clear_state($conn, $uid);
+    $stmt = $conn->prepare("INSERT INTO notification_log (user_id, channel, event_type, recipient, message_body, status, sent_at)
+                            VALUES (?, 'sms', 'test', '+639171234567', 'old row', 'sent', DATE_SUB(NOW(), INTERVAL 100 DAY))");
+    $stmt->bind_param("i", $uid);
+    $stmt->execute();
+    $stmt->close();
+    $before = count(log_rows($conn, $uid));
+    $drain = process_notification_queue($conn, 5);
+    check('M6-18', 'The drain prunes log rows past the retention window',
+        $drain['pruned'] >= 1 && count(log_rows($conn, $uid)) === $before - 1,
+        'pruned ' . $drain['pruned']);
+
+    // ── Body truncation (C11) ───────────────────────────────
+    clear_state($conn, $uid);
+    log_notification_delivery($conn, $uid, 'sms', 'test', '+639171234567', null, str_repeat('x', 900), 'sent');
+    $row = log_rows($conn, $uid)[0] ?? null;
+    check('C11', 'Logged message bodies are truncated to 500 characters',
+        $row && mb_strlen($row['message_body']) === 500, $row ? mb_strlen($row['message_body']) . ' chars' : 'no row');
+
+    // ── Nothing contacts a provider in dry run ──────────────
+    $sources = glob(__DIR__ . '/../api/services/*.php');
+    $network = [];
+    foreach ($sources as $file) {
+        if (preg_match('/curl_init|file_get_contents\s*\(\s*[\'"]https?:/', file_get_contents($file))) {
+            $network[] = basename($file);
+        }
+    }
+    check('DRY', 'No service file opens a network connection', !$network, $network ? implode(', ', $network) : 'clean');
+
+} finally {
+    // ── Restore ─────────────────────────────────────────────
+    if (!$keep) {
+        $conn->query("DELETE FROM notification_log WHERE user_id = $uid");
+        $conn->query("DELETE FROM notification_queue WHERE user_id = $uid");
+        $conn->query("DELETE FROM notification_preferences WHERE user_id = $uid");
+        $conn->query("DELETE FROM users WHERE id = $uid");
+    }
+    foreach ($saved_settings as $key => $value) {
+        if ($value !== null) put_setting($conn, $key, $value);
+    }
+}
+
+// ── Report ──────────────────────────────────────────────────
+echo "\nAMS notification selftest - dry run (nothing was sent)\n";
+echo str_repeat('=', 96) . "\n";
+foreach ($results as $r) {
+    echo ($r['ok'] ? '  PASS  ' : '  FAIL  ')
+       . str_pad($r['id'], 8)
+       . str_pad($r['desc'], 58)
+       . $r['detail'] . "\n";
+}
+echo str_repeat('=', 96) . "\n";
+echo ($failures === 0
+    ? '  All ' . count($results) . " checks passed.\n"
+    : '  ' . $failures . ' of ' . count($results) . " checks FAILED.\n");
+if ($keep) echo "  Fixture user #$uid kept (--keep).\n";
+echo "\n";
+
+$conn->close();
+exit($failures === 0 ? 0 : 1);

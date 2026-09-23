@@ -1,3 +1,12 @@
+---
+name: ams-rules
+description: >-
+  Always-on project rules for ApartmentManagementSystem_React. Covers stack
+  overview, auth/identity, database constraints, PHP/React patterns, backlog
+  priorities, and protected files. Load on every task in this repo.
+trigger: always_on
+---
+
 # ApartmentManagementSystem — Agent Rules
 
 ## Project Snapshot
@@ -54,6 +63,7 @@ ApartmentManagementSystem_React/
 - Log every write: `log_activity($conn, $admin_id, $type, $action, $detail)`.
 
 ### Key Tables
+
 | Table | Notes |
 |---|---|
 | `users` | id, first_name, last_name, middle_name, email, role |
@@ -107,27 +117,17 @@ $conn->close();
 
 ---
 
-## Ponytail Integration
+## Skill Helpers
 
-This project uses **ponytail** — a lazy-senior-dev linter that kills over-engineering.
+This project uses the following on-demand skill helpers in `.agents/skills/`:
 
-Use these commands at the start of a work session:
+| Skill | Trigger | Purpose |
+|---|---|---|
+| `ponytail` | `ponytail [lite\|full\|ultra\|off]` | Lazy-senior-dev mode — kill over-engineering |
+| `ponytail-review` | `ponytail-review` | Review code for what can be deleted |
+| `ponytail-audit` | `ponytail-audit` | Sweep the whole repo for bloat |
 
-| Command | When to use |
-|---|---|
-| `ponytail lite` | Quick feature additions or bug fixes |
-| `ponytail full` | Default — any new file or refactor |
-| `ponytail ultra` | Before committing — maximum cuts |
-| `ponytail off` | Complex UI/animation work where boilerplate is unavoidable |
-| `ponytail-review` | After writing code — check what can be deleted |
-| `ponytail-audit` | Occasional sweep of the whole repo |
-
-**Ponytail rules for this project:**
-- Utility functions that exist only once → inline them.
-- PHP endpoints that just SELECT all and return JSON → no abstraction layer needed.
-- React state that only ever goes one direction → `useState`, not `useReducer`.
-- If a component is under 40 lines → don't extract sub-components.
-- Mark acceptable shortcuts with: `// ponytail: <ceiling> — upgrade when <condition>`
+> Skills are loaded on-demand. Type the command to activate.
 
 ---
 
@@ -150,40 +150,3 @@ See [`docs/todo.md`](../docs/todo.md) for full detail. Quick ref:
 - `config.php` — shared DB connection and helper functions.
 - `users` table schema — changing columns breaks login and auth.
 - Any existing `status` column allowed values — frontend components have hardcoded badge logic tied to exact strings.
-
-
----
----
-
-# Ponytail, lazy senior dev mode
-
-You are a lazy senior developer. Lazy means efficient, not careless. The best code is the code never written.
-
-Before writing any code, stop at the first rung that holds:
-
-1. Does this need to be built at all? (YAGNI)
-2. Does it already exist in this codebase? Reuse the helper, util, or pattern that's already here, don't re-write it.
-3. Does the standard library already do this? Use it.
-4. Does a native platform feature cover it? Use it.
-5. Does an already-installed dependency solve it? Use it.
-6. Can this be one line? Make it one line.
-7. Only then: write the minimum code that works.
-
-The ladder runs after you understand the problem, not instead of it: read the task and the code it touches, trace the real flow end to end, then climb.
-
-Bug fix = root cause, not symptom: a report names a symptom. Grep every caller of the function you touch and fix the shared function once — one guard there is a smaller diff than one per caller, and patching only the path the ticket names leaves a sibling caller still broken.
-
-Rules:
-
-- No abstractions that weren't explicitly requested.
-- No new dependency if it can be avoided.
-- No boilerplate nobody asked for.
-- Deletion over addition. Boring over clever. Fewest files possible.
-- Shortest working diff wins, but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
-- Question complex requests: "Do you actually need X, or does Y cover it?"
-- Pick the edge-case-correct option when two stdlib approaches are the same size, lazy means less code, not the flimsier algorithm.
-- Mark deliberate simplifications that cut a real corner with a known ceiling (global lock, O(n²) scan, naive heuristic) with a `ponytail:` comment naming the ceiling and upgrade path.
-
-Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
-
-(Yes, this file also applies to agents working on the ponytail repo itself. Especially to them.)

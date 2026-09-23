@@ -1,17 +1,30 @@
-import React from 'react';
-import ApartmentPic from '../assets/Apartment_Pic.png';
+import { useEffect, useState } from 'react';
+import { publicAssetUrl } from '../api/fileUrl';
 
-export default function RoomPreviewModal({ isOpen, onClose, roomId }) {
+// The admin chooses which view the public preview shows (Settings → Lease Policy):
+// real per-room showcase photos, or the generic 2D floor plan fallback for
+// rooms without any uploaded images. There is no 360° view — no panorama
+// images exist. mode/images are resolved once by the caller (Preview.jsx)
+// so this modal doesn't need its own settings fetch.
+export default function RoomPreviewModal({ isOpen, onClose, roomId, mode, images = [] }) {
+    const [activeIndex, setActiveIndex] = useState(0);
+
+    useEffect(() => {
+        if (isOpen) setActiveIndex(0);
+    }, [isOpen, roomId]);
+
     if (!isOpen) return null;
+
+    const showImages = mode === 'images' && images.length > 0;
 
     return (
         <div 
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in modal-overlay-anim"
         >
-            <div 
+            <div
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden text-left"
+                className="modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh] overflow-hidden text-left"
             >
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="text-lg font-bold m-0 text-slate-800">Room {roomId} Preview</h3>
@@ -22,28 +35,47 @@ export default function RoomPreviewModal({ isOpen, onClose, roomId }) {
                 </div>
 
                 <div className="p-6 overflow-y-auto space-y-6 flex-grow">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Column 1: Room Image */}
-                        <div className="flex flex-col space-y-2">
-                            <h4 className="text-sm font-bold text-slate-700 m-0">Room Image</h4>
-                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-64 flex items-center justify-center">
-                                <img 
-                                    src={ApartmentPic} 
-                                    alt={`Room ${roomId}`} 
+                    <div className="grid grid-cols-1 gap-6">
+                        {!mode && (
+                            <div className="h-80 flex items-center justify-center text-sm text-slate-400">Loading preview…</div>
+                        )}
+
+                        {showImages && (
+                        <div className="flex flex-col space-y-3">
+                            <h4 className="text-sm font-bold text-slate-700 m-0">Showcase Photos</h4>
+                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-80 flex items-center justify-center">
+                                <img
+                                    src={publicAssetUrl(images[activeIndex])}
+                                    alt={`Room ${roomId} — photo ${activeIndex + 1}`}
                                     className="w-full h-full object-cover"
                                 />
                                 <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md backdrop-blur-sm font-semibold">
-                                    Interior View (Standard Unit)
+                                    Interior View ({activeIndex + 1} of {images.length})
                                 </div>
                             </div>
+                            {images.length > 1 && (
+                                <div className="flex gap-2 overflow-x-auto pb-1">
+                                    {images.map((img, idx) => (
+                                        <button
+                                            key={img}
+                                            type="button"
+                                            onClick={() => setActiveIndex(idx)}
+                                            className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer p-0 ${idx === activeIndex ? 'border-indigo-500' : 'border-transparent hover:border-slate-300'}`}
+                                        >
+                                            <img src={publicAssetUrl(img)} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
+                        )}
 
-                        {/* Column 2: 2D Room Layout */}
+                        {mode === 'floor_plan' && (
                         <div className="flex flex-col space-y-2">
                             <h4 className="text-sm font-bold text-slate-700 m-0">2D Floor Plan Layout</h4>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 h-64 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 h-80 p-4 flex flex-col items-center justify-center relative overflow-hidden">
                                 {/* Vector SVG Blueprint mockup */}
-                                <svg className="w-full h-40 text-slate-300" viewBox="0 0 200 120" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <svg className="w-full h-56 text-slate-300" viewBox="0 0 200 120" fill="none" stroke="currentColor" strokeWidth="1.5">
                                     {/* Main walls */}
                                     <rect x="10" y="10" width="180" height="100" rx="4" strokeWidth="2.5" />
                                     {/* Bathroom */}
@@ -71,6 +103,7 @@ export default function RoomPreviewModal({ isOpen, onClose, roomId }) {
                                 </div>
                             </div>
                         </div>
+                        )}
                     </div>
                 </div>
 

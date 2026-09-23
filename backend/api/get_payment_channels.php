@@ -1,20 +1,13 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit(); }
 
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-
-if (!$user_id && !verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden"]);
-    exit;
-}
+require_user($conn);
 
 $query = "SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE 'payment_%'";
 $result = $conn->query($query);
@@ -40,13 +33,21 @@ $all_channels = [
 
 $active_channels = [];
 
+// Channel families are no longer mutually exclusive. Previously `payment_mode`
+// picked exactly one family, so enabling online sandbox payments silently
+// removed In-Person/Cash entirely (and vice versa) — a building can obviously
+// accept cash at the office and GCash online at the same time.
+//
+// `payment_mode` now only decides which *remote* family is offered (sandbox
+// gateway vs. manual transfer-and-upload); in-person is always available
+// unless explicitly switched off via its own payment_ch_in_person setting.
 foreach ($all_channels as $ch) {
     if ($ch['family'] === 'sandbox') {
-        if ($mode !== 'sandbox') continue;
-        if (!$sandbox_enabled) continue;
-    } else {
+        if ($mode !== 'sandbox' || !$sandbox_enabled) continue;
+    } elseif ($ch['family'] === 'manual') {
         if ($mode !== 'manual') continue;
     }
+    // 'in_person' falls through: always a candidate, gated only by its own key.
 
     $is_enabled = !isset($settings[$ch['key']]) || $settings[$ch['key']] === '1' || $settings[$ch['key']] === 'true';
     if ($is_enabled) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -6,11 +6,29 @@ import {
   faDollarSign, faUsers, faBuilding, faExclamationTriangle, 
   faCheckCircle, faClock, faChartLine, faChartPie, faWrench, faKey,
   faChartBar, faTable, faArrowUp, faArrowDown, faUserPlus, faInfoCircle,
-  faFileContract, faFileAlt, faDownload, faHistory, faFileInvoiceDollar, faCogs, faFileSignature,
+  faDownload, faHistory, faFileInvoiceDollar, faCogs, faFileSignature,
   faClipboardList, faArrowRight, faBullhorn, faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+
+// Keyed on the 12 activity-log categories (LOG_CATEGORIES in config.php). The
+// widget used to key on legacy names (invoice, payment, rent_application), so
+// most entries fell through to the generic icon.
+const LOG_CATEGORY_STYLE = {
+  billing: { icon: faDollarSign, color: 'bg-emerald-100 text-emerald-600' },
+  utilities: { icon: faChartLine, color: 'bg-cyan-100 text-cyan-600' },
+  maintenance: { icon: faWrench, color: 'bg-amber-100 text-amber-600' },
+  tenant: { icon: faUserPlus, color: 'bg-blue-100 text-blue-600' },
+  user: { icon: faUsers, color: 'bg-blue-100 text-blue-600' },
+  auth: { icon: faKey, color: 'bg-violet-100 text-violet-600' },
+  unit: { icon: faBuilding, color: 'bg-indigo-100 text-indigo-600' },
+  contract: { icon: faFileSignature, color: 'bg-indigo-100 text-indigo-600' },
+  service: { icon: faClipboardList, color: 'bg-teal-100 text-teal-600' },
+  inquiry: { icon: faInfoCircle, color: 'bg-sky-100 text-sky-600' },
+  communication: { icon: faBullhorn, color: 'bg-rose-100 text-rose-600' },
+  system: { icon: faCogs, color: 'bg-slate-100 text-slate-600' },
+};
 
 const formatCurrency = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
@@ -56,12 +74,7 @@ const AdminDashboard = () => {
   const [activityLogs, setActivityLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
   const fetchDashboardData = async () => {
-    setLoading(true);
     try {
       const statsRes = await api.get('dashboard_stats.php');
       if (statsRes.data && statsRes.data.success) {
@@ -85,6 +98,11 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const load = async () => { await fetchDashboardData(); };
+    load();
+  }, []);
 
   const maxValue = Math.max(
     ...incomeData.map(d => Math.max(d.billed || 0, (d.collected || 0) + (d.pending || 0))),
@@ -124,7 +142,7 @@ const AdminDashboard = () => {
           <div className="max-w-7xl mx-auto space-y-8">
 
             {/* Core KPI Cards Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="stagger-children grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <StatCard 
                 icon={faDollarSign} 
                 title="Monthly Revenue" 
@@ -189,7 +207,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Income Overview Chart & Secondary Status */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               
               {/* Income Overview Chart Block */}
               <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
@@ -249,7 +267,7 @@ const AdminDashboard = () => {
                 </div>
                 
                 {/* Chart Canvas Area */}
-                <div className="p-6 flex-1 flex flex-col justify-end min-h-[290px]">
+                <div className="p-4 md:p-6 flex-1 flex flex-col">
                   {loading ? (
                     <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
                       <FontAwesomeIcon icon={faClock} className="animate-spin mr-2" /> Loading financial data...
@@ -259,9 +277,9 @@ const AdminDashboard = () => {
                       No income records found
                     </div>
                   ) : chartView === 'bar' ? (
-                    <div>
+                    <div className="flex flex-col">
                       {/* Legend */}
-                      <div className="flex justify-end items-center gap-4 text-xs text-slate-500 mb-4">
+                      <div className="flex justify-end items-center gap-4 text-xs text-slate-500 mb-2">
                         <div className="flex items-center gap-1.5">
                           <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
                           <span>Collected</span>
@@ -273,10 +291,11 @@ const AdminDashboard = () => {
                       </div>
 
                       {/* Stacked Bars */}
-                      <div className="h-44 flex items-end justify-between gap-3 sm:gap-6 px-2 pb-2">
+                      <div className="h-48 flex items-end justify-between gap-3 sm:gap-6 px-2 pb-2 mt-2">
                         {incomeData.map(d => {
                           const totalBilled = Math.max((d.collected || 0) + (d.pending || 0), d.billed || 0);
-                          const dynamicHeight = totalBilled > 0 ? `${Math.max((totalBilled / maxValue) * 100, 8)}%` : '4px';
+                          const barContainerPx = 192; // h-48 = 12rem = 192px
+                          const dynamicHeight = totalBilled > 0 ? `${Math.max((totalBilled / maxValue) * barContainerPx, 14)}px` : '4px';
                           const collectedPercent = totalBilled > 0 ? `${((d.collected || 0) / totalBilled) * 100}%` : '0%';
                           const pendingPercent = totalBilled > 0 ? `${((d.pending || 0) / totalBilled) * 100}%` : '0%';
                           const isSelected = selectedMonth === d.month || selectedMonth === d.key;
@@ -709,22 +728,22 @@ const AdminDashboard = () => {
                             <span>Vacant ({stats.vacant_rooms})</span>
                           </span>
                         </div>
-                        <button 
+                        <button
                           onClick={() => navigate('/admin-units')}
-                          className="text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0"
+                          className="btn-interactive text-indigo-600 hover:text-indigo-800 font-semibold bg-transparent border-0 cursor-pointer p-0"
                         >
                           Manage All Units →
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      <div className="stagger-children grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {(roomsSummary || []).map(room => {
                           const isOccupied = room.status === 'occupied';
                           return (
-                            <div 
+                            <div
                               key={room.id}
                               onClick={() => navigate('/admin-units')}
-                              className={`p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${isOccupied ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' : 'bg-slate-50 border-slate-200 hover:border-indigo-400'}`}
+                              className={`card-interactive p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${isOccupied ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' : 'bg-slate-50 border-slate-200 hover:border-indigo-400'}`}
                             >
                               <div className="flex justify-between items-start">
                                 <span className="font-extrabold text-sm text-slate-800">{room.id}</span>
@@ -752,8 +771,8 @@ const AdminDashboard = () => {
                         <div className="divide-y divide-slate-100">
                           {(activityLogs || []).map(log => (
                             <div key={log.id} className="py-2.5 first:pt-0 last:pb-0 flex items-start gap-3 hover:bg-slate-50/50 rounded-lg transition-colors">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${log.entity_type === 'invoice' || log.entity_type === 'payment' ? 'bg-emerald-100 text-emerald-600' : log.entity_type === 'maintenance' ? 'bg-amber-100 text-amber-600' : log.entity_type === 'rent_application' || log.entity_type === 'tenant' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-600'}`}>
-                                <FontAwesomeIcon icon={log.entity_type === 'invoice' || log.entity_type === 'payment' ? faDollarSign : log.entity_type === 'maintenance' ? faWrench : log.entity_type === 'rent_application' || log.entity_type === 'tenant' ? faUserPlus : faCogs} className="text-xs" />
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${(LOG_CATEGORY_STYLE[log.category] || LOG_CATEGORY_STYLE.system).color}`}>
+                                <FontAwesomeIcon icon={(LOG_CATEGORY_STYLE[log.category] || LOG_CATEGORY_STYLE.system).icon} className="text-xs" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-2">
@@ -763,7 +782,7 @@ const AdminDashboard = () => {
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                                  {log.details || `Performed by ${log.first_name ? log.first_name + ' ' + (log.last_name || '') : 'Admin #' + log.admin_id}`}
+                                  {log.details || `Performed by ${log.first_name ? `${log.first_name} ${log.last_name || ''}`.trim() : 'System'}`}
                                 </p>
                               </div>
                             </div>
@@ -911,7 +930,7 @@ const StatCard = ({ icon, title, value, trend, subtext, color, isBadTrend, showP
 
   return (
     <div 
-      className={`bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative group ${hoverable || onClick ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all' : ''}`}
+      className={`card-interactive bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between relative group ${hoverable || onClick ? 'cursor-pointer hover:border-indigo-400 hover:shadow-md transition-all' : ''}`}
       onClick={onClick}
     >
       {tooltip && (

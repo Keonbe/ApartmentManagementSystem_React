@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBullhorn, faCalendarAlt, faTag } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -10,13 +10,8 @@ export default function UserAnnouncements() {
     const [loading, setLoading] = useState(true);
     const { t } = useLang();
 
-    useEffect(() => {
-        fetchAnnouncements();
-    }, []);
-
     const fetchAnnouncements = async () => {
         try {
-            setLoading(true);
             const response = await api.get('get_announcements.php?public=1');
             if (response.data.success) {
                 setAnnouncements(response.data.announcements);
@@ -27,6 +22,11 @@ export default function UserAnnouncements() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        const load = async () => { await fetchAnnouncements(); };
+        load();
+    }, []);
 
     return (
         <div className="user-announcements-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
@@ -44,7 +44,7 @@ export default function UserAnnouncements() {
                     </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="stagger-children space-y-6">
                     {loading ? (
                         <div className="text-center py-12 text-slate-400 font-medium bg-white rounded-xl border border-slate-200 shadow-sm">
                             {t('announcements.loading')}
@@ -57,7 +57,7 @@ export default function UserAnnouncements() {
                         </div>
                     ) : (
                         announcements.map((item) => (
-                            <div key={item.id} className="user-announcements-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+                            <div key={item.id} className="user-announcements-card card-interactive bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
                                 <div className="user-announcements-card-body p-5 sm:p-6 md:p-8">
                                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                                         <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold uppercase tracking-wider rounded-md flex items-center gap-1.5">

@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faEdit, faKey, faTrash, faTimes, faUserShield, faUser,
-  faCheck, faExclamationTriangle, faChevronDown, faChevronUp, faPlus,
+  faCheck, faExclamationTriangle,
   faUsers, faFilter
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -36,16 +36,23 @@ const AdminUsers = () => {
   const [saving, setSaving]             = useState(false);
   const [toast, setToast]               = useState(null); // {msg, type}
 
-  useEffect(() => { fetchUsers(); }, []);
-
-  const fetchUsers = async () => {
-    setLoading(true);
+  const loadUsers = async () => {
     try {
       const res = await api.get('/manage_users.php');
       if (res.data.success) setUsers(res.data.users);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
+
+  const fetchUsers = () => {
+    setLoading(true);
+    return loadUsers();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadUsers(); };
+    load();
+  }, []);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -86,12 +93,12 @@ const AdminUsers = () => {
         setEditUser(null);
         showToast('User updated successfully.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to save changes.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to save changes.', 'error'); }
     finally { setSaving(false); }
   };
 
   const handleResetPassword = async () => {
-    if (newPassword.length < 6) { showToast('Password must be at least 6 characters.', 'error'); return; }
+    if (newPassword.length < 8) { showToast('Password must be at least 8 characters.', 'error'); return; }
     setSaving(true);
     try {
       const res = await api.post('/manage_users.php', { action: 'reset_password', user_id: showResetModal, new_password: newPassword });
@@ -100,18 +107,20 @@ const AdminUsers = () => {
         setNewPassword('');
         showToast('Password reset successfully.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to reset password.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to reset password.', 'error'); }
     finally { setSaving(false); }
   };
 
   const handleSetRole = async (user, newRole) => {
+    const verb = newRole === 'admin' ? 'grant admin access to' : 'revoke admin access from';
+    if (!window.confirm(`Are you sure you want to ${verb} ${user.first_name} ${user.last_name}? They will be signed out and must sign in again.`)) return;
     try {
       const res = await api.post('/manage_users.php', { action: 'set_role', user_id: user.id, role: newRole });
       if (res.data.success) {
         await fetchUsers();
         showToast(`Role changed to "${newRole}".`);
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to change role.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to change role.', 'error'); }
   };
 
   const handleArchive = async () => {
@@ -123,7 +132,7 @@ const AdminUsers = () => {
         setArchiveTarget(null);
         showToast('User account archived.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to archive user.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to archive user.', 'error'); }
     finally { setSaving(false); }
   };
 
@@ -134,7 +143,7 @@ const AdminUsers = () => {
         await fetchUsers();
         showToast('User account restored successfully.');
       } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast('Failed to restore user.', 'error'); }
+    } catch (err) { showToast(err?.response?.data?.message || 'Failed to restore user.', 'error'); }
   };
 
   const counts = {
@@ -155,13 +164,13 @@ const AdminUsers = () => {
           <div className="max-w-6xl mx-auto space-y-6">
 
             {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="stagger-children grid grid-cols-3 gap-4">
               {[
                 { label: 'Total Accounts', value: counts.all, color: 'bg-indigo-500' },
                 { label: 'Regular Users', value: counts.user, color: 'bg-slate-500' },
                 { label: 'Admins', value: counts.admin, color: 'bg-violet-500' },
               ].map(s => (
-                <div key={s.label} className="bg-white rounded-xl shadow-sm border border-slate-200 px-5 py-4 flex items-center gap-4">
+                <div key={s.label} className="card-interactive bg-white rounded-xl shadow-sm border border-slate-200 px-5 py-4 flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center`}>
                     <FontAwesomeIcon icon={faUsers} className="text-white text-sm" />
                   </div>
@@ -181,7 +190,7 @@ const AdminUsers = () => {
                   <input
                     type="text" value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Search by name or email..."
-                    className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
+                    className="focus-glow flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
                   />
                 </div>
 
@@ -189,7 +198,7 @@ const AdminUsers = () => {
                   <FontAwesomeIcon icon={faFilter} className="text-slate-400 text-xs" />
                   {ROLES.map(r => (
                     <button key={r} onClick={() => setRoleFilter(r)}
-                      className={`px-3 py-1 rounded-md text-xs font-semibold border-0 cursor-pointer transition-colors ${roleFilter === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 bg-transparent'}`}>
+                      className={`btn-interactive px-3 py-1 rounded-md text-xs font-semibold border-0 cursor-pointer transition-colors ${roleFilter === r ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-100 bg-transparent'}`}>
                       {r === 'all' ? `All` : r === 'admin' ? `Admin` : `User`}
                     </button>
                   ))}
@@ -199,18 +208,18 @@ const AdminUsers = () => {
               {/* Status Tabs */}
               <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1.5 shadow-sm">
                 <button onClick={() => setStatusFilter('active')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'active' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
+                  className={`btn-interactive px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'active' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
                   Active ({counts.active})
                 </button>
                 <button onClick={() => setStatusFilter('archived')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'archived' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
+                  className={`btn-interactive px-4 py-1.5 rounded-lg text-xs font-bold border-0 cursor-pointer transition-all ${statusFilter === 'archived' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 bg-transparent'}`}>
                   Archived ({counts.archived})
                 </button>
               </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden table-scroll-x">
               {loading ? (
                 <div className="py-20 text-center text-slate-400 text-sm">Loading users...</div>
               ) : filtered.length === 0 ? (
@@ -227,7 +236,7 @@ const AdminUsers = () => {
                       <th className="px-4 py-3 text-right text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="stagger-children divide-y divide-slate-100">
                     {filtered.map(u => (
                       <tr key={u.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3">
@@ -249,7 +258,11 @@ const AdminUsers = () => {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            {statusFilter === 'active' ? (
+                            {u.is_self ? (
+                              <span className="text-[10px] font-semibold text-slate-400" title="Your own details and password are managed from Account Settings">
+                                You · Account Settings
+                              </span>
+                            ) : statusFilter === 'active' ? (
                               <>
                                 <button onClick={() => openEdit(u)} title="Edit"
                                   className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors">
@@ -300,8 +313,8 @@ const AdminUsers = () => {
 
       {/* Edit Modal */}
       {editUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setEditUser(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setEditUser(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0">Edit User — {editUser.first_name} {editUser.last_name}</h3>
               <button onClick={() => setEditUser(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
@@ -350,8 +363,8 @@ const AdminUsers = () => {
 
       {/* Reset Password Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowResetModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowResetModal(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faKey} className="text-amber-500" /> Reset Password
@@ -363,7 +376,7 @@ const AdminUsers = () => {
             <div className="p-6 space-y-3">
               <p className="text-xs text-slate-500 m-0">Enter a new password for this account. The user will need to use this password on their next login.</p>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Password (min 6 chars)</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Password (min 8 chars)</label>
                 <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
                   placeholder="Enter new password" />
@@ -371,7 +384,7 @@ const AdminUsers = () => {
             </div>
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
               <button onClick={() => setShowResetModal(null)} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
-              <button onClick={handleResetPassword} disabled={saving || newPassword.length < 6}
+              <button onClick={handleResetPassword} disabled={saving || newPassword.length < 8}
                 className="px-5 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 border-0 cursor-pointer disabled:opacity-40">
                 {saving ? 'Saving...' : 'Reset Password'}
               </button>
@@ -382,8 +395,8 @@ const AdminUsers = () => {
 
       {/* Archive Confirm Modal */}
       {archiveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setArchiveTarget(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setArchiveTarget(null)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200">
               <h3 className="text-base font-bold text-amber-700 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faExclamationTriangle} /> Archive User

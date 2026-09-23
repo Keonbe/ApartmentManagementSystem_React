@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
@@ -16,30 +16,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? null;
-$input = json_decode(file_get_contents("php://input"), true);
-if (empty($user_id)) {
-    $user_id = $input['userId'] ?? null;
-}
-if (empty($user_id) && !empty($input['email'])) {
-    $u_stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ? LIMIT 1");
-    $u_stmt->bind_param("s", $input['email']);
-    $u_stmt->execute();
-    $u_res = $u_stmt->get_result();
-    if ($u_row = $u_res->fetch_assoc()) {
-        $user_id = $u_row['id'];
-    }
-    $u_stmt->close();
-}
+// Move-out is always filed as the caller's own verified identity. The old
+// body-supplied userId/email fallback defeated the point of the X-User-Id
+// header entirely — anyone could file a move-out notice against any lease.
+$auth = require_user($conn);
+$user_id = $auth['id'];
 
-if (empty($user_id)) {
-    http_response_code(401);
-    echo json_encode(["success" => false, "message" => "Authentication required."]);
-    exit;
-}
+$input = json_decode(file_get_contents("php://input"), true);
 
 // Find the latest approved/active rent application for this user
-$stmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND (status = 'Approved' OR status = 'active') ORDER BY created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active', 'pending-move-out') ORDER BY created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -90,15 +76,25 @@ try {
     exit;
 }
 
-// Update status to 'pending-move-out' and record move-out date
-$update_stmt = $conn->prepare("UPDATE rent_applications SET status = 'pending-move-out', requested_move_out_date = ? WHERE id = ?");
+// Update status to 'pending-move-out' and record move-out date. The status
+// guard + affected_rows check catches the case where the application's
+// status changed between the SELECT above and this UPDATE (e.g. it was
+// concurrently moved-out/archived already).
+$update_stmt = $conn->prepare("UPDATE rent_applications SET status = 'pending-move-out', requested_move_out_date = ? WHERE id = ? AND status IN ('Approved', 'active')");
 $update_stmt->bind_param("si", $move_out_date, $app_id);
+$update_stmt->execute();
 
-if ($update_stmt->execute()) {
+if ($update_stmt->affected_rows > 0) {
     log_activity($conn, $user_id, 'tenant', "Requested Move Out", "Application ID: $app_id, Room: $room_name, Scheduled: $move_out_date");
+
+    // The admin has to schedule clearance and final billing for this move-out
+    // — it was logged before but never reached the action queue (audit M12).
+    notify_admins_queue($conn, 'move_out_request', $app_id, 'Move-Out Notice Filed',
+        "A tenant filed a move-out notice for Room $room_name, scheduled $move_out_date. Clearance and final billing required.");
+
     echo json_encode(["success" => true, "message" => "Move-out request recorded successfully."]);
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to submit move-out request."]);
+    echo json_encode(["success" => false, "message" => "Failed to submit move-out request — your application may have already changed status."]);
 }
 
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
@@ -13,6 +13,7 @@ export default function CctvRequest() {
     const [reasonRequest, setReasonRequest] = useState('');
     const [privacyConsent, setPrivacyConsent] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
 
     const today = new Date();
@@ -24,30 +25,28 @@ export default function CctvRequest() {
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
-
-        const loggedInUserStr = sessionStorage.getItem('loggedInUser');
-        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
-        const userId = loggedInUser?.id || '';
+        if (isSubmitting) return;
 
         const payload = {
-            userId: userId,
             incidentDate: incidentDate,
             incidentTime: incidentTime,
             locationDetails: locationDetails,
             reasonRequest: reasonRequest.trim()
         };
 
+        setIsSubmitting(true);
         try {
             const res = await api.post("/cctv_request.php", payload);
 
             if (res.data.success) {
                 setIsModalOpen(true);
             } else {
-                console.error("Server Error:", res.data.message);
                 alert(res.data.message);
             }
         } catch (error) {
-            console.error("Error submitting CCTV request:", error);
+            alert(error.response?.data?.message || 'Failed to submit your request. Please try again.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -91,7 +90,7 @@ export default function CctvRequest() {
                             max={maxDateString}
                             value={incidentDate}
                             onChange={(e) => setIncidentDate(e.target.value)}
-                            className="cctv-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="cctv-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -103,7 +102,7 @@ export default function CctvRequest() {
                         <select
                             value={incidentTime}
                             onChange={(e) => setIncidentTime(e.target.value)}
-                            className="cctv-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="cctv-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -123,7 +122,7 @@ export default function CctvRequest() {
                         <select
                             value={locationDetails}
                             onChange={(e) => setLocationDetails(e.target.value)}
-                            className="cctv-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="cctv-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -143,7 +142,7 @@ export default function CctvRequest() {
                             placeholder={t('cctv.reasonPlaceholder')}
                             value={reasonRequest}
                             onChange={(e) => setReasonRequest(e.target.value)}
-                            className="cctv-textarea w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
+                            className="cctv-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -168,8 +167,8 @@ export default function CctvRequest() {
                     <div className="md:col-span-2 border-t border-slate-100 pt-6 flex justify-end">
                         <button
                             type="submit"
-                            disabled={!privacyConsent}
-                            className="cctv-submit-btn w-full sm:w-auto min-h-[48px] bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center"
+                            disabled={!privacyConsent || isSubmitting}
+                            className="cctv-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center"
                         >
                             {t('cctv.submit')}
                         </button>

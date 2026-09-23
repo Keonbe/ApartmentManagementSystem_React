@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
@@ -11,21 +11,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_GET['userId'] ?? $_SERVER['HTTP_X_USER_ID'] ?? null;
-if (empty($user_id) && !empty($_GET['email'])) {
-    $u_stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ? LIMIT 1");
-    $u_stmt->bind_param("s", $_GET['email']);
-    $u_stmt->execute();
-    $u_res = $u_stmt->get_result();
-    if ($u_row = $u_res->fetch_assoc()) {
-        $user_id = $u_row['id'];
-    }
-    $u_stmt->close();
-}
+expire_lapsed_contracts($conn);
 
-if (empty($user_id)) {
-    echo json_encode(["success" => false, "message" => "User ID is required."]);
-    exit;
+// A non-admin caller may only ever read their own room — ?userId=/?email=
+// are honoured only for a genuinely authenticated admin (e.g. the contract
+// preview in ViewContract.jsx, opened from AdminContracts.jsx). Anyone else
+// passing a different id/email is redirected back to their own.
+$auth = require_user($conn);
+$is_admin = $auth['role'] === 'admin';
+
+$user_id = $auth['id'];
+if ($is_admin) {
+    $requested_id = $_GET['userId'] ?? null;
+    if (!empty($requested_id)) {
+        $user_id = $requested_id;
+    } elseif (!empty($_GET['email'])) {
+        $u_stmt = $conn->prepare("SELECT id FROM users WHERE email_address = ? LIMIT 1");
+        $u_stmt->bind_param("s", $_GET['email']);
+        $u_stmt->execute();
+        $u_res = $u_stmt->get_result();
+        if ($u_row = $u_res->fetch_assoc()) {
+            $user_id = $u_row['id'];
+        }
+        $u_stmt->close();
+    }
 }
 
 $stmt = $conn->prepare("SELECT ra.id, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
@@ -37,8 +46,8 @@ if ($result->num_rows > 0) {
     $room_data = $result->fetch_assoc();
     $app_id = $room_data['id'];
     
-    // Check if there is a pending invoice for this application
-    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification') LIMIT 1");
+    // Check if there is a pending move-in invoice (security_deposit > 0) for this application
+    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification') AND security_deposit > 0 LIMIT 1");
     $inv_stmt->bind_param("i", $app_id);
     $inv_stmt->execute();
     $inv_res = $inv_stmt->get_result();

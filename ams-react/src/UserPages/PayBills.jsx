@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { appReturnBase } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
@@ -26,10 +27,33 @@ export default function PayBills() {
         water: 0,
         electricity: 0,
         parking: 0,
+        services: 0,
+        maintenance: 0,
         securityDeposit: 0,
         lateFee: 0,
-        invoiceId: null
+        invoiceId: null,
+        dueDate: '',
+        billingPeriod: '',
+        status: 'pending'
     });
+
+    const dueStatus = useMemo(() => {
+        if (!billDetails.dueDate) return null;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const parts = billDetails.dueDate.split('-');
+        const due = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        due.setHours(0, 0, 0, 0);
+        const diffTime = due.getTime() - today.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        return {
+            diffDays,
+            isOverdue: diffDays < 0 || billDetails.status === 'overdue',
+            isDueToday: diffDays === 0,
+            isDueSoon: diffDays > 0 && diffDays <= 3,
+            formattedDate: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        };
+    }, [billDetails.dueDate, billDetails.status]);
 
     useEffect(() => {
         const fetchInvoice = async () => {
@@ -39,16 +63,25 @@ export default function PayBills() {
                 try {
                     const res = await api.get(`/get_invoices.php?userId=${user.id}`);
                     if (res.data.success && res.data.invoices && res.data.invoices.length > 0) {
-                        const pending = res.data.invoices.find(i => i.status === 'pending');
-                        if (pending) {
+                        // 'processing' and 'payment-failed' must be included: an
+                        // abandoned or declined online checkout leaves the invoice
+                        // in one of those states, and omitting them made the bill
+                        // disappear from this page entirely while still owed.
+                        const activeInv = res.data.invoices.find(i => ['pending', 'overdue', 'pending-verification', 'scheduled', 'processing', 'payment-failed'].includes(i.status));
+                        if (activeInv) {
                             setBillDetails({
-                                baseRent: parseFloat(pending.base_rent) || 0,
-                                water: parseFloat(pending.water) || 0,
-                                electricity: parseFloat(pending.electricity) || 0,
-                                parking: parseFloat(pending.parking) || 0,
-                                securityDeposit: parseFloat(pending.security_deposit) || 0,
-                                lateFee: parseFloat(pending.late_fee) || 0,
-                                invoiceId: pending.id
+                                baseRent: parseFloat(activeInv.base_rent) || 0,
+                                water: parseFloat(activeInv.water) || 0,
+                                electricity: parseFloat(activeInv.electricity) || 0,
+                                parking: parseFloat(activeInv.parking) || 0,
+                                services: parseFloat(activeInv.services) || 0,
+                                maintenance: parseFloat(activeInv.maintenance) || 0,
+                                securityDeposit: parseFloat(activeInv.security_deposit) || 0,
+                                lateFee: parseFloat(activeInv.late_fee) || 0,
+                                invoiceId: activeInv.id,
+                                dueDate: activeInv.due_date || '',
+                                billingPeriod: activeInv.billing_period || '',
+                                status: activeInv.status || 'pending'
                             });
                         }
                     }
@@ -83,7 +116,6 @@ export default function PayBills() {
         fetchChannels();
         fetchInvoice();
 
-        const params = new URLSearchParams(window.location.search);
         // Wait, the router is using HashRouter, so the search might be after the hash like #/pay-bills?status=...
         // Let's parse the hash string
         const hash = window.location.hash;
@@ -96,15 +128,26 @@ export default function PayBills() {
                     navigate('/pay-bills', { replace: true });
                 }, 500);
             } else if (status === 'cancelled') {
-                setTimeout(() => {
+                // Hand the invoice back to 'pending'/'overdue'. Without this it
+                // stays in 'processing' and becomes unpayable.
+                const invoiceId = queryParams.get('invoice_id');
+                (async () => {
+                    if (invoiceId) {
+                        try {
+                            await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
+                        } catch (err) {
+                            console.error('Failed to release the cancelled payment session:', err);
+                        }
+                    }
                     alert("Payment was cancelled.");
                     navigate('/pay-bills', { replace: true });
-                }, 500);
+                    fetchInvoice();
+                })();
             }
         }
     }, [navigate]);
 
-    const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.securityDeposit + billDetails.lateFee;
+    const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.services + billDetails.maintenance + billDetails.securityDeposit + billDetails.lateFee;
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
 
@@ -151,12 +194,12 @@ export default function PayBills() {
 
         if (currentMethodObj.family === 'sandbox') {
             try {
-                const returnBase = `${window.location.origin}${window.location.pathname}`;
+                const returnBase = appReturnBase();
                 const res = await api.post("/create_checkout_session.php", {
                     invoice_id: billDetails.invoiceId,
                     channel: currentMethodObj.id,
                     success_url: `${returnBase}#/pay-bills?status=success&invoice_id=${encodeURIComponent(billDetails.invoiceId)}`,
-                    cancel_url: `${returnBase}#/pay-bills?status=cancelled`
+                    cancel_url: `${returnBase}#/pay-bills?status=cancelled&invoice_id=${encodeURIComponent(billDetails.invoiceId)}`
                 });
                 
                 if (res.data.success && res.data.checkout_url) {
@@ -227,21 +270,96 @@ export default function PayBills() {
                     </p>
                 </div>
 
+                {/* Due Date & Overdue Reminder Banner */}
+                {dueStatus && (
+                    <>
+                        {dueStatus.isOverdue ? (
+                            <div className="w-full bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 text-lg">
+                                    <FontAwesomeIcon icon={faExclamationTriangle} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-sm sm:text-base font-extrabold text-rose-900 m-0">Payment is Overdue</h4>
+                                        <span className="bg-rose-200 text-rose-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                            {Math.abs(dueStatus.diffDays)} day{Math.abs(dueStatus.diffDays) === 1 ? '' : 's'} past due
+                                        </span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-rose-700 m-0 mt-1 leading-relaxed">
+                                        Your payment of <strong>₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> for {billDetails.billingPeriod} was due on <strong>{dueStatus.formattedDate}</strong>. Please settle your bill immediately to avoid late fees and service interruptions.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : dueStatus.isDueToday ? (
+                            <div className="w-full bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-lg">
+                                    <FontAwesomeIcon icon={faClock} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-sm sm:text-base font-extrabold text-amber-900 m-0">Payment Due Today</h4>
+                                        <span className="bg-amber-200 text-amber-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                            Due Today
+                                        </span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-amber-800 m-0 mt-1 leading-relaxed">
+                                        Your billing payment of <strong>₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> for {billDetails.billingPeriod} is due today (<strong>{dueStatus.formattedDate}</strong>). Please complete your settlement before the end of the day.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : dueStatus.isDueSoon ? (
+                            <div className="w-full bg-indigo-50 border border-indigo-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 text-lg">
+                                    <FontAwesomeIcon icon={faCalendarAlt} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="text-sm sm:text-base font-extrabold text-indigo-900 m-0">Upcoming Rent Due Date</h4>
+                                        <span className="bg-indigo-200 text-indigo-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                            Due in {dueStatus.diffDays} day{dueStatus.diffDays === 1 ? '' : 's'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-indigo-700 m-0 mt-1 leading-relaxed">
+                                        Reminder: Your rental billing for {billDetails.billingPeriod} is due on <strong>{dueStatus.formattedDate}</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : null}
+                    </>
+                )}
+
                 {/*Main Workspace Content Segment Panel*/}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
-                    
+                <div className="stagger-children grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
+
                     {/*Left Grid Parameter Block: Billing Items Statement Breakdown Ledger*/}
-                    <div className="pay-bills-card md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
+                    <div className="pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                            <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
-                            <button 
-                                type="button" 
-                                onClick={() => navigate('/payment-history')}
-                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
-                            >
-                                <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
-                                <span>{t('payBills.viewPrevious')}</span>
-                            </button>
+                            <div>
+                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
+                                {billDetails.dueDate && (
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5">
+                                        Due Date: <strong className="text-slate-600">{dueStatus?.formattedDate || billDetails.dueDate}</strong>
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                <button 
+                                    type="button" 
+                                    onClick={() => navigate('/user-utilities')}
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
+                                >
+                                    <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
+                                    <span>Meter Readings</span>
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => navigate('/payment-history')}
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-transparent border-0 cursor-pointer p-1 flex items-center gap-1.5 min-h-[36px]"
+                                >
+                                    <FontAwesomeIcon icon={faHistory} className="text-[11px]" />
+                                    <span>{t('payBills.viewPrevious')}</span>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-4">
@@ -267,6 +385,18 @@ export default function PayBills() {
                                 <span>{t('payBills.parking')}</span>
                                 <span className="font-bold text-slate-900">₱{billDetails.parking.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                             </div>
+                            {billDetails.services > 0 && (
+                                <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                    <span>{t('payBills.services')}</span>
+                                    <span className="font-bold text-slate-900">₱{billDetails.services.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
+                            {billDetails.maintenance > 0 && (
+                                <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                    <span>{t('payBills.maintenance')}</span>
+                                    <span className="font-bold text-slate-900">₱{billDetails.maintenance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
                             {billDetails.lateFee > 0 && (
                                 <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-rose-600 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 font-bold">
                                     <span>{t('payBills.lateFee')}</span>
@@ -282,7 +412,7 @@ export default function PayBills() {
                     </div>
 
                     {/*Right Grid Parameter Block: Clearing Channel Allocation Panel Controls*/}
-                    <div className="pay-bills-card md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
+                    <div className="pay-bills-card card-interactive md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3" style={{ color: '#3b4276' }}>{t('payBills.paymentSettings')}</h3>
                         
                         {/*Custom Selected Dropdown Trigger Wrapper*/}
@@ -292,7 +422,7 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                className="pay-bills-method-trigger w-full min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
+                                className="pay-bills-method-trigger btn-interactive focus-glow w-full min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
                             >
                                 <div className="flex items-center space-x-3 text-slate-800 font-semibold text-sm">
                                     {currentMethodObj.id === 'gcash' ? (
@@ -422,7 +552,7 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                className="pay-bills-submit-btn w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center"
+                                className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center"
                             >
                                 {t('payBills.proceedToPay')}
                             </button>

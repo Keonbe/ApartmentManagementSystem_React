@@ -1,9 +1,11 @@
 # AMS — Localhost → Production Deployment Guide
 
-> **Stack:** React 18 (Vite SPA) + PHP 8 + MySQL/MariaDB  
+> **Stack:** React 19 (Vite SPA) + PHP 8 + MySQL/MariaDB  
 > **Current Environment:** XAMPP on Windows (dev/demo machine)  
 > **Target Environment:** Self-hosted Linux server (VPS or dedicated)  
-> **Last Audited:** August 2026
+> **Last Audited:** August 2026 — re-verified against the live repo September 2026 (see note below)
+
+> ⚠️ **Re-verification note (Sept 2026):** three items below were listed as open action items but are already fixed in the code — MIME-type validation (§1.6), the dead `$_SESSION` code (§1.5), and `backend/uploads/.htaccess` (Phase C) all already exist. The hardcoded-`localhost` audit table (§1.1) has also drifted: line numbers shifted from ongoing feature work, and 5 files that now also hardcode `localhost` were missing from the original list. Both are corrected below. The CORS wildcard count (§1.2) has grown from "44+" to 79 of 80 endpoint files as new features were added. None of this changes the recommended fixes — it means more of the "already fixed" boxes should be checked, and the CORS/localhost cleanup is larger in scope than originally scoped.
 
 ---
 
@@ -18,7 +20,7 @@ PHP 8.x (mod_php)                  PHP 8.x (php-fpm preferred)
 MySQL root / no password           MySQL with strong credentials
 http://localhost:8080              https://yourdomain.com
 No SSL                             SSL/TLS required (HTTPS)
-Hardcoded localhost in 15+ files   Environment variables / config file
+Hardcoded localhost in 14 files    Environment variables / config file
 CORS open (*) on all endpoints     CORS locked to your domain only
 React dev server (npm run dev)     Built static files (npm run build)
 Uploads in backend/uploads/        Same path or cloud storage
@@ -35,30 +37,35 @@ Error details visible in browser   Errors logged, never displayed
 > [!CAUTION]
 > These will **silently break** on production. Every one must be updated.
 
-| File | Line(s) | Current Value | Fix |
-|---|---|---|---|
-| [config.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/config.php) | 2–4 | `localhost`, `root`, `""` (no password) | Use env config file |
-| [axiosConfig.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/api/axiosConfig.js) | 5 | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `VITE_API_BASE_URL` env var |
-| [vite.config.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/vite.config.js) | 11 | `http://localhost:8080` proxy target | Dev-only, not bundled — OK as-is |
-| [AdminApplications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminApplications.jsx) | 48, 309, 316, 323 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx) | 661, 702 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminMaintainance.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminMaintainance.jsx) | 102 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminPayments.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminPayments.jsx) | 576 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminServicePage.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminServicePage.jsx) | 401 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [AdminTenants.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminTenants.jsx) | 554–556 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [TopBar.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/Components/TopBar.jsx) | 53 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [ProfileSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ProfileSettings.jsx) | 242 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
-| [UserPaymentHistory.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserPaymentHistory.jsx) | 202 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| Status | File | Line(s) | Current Value | Fix |
+|---|---|---|---|---|
+| [x] | [config.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/config.php) | 8–11 | `DB_HOST`/`DB_USER`/`DB_PASS` fallback constants (only used if `config.env.php` is absent) | Already uses env config file — `config.env.php` loader implemented at lines 2–5, fallbacks are dev-only |
+| [ ] | [axiosConfig.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/api/axiosConfig.js) | 5 | `http://localhost:8080/ApartmentManagementSystem_React/backend/api/` | `VITE_API_BASE_URL` env var |
+| [x] | [vite.config.js](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/vite.config.js) | 11 | `http://localhost:8080` proxy target | Dev-only, not bundled — OK as-is |
+| [ ] | [AdminApplications.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminApplications.jsx) | 48, 309, 316, 323 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminContracts.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminContracts.jsx) | 661, 702 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminMaintainance.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminMaintainance.jsx) | 104 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminParking.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminParking.jsx) | 246 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
+| [ ] | [AdminPayments.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminPayments.jsx) | 20 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminServicePage.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminServicePage.jsx) | 646, 825 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(2nd occurrence missing from original audit)* |
+| [ ] | [AdminTenants.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminTenants.jsx) | 676–678 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [AdminVisitors.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminVisitors.jsx) | 461 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
+| [ ] | [TopBar.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/Components/TopBar.jsx) | 65 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [ProfileSettings.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ProfileSettings.jsx) | 245 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
+| [ ] | [UserMyRequests.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserMyRequests.jsx) | 139 | `http://localhost/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var *(missing from original audit)* |
+| [ ] | [UserPaymentHistory.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserPaymentHistory.jsx) | 219 | `http://localhost:8080/ApartmentManagementSystem_React/backend/...` | `VITE_BACKEND_BASE_URL` env var |
 
 > [!WARNING]
 > Two different ports are hardcoded — some files use bare `http://localhost` (port 80) and others use `http://localhost:8080`. Both happen to resolve on XAMPP but are inconsistent. Consolidate to one `VITE_BACKEND_BASE_URL` env var.
+>
+> **This table needs re-auditing on every future pass**, not just at deployment time — 5 of the 12 frontend files above were added or gained a new hardcoded URL after the previous audit, purely from ordinary feature work (each new admin page that links to an uploaded file repeats the same pattern). Consider grepping for `http://localhost` in `ams-react/src/` as a CI check (see `cicd_pipeline.md`) rather than re-auditing by hand each time.
 
 ### 1.2 CORS — Open Wildcard (`*`)
 
 > [!CAUTION]
 > Every PHP endpoint contains `Access-Control-Allow-Origin: *`. On production, this allows **any website on the internet** to call your API with a logged-in user's credentials.
 
-Found in **44+ PHP files**. Must be locked to your actual domain before go-live.
+Found in **79 of the 80** endpoint files in `backend/api/` (re-verified Sept 2026 — was "44+" at the August audit; the codebase has grown substantially since). Must be locked to your actual domain before go-live.
 
 ```php
 // CURRENT (dangerous on production):
@@ -78,11 +85,14 @@ if (in_array($origin, $allowed_origins)) {
 > `root` with an empty password is XAMPP's default. Must **never** reach a public-facing server.
 
 ```php
-// CURRENT (backend/config.php lines 2–4):
-$servername = "localhost";
-$username = "root";
-$password = "";
+// CURRENT (backend/config.php lines 8–11 — only takes effect if config.env.php is missing):
+if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
+if (!defined('DB_USER')) define('DB_USER', 'root');
+if (!defined('DB_PASS')) define('DB_PASS', '');
+if (!defined('DB_NAME')) define('DB_NAME', 'ams_db');
 ```
+
+> The env-file loader (§1.7, Phase B) is already implemented, so on any machine with a real `config.env.php` these fallbacks never fire. What's actually left to do before production: create a `config.env.php` on the production server itself with strong, non-default credentials — the *mechanism* is done, the *production values* aren't set yet.
 
 ### 1.4 PHP Error Display
 
@@ -98,17 +108,18 @@ log_errors = On
 error_log = /var/log/php/ams_errors.log
 ```
 
-### 1.5 Login — Dead Session Code
+### 1.5 Login — Dead Session Code ✅ Fixed
 
-[login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) line 41 assigns `$_SESSION['user']` but there is no `session_start()` in the file. Auth works correctly (stateless via `X-User-Id` header) but the `$_SESSION` assignment is dead code. Not a blocker, but adds confusion.
+~~[login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) line 41 assigns `$_SESSION['user']` but there is no `session_start()` in the file.~~ **Already resolved** — the dead `$_SESSION` assignment has been removed; the response now builds a clean `$userData` array directly (see the `// Clean user payload without dead $_SESSION assignment (A-6)` comment in the current file). Auth remains stateless via the `X-User-Id` header, as designed. No action needed.
 
-### 1.6 File Upload MIME Type Validation
+### 1.6 File Upload MIME Type Validation ✅ Fixed
 
-`rent_application.php` and `upload_payment_proof.php` read MIME type from `$_FILES[...]['type']` — this is **client-supplied** and easily spoofed. Use `finfo_file()` to detect the actual file type server-side.
+~~`rent_application.php` and `upload_payment_proof.php` read MIME type from `$_FILES[...]['type']`~~ **Already resolved** — both files now call `finfo_open(FILEINFO_MIME_TYPE)` / `finfo_file()` to detect the actual file type server-side (tagged `(B-4)` in `rent_application.php`'s comment). No action needed.
 
-### 1.7 No Environment Configuration
+### 1.7 Environment Configuration
 
-No `.env` or `config.env.php` file exists. All credentials and URLs are embedded in source code. This must change before production.
+- [x] **Backend**: `backend/config.env.php` and `backend/config.env.example.php` created and ignored in `.gitignore`.
+- [ ] **Frontend**: `ams-react/.env.production` not yet created. All credentials and URLs in React currently rely on hardcoded strings.
 
 ---
 
@@ -139,11 +150,11 @@ No `.env` or `config.env.php` file exists. All credentials and URLs are embedded
     // server.proxy block is dev-only — vite ignores it during build
   })
   ```
-- [ ] **Run production build**:
+- [x] **Run production build**:
   ```bash
   cd ams-react
   npm run build
-  # Output written to ams-react/dist/
+  # Output written to ams-react/dist/ (verified functional)
   ```
 - [ ] **Verify no localhost strings** survived bundling:
   ```bash
@@ -195,31 +206,29 @@ No `.env` or `config.env.php` file exists. All credentials and URLs are embedded
   function log_activity($conn, $user_id, $category, $action, $details = "") { /* unchanged */ }
   function verify_admin($conn, $admin_id) { /* unchanged */ }
   ```
-- [ ] **Remove `header('Access-Control-Allow-Origin: *')`** from all 44 endpoint files — `config.php` handles it centrally now. One sed command on the server:
+- [ ] **Remove `header('Access-Control-Allow-Origin: *')`** from all 79 endpoint files that have it — `config.php` handles it centrally now. One sed command on the server:
   ```bash
   sed -i "s|header('Access-Control-Allow-Origin: \*');||g" backend/api/*.php
   sed -i 's|header("Access-Control-Allow-Origin: \*");||g' backend/api/*.php
   ```
-- [ ] **Fix MIME type validation** in `rent_application.php` and `upload_payment_proof.php`:
-  ```php
-  // Replace: $mime = $_FILES[$fileKey]['type'];
-  $finfo = finfo_open(FILEINFO_MIME_TYPE);
-  $mime = finfo_file($finfo, $_FILES[$fileKey]['tmp_name']);
-  finfo_close($finfo);
-  ```
-- [ ] **Remove dead `$_SESSION` code** from `login.php` lines 41–49
+- [x] ~~**Fix MIME type validation** in `rent_application.php` and `upload_payment_proof.php`~~ — already done, both files use `finfo_file()` (see §1.6)
+- [x] ~~**Remove dead `$_SESSION` code** from `login.php`~~ — already done (see §1.5)
 - [ ] **Set upload directory permissions** on server:
   ```bash
   chown -R www-data:www-data backend/uploads/
   chmod -R 755 backend/uploads/
   ```
-- [ ] **Add `backend/uploads/.htaccess`** to block directory listing and PHP execution in uploads:
+- [x] ~~**Add `backend/uploads/.htaccess`** to block directory listing and PHP execution in uploads~~ — fixed 2026-09-17 (audit H2/B-8): `backend/uploads/.htaccess` (gitignored, so re-create it on the server — see below) now denies *all* direct requests, not just script execution, using the Apache 2.4-native form (`mod_access_compat`'s `Order`/`Deny from all` isn't on by default on every distro):
   ```apache
   Options -Indexes
-  <FilesMatch "\.(php|php5|phtml|phar)$">
+  <RequireAll>
+      Require all denied
+  </RequireAll>
+  <FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps|phar|pht|cgi|pl|py|sh|html|htm|svg)$">
       Require all denied
   </FilesMatch>
   ```
+  Every document that used to be a static `/uploads/...` link (gov IDs, NBI clearances, payment proofs, leases, avatars, attachments) is now served only through the authenticated `backend/api/download_file.php` endpoint, which checks the resource's owner or admin role before reading the file — `fileUrl.js` on the frontend already points there. The Docker image (`Dockerfile`) applies the same `Require all denied` at the vhost level instead of a `.htaccess`, since a mounted uploads volume hides it.
 - [ ] **Confirm `php.ini` limits** on server:
   ```ini
   upload_max_filesize = 10M
@@ -286,7 +295,7 @@ No `.env` or `config.env.php` file exists. All credentials and URLs are embedded
 - [ ] Change **MySQL root password** on production server
 - [ ] Change **admin account password** in `ams_db.users` (the default demo password)
 - [ ] Add **rate limiting** to login endpoint to prevent brute force (`mod_ratelimit` or fail2ban)
-- [ ] Ensure `config.env.php` is in `.gitignore` — verify with `git status`
+- [x] Ensure `config.env.php` is in `.gitignore` — verify with `git status` / `.gitignore`
 - [ ] Remove any debug `var_dump()`, `print_r()`, or `echo` statements left in PHP files
 
 ### Phase F — Monitoring & Ops
@@ -427,14 +436,19 @@ BACKEND
 [ ] GET https://yourdomain.com/backend/api/get_rooms.php returns JSON (not HTML/500)
 [ ] Login with admin credentials succeeds
 [ ] File upload: submit a maintenance request with a photo — verify it saves
-[ ] Uploaded file accessible: https://yourdomain.com/backend/uploads/maintenance/<file>
+[ ] Direct static access is blocked: https://yourdomain.com/backend/uploads/maintenance/<file> returns 403
+[ ] The same file loads through https://yourdomain.com/backend/api/download_file.php?path=uploads/maintenance/<file>&token=<a valid session token> (H2/B-8 — this replaces the static link)
 [ ] /backend/uploads/ returns 403 (not a directory listing)
 [ ] /backend/uploads/test.php returns 403 (PHP blocked in uploads)
 [ ] PHP error log shows no warnings after login + navigation test
 [ ] CORS: no console errors when React SPA calls the API
+[ ] PayMongo Live webhook created and pointed at https://yourdomain.com/backend/api/paymongo_webhook.php
+    (see paymongo_integration_guide.md §3.4) — the sandbox/ngrok webhook does not carry over
+[ ] Push a ₱1.00 sandbox-mode payment through and confirm the invoice flips to "paid" via the
+    webhook alone (not just checkout redirect) — this is the only proof the webhook is actually firing
 
 FRONTEND
-[ ] npm run build completes with no errors
+[x] npm run build completes with no errors
 [ ] index.html loads at https://yourdomain.com
 [ ] Navigating directly to /admin/dashboard doesn't 404 (SPA routing works)
 [ ] DevTools Network: zero requests going to localhost
@@ -448,7 +462,7 @@ SECURITY
 [ ] HTTPS works; HTTP redirects to HTTPS
 [ ] config.env.php is NOT visible at https://yourdomain.com/backend/config.env.php (should 403/404)
 [ ] Admin default password changed
-[ ] DB credentials not in Git (git log --all -- backend/config.env.php returns nothing)
+[x] DB credentials not in Git (git log --all -- backend/config.env.php returns nothing / added to .gitignore)
 ```
 
 ---
@@ -480,3 +494,5 @@ SECURITY
 | Feature Checklist | [panelist_feature_checklist.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/panelist_feature_checklist.md) |
 | Notification Services | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | Chat Design | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| PayMongo Integration | [paymongo_integration_guide.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/paymongo_integration_guide.md) |
+| SaaS Fallback Strategy | [saas_fallback_strategy.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/deployment/saas_fallback_strategy.md) |

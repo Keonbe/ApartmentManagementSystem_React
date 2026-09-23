@@ -1,0 +1,26 @@
+/* =====================================================
+   USER UTILITIES PAGE — user-utilities.responsive.css
+   Domain: user
+   Base: Tailwind utilities in UserUtilities.jsx
+   ===================================================== */
+
+@media (max-width: 768px) {
+  .user-utilities-root {
+    padding: 1.5rem 1rem !important;
+  }
+
+  .user-utilities-root button {
+    min-height: 44px !important;
+  }
+
+  .user-utilities-root input,
+  .user-utilities-root select {
+    font-size: 16px !important; /* Prevents iOS zoom */
+  }
+}
+
+@media (max-width: 480px) {
+  .user-utilities-root {
+    padding: 1.25rem 0.75rem !important;
+  }
+}

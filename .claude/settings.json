@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git show *)",
+      "Bash(git branch)",
+      "Bash(git branch -a*)",
+      "Bash(git branch --show-current)",
+      "Bash(git stash list)",
+      "Bash(/c/xampp/php/php.exe -l *)",
+      "Bash(npm run build)",
+      "Bash(npm run lint)",
+      "Bash(netstat -ano*)"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
@@ -10,14 +10,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? ($_GET['userId'] ?? null);
-$isAdmin = verify_admin($conn, $admin_id);
+// The tenant scope is the session user. It used to fall back to ?userId= with no
+// authentication, which returned any tenant's visitor log (names, contact numbers,
+// ID numbers) to anyone.
+$auth = require_user($conn);
+$isAdmin = $auth['role'] === 'admin';
+$user_id = $auth['id'];
 
-if (!$isAdmin && !$user_id) {
-    http_response_code(401);
-    echo json_encode(["success" => false, "message" => "Unauthorized"]);
-    exit;
+// Alert admins/host on any visit that has just crossed the overstay
+// threshold — cheap and indexed, and this page is the one place both
+// audiences actually look at visitor status.
+try {
+    alert_overstayed_visitors($conn);
+} catch (Throwable $e) {
+    error_log('[AMS] alert_overstayed_visitors: ' . $e->getMessage());
 }
 
 try {
@@ -36,11 +42,14 @@ try {
 
     // Scoping
     if (!$isAdmin) {
-        // Tenant view: filter by tenant user_id or matching room
-        $where_clauses[] = "(v.user_id = ? OR v.room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved'))";
+        // Tenant view: strictly the visitors THIS tenant registered or was
+        // hosting (walk-ins are stamped with the current occupant's user_id
+        // at check-in). Matching by current room used to also surface a
+        // PREVIOUS occupant's visitors for the same unit — names, phone
+        // numbers and ID numbers included.
+        $where_clauses[] = "v.user_id = ?";
         $params[] = (int)$user_id;
-        $params[] = (int)$user_id;
-        $types .= "ii";
+        $types .= "i";
     } else {
         if (!empty($_GET['unit']) && $_GET['unit'] !== 'all') {
             $where_clauses[] = "v.room_name = ?";
@@ -140,6 +149,7 @@ try {
             'rawStatus' => $row['status'],
             'status' => $display_status,
             'isOverstayed' => $is_overstayed,
+            'expectedAt' => $row['expected_at'],
             'checkInAt' => $row['check_in_at'],
             'checkOutAt' => $row['check_out_at'],
             'checkoutNotes' => $row['checkout_notes'] ?? '',
@@ -155,9 +165,9 @@ try {
     $stats_params = [];
     $stats_types = "";
     if (!$isAdmin) {
-        $stats_scope = "WHERE (user_id = ? OR room_name IN (SELECT room_name FROM rent_applications WHERE user_id = ? AND status = 'Approved'))";
-        $stats_params = [(int)$user_id, (int)$user_id];
-        $stats_types = "ii";
+        $stats_scope = "WHERE user_id = ?";
+        $stats_params = [(int)$user_id];
+        $stats_types = "i";
     }
 
     // Queries for stats
@@ -171,7 +181,7 @@ try {
 
     $stmt_stats = $conn->prepare($stats_sql);
     if (!$isAdmin) {
-        $stmt_stats->bind_param("iiii", $overstay_hours, $overstay_hours, ...$stats_params);
+        $stmt_stats->bind_param("ii" . $stats_types, $overstay_hours, $overstay_hours, ...$stats_params);
     } else {
         $stmt_stats->bind_param("ii", $overstay_hours, $overstay_hours);
     }

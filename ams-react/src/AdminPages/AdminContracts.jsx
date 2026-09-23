@@ -1,28 +1,33 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faPlus, faSearch, faTimes, faFileContract, faEye, faDownload, faCalendarAlt,
-  faUser, faBuilding, faCheckCircle, faClock, faExclamationTriangle, faFileSignature,
-  faArrowRight, faArrowLeft, faPrint, faEdit, faTrashAlt, faUpload, faShieldAlt,
+  faPlus, faSearch, faTimes, faEye, faDownload,
+  faCheckCircle, faClock, faExclamationTriangle, faFileSignature,
+  faArrowRight, faArrowLeft, faPrint, faEdit, faUpload, faShieldAlt,
   faGavel, faFileUpload, faFile, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 
 const statusConfig = {
   active: { label: 'Active', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   expired: { label: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' },
-  draft: { label: 'Draft', color: 'bg-slate-100 text-slate-600 border-slate-200' },
+  draft: { label: 'Draft', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  terminated: { label: 'Terminated', color: 'bg-slate-200 text-slate-700 border-slate-300' },
   'eviction-pending': { label: 'Eviction Pending', color: 'bg-red-200 text-red-900 border-red-300' },
 };
 
-const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+// Unknown/blank statuses must not borrow the green "Active" styling.
+const UNKNOWN_STATUS = { label: 'Unknown', color: 'bg-slate-100 text-slate-500 border-slate-200' };
+const statusOf = (s) => statusConfig[String(s || '').toLowerCase()] || UNKNOWN_STATUS;
+
+const formatCurrency = (n) => (Number.isFinite(Number(n)) ? `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
 const AdminContracts = () => {
   const [contracts, setContracts] = useState([]);
-  const [tenantOptions, setTenantOptions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -35,17 +40,13 @@ const AdminContracts = () => {
 
   const [form, setForm] = useState({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
 
-  useEffect(() => {
-    fetchContracts();
-    fetchTenants();
-  }, []);
-
   const fetchContracts = async () => {
     try {
       const res = await api.get('/get_contracts.php');
       if (res.data.success) {
         const fetched = res.data.contracts.map(c => ({
           id: c.id,
+          rentApplicationId: c.rent_application_id,
           tenant: `${c.first_name} ${c.last_name}`,
           tenantEmail: c.email,
           unit: c.room_name,
@@ -59,47 +60,89 @@ const AdminContracts = () => {
           signedLease: { uploaded: !!c.signed_lease_path, fileName: c.signed_lease_path ? c.signed_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.signed_lease_path },
           notarizedLease: { uploaded: !!c.notarized_lease_path, fileName: c.notarized_lease_path ? c.notarized_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.notarized_lease_path },
           evictionStatus: c.eviction_status,
-          overdueInfo: null
+          terminationReason: c.termination_reason,
+          overdueInfo: c.overdueInfo ? {
+            daysOverdue: c.overdueInfo.daysOverdue,
+            oldestDueDate: c.overdueInfo.oldestDueDate,
+            outstandingAmount: Number(c.overdueInfo.outstandingAmount),
+            invoiceCount: c.overdueInfo.invoiceCount,
+            lastPaymentDate: c.overdueInfo.lastPaymentDate
+          } : null
         }));
         setContracts(fetched);
+        return fetched;
       }
     } catch(err) {
       console.error(err);
     }
+    return null;
   };
+
+  // Raw tenant applications from get_tenants.php, before the "already has a
+  // contract" / eligible-status filtering below (which also depends on
+  // `contracts`, fetched separately).
+  const [tenantApplications, setTenantApplications] = useState([]);
 
   const fetchTenants = async () => {
     try {
       const res = await api.get('/get_tenants.php');
-      if (res.data.success) {
-        const active = res.data.tenants.filter(t => t.status === 'active' || t.status === 'Pending Review');
-        setTenantOptions(active.map(t => ({
-          id: t.id, 
-          name: `${t.first_name} ${t.last_name}`, 
-          unit: t.room_name, 
-          type: 'Unit', 
-          rent: t.monthly_rent
-        })));
+      // get_tenants.php returns { success, data: [...] } with name/unit/rent
+      // already composed; rent arrives pre-formatted as "₱4,000".
+      if (res.data.success && Array.isArray(res.data.data)) {
+        setTenantApplications(res.data.data);
       }
     } catch(err) {
       console.error(err);
     }
   };
 
-  const settings = getSystemSettings();
-  const overdueThresholdDays = settings.overdueThresholdDays || 15;
+  useEffect(() => {
+    const load = async () => { await Promise.all([fetchContracts(), fetchTenants()]); };
+    load();
+  }, []);
 
-  // Count overdue contracts exceeding threshold
+  // Only an application the tenant has actually moved into can have a
+  // contract generated for it, and only if one doesn't already exist —
+  // create_contract.php now refuses both server-side (409/422), but the
+  // picker should not offer choices that will just fail.
+  const tenantOptions = useMemo(() => {
+    const contractedAppIds = new Set(contracts.map(c => c.rentApplicationId).filter(Boolean));
+    const eligible = tenantApplications.filter(t => {
+      const s = String(t.status || '').toLowerCase();
+      return (s === 'active' || s === 'approved') && !contractedAppIds.has(t.id);
+    });
+    return eligible.map(t => ({
+      id: t.id,
+      name: t.name,
+      unit: t.unit,
+      type: 'Unit',
+      rent: Number(String(t.rent ?? '').replace(/[^\d.]/g, '')) || 0
+    }));
+  }, [tenantApplications, contracts]);
+
+  // getSystemSettings() is async — awaiting it once on mount instead of calling
+  // it in the render body (which fired an un-awaited request per render and left
+  // the threshold permanently undefined).
+  const [overdueThresholdDays, setOverdueThresholdDays] = useState(15);
+  useEffect(() => {
+    getSystemSettings().then(s => setOverdueThresholdDays(s.overdueThresholdDays || 15));
+  }, []);
+
+  // Count overdue contracts exceeding threshold. Only an 'active' contract
+  // can actually be flagged (CONTRACT_TRANSITIONS) — an expired or
+  // terminated lease's tenant can still show overdue invoices, but flagging
+  // that contract would just 422.
   const evictionAlertContracts = useMemo(() => {
-    return contracts.filter(c => c.overdueInfo && c.overdueInfo.daysOverdue >= overdueThresholdDays && c.status !== 'eviction-pending');
+    return contracts.filter(c => c.overdueInfo && c.overdueInfo.daysOverdue >= overdueThresholdDays && c.status === 'active');
   }, [contracts, overdueThresholdDays]);
 
   const filtered = useMemo(() => {
     return contracts.filter(c => {
-      const matchSearch = c.tenant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          c.unit.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          c.id.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchStatus = filterStatus === 'all' || c.status === filterStatus;
+      const q = searchQuery.toLowerCase();
+      const matchSearch = (c.tenant || '').toLowerCase().includes(q) ||
+                          (c.unit || '').toLowerCase().includes(q) ||
+                          (c.id || '').toLowerCase().includes(q);
+      const matchStatus = filterStatus === 'all' || String(c.status || '').toLowerCase() === filterStatus;
       return matchSearch && matchStatus;
     });
   }, [contracts, searchQuery, filterStatus]);
@@ -107,7 +150,9 @@ const AdminContracts = () => {
   const handleTenantSelect = (e) => {
     const selected = tenantOptions.find(t => t.id == e.target.value);
     if (selected) {
-      setForm(prev => ({ ...prev, tenantId: selected.id, tenant: selected.name, unit: selected.unit, type: selected.type, rent: selected.rent, deposit: selected.rent * 2 }));
+      // Security deposit is one month's rent — matches the move-in invoice and
+      // the contract row created on approval.
+      setForm(prev => ({ ...prev, tenantId: selected.id, tenant: selected.name, unit: selected.unit, type: selected.type, rent: selected.rent, deposit: selected.rent }));
     }
   };
 
@@ -240,28 +285,85 @@ const AdminContracts = () => {
     }
   };
 
+  // Re-fetches the contract list and, if the preview modal has this contract
+  // open, syncs it to whatever the server actually did — rather than
+  // guessing the new status client-side (clear's target status is
+  // date-derived server-side, and terminate changes several fields at once).
+  const refreshContract = async (contractId) => {
+    const fetched = await fetchContracts();
+    if (fetched && selectedContract && selectedContract.id === contractId) {
+      const match = fetched.find(c => c.id === contractId);
+      if (match) setSelectedContract(match);
+    }
+  };
+
+  const handleActivateContract = async (contractId) => {
+    try {
+      const res = await api.post('/update_contract_status.php', { contractId, action: 'activate' });
+      if (res.data.success) {
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to activate contract.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to activate contract.');
+    }
+  };
+
   const handleFlagEviction = async (contractId) => {
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'flag' });
       if (res.data.success) {
-        fetchContracts();
-        if (selectedContract && selectedContract.id === contractId) {
-           setSelectedContract(prev => ({ ...prev, status: 'eviction-pending', evictionStatus: 'flagged' }));
-        }
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to flag contract for eviction.');
       }
-    } catch(err) { console.error(err); }
+    } catch(err) {
+      console.error(err);
+      alert('Failed to flag contract for eviction.');
+    }
   };
 
   const handleClearEviction = async (contractId) => {
     try {
       const res = await api.post('/update_contract_status.php', { contractId, action: 'clear' });
       if (res.data.success) {
-        fetchContracts();
-        if (selectedContract && selectedContract.id === contractId) {
-           setSelectedContract(prev => ({ ...prev, status: 'active', evictionStatus: null }));
-        }
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to clear eviction flag.');
       }
-    } catch(err) { console.error(err); }
+    } catch(err) {
+      console.error(err);
+      alert('Failed to clear eviction flag.');
+    }
+  };
+
+  // Terminating a lease ends the tenancy — the backend vacates the room,
+  // cancels pending invoices, releases parking and cancels the tenant's
+  // pending visitor pre-registrations. Confirmed separately from the reason
+  // prompt since it isn't reversible from this page.
+  const handleTerminateContract = async (contractId) => {
+    const reason = prompt('Reason for terminating this lease (this will also mark the tenant as moved out and vacate their unit):');
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) {
+      alert('A reason is required to terminate a contract.');
+      return;
+    }
+    if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released. Continue?')) {
+      return;
+    }
+    try {
+      const res = await api.post('/update_contract_status.php', { contractId, action: 'terminate', reason: reason.trim() });
+      if (res.data.success) {
+        await refreshContract(contractId);
+      } else {
+        alert(res.data.message || 'Failed to terminate contract.');
+      }
+    } catch(err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to terminate contract.');
+    }
   };
 
   // Lease completeness checker
@@ -315,27 +417,27 @@ const AdminContracts = () => {
             )}
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><FontAwesomeIcon icon={faCheckCircle} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'active').length}</p></div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center"><FontAwesomeIcon icon={faExclamationTriangle} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Expired</p><p className="text-2xl font-bold text-slate-800 m-0">{contracts.filter(c => c.status === 'expired').length}</p></div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><FontAwesomeIcon icon={faGavel} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Eviction Pending</p><p className="text-2xl font-bold text-red-600 m-0">{contracts.filter(c => c.status === 'eviction-pending').length}</p></div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <div className="card-interactive bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center"><FontAwesomeIcon icon={faFileUpload} /></div>
                   <div><p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Docs Incomplete</p><p className="text-2xl font-bold text-amber-600 m-0">{contracts.filter(c => !c.signedLease?.uploaded || !c.notarizedLease?.uploaded).length}</p></div>
@@ -354,26 +456,26 @@ const AdminContracts = () => {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm focus-within:border-indigo-500 transition-all max-w-xs w-full">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                  <input type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
+                  <input type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
                 </div>
-                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
                   <option value="all">All Status</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="eviction-pending">Eviction Pending</option>
                 </select>
               </div>
-              <button onClick={() => { setShowCreateModal(true); setCreateStep(1); }} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
+              <button onClick={() => { setShowCreateModal(true); setCreateStep(1); }} className="btn-interactive flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
                 <FontAwesomeIcon icon={faPlus} /> New Contract
               </button>
             </div>
 
             {/* Contract Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm table-scroll-x">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
                     <th className="py-3 px-4">Contract ID</th><th className="py-3 px-4">Tenant</th><th className="py-3 px-4">Unit</th><th className="py-3 px-4">Lease Period</th><th className="py-3 px-4">Rent</th><th className="py-3 px-4">Documents</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="stagger-children">
                   {filtered.map(c => {
                     const docStatus = getDocumentStatus(c);
                     return (
@@ -393,7 +495,7 @@ const AdminContracts = () => {
                             <FontAwesomeIcon icon={docStatus.icon} className="text-[10px]" /> {docStatus.label}
                           </span>
                         </td>
-                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusConfig[c.status]?.color || statusConfig.active.color}`}>{statusConfig[c.status]?.label || c.status}</span></td>
+                        <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusOf(c.status).color}`}>{statusOf(c.status).label}</span></td>
                         <td className="py-3 px-4 text-right">
                           <button onClick={() => openPreview(c)} className="w-7 h-7 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
                           <button className="w-7 h-7 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 bg-transparent border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faDownload} className="text-xs" /></button>
@@ -414,8 +516,8 @@ const AdminContracts = () => {
 
       {/* Create Contract Modal — Multi-Step */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-bold text-slate-800 m-0">Create New Contract</h2>
@@ -553,12 +655,12 @@ const AdminContracts = () => {
 
       {/* Preview Modal — Enhanced with Document Upload */}
       {showPreviewModal && selectedContract && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowPreviewModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowPreviewModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{selectedContract.id}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusConfig[selectedContract.status]?.color || statusConfig.active.color}`}>{statusConfig[selectedContract.status]?.label || selectedContract.status}</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusOf(selectedContract.status).color}`}>{statusOf(selectedContract.status).label}</span>
                 {selectedContract.evictionStatus === 'flagged' && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-200 text-red-900 border border-red-300">🚨 Eviction Flagged</span>
                 )}
@@ -567,6 +669,47 @@ const AdminContracts = () => {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              {/* Draft contracts must be reviewed and activated by an admin */}
+              {String(selectedContract.status).toLowerCase() === 'draft' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-bold text-amber-900 m-0">This contract is still a draft.</p>
+                    <p className="text-[11px] text-amber-700 m-0 mt-0.5">Review the lease details below, then activate it to make it binding.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleActivateContract(selectedContract.id)}
+                    className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs border-0 cursor-pointer transition-all"
+                  >
+                    <FontAwesomeIcon icon={faCheckCircle} className="mr-1.5" /> Activate Contract
+                  </button>
+                </div>
+              )}
+
+              {selectedContract.status === 'terminated' && (
+                <div className="bg-slate-100 border border-slate-300 rounded-xl p-4">
+                  <p className="text-sm font-bold text-slate-700 m-0">This lease was terminated.</p>
+                  {selectedContract.terminationReason && (
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">Reason: {selectedContract.terminationReason}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Early termination — ends the tenancy (vacates the unit,
+                  cancels pending invoices, releases parking/visitor requests).
+                  Only offered where the backend actually allows it. */}
+              {['active', 'expired', 'eviction-pending'].includes(selectedContract.status) && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => handleTerminateContract(selectedContract.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faGavel} /> Terminate Lease
+                  </button>
+                </div>
+              )}
+
               {/* Contract Details */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
                 <div className="text-center border-b border-slate-200 pb-4">
@@ -658,7 +801,7 @@ const AdminContracts = () => {
                                 {selectedContract.signedLease.fileName}
                               </p>
                               <a 
-                                href={selectedContract.signedLease.filePath ? 'http://localhost:8080/ApartmentManagementSystem_React/backend/' + selectedContract.signedLease.filePath.replace(/^\.\.\//, '') : '#'} 
+                                href={fileUrl(selectedContract.signedLease.filePath) || '#'}
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
@@ -699,7 +842,7 @@ const AdminContracts = () => {
                                 {selectedContract.notarizedLease.fileName}
                               </p>
                               <a 
-                                href={selectedContract.notarizedLease.filePath ? 'http://localhost:8080/ApartmentManagementSystem_React/backend/' + selectedContract.notarizedLease.filePath.replace(/^\.\.\//, '') : '#'} 
+                                href={fileUrl(selectedContract.notarizedLease.filePath) || '#'}
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"

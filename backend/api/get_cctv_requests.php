@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
@@ -10,20 +10,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
-if (!verify_admin($conn, $admin_id)) {
-    http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
-    exit;
-}
+require_admin($conn);
 
 try {
-    $sql = "SELECT 
+    $sql = "SELECT
                 c.id,
                 c.id AS rawId,
                 c.user_id,
                 CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS tenant,
-                COALESCE(ra.room_name, '—') AS unit,
+                COALESCE((SELECT ra.room_name FROM rent_applications ra
+                          WHERE ra.user_id = c.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
+                          ORDER BY ra.id DESC LIMIT 1), '—') AS unit,
                 c.incident_date AS incidentDate,
                 c.incident_time AS time,
                 c.location_details AS location,
@@ -32,7 +29,6 @@ try {
                 c.created_at
             FROM cctv_requests c
             LEFT JOIN users u ON c.user_id = u.id
-            LEFT JOIN rent_applications ra ON ra.user_id = c.user_id AND ra.status = 'Approved'
             ORDER BY c.id DESC";
 
     $res = $conn->query($sql);
@@ -49,7 +45,7 @@ try {
     echo json_encode(["success" => true, "requests" => $requests]);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => "Failed to load CCTV requests."]);
 }
 
 $conn->close();

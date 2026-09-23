@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+require_once __DIR__ . '/../cors.php';
+header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -10,68 +10,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
+function fail($message) {
+    echo json_encode(["success" => false, "message" => $message]);
+    exit;
+}
+
 $input = json_decode(file_get_contents("php://input"), true);
+if (!is_array($input)) fail("No data received");
 
-if (!$input) {
-    echo json_encode(["message" => "No data received"]);
-    exit;
-}
+$first_name = trim((string)($input["first_name"] ?? ''));
+$middle_name = trim((string)($input["middle_name"] ?? '')) ?: null;
+$last_name = trim((string)($input["last_name"] ?? ''));
+$suffix = trim((string)($input["suffix"] ?? '')) ?: null;
+$email_address = trim((string)($input["email_address"] ?? ''));
+$password = (string)($input["password"] ?? '');
+$confirmPass = (string)($input["conPassword"] ?? '');
 
-$first_name = $input["first_name"];
-$middle_name = $input["middle_name"] ?? null;
-$last_name = $input["last_name"];
-$suffix = $input["suffix"] ?? null;
-$email_address = $input["email_address"];
-$password = $input["password"];
-$confirmPass = $input["conPassword"];
-$isAdmin = false;
+if ($first_name === '' || $last_name === '' || $email_address === '') fail("First name, last name and email address are required.");
+if (!filter_var($email_address, FILTER_VALIDATE_EMAIL)) fail("Please enter a valid email address.");
+if (mb_strlen($first_name) > 100 || mb_strlen($last_name) > 100) fail("Names must be 100 characters or fewer.");
+if (strlen($password) < PASSWORD_MIN_LENGTH) fail("Password length must be at least " . PASSWORD_MIN_LENGTH . " characters");
+if ($password !== $confirmPass) fail("Confirmed password does not match");
 
-if(strlen($password) < 8){
-    echo json_encode([
-    "success" => false,
-    "message" => "Password length must be atleast 8 characters" 
-]);
-    $conn->close();
-    exit;
-}
-if($password != $confirmPass){
-    echo json_encode([
-        "success" => false,
-        "message" => "Confirmed password not match"
-    ]);
-    $conn->close();
-    exit;
-}
-
-$checkStmt = $conn->prepare("SELECT email_address FROM users WHERE email_address = ?");
+$checkStmt = $conn->prepare("SELECT 1 FROM users WHERE email_address = ?");
 $checkStmt->bind_param("s", $email_address);
 $checkStmt->execute();
-$result = $checkStmt->get_result();
-
-if ($result->num_rows > 0) {
-    echo json_encode([
-        "success" => false,
-        "message" => "Email address is already registered"
-    ]);
-
-    $checkStmt->close();
-    $conn->close();
-    exit;
-}
+$exists = (bool)$checkStmt->get_result()->fetch_assoc();
 $checkStmt->close();
+if ($exists) fail("Email address is already registered");
 
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
+// No role column is written: every self-registered account is a tenant ('user' default).
 $stmt = $conn->prepare("INSERT INTO users (first_name, middle_name, last_name, suffix, email_address, password) VALUES (?, ?, ?, ?, ?, ?)");
 $stmt->bind_param("ssssss", $first_name, $middle_name, $last_name, $suffix, $email_address, $hashed_password);
 
-
 if ($stmt->execute()) {
+    $new_user_id = (int)$stmt->insert_id;
+    log_activity($conn, $new_user_id, 'user', 'Account Registered', "New tenant account #$new_user_id ($email_address)", $new_user_id);
     echo json_encode(["message" => "Account created successfully", "success" => true]);
-    
 } else {
-    echo json_encode(["message" => "Failed to create account", "error" => $stmt->error]);
+    echo json_encode(["message" => "Failed to create account", "success" => false]);
 }
 
 $stmt->close();
 $conn->close();
+?>

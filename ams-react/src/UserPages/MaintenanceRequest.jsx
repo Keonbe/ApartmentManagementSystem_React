@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faCheckCircle, faUndo } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faUndo } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
+import { MAINTENANCE_CATEGORIES } from '../config/maintenanceOptions';
 import '../assets/styles/responsive/user/maintenance-request.responsive.css';
 
 export default function MaintenanceRequest() {
     const { t } = useLang();
     const [issueType, setIssueType] = useState('');
-    const [urgency, setUrgency] = useState('');
     const [preferredDate, setPreferredDate] = useState('');
     const [preferredTime, setPreferredTime] = useState('');
     const [description, setDescription] = useState('');
@@ -18,6 +18,7 @@ export default function MaintenanceRequest() {
     const [uploadedFile, setUploadedFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
 
     //Enforces Philippines Standard Time (PST - UTC+8) for today's boundary tracking
@@ -67,30 +68,21 @@ export default function MaintenanceRequest() {
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
 
-        const loggedInUserStr = sessionStorage.getItem('loggedInUser');
-        const loggedInUser = loggedInUserStr ? JSON.parse(loggedInUserStr) : null;
-        const userId = loggedInUser?.id || '';
-
-        // 1. Pack the data into FormData (required for file uploads)
         const formData = new FormData();
-        formData.append('userId', userId);
         formData.append('issueType', issueType);
-        formData.append('urgency', urgency);
         formData.append('preferredDate', preferredDate);
         formData.append('preferredTime', preferredTime);
         formData.append('description', description.trim());
-
-        // Convert boolean to 1 or 0 for the PHP/MySQL backend
         formData.append('permissionToEnter', permissionToEnter ? 1 : 0);
 
-        // Append file only if one was uploaded
         if (uploadedFile) {
             formData.append('uploadedFile', uploadedFile);
         }
 
+        setIsSubmitting(true);
         try {
-            // 2. Send POST request
             const res = await api.post("/maintenance_request.php", formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
@@ -98,16 +90,18 @@ export default function MaintenanceRequest() {
             });
 
             if (res.data.success) {
-                // 3. Open the success modal
                 setIsModalOpen(true);
             } else {
-                console.error("Server Error:", res.data.message);
                 alert(res.data.message);
             }
         } catch (error) {
-            console.error("Error submitting request:", error);
+            alert(error.response?.data?.message || 'Failed to submit your request. Please try again.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
+
+    const isVideo = uploadedFile && (uploadedFile.type.startsWith('video/') || /\.(mp4|m4v|webm|mov)$/i.test(uploadedFile.name));
 
     return (
         <div className="maintenance-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
@@ -127,41 +121,22 @@ export default function MaintenanceRequest() {
                 </div>
 
                 {/*Form Inputs Panel Layout*/}
-                <form className="maintenance-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
+                <form className="maintenance-form-card animate-fade-in-up bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
 
                     {/*Issue Category Selector*/}
-                    <div className="flex flex-col space-y-2">
+                    <div className="flex flex-col space-y-2 md:col-span-2">
                         <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.category')}</label>
                         <select
                             value={issueType}
                             onChange={(e) => setIssueType(e.target.value)}
-                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
                             <option value="" disabled hidden>{t('maintenance.selectCategory')}</option>
-                            <option value="plumbing">{t('maintenance.plumbing')}</option>
-                            <option value="electrical">{t('maintenance.electrical')}</option>
-                            <option value="appliance">{t('maintenance.appliance')}</option>
-                            <option value="structural">{t('maintenance.structural')}</option>
-                            <option value="others">{t('maintenance.others')}</option>
-                        </select>
-                    </div>
-
-                    {/*Priority Selector*/}
-                    <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.priority')}</label>
-                        <select
-                            value={urgency}
-                            onChange={(e) => setUrgency(e.target.value)}
-                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
-                            style={{ color: '#1e293b' }}
-                            required
-                        >
-                            <option value="" disabled hidden>{t('maintenance.selectPriority')}</option>
-                            <option value="low">{t('maintenance.low')}</option>
-                            <option value="medium">{t('maintenance.medium')}</option>
-                            <option value="high">{t('maintenance.high')}</option>
+                            {MAINTENANCE_CATEGORIES.map(c => (
+                                <option key={c.value} value={c.value}>{t(c.i18nKey)}</option>
+                            ))}
                         </select>
                     </div>
 
@@ -174,7 +149,7 @@ export default function MaintenanceRequest() {
                             max={maxDateString}
                             value={preferredDate}
                             onChange={(e) => setPreferredDate(e.target.value)}
-                            className="maintenance-input w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="maintenance-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -186,7 +161,7 @@ export default function MaintenanceRequest() {
                         <select
                             value={preferredTime}
                             onChange={(e) => setPreferredTime(e.target.value)}
-                            className="maintenance-select w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className="maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -204,7 +179,7 @@ export default function MaintenanceRequest() {
                             placeholder={t('maintenance.descPlaceholder')}
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="maintenance-textarea w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
+                            className="maintenance-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
                             style={{ color: '#1e293b' }}
                             required
                         />
@@ -225,7 +200,7 @@ export default function MaintenanceRequest() {
                                     <input
                                         type="file"
                                         id="file-upload-input"
-                                        accept="image/*,.pdf"
+                                        accept="image/*,video/*"
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
@@ -237,16 +212,18 @@ export default function MaintenanceRequest() {
                                 </>
                             ) : (
                                 <div className="space-y-3 flex flex-col items-center w-full z-10">
-                                    {uploadedFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(uploadedFile.name) ? (
-                                        <img 
-                                            src={URL.createObjectURL(uploadedFile)} 
-                                            alt="Maintenance Issue Preview" 
-                                            className="w-32 h-20 object-cover rounded border border-slate-200"
+                                    {isVideo ? (
+                                        <video
+                                            src={URL.createObjectURL(uploadedFile)}
+                                            className="w-40 h-24 object-cover rounded border border-slate-200 bg-slate-900"
+                                            muted
                                         />
                                     ) : (
-                                        <div className="w-12 h-12 bg-indigo-50 flex items-center justify-center rounded border border-indigo-200 text-indigo-600 font-bold text-xs">
-                                            PDF
-                                        </div>
+                                        <img
+                                            src={URL.createObjectURL(uploadedFile)}
+                                            alt="Maintenance Issue Preview"
+                                            className="w-32 h-20 object-cover rounded border border-slate-200"
+                                        />
                                     )}
                                     <div className="text-center">
                                         <p className="text-sm font-bold text-slate-800 m-0 truncate max-w-[240px]">{uploadedFile.name}</p>
@@ -285,7 +262,8 @@ export default function MaintenanceRequest() {
                     <div className="md:col-span-2 border-t border-slate-100 pt-6 flex justify-end">
                         <button
                             type="submit"
-                            className="maintenance-submit-btn w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center"
+                            disabled={isSubmitting}
+                            className="maintenance-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {t('maintenance.submit')}
                         </button>

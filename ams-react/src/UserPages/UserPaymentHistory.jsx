@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint } from '@fortawesome/free-solid-svg-icons';
+import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
 export default function UserPaymentHistory() {
+    const navigate = useNavigate();
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
     const { t } = useLang();
@@ -13,10 +16,6 @@ export default function UserPaymentHistory() {
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const [showReceipt, setShowReceipt] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
-
-    useEffect(() => {
-        fetchInvoices();
-    }, []);
 
     const handleViewReceipt = (inv) => {
         let breakdown = `Rent: ${formatCurrency(inv.base_rent)}`;
@@ -31,6 +30,9 @@ export default function UserPaymentHistory() {
         }
         if (parseFloat(inv.parking) > 0) {
             breakdown += `\nParking: ${formatCurrency(inv.parking)}`;
+        }
+        if (parseFloat(inv.maintenance) > 0) {
+            breakdown += `\nMaintenance Recharge: ${formatCurrency(inv.maintenance)}`;
         }
         if (parseFloat(inv.late_fee) > 0) {
             breakdown += `\nLate Fee Penalty (Overdue): ${formatCurrency(inv.late_fee)}`;
@@ -58,7 +60,6 @@ export default function UserPaymentHistory() {
 
     const fetchInvoices = async () => {
         try {
-            setLoading(true);
             const response = await api.get(`get_invoices.php?userId=${loggedInUser.id}`);
             if (response.data.success) {
                 // Filter only paid ones or show all? The prompt said "Timeline of paid invoices".
@@ -71,6 +72,11 @@ export default function UserPaymentHistory() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        const load = async () => { await fetchInvoices(); };
+        load();
+    }, []);
 
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
@@ -100,11 +106,11 @@ export default function UserPaymentHistory() {
                             <p className="text-sm text-slate-500 mt-2">{t('paymentHistory.noneDesc')}</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-slate-100">
+                        <div className="stagger-children divide-y divide-slate-100">
                             {invoices.map((inv, idx) => {
                                 const isPaid = inv.status?.toLowerCase() === 'paid';
                                 return (
-                                    <div key={idx} className="payment-history-item p-4 sm:p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+                                    <div key={idx} className="payment-history-item card-interactive p-4 sm:p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
                                         <div className="flex items-start gap-3 sm:gap-4">
                                             <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg sm:text-xl shrink-0 ${isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                                                 <FontAwesomeIcon icon={isPaid ? faCheckCircle : faFileInvoiceDollar} />
@@ -136,6 +142,9 @@ export default function UserPaymentHistory() {
                                                         {parseFloat(inv.parking) > 0 && (
                                                             <span>{t('paymentHistory.parking')} {formatCurrency(inv.parking)}</span>
                                                         )}
+                                                        {parseFloat(inv.maintenance) > 0 && (
+                                                            <span>{t('paymentHistory.maintenance')} {formatCurrency(inv.maintenance)}</span>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -144,11 +153,23 @@ export default function UserPaymentHistory() {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="payment-history-actions flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
+                                        <div className="payment-history-actions flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
                                             {isPaid ? (
                                                 <span className="px-3 py-1 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">{t('paymentHistory.paid')}</span>
                                             ) : (
-                                                <span className="px-3 py-1 text-xs font-bold bg-amber-100 text-amber-700 rounded-full">{t('paymentHistory.unpaid')}</span>
+                                                <>
+                                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${inv.status === 'overdue' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'}`}>
+                                                        {inv.status === 'overdue' ? 'Overdue' : 'Unpaid'}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate('/pay-bills')}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg border-0 cursor-pointer transition-colors"
+                                                    >
+                                                        <span>Pay Now</span>
+                                                        <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
+                                                    </button>
+                                                </>
                                             )}
                                             
                                             {isPaid && (
@@ -171,8 +192,8 @@ export default function UserPaymentHistory() {
 
             {/* Receipt Modal */}
             {showReceipt && receiptData && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onClick={() => setShowReceipt(false)}>
-                    <div className="receipt-modal-card bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 modal-overlay-anim" onClick={() => setShowReceipt(false)}>
+                    <div className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="bg-slate-900 text-white p-5 sm:p-6 text-center border-b-4 border-indigo-500 shrink-0">
                             <h2 className="text-xl sm:text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
                             <div className="mt-3 pt-3 border-t border-slate-700/50">
@@ -202,7 +223,7 @@ export default function UserPaymentHistory() {
                             {receiptData.proofPath && (
                                 <div className="text-xs text-slate-600 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100 flex items-center justify-between flex-wrap gap-2">
                                     <span>{t('paymentHistory.proofAttached')}</span>
-                                    <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${receiptData.proofPath}`} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">{t('paymentHistory.viewScreenshot')}</a>
+                                    <a href={fileUrl(receiptData.proofPath)} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">{t('paymentHistory.viewScreenshot')}</a>
                                 </div>
                             )}
                             <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-slate-200">

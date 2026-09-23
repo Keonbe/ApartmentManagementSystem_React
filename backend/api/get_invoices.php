@@ -1,7 +1,7 @@
 <?php
 // Define CORS headers immediately before any processing occurs
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
@@ -14,9 +14,28 @@ require_once "../config.php";
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
+        // Billing data is financial PII (amounts, payment references, sender
+        // names, proof paths), so this endpoint requires a real session — it
+        // previously only compared a client-supplied X-User-Id against the
+        // requested one, which meant OMITTING the header entirely skipped the
+        // check and returned any tenant's full billing history unauthenticated.
+        $auth = require_user($conn);
+        $is_admin = $auth['role'] === 'admin';
+
+        // Auto-mark lapsed invoices 'overdue' and apply the configured late fee
+        promote_overdue_invoices($conn);
+
         $user_id_param = $_GET['userId'] ?? null;
         if ($user_id_param) {
-            $stmt = $conn->prepare("SELECT 
+            // A non-admin may only ever read their own invoices, whatever the
+            // ?userId= parameter says.
+            if (!$is_admin && (int)$user_id_param !== $auth['id']) {
+                http_response_code(403);
+                echo json_encode(["success" => false, "message" => "Forbidden: Access denied to other user's invoices"]);
+                exit;
+            }
+
+            $stmt = $conn->prepare("SELECT
                         i.*, 
                         u.first_name, 
                         u.last_name, 
@@ -30,6 +49,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $stmt->execute();
             $result = $stmt->get_result();
         } else {
+            // Admin-only global invoice list
+            if (!$is_admin) {
+                http_response_code(403);
+                echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+                exit;
+            }
+
             $query = "SELECT 
                         i.*, 
                         u.first_name, 
@@ -60,9 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'water' => $row['water'] ?? 0,
                 'electricity' => $row['electricity'] ?? 0,
                 'parking' => $row['parking'] ?? 0,
+                'services' => $row['services'] ?? 0,
+                'maintenance' => $row['maintenance'] ?? 0,
                 'security_deposit' => $row['security_deposit'] ?? 0,
-                'late_fee' => ($row['status'] === 'pending' && !empty($row['due_date']) && strtotime($row['due_date']) < strtotime(date('Y-m-d'))) ? 500.00 : 0.00,
-                'total_amount' => ($row['base_rent'] ?? 0) + ($row['water'] ?? 0) + ($row['electricity'] ?? 0) + ($row['parking'] ?? 0) + ($row['security_deposit'] ?? 0) + (($row['status'] === 'pending' && !empty($row['due_date']) && strtotime($row['due_date']) < strtotime(date('Y-m-d'))) ? 500.00 : 0.00),
+                'late_fee' => $row['late_fee'] ?? 0.00,
+                'total_amount' => $row['total_amount'] ?? 0.00,
                 'status' => $row['status'],
                 
                 // FIX FOR INVALID DATE: Send created_at or issue_date timestamp
@@ -76,7 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'billing_period' => $row['billing_period'] ?? null,
                 'scheduled_date' => $row['scheduled_date'] ?? null,
                 'scheduled_time_slot' => $row['scheduled_time_slot'] ?? null,
-                'payment_gateway' => $row['payment_gateway'] ?? null
+                'payment_gateway' => $row['payment_gateway'] ?? null,
+                'last_reminder_date' => $row['last_reminder_date'] ?? null,
+                'reminder_count' => (int)($row['reminder_count'] ?? 0)
             ];
         }
 

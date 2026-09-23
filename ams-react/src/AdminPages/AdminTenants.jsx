@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faSearch, faTimes, faUser, faBuilding, faCalendarAlt, faPhone, faEnvelope, 
-  faExclamationTriangle, faCheckCircle, faEye, faChevronRight, faClock, 
-  faShieldAlt, faArchive, faHistory, faDollarSign, faWrench, faFileAlt,
-  faSignOutAlt, faBoxOpen, faUserSlash, faChevronDown, faChevronUp, faClipboardCheck
+  faSearch, faTimes, faUser, faCalendarAlt,
+  faExclamationTriangle, faCheckCircle, faEye,
+  faArchive, faDollarSign, faWrench, faFileAlt,
+  faSignOutAlt, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
+import AdminHouseholdList from '../Components/AdminHouseholdList';
 
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
@@ -53,60 +55,6 @@ const AdminTenants = () => {
   const [damageDeduction, setDamageDeduction] = useState(0);
   const [damageNotes, setDamageNotes] = useState('');
   const [utilityDeduction, setUtilityDeduction] = useState(0);
-
-  const openClearanceModal = (tenant) => {
-    setClearanceTarget(tenant);
-    setDamageDeduction(0);
-    setDamageNotes('');
-    setUtilityDeduction(0);
-    setShowProfileModal(false);
-    setShowClearanceModal(true);
-  };
-
-  const handleConfirmClearance = async () => {
-    if (!clearanceTarget) return;
-
-    const rentStr = clearanceTarget.rent ? String(clearanceTarget.rent) : '4000';
-    const baseDeposit = parseFloat(rentStr.replace(/[^0-9.]/g, '')) || 4000;
-    const damages = parseFloat(damageDeduction) || 0;
-    const utilities = parseFloat(utilityDeduction) || 0;
-    const netRefund = Math.max(0, baseDeposit - damages - utilities);
-
-    const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
-
-    try {
-      const res = await api.post('/update_tenant_status.php', {
-        id: clearanceTarget.id,
-        status: 'moved-out',
-        damage_deduction: damages,
-        damage_notes: damageNotes,
-        utility_deduction: utilities,
-        clearance_notes: summaryNotes
-      });
-
-      if (res.data.success) {
-        alert("Move-out clearance completed successfully. Room is now marked vacant.");
-        setShowClearanceModal(false);
-        setClearanceTarget(null);
-        fetchTenants();
-      } else {
-        alert(res.data.message || "Failed to complete move-out clearance.");
-      }
-    } catch (err) {
-      console.error("Error confirming clearance:", err);
-      alert("Failed to submit move-out clearance.");
-    }
-  };
-
-  // Profile modal tab state
-  const [profileTab, setProfileTab] = useState('overview');
-
-  useEffect(() => {
-    fetchTenants();
-    fetchInvoices();
-    fetchMaintenanceRequests();
-    fetchContracts();
-  }, []);
 
   const fetchInvoices = async () => {
     try {
@@ -156,14 +104,57 @@ const AdminTenants = () => {
     }
   };
 
-  const updateStatus = async (id, status) => {
+  useEffect(() => {
+    const load = async () => { await Promise.all([fetchTenants(), fetchInvoices(), fetchMaintenanceRequests(), fetchContracts()]); };
+    load();
+  }, []);
+
+  const openClearanceModal = (tenant) => {
+    setClearanceTarget(tenant);
+    setDamageDeduction(0);
+    setDamageNotes('');
+    setUtilityDeduction(0);
+    setShowProfileModal(false);
+    setShowClearanceModal(true);
+  };
+
+  const handleConfirmClearance = async () => {
+    if (!clearanceTarget) return;
+
+    const rentStr = clearanceTarget.rent ? String(clearanceTarget.rent) : '4000';
+    const baseDeposit = parseFloat(rentStr.replace(/[^0-9.]/g, '')) || 4000;
+    const damages = parseFloat(damageDeduction) || 0;
+    const utilities = parseFloat(utilityDeduction) || 0;
+    const netRefund = Math.max(0, baseDeposit - damages - utilities);
+
+    const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
+
     try {
-      await api.post('/update_tenant_status.php', { id, status });
-      fetchTenants();
+      const res = await api.post('/update_tenant_status.php', {
+        id: clearanceTarget.id,
+        status: 'moved-out',
+        damage_deduction: damages,
+        damage_notes: damageNotes,
+        utility_deduction: utilities,
+        clearance_notes: summaryNotes
+      });
+
+      if (res.data.success) {
+        alert("Move-out clearance completed successfully. Room is now marked vacant.");
+        setShowClearanceModal(false);
+        setClearanceTarget(null);
+        fetchTenants();
+      } else {
+        alert(res.data.message || "Failed to complete move-out clearance.");
+      }
     } catch (err) {
-      console.error("Error updating status:", err);
+      console.error("Error confirming clearance:", err);
+      alert("Failed to submit move-out clearance.");
     }
   };
+
+  // Profile modal tab state
+  const [profileTab, setProfileTab] = useState('overview');
 
   const handleInitiateMoveOutClick = (tenant) => {
     setMoveOutTarget(tenant);
@@ -257,7 +248,6 @@ const AdminTenants = () => {
   };
 
   // Count logic
-  const pendingReviewCount = tenants.filter(t => t.status === 'Pending Review').length;
   const activeTenantCount = tenants.filter(t => t.status === 'active' || t.status === 'Approved').length;
   const pendingMoveOutCount = tenants.filter(t => t.status === 'pending-move-out').length;
   const movedOutCount = tenants.filter(t => t.status === 'moved-out').length;
@@ -279,7 +269,7 @@ const AdminTenants = () => {
   ];
 
   // Determine displayed list
-  let displayed = [];
+  let displayed;
   if (activeFilter === 'archived') {
     displayed = [...archivedTenants];
   } else if (activeFilter === 'all') {
@@ -368,14 +358,15 @@ const AdminTenants = () => {
 
   const getOccupancyBadge = (status) => {
     const map = {
-      'Pending Review': { style: 'bg-blue-100 text-blue-800', label: '○ Pending' },
-      active: { style: 'bg-emerald-100 text-emerald-800', label: '● Active' },
+      'Pending Review': { style: 'bg-blue-100 text-blue-800', label: '○ Pending Review' },
+      'Approved':       { style: 'bg-sky-100 text-sky-800',     label: '◑ Approved (Pending Move-In)' },
+      'active':         { style: 'bg-emerald-100 text-emerald-800', label: '● Active' },
       'pending-move-out': { style: 'bg-amber-100 text-amber-800', label: '◔ Pending Move-Out' },
-      'moved-out': { style: 'bg-slate-100 text-slate-500', label: '○ Moved Out' },
-      archived: { style: 'bg-violet-100 text-violet-700', label: '◇ Archived' },
+      'moved-out':      { style: 'bg-slate-100 text-slate-500', label: '○ Moved Out' },
+      'archived':       { style: 'bg-violet-100 text-violet-700', label: '◇ Archived' },
     };
-    const { style, label } = map[status] || map.active;
-    return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${style}`}>{label}</span>;
+    const entry = map[status] || { style: 'bg-slate-100 text-slate-500', label: `○ ${status || 'Unknown'}` };
+    return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold ${entry.style}`}>{entry.label}</span>;
   };
 
   const openProfile = (tenant) => {
@@ -427,24 +418,24 @@ const AdminTenants = () => {
             </div>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div className="stagger-children grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="card-interactive bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Total Records</p>
                 <p className="text-2xl font-bold text-slate-800 mt-1 m-0">{counts.all}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-emerald-500 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Active</p>
                 <p className="text-2xl font-bold text-emerald-600 mt-1 m-0">{counts.active}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-amber-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Pending Move-Out</p>
                 <p className="text-2xl font-bold text-amber-500 mt-1 m-0">{counts['pending-move-out']}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-slate-400 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-slate-400 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Moved Out</p>
                 <p className="text-2xl font-bold text-slate-500 mt-1 m-0">{counts['moved-out']}</p>
               </div>
-              <div className="bg-white border-l-4 border-l-violet-500 border border-slate-200 rounded-xl p-4 shadow-sm">
+              <div className="card-interactive bg-white border-l-4 border-l-violet-500 border border-slate-200 rounded-xl p-4 shadow-sm">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide m-0">Archived</p>
                 <p className="text-2xl font-bold text-violet-600 mt-1 m-0">{counts.archived}</p>
               </div>
@@ -453,14 +444,14 @@ const AdminTenants = () => {
             {/* Filter Tabs */}
             <div className="flex items-center gap-3 flex-wrap">
               {filters.map(f => (
-                <button key={f.key} onClick={() => setActiveFilter(f.key)} className={`px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-all ${activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
+                <button key={f.key} onClick={() => setActiveFilter(f.key)} className={`btn-interactive px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-all ${activeFilter === f.key ? (f.activeStyle || 'bg-indigo-600 text-white border-indigo-600') : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50'}`}>
                   {f.label}
                 </button>
               ))}
             </div>
 
             {/* Tenant Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm table-scroll-x">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
@@ -492,6 +483,24 @@ const AdminTenants = () => {
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-bold text-indigo-600">Unit {t.unit}</span>
+                        {/* Payment standing from real invoices (checklist 8.4) */}
+                        {t.status !== 'archived' && t.paymentStatus && (
+                          <div className="mt-1">
+                            {t.paymentStatus === 'overdue' ? (
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200" title={`${t.daysOverdue} day(s) past due`}>
+                                Overdue ₱{Number(t.overdueBalance).toLocaleString()}
+                              </span>
+                            ) : t.paymentStatus === 'due' ? (
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                Due ₱{Number(t.outstandingBalance).toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Paid up
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">{getOccupancyBadge(t.status)}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">
@@ -502,6 +511,8 @@ const AdminTenants = () => {
                           </div>
                         ) : t.status === 'Pending Review' ? (
                           <span className="text-slate-400">Move-in date pending</span>
+                        ) : t.status === 'Approved' ? (
+                          <span className="text-sky-600 font-semibold">Pending move-in payment</span>
                         ) : t.leaseEnd ? (
                           <div>
                             <div>Lease ends: {t.leaseEnd}</div>
@@ -550,7 +561,7 @@ const AdminTenants = () => {
                               <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Restore Tenant
                             </button>
                           )}
-                          {(t.status === 'active' || t.status === 'Approved') && (
+                          {t.status === 'active' && (
                             <button 
                               onClick={() => handleInitiateMoveOutClick(t)}
                               className="flex items-center gap-1.5 text-amber-600 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
@@ -579,8 +590,8 @@ const AdminTenants = () => {
 
       {/* ─── TENANT PROFILE MODAL ─── */}
       {showProfileModal && selectedTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowProfileModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowProfileModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
@@ -588,9 +599,11 @@ const AdminTenants = () => {
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md ${
                   selectedTenant.status === 'archived' 
                     ? 'bg-gradient-to-br from-violet-500 to-violet-700' 
-                    : selectedTenant.status === 'active' 
-                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-700' 
-                      : 'bg-gradient-to-br from-amber-400 to-amber-600'
+                    : selectedTenant.status === 'active'
+                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-700'
+                      : selectedTenant.status === 'Approved'
+                        ? 'bg-gradient-to-br from-sky-500 to-sky-700'
+                        : 'bg-gradient-to-br from-amber-400 to-amber-600'
                 }`}>
                   {(selectedTenant.name || '').charAt(0)}
                 </div>
@@ -663,14 +676,24 @@ const AdminTenants = () => {
                     )}
                   </div>
 
+                  {['Approved', 'active', 'pending-move-out'].includes(selectedTenant.status) && (
+                    <AdminHouseholdList userId={selectedTenant.user_id} />
+                  )}
+
                   {/* Verification Documents */}
-                  {selectedTenant.valid_id_front_path && (
+                  {(selectedTenant.valid_id_front_path || selectedTenant.valid_id_back_path || selectedTenant.nbi_clearance_path) && (
                     <div className="mt-4 border-t border-slate-100 pt-4">
                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Verification Documents</p>
                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                         <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.valid_id_front_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Front)</a>
-                         <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.valid_id_back_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Back)</a>
-                         <a href={`http://localhost:8080/ApartmentManagementSystem_React/backend/uploads/applications/${selectedTenant.nbi_clearance_path.split('/').pop()}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> NBI Clearance</a>
+                         {selectedTenant.valid_id_front_path && (
+                           <a href={fileUrl(selectedTenant.valid_id_front_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Front)</a>
+                         )}
+                         {selectedTenant.valid_id_back_path && (
+                           <a href={fileUrl(selectedTenant.valid_id_back_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Back)</a>
+                         )}
+                         {selectedTenant.nbi_clearance_path && (
+                           <a href={fileUrl(selectedTenant.nbi_clearance_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> NBI Clearance</a>
+                         )}
                        </div>
                     </div>
                   )}
@@ -693,23 +716,10 @@ const AdminTenants = () => {
                     </div>
                   )}
 
-                  {/* Actions for non-archived tenants */}
-                  {selectedTenant.status === 'Pending Review' && (
-                    <div className="flex gap-3 mt-4">
-                      <button 
-                        onClick={() => { updateStatus(selectedTenant.id, 'active'); setShowProfileModal(false); }} 
-                        className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-emerald-600 transition-colors"
-                      >
-                        <FontAwesomeIcon icon={faCheckCircle} /> Approve Application
-                      </button>
-                      <button 
-                        onClick={() => { updateStatus(selectedTenant.id, 'rejected'); setShowProfileModal(false); }} 
-                        className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white p-2.5 rounded-lg border-0 cursor-pointer text-sm font-semibold hover:bg-red-600 transition-colors"
-                      >
-                        <FontAwesomeIcon icon={faTimes} /> Reject
-                      </button>
-                    </div>
-                  )}
+                  {/* Actions for non-archived tenants. Pending Review applications are
+                      handled on the Applications page (AdminApplications.jsx) — this
+                      page's tenant list already excludes that status (see the filter
+                      above), so no approve/reject action exists here. */}
                   {selectedTenant.status !== 'archived' && (selectedTenant.status === 'active' || selectedTenant.status === 'Approved') && (
                     <button 
                       onClick={() => handleInitiateMoveOutClick(selectedTenant)} 
@@ -777,20 +787,20 @@ const AdminTenants = () => {
               {/* Payment History Tab */}
               {profileTab === 'payments' && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
+                  <div className="stagger-children grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="card-interactive bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-emerald-700 m-0">₱{totalPaid.toLocaleString()}</p>
                       <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Total Paid</p>
                     </div>
-                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
+                    <div className="card-interactive bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-indigo-700 m-0">{monthsPaid}</p>
                       <p className="text-[10px] text-indigo-600 font-semibold m-0 mt-0.5">Invoices Paid</p>
                     </div>
-                    <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-center">
+                    <div className="card-interactive bg-red-50 border border-red-100 rounded-lg p-3 text-center">
                       <p className="text-lg font-bold text-red-700 m-0">{overdueCount}</p>
                       <p className="text-[10px] text-red-600 font-semibold m-0 mt-0.5">Overdue Invoices</p>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                    <div className="card-interactive bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
                       <p className="text-sm font-bold text-slate-700 m-0 truncate">{lastPayment}</p>
                       <p className="text-[10px] text-slate-500 font-semibold m-0 mt-0.5">Last Payment</p>
                     </div>
@@ -869,8 +879,8 @@ const AdminTenants = () => {
 
       {/* ─── ARCHIVE CONFIRMATION MODAL ─── */}
       {showArchiveModal && archiveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowArchiveModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowArchiveModal(false)}>
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
@@ -944,8 +954,8 @@ const AdminTenants = () => {
       )}
         {/* ─── ADMIN MOVE OUT SCHEDULING MODAL ─── */}
         {showMoveOutModal && moveOutTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowMoveOutModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowMoveOutModal(false)}>
+            <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
@@ -1010,8 +1020,8 @@ const AdminTenants = () => {
         )}
         {/* ─── MOVE-OUT INSPECTION & CLEARANCE MODAL ─── */}
         {showClearanceModal && clearanceTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowClearanceModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowClearanceModal(false)}>
+            <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold">

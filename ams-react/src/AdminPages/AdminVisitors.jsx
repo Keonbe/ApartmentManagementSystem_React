@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faIdBadge, faUserPlus, faCheck, faTimes, faSignOutAlt, 
-  faExclamationTriangle, faClock, faSearch, faFilter, faCar, 
+  faExclamationTriangle, faClock, faSearch, faCar,
   faBuilding, faSync, faSlidersH, faPhone, faUserCheck, faUserClock,
-  faDoorOpen, faInfoCircle, faEye
+  faDoorOpen, faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 
 export default function AdminVisitors() {
@@ -22,8 +23,9 @@ export default function AdminVisitors() {
     total_count: 0,
     overstay_threshold_hours: 24
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadedFilters, setLoadedFilters] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [failure, setFailure] = useState(null); // { filters, message }
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,14 +54,13 @@ export default function AdminVisitors() {
   const [thresholdHours, setThresholdHours] = useState(24);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchVisitors();
-    fetchRooms();
-  }, [statusFilter, unitFilter]);
+  // Loading and error are derived from the filters they belong to, so a filter change
+  // shows the spinner without setting state inside the effect.
+  const filterKey = `${statusFilter}|${unitFilter}`;
+  const loading = refreshing || loadedFilters !== filterKey;
+  const error = failure && failure.filters === filterKey ? failure.message : null;
 
-  const fetchVisitors = async () => {
-    setLoading(true);
-    setError(null);
+  const loadVisitors = async () => {
     try {
       let url = `get_visitors.php?status=${statusFilter}&unit=${unitFilter}`;
       if (searchQuery.trim()) {
@@ -68,19 +69,27 @@ export default function AdminVisitors() {
       const res = await api.get(url);
       if (res.data.success) {
         setVisitors(res.data.visitors || []);
+        setFailure(null);
         if (res.data.stats) {
           setStats(res.data.stats);
           setThresholdHours(res.data.stats.overstay_threshold_hours || 24);
         }
       } else {
-        setError(res.data.message || 'Failed to fetch visitor records.');
+        setFailure({ filters: filterKey, message: res.data.message || 'Failed to fetch visitor records.' });
       }
     } catch (err) {
       console.error('Failed to load visitor data:', err);
-      setError('Unable to load visitor logs. Please check connection and try again.');
+      setFailure({ filters: filterKey, message: 'Unable to load visitor logs. Please check connection and try again.' });
     } finally {
-      setLoading(false);
+      setLoadedFilters(filterKey);
+      setRefreshing(false);
     }
+  };
+
+  const fetchVisitors = () => {
+    setRefreshing(true);
+    setFailure(null);
+    return loadVisitors();
   };
 
   const fetchRooms = async () => {
@@ -93,6 +102,11 @@ export default function AdminVisitors() {
       console.error('Failed to fetch rooms list:', err);
     }
   };
+
+  useEffect(() => {
+    const load = async () => { await Promise.all([loadVisitors(), fetchRooms()]); };
+    load();
+  }, [statusFilter, unitFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -229,6 +243,7 @@ export default function AdminVisitors() {
     { key: 'overstayed', label: 'Overstayed', count: stats.overstay_count, color: 'text-rose-600 bg-rose-50' },
     { key: 'checked_out', label: 'Checked Out' },
     { key: 'denied', label: 'Denied' },
+    { key: 'cancelled', label: 'Cancelled' },
   ];
 
   return (
@@ -241,10 +256,10 @@ export default function AdminVisitors() {
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Top KPI Metrics Banner */}
-            <div className="admin-visitors-metrics-grid grid grid-cols-2 lg:grid-cols-4 gap-4">
-              
+            <div className="admin-visitors-metrics-grid stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+
               {/* Checked In */}
-              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Currently On-Premise</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
@@ -256,7 +271,7 @@ export default function AdminVisitors() {
               </div>
 
               {/* Pending Review */}
-              <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
@@ -268,7 +283,7 @@ export default function AdminVisitors() {
               </div>
 
               {/* Today's Check-ins */}
-              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Today's Check-Ins</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
@@ -280,7 +295,7 @@ export default function AdminVisitors() {
               </div>
 
               {/* Overstay Alerts */}
-              <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-rose-700">Overstay Alerts</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
@@ -292,7 +307,7 @@ export default function AdminVisitors() {
                   <button 
                     type="button" 
                     onClick={() => setShowThresholdModal(true)}
-                    className="text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline bg-transparent border-0 cursor-pointer p-0 flex items-center gap-1"
+                    className="btn-interactive text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline bg-transparent border-0 cursor-pointer p-0 flex items-center gap-1"
                   >
                     <FontAwesomeIcon icon={faSlidersH} className="text-[10px]" />
                     <span>&gt; {stats.overstay_threshold_hours >= 24 ? `${Math.round(stats.overstay_threshold_hours / 24)}d (${stats.overstay_threshold_hours}h)` : `${stats.overstay_threshold_hours}h`}</span>
@@ -407,7 +422,7 @@ export default function AdminVisitors() {
                       <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr>
                         <td colSpan="7" className="px-5 py-12 text-center text-slate-400 font-medium">
@@ -422,9 +437,11 @@ export default function AdminVisitors() {
                       </tr>
                     ) : visitors.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="px-5 py-12 text-center text-slate-400 italic">
-                          <FontAwesomeIcon icon={faIdBadge} className="text-3xl text-slate-300 mb-2 block mx-auto" />
-                          No visitor records found matching current filters.
+                        <td colSpan="7" className="px-5 py-12 text-center">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                            <FontAwesomeIcon icon={faIdBadge} className="text-xl text-slate-300 shrink-0" />
+                            <span className="text-sm italic">No visitor records found matching current filters.</span>
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -434,6 +451,7 @@ export default function AdminVisitors() {
                         const isOverstay = v.status === 'overstayed';
                         const isCompleted = v.status === 'checked_out';
                         const isDenied = v.status === 'denied';
+                        const isCancelled = v.status === 'cancelled';
 
                         return (
                           <tr key={v.id} className="transition-colors hover:bg-slate-50/80">
@@ -456,7 +474,7 @@ export default function AdminVisitors() {
                                     )}
                                     {v.idPhotoPath && (
                                       <a
-                                        href={`http://localhost:8080/ApartmentManagementSystem_React/backend/${v.idPhotoPath}`}
+                                        href={fileUrl(v.idPhotoPath)}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold hover:underline inline-flex items-center gap-1 bg-indigo-50 px-1.5 py-0.5 rounded"
@@ -507,7 +525,11 @@ export default function AdminVisitors() {
                             {/* Duration */}
                             <td className="px-4 py-4 text-xs">
                               {isPending ? (
-                                <span className="text-slate-400 italic text-[11px]">Awaiting entry</span>
+                                <span className="text-slate-400 italic text-[11px]">
+                                  {v.expectedAt
+                                    ? `Expected ${new Date(v.expectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                                    : 'Awaiting entry'}
+                                </span>
                               ) : (
                                 <span className={`font-mono font-bold text-xs ${isOverstay ? 'text-rose-600' : 'text-slate-700'}`}>
                                   {v.duration}
@@ -543,6 +565,11 @@ export default function AdminVisitors() {
                               {isDenied && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700" title={v.adminNotes || 'Entry Denied'}>
                                   Denied
+                                </span>
+                              )}
+                              {isCancelled && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500" title={v.adminNotes || 'Cancelled by tenant'}>
+                                  Cancelled
                                 </span>
                               )}
                             </td>
@@ -607,8 +634,8 @@ export default function AdminVisitors() {
 
       {/* Check-In / Register Visitor Modal */}
       {showCheckInModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowCheckInModal(false)}>
-          <div className="admin-visitors-modal w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowCheckInModal(false)}>
+          <div className="admin-visitors-modal modal-card-anim w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 text-base">
@@ -757,8 +784,8 @@ export default function AdminVisitors() {
 
       {/* Check Out Modal */}
       {showCheckoutModal && selectedVisitorForCheckout && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowCheckoutModal(false)}>
-          <div className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowCheckoutModal(false)}>
+          <div className="admin-visitors-modal modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <h3 className="text-lg font-bold text-slate-800 m-0">Confirm Visitor Checkout</h3>
               <button
@@ -812,8 +839,8 @@ export default function AdminVisitors() {
 
       {/* Configurable Overstay Threshold Modal */}
       {showThresholdModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowThresholdModal(false)}>
-          <div className="admin-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowThresholdModal(false)}>
+          <div className="admin-visitors-modal modal-card-anim w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faSlidersH} className="text-indigo-600" />

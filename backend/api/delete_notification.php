@@ -1,8 +1,8 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Id, x-user-id");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 require_once "../config.php";
 
@@ -11,41 +11,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$input = json_decode(file_get_contents("php://input"), true);
-$notification_id = $input['notificationId'] ?? null;
-$user_id = $input['userId'] ?? null;
-$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+// Deleting is narrower than marking read: anyone may delete only notifications
+// addressed to them, and never a row that is still waiting on a decision.
+//
+// Previously an admin could delete any row whose type was a queue type — which
+// included tenants' own decision notices — and a tenant could delete their own
+// Pending occupancy / lease request, which is the row that stops a duplicate
+// request from being filed and the row the admin approves from.
+$auth = require_user($conn);
 
-$is_admin = verify_admin($conn, $admin_id);
+$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$notification_id = (int)($input['notificationId'] ?? $input['id'] ?? 0);
 
-try {
-    if ($notification_id) {
-        // Delete a single notification
-        $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ?");
-        $stmt->bind_param("i", $notification_id);
-    } else if ($is_admin) {
-        // ADMIN BULK ACTION: Clear ALL non-pending notifications
-        // (Preserves 'Pending' verification requests so active requests aren't lost)
-        $stmt = $conn->prepare("DELETE FROM notifications WHERE status != 'Pending'");
-    } else if ($user_id) {
-        // TENANT BULK ACTION: Delete all notifications for this user
-        $stmt = $conn->prepare("DELETE FROM notifications WHERE user_id = ? AND status != 'Pending'");
-        $stmt->bind_param("i", $user_id);
-    } else {
-        echo json_encode(["success" => false, "message" => "Missing parameters."]);
-        exit();
-    }
-
-    if ($stmt->execute()) {
-        echo json_encode(["success" => true, "message" => "Notifications cleared."]);
-    } else {
-        echo json_encode(["success" => false, "message" => "Failed to delete notifications."]);
-    }
+if ($notification_id) {
+    $stmt = $conn->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ? AND status <> 'Pending'");
+    $stmt->bind_param("ii", $notification_id, $auth['id']);
+    $stmt->execute();
+    $deleted = $stmt->affected_rows;
     $stmt->close();
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Server error: " . $e->getMessage()]);
+
+    if ($deleted === 0) {
+        $check = $conn->prepare("SELECT status FROM notifications WHERE id = ? AND user_id = ?");
+        $check->bind_param("ii", $notification_id, $auth['id']);
+        $check->execute();
+        $row = $check->get_result()->fetch_assoc();
+        $check->close();
+
+        if ($row) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This request is still awaiting a decision and cannot be removed."]);
+        } else {
+            http_response_code(404);
+            echo json_encode(["success" => false, "message" => "Notification not found."]);
+        }
+        exit;
+    }
+} else {
+    $stmt = $conn->prepare("DELETE FROM notifications WHERE user_id = ? AND status <> 'Pending'");
+    $stmt->bind_param("i", $auth['id']);
+    $stmt->execute();
+    $deleted = $stmt->affected_rows;
+    $stmt->close();
 }
 
+echo json_encode(["success" => true, "message" => "Notifications cleared.", "deleted" => $deleted]);
 $conn->close();
 ?>

@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
@@ -11,47 +11,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-$user_id = $_SERVER['HTTP_X_USER_ID'] ?? $_POST['userId'] ?? $_POST['user_id'] ?? null;
+// The old code accepted $_POST['userId'] as a fallback identity, so anyone
+// could post a payment reference and proof onto another tenant's invoice.
+// Identity now comes only from the verified session.
+$auth = require_user($conn);
+$user_id = $auth['id'];
+$is_admin = $auth['role'] === 'admin';
 
-// Support both snake_case and camelCase keys
 $invoice_id = $_POST['invoice_id'] ?? $_POST['invoiceId'] ?? null;
-$payment_reference = $_POST['payment_reference'] ?? $_POST['referenceNo'] ?? $_POST['paymentReference'] ?? null;
+$payment_reference = $_POST['payment_reference'] ?? $_POST['referenceNo'] ?? null;
 $payment_method = $_POST['payment_method'] ?? $_POST['paymentMethod'] ?? 'GCash';
 $sender_name = $_POST['sender_name'] ?? $_POST['senderName'] ?? null;
-
-// Fallback: lookup latest pending invoice if invoice_id was not explicitly sent
-if (empty($invoice_id) && !empty($user_id)) {
-    $inv_stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND status IN ('pending', 'overdue') ORDER BY id DESC LIMIT 1");
-    $inv_stmt->bind_param("i", $user_id);
-    $inv_stmt->execute();
-    $inv_res = $inv_stmt->get_result();
-    if ($inv_row = $inv_res->fetch_assoc()) {
-        $invoice_id = $inv_row['id'];
-    }
-    $inv_stmt->close();
-}
 
 if (empty($invoice_id)) {
     echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
     exit;
 }
 
-$proof_path = null;
-// Support both 'proof' and 'proofImage' file keys
-$file_key = isset($_FILES['proofImage']) ? 'proofImage' : (isset($_FILES['proof']) ? 'proof' : null);
+$proof_file = null;
+if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
+    $proof_file = $_FILES['proof'];
+} else if (isset($_FILES['proofImage']) && $_FILES['proofImage']['error'] === UPLOAD_ERR_OK) {
+    $proof_file = $_FILES['proofImage'];
+}
 
-if ($file_key && $_FILES[$file_key]['error'] === UPLOAD_ERR_OK) {
+$proof_path = null;
+if ($proof_file) {
+    // Match the 10MB ceiling the other upload endpoints enforce; this one
+    // previously accepted a file of any size.
+    if ($proof_file['size'] > 10 * 1024 * 1024) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Payment proof exceeds the 10MB size limit."]);
+        exit;
+    }
+
+    $file_extension = strtolower(pathinfo($proof_file['name'], PATHINFO_EXTENSION));
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+
+    if (!in_array($file_extension, $allowed_extensions)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Invalid payment proof file format. Allowed: JPG, PNG, WEBP, PDF."]);
+        exit;
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $proof_file['tmp_name']);
+    finfo_close($finfo);
+
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!in_array($mime, $allowed_mimes)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "File content does not match allowed formats."]);
+        exit;
+    }
+
     $upload_dir = '../uploads/payment_proofs/';
     if (!file_exists($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
+        mkdir($upload_dir, 0755, true);
     }
-    
-    $file_extension = strtolower(pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION));
-    $file_name = 'proof_' . uniqid() . '.' . $file_extension;
+
+    $file_name = 'proof_' . bin2hex(random_bytes(16)) . '.' . $file_extension;
     $target_file = $upload_dir . $file_name;
     
-    if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_file)) {
+    if (move_uploaded_file($proof_file['tmp_name'], $target_file)) {
         $proof_path = 'uploads/payment_proofs/' . $file_name;
+    } else {
+        // Failing silently here used to leave the invoice marked
+        // 'pending-verification' with no proof attached, while still telling
+        // the tenant their upload succeeded.
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Failed to save the payment proof. Please try again."]);
+        exit;
     }
 }
 
@@ -65,16 +95,49 @@ if ($proof_path) {
     $types .= "s";
 }
 
-$query .= " WHERE id = ?";
-$params[] = $invoice_id;
-$types .= "s";
+if ($is_admin) {
+    $query .= " WHERE id = ?";
+    $params[] = $invoice_id;
+    $types .= "s";
+} else {
+    $query .= " WHERE id = ? AND user_id = ?";
+    $params[] = $invoice_id;
+    $params[] = $user_id;
+    $types .= "si";
+}
+
+// Never let a settled or cancelled invoice be reopened by attaching a proof.
+$query .= " AND status IN " . billing_open_status_sql();
 
 $stmt = $conn->prepare($query);
 $stmt->bind_param($types, ...$params);
 
 if ($stmt->execute()) {
+    if ($stmt->affected_rows === 0) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This invoice is not open for payment — it may already be settled or cancelled."]);
+        $stmt->close();
+        $conn->close();
+        exit;
+    }
+
+    log_activity($conn, $user_id, 'billing', "Submitted Payment Proof", "Invoice ID: $invoice_id, Method: $payment_method, Ref: $payment_reference");
+
+    // The admin used to learn about a waiting proof only by opening Payments.
+    // One queue row per invoice: a re-upload does not add a second one.
+    $queued = $conn->prepare("SELECT 1 FROM notifications WHERE type = 'payment_verification' AND metadata_value = ? AND status = 'Pending'");
+    $queue_key = "payment_verification:$invoice_id";
+    $queued->bind_param("s", $queue_key);
+    $queued->execute();
+    $already_queued = (bool)$queued->get_result()->fetch_assoc();
+    $queued->close();
+    if (!$already_queued) {
+        notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Payment Proof Submitted',
+            "A $payment_method payment proof was submitted for invoice $invoice_id and is waiting for verification.");
+    }
+
     echo json_encode([
-        "success" => true, 
+        "success" => true,
         "message" => "Payment proof and reference uploaded successfully.",
         "proof_path" => $proof_path
     ]);

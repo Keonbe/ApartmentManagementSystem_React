@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faIdBadge, faUserPlus, faClock, faCheckCircle, 
-  faTimesCircle, faCar, faBuilding, faPhone, faTimes,
-  faDoorOpen, faSync, faInfoCircle, faArrowLeft
+  faIdBadge, faUserPlus, faClock,
+  faTimes,
+  faSync, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
@@ -21,23 +21,30 @@ export default function UserVisitors() {
   const [error, setError] = useState(null);
 
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  // The allowed arrival window (now to 30 days ahead) is fixed when the form opens.
+  const [expectedBounds, setExpectedBounds] = useState({ min: '', max: '' });
+
+  const openRegisterModal = () => {
+    const now = Date.now();
+    setExpectedBounds({
+      min: new Date(now).toISOString().slice(0, 16),
+      max: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    });
+    setShowRegisterModal(true);
+  };
   const [registerForm, setRegisterForm] = useState({
     visitorName: '',
     contactNumber: '',
     purpose: 'Personal Visit',
     idType: 'National ID',
     idNumber: '',
-    vehiclePlate: ''
+    vehiclePlate: '',
+    expectedAt: ''
   });
   const [submitting, setSubmitting] = useState(false);
+  const [cancellingId, setCancellingId] = useState(null);
 
-  useEffect(() => {
-    fetchTenantData();
-  }, []);
-
-  const fetchTenantData = async () => {
-    setLoading(true);
-    setError(null);
+  const loadTenantData = async () => {
     try {
       // 1. Get tenant's approved room
       if (loggedInUser.email_address) {
@@ -47,8 +54,9 @@ export default function UserVisitors() {
         }
       }
 
-      // 2. Get tenant's scoped visitor records
-      const res = await api.get(`get_visitors.php?userId=${loggedInUser.id}`);
+      // 2. Get tenant's scoped visitor records. The server scopes this to
+      // the session regardless of any userId query param, so it isn't sent.
+      const res = await api.get('get_visitors.php');
       if (res.data.success) {
         setVisitors(res.data.visitors || []);
       } else {
@@ -62,14 +70,27 @@ export default function UserVisitors() {
     }
   };
 
+  const fetchTenantData = () => {
+    setLoading(true);
+    setError(null);
+    return loadTenantData();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadTenantData(); };
+    load();
+  }, []);
+
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    if (!registerForm.visitorName || !registerForm.contactNumber) {
+    if (!registerForm.visitorName || !registerForm.contactNumber || !registerForm.expectedAt) {
       alert('Please fill in all required fields.');
       return;
     }
     setSubmitting(true);
     try {
+      // The unit and host are always the tenant's own current tenancy —
+      // resolved server-side from the session, not from anything posted here.
       let payload;
       let headers = {};
 
@@ -81,16 +102,12 @@ export default function UserVisitors() {
         payload.append('idType', registerForm.idType);
         payload.append('idNumber', registerForm.idNumber);
         payload.append('vehiclePlate', registerForm.vehiclePlate);
+        payload.append('expectedAt', registerForm.expectedAt);
         payload.append('idPhoto', registerForm.idPhoto);
-        payload.append('unit', tenantRoom || 'Unassigned');
-        payload.append('userId', loggedInUser.id);
         headers = { 'Content-Type': 'multipart/form-data' };
       } else {
-        payload = {
-          ...registerForm,
-          unit: tenantRoom || 'Unassigned',
-          userId: loggedInUser.id
-        };
+        payload = { ...registerForm };
+        delete payload.idPhoto;
       }
 
       const res = await api.post('check_in_visitor.php', payload, { headers });
@@ -103,6 +120,7 @@ export default function UserVisitors() {
           idType: 'National ID',
           idNumber: '',
           vehiclePlate: '',
+          expectedAt: '',
           idPhoto: null
         });
         fetchTenantData();
@@ -111,7 +129,7 @@ export default function UserVisitors() {
       }
     } catch (err) {
       console.error('Registration failed:', err);
-      alert('Server error registering visitor.');
+      alert(err.response?.data?.message || 'Server error registering visitor.');
     } finally {
       setSubmitting(false);
     }
@@ -135,12 +153,29 @@ export default function UserVisitors() {
     }
   };
 
+  const handleCancelRegistration = async (id) => {
+    if (!window.confirm('Cancel this visitor pre-registration?')) return;
+    setCancellingId(id);
+    try {
+      const res = await api.post('update_visitor_status.php', { id, action: 'cancel' });
+      if (res.data.success) {
+        fetchTenantData();
+      } else {
+        alert(res.data.message || 'Failed to cancel registration.');
+      }
+    } catch (err) {
+      console.error('Failed to cancel registration:', err);
+      alert(err.response?.data?.message || 'Failed to cancel registration.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const activeVisitors = visitors.filter(v => v.status === 'checked_in' || v.status === 'overstayed');
   const pendingVisitors = visitors.filter(v => v.status === 'pending_approval');
-  const pastVisitors = visitors.filter(v => v.status === 'checked_out' || v.status === 'denied');
 
   return (
-    <div className="w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
+    <div className="user-visitors-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-8 px-4 md:px-12 box-border flex flex-col items-center">
       <div className="w-full max-w-[1050px] space-y-6 text-left">
 
         {/* Back Link & Header */}
@@ -177,7 +212,7 @@ export default function UserVisitors() {
 
               <button
                 type="button"
-                onClick={() => setShowRegisterModal(true)}
+                onClick={openRegisterModal}
                 className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white transition-all shadow-md active:scale-[0.98] border-0 cursor-pointer"
               >
                 <FontAwesomeIcon icon={faUserPlus} />
@@ -200,9 +235,9 @@ export default function UserVisitors() {
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="stagger-children grid grid-cols-1 md:grid-cols-2 gap-3">
               {activeVisitors.map(v => (
-                <div key={v.id} className="rounded-xl border border-emerald-200 bg-white p-4 flex items-center justify-between shadow-xs">
+                <div key={v.id} className="card-interactive rounded-xl border border-emerald-200 bg-white p-4 flex items-center justify-between shadow-xs">
                   <div className="space-y-1">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
                     <p className="text-xs text-slate-500 m-0">{t('visitors.colPurpose')}: <span className="font-semibold text-slate-700">{v.purpose}</span></p>
@@ -213,7 +248,7 @@ export default function UserVisitors() {
                   <button
                     type="button"
                     onClick={() => handleCheckoutSelf(v.id)}
-                    className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
+                    className="btn-interactive rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
                   >
                     {t('visitors.markDeparted')}
                   </button>
@@ -234,17 +269,30 @@ export default function UserVisitors() {
               {t('visitors.pendingVerificationDesc')}
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="stagger-children grid grid-cols-1 md:grid-cols-2 gap-3">
               {pendingVisitors.map(v => (
-                <div key={v.id} className="rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
+                <div key={v.id} className="card-interactive rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
                     <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5">Pending Review</span>
                   </div>
                   <p className="text-xs text-slate-500 m-0 mt-1">Contact: {v.contactNumber} • Purpose: {v.purpose}</p>
+                  {v.expectedAt && (
+                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                      Expected {new Date(v.expectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
                   {v.vehiclePlate && (
                     <p className="text-[11px] text-indigo-600 font-mono font-bold m-0 mt-0.5">Vehicle: {v.vehiclePlate}</p>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => handleCancelRegistration(v.id)}
+                    disabled={cancellingId === v.id}
+                    className="mt-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 text-[11px] font-bold transition-colors border-0 cursor-pointer disabled:opacity-50"
+                  >
+                    {cancellingId === v.id ? t('visitors.cancelling') : t('visitors.cancelRegistration')}
+                  </button>
                 </div>
               ))}
             </div>
@@ -260,7 +308,7 @@ export default function UserVisitors() {
             </div>
           </div>
 
-          <div className="user-visitors-table-container overflow-x-auto">
+          <div className="user-visitors-table-container table-scroll-x overflow-x-auto">
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
@@ -277,11 +325,17 @@ export default function UserVisitors() {
                   <tr>
                     <td colSpan="6" className="px-5 py-10 text-center text-slate-400">{t('visitors.loading')}</td>
                   </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-10 text-center text-rose-600 text-sm">{error}</td>
+                  </tr>
                 ) : visitors.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-5 py-12 text-center text-slate-400 italic">
-                      <FontAwesomeIcon icon={faIdBadge} className="text-3xl text-slate-200 mb-2 block mx-auto" />
-                      {t('visitors.noneLogged')}
+                    <td colSpan="6" className="px-5 py-12 text-center">
+                      <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                        <FontAwesomeIcon icon={faIdBadge} className="text-xl text-slate-300 shrink-0" />
+                        <span className="text-sm italic">{t('visitors.noneLogged')}</span>
+                      </div>
                     </td>
                   </tr>
                 ) : (
@@ -329,6 +383,9 @@ export default function UserVisitors() {
                         {v.status === 'denied' && (
                           <span className="rounded-full bg-red-100 text-red-700 text-[10px] font-bold px-2.5 py-1">Declined</span>
                         )}
+                        {v.status === 'cancelled' && (
+                          <span className="rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold px-2.5 py-1">Cancelled</span>
+                        )}
                       </td>
 
                     </tr>
@@ -343,8 +400,8 @@ export default function UserVisitors() {
 
       {/* Log Visitor Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowRegisterModal(false)}>
-          <div className="user-visitors-modal w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowRegisterModal(false)}>
+          <div className="user-visitors-modal modal-card-anim sheet-mobile w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faUserPlus} className="text-indigo-600" />
@@ -361,6 +418,7 @@ export default function UserVisitors() {
 
             <p className="text-xs text-slate-500 leading-relaxed mb-4">
               {t('visitors.modalDesc')}
+              {tenantRoom && <> {t('visitors.modalUnitNote')} <span className="font-bold text-slate-700">Unit {tenantRoom}</span>.</>}
             </p>
 
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
@@ -372,7 +430,7 @@ export default function UserVisitors() {
                   placeholder="e.g. Juan Dela Cruz"
                   value={registerForm.visitorName}
                   onChange={(e) => setRegisterForm({ ...registerForm, visitorName: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -384,7 +442,7 @@ export default function UserVisitors() {
                   placeholder="e.g. 0917 123 4567"
                   value={registerForm.contactNumber}
                   onChange={(e) => setRegisterForm({ ...registerForm, contactNumber: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
@@ -393,7 +451,7 @@ export default function UserVisitors() {
                 <select
                   value={registerForm.purpose}
                   onChange={(e) => setRegisterForm({ ...registerForm, purpose: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
                 >
                   <option value="Personal Visit">Personal Visit / Friends / Family</option>
                   <option value="Delivery / Courier">Food / Package Delivery</option>
@@ -403,13 +461,26 @@ export default function UserVisitors() {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedAt')} *</label>
+                <input
+                  type="datetime-local"
+                  required
+                  min={expectedBounds.min}
+                  max={expectedBounds.max}
+                  value={registerForm.expectedAt}
+                  onChange={(e) => setRegisterForm({ ...registerForm, expectedAt: e.target.value })}
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idType')}</label>
                   <select
                     value={registerForm.idType}
                     onChange={(e) => setRegisterForm({ ...registerForm, idType: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
                   >
                     <option value="National ID">National ID</option>
                     <option value="Driver's License">Driver's License</option>
@@ -425,7 +496,7 @@ export default function UserVisitors() {
                     placeholder="e.g. D01-19-12345"
                     value={registerForm.idNumber}
                     onChange={(e) => setRegisterForm({ ...registerForm, idNumber: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono"
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
               </div>
@@ -438,7 +509,7 @@ export default function UserVisitors() {
                     placeholder="e.g. N02-1234"
                     value={registerForm.vehiclePlate}
                     onChange={(e) => setRegisterForm({ ...registerForm, vehiclePlate: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
                   />
                 </div>
                 <div>
@@ -456,14 +527,14 @@ export default function UserVisitors() {
                 <button
                   type="button"
                   onClick={() => setShowRegisterModal(false)}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
+                  className="btn-interactive flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
                 >
                   {t('visitors.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
+                  className="btn-interactive flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-2.5 text-xs font-bold text-white transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50"
                 >
                   {submitting ? t('visitors.submitting') : t('visitors.submit')}
                 </button>

@@ -1,27 +1,18 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
 
-$input = json_decode(file_get_contents("php://input"), true);
+// This endpoint hands back paths to a tenant's government ID and NBI
+// clearance — always resolve "whose documents" from the caller's own
+// verified session, never from a client-supplied email.
+$user = require_user($conn);
 
-if (!$input) {
-    echo json_encode(["success" => false, "message" => "No data received"]);
-    exit;
-}
-
-$email = $input["email_address"];
-
-if (empty($email)) {
-    echo json_encode(["success" => false, "message" => "Email address session key is missing"]);
-    exit;
-}
-
-$stmt = $conn->prepare("SELECT valid_id_front_path, valid_id_back_path, nbi_clearance_path FROM rent_applications WHERE email = ? ORDER BY id DESC LIMIT 1");
-$stmt->bind_param("s", $email);
+$stmt = $conn->prepare("SELECT valid_id_front_path, valid_id_back_path, nbi_clearance_path FROM rent_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1");
+$stmt->bind_param("i", $user['id']);
 $stmt->execute();
 $result = $stmt->get_result();
 

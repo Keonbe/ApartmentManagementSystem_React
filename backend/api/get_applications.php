@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
@@ -10,6 +10,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "../config.php";
+
+$admin_id = $_SERVER['HTTP_X_ADMIN_ID'] ?? null;
+if (!verify_admin($conn, $admin_id)) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "Forbidden: Admin access required"]);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Perform a LEFT JOIN with the users table to pull the live avatar_url record column

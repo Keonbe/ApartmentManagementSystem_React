@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../Components/AdminDashboardHeader';
 import Sidebar from '../Components/AdminSidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -15,13 +15,7 @@ export default function AdminCctv() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    fetchCctvRequests();
-  }, []);
-
-  const fetchCctvRequests = async () => {
-    setLoading(true);
-    setError(null);
+  const loadCctvRequests = async () => {
     try {
       const res = await api.get('get_cctv_requests.php');
       if (res.data.success) {
@@ -36,6 +30,17 @@ export default function AdminCctv() {
       setLoading(false);
     }
   };
+
+  const fetchCctvRequests = () => {
+    setLoading(true);
+    setError(null);
+    return loadCctvRequests();
+  };
+
+  useEffect(() => {
+    const load = async () => { await loadCctvRequests(); };
+    load();
+  }, []);
 
   const handleStatusUpdate = async (id, newStatus) => {
     try {
@@ -79,8 +84,8 @@ export default function AdminCctv() {
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Top Stat Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+            <div className="stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Filings</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
@@ -91,7 +96,7 @@ export default function AdminCctv() {
                 <p className="mt-1 text-xs text-indigo-600 font-medium m-0">All submitted requests</p>
               </div>
 
-              <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Pending Review</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
@@ -102,7 +107,7 @@ export default function AdminCctv() {
                 <p className="mt-1 text-xs text-amber-600 font-medium m-0">Awaiting footage review</p>
               </div>
 
-              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Approved</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
@@ -113,7 +118,7 @@ export default function AdminCctv() {
                 <p className="mt-1 text-xs text-emerald-600 font-medium m-0">Footage granted</p>
               </div>
 
-              <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
+              <div className="card-interactive rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-rose-700">Rejected</span>
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
@@ -146,7 +151,7 @@ export default function AdminCctv() {
                         key={tab}
                         type="button"
                         onClick={() => setStatusFilter(tab)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
+                        className={`btn-interactive rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-all border-0 cursor-pointer ${
                           statusFilter === tab
                             ? 'bg-white text-slate-800 shadow-sm'
                             : 'bg-transparent text-slate-600 hover:text-slate-900'
@@ -183,7 +188,7 @@ export default function AdminCctv() {
                       <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="stagger-children divide-y divide-slate-100">
                     {loading ? (
                       <tr>
                         <td colSpan="6" className="px-5 py-12 text-center text-slate-400 font-medium">
@@ -198,9 +203,11 @@ export default function AdminCctv() {
                       </tr>
                     ) : filteredRequests.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="px-5 py-12 text-center text-slate-400 italic">
-                          <FontAwesomeIcon icon={faVideo} className="text-3xl text-slate-300 mb-2 block mx-auto" />
-                          No CCTV requests found.
+                        <td colSpan="6" className="px-5 py-12 text-center">
+                          <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                            <FontAwesomeIcon icon={faVideo} className="text-xl text-slate-300 shrink-0" />
+                            <span className="text-sm italic">No CCTV footage requests found.</span>
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -246,7 +253,7 @@ export default function AdminCctv() {
                                 <button
                                   type="button"
                                   onClick={() => handleStatusUpdate(req.id, 'Approved')}
-                                  className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
+                                  className="btn-interactive rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
                                   title="Approve Request"
                                 >
                                   <FontAwesomeIcon icon={faCheck} className="mr-1" /> Approve
@@ -254,7 +261,7 @@ export default function AdminCctv() {
                                 <button
                                   type="button"
                                   onClick={() => handleStatusUpdate(req.id, 'Rejected')}
-                                  className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors border-0 cursor-pointer"
+                                  className="btn-interactive rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors border-0 cursor-pointer"
                                   title="Reject Request"
                                 >
                                   <FontAwesomeIcon icon={faTimes} />

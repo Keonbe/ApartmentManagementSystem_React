@@ -275,7 +275,8 @@ flowchart LR
 | Route | File | Backend API | DB Table | Status |
 |-------|------|-------------|----------|--------|
 | `/home` | `Home.jsx` | — | — | ✅ |
-| `/preview` | `Preview.jsx` | — | — | ✅ |
+| `/preview` | `Preview.jsx` | `get_rooms.php` | `rooms` | ✅ |
+| `/inquire` | `InquiryForm.jsx` | `submit_inquiry.php`, `get_rooms.php` | `inquiries` | ✅ Public — guests may submit; prefilled when logged in |
 | `/rent-application` | `RentApplication.jsx` | `rent_application.php` | `rent_applications` | ✅ (`user_id` stored) |
 | `/track-application` | `TrackApplication.jsx` | `my_room.php`, `pay_bill.php` | `rent_applications`, `invoices` | ✅ |
 | `/my-room` | `MyRoom.jsx` | `my_room.php`, `extend_lease.php`, `update_occupants.php` | `rent_applications` | ✅ |
@@ -298,6 +299,7 @@ flowchart LR
 | `ProtectedRoute` | `/rent-application`, `/track-application`, `/profile-settings`, `/notifications` | Must be logged in (any role) |
 | `TenantProtectedRoute` | `/services`, `/pay-bills`, `/my-room`, `/view-contract`, `/my-requests`, `/announcements`, `/payment-history`, parking, cctv, maintenance | Must be logged in AND have approved+paid room (or admin) |
 | `AdminProtectedRoute` | All `/admin-*` routes | Must be logged in AND `role === 'admin'` |
+| *(none)* | `/home`, `/preview`, `/inquire`, `/login`, `/register`, `/reset-password` | Public — reachable by guests |
 
 ---
 
@@ -309,6 +311,7 @@ flowchart LR
 |-------|------|--------------|-----------|--------|
 | `/admin-dashboard` | `AdminDashboard.jsx` | Live KPIs, Income Chart (6-mo), New Tenants, Activity Feed | `invoices`, `rooms`, `rent_applications`, `maintenance_requests`, `activity_logs` | ✅ Live data |
 | `/admin-units` | `AdminUnits.jsx` | Grid/List, Detail Modal, Assign, Vacate, Extend, Maintenance Flag | `rooms` via `get_rooms.php` / `update_room.php` | ✅ DB-backed |
+| `/admin-inquiries` | `AdminInquiries.jsx` | Inquiry triage pipeline, unit reservations with auto-expiring holds, walk-in/phone logging, convert to application | `inquiries`, `unit_reservations` via `get_inquiries.php`, `update_inquiry_status.php`, `create_reservation.php`, `update_reservation_status.php` | ✅ DB-backed |
 | `/admin-applications` | `AdminApplications.jsx` | View pending/all applications, document preview | `rent_applications` via `get_applications.php` | ✅ DB-backed |
 | `/admin-tenants` | `AdminTenants.jsx` | Pending Review, Active, Archive, Verify Docs, Approve/Reject | `rent_applications` | ✅ |
 | `/admin-payments` | `AdminPayments.jsx` | Billing grouped by tenant, Settlement, Receipt, History | `invoices` via `get_invoices.php`, `record_payment_admin.php` | ✅ DB-backed |
@@ -325,7 +328,7 @@ flowchart LR
 
 ## 7. API Endpoint Inventory
 
-### 7.1 All Current Backend Endpoints (40 files)
+### 7.1 All Current Backend Endpoints
 
 | Endpoint | Method | Description | Status |
 |----------|--------|-------------|--------|
@@ -337,6 +340,12 @@ flowchart LR
 | `rent_application.php` | POST | Submit rent application (stores `user_id`) | ✅ |
 | `get_tenants.php` | GET | Fetch all rent applications | ✅ |
 | `get_applications.php` | GET | Fetch pending/all applications for admin | ✅ |
+| `submit_inquiry.php` | POST | **Public** — submit a unit inquiry (guest or logged in); honeypot + 24h rate limit | ✅ |
+| `get_inquiries.php` | GET | Fetch inquiries and unit reservations for admin; runs the hold-expiry sweep | ✅ |
+| `update_inquiry_status.php` | POST | Triage an inquiry (New → Contacted → Scheduled → Reserved → Converted/Closed) | ✅ |
+| `create_reservation.php` | POST | Place a hold on a unit; rejects on room status, active hold, or pending application | ✅ |
+| `update_reservation_status.php` | POST | Cancel / expire / convert a hold; releases the room on cancel and expire | ✅ |
+| `expire_reservations.php` | GET/POST | Cron-style sweep releasing lapsed holds | ✅ |
 | `update_tenant_status.php` | POST | Update tenant status; syncs `rooms` + creates initial invoice on Approval | ✅ |
 | `archive_tenant.php` | POST | Archive tenant with reason/notes | ✅ |
 | `my_room.php` | GET | Fetch tenant room info + pending invoice flag | ✅ |
@@ -491,7 +500,7 @@ flowchart LR
 | Feature | Current State | What Is Needed |
 |---------|--------------|----------------|
 | Move-Out Request | Admin manually changes status | `/move-out` page or `MyRoom.jsx` modal + `record_move_out.php` endpoint |
-| Lease extension conflict handling | No conflict check | Backend check if room already reserved by another applicant |
+| ~~Lease extension conflict handling~~ | ✅ Done — `create_reservation.php` checks room status, active holds, and pending applications | — |
 | Lease expiration reminders | Not implemented | Scheduled notification trigger or cron-style check on login |
 | Payment reference number | Not stored | Add `payment_reference` column to `invoices`; display in receipt |
 | Upload proof of payment | Not implemented | File upload in `PayBills.jsx` → `upload_payment_proof.php` |
@@ -729,7 +738,7 @@ ALTER TABLE maintenance_requests
 | FR-4.4 | The system shall allow tenants to extend their lease from the My Room page. | ✅ |
 | FR-4.5 | The system shall allow admins to extend a tenant's lease from the unit detail modal. | ✅ |
 | FR-4.6 | The system shall track eviction status on lease contracts. | ✅ |
-| FR-4.7 | The system shall detect lease extension conflicts when a room is already reserved by another pending applicant. | 🔲 |
+| FR-4.7 | The system shall detect lease extension conflicts when a room is already reserved by another pending applicant. | ✅ — `create_reservation.php` rejects a hold when the room is not `vacant`, already has an `Active` reservation, or has a `Pending Review` rent application |
 | FR-4.8 | The system shall send lease expiration reminders (notification + banner) when remaining lease days < 30. | 🔲 |
 | FR-4.9 | The system shall maintain a lease extension history tab in the unit detail modal. | 🔲 |
 

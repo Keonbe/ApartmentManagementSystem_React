@@ -1,13 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
-    faBell, faCheck, faTrash, faInfoCircle, faExclamationTriangle, faFileContract, faCheckCircle, faHistory,
+    faBell, faFileContract, faHistory,
     faHome, faCompass, faConciergeBell, faBed, faUserPlus
 } from '@fortawesome/free-solid-svg-icons';
+import { TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, formatRelativeTime } from '../config/notificationLinks';
 import '../assets/styles/responsive/components/navbar.responsive.css';
 
 export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginClick }) {
@@ -16,16 +18,27 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const location = useLocation();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const handleLogout = () => {
+        api.post('/logout.php').catch(() => {}); // invalidate the server-side session; fire-and-forget
+        // Both stores: readers fall back to localStorage, so clearing one left the user "signed in".
+        for (const store of [sessionStorage, localStorage]) {
+            store.removeItem("loggedInUser");
+            store.removeItem("sessionToken");
+        }
+        window.dispatchEvent(new Event('auth-changed'));
+        navigate('/login');
+    };
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     
     const dropdownRef = useRef(null);
     const notificationRef = useRef(null);
     const mobileMenuRef = useRef(null);
 
-    const [loggedInUser, setLoggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
+    const [loggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
     const [dbAvatarUrl, setDbAvatarUrl] = useState(loggedInUser.avatar_url || ''); // Real-time avatar tracker
     const [notifications, setNotifications] = useState([]);
-    const [fetchError, setFetchError] = useState(null);
+    const [unreadCount, setUnreadCount] = useState(0);
 
     // 1. Fetch live profile records to ensure avatar path accuracy across tabs
     useEffect(() => {
@@ -51,65 +64,54 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         }
     }, [loggedInUser.email_address, isLoggedIn]);
 
-    // Close mobile menu on route change
-    useEffect(() => {
+    // Close menus on route change (adjusted during render rather than in an effect)
+    const [seenPath, setSeenPath] = useState(location.pathname);
+    if (seenPath !== location.pathname) {
+        setSeenPath(location.pathname);
         setIsMobileMenuOpen(false);
         setIsDropdownOpen(false);
         setIsNotificationOpen(false);
-    }, [location.pathname]);
+    }
 
-    const getFullAvatarUrl = (url) => {
-        if (!url) return null;
-        if (url.startsWith('http://') || url.startsWith('https://')) return url;
-        const cleanPath = url.replace(/^\//, ''); 
-        return `http://localhost/ApartmentManagementSystem_React/backend/${cleanPath}`;
-    };
+    const getFullAvatarUrl = (url) => (url ? fileUrl(url.replace(/^\//, '')) : null);
 
-    const formatTime = (dateStr) => {
-        if (!dateStr) return '';
-        try {
-            const diff = new Date() - new Date(dateStr.replace(/-/g, '/'));
-            const mins = Math.floor(diff / 60000);
-            if (mins < 1) return 'Just now';
-            if (mins < 60) return `${mins}m ago`;
-            const hours = Math.floor(mins / 60);
-            if (hours < 24) return `${hours}h ago`;
-            return `${Math.floor(hours / 24)}d ago`;
-        } catch (e) {
-            return dateStr;
-        }
-    };
-
+    // Identity comes from the session token; the bell used to send ?userId=.
     const fetchNotifications = async () => {
-        if (!loggedInUser.id) return;
-        setFetchError(null);
+        if (!isLoggedIn) return;
         try {
-            const response = await api.get(`get_notifications.php?userId=${loggedInUser.id}`);
+            const response = await api.get('get_notifications.php');
             if (response.data.success) {
                 setNotifications(response.data.notifications.map(n => ({
                     id: n.id,
                     title: n.title,
                     message: n.message,
                     type: n.type,
-                    time: formatTime(n.created_at),
-                    read: n.is_read
+                    createdAt: n.created_at,
+                    read: Number(n.is_read) === 1
                 })));
+                setUnreadCount(response.data.unread_count ?? response.data.notifications.filter(n => !Number(n.is_read)).length);
             }
-        } catch(e) {
-            console.error(e);
+        } catch (e) {
+            console.error('Failed to load notifications:', e);
         }
     };
 
+    // Fetched once, then polled while the tab is visible, and whenever another
+    // component changes notifications. The bell used to fetch only on mount, so new
+    // notices never appeared until a full reload.
     useEffect(() => {
-        fetchNotifications();
-    }, [loggedInUser.id]);
-
-    useEffect(() => {
-        if (!loggedInUser.id) return;
-        const handleSync = () => { fetchNotifications(); };
-        window.addEventListener('user_notifications_updated', handleSync);
-        return () => window.removeEventListener('user_notifications_updated', handleSync);
-    }, [loggedInUser.id]);
+        if (!isLoggedIn) return;
+        const load = async () => { await fetchNotifications(); };
+        load();
+        const timer = setInterval(() => {
+            if (document.visibilityState === 'visible') fetchNotifications();
+        }, NOTIFICATION_POLL_MS);
+        window.addEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
+        };
+    }, [isLoggedIn, loggedInUser.id]);
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -123,14 +125,18 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const unreadCount = notifications.filter(n => !n.read).length;
-    const markAsRead = async (id) => {
-        try {
-            await api.post('mark_notification_read.php', { id, userId: loggedInUser.id });
-            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: 1 } : n));
-        } catch (e) {
-            console.error(e);
+    // Clicking a notice marks it read and opens the page it is about.
+    const openNotification = async (n) => {
+        setIsNotificationOpen(false);
+        if (!n.read) {
+            try {
+                await api.post('mark_notification_read.php', { id: n.id });
+                window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
+            } catch (e) {
+                console.error(e);
+            }
         }
+        navigate(TENANT_NOTIFICATION_LINKS[n.type]?.path || '/notifications');
     };
 
     const getInitials = () => {
@@ -208,12 +214,15 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     <div className="max-h-64 overflow-y-auto px-2 py-1 space-y-1">
                                         {notifications.length > 0 ? (
                                             notifications.slice(0, 5).map(n => (
-                                                <div 
-                                                    key={n.id} 
-                                                    onClick={() => markAsRead(n.id)}
+                                                <div
+                                                    key={n.id}
+                                                    onClick={() => openNotification(n)}
                                                     className={`p-2.5 rounded-xl cursor-pointer transition-colors ${n.read ? 'hover:bg-slate-50 opacity-60' : 'bg-indigo-50/50 hover:bg-indigo-50'}`}
                                                 >
-                                                    <p className="text-xs font-bold text-slate-800 m-0">{n.title}</p>
+                                                    <div className="flex justify-between gap-2">
+                                                        <p className="text-xs font-bold text-slate-800 m-0">{n.title}</p>
+                                                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatRelativeTime(n.createdAt)}</span>
+                                                    </div>
                                                     <p className="text-[11px] text-slate-500 m-0 mt-0.5">{n.message}</p>
                                                 </div>
                                             ))
@@ -268,7 +277,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         </button>
                                     )}
                                     <div className="border-t border-slate-100 my-1"></div>
-                                    <button onClick={() => { sessionStorage.removeItem("loggedInUser"); localStorage.removeItem("loggedInUser"); window.dispatchEvent(new Event('auth-changed')); setIsDropdownOpen(false); navigate('/login'); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
+                                    <button onClick={() => { setIsDropdownOpen(false); handleLogout(); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
                                         <FontAwesomeIcon icon={faSignOutAlt} className="text-xs" />
                                         <span>Logout</span>
                                     </button>
@@ -443,11 +452,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
                                 <button
                                     onClick={() => {
-                                        sessionStorage.removeItem("loggedInUser");
-                                        localStorage.removeItem("loggedInUser");
-                                        window.dispatchEvent(new Event('auth-changed'));
                                         setIsMobileMenuOpen(false);
-                                        navigate('/login');
+                                        handleLogout();
                                     }}
                                     className="w-full bg-rose-600 hover:bg-rose-700 active:scale-98 text-white py-3 rounded-xl font-bold text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-sm transition-all mt-1"
                                 >

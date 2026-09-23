@@ -10,6 +10,7 @@ Comprehensive system documentation and technical guides can be found in the [doc
 
 - **System Architecture & Design:**
   - [System Design Specification](docs/documentation/system_design.md) — Authoritative data model, table schemas, entity relationships, workflows, and API inventory.
+  - [Database Schema Reference](docs/documentation/database_schema.md) — Full ER diagram, table-by-table column reference, and an explanation of each SQL migration/seed file.
   - [System Diagrams & Visual Flows](docs/documentation/system_diagrams.md) — Mermaid visual diagrams for auth, applications, billing, maintenance, and visitor workflows.
 - **Feature Specifications:**
   - [Chat & Support System Design](docs/features/chat_design.md) — Real-time and polling-based tenant-to-admin communication.
@@ -136,9 +137,11 @@ Place the project directory inside your local web server's root folder:
 
 1. Start **Apache** and **MySQL** via your XAMPP Control Panel.
 2. Open **phpMyAdmin** (`http://localhost/phpmyadmin`) or your preferred MySQL client.
-3. Import the master schema and seed data:
-   - Import [backend/api/migrations/SetupDB.sql](backend/api/migrations/SetupDB.sql) to create the database `ams_db` and all tables.
-   - *(Optional for testing)* Import [backend/api/migrations/seed_mock_data.sql](backend/api/migrations/seed_mock_data.sql) to populate sample units, tenants, invoices, and logs.
+3. Import the master schema and seed data, **in this order**:
+   1. Import [backend/api/migrations/SetupDB.sql](backend/api/migrations/SetupDB.sql) to create the database `ams_db` and all tables (this also creates the admin account).
+   2. *(Optional for testing)* Import [backend/api/migrations/seed_mock_data.sql](backend/api/migrations/seed_mock_data.sql) to populate sample tenants, applications, invoices, and logs.
+
+   > ⚠️ `SetupDB.sql` contains `DROP TABLE IF EXISTS` statements. Re-running it after `seed_mock_data.sql` will wipe the seeded tenant data — re-import both files together if you need to reset.
 4. Set up the environment configuration file:
    - Copy `backend/config.env.example.php` to `backend/config.env.php` (if not already present):
      ```bash
@@ -188,13 +191,15 @@ Place the project directory inside your local web server's root folder:
 
 ## 🔑 Default Accounts (Seed Data)
 
-If [seed_mock_data.sql](backend/api/migrations/seed_mock_data.sql) is imported, you can log in using the following test accounts:
+The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql) alone. The tenant accounts below additionally require [seed_mock_data.sql](backend/api/migrations/seed_mock_data.sql).
 
 | Role | Email Address | Password | Portal URL |
 |---|---|---|---|
-| **Administrator** | `admin@apartment.com` | `admin123` | `/login` → `/admin-dashboard` |
-| **Tenant** | `tenant1@gmail.com` | `password123` | `/login` → `/services` / `/my-room` |
-| **Applicant** | `applicant@gmail.com` | `password123` | `/login` → `/track-application` |
+| **Administrator** | `admin@gmail.com` | `admin123` | `/login` → `/admin-dashboard` |
+| **Tenant** (active lease) | `maria.santos@gmail.com` | `tenant123` | `/login` → `/my-room` |
+| **Applicant** (application pending review) | `gloria.tan@gmail.com` | `tenant123` | `/login` → `/track-application` |
+
+`seed_mock_data.sql` seeds several more tenant accounts (`jose.reyes@gmail.com`, `pedro.cruz@gmail.com`, `rosa.delacruz@gmail.com`, etc.) — see the file's header comment for the full list. All share the `tenant123` password.
 
 ---
 
