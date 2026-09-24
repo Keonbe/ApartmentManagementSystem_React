@@ -1,10 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSave, faUserShield, faKey, faCogs, faFileContract, faWrench, faExclamationTriangle, faCheckCircle, faBuilding, faDollarSign, faCalendarAlt, faInfoCircle, faShieldAlt, faCreditCard, faLock, faSpinner, faTimes, faCheck, faCar, faUsers, faImage, faBell, faPaperPlane, faEnvelope, faCommentSms } from '@fortawesome/free-solid-svg-icons';
+import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
+import { SETTINGS_TABS, SETTINGS_TAB_IDS } from './settings/tabs';
+import SettingsNav from './settings/SettingsNav';
+import AccountPanel from './settings/AccountPanel';
+import LeasingPanel from './settings/LeasingPanel';
+import PaymentsPanel from './settings/PaymentsPanel';
+import ParkingPanel from './settings/ParkingPanel';
+import NotificationsPanel from './settings/NotificationsPanel';
+import MaintenancePanel from './settings/MaintenancePanel';
+
+const SETTINGS_FORM_ID = 'system-settings-form';
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 const AdminAccountSettings = () => {
   // Loaded from the signed-in admin's real account. These used to be hardcoded
@@ -22,19 +34,35 @@ const AdminAccountSettings = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // System Configuration State
+  // System settings: the form's working copy, and the last copy the server
+  // accepted. The difference between the two is "unsaved changes".
   const [settings, setSettings] = useState(null);
-  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [savedSettings, setSavedSettings] = useState(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [saveError, setSaveError] = useState(null);
   const [toast, setToast] = useState(null);
   const [testingChannel, setTestingChannel] = useState(null);
+  const [smsBalance, setSmsBalance] = useState(null);
+  const [checkingBalance, setCheckingBalance] = useState(false);
 
-  // Load settings from backend on mount
+  // The open tab lives in the URL (?tab=payments) so refresh and back/forward
+  // keep the admin's place, and other pages can link straight to a section.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const activeTab = SETTINGS_TAB_IDS.includes(requestedTab) ? requestedTab : 'account';
+  const activeMeta = SETTINGS_TABS.find((t) => t.id === activeTab);
+  const scrollRef = useRef(null);
+  const invalidHandled = useRef(false);
+
+  const selectTab = (id) => {
+    setSearchParams(id === 'account' ? {} : { tab: id });
+    scrollRef.current?.scrollTo({ top: 0 });
+  };
+
   useEffect(() => {
     const loadSettings = async () => {
       const data = await getSystemSettings();
       setSettings(data);
+      setSavedSettings(data);
     };
     loadSettings();
 
@@ -54,6 +82,24 @@ const AdminAccountSettings = () => {
     };
     loadProfile();
   }, []);
+
+  const dirtyTabs = useMemo(() => {
+    if (!settings || !savedSettings) return new Set();
+    return new Set(
+      SETTINGS_TABS
+        .filter((t) => t.keys?.some((k) => !same(settings[k], savedSettings[k])))
+        .map((t) => t.id)
+    );
+  }, [settings, savedSettings]);
+  const isDirty = dirtyTabs.size > 0;
+
+  // Leaving or reloading the page would silently drop the edits.
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isDirty]);
 
   const showToast = (type, title, message) => {
     setToast({ type, title, message });
@@ -115,8 +161,8 @@ const AdminAccountSettings = () => {
   // driver is configured. The full rendered SMS text and email HTML go to the
   // browser console: while the drivers are mocks that console output IS the
   // message, and it stays useful afterwards for checking what a provider was
-  // actually handed. Save the section first — this reads the stored settings,
-  // not the unsaved form.
+  // actually handed. Reads the stored settings, so the panel disables it while
+  // there are unsaved changes.
   const handleTestNotification = async (channel) => {
     setTestingChannel(channel);
     try {
@@ -138,7 +184,7 @@ const AdminAccountSettings = () => {
       const outcomes = Object.entries(data.results || {});
       const failed = outcomes.filter(([, r]) => r.status !== 'sent');
       if (!outcomes.length) {
-        showToast('error', 'Nothing Sent', 'No channel was eligible. Check the switches above.');
+        showToast('error', 'Nothing Sent', 'No channel was eligible. Check the SMS and Email switches.');
       } else if (failed.length) {
         showToast('error', 'Test Incomplete',
           failed.map(([ch, r]) => `${ch}: ${r.reason || r.status}`).join(' · '));
@@ -153,32 +199,53 @@ const AdminAccountSettings = () => {
     }
   };
 
+  // Live Semaphore credits. Reads the stored key, so save first. Semaphore
+  // rate-limits this endpoint, hence a button rather than polling on load.
+  const handleCheckBalance = async () => {
+    setCheckingBalance(true);
+    try {
+      const res = await api.get('get_sms_balance.php');
+      setSmsBalance(res.data.success
+        ? { credits: res.data.credit_balance, account: res.data.account_name, status: res.data.account_status }
+        : { error: res.data.message || 'Could not read the balance.' });
+    } catch (err) {
+      setSmsBalance({ error: err?.response?.data?.message || err.message || 'Could not read the balance.' });
+    } finally {
+      setCheckingBalance(false);
+    }
+  };
+
   const handleSettingsSave = async (e) => {
     e.preventDefault();
     setIsSavingSettings(true);
-    setSaveError(null);
     try {
       await saveSystemSettings(settings);
-      setSettingsSaved(true);
-      setToast({
-        type: 'success',
-        title: 'System Settings Saved',
-        message: 'System policies, thresholds, and PayMongo credentials updated and synced across all modules.'
-      });
-      setTimeout(() => setSettingsSaved(false), 4000);
-      setTimeout(() => setToast(null), 4500);
+      setSavedSettings(settings);
+      showToast('success', 'Settings Saved', 'Your changes are saved and apply across the system.');
     } catch (error) {
       console.error('Failed to save settings:', error);
-      const errMsg = error?.response?.data?.message || error?.message || 'Failed to save system settings. Please try again.';
-      setSaveError(errMsg);
-      setToast({
-        type: 'error',
-        title: 'Save Failed',
-        message: errMsg
-      });
-      setTimeout(() => setToast(null), 5000);
+      showToast('error', 'Save Failed',
+        error?.response?.data?.message || error?.message || 'Failed to save system settings. Please try again.');
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  const handleDiscard = () => setSettings(savedSettings);
+
+  // Every system-settings tab stays mounted (hidden) so the browser validates
+  // all of them on save. When the first invalid field sits in a hidden tab,
+  // open that tab and show the browser's message on the field.
+  const handleInvalid = (e) => {
+    if (invalidHandled.current) return;
+    invalidHandled.current = true;
+    setTimeout(() => { invalidHandled.current = false; }, 0);
+
+    const field = e.target;
+    const tabId = field.closest('[data-tab]')?.dataset.tab;
+    if (tabId && tabId !== activeTab) {
+      selectTab(tabId);
+      setTimeout(() => field.reportValidity(), 50);
     }
   };
 
@@ -186,1194 +253,126 @@ const AdminAccountSettings = () => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
-  const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+  const panelProps = { settings, updateSetting };
+  const showSaveBar = activeTab !== 'account' && isDirty;
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
-        <Header title="Account Settings" />
+        <Header title="Settings" />
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
-          <div className="max-w-4xl mx-auto space-y-8">
-
-            {/* ─── Administrator Profile ─── */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg shrink-0">
-                  <FontAwesomeIcon icon={faUserShield} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800 m-0">Administrator Profile</h2>
-                  <p className="text-xs text-slate-500 m-0 mt-0.5">Update your system admin credentials and personal details.</p>
-                </div>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <div className="max-w-6xl mx-auto px-4 py-6 md:p-8 flex flex-col md:flex-row gap-6 md:gap-8">
+            <aside className="md:w-56 shrink-0 min-w-0">
+              <div className="md:sticky md:top-0">
+                <SettingsNav tabs={SETTINGS_TABS} active={activeTab} onSelect={selectTab} dirtyTabs={dirtyTabs} />
               </div>
-              
-              <div className="p-6">
-                <form onSubmit={handleProfileSubmit} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="flex flex-col space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700">First Name</label>
-                      <input
-                        type="text"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        required
-                      />
-                    </div>
-                    <div className="flex flex-col space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700">Last Name</label>
-                      <input
-                        type="text"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        required
-                      />
-                    </div>
-                  </div>
+            </aside>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="flex flex-col space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700">Email Address</label>
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        required
-                      />
-                    </div>
-                    <div className="flex flex-col space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700">Contact Number</label>
-                      <input
-                        type="text"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="09123456789"
-                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={savingProfile}
-                      className="btn-interactive bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
-                    >
-                      <FontAwesomeIcon icon={savingProfile ? faSpinner : faSave} className={savingProfile ? 'animate-spin' : ''} />
-                      {savingProfile ? 'Saving…' : 'Save Changes'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            {/* ─── Security & Password ─── */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-lg shrink-0">
-                  <FontAwesomeIcon icon={faKey} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800 m-0">Security & Password</h2>
-                  <p className="text-xs text-slate-500 m-0 mt-0.5">Ensure your account uses a long, random password to stay secure.</p>
-                </div>
+            <div className="flex-1 min-w-0 space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 m-0">{activeMeta.label}</h2>
+                <p className="text-sm text-slate-500 m-0 mt-1">{activeMeta.description}</p>
               </div>
 
-              <div className="p-6">
-                <form onSubmit={handlePasswordSubmit} className="space-y-5">
-                  <div className="flex flex-col space-y-1.5 max-w-md">
-                    <label className="text-sm font-bold text-slate-700">Current Password</label>
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
-                      required
+              {activeTab === 'account' && (
+                <AccountPanel
+                  firstName={firstName} setFirstName={setFirstName}
+                  lastName={lastName} setLastName={setLastName}
+                  email={email} setEmail={setEmail}
+                  phone={phone} setPhone={setPhone}
+                  savingProfile={savingProfile} onProfileSubmit={handleProfileSubmit}
+                  currentPassword={currentPassword} setCurrentPassword={setCurrentPassword}
+                  newPassword={newPassword} setNewPassword={setNewPassword}
+                  confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
+                  savingPassword={savingPassword} onPasswordSubmit={handlePasswordSubmit}
+                />
+              )}
+
+              {activeTab !== 'account' && !settings && (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">
+                  <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading settings…
+                </div>
+              )}
+
+              {settings && (
+                <form
+                  id={SETTINGS_FORM_ID}
+                  onSubmit={handleSettingsSave}
+                  onInvalidCapture={handleInvalid}
+                  hidden={activeTab === 'account'}
+                >
+                  <div data-tab="leasing" hidden={activeTab !== 'leasing'} className="space-y-6">
+                    <LeasingPanel {...panelProps} />
+                  </div>
+                  <div data-tab="payments" hidden={activeTab !== 'payments'} className="space-y-6">
+                    <PaymentsPanel {...panelProps} />
+                  </div>
+                  <div data-tab="parking" hidden={activeTab !== 'parking'} className="space-y-6">
+                    <ParkingPanel {...panelProps} />
+                  </div>
+                  <div data-tab="notifications" hidden={activeTab !== 'notifications'} className="space-y-6">
+                    <NotificationsPanel
+                      {...panelProps}
+                      isDirty={isDirty}
+                      testingChannel={testingChannel}
+                      onTest={handleTestNotification}
+                      checkingBalance={checkingBalance}
+                      smsBalance={smsBalance}
+                      onCheckBalance={handleCheckBalance}
                     />
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div className="flex flex-col space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700">New Password</label>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
-                        required
-                      />
-                    </div>
-                    <div className="flex flex-col space-y-1.5">
-                      <label className="text-sm font-bold text-slate-700">Confirm New Password</label>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={savingPassword}
-                      className="btn-interactive bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-all shadow-sm flex items-center gap-2 border-0 cursor-pointer disabled:opacity-60"
-                    >
-                      <FontAwesomeIcon icon={savingPassword ? faSpinner : faSave} className={savingPassword ? 'animate-spin' : ''} />
-                      {savingPassword ? 'Updating…' : 'Update Password'}
-                    </button>
+                  <div data-tab="maintenance" hidden={activeTab !== 'maintenance'} className="space-y-6">
+                    <MaintenancePanel {...panelProps} />
                   </div>
                 </form>
-              </div>
+              )}
             </div>
-
-            {/* ─── System Configuration ─── */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center text-lg shrink-0">
-                  <FontAwesomeIcon icon={faCogs} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800 m-0">System Configuration</h2>
-                  <p className="text-xs text-slate-500 m-0 mt-0.5">Configure lease policies, payment thresholds, maintenance budgets, and terms of service.</p>
-                </div>
-              </div>
-
-              <div className="p-6">
-                {!settings ? <div className="text-center py-4 text-slate-500">Loading settings...</div> : (
-                <form onSubmit={handleSettingsSave} className="space-y-8">
-
-                  {/* Success Banner */}
-                  {settingsSaved && (
-                    <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl text-sm font-semibold transition-all">
-                      <div className="flex items-center gap-2.5">
-                        <FontAwesomeIcon icon={faCheckCircle} className="text-emerald-600 text-base" />
-                        <span>System settings saved successfully. Changes are synchronized across all modules.</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSettingsSaved(false)}
-                        className="text-emerald-600 hover:text-emerald-800 bg-transparent border-0 cursor-pointer text-xs"
-                      >
-                        <FontAwesomeIcon icon={faTimes} />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Error Banner */}
-                  {saveError && (
-                    <div className="flex items-center justify-between gap-3 bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl text-sm font-semibold transition-all">
-                      <div className="flex items-center gap-2.5">
-                        <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-600 text-base" />
-                        <span>{saveError}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSaveError(null)}
-                        className="text-rose-600 hover:text-rose-800 bg-transparent border-0 cursor-pointer text-xs"
-                      >
-                        <FontAwesomeIcon icon={faTimes} />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Lease Policy Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faFileContract} className="text-indigo-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Lease Policy</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-400 text-xs" />
-                          Minimum Lease Duration
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="number"
-                            min="1"
-                            max="24"
-                            value={settings.minLeaseDuration}
-                            onChange={(e) => updateSetting('minLeaseDuration', Number(e.target.value))}
-                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
-                          />
-                          <span className="text-sm text-slate-500">months</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Tenants cannot sign leases shorter than this duration.</p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-400 text-xs" />
-                          Reservation Hold Period
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="number"
-                            min="1"
-                            max="90"
-                            value={settings.reservationHoldDays}
-                            onChange={(e) => updateSetting('reservationHoldDays', Number(e.target.value))}
-                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
-                          />
-                          <span className="text-sm text-slate-500">days</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Default number of days a reserved unit is held before the hold expires and the unit is released.</p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faUsers} className="text-slate-400 text-xs" />
-                          Maximum Occupants per Unit
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="number"
-                            min="1"
-                            max="20"
-                            value={settings.maxOccupantsPerUnit}
-                            onChange={(e) => updateSetting('maxOccupantsPerUnit', Number(e.target.value))}
-                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
-                          />
-                          <span className="text-sm text-slate-500">people</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Lease holder plus household members. Applications and occupant requests above this are refused.</p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faImage} className="text-slate-400 text-xs" />
-                          Public Room Preview
-                        </label>
-                        <select
-                          value={settings.roomPreviewMode}
-                          onChange={(e) => updateSetting('roomPreviewMode', e.target.value)}
-                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-semibold"
-                        >
-                          <option value="images">Room images</option>
-                          <option value="floor_plan">2D floor plan</option>
-                        </select>
-                        <p className="text-[11px] text-slate-400 m-0">What visitors see when they preview a unit on the public page.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Parking Policy Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faCar} className="text-indigo-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Parking Policy</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
-                          Max Parking Slots
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="number"
-                            min="1"
-                            max="500"
-                            value={settings.maxParkingSlots}
-                            onChange={(e) => updateSetting('maxParkingSlots', Number(e.target.value))}
-                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
-                          />
-                          <span className="text-sm text-slate-500">slots</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Numbered slots #1 to #N. Only assigned slots count; new requests are refused once every slot is assigned. Can't go below the highest slot still assigned.</p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
-                          Monthly Parking Fee
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm text-slate-500">₱</span>
-                          <input
-                            type="number"
-                            min="1"
-                            step="50"
-                            value={settings.parkingMonthlyFee}
-                            onChange={(e) => updateSetting('parkingMonthlyFee', Number(e.target.value))}
-                            className="w-28 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center font-bold"
-                          />
-                          <span className="text-sm text-slate-500">per slot / month</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Added to the tenant's invoice for each month of the permit term.</p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
-                          Parking Fee Billing
-                        </label>
-                        <div className="flex gap-2">
-                          {[
-                            { value: 'manual', label: 'Manual' },
-                            { value: 'auto', label: 'Automatic' },
-                          ].map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => updateSetting('parkingBillingMode', opt.value)}
-                              className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-colors duration-200 cursor-pointer ${
-                                settings.parkingBillingMode === opt.value
-                                  ? 'bg-indigo-500 border-indigo-500 text-white'
-                                  : 'bg-slate-50 border-slate-200 text-slate-500'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">
-                          Manual: bill each month with "Bill this month" on the Parking page. Automatic: the fee is added when a slot is assigned and on each following month by the daily sweep. A month is never billed twice either way.
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faCar} className="text-slate-400 text-xs" />
-                          Allowed Vehicle Types
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { value: 'motorcycle', label: 'Motorcycle' },
-                            { value: 'sedan', label: 'Sedan' },
-                            { value: 'suv', label: 'SUV' },
-                            { value: 'pickup', label: 'Pickup Truck' },
-                            { value: 'van', label: 'Van' },
-                            { value: 'ebike', label: 'E-Bike' },
-                          ].map((vt) => {
-                            const isChecked = settings.parkingAllowedVehicleTypes.includes(vt.value);
-                            return (
-                              <button
-                                key={vt.value}
-                                type="button"
-                                onClick={() => {
-                                  const current = settings.parkingAllowedVehicleTypes;
-                                  const next = isChecked
-                                    ? current.filter((t) => t !== vt.value)
-                                    : [...current, vt.value];
-                                  updateSetting('parkingAllowedVehicleTypes', next);
-                                }}
-                                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors duration-200 cursor-pointer ${
-                                  isChecked
-                                    ? 'bg-indigo-500 border-indigo-500 text-white'
-                                    : 'bg-slate-50 border-slate-200 text-slate-500'
-                                }`}
-                              >
-                                {isChecked && <FontAwesomeIcon icon={faCheck} className="mr-1.5 text-[10px]" />}
-                                {vt.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Only selected vehicle types can be submitted in a parking reservation request.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Lease Contract / Landlord Details Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faFileContract} className="text-indigo-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Lease Contract Details</h3>
-                    </div>
-                    <p className="text-[11px] text-slate-400 m-0 -mt-2">These appear as the Owner / Lessor on every generated lease contract.</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faUserShield} className="text-slate-400 text-xs" />
-                          Owner / Landlord Name
-                        </label>
-                        <input
-                          type="text"
-                          value={settings.landlordName}
-                          onChange={(e) => updateSetting('landlordName', e.target.value)}
-                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        />
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faUserShield} className="text-slate-400 text-xs" />
-                          Owner's Address
-                        </label>
-                        <input
-                          type="text"
-                          value={settings.landlordAddress}
-                          onChange={(e) => updateSetting('landlordAddress', e.target.value)}
-                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        />
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faBuilding} className="text-slate-400 text-xs" />
-                          Apartment / Property Address
-                        </label>
-                        <input
-                          type="text"
-                          value={settings.propertyAddress}
-                          onChange={(e) => updateSetting('propertyAddress', e.target.value)}
-                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        />
-                        <p className="text-[11px] text-slate-400 m-0">The building's location, shown under "Description of the Apartment".</p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faInfoCircle} className="text-slate-400 text-xs" />
-                          Owner Contact Number
-                        </label>
-                        <input
-                          type="text"
-                          value={settings.landlordContact}
-                          onChange={(e) => updateSetting('landlordContact', e.target.value)}
-                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        />
-                        <p className="text-[11px] text-slate-400 m-0">Shown on the contract exactly as entered — mask it if it should not be public.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Payment & Eviction Policy Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Payment & Eviction Policy</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faDollarSign} className="text-slate-400 text-xs" />
-                          Overdue Payment Threshold
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="number"
-                            min="1"
-                            max="365"
-                            value={settings.overdueThresholdDays}
-                            onChange={(e) => updateSetting('overdueThresholdDays', Number(e.target.value))}
-                            className="w-24 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-inner text-sm text-center font-bold"
-                          />
-                          <span className="text-sm text-slate-500">days overdue</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Tenants exceeding this threshold will be flagged for eviction review.</p>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faShieldAlt} className="text-slate-400 text-xs" />
-                          Auto-Flag for Eviction
-                        </label>
-                        <div className="flex items-center gap-3 mt-1">
-                          <button
-                            type="button"
-                            onClick={() => updateSetting('autoFlagEviction', !settings.autoFlagEviction)}
-                            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 border-0 cursor-pointer ${
-                              settings.autoFlagEviction ? 'bg-red-500' : 'bg-slate-300'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
-                                settings.autoFlagEviction ? 'translate-x-6' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                          <span className={`text-sm font-semibold ${settings.autoFlagEviction ? 'text-red-600' : 'text-slate-400'}`}>
-                            {settings.autoFlagEviction ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Automatically flag contracts when threshold is exceeded.</p>
-                      </div>
-                    </div>
-
-                    {/* Current Policy Summary */}
-                    <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-start gap-3">
-                      <FontAwesomeIcon icon={faInfoCircle} className="text-red-400 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-semibold text-red-800 m-0">Active Eviction Policy</p>
-                        <p className="text-[11px] text-red-600 m-0 mt-1">
-                          Tenants with overdue payments exceeding <strong>{settings.overdueThresholdDays} days</strong> will be 
-                          {settings.autoFlagEviction 
-                            ? ' automatically flagged for eviction review on the Contracts page.' 
-                            : ' shown as at-risk but will NOT be auto-flagged. Manual action required.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Payment Channels Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faCreditCard} className="text-indigo-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Payment Channels & Gateway Settings</h3>
-                    </div>
-
-                    {/* Mode Selection */}
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                      <label className="text-xs font-bold text-slate-700 block uppercase tracking-wider">
-                        Operating Payment Mode
-                      </label>
-                      <div className="flex flex-wrap items-center gap-5 pt-1">
-                        {[
-                          { value: 'manual', label: 'Manual Only (Proof Upload / In-Person)' },
-                          { value: 'sandbox', label: 'Sandbox Only (PayMongo Test Mode)' },
-                        ].map(mode => (
-                          <label key={mode.value} className="flex items-center gap-2 text-sm text-slate-700 font-medium cursor-pointer">
-                            <input
-                              type="radio"
-                              name="paymentMode"
-                              value={mode.value}
-                              checked={settings.paymentMode === mode.value}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                updateSetting('paymentMode', val);
-                                if (val === 'sandbox') {
-                                  updateSetting('paymentSandboxEnabled', true);
-                                }
-                              }}
-                              className="text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                            />
-                            <span>{mode.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-slate-400 m-0">Controls which channel types are surfaced to tenants during checkout.</p>
-                    </div>
-
-                    {/* Channel Groups */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Manual / Offline Channels */}
-                      <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Manual & In-Person Channels</span>
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Offline / Verification</span>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <span className="text-xs font-medium text-slate-700">GCash (Receipt Upload)</span>
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentChGcashManual}
-                              onChange={(e) => updateSetting('paymentChGcashManual', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                            />
-                          </label>
-                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <span className="text-xs font-medium text-slate-700">Bank Transfer (Receipt Upload)</span>
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentChBankManual}
-                              onChange={(e) => updateSetting('paymentChBankManual', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                            />
-                          </label>
-                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <div>
-                              <span className="text-xs font-medium text-slate-700 block">In-Person Payment</span>
-                              <span className="text-[10px] text-slate-400">Scheduled management office visit</span>
-                            </div>
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentChInPerson}
-                              onChange={(e) => updateSetting('paymentChInPerson', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                            />
-                          </label>
-                        </div>
-                      </div>
-
-                      {/* Sandbox / Digital Channels */}
-                      <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Sandbox Channels (PayMongo)</span>
-                          <label className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-600 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentSandboxEnabled}
-                              onChange={(e) => updateSetting('paymentSandboxEnabled', e.target.checked)}
-                              className="cursor-pointer"
-                            />
-                            Master Active
-                          </label>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <span className="text-xs font-medium text-slate-700">GCash Sandbox</span>
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentChGcashSandbox}
-                              onChange={(e) => updateSetting('paymentChGcashSandbox', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                            />
-                          </label>
-                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <span className="text-xs font-medium text-slate-700">Bank Transfer Sandbox</span>
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentChBankSandbox}
-                              onChange={(e) => updateSetting('paymentChBankSandbox', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                            />
-                          </label>
-                          <label className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                            <span className="text-xs font-medium text-slate-700">Maya Sandbox</span>
-                            <input
-                              type="checkbox"
-                              checked={!!settings.paymentChMaya}
-                              onChange={(e) => updateSetting('paymentChMaya', e.target.checked)}
-                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Payment Gateway Integration Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faCreditCard} className="text-blue-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Payment Gateway Integration (PayMongo)</h3>
-                    </div>
-                    <div className="grid grid-cols-1 gap-5">
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faShieldAlt} className="text-slate-400 text-xs" />
-                          Environment Mode
-                        </label>
-                        <div className="flex items-center gap-6 mt-1">
-                          <label className="flex items-center gap-2 cursor-pointer opacity-50" title="Live mode is currently locked by system administrator.">
-                            <input
-                              type="radio"
-                              name="paymongoEnv"
-                              value="live"
-                              checked={false}
-                              disabled={true}
-                              className="text-slate-400 focus:ring-slate-400 cursor-not-allowed"
-                            />
-                            <span>Live (Production) <FontAwesomeIcon icon={faLock} className="text-[10px] ml-1" /></span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="paymongoEnv"
-                              value="sandbox"
-                              checked={true}
-                              readOnly
-                              className="text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                            />
-                            <span>Sandbox (Testing)</span>
-                          </label>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0 mt-1">Live configuration is locked. All transactions will be processed in Sandbox Mode.</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
-                        <div className="flex flex-col space-y-1.5">
-                          <label className="text-sm font-bold text-slate-700">Sandbox Secret Key</label>
-                          <input
-                            type="password"
-                            value={settings.paymongoSecretKey || ''}
-                            onChange={(e) => updateSetting('paymongoSecretKey', e.target.value)}
-                            placeholder="sk_test_..."
-                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                          />
-                        </div>
-                        <div className="flex flex-col space-y-1.5">
-                          <label className="text-sm font-bold text-slate-700">Sandbox Public Key</label>
-                          <input
-                            type="text"
-                            value={settings.paymongoPublicKey || ''}
-                            onChange={(e) => updateSetting('paymongoPublicKey', e.target.value)}
-                            placeholder="pk_test_..."
-                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700">Webhook Secret Key</label>
-                        <input
-                          type="password"
-                          value={settings.paymongoWebhookSecret || ''}
-                          onChange={(e) => updateSetting('paymongoWebhookSecret', e.target.value)}
-                          placeholder="whsk_..."
-                          className="focus-glow w-full md:w-1/2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                        />
-                        <p className="text-[11px] text-slate-400 m-0 mt-1">Required for signature verification. Obtain this from the PayMongo Webhooks dashboard.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notification Services Section — SMS & email channels */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faBell} className="text-violet-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Notification Services (SMS &amp; Email)</h3>
-                    </div>
-
-                    {(settings.smsProvider === 'log' || settings.emailDriver === 'log') && (
-                      <div className="flex items-start gap-2 p-3 rounded-xl bg-violet-50 border border-violet-100">
-                        <FontAwesomeIcon icon={faInfoCircle} className="text-violet-500 text-xs mt-0.5" />
-                        <p className="text-[11px] text-violet-800 m-0 leading-relaxed">
-                          <strong>Dry run active.</strong> A driver set to <span className="font-mono">Log</span> runs the whole
-                          pipeline — preferences, opt-outs, queue, retries — and records every message without contacting a
-                          provider. Nothing is sent and nothing is charged. Use <strong>Send test</strong> below and read the
-                          message in the browser console (F12), or in <span className="font-mono">backend/logs/notification_outbox/</span>.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Email */}
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                          <FontAwesomeIcon icon={faEnvelope} className="text-slate-400" />
-                          Email Notifications
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={!!settings.notificationsEmailEnabled}
-                          onChange={(e) => updateSetting('notificationsEmailEnabled', e.target.checked)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                        />
-                      </label>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="flex flex-col space-y-1.5">
-                          <label className="text-sm font-bold text-slate-700">Delivery Method</label>
-                          <select
-                            value={settings.emailDriver || 'log'}
-                            onChange={(e) => updateSetting('emailDriver', e.target.value)}
-                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                          >
-                            <option value="log">Log (dry run — records, sends nothing)</option>
-                            <option value="smtp">SMTP (requires PHPMailer)</option>
-                          </select>
-                          {settings.emailDriver === 'smtp' && (
-                            <p className="text-[11px] text-amber-600 m-0 mt-1">
-                              PHPMailer is not installed yet. Until it is, SMTP sends fail and are recorded as failures.
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col space-y-1.5">
-                          <label className="text-sm font-bold text-slate-700">From Name</label>
-                          <input
-                            type="text"
-                            value={settings.smtpFromName || ''}
-                            onChange={(e) => updateSetting('smtpFromName', e.target.value)}
-                            placeholder="AMS Notifications"
-                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                          />
-                        </div>
-                      </div>
-
-                      {settings.emailDriver === 'smtp' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">SMTP Host</label>
-                            <input
-                              type="text"
-                              value={settings.smtpHost || ''}
-                              onChange={(e) => updateSetting('smtpHost', e.target.value)}
-                              placeholder="smtp.gmail.com"
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                            />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">SMTP Port</label>
-                            <input
-                              type="number"
-                              value={settings.smtpPort ?? 587}
-                              onChange={(e) => updateSetting('smtpPort', parseInt(e.target.value) || 587)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                            />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">SMTP Username</label>
-                            <input
-                              type="text"
-                              value={settings.smtpUsername || ''}
-                              onChange={(e) => updateSetting('smtpUsername', e.target.value)}
-                              placeholder="you@gmail.com"
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                            />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">SMTP Password</label>
-                            <input
-                              type="password"
-                              value={settings.smtpPassword || ''}
-                              onChange={(e) => updateSetting('smtpPassword', e.target.value)}
-                              placeholder="Google App Password"
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                            />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">From Email</label>
-                            <input
-                              type="text"
-                              value={settings.smtpFromEmail || ''}
-                              onChange={(e) => updateSetting('smtpFromEmail', e.target.value)}
-                              placeholder="Defaults to the SMTP username"
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* SMS */}
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                          <FontAwesomeIcon icon={faCommentSms} className="text-slate-400" />
-                          SMS Notifications
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={!!settings.notificationsSmsEnabled}
-                          onChange={(e) => updateSetting('notificationsSmsEnabled', e.target.checked)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
-                        />
-                      </label>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="flex flex-col space-y-1.5">
-                          <label className="text-sm font-bold text-slate-700">SMS Provider</label>
-                          <select
-                            value={settings.smsProvider || 'log'}
-                            onChange={(e) => updateSetting('smsProvider', e.target.value)}
-                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                          >
-                            <option value="log">Log (dry run — records, sends nothing)</option>
-                            <option value="semaphore">Semaphore (Philippines)</option>
-                            <option value="twilio">Twilio (global)</option>
-                            <option value="vonage">Vonage / Nexmo (global)</option>
-                            <option value="movider">Movider (Southeast Asia)</option>
-                            <option value="itexmo">iTexMo (Philippines, budget)</option>
-                          </select>
-                          {settings.smsProvider && settings.smsProvider !== 'log' && (
-                            <p className="text-[11px] text-amber-600 m-0 mt-1">
-                              This provider's driver is not built yet — sends will be recorded as failures. Philippine carriers
-                              also require a registered sender ID before any message is delivered.
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col space-y-1.5">
-                          <label className="text-sm font-bold text-slate-700">Sender Name</label>
-                          <input
-                            type="text"
-                            value={settings.smsSenderName || ''}
-                            onChange={(e) => updateSetting('smsSenderName', e.target.value)}
-                            placeholder="AMS"
-                            maxLength={11}
-                            className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      {settings.smsProvider === 'semaphore' && (
-                        <div className="flex flex-col space-y-1.5">
-                          <label className="text-sm font-bold text-slate-700">Semaphore API Key</label>
-                          <input type="password" aria-label="Semaphore API key" value={settings.smsApiKey || ''} onChange={(e) => updateSetting('smsApiKey', e.target.value)}
-                            className="focus-glow w-full md:w-1/2 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                        </div>
-                      )}
-                      {settings.smsProvider === 'twilio' && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">Account SID</label>
-                            <input type="password" aria-label="Twilio account SID" value={settings.smsTwilioSid || ''} onChange={(e) => updateSetting('smsTwilioSid', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">Auth Token</label>
-                            <input type="password" aria-label="Twilio auth token" value={settings.smsTwilioAuthToken || ''} onChange={(e) => updateSetting('smsTwilioAuthToken', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">From Number</label>
-                            <input type="text" aria-label="Twilio from number" value={settings.smsTwilioFromNumber || ''} onChange={(e) => updateSetting('smsTwilioFromNumber', e.target.value)} placeholder="+1..."
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                        </div>
-                      )}
-                      {settings.smsProvider === 'vonage' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">API Key</label>
-                            <input type="password" aria-label="Vonage API key" value={settings.smsVonageApiKey || ''} onChange={(e) => updateSetting('smsVonageApiKey', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">API Secret</label>
-                            <input type="password" aria-label="Vonage API secret" value={settings.smsVonageApiSecret || ''} onChange={(e) => updateSetting('smsVonageApiSecret', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                        </div>
-                      )}
-                      {settings.smsProvider === 'movider' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">API Key</label>
-                            <input type="password" aria-label="Movider API key" value={settings.smsMoviderApiKey || ''} onChange={(e) => updateSetting('smsMoviderApiKey', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">API Secret</label>
-                            <input type="password" aria-label="Movider API secret" value={settings.smsMoviderApiSecret || ''} onChange={(e) => updateSetting('smsMoviderApiSecret', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                        </div>
-                      )}
-                      {settings.smsProvider === 'itexmo' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">API Code</label>
-                            <input type="password" aria-label="iTexMo API code" value={settings.smsItexmoApiCode || ''} onChange={(e) => updateSetting('smsItexmoApiCode', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className="text-sm font-bold text-slate-700">API Password</label>
-                            <input type="password" aria-label="iTexMo API password" value={settings.smsItexmoPassword || ''} onChange={(e) => updateSetting('smsItexmoPassword', e.target.value)}
-                              className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm font-mono" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Delivery behaviour */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700">Delivery Mode</label>
-                        <select
-                          value={settings.notificationsDispatchMode || 'queue'}
-                          onChange={(e) => updateSetting('notificationsDispatchMode', e.target.value)}
-                          className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                        >
-                          <option value="queue">Queued (recommended)</option>
-                          <option value="sync">Immediate (demo only)</option>
-                        </select>
-                        <p className="text-[11px] text-slate-400 m-0 mt-1">
-                          Queued returns instantly and delivers in the background. Immediate makes the tenant wait for the
-                          provider on every action — a 30-tenant announcement would hold the request open for all 30 sends.
-                        </p>
-                      </div>
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700">Quiet Hours (SMS)</label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="number" min="0" max="23"
-                            value={settings.notificationsQuietStart ?? 21}
-                            onChange={(e) => updateSetting('notificationsQuietStart', Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
-                            className="focus-glow w-20 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center"
-                          />
-                          <span className="text-xs text-slate-500">to</span>
-                          <input
-                            type="number" min="0" max="23"
-                            value={settings.notificationsQuietEnd ?? 7}
-                            onChange={(e) => updateSetting('notificationsQuietEnd', Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
-                            className="focus-glow w-20 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm text-center"
-                          />
-                          <span className="text-xs text-slate-500">(24-hour)</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0 mt-1">Non-urgent texts wait until the window ends. Overdue rent and urgent announcements are exempt.</p>
-                      </div>
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700">Delivery Log Retention</label>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="number" min="1" max="3650"
-                            value={settings.notificationLogRetentionDays ?? 90}
-                            onChange={(e) => updateSetting('notificationLogRetentionDays', parseInt(e.target.value) || 90)}
-                            className="focus-glow w-28 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                          />
-                          <span className="text-xs text-slate-500">days</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0 mt-1">Delivery records hold tenant numbers and addresses, so older rows are deleted automatically.</p>
-                      </div>
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700">Cost per SMS</label>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-slate-500">₱</span>
-                          <input
-                            type="number" step="0.01" min="0"
-                            value={settings.smsUnitCost ?? 0.5}
-                            onChange={(e) => updateSetting('smsUnitCost', parseFloat(e.target.value) || 0)}
-                            className="focus-glow w-28 px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
-                          />
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0 mt-1">Used to estimate the cost of an announcement before it is sent.</p>
-                      </div>
-                    </div>
-
-                    {/* Test send */}
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <FontAwesomeIcon icon={faPaperPlane} className="text-slate-400 text-xs" />
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Send a test notification</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 m-0 leading-relaxed">
-                        Sends to your own contact number and email address using the saved settings — save first if you
-                        just changed something. The complete message is printed to the browser console (F12 → Console).
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {[
-                          { key: 'sms', label: 'Test SMS' },
-                          { key: 'email', label: 'Test Email' },
-                          { key: 'both', label: 'Test Both' },
-                        ].map(({ key, label }) => (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => handleTestNotification(key)}
-                            disabled={testingChannel !== null}
-                            className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {testingChannel === key
-                              ? <><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Sending…</>
-                              : label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Maintenance Budget Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faWrench} className="text-amber-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Maintenance Budget</h3>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="flex flex-col space-y-1.5">
-                        <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                          <FontAwesomeIcon icon={faBuilding} className="text-slate-400 text-xs" />
-                          Monthly Budget Allocation
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-slate-500">₱</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1000"
-                            value={settings.maintenanceMonthlyBudget}
-                            onChange={(e) => updateSetting('maintenanceMonthlyBudget', Number(e.target.value))}
-                            className="w-40 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner text-sm font-bold"
-                          />
-                          <span className="text-sm text-slate-500">/ month</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 m-0">Budget used for maintenance cost comparison reports and over-budget alerts.</p>
-                      </div>
-                    </div>
-
-                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
-                      <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-semibold text-amber-800 m-0">Budget Summary</p>
-                        <p className="text-[11px] text-amber-600 m-0 mt-1">
-                          Monthly allocation: <strong>{formatCurrency(settings.maintenanceMonthlyBudget)}</strong> · 
-                          Annual projection: <strong>{formatCurrency(settings.maintenanceMonthlyBudget * 12)}</strong>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Terms & Conditions Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <FontAwesomeIcon icon={faFileContract} className="text-violet-500 text-sm" />
-                      <h3 className="text-sm font-bold text-slate-700 m-0">Terms & Conditions — Tenant Responsibility</h3>
-                    </div>
-                    <div>
-                      <label className="text-sm font-bold text-slate-700 block mb-2">Maintenance Responsibility Clause</label>
-                      <textarea
-                        value={settings.tenantResponsibilityClause}
-                        onChange={(e) => updateSetting('tenantResponsibilityClause', e.target.value)}
-                        rows={4}
-                        className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 shadow-inner text-sm resize-y leading-relaxed"
-                      />
-                      <p className="text-[11px] text-slate-400 m-0 mt-1.5">
-                        This clause is referenced when flagging maintenance requests as "Tenant Responsible." 
-                        It defines which repairs are chargeable to the tenant.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Save Button & Feedback */}
-                  <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                        <FontAwesomeIcon icon={faInfoCircle} className="text-slate-300" />
-                        Settings are securely synced to database & system configuration.
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                      {settingsSaved && (
-                        <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1.5 animate-fadeIn">
-                          <FontAwesomeIcon icon={faCheck} className="text-emerald-500" />
-                          Saved to database
-                        </span>
-                      )}
-                      
-                      <button
-                        type="submit"
-                        disabled={isSavingSettings}
-                        className={`btn-interactive w-full sm:w-auto font-bold px-7 py-2.5 rounded-xl text-sm transition-all duration-200 shadow-md flex items-center justify-center gap-2 border-0 cursor-pointer ${
-                          settingsSaved
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : isSavingSettings
-                            ? 'bg-violet-400 text-white cursor-not-allowed opacity-90'
-                            : 'bg-violet-600 hover:bg-violet-700 hover:shadow-lg active:scale-98 text-white'
-                        }`}
-                      >
-                        {isSavingSettings ? (
-                          <>
-                            <FontAwesomeIcon icon={faSpinner} className="animate-spin text-sm" />
-                            <span>Saving Settings...</span>
-                          </>
-                        ) : settingsSaved ? (
-                          <>
-                            <FontAwesomeIcon icon={faCheckCircle} className="text-sm" />
-                            <span>Settings Saved!</span>
-                          </>
-                        ) : (
-                          <>
-                            <FontAwesomeIcon icon={faSave} className="text-sm" />
-                            <span>Save System Settings</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-                )}
-              </div>
-            </div>
-
           </div>
         </div>
 
+        {/* Save bar: only while there is something to save. Outside the scroll
+            area so it never moves; submits the form by id. */}
+        {showSaveBar && (
+          <div className="shrink-0 border-t border-slate-200 bg-white px-4 md:px-8 py-3 shadow-[0_-4px_12px_rgba(15,23,42,0.06)] animate-fadeIn">
+            <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                Unsaved changes
+                {dirtyTabs.size > 1 && (
+                  <span className="font-normal text-slate-500">
+                    in {SETTINGS_TABS.filter((t) => dirtyTabs.has(t.id)).map((t) => t.label).join(', ')}
+                  </span>
+                )}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDiscard}
+                  disabled={isSavingSettings}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors disabled:opacity-60"
+                >
+                  Discard
+                </button>
+                <button
+                  type="submit"
+                  form={SETTINGS_FORM_ID}
+                  disabled={isSavingSettings}
+                  className="btn-interactive px-5 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 border-0 cursor-pointer shadow-sm flex items-center gap-2 transition-colors disabled:opacity-70"
+                >
+                  <FontAwesomeIcon icon={isSavingSettings ? faSpinner : faSave} spin={isSavingSettings} />
+                  {isSavingSettings ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Floating Toast Notification */}
         {toast && (
-          <div className="fixed bottom-6 right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 transform translate-y-0 opacity-100 flex items-start gap-3.5 animate-fadeIn">
+          <div className={`fixed right-6 z-50 max-w-sm w-[calc(100vw-3rem)] sm:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/80 p-4 transition-all duration-300 flex items-start gap-3.5 animate-fadeIn ${showSaveBar ? 'bottom-24' : 'bottom-6'}`}>
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
               <FontAwesomeIcon icon={toast.type === 'success' ? faCheckCircle : faExclamationTriangle} className="text-base" />
             </div>

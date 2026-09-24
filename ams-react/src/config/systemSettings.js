@@ -51,6 +51,8 @@ const DEFAULTS = {
   smtpFromEmail: '',
   smsProvider: 'log',                        // 'log' (dry run) or a real provider
   smsSenderName: 'AMS',
+  smsSenderApproved: false,                  // Semaphore: post the sender name only once approved
+  smsDailyCap: 100,                          // max SMS sent per day on a real provider; 0 = no cap
   smsApiKey: '',
   smsTwilioSid: '',
   smsTwilioAuthToken: '',
@@ -68,6 +70,11 @@ const DEFAULTS = {
   smsUnitCost: 0.5
 };
 
+// A cleared or garbled cap must not read as 0, which means "no cap".
+const parseCap = (value) => {
+  const n = parseInt(value, 10);
+  return Number.isNaN(n) ? DEFAULTS.smsDailyCap : Math.max(0, n);
+};
 
 export const getSystemSettings = async () => {
   try {
@@ -127,6 +134,8 @@ export const getSystemSettings = async () => {
         smtpFromEmail: dbSettings.smtp_from_email ?? '',
         smsProvider: dbSettings.sms_provider || DEFAULTS.smsProvider,
         smsSenderName: dbSettings.sms_sender_name ?? DEFAULTS.smsSenderName,
+        smsSenderApproved: dbSettings.sms_sender_approved === '1' || dbSettings.sms_sender_approved === 1,
+        smsDailyCap: parseCap(dbSettings.sms_daily_cap),
         smsApiKey: dbSettings.sms_api_key ?? '',
         smsTwilioSid: dbSettings.sms_twilio_sid ?? '',
         smsTwilioAuthToken: dbSettings.sms_twilio_auth_token ?? '',
@@ -195,6 +204,8 @@ export const saveSystemSettings = async (settings) => {
       smtp_from_email: settings.smtpFromEmail || '',
       sms_provider: settings.smsProvider || DEFAULTS.smsProvider,
       sms_sender_name: settings.smsSenderName || DEFAULTS.smsSenderName,
+      sms_sender_approved: settings.smsSenderApproved ? '1' : '0',
+      sms_daily_cap: String(parseCap(settings.smsDailyCap)),
       sms_api_key: settings.smsApiKey || '',
       sms_twilio_sid: settings.smsTwilioSid || '',
       sms_twilio_auth_token: settings.smsTwilioAuthToken || '',
