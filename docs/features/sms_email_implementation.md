@@ -63,7 +63,8 @@
   - **Vonage** — global; alphanumeric sender IDs need Globe/Smart pre-registration
   - **Movider** — Southeast Asia specialist, pay-as-you-go
   - **iTexMo** — budget PH option, shared shortcode, no sender ID
-- [ ] Write that provider's driver — all five in §1.3 are stubs. Appendix C has the cURL call for each; it is one function plus a line in the `match`.
+- [x] Write that provider's driver — **Semaphore shipped 2026-09-24** ([Appendix C.1](#c1-semaphore-sms--philippine-local)); Twilio, Vonage, Movider and iTexMo remain stubs.
+- [ ] Schedule the queue drain (`backend/cron/run_queue.bat`, every minute — command in C.1). A real provider makes the admin endpoints enqueue; nothing is delivered until it runs.
 - [ ] Put the API key into Account Settings → Notification Services, then switch **SMS Provider** off `log`
 - [ ] Do **not** install `twilio/sdk` or `vonage/client`. The cURL drivers in Appendix C cover every call this project makes, and the SDKs pull in Guzzle/PSR-7 for no benefit.
 - [ ] ~~Update the `Dockerfile` so Railway gets `vendor/`~~ — deferred; Railway is on indefinite hold, so XAMPP is the only target ([§1.2](#12-install-phpmailer))
@@ -226,12 +227,12 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 
 | File | What it is |
 |---|---|
-| `backend/api/services/send_sms.php` | `send_sms()` plus the `log` dry-run driver and `write_mock_outbox()`. The five real providers are **stubs** that return a clear error — see below. |
+| `backend/api/services/send_sms.php` | `send_sms()` plus the `log` dry-run driver and `write_mock_outbox()`. **Semaphore** is a live driver (Appendix C.1); the other four providers are **stubs** that return a clear error — see below. |
 | `backend/api/services/send_email.php` | `send_email()` with two drivers chosen by the new **`email_driver`** setting (`log` \| `smtp`). |
 | `backend/api/services/email_templates.php` | §1.5 as written, `esc()` on every interpolated value (C10). |
 | `backend/api/services/send_notification.php` | `dispatch_external_notification()`, `dispatch_external_broadcast()`, `enqueue_notification()`, `process_notification_queue()`. |
 | `backend/cron/process_queue.php` | CLI drain. Task Scheduler entry point. |
-| `backend/cron/notification_selftest.php` | 17 dry-run checks with the `M6-NN` IDs. The verification gate for this module. |
+| `backend/cron/notification_selftest.php` | 18 dry-run checks with the `M6-NN` IDs. The verification gate for this module. |
 | `backend/api/send_test_notification.php` | Admin-only test send; returns the rendered message for the settings UI to print to the browser console. |
 | `ams-react/src/AdminPages/AdminAccountSettings.jsx` | §3.3 "Notification Services" section + test-send controls. |
 | `ams-react/src/config/systemSettings.js` | The camelCase map both ways — a key missing here is silently never saved. |
@@ -239,12 +240,12 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 **Deliberate differences from the listings below.**
 
 - **`email_driver` is new**, and is the email mirror of `sms_provider = 'log'`. It means the email path is demonstrable with no Composer, no PHPMailer and no Gmail account. §1.4's `require_once 'vendor/autoload.php'` moved **inside** the `smtp` branch so a checkout with no `vendor/` still parses and runs; a missing PHPMailer is a `failed` row, never a fatal.
-- **The provider drivers are stubs.** Appendix C's cURL calls were not pasted in: untested code that contacts a paid API is worse than an honest error. Adding one is a single function plus a line in the `match`.
+- **Four of the five provider drivers are stubs.** Appendix C's cURL calls were not pasted in: untested code that contacts a paid API is worse than an honest error. Semaphore was added once credits existed to test it against (Appendix C.1).
 - **The dispatcher calls `user_channel_allowed()`** from `config.php` instead of repeating the opt-out ladder per channel, which is what §1.6's listing does. C2's ordering — global opt-out, then building switch, then category — is decided in one place.
 - **The mock outbox** (`backend/logs/notification_outbox/`, gitignored) holds one file per message: `.txt` for SMS, `.html` for email. Opening the HTML in a browser is the closest thing to seeing the real mail.
 - **Secret masking landed early.** Rendering credential fields in a browser is the moment §3.3's security note matters, so `SECRET_SETTING_KEYS`, `mask_secret_value()` and `is_masked_secret()` now live in `config.php`; admins receive `••••1234` and posting that back means "unchanged". This covers the PayMongo keys too.
 
-**Not built yet:** Phase 2 endpoint wiring (nothing calls the dispatcher in anger), the §3.2 tenant preferences UI, the §4.2 delivery log viewer, real provider drivers, PHPMailer. The web-path queue drain in §4.1 is deliberately absent — with nothing enqueuing from an endpoint it would be untestable; it belongs with the Phase 2 wiring.
+**Not built yet:** Phase 2 endpoint wiring (nothing calls the dispatcher in anger), the §3.2 tenant preferences UI, the §4.2 delivery log viewer, real provider drivers (Semaphore has since shipped — C.1), PHPMailer. The web-path queue drain in §4.1 is deliberately absent — with nothing enqueuing from an endpoint it would be untestable; it belongs with the Phase 2 wiring.
 
 ---
 
@@ -432,7 +433,9 @@ Either way, confirm before wiring anything up:
 
 ### 1.3 SMS Service — send_sms.php
 
-**File:** [`backend/api/services/send_sms.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_sms.php) — **shipped**. The `log` driver is built; the five provider functions below are **stubs** returning a readable "not implemented" error, so a misconfigured provider fails loudly instead of appearing to work. Appendix C has the cURL call for each when you add one.
+**File:** [`backend/api/services/send_sms.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_sms.php) — **shipped**. The `log` and **Semaphore** drivers are built; the other four provider functions below are **stubs** returning a readable "not implemented" error, so a misconfigured provider fails loudly instead of appearing to work.
+
+> **The Semaphore listing below is the original plan, superseded by the shipped driver.** The real one strips the `+` from the number, posts `sendername` only when `sms_sender_approved = '1'`, requires a `message_id` in the response (Semaphore reports errors as a JSON object *with HTTP 200*), and `send_sms()` enforces `sms_daily_cap` before any real provider is called. See [Appendix C.1](#c1-semaphore-sms--philippine-local).
 
 A standalone function that routes SMS through whichever provider is configured in `system_settings.sms_provider`. Each provider has its own private send function. The public `send_sms()` signature never changes — endpoints don't need to know which provider is active.
 
@@ -1070,6 +1073,18 @@ function dispatch_external_broadcast($conn, $user_ids, $event_type, $subject, $s
 ---
 
 ## Phase 2 — Wire to Existing Endpoints
+
+> ### ✅ §2.1–§2.4 shipped — what the code actually does
+>
+> All seven admin endpoints are wired (announcements, maintenance, payment reminders ×2 paths, CCTV, parking, service, tenant requests). Three differences from the listings below:
+>
+> **Call sites use `dispatch_admin_action_notification()`, not the dispatcher directly.** It is a thin wrapper in [`send_notification.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_notification.php) that adds two things the raw dispatcher cannot: a **`rendered`** block (the post-`gsm7_safe()`, post-`sms_single_segment()` SMS text, the subject and the email HTML) and a **`dry_run`** flag. Endpoints return that as `notification_dispatch`, and a response interceptor in `axiosConfig.js` prints it to the browser console. On a mock driver the console *is* the message, so this is what makes the feature visible without a provider. `dispatch_admin_action_broadcast()` is the announcement equivalent. A companion `notify_recipient_name()` supplies the template greeting so it never renders "Hello ,".
+>
+> **Admin actions dispatch synchronously while both drivers are `log`.** `dispatch_external_notification()` gained an optional 7th parameter, `$force_mode`; `_admin_action_mode()` returns `'sync'` only when `sms_provider` **and** `email_driver` are both `log`, otherwise `null` (fall through to the configured mode). Sync is what puts the rendered message in the HTTP response. Forcing it unconditionally would undo C5's whole point the day a provider is configured — an announcement to 30 tenants would become 30 round trips inside one POST. Configure a real provider and the endpoints silently revert to enqueuing.
+>
+> **Dispatch happens after `commit()` where the endpoint has a transaction** (announcements, tenant requests). A notification problem must not roll back an announcement tenants can already see, or an approval that has already changed occupancy and billing. `create_announcement.php` consequently records `channels` by **updating** the row after the broadcast, so the stored value reflects what actually reached someone rather than §2.1's hardcoded `['in-app']`.
+>
+> **§2.5 (the daily sweep) is deliberately not wired.** It runs from cron with no browser, so it gains nothing from sync dispatch and belongs on the queue path. See [`sms_email_mock_testing.md` §6](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md) for how to drive the wired endpoints from the UI.
 
 Each change below is a single `require_once` + a function call added **after** the existing `create_notification()` call. The in-app notification remains the primary channel.
 
@@ -1724,12 +1739,16 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-24 | Admin saves SMTP settings | `activity_log` details contain no cleartext secret |
 | M6-25 | Register a tenant with a 40-character email address | Accepted and stored intact (C4) |
 | M6-26 | `php backend/cron/check_environment.php` | Passes; no new warnings |
+| M6-35 | `send_sms()` with `sms_provider = 'log'` (selftest) | Outbox file written, `sent` row, no network call |
+| M6-36 | `sms_daily_cap` at or below today's `sent` count, provider `semaphore` | Row `skipped`, "Daily SMS cap reached (N)"; Semaphore not called |
+| M6-37 | Provider `semaphore` with an invalid API key | Row `failed`, "Semaphore: The selected apikey is invalid." — not `sent`, although Semaphore answers HTTP 200 |
+| M6-38 | `GET get_sms_balance.php` as tenant / unauthenticated / admin on `log` | 403 / 401 / `success:false` "only available when the SMS provider is Semaphore" |
 
 **Tier 2 — live provider (costs credits; run once, record the result)**
 
 | ID | Test | Expected |
 |---|---|---|
-| M6-27 | Send one SMS to your own number via the real driver | Delivered; sender ID is the registered one, not the provider's shared default |
+| M6-27 | Send one SMS to your own number via the real driver (**Send test**) | Delivered. Sender is `SEMAPHORE` while `sms_sender_approved = '0'`, the registered name once it is `'1'` |
 | M6-28 | Send with an unapproved sender ID | Documents the actual failure mode — likely a success response and no delivery (§0.4). Worth knowing before the demo |
 | M6-29 | Send one email via Gmail SMTP to a Gmail **and** a non-Gmail address | Both land in the inbox, not spam. Check the raw headers for SPF/DKIM alignment |
 | M6-30 | Email rendering in Gmail web, Gmail mobile and Outlook | Table layout holds; the `AltBody` plain-text fallback is readable |
@@ -1743,7 +1762,7 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-33 | Queue drains on Railway with no cron | Rows drain via the sweep/poll piggyback (C7) |
 | M6-34 | Outbound port 587 from the Railway container | SMTP connects — verify before relying on it |
 
-**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18 in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
+**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18 and M6-35 in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
 
 > **[`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)**
 
@@ -1770,7 +1789,7 @@ After all tests pass:
 
 | File | Phase | Purpose |
 |---|---|---|
-| ✅ `backend/api/services/send_sms.php` | 1 | **Shipped:** `log` driver + mock outbox; real providers stubbed |
+| ✅ `backend/api/services/send_sms.php` | 1 | **Shipped:** `log` driver + mock outbox; **Semaphore** live (C.1); other providers stubbed |
 | ✅ `backend/api/services/send_email.php` | 1 | **Shipped:** `log` driver + an SMTP branch that waits for PHPMailer |
 | ✅ `backend/api/services/email_templates.php` | 1 | **Shipped:** escaped throughout (C10) |
 | ✅ `backend/api/services/send_notification.php` | 1 | **Shipped:** dispatcher, enqueue and the queue drain |
@@ -1873,28 +1892,47 @@ Complete map of every event that triggers a notification, the endpoint that fire
 
 ### C.1 Semaphore (SMS — Philippine Local)
 
-1. Go to [semaphore.co](https://semaphore.co) → Sign Up
+> **Shipped (2026-09-24).** `_send_via_semaphore()` in `backend/api/services/send_sms.php` is live; the other four providers are still stubs. Migration `2026_09_sms_semaphore_live.sql` adds the two settings below.
+
+1. Go to [semaphore.co](https://semaphore.co) → Sign Up → buy credits
 2. Dashboard → **API** → copy your API key
 3. **Sender Names** → Request → enter `AMS` → wait 1–3 business days for approval
-4. In AMS admin panel → **Account Settings**:
-   - SMS Provider: `semaphore` ← select from dropdown
-   - API Key: paste your Semaphore API key
-   - Sender Name: `AMS`
-5. Toggle **SMS Notifications** → ON
-6. Test with the free credits (~50 SMS)
+4. Run `backend/api/migrations/2026_09_sms_semaphore_live.sql` on an existing database (fresh installs get it from `SetupDB.sql`)
+5. Schedule the queue drain — **required**: with a real provider the admin endpoints enqueue instead of sending, and nothing is delivered until the drain runs. From an admin prompt:
+   ```bat
+   schtasks /create /tn "AMS Notification Queue" /sc minute /mo 1 /tr "\"C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\run_queue.bat\""
+   ```
+   `run_queue.bat` appends each run to `backend/logs/queue_drain.log`. Remove with `schtasks /delete /tn "AMS Notification Queue" /f`.
+6. Give the admin account a mobile number (the test send goes to the admin's own `contact_no`)
+7. In AMS admin panel → **Account Settings → Notification Services**:
+   - SMS Provider: `Semaphore`, paste the API key, **Save**
+   - **Check balance** — shows the account's credits (rate-limited by Semaphore; don't spam it)
+   - Leave **Sender name approved by Semaphore** unticked until the dashboard shows `AMS` approved
+   - **Daily SMS Cap** — defaults to 100
+8. Toggle **SMS Notifications** → ON, Save, then **Send test** (SMS). It sends synchronously to your own number only.
 
 **Cost:** ₱0.35–₱0.50/SMS prepaid. ~₱75/month for 30 tenants.
 
-**Verify setup:**
+**How the driver behaves:**
 
-```bash
-C:\xampp\php\php.exe -r "
-  require_once 'backend/config.php';
-  require_once 'backend/api/services/send_sms.php';
-  echo send_sms(\$conn, '09171234567', 'AMS test from Semaphore', 'test') ? 'OK' : 'FAILED';
-  \$conn->close();
-"
+| Concern | Behaviour |
+|---|---|
+| Number | `normalize_ph_mobile()` gives `+639…`; the driver posts `639…` |
+| Sender name | `sendername` is posted **only** when `sms_sender_approved = '1'`. Otherwise it is omitted and Semaphore uses its shared `SEMAPHORE` sender — an unapproved name gets the message rejected |
+| Success | The response must be a JSON **list** whose first message has a `message_id` and a status other than `Failed`/`Refunded` |
+| Errors | Semaphore returns validation errors as `{"field": ["message"]}` **with HTTP 200** (verified: an invalid key does this), so the status code alone is not trusted. These are flattened to e.g. `Semaphore: The selected apikey is invalid.` in `notification_log.error_message` and `notification_queue.error_message` |
+| Spend cap | `sms_daily_cap` (default `100`, `0` = none): once today's `sent` SMS rows reach it, further sends log `skipped` with `Daily SMS cap reached (N)` and cost nothing. Applies to real providers only, not `log` |
+| Balance | `GET backend/api/get_sms_balance.php` (admin-only) → `credit_balance`, `account_name`, `account_status` via Semaphore's `/api/v4/account`. The key never leaves the server |
+| Clock | Quiet hours use the **database** clock (`HOUR(NOW())`). XAMPP ships PHP on `Europe/Berlin`, six hours off Manila; the queue already scheduled against `NOW()` |
+
+**Verify setup:** use **Send test** in Account Settings, then:
+
+```sql
+SELECT id, status, recipient, error_message, sent_at FROM notification_log
+WHERE channel = 'sms' ORDER BY id DESC LIMIT 5;
 ```
+
+Do not verify by calling `send_sms()` with a made-up number — once the driver is live, a made-up number is somebody's phone.
 
 ---
 
