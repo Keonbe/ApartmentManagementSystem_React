@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Id, x-user-id");
 
 require_once "../config.php";
+require_once __DIR__ . '/services/send_notification.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -300,12 +301,27 @@ try {
     create_notification($conn, $target_user_id, $type, $title, $msg, 'Resolved');
 
     $conn->commit();
+
+    // After commit: a notification problem must not roll back an approval that
+    // has already changed the tenant's occupancy and billing.
+    $notification_dispatch = dispatch_admin_action_notification(
+        $conn, $target_user_id, $type, $title, "AMS: $msg",
+        email_status_update_template(
+            notify_recipient_name($conn, $target_user_id),
+            str_replace('_', ' ', $type), $label, $statusText, $msg
+        )
+    );
+
     $response_message = "Request $statusText successfully.";
     if ($invoices_created) {
         $extension_total = array_sum(array_column($invoices_created, 'amount'));
         $response_message .= " " . count($invoices_created) . " new invoice(s) totaling ₱" . number_format($extension_total, 2) . " were created.";
     }
-    echo json_encode(["success" => true, "message" => $response_message]);
+    echo json_encode([
+        "success" => true,
+        "message" => $response_message,
+        "notification_dispatch" => $notification_dispatch
+    ]);
 
 } catch (RequestRefused $e) {
     $conn->rollback();
