@@ -1,9 +1,9 @@
 # Security Audit — ApartmentManagementSystem (AMS)
 
-> **Last Updated:** 2026-09-14 (role-based access & activity log audit — see §6d)
-> **Stack:** React 18 (Vite SPA) + PHP 8 + MySQL/MariaDB on XAMPP
+> **Last Updated:** 2026-09-24 (chat + SMS/email surface reviewed — see §6e; earlier: role-based access & activity log audit, §6d)
+> **Stack:** React 19 (Vite 8 SPA) + Node.js Socket.IO chat server + PHP 8 + MySQL/MariaDB on XAMPP
 > **Status:** Pre-production / Pilot Testing Review
-> **Scope of this pass:** all 83 `backend/api/*.php` endpoints (auth gate, upload handling, SQL), `backend/config.php`, the frontend auth/routing/API-base code in `ams-react/src`, and `npm audit` on `ams-react`.
+> **Scope of this pass:** all 83 `backend/api/*.php` endpoints as of 2026-09-14 (104 today — the new chat and notification endpoints are covered by §6e) (auth gate, upload handling, SQL), `backend/config.php`, the frontend auth/routing/API-base code in `ams-react/src`, and `npm audit` on `ams-react`.
 
 ---
 
@@ -87,10 +87,10 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 
 | Severity | Count | Items |
 |---|---|---|
-| **Critical** (unauthenticated IDOR / account takeover) | 0 — A-7 resolved 2026-09-14 (§6d) | — |
-| **High** | 4 | A-1, D-7, B-6 (partial — `chown` is a deploy action), E-7 |
-| **Moderate** | 6 | A-3, A-9 (partial — lockout abuse only), C-1, C-2, D-8, D-9 |
-| **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-2, E-3, E-4 |
+| **Critical** (unauthenticated IDOR / account takeover) | 1 — A-7 resolved 2026-09-14 (§6d) | CH-1 unauthenticated chat socket server (§6e) |
+| **High** | 6 | A-1, D-7, B-6 (partial — `chown` is a deploy action; 0777 regressed in `send_sms.php`), E-7, L-1 `backend/logs/` web-readable, CH-2 `websocket-server/.env` tracked in git (§6e) |
+| **Moderate** | 7 | A-3, A-9 (partial — lockout abuse only), C-1, C-2, D-8, D-9 (now incl. chat endpoints), CH-3 unrestricted chat recipients / no rate limit (§6e) |
+| **Low** (Hardening / Hygiene) | remaining `[ ]` items | A-2, B-6 (dup. of transport hardening), C-4, E-2, E-3, E-4, CH-4 chat CORS/preflight, CH-5 `get_chat_history.php` fatal, N-1 Semaphore key in query string (§6e) |
 
 > All **Critical** items must be resolved before any external user (pilot or production) touches the system. **High** items must be done before public access.
 
@@ -99,7 +99,7 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 
 ## Detailed Findings
 
-_Scanned: all 83 files in `backend/api/`, `backend/config.php`, and the frontend auth/routing layer in `ams-react/src`._
+_Scanned: all 83 files in `backend/api/` (2026-09-14; the 21 added since are reviewed in §6e), `backend/config.php`, and the frontend auth/routing layer in `ams-react/src`._
 
 ---
 
@@ -188,14 +188,14 @@ The filename entropy comes from `uniqid()`, which is time-seeded (default 13 hex
 
 ## 5. Moderate: Additional Findings
 
-- **DB/exception details returned to clients (D-8).** ~30 endpoints echo `$stmt->error`, `$conn->error`, or `$e->getMessage()` straight into the JSON response (e.g. [registration.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/registration.php), [cctv_request.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/cctv_request.php), [get_applications.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_applications.php)). `config.php`'s own connection failure also `die()`s with the raw `connect_error` outside of `APP_ENV=production`. Strip these from responses and log server-side instead.
+- **DB/exception details returned to clients (D-8).** 34 endpoint files (recounted 2026-09-24, including the chat endpoints) echo `$stmt->error`, `$conn->error`, or `$e->getMessage()` straight into the JSON response (e.g. [registration.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/registration.php), [cctv_request.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/cctv_request.php), [get_applications.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_applications.php)). `config.php`'s own connection failure also `die()`s with the raw `connect_error` outside of `APP_ENV=production`. Strip these from responses and log server-side instead.
 - **Public data exposure.** [get_rooms.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_rooms.php) has no auth gate and returns current/past tenant full names, lease dates, monthly rent, move-out reasons, and maintenance history to anyone. ~~[get_announcements.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_announcements.php) without `?public=1` returns *all* announcements — including unsent drafts — with no auth check at all.~~ Fixed 2026-09-14: the full list requires an admin, and the tenant feed requires a session and returns sent announcements only.
 - **Password-reset/account endpoints have no rate limiting (A-9).** *Partly fixed 2026-09-14:* `login.php` and `change_password.php` now share a limiter of 5 failures per account and 20 per IP per 15 minutes, and a successful login clears only that account's failures. `forgot_password.php` was throttled on 2026-09-17 (3 per email, 10 per IP per hour).
 - **Account enumeration.** ~~[login.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/login.php) reveals "This account has been archived" before checking the password~~ — fixed 2026-09-14: the archived message is only shown after a correct password. [registration.php](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/registration.php) still confirms whether an email is already registered.
 - ~~**Inconsistent password minimums.**~~ Fixed 2026-09-14: `PASSWORD_MIN_LENGTH` (8) applies to registration, change, reset and the admin reset.
 - ~~**Sessions are never revoked (A-8).**~~ Fixed 2026-09-14: `revoke_user_sessions()` runs on password change (other devices), password reset, role change and archive. `get_authenticated_user()` also reads the role and archive state live from `users`, so a stale session can no longer carry an old role.
 - **Session tokens stored in plaintext.** The `sessions` table stores the raw bearer token rather than a hash of it, so a DB read (backup leak, injection elsewhere, careless export) hands out live session tokens directly, unlike `password_resets`, which correctly stores only a SHA-256 hash.
-- **Runtime schema DDL (D-9).** `login.php`, `submit_inquiry.php`, `get_inquiries.php`, and `send_payment_reminder.php` run `CREATE TABLE IF NOT EXISTS`/`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` on every request, which both wastes a round trip and requires the app's DB user to hold DDL privileges — directly at odds with the least-privilege goal in A-3.
+- **Runtime schema DDL (D-9).** `login.php`, `submit_inquiry.php`, `get_inquiries.php`, `send_payment_reminder.php` and — since the chat merge — `get_chat_history.php`, `get_conversations.php` and `send_message.php` (which create `messages`) run `CREATE TABLE IF NOT EXISTS`/`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` on every request, which both wastes a round trip and requires the app's DB user to hold DDL privileges — directly at odds with the least-privilege goal in A-3.
 - ~~**`get_available_parking_slots.php` includes a non-existent file**~~ — fixed 2026-09-14: loads `config.php` and requires a session.
 - **Tokens readable by any JS on the page.** `sessionToken`/`loggedInUser` live in `sessionStorage`/`localStorage` (`axiosConfig.js`), so any future XSS anywhere in the SPA is a full session-token theft, not just a defacement.
 
@@ -204,7 +204,7 @@ The filename entropy comes from `uniqid()`, which is time-seeded (default 13 hex
 ## 6. Low / Hygiene
 
 - ~~`create_maintenance_request_admin.php` validates the file extension but has no `finfo_file()` MIME check~~ — fixed 2026-09; see §6c.
-- ~~Upload directories are created with `mkdir($dir, 0777, true)` throughout~~ — fixed 2026-09-17, see B-6.
+- ~~Upload directories are created with `mkdir($dir, 0777, true)` throughout~~ — fixed 2026-09-17, see B-6. **Regressed:** `backend/api/services/send_sms.php` creates `backend/logs/` and `logs/notification_outbox/` with `0777` (2026-09-24).
 - ~~`backend/uploads/.htaccess` uses Apache 2.2 `Order allow,deny` syntax ... and its `FilesMatch` denylist for executable extensions doesn't include `phar|pht|phtml|html|svg`~~ — fixed 2026-09-17, see B-8: now `Require all denied` on every direct request, with the wider extension denylist kept as a second layer. `X-Content-Type-Options: nosniff` is set per-response by `download_file.php` rather than globally in `.htaccess`.
 - No security response headers are set anywhere yet (C-4, E-2, E-3, E-4).
 - 10 hardcoded `http://localhost`/`http://localhost:8080` URLs remain in the frontend (E-1) — the API base and several inline document-viewer links use different ports/paths (`localhost` vs `localhost:8080`), which will also break inconsistently in production even after the main `axiosConfig.js` base URL is fixed.
@@ -315,6 +315,32 @@ Findings from the Module 11 (Role-Based Access) and 8.4–8.6 (Reports & Activit
 | **Fake admin account settings** — profile and password forms showed success without calling the API | `AdminAccountSettings.jsx` | Wired to `profile.php` and `change_password.php` |
 | **Inconsistent password minimum** (6 vs 8) | `reset_password.php`, `manage_users.php` | `PASSWORD_MIN_LENGTH` = 8 everywhere |
 | Endpoint fatal on every call | `get_available_parking_slots.php` | Loads `config.php`; `require_user()` |
+
+---
+
+## 6e. Chat & Notification Surface Review (2026-09-24)
+
+Reviewed after the chat module (PR #8) and the SMS/email pipeline landed. **Open** unless marked otherwise; nothing here is fixed yet.
+
+| ID | Severity | Issue | Where | Fix |
+|---|---|---|---|---|
+| **CH-1** | **Critical** | **The Socket.IO chat server has no authentication.** `join(userId)` puts any socket in any user's room (listen live to anyone's chat, including the admin's); `send_message` trusts the client's `sender_id` and stores it, so a message "from the admin" can be forged to any tenant and appears in the PHP history too; typing events are spoofable; CORS is `origin: "*"`; every message body is printed to the console | `websocket-server/server.js:9,15,41-43,51-60,76,84-90`; the client joins with the id from storage (`ChatContext.jsx`) | Verify the session token on the handshake against `sessions` and derive the user id server-side; ignore client `sender_id`; restrict CORS to `ALLOWED_ORIGINS`; stop logging bodies; cap message length |
+| **L-1** | **High** | **`backend/logs/` is readable over HTTP**, with a directory listing (verified: 200 on `queue_drain.log`, an outbox file, and the `notification_outbox/` listing). The mock outbox holds rendered SMS/emails with phone numbers, email addresses and names; `.html` outbox files are served as `text/html` from the API origin; `semaphore_account.json` (balance cache) lands there too. In Docker only `-Indexes` applies and `.dockerignore` does not exclude the folder | `backend/logs/` (no `.htaccess`) | `backend/logs/.htaccess` with `Require all denied` (as `backend/uploads/`), a `.gitignore` exception so it is committed, and exclude `backend/logs` in `.dockerignore` |
+| **CH-2** | **High** | **`websocket-server/.env` is tracked in git** (added 2026-09-02; `.gitignore` does not untrack an already-committed file). It holds `DB_USER=root` with an empty password; the chat server connects to the database as root | `websocket-server/.env` | `git rm --cached`, add an `.env.example`, and give the chat server its own least-privilege DB user (A-3) |
+| **CH-3** | Moderate | Any signed-in user can message any user id: `send_message.php` only checks that both ids exist — no tenant↔admin rule, no archived-user check, no rate limit | `send_message.php:54-66` | Allow tenant→admin and admin→tenant only; skip archived users; throttle per sender |
+| — | Moderate | Chat endpoints create `messages` at request time (D-9) and echo DB errors (D-8); `messages` is not in `SetupDB.sql` | `get_chat_history.php`, `get_conversations.php`, `send_message.php` | Move the table into `SetupDB.sql`; drop the request-time DDL |
+| **CH-4** | Low | The four chat endpoints send `Access-Control-Allow-Origin: *` and answer OPTIONS before `cors.php` runs; their allowed headers omit `Authorization`, so a cross-origin polling fallback fails preflight | `get_chat_history.php:2-9`, `send_message.php:2-10`, `get_conversations.php`, `get_admin_user.php` | Remove the local headers and rely on `cors.php` via `config.php` |
+| **CH-5** | Low | `$stmt->close()` outside the `try` can fatal after an early exception | `get_chat_history.php:96` | Guard it or move it inside |
+| **N-1** | Low | The Semaphore balance check puts the API key in the query string (Semaphore's API requires it for GET); TLS protects it in transit, but proxies may log URLs | `services/send_sms.php` (`_semaphore_request`) | Accept; never log request URLs |
+
+**Correct — do not regress:**
+- SMS/email are triggered only by admin endpoints (`require_admin()` on `create_announcement`, `process_tenant_request`, `send_payment_reminder`, `update_*_status`); `send_test_notification.php` and `get_sms_balance.php` are admin-only, and the test send goes to the admin's own contact only.
+- Credentials in `system_settings` (`SECRET_SETTING_KEYS` in `config.php`: PayMongo, SMTP, `sms_api_key`) are stripped for non-admins, masked (`••••1234`) for admins, kept out of the activity log, and a returned mask never overwrites a key.
+- Semaphore calls verify TLS (cURL default; XAMPP `curl.cainfo` is set). Only `/messages` and `/account` are called.
+- Email templates escape every value (`esc()`, selftest M6-17); logged bodies are truncated to 500 characters and pruned by retention (C11).
+- `backend/cron/*.php` refuse to run outside the CLI (`PHP_SAPI` check) — verified 403 over HTTP.
+- `backend/room_images/` is public by design, with `-Indexes`, a script-extension block, and an image allowlist + `finfo` check in `store_room_image()`.
+- The PHP chat endpoints take identity from the session (via `config.php`'s header rewrite), use prepared statements, and return only the caller's own threads.
 
 ---
 

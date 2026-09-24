@@ -1,6 +1,6 @@
 # Modular Payment System — Design Document
 
-> **Stack context:** React 18 + Vite → PHP 8 (XAMPP) → MySQL/MariaDB  
+> **Stack context:** React 19 + Vite 8 → PHP 8 (XAMPP) → MySQL/MariaDB  
 > **Core Principle:** Admin-controlled channel activation. One toggle decides whether the tenant sees sandbox (PayMongo) options, manual options, or both.  
 > **Last Updated:** August 2026
 

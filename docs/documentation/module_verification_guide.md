@@ -1,7 +1,7 @@
 # AMS — Module Verification Guide
 
 > **Document Version:** 1.4 — September 2026 (adds Contract & Document Generation and Visitor Management, renumbering Date-Dependent Testing/Known Issues/Appendix to §17–§19; 1.3 added Notifications & Automation, Parking Reservation, and extended Reports & Activity Log with logging-coverage tests; 1.2 added Reports & Activity Log and Role-Based Access; 1.1 added Financial Tracking and Utility Usage)
-> **Stack:** React 18 (Vite) + PHP 8 + MySQL/MariaDB 10 (XAMPP)
+> **Stack:** React 19 (Vite 8) + PHP 8 + MySQL/MariaDB 10 (XAMPP), plus a Node.js Socket.IO chat server
 > **Database:** `ams_db`
 > **Scope:** Modules that have been audited end-to-end. See [§2 Extending This Guide](#2-extending-this-guide).
 
@@ -236,7 +236,7 @@ Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded Ju
 | 4 | Maintenance Request | ✅ Documented | [§7](#7-module-4--maintenance-request) |
 | 5 | Service Management | ✅ Documented (add-on catalog, bookings, billing, CCTV) | [§8](#8-module-5--service-management) |
 | 6 | Notification Module | ✅ Documented — in-app audited here; the email/SMS pipeline (6.6/6.7, SMS live via Semaphore) is tested in [sms_email_implementation.md §4.3](../features/sms_email_implementation.md#43-verification) | [§13](#13-module-6--notifications--automation) |
-| 7 | Communication (Two-Way Chat) | ⬜ Not yet audited | — |
+| 7 | Communication (Two-Way Chat) | ⬜ Built (Socket.IO + `messages`, PR #8), not yet audited — open security findings in [security_audit.md §6e](../security_audit.md) | — |
 | 8 | Admin Dashboard & Reports | ✅ Documented — Financial Tracking (8.1–8.3), Utility Usage (8.7), Reports & Activity Log (8.4–8.6, extended for logging coverage), and demo data (8.8, `seed_mock_data.sql`) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
 | 9 | Contract & Document Generation | ✅ Documented — transition guards, one contract per application, termination ends the tenancy | [§15](#15-module-9--contract--document-generation) |
 | 10 | Parking Reservation | ✅ Documented — numbered slots, release on move-out/archive, manual or automatic fee billing | [§14](#14-module-10--parking-reservation) |
@@ -2112,9 +2112,9 @@ DELETE FROM sessions;
 | `check_due_date_reminders.php` | GET/POST | `require_admin` | — | `run_notification_sweep()` result (forced) | `401`/`403` |
 | `send_payment_reminder.php` | POST | `require_admin` | `invoice_id` or `all`, optional `custom_message` | `success`, `count`/`reminder_count` | `404` unknown invoice · `409` invoice not remindable, or already reminded today |
 | `process_tenant_request.php` | POST | `require_admin` | `notificationId`, `action` (`approve`/`reject`) | `success` | `404` id isn't an `occupancy_request`/`lease_extension_request` · claim-first, so a replay is a no-op |
-| `create_announcement.php` | POST | `require_admin` | `tag`, `title`, `body`, `sendTo` (`All tenants` / `Specific unit`), `unit` | `success`, `recipient_count`, `delivered` | `422` missing unit for "Specific unit" · `422` no current tenants match |
+| `create_announcement.php` | POST | `require_admin` | `tag`, `title`, `body`, `sendTo` (`All tenants` / `Specific unit`), `unit`, `channels[]` (`sms`/`email` optional; in-app always), `draft` | `success`, `recipient_count`, `delivered`, `notification_dispatch` · draft: `success`, `draft:true` (nobody notified) | `422` missing unit for "Specific unit" · `422` no current tenants match |
 
-**Status vocabulary.** `Pending` means "an admin still has to act": the 11 `ADMIN_QUEUE_NOTIFICATION_TYPES` (`rent_application`, `maintenance_request`, `cctv_request`, `parking_reservation`, `service_request`, `inquiry`, `occupancy_request`, `lease_extension_request`, `payment_verification`, `visitor_registration`, `visitor_overstay`) plus a tenant's own open occupancy/lease request. Everything else — announcements, billing, rent-due/overdue reminders, every decision notice — is `Resolved`. This is what lets a tenant's "Clear all" remove everything except a request still awaiting a decision, and what stops an admin's "Clear all" from ever reaching a tenant's own inbox (see M6-01 below).
+**Status vocabulary.** `Pending` means "an admin still has to act": the 15 `ADMIN_QUEUE_NOTIFICATION_TYPES` (`rent_application`, `maintenance_request`, `cctv_request`, `parking_reservation`, `service_request`, `inquiry`, `occupancy_request`, `lease_extension_request`, `payment_verification`, `visitor_registration`, `visitor_overstay`, `household_request`, `unit_waitlist`, `move_out_request`, `cash_payment_declared`) plus a tenant's own open occupancy/lease request. Everything else — announcements, billing, rent-due/overdue reminders, every decision notice — is `Resolved`. This is what lets a tenant's "Clear all" remove everything except a request still awaiting a decision, and what stops an admin's "Clear all" from ever reaching a tenant's own inbox (see M6-01 below).
 
 **Notification preference categories** (`NOTIFICATION_PREF_CATEGORIES` in `backend/config.php`) — the only ones a tenant can mute; everything else (`overdue`, `billing`, `payment`, `application_update`, `maintenance_update`, contract and move-out notices, request decisions) is always delivered:
 
@@ -2745,7 +2745,7 @@ Built from the 2026-09-16 decisions (`docs/todo.md`). These tests will move into
 | **M1W-04** | Negative | Remove twice | M1W-03 | `{"action":"remove","id":<entry 2>}` twice | `200`; `404` | — |
 | **M1W-05** | Sec | Waitlist is admin-only | Maria's token | `GET manage_waitlist.php` | `403` | — |
 | **M2P-01** | Negative | Preview mode validation | Admin token | `update_system_settings.php {"room_preview_mode":"360"}` | `422 "Room preview mode must be images or floor_plan."` | — |
-| **M2P-02** | Happy | Preview follows the setting (UI) | Setting `floor_plan` | Open a unit preview on the public page | Only the 2D floor plan panel shows; with `images`, only the room image | Manual check |
+| **M2P-02** | Happy | Preview follows the setting (UI) | Setting `floor_plan` | Open a unit preview on the public page | Only the 2D floor plan panel shows; with `images`, the admin-uploaded showcase gallery (the View Layout button is hidden for a room with no images) | Manual check |
 
 **Restore:** re-import the dump, then `DELETE FROM expenses; DELETE FROM password_reset_requests; DELETE FROM login_attempts;` and set `room_preview_mode` back to `images`.
 

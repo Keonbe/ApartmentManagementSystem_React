@@ -11,7 +11,7 @@ trigger: always_on
 
 ## Project Snapshot
 
-**Stack:** React 18 + Vite SPA → PHP 8 API → MySQL (XAMPP/MariaDB 10)
+**Stack:** React 19 + Vite 8 SPA → PHP 8 API → MySQL (XAMPP/MariaDB 10)
 **Dev URL:** `http://localhost:8080/ApartmentManagementSystem_React/`
 **React dev server:** `npm run dev` inside `ams-react/` (port 5173)
 **DB name:** `ams_db`

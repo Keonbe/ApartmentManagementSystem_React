@@ -5,6 +5,7 @@ Authoritative reference for the `ams_db` MySQL/MariaDB schema and the SQL files 
 This document reflects the schema as actually defined in
 [`SetupDB.sql`](../../backend/api/migrations/SetupDB.sql) —
 verified table-by-table against that file, not against any earlier design doc.
+Last re-checked 2026-09-24: 30 tables in `SetupDB.sql`, plus the chat table `messages` (created by `create_messages_table.sql` — see §2).
 
 > For workflows, API inventory, and frontend wiring status, see
 > [system_design.md](system_design.md). This doc covers only the database layer.
@@ -28,6 +29,9 @@ erDiagram
         varchar role "user | admin"
         varchar avatar_url
         tinyint is_archived
+        tinyint sms_opt_out
+        tinyint email_opt_out
+        datetime sms_consent_at
     }
 
     ROOMS {
@@ -45,6 +49,7 @@ erDiagram
         varchar room_condition
         varchar furnishing_status
         date last_inspection_date
+        json gallery "showcase image paths"
         timestamp created_at
     }
 
@@ -398,6 +403,62 @@ erDiagram
         datetime attempt_time
     }
 
+    NOTIFICATION_PREFERENCES {
+        int user_id PK
+        varchar category PK
+        tinyint in_app_enabled
+        tinyint sms_enabled
+        tinyint email_enabled
+        timestamp updated_at
+    }
+
+    NOTIFICATION_QUEUE {
+        int id PK
+        int user_id FK
+        enum channel "email | sms"
+        varchar event_type
+        longtext payload "JSON"
+        enum status "pending | processing | sent | failed"
+        char claim_token
+        tinyint attempts
+        tinyint max_attempts
+        datetime next_attempt_at
+        text error_message
+        datetime created_at
+        datetime processed_at
+    }
+
+    NOTIFICATION_LOG {
+        int id PK
+        int user_id FK "ON DELETE SET NULL"
+        enum channel "in-app | email | sms"
+        varchar event_type
+        varchar recipient
+        varchar subject
+        text message_body "truncated to 500"
+        enum status "sent | failed | skipped"
+        text error_message
+        timestamp sent_at
+    }
+
+    PARKING_CHARGES {
+        int id PK
+        int reservation_id FK
+        char billing_period "YYYY-MM"
+        varchar invoice_id
+        decimal amount
+        timestamp created_at
+    }
+
+    MESSAGES {
+        int id PK
+        int sender_id FK
+        int receiver_id FK
+        text message
+        tinyint is_read
+        timestamp created_at
+    }
+
     USERS ||--o{ RENT_APPLICATIONS : submits
     USERS ||--o{ LEASE_RENEWALS : "approves (approved_by, no FK)"
     USERS ||--o{ MAINTENANCE_REQUESTS : submits
@@ -422,6 +483,11 @@ erDiagram
     INQUIRIES ||--o{ UNIT_WAITLIST : "waits for a unit"
     RENT_APPLICATIONS ||--o{ HOUSEHOLD_MEMBERS : "household of the lease"
     SERVICE_CATALOG ||--o{ SERVICE_REQUESTS : "priced by"
+    USERS ||--o{ NOTIFICATION_PREFERENCES : "sets"
+    USERS ||--o{ NOTIFICATION_QUEUE : "queued for"
+    USERS ||--o{ NOTIFICATION_LOG : "delivered to"
+    PARKING_RESERVATIONS ||--o{ PARKING_CHARGES : "billed monthly"
+    USERS ||--o{ MESSAGES : "sends / receives"
 ```
 
 ---
@@ -454,6 +520,7 @@ erDiagram
 |---|---|
 | `maintenance_requests` | Tenant-submitted tickets. `room_name` is **snapshotted** from the tenant's active application when the ticket is created (a soft reference, no FK), so a later move doesn't reattribute the ticket. A ticket completed with `tenant_responsible=1` bills `COALESCE(actual_cost, estimated_cost)` onto `invoices.maintenance` (audit H10) — `is_invoiced`/`invoice_id`/`billing_period` mirror `service_requests`' claim-atomically pattern, so a double-click can't double-bill and clearing the flag (or reopening the ticket) reverses the charge while it's still unpaid. |
 | `cctv_requests` | Footage-request tickets tied to an incident date/time/location. |
+| `parking_charges` | One row per parking reservation per billing month (`UNIQUE (reservation_id, billing_period)`), so a month is never billed twice whether billing is manual ("Bill this month") or automatic (daily sweep). `invoice_id` records where the charge landed. |
 | `parking_reservations` | `vehicle_type` must match the JSON array in the `parking_allowed_vehicle_types` setting; the admin-configured `max_parking_slots` cap counts rows in `Pending`/`Assigned`/`Approved`/`Active`. |
 | `service_catalog` | Admin-managed price list for add-on services (cleaning, laundry, pest control, ...). `is_active=0` hides an item from the tenant-facing catalog without deleting history. |
 | `service_requests` | Bookings against the catalog. Price/name/category are **snapshotted** at booking time (not joined live) so re-pricing the catalog never rewrites past invoices. `is_invoiced` is claimed atomically before the charge is posted to `invoices.services`, so a double-click can't double-bill. |
@@ -467,6 +534,10 @@ erDiagram
 | `unit_waitlist` | Basic first-come waitlist for a unit that isn't vacant, added from an inquiry (`manage_waitlist.php`). When the unit is vacated or a hold is released, `notify_unit_waitlist()` marks the first `Waiting` row `Notified`, notifies a tenant account in-app and queues an admin item (`unit_waitlist`). No hold is placed automatically. Converting or closing the inquiry removes its entries. `room_name` is a soft reference, like `inquiries`. |
 | `announcements` | Broadcast messages; `channels` is a JSON array stored as `longtext` with a `CHECK (json_valid(...))` constraint. |
 | `notifications` | Shared inbox row for **both** tenant-facing status updates and admin-facing "new request" alerts — disambiguated by `user_id` (whose inbox) and `status`/`type`, not by a separate table. `status` and `metadata_value` were added via `ALTER TABLE` after the initial `CREATE TABLE` (see the file — they're relied on everywhere but weren't in the original dump). |
+| `notification_preferences` | Per-user, per-category channel switches (`in_app_enabled`, `sms_enabled`, `email_enabled`; PK `user_id, category`). A missing row means "enabled". Checked by `user_channel_allowed()` together with `users.sms_opt_out` / `email_opt_out` (global opt-outs) and the building-wide switches. |
+| `notification_queue` | Outbound SMS/email jobs. The admin endpoints enqueue; `backend/cron/process_queue.php` claims a batch with `claim_token` (so two drains never send the same job), retries with backoff up to `max_attempts`, defers non-urgent SMS in quiet hours, and copies the failure reason to `error_message`. |
+| `notification_log` | One row per SMS/email attempt (`sent` / `failed` / `skipped`, with the reason). Only `log_notification_delivery()` writes it; `message_body` is truncated to 500 characters and rows past `notification_log_retention_days` are pruned by the queue drain. Also the source of the daily SMS cap count. |
+| `messages` | Two-way chat (PR #8): one flat row per message, `sender_id` → `receiver_id`, `is_read`. There is no `conversations` table — a thread is all messages between two users. Created by `create_messages_table.sql` and **also at request time** by `get_chat_history.php`, `get_conversations.php` and `send_message.php`; not yet in `SetupDB.sql`. Written by the PHP endpoints and by the Socket.IO server (`websocket-server/server.js`). |
 | `activity_logs` | Audit trail (checklist 8.6), append-only. `performed_by` is always the session user when there is one (set by `log_activity()`), and nullable so a deleted account doesn't cascade-delete history. `category` is one of the 12 keys in `LOG_CATEGORIES`; `normalize_log_category()` maps legacy spellings on write. |
 
 ### Settings & Auth Support
@@ -486,9 +557,9 @@ All migration files live in `backend/api/migrations/`.
 
 ### `SetupDB.sql` — the schema, run once per environment
 The single source of truth for every `CREATE TABLE`. Structure:
-1. `CREATE DATABASE IF NOT EXISTS ams_db` + all `DROP TABLE IF EXISTS` / `CREATE TABLE` statements for the 12 "original" tables (`users`, `rooms`, `invoices`, `lease_contracts`, `maintenance_requests`, `notifications`, `parking_reservations`, `rent_applications`, `cctv_requests`, `announcements`, `activity_logs`, `system_settings`).
+1. `CREATE DATABASE IF NOT EXISTS ams_db` + all `DROP TABLE IF EXISTS` / `CREATE TABLE` statements for the 13 "original" tables (`users`, `rooms`, `invoices`, `lease_contracts`, `maintenance_requests`, `notifications`, `parking_reservations`, `rent_applications`, `cctv_requests`, `announcements`, `activity_logs`, `system_settings`, `visitor_logs`).
 2. The one seed row that must exist for the app to be usable at all: the **admin account** (`admin@gmail.com` / `admin123`) and the **14-room inventory**.
-3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `visitor_logs`, `inquiries`, `unit_reservations`, `household_members`, `expenses`, `unit_waitlist`, `service_catalog`, `service_requests`, `utility_readings`, `sessions`, `login_attempts`, `password_resets`, `password_reset_requests`) — additive, so re-running this file against an existing DB won't wipe those.
+3. A block of newer tables added with `CREATE TABLE IF NOT EXISTS` instead of `DROP`+`CREATE` (`lease_renewals`, `inquiries`, `unit_reservations`, `household_members`, `expenses`, `unit_waitlist`, `service_catalog`, `service_requests`, `utility_readings`, `sessions`, `login_attempts`, `password_resets`, `password_reset_requests`, `notification_preferences`, `notification_log`, `notification_queue`, `parking_charges`) — additive, so re-running this file against an existing DB won't wipe those.
 4. A trailing block of `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements patching columns the API code depends on that were never added to the original `CREATE TABLE` blocks — `notifications` (`status`, `metadata_value`), `invoices` (`services`, `late_fee`, `maintenance`, reminder tracking, `cancel_reason`, ...), and `maintenance_requests` (the timeline columns, `actual_cost`, and the `is_invoiced`/`invoice_id`/`billing_period` billing trio). New columns keep landing here rather than in the original `CREATE TABLE`, so check this block — not just the table's own `CREATE TABLE` — before assuming a column doesn't exist.
 5. The default `system_settings` rows.
 
@@ -510,6 +581,22 @@ Idempotent. It creates `login_attempts` if missing and adds the `(email, attempt
 ### `2026_09_decisions_features.sql` — upgrade for existing databases
 Idempotent. Creates `password_reset_requests`, `household_members`, `expenses` and `unit_waitlist`, and adds the `room_preview_mode` (`images`) and `max_occupants_per_unit` (`8`) settings. A fresh `SetupDB.sql` import does not need it.
 
+### Other upgrade migrations (September 2026)
+Each is idempotent and only needed for a database created before it; a fresh `SetupDB.sql` import already includes it.
+
+| File | What it does |
+|---|---|
+| `2026_09_contracts_visitors.sql` | `lease_contracts` transition columns and unique key; `visitor_logs` `expected_at` / `overstay_alerted_at` |
+| `2026_09_notifications_parking.sql` | Creates `notification_preferences` and `parking_charges`; alters `activity_logs`, `notifications`, `parking_reservations` (numbered slots, billing) |
+| `2026_09_end_tenancy.sql` | `invoices.cancel_reason` (invoices cancelled by the end-of-tenancy helper) |
+| `2026_09_payment_proof_rejection.sql` | `invoices.proof_rejection_reason` |
+| `2026_09_billing_integrity.sql` | Audit Phase 4: `invoices.maintenance`, `maintenance_requests` billing trio |
+| `2026_09_room_gallery.sql` | `rooms.gallery` (showcase images) |
+| `2026_09_sms_email_channels.sql` | Creates `notification_log` and `notification_queue`; adds `users.sms_opt_out` / `email_opt_out` / `sms_consent_at` and `notification_preferences.sms_enabled` / `email_enabled`; seeds the SMS/SMTP settings |
+| `2026_09_sms_semaphore_live.sql` | `sms_sender_approved`, `sms_daily_cap` settings |
+| `2026_09_sms_semaphore_only.sql` | Removes the dropped Twilio/Vonage/Movider/iTexMo settings; resets a removed `sms_provider` to `log` |
+| `create_messages_table.sql` | The chat `messages` table (not in `SetupDB.sql` yet) |
+
 ### `clear_and_seed.sql` and `seed_reset.sql`
 Both were rewritten in September 2026 to match the current schema and `seed_mock_data.sql`, and CI (`.github/workflows/ci.yml`, the `database` job) imports and runs both on every push to prove they stay in sync:
 
@@ -522,6 +609,7 @@ Both files carry a comment that they must be kept in sync with `seed_mock_data.s
 ```bash
 mysql -u root < backend/api/migrations/SetupDB.sql
 mysql -u root < backend/api/migrations/seed_mock_data.sql   # optional, for demo/dev data
+mysql -u root ams_db < backend/api/migrations/create_messages_table.sql   # chat (also auto-created on first use)
 ```
 See the root [README.md](../../README.md) ("Installation & Setup" section) for the full local setup walkthrough, including default login credentials.
 
@@ -534,4 +622,4 @@ See the root [README.md](../../README.md) ("Installation & Setup" section) for t
 - **Status-as-lifecycle, not boolean flags.** Nearly every operational table drives its workflow off a `status` string/`ENUM` column (`rent_applications.status`, `lease_contracts.status`, `invoices.status`, `visitor_logs.status`, `unit_reservations.status`, ...) rather than separate boolean columns — check the relevant PHP endpoint for the exact allowed transitions before writing a query that filters on status.
 - **`system_settings` over schema columns.** Any value an admin might reasonably want to change (thresholds, toggles, payment channels, landlord identity for the printed lease contract) is a row in `system_settings`, not a dedicated column somewhere — extending an existing setting rather than adding a new column is usually the right move.
 - **Hardcoded room-letter pricing.** [`RentApplication.jsx`](../../ams-react/src/UserPages/RentApplication.jsx) derives the ₱3,500 3rd-floor rate from a hardcoded `['I','J','K','L','M','N']` letter check instead of querying `rooms.floor`/`rooms.monthly_rent` — it's only a fallback used before the room's real `monthly_rent` loads, not the permanent source of truth. `process_tenant_request.php` and `update_tenant_status.php` were previously named here too, but both now read the rate live from `rooms.monthly_rent`; this note used to be stale about that. If the room layout is ever changed again, either keep 3F as exactly those six letters, or update `getRoomPriceFallback()`.
-- **Auto-expiry and auto-overdue are opportunistic sweeps, not triggers.** `expire_lapsed_contracts()` and the "mark overdue" `UPDATE invoices SET status='overdue' WHERE ...due_date < CURDATE()` logic both run as plain PHP functions called at the top of read endpoints (`get_contracts.php`, `my_room.php`, `get_invoices.php`), not as MySQL triggers or a cron job. A contract or invoice can display a stale status until the next time a relevant page is loaded.
+- **Auto-expiry and auto-overdue are opportunistic sweeps, not triggers.** `expire_lapsed_contracts()` and the "mark overdue" `UPDATE invoices SET status='overdue' WHERE ...due_date < CURDATE()` logic both run as plain PHP functions called at the top of read endpoints (`get_contracts.php`, `my_room.php`, `get_invoices.php`), not as MySQL triggers or a cron job. A contract or invoice can display a stale status until the next time a relevant page is loaded. (Other periodic work does run from cron: `backend/cron/daily_sweep.php` — reminders and automatic parking billing via `run_notification_sweep()` — and `backend/cron/process_queue.php`, which delivers queued SMS/email every minute.)

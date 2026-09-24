@@ -57,16 +57,10 @@
 **Then, to go live.** Email first: it is free, has no lead time, and demos reliably.
 
 - [ ] Create a Gmail App Password (Google Account → Security → 2FA → App Passwords), install PHPMailer ([§1.2](#12-install-phpmailer)), fill the SMTP fields in Account Settings and set **Email Driver** to `smtp`
-- [ ] Choose an SMS provider and sign up (see [Appendix C](#appendix-c--provider-setup)). **Start the sender-ID registration on day one** — it is the long pole (1–3 business days on Semaphore, 3–7+ on Twilio/Vonage for PH carriers).
-  - **Semaphore** — the default for PH-only traffic; handles sender-ID registration for you
-  - **Twilio** — global reach and the best docs, but PH A2P needs a bought number or a registered sender ID
-  - **Vonage** — global; alphanumeric sender IDs need Globe/Smart pre-registration
-  - **Movider** — Southeast Asia specialist, pay-as-you-go
-  - **iTexMo** — budget PH option, shared shortcode, no sender ID
-- [x] Write that provider's driver — **Semaphore shipped 2026-09-24** ([Appendix C.1](#c1-semaphore-sms--philippine-local)); Twilio, Vonage, Movider and iTexMo remain stubs.
+- [ ] Sign up with **Semaphore** — the only SMS provider AMS supports (see [Appendix C.1](#c1-semaphore-sms--philippine-local)). **Start the sender-ID registration on day one** — it is the long pole (1–3 business days).
+- [x] Semaphore driver — **shipped 2026-09-24**. The Twilio / Vonage / Movider / iTexMo stubs were removed the same day (migration `2026_09_sms_semaphore_only.sql`).
 - [ ] Schedule the queue drain (`backend/cron/run_queue.bat`, every minute — command in C.1). A real provider makes the admin endpoints enqueue; nothing is delivered until it runs.
-- [ ] Put the API key into Account Settings → Notification Services, then switch **SMS Provider** off `log`
-- [ ] Do **not** install `twilio/sdk` or `vonage/client`. The cURL drivers in Appendix C cover every call this project makes, and the SDKs pull in Guzzle/PSR-7 for no benefit.
+- [ ] Put the API key into Account Settings → Notifications tab, then switch **SMS Provider** off `log`
 - [ ] ~~Update the `Dockerfile` so Railway gets `vendor/`~~ — deferred; Railway is on indefinite hold, so XAMPP is the only target ([§1.2](#12-install-phpmailer))
 
 ---
@@ -122,7 +116,7 @@ Implemented 2026-09-22. Phase 1 builds on these rather than restating them.
 | `gsm7_safe($text)` | §0.3 | Folds `₱`→`PHP `, em/en dash, smart quotes and ellipsis to GSM-7 and drops the rest, so a message cannot silently bill as three UCS-2 segments. |
 | `sms_single_segment($text, $limit = 160)` | §0.3 | One segment, hard. |
 | `log_notification_delivery(...)` | C11 | The only writer into `notification_log`; truncates the body to 500 chars. |
-| `prune_notification_log($conn, $limit = 5000)` | C11 | Deletes past the retention setting, capped per call. Not yet wired to a caller — the queue drain will call it. |
+| `prune_notification_log($conn, $limit = 5000)` | C11 | Deletes past the retention setting, capped per call. Called at the end of every queue drain (`process_notification_queue()`; selftest M6-18). |
 
 **C9 — preferences API takes both payload shapes.** `update_notification_preferences.php` accepts `"<category>": true|false` and `"<category>": {in_app, sms, email}`, plus top-level `sms_opt_out` / `email_opt_out`. An omitted channel is written back **as it was stored**, read once before the loop — the flat payload the notifications page still sends can no longer re-enable SMS. Turning SMS back on stamps `sms_consent_at`. `get_notification_preferences.php` returns `sms_enabled` / `email_enabled` per category plus `channels`, `sms_opt_out`, `email_opt_out`, `has_contact_no`, `has_email`. The frontend is unchanged and still works, which was the C9 ship-order requirement.
 
@@ -178,7 +172,7 @@ At ₱0.50/SMS that is **₱120–₱255/month**, not the ₱75 quoted in Append
 
 Email side: Gmail SMTP is free up to **500 recipients/day** (personal) or 2,000/day (Workspace) — comfortable at this scale, but a 30-tenant announcement plus a sweep is ~60 sends in a burst, so throttle the queue drain rather than firing them all at once. Resend's free tier is 3,000/month.
 
-Minimum realistic first-year budget for a 30-unit building: **₱0 email + ₱1,500–₱3,000/year SMS**, plus whatever minimum top-up the provider enforces (Semaphore and iTexMo both sell prepaid credit in blocks, so the first load is the real floor).
+Minimum realistic first-year budget for a 30-unit building: **₱0 email + ₱1,500–₱3,000/year SMS**, plus whatever minimum top-up the provider enforces (Semaphore sells prepaid credit in blocks, so the first load is the real floor).
 
 ### 0.4 Philippine SMS rules & compliance
 
@@ -187,7 +181,7 @@ These are constraints on the *content and consent*, not on the code, and they ar
 **Sender ID registration.** Since the SIM Registration Act (RA 11934) and the NTC's follow-on rules, PH carriers (Globe, Smart/TNT, DITO) require A2P traffic to come from a **registered sender ID or a registered number**. Unregistered alphanumeric traffic is filtered, usually silently — the API returns success and the message never lands. Plan for this:
 
 - **Semaphore** registers the sender name on your behalf: submit `AMS` (or the building's name), allow 1–3 business days. Until it is approved your messages go out under the shared `SEMAPHORE` sender.
-- **Twilio / Vonage / Movider** require you to register the sender ID with each carrier, or to use a purchased number. Lead time is 3–7 business days and up, and some require business documents (DTI/SEC registration, a letter of authorisation). **For a capstone on a deadline, this is a real risk** — it is the main argument for Semaphore or for demoing on the `log` driver.
+- Global providers (Twilio, Vonage, Movider) make you register the sender ID with each carrier yourself, often with business documents — one reason Semaphore is the only provider AMS supports.
 
 **No links.** PH carriers block or filter A2P messages containing URLs, and URL shorteners (`bit.ly` and friends) are blocked outright as an anti-scam measure. Keep every SMS link-free and tell the tenant to open the app.
 
@@ -210,7 +204,7 @@ If the deadline is tight, this is what "done" should mean:
 |---|---|---|
 | **Must** | Migration · `log` + Semaphore drivers · email via Gmail SMTP · queue + processor · dispatcher · maintenance status + rent due/overdue wiring · per-category and global opt-out · admin config UI | **4.10**, **6.6**, **6.7**, extends **6.8** |
 | **Should** | Announcements with an explicit SMS opt-in and a cost preview · delivery log viewer · quiet hours | polish the same rows |
-| **Could** | Remaining status endpoints · Twilio/Vonage/Movider/iTexMo drivers · delivery receipts | — |
+| **Could** | Remaining status endpoints · delivery receipts | — |
 | **Won't (say so on the panel)** | Inbound SMS / STOP keyword handling · per-message delivery status webhooks · multi-tenant per-building sender IDs | scope statement |
 
 Email is the honest win here: it is free, has no registration lead time, and demos reliably. SMS should be built behind the same abstraction, proven on the `log` driver, and switched to a live provider only once the sender ID is approved.
@@ -227,20 +221,22 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 
 | File | What it is |
 |---|---|
-| `backend/api/services/send_sms.php` | `send_sms()` plus the `log` dry-run driver and `write_mock_outbox()`. **Semaphore** is a live driver (Appendix C.1); the other four providers are **stubs** that return a clear error — see below. |
+| `backend/api/services/send_sms.php` | `send_sms()` plus the `log` dry-run driver and `write_mock_outbox()`. **Semaphore** is the live driver (Appendix C.1) and the only real SMS provider; any other `sms_provider` value fails with "Unknown SMS provider". |
 | `backend/api/services/send_email.php` | `send_email()` with two drivers chosen by the new **`email_driver`** setting (`log` \| `smtp`). |
 | `backend/api/services/email_templates.php` | §1.5 as written, `esc()` on every interpolated value (C10). |
 | `backend/api/services/send_notification.php` | `dispatch_external_notification()`, `dispatch_external_broadcast()`, `enqueue_notification()`, `process_notification_queue()`. |
 | `backend/cron/process_queue.php` | CLI drain. Task Scheduler entry point. |
-| `backend/cron/notification_selftest.php` | 18 dry-run checks with the `M6-NN` IDs. The verification gate for this module. |
+| `backend/cron/notification_selftest.php` | 19 dry-run checks (M6-02…M6-18, C11, M6-35, M6-39, DRY). The verification gate for this module. |
 | `backend/api/send_test_notification.php` | Admin-only test send; returns the rendered message for the settings UI to print to the browser console. |
-| `ams-react/src/AdminPages/AdminAccountSettings.jsx` | §3.3 "Notification Services" section + test-send controls. |
+| `ams-react/src/AdminPages/AdminAccountSettings.jsx` + `settings/NotificationsPanel.jsx` | §3.3 — Notifications tab: provider (Log / Semaphore), API key, sender name + approval, balance check, daily cap, test sends. |
+| `backend/api/get_sms_balance.php` | Admin-only Semaphore credit balance (cached 60 s — `/account` allows 2 calls a minute). |
+| `backend/cron/run_queue.bat` | Task Scheduler wrapper for `process_queue.php` (C.1 step 5). |
 | `ams-react/src/config/systemSettings.js` | The camelCase map both ways — a key missing here is silently never saved. |
 
 **Deliberate differences from the listings below.**
 
 - **`email_driver` is new**, and is the email mirror of `sms_provider = 'log'`. It means the email path is demonstrable with no Composer, no PHPMailer and no Gmail account. §1.4's `require_once 'vendor/autoload.php'` moved **inside** the `smtp` branch so a checkout with no `vendor/` still parses and runs; a missing PHPMailer is a `failed` row, never a fatal.
-- **Four of the five provider drivers are stubs.** Appendix C's cURL calls were not pasted in: untested code that contacts a paid API is worse than an honest error. Semaphore was added once credits existed to test it against (Appendix C.1).
+- **Semaphore is the only SMS provider.** Twilio, Vonage, Movider and iTexMo were planned as stubs and removed on 2026-09-24 (`2026_09_sms_semaphore_only.sql`): untested code that contacts a paid API is worse than none. Semaphore was built once credits existed to test it against (Appendix C.1).
 - **The dispatcher calls `user_channel_allowed()`** from `config.php` instead of repeating the opt-out ladder per channel, which is what §1.6's listing does. C2's ordering — global opt-out, then building switch, then category — is decided in one place.
 - **The mock outbox** (`backend/logs/notification_outbox/`, gitignored) holds one file per message: `.txt` for SMS, `.html` for email. Opening the HTML in a browser is the closest thing to seeing the real mail.
 - **Secret masking landed early.** Rendering credential fields in a browser is the moment §3.3's security note matters, so `SECRET_SETTING_KEYS`, `mask_secret_value()` and `is_masked_secret()` now live in `config.php`; admins receive `••••1234` and posting that back means "unchanged". This covers the PayMongo keys too.
@@ -323,7 +319,7 @@ CREATE TABLE IF NOT EXISTS `notification_queue` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 4. Seed system_settings for provider credentials (admin-configurable).
---    sms_provider accepts: 'log', 'semaphore', 'twilio', 'vonage', 'movider', 'itexmo'
+--    sms_provider accepts: 'log' or 'semaphore'
 --    'log' is the dry-run driver: writes to notification_log, sends nothing.
 --
 --    C3 — get_system_settings.php and update_system_settings.php already carry
@@ -340,19 +336,6 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
   ('sms_provider',                 'log'),
   ('sms_api_key',                  ''),
   ('sms_sender_name',              'AMS'),
-  -- Twilio-specific
-  ('sms_twilio_sid',               ''),
-  ('sms_twilio_auth_token',        ''),
-  ('sms_twilio_from_number',       ''),
-  -- Vonage-specific
-  ('sms_vonage_api_key',           ''),
-  ('sms_vonage_api_secret',        ''),
-  -- Movider-specific
-  ('sms_movider_api_key',          ''),
-  ('sms_movider_api_secret',       ''),
-  -- iTexMo-specific
-  ('sms_itexmo_api_code',          ''),
-  ('sms_itexmo_password',          ''),
   ('notifications_email_enabled',  '0'),
   ('notifications_sms_enabled',    '0'),
   -- queue | sync. 'sync' blocks the HTTP request and exists only for demos.
@@ -398,7 +381,6 @@ composer require phpmailer/phpmailer:^6.9
 
 **Pin the 6.x line.** Local XAMPP runs PHP 8.0.30 (`php -v`); PHPMailer 7 requires 8.1+ and Composer would resolve to it unpinned, then fail at runtime on the local box while working in the 8.2 container. PHPMailer 6.9 has no runtime dependencies beyond ext-ctype/filter/hash, all of which the base image has.
 
-> Do **not** add `twilio/sdk` or `vonage/client`. The cURL drivers in §1.3 make exactly one API call each; the SDKs drag in Guzzle and PSR-7 and are not needed.
 
 **C6 — the deploy path has no Composer.** `Dockerfile` is `php:8.2-apache` with no composer binary, and it does `COPY backend/ /var/www/html/`. Pick one:
 
@@ -433,13 +415,13 @@ Either way, confirm before wiring anything up:
 
 ### 1.3 SMS Service — send_sms.php
 
-**File:** [`backend/api/services/send_sms.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_sms.php) — **shipped**. The `log` and **Semaphore** drivers are built; the other four provider functions below are **stubs** returning a readable "not implemented" error, so a misconfigured provider fails loudly instead of appearing to work.
+**File:** [`backend/api/services/send_sms.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_sms.php) — **shipped**. The `log` and **Semaphore** drivers are built, and they are the only two; any other `sms_provider` value fails loudly with "Unknown SMS provider" instead of appearing to work.
 
 > **The Semaphore listing below is the original plan, superseded by the shipped driver.** The real one strips the `+` from the number, posts `sendername` only when `sms_sender_approved = '1'`, requires a `message_id` in the response (Semaphore reports errors as a JSON object *with HTTP 200*), and `send_sms()` enforces `sms_daily_cap` before any real provider is called. See [Appendix C.1](#c1-semaphore-sms--philippine-local).
 
 A standalone function that routes SMS through whichever provider is configured in `system_settings.sms_provider`. Each provider has its own private send function. The public `send_sms()` signature never changes — endpoints don't need to know which provider is active.
 
-**Supported providers:** `log` (dry-run) · `semaphore` · `twilio` · `vonage` · `movider` · `itexmo`
+**Supported providers:** `log` (dry-run) · `semaphore` — the only real provider. (Stub entries for Twilio, Vonage, Movider and iTexMo were removed 2026-09-24.)
 
 > **Build the `log` driver first.** It is the default in §1.1's seed. It writes a `sent` row to `notification_log` and contacts nothing, so the whole feature — dispatcher, queue, preferences, admin UI, delivery log viewer — can be built, demoed and defended on the panel with no account, no spend, and no sender-ID approval. Swap `sms_provider` to a real driver only when credentials and the sender ID are actually approved.
 
@@ -486,10 +468,6 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
     $result = match ($provider) {
         'log'       => ['ok' => true],   // dry run: logged below, nothing sent
         'semaphore' => _send_via_semaphore($conn, $phone, $message),
-        'twilio'    => _send_via_twilio($conn, $phone, $message),
-        'vonage'    => _send_via_vonage($conn, $phone, $message),
-        'movider'   => _send_via_movider($conn, $phone, $message),
-        'itexmo'    => _send_via_itexmo($conn, $phone, $message),
         default     => ['ok' => false, 'error' => "Unknown SMS provider: $provider"],
     };
 
@@ -549,224 +527,12 @@ function _send_via_semaphore($conn, $phone, $message) {
     return ['ok' => false, 'error' => "HTTP $http_code: $error"];
 }
 
-// ──────────────────────────────────────────────
-//  Provider: Twilio  (twilio.com)
-// ──────────────────────────────────────────────
-//  Settings required:
-//    sms_twilio_sid          → Account SID (starts with "AC...")
-//    sms_twilio_auth_token   → Auth Token
-//    sms_twilio_from_number  → Twilio phone number (e.g. "+1415xxxxxxx")
-//  API endpoint:  POST https://api.twilio.com/2010-04-01/Accounts/{SID}/Messages.json
-//  Auth:          HTTP Basic (SID:AuthToken)
-//  Response:      JSON with "sid" on success, "code"/"message" on error
-//  Composer:      composer require twilio/sdk  (optional — cURL works too)
-// ──────────────────────────────────────────────
-function _send_via_twilio($conn, $phone, $message) {
-    $sid        = get_setting($conn, 'sms_twilio_sid', '');
-    $auth_token = get_setting($conn, 'sms_twilio_auth_token', '');
-    $from       = get_setting($conn, 'sms_twilio_from_number', '');
-
-    if ($sid === '' || $auth_token === '') return ['ok' => false, 'error' => 'Twilio SID or Auth Token not configured'];
-    if ($from === '') return ['ok' => false, 'error' => 'Twilio From number not configured'];
-
-    $url = "https://api.twilio.com/2010-04-01/Accounts/$sid/Messages.json";
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_POST           => true,
-        CURLOPT_USERPWD        => "$sid:$auth_token",
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'To'   => $phone,
-            'From' => $from,
-            'Body' => $message,
-        ]),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_CONNECTTIMEOUT => 5,
-    ]);
-
-    $response  = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curl_err  = curl_error($ch);
-    curl_close($ch);
-
-    if ($curl_err) return ['ok' => false, 'error' => "cURL error: $curl_err"];
-
-    $json = json_decode($response, true);
-    if ($http_code === 201 && isset($json['sid'])) {
-        return ['ok' => true];
-    }
-
-    $error = $json['message'] ?? $response;
-    return ['ok' => false, 'error' => "HTTP $http_code: $error"];
-}
-
-// ──────────────────────────────────────────────
-//  Provider: Vonage / Nexmo  (vonage.com)
-// ──────────────────────────────────────────────
-//  Settings required:
-//    sms_vonage_api_key    → API Key (from Vonage Dashboard)
-//    sms_vonage_api_secret → API Secret
-//    sms_sender_name       → Alphanumeric sender ID (shared setting)
-//  API endpoint:  POST https://rest.nexmo.com/sms/json
-//  Auth:          API key + secret in POST body
-//  Response:      JSON with messages[0].status === "0" on success
-//  Composer:      composer require vonage/client  (optional)
-// ──────────────────────────────────────────────
-function _send_via_vonage($conn, $phone, $message) {
-    $api_key    = get_setting($conn, 'sms_vonage_api_key', '');
-    $api_secret = get_setting($conn, 'sms_vonage_api_secret', '');
-    $sender     = get_setting($conn, 'sms_sender_name', 'AMS');
-
-    if ($api_key === '' || $api_secret === '') return ['ok' => false, 'error' => 'Vonage API key or secret not configured'];
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => 'https://rest.nexmo.com/sms/json',
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'api_key'    => $api_key,
-            'api_secret' => $api_secret,
-            'to'         => str_replace('+', '', $phone),  // Vonage wants digits only
-            'from'       => $sender,
-            'text'       => $message,
-        ]),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_CONNECTTIMEOUT => 5,
-    ]);
-
-    $response  = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curl_err  = curl_error($ch);
-    curl_close($ch);
-
-    if ($curl_err) return ['ok' => false, 'error' => "cURL error: $curl_err"];
-
-    $json = json_decode($response, true);
-    if (isset($json['messages'][0]['status']) && $json['messages'][0]['status'] === '0') {
-        return ['ok' => true];
-    }
-
-    $error = $json['messages'][0]['error-text'] ?? $response;
-    return ['ok' => false, 'error' => "Vonage error: $error"];
-}
-
-// ──────────────────────────────────────────────
-//  Provider: Movider  (movider.co)
-// ──────────────────────────────────────────────
-//  Settings required:
-//    sms_movider_api_key    → API Key
-//    sms_movider_api_secret → API Secret
-//    sms_sender_name        → Sender ID (shared setting)
-//  API endpoint:  POST https://api.movider.co/v1/sms
-//  Auth:          API key + secret in POST body
-//  Response:      JSON with phone_number_list on success
-// ──────────────────────────────────────────────
-function _send_via_movider($conn, $phone, $message) {
-    $api_key    = get_setting($conn, 'sms_movider_api_key', '');
-    $api_secret = get_setting($conn, 'sms_movider_api_secret', '');
-    $sender     = get_setting($conn, 'sms_sender_name', 'AMS');
-
-    if ($api_key === '' || $api_secret === '') return ['ok' => false, 'error' => 'Movider API key or secret not configured'];
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => 'https://api.movider.co/v1/sms',
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'api_key'    => $api_key,
-            'api_secret' => $api_secret,
-            'to'         => $phone,
-            'text'       => $message,
-            'from'       => $sender,
-        ]),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_CONNECTTIMEOUT => 5,
-    ]);
-
-    $response  = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curl_err  = curl_error($ch);
-    curl_close($ch);
-
-    if ($curl_err) return ['ok' => false, 'error' => "cURL error: $curl_err"];
-
-    $json = json_decode($response, true);
-    if ($http_code >= 200 && $http_code < 300 && isset($json['phone_number_list'])) {
-        return ['ok' => true];
-    }
-
-    $error = $json['error'] ?? $response;
-    return ['ok' => false, 'error' => "HTTP $http_code: $error"];
-}
-
-// ──────────────────────────────────────────────
-//  Provider: iTexMo  (itexmo.com)
-// ──────────────────────────────────────────────
-//  Settings required:
-//    sms_itexmo_api_code → Your iTexMo API code
-//    sms_itexmo_password → Your iTexMo API password
-//  API endpoint:  POST https://www.itexmo.com/php_api/api.php
-//  Auth:          API code + password in POST body
-//  Response:      Plain text "0" on success
-//  Note:          Budget-friendly PH-only provider. No sender ID.
-// ──────────────────────────────────────────────
-function _send_via_itexmo($conn, $phone, $message) {
-    $api_code = get_setting($conn, 'sms_itexmo_api_code', '');
-    $password = get_setting($conn, 'sms_itexmo_password', '');
-
-    if ($api_code === '' || $password === '') return ['ok' => false, 'error' => 'iTexMo API code or password not configured'];
-
-    // iTexMo expects local format: +639xx → 09xx
-    $local_phone = preg_replace('/^\+63/', '0', $phone);
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => 'https://www.itexmo.com/php_api/api.php',
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            '1' => $local_phone,
-            '2' => $message,
-            '3' => $api_code,
-            'passwd' => $password,
-        ]),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_CONNECTTIMEOUT => 5,
-    ]);
-
-    $response = curl_exec($ch);
-    $curl_err = curl_error($ch);
-    curl_close($ch);
-
-    if ($curl_err) return ['ok' => false, 'error' => "cURL error: $curl_err"];
-
-    // iTexMo returns "0" for success, numeric error codes otherwise.
-    $code = trim($response);
-    if ($code === '0') {
-        return ['ok' => true];
-    }
-
-    $errors = [
-        '1' => 'Invalid number',
-        '2' => 'Invalid API code',
-        '3' => 'Insufficient credits',
-        '4' => 'Telco blocked (max 10 msgs to same number/day)',
-        '5' => 'Invalid or missing parameters',
-        '6' => 'System busy, try again later',
-    ];
-    return ['ok' => false, 'error' => 'iTexMo error ' . $code . ': ' . ($errors[$code] ?? 'Unknown')];
-}
-
 ?>
 ```
 
 > **The helpers this file calls already exist** — `normalize_ph_mobile()`, `gsm7_safe()`, `sms_single_segment()` and `log_notification_delivery()` shipped in `config.php` ([§0.1a](#01a-what-shipped)), which every endpoint already includes. Do not redeclare them here: `send_email.php` needs the same logger, and a second declaration is a fatal redeclare.
 
-> **Rate limiting.** None of the drivers throttles. iTexMo's carrier limit is 10 messages to the same number per day, and Semaphore rate-limits bursts. The queue processor is where this belongs — see [§4.1](#41-notification-queue--process_queuephp).
+> **Rate limiting.** The driver does not throttle, and Semaphore rate-limits bursts. The queue processor is where this belongs — see [§4.1](#41-notification-queue--process_queuephp).
 
 ---
 
@@ -1097,6 +863,8 @@ Each change below is a single `require_once` + a function call added **after** t
 ### 2.1 Announcements — create_announcement.php
 
 **File:** [`backend/api/create_announcement.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/create_announcement.php)
+
+> **Shipped (2026-09-24).** The endpoint dispatches through `dispatch_admin_action_broadcast()` after the commit. The admin form's `channels` is honoured — SMS/email text is passed as `null` (skipped) unless that channel was ticked; in-app always goes out — and `announcements.channels` is rewritten with the channels that actually reached someone. `unit` targets one unit's current tenants; `draft: true` stores a `status = 'draft'` row and notifies nobody. The cost preview (§0.5 *Should*) is not built.
 
 **What changes:** After the in-app notification loop (line 80–82), add SMS/email dispatch if those channels were selected. Replace the hardcoded `$channels = json_encode(['in-app'])` with the actual input.
 
@@ -1498,23 +1266,10 @@ Fields, alongside the existing PayMongo settings:
 | From Name | `smtp_from_name` | Text |
 | From Email | `smtp_from_email` | Text |
 | **SMS Notifications** | `notifications_sms_enabled` | Toggle |
-| SMS Provider | `sms_provider` | Dropdown: `semaphore` · `twilio` · `vonage` · `movider` · `itexmo` |
+| SMS Provider | `sms_provider` | Dropdown: `log` · `semaphore` |
 | SMS Sender Name | `sms_sender_name` | Text |
 | **— Semaphore fields** | *(show when provider = semaphore)* | |
 | API Key | `sms_api_key` | Password |
-| **— Twilio fields** | *(show when provider = twilio)* | |
-| Account SID | `sms_twilio_sid` | Text |
-| Auth Token | `sms_twilio_auth_token` | Password |
-| From Number | `sms_twilio_from_number` | Text |
-| **— Vonage fields** | *(show when provider = vonage)* | |
-| API Key | `sms_vonage_api_key` | Password |
-| API Secret | `sms_vonage_api_secret` | Password |
-| **— Movider fields** | *(show when provider = movider)* | |
-| API Key | `sms_movider_api_key` | Password |
-| API Secret | `sms_movider_api_secret` | Password |
-| **— iTexMo fields** | *(show when provider = itexmo)* | |
-| API Code | `sms_itexmo_api_code` | Password |
-| API Password | `sms_itexmo_password` | Password |
 
 > **Security — C3, corrected.** The claim that these keys are "already masked" is wrong. What exists today is a secret list under **different names** that nothing reads or writes:
 >
@@ -1528,10 +1283,6 @@ Fields, alongside the existing PayMongo settings:
 >     'paymongo_secret_key', 'paymongo_webhook_secret',
 >     'smtp_username', 'smtp_password',
 >     'sms_api_key',
->     'sms_twilio_sid', 'sms_twilio_auth_token',
->     'sms_vonage_api_key', 'sms_vonage_api_secret',
->     'sms_movider_api_key', 'sms_movider_api_secret',
->     'sms_itexmo_api_code', 'sms_itexmo_password',
 > ];
 > ```
 >
@@ -1577,7 +1328,7 @@ $urgent = in_array($job['event_type'], ['overdue', 'action'], true);
 if ($job['channel'] === 'sms' && $quiet && !$urgent) { /* defer, continue */ }
 ```
 
-**3. Rate limiting.** No driver throttles. iTexMo's carrier cap is 10 messages to the same number per day and Semaphore rate-limits bursts, so add a `usleep(200000)` between sends and a per-recipient daily count check against `notification_log`.
+**3. Rate limiting.** The driver does not throttle and Semaphore rate-limits bursts, so add a `usleep(200000)` between sends and a per-recipient daily count check against `notification_log`.
 
 **4. Retention (C11).** Prune at the end of each run:
 
@@ -1743,6 +1494,8 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-36 | `sms_daily_cap` at or below today's `sent` count, provider `semaphore` | Row `skipped`, "Daily SMS cap reached (N)"; Semaphore not called |
 | M6-37 | Provider `semaphore` with an invalid API key | Row `failed`, "Semaphore: The selected apikey is invalid." — not `sent`, although Semaphore answers HTTP 200 |
 | M6-38 | `GET get_sms_balance.php` as tenant / unauthenticated / admin on `log` | 403 / 401 / `success:false` "only available when the SMS provider is Semaphore" |
+| M6-39 | `send_sms()` of "🔔 Test reminder" (selftest) | Logged and sent as `AMS: Test reminder` — Semaphore silently drops messages starting with "TEST" |
+| M6-40 | Two `GET get_sms_balance.php` calls within a minute, provider `semaphore` | Second answer is `Semaphore rate limit reached (retry after 60s)` on a 429 (seen live with an invalid key, 2026-09-24); with a valid key the second call is served from the 60 s cache (`cached: true`, `checked_at`) and Semaphore is not called |
 
 **Tier 2 — live provider (costs credits; run once, record the result)**
 
@@ -1762,7 +1515,7 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-33 | Queue drains on Railway with no cron | Rows drain via the sweep/poll piggyback (C7) |
 | M6-34 | Outbound port 587 from the Railway container | SMTP connects — verify before relying on it |
 
-**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18 and M6-35 in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
+**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18, C11, M6-35, M6-39 and DRY (19 checks) in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
 
 > **[`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)**
 
@@ -1785,17 +1538,21 @@ After all tests pass:
 
 > **Updated 2026-09-22.** Rows marked ✅ are built. `backend/api/services/` now holds the four service files; `backend/cron/` holds `check_environment.php`, `daily_sweep.php`, `process_queue.php` and `notification_selftest.php`.
 
-### New Files (12)
+### New Files (16)
 
 | File | Phase | Purpose |
 |---|---|---|
-| ✅ `backend/api/services/send_sms.php` | 1 | **Shipped:** `log` driver + mock outbox; **Semaphore** live (C.1); other providers stubbed |
+| ✅ `backend/api/services/send_sms.php` | 1 | **Shipped:** `log` driver + mock outbox; **Semaphore** live (C.1) — the only real provider |
 | ✅ `backend/api/services/send_email.php` | 1 | **Shipped:** `log` driver + an SMTP branch that waits for PHPMailer |
 | ✅ `backend/api/services/email_templates.php` | 1 | **Shipped:** escaped throughout (C10) |
 | ✅ `backend/api/services/send_notification.php` | 1 | **Shipped:** dispatcher, enqueue and the queue drain |
 | ✅ `backend/api/migrations/2026_09_sms_email_channels.sql` | 1 | Schema migration — **shipped** |
 | ✅ `backend/cron/process_queue.php` | 1 | **Shipped:** CLI drain (moved to Phase 1 per §0.2) |
-| ✅ `backend/cron/notification_selftest.php` | 1 | **Shipped:** 17 dry-run checks (M6-NN), the verification gate |
+| ✅ `backend/cron/notification_selftest.php` | 1 | **Shipped:** 19 dry-run checks (M6-NN, C11, DRY), the verification gate |
+| ✅ `backend/cron/run_queue.bat` | 4 | **Shipped:** Task Scheduler runner → `backend/logs/queue_drain.log` (task not yet registered) |
+| ✅ `backend/api/get_sms_balance.php` | 3 | **Shipped:** admin-only Semaphore balance, 60 s cache |
+| ✅ `backend/api/migrations/2026_09_sms_semaphore_live.sql` / `2026_09_sms_semaphore_only.sql` | 1 | **Shipped:** Semaphore settings (`sms_sender_approved`, `sms_daily_cap`); removal of the four dropped providers' settings |
+| ✅ `ams-react/src/AdminPages/settings/NotificationsPanel.jsx` | 3 | **Shipped:** the Notifications tab of Account Settings |
 | ✅ `backend/api/send_test_notification.php` | 3 | **Shipped:** admin test send; returns the rendered message for the console |
 | ✅ `docs/features/sms_email_mock_testing.md` | 1 | **Shipped:** how to run and test the mock drivers |
 | `backend/api/get_notification_log.php` | 4 | Admin delivery log API |
@@ -1807,17 +1564,17 @@ After all tests pass:
 
 | File | Phase | Change |
 |---|---|---|
-| `backend/api/create_announcement.php` | 2 | Accept channels, dispatch SMS/email |
-| `backend/api/update_maintenance_status.php` | 2 | SMS/email after status change (4.10) |
-| `backend/api/send_payment_reminder.php` | 2 | SMS/email for reminders |
-| `backend/api/update_cctv_status.php` | 2 | SMS/email on decision |
-| `backend/api/update_parking_status.php` | 2 | SMS/email on decision |
-| `backend/api/update_service_status.php` | 2 | SMS/email on status change |
-| `backend/api/process_tenant_request.php` | 2 | SMS/email on lease/occupancy decision |
+| ✅ `backend/api/create_announcement.php` | 2 | **Shipped:** Accept channels, dispatch SMS/email |
+| ✅ `backend/api/update_maintenance_status.php` | 2 | **Shipped:** SMS/email after status change (4.10) |
+| ✅ `backend/api/send_payment_reminder.php` | 2 | **Shipped:** SMS/email for reminders |
+| ✅ `backend/api/update_cctv_status.php` | 2 | **Shipped:** SMS/email on decision |
+| ✅ `backend/api/update_parking_status.php` | 2 | **Shipped:** SMS/email on decision |
+| ✅ `backend/api/update_service_status.php` | 2 | **Shipped:** SMS/email on status change |
+| ✅ `backend/api/process_tenant_request.php` | 2 | **Shipped:** SMS/email on lease/occupancy decision |
 | ✅ `backend/config.php` | 1 | **Shipped:** `user_channel_allowed()`, `normalize_ph_mobile()`, `gsm7_safe()`, `sms_single_segment()`, `log_notification_delivery()`, `prune_notification_log()`, plus `SECRET_SETTING_KEYS` / `mask_secret_value()` / `is_masked_secret()`. Still to come: the dispatcher `require_once` in the sweep (Phase 2) |
 | ✅ `backend/api/get_notification_preferences.php` | 3 | **Shipped:** per-channel columns, `channels`, global opt-outs, reachability flags |
 | ✅ `backend/api/update_notification_preferences.php` | 3 | **Shipped:** both payload shapes (C9), global opt-outs, consent stamp |
-| ✅ `ams-react/src/AdminPages/AdminAccountSettings.jsx` | 3 | **Shipped:** Notification Services section + test send (§3.3) |
+| ✅ `ams-react/src/AdminPages/AdminAccountSettings.jsx` | 3 | **Shipped:** settings shell; test send and balance handlers (§3.3) — the fields live in `settings/NotificationsPanel.jsx` |
 | `ams-react/src/UserPages/UserNotifications.jsx` | 3 | Per-channel toggles + global opt-out + consent line (§3.2, not built) |
 | ✅ `ams-react/src/config/systemSettings.js` | 3 | **Shipped:** the camelCase map for every notification setting |
 | ✅ `.gitignore` | 1 | **Shipped:** ignores `backend/logs/` (the mock outbox) |
@@ -1865,9 +1622,9 @@ Complete map of every event that triggers a notification, the endpoint that fire
 
 ## Appendix C — Provider Setup
 
-### SMS Providers — Comparison Matrix
+### SMS Provider — Semaphore only
 
-> **All prices and free tiers below are indicative, checked September 2026.** Every provider revises its rate card, PH carriers surcharge differently by destination network, and free tiers get withdrawn. **Verify at signup and write the real number here.** Treat the monthly figures in C.1–C.5 as the arithmetic (30 tenants × ~5 SMS), not as a quote — [§0.3](#03-cost-model) shows the realistic 8–17 SMS/tenant/month range, which is 2–3× those figures.
+> **All prices and free tiers below are indicative, checked September 2026.** Every provider revises its rate card, PH carriers surcharge differently by destination network, and free tiers get withdrawn. **Verify at signup and write the real number here.** Treat the monthly figures in C.1 as the arithmetic (30 tenants × ~5 SMS), not as a quote — [§0.3](#03-cost-model) shows the realistic 8–17 SMS/tenant/month range, which is 2–3× those figures.
 >
 > The column that decides your choice is **sender-ID lead time**, not price. A ₱0.10 saving per message is ₱50/month; a sender ID that is not approved by demo day is the whole feature.
 
@@ -1875,38 +1632,31 @@ Complete map of every event that triggers a notification, the endpoint that fire
 |---|---|---|---|---|---|---|---|
 | **`log` (dry run)** | — | ₱0 | ∞ | n/a | none | none | none |
 | **Semaphore** | PH only | ₱0.35–₱0.50/SMS | ~50 free SMS | Custom, they register it for you | 1–3 business days | API key in body | cURL only |
-| **Twilio** | Global (200+ countries) | ~$0.0075/SMS (~₱0.42) | $15 trial credit | Bought number, or registered ID | days–weeks; may need business docs | HTTP Basic (SID:Token) | cURL |
-| **Vonage** | Global (190+ countries) | ~€0.0062/SMS (~₱0.40) | €2 free credit | Pre-register with Globe/Smart | 3–7 business days | Key + Secret in body | cURL |
-| **Movider** | SEA + Global | ~$0.006/SMS (~₱0.34) | Free test credits | Request via support | varies | Key + Secret in body | cURL |
-| **iTexMo** | PH only | ~₱0.25/SMS | None (prepaid) | None (shared shortcode) | none | API code + password | cURL only |
 
 > **Recommendation for this project:**
 > - **Build and demo on `log`.** Nothing else lets you finish and defend the feature independently of an external approval queue.
 > - **One real provider: Semaphore.** PH-only is all this system needs, it is the only option that handles sender-ID registration for you, and the lead time is days rather than weeks. Start the registration the day you start Phase 1.
-> - **iTexMo** as the cheap fallback if Semaphore's registration stalls — accepting the shared shortcode, the 10/number/day cap and no delivery receipts.
-> - **Twilio / Vonage / Movider** are worth having as drivers (they cost ~60 lines each and demonstrate the abstraction) but are the wrong primary choice here: global reach you don't need, at PH registration friction you don't want.
->
-> **Do not install the Twilio or Vonage SDKs.** The cURL drivers make one API call each; the SDKs pull in Guzzle and PSR-7 and add a Composer surface the Dockerfile has to carry.
+> - **Semaphore is the only provider AMS supports.** Twilio, Vonage, Movider and iTexMo were evaluated and dropped (2026-09-24): global reach this system does not need, PH sender-ID registration you would have to do yourself, and — for iTexMo — a shared shortcode with no sender ID. Their stub drivers and credential settings were removed.
 
 ---
 
 ### C.1 Semaphore (SMS — Philippine Local)
 
-> **Shipped (2026-09-24).** `_send_via_semaphore()` in `backend/api/services/send_sms.php` is live; the other four providers are still stubs. Migration `2026_09_sms_semaphore_live.sql` adds the two settings below.
+> **Shipped (2026-09-24).** `_send_via_semaphore()` in `backend/api/services/send_sms.php` is live and is the only real SMS driver. Migration `2026_09_sms_semaphore_live.sql` adds the two settings below.
 
 1. Go to [semaphore.co](https://semaphore.co) → Sign Up → buy credits
 2. Dashboard → **API** → copy your API key
 3. **Sender Names** → Request → enter `AMS` → wait 1–3 business days for approval
-4. Run `backend/api/migrations/2026_09_sms_semaphore_live.sql` on an existing database (fresh installs get it from `SetupDB.sql`)
+4. Run `backend/api/migrations/2026_09_sms_semaphore_live.sql` and then `2026_09_sms_semaphore_only.sql` on an existing database (fresh installs get both from `SetupDB.sql`)
 5. Schedule the queue drain — **required**: with a real provider the admin endpoints enqueue instead of sending, and nothing is delivered until the drain runs. From an admin prompt:
    ```bat
    schtasks /create /tn "AMS Notification Queue" /sc minute /mo 1 /tr "\"C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\run_queue.bat\""
    ```
    `run_queue.bat` appends each run to `backend/logs/queue_drain.log`. Remove with `schtasks /delete /tn "AMS Notification Queue" /f`.
 6. Give the admin account a mobile number (the test send goes to the admin's own `contact_no`)
-7. In AMS admin panel → **Account Settings → Notification Services**:
+7. In AMS admin panel → **Account Settings → Notifications tab**:
    - SMS Provider: `Semaphore`, paste the API key, **Save**
-   - **Check balance** — shows the account's credits (rate-limited by Semaphore; don't spam it)
+   - **Check balance** — shows the account's credits. Semaphore allows 2 checks a minute, so a repeat within 60 s shows the cached answer ("as of HH:MM")
    - Leave **Sender name approved by Semaphore** unticked until the dashboard shows `AMS` approved
    - **Daily SMS Cap** — defaults to 100
 8. Toggle **SMS Notifications** → ON, Save, then **Send test** (SMS). It sends synchronously to your own number only.
@@ -1924,6 +1674,11 @@ Complete map of every event that triggers a notification, the endpoint that fire
 | Spend cap | `sms_daily_cap` (default `100`, `0` = none): once today's `sent` SMS rows reach it, further sends log `skipped` with `Daily SMS cap reached (N)` and cost nothing. Applies to real providers only, not `log` |
 | Balance | `GET backend/api/get_sms_balance.php` (admin-only) → `credit_balance`, `account_name`, `account_status` via Semaphore's `/api/v4/account`. The key never leaves the server |
 | Clock | Quiet hours use the **database** clock (`HOUR(NOW())`). XAMPP ships PHP on `Europe/Berlin`, six hours off Manila; the queue already scheduled against `NOW()` |
+| "TEST" prefix | Semaphore **silently ignores** any message that starts with "TEST": the API accepts it and it never arrives. `sms_avoid_ignored_prefix()` (config.php) prefixes such text with `AMS: ` (case-insensitive, after GSM-7 cleanup), for every driver, so the log and the dry-run outbox show what was really sent |
+| Rate limits | `POST /messages` 120/min — the drain sends at most 20 jobs a minute, 200 ms apart. `GET /account` **2/min** — a successful balance is cached for 60 s in `backend/logs/semaphore_account.json` (keyed to a hash of the API key; errors are not cached). A 429 is logged as `Semaphore rate limit reached (retry after Ns)` from `Retry-After`; queued jobs retry on their normal backoff |
+| Endpoints | Only `/messages` and `/account`. `/priority` and `/otp` cost 2 credits per message, and `/otp` is for one-time passwords only, so AMS never calls them |
+| Recipients | One POST per recipient. Semaphore accepts up to 1000 comma-separated numbers per call and prefers bulk calls, but at ~30 tenants and 20 jobs/min AMS is far under the limit; grouping identical queued bodies is a future option |
+| Delivery status | A `Queued`/`Pending`/`Sent` answer is logged as `sent` (accepted by Semaphore). Final carrier delivery is not polled (`GET /messages/{id}`, 30/min) |
 
 **Verify setup:** use **Send test** in Account Settings, then:
 
@@ -1936,145 +1691,7 @@ Do not verify by calling `send_sms()` with a made-up number — once the driver 
 
 ---
 
-### C.2 Twilio (SMS — Global)
-
-1. Go to [twilio.com](https://www.twilio.com) → Sign Up (free trial gives $15 credit)
-2. Console → **Account Info** panel:
-   - Copy **Account SID** (starts with `AC...`)
-   - Copy **Auth Token**
-3. Console → **Phone Numbers** → **Buy a Number** → choose a US/PH number
-   - This is your "From" number. Copy it (e.g. `+14155551234`)
-   - If sending to PH, a US number works fine for transactional SMS
-4. **(Optional)** Install the PHP SDK for advanced features:
-   ```bash
-   cd C:\xampp\htdocs\ApartmentManagementSystem_React\backend
-   composer require twilio/sdk
-   ```
-5. In AMS admin panel → **Account Settings**:
-   - SMS Provider: `twilio` ← select from dropdown
-   - Account SID: paste your SID
-   - Auth Token: paste your token
-   - From Number: `+14155551234` ← your purchased number
-6. Toggle **SMS Notifications** → ON
-7. **Trial limitation:** You can only send to verified numbers during trial. Go to Console → **Verified Caller IDs** → add test numbers. Upgrade to remove this restriction.
-
-**Cost:** ~$0.0075/SMS to PH (~₱0.42). ~₱95/month for 30 tenants + $1/month for the phone number.
-
-**Verify setup:**
-
-```bash
-C:\xampp\php\php.exe -r "
-  require_once 'backend/config.php';
-  require_once 'backend/api/services/send_sms.php';
-  echo send_sms(\$conn, '09171234567', 'AMS test from Twilio', 'test') ? 'OK' : 'FAILED';
-  \$conn->close();
-"
-```
-
----
-
-### C.3 Vonage / Nexmo (SMS — Global)
-
-1. Go to [dashboard.nexmo.com](https://dashboard.nexmo.com/sign-up) → Sign Up (€2 free credit)
-2. Dashboard → **API Settings** panel:
-   - Copy **API Key**
-   - Copy **API Secret**
-3. **Sender ID setup** (for alphanumeric sender names like "AMS"):
-   - Go to **Messaging** → **Sender IDs** → pre-register `AMS`
-   - PH networks require pre-registration — Globe/Smart approval takes 3–7 days
-   - Alternatively, buy a virtual number (works immediately)
-4. In AMS admin panel → **Account Settings**:
-   - SMS Provider: `vonage` ← select from dropdown
-   - API Key: paste your Vonage API key
-   - API Secret: paste your API secret
-   - Sender Name: `AMS` (or your virtual number)
-5. Toggle **SMS Notifications** → ON
-
-**Cost:** ~€0.0062/SMS to PH (~₱0.40). ~₱86/month for 30 tenants.
-
-**PH carrier notes:**
-- Smart/TNT: Alphanumeric sender ID requires pre-registration
-- Globe/TM: Alphanumeric sender ID requires pre-registration
-- DITO: Generally accepts alphanumeric sender IDs
-- Avoid URL shorteners (bit.ly etc.) — PH carriers block them
-
-**Verify setup:**
-
-```bash
-C:\xampp\php\php.exe -r "
-  require_once 'backend/config.php';
-  require_once 'backend/api/services/send_sms.php';
-  echo send_sms(\$conn, '09171234567', 'AMS test from Vonage', 'test') ? 'OK' : 'FAILED';
-  \$conn->close();
-"
-```
-
----
-
-### C.4 Movider (SMS — Southeast Asia)
-
-1. Go to [movider.co](https://movider.co) → Sign Up (free test credits)
-2. Dashboard → **Settings** → **API**:
-   - Copy **API Key**
-   - Copy **API Secret**
-3. **Sender ID:** Contact Movider support to request sender name `AMS` for PH routing
-4. In AMS admin panel → **Account Settings**:
-   - SMS Provider: `movider` ← select from dropdown
-   - API Key: paste your Movider API key
-   - API Secret: paste your API secret
-   - Sender Name: `AMS`
-5. Toggle **SMS Notifications** → ON
-
-**Cost:** ~$0.006/SMS to PH (~₱0.34). ~₱73/month for 30 tenants.
-
-**Verify setup:**
-
-```bash
-C:\xampp\php\php.exe -r "
-  require_once 'backend/config.php';
-  require_once 'backend/api/services/send_sms.php';
-  echo send_sms(\$conn, '09171234567', 'AMS test from Movider', 'test') ? 'OK' : 'FAILED';
-  \$conn->close();
-"
-```
-
----
-
-### C.5 iTexMo (SMS — Philippine Budget)
-
-1. Go to [itexmo.com](https://www.itexmo.com) → Sign Up
-2. Dashboard → **API Settings**:
-   - Copy your **API Code** (assigned to your account)
-   - Set and copy your **API Password**
-3. Load credits: minimum ₱100 (~400 messages)
-4. In AMS admin panel → **Account Settings**:
-   - SMS Provider: `itexmo` ← select from dropdown
-   - API Code: paste your iTexMo API code
-   - API Password: paste your password
-5. Toggle **SMS Notifications** → ON
-
-**Cost:** ~₱0.25/SMS prepaid. ~₱54/month for 30 tenants. Cheapest PH option.
-
-**Limitations:**
-- No custom sender ID (messages come from a shared shortcode)
-- Max 10 messages to the same number per day (carrier limit)
-- PH numbers only
-- No delivery receipts / webhook callbacks
-
-**Verify setup:**
-
-```bash
-C:\xampp\php\php.exe -r "
-  require_once 'backend/config.php';
-  require_once 'backend/api/services/send_sms.php';
-  echo send_sms(\$conn, '09171234567', 'AMS test from iTexMo', 'test') ? 'OK' : 'FAILED';
-  \$conn->close();
-"
-```
-
----
-
-### C.6 Gmail SMTP (Email — Self-Hosted)
+### C.2 Gmail SMTP (Email — Self-Hosted)
 
 1. Go to [myaccount.google.com](https://myaccount.google.com) → Security → enable **2-Step Verification**
 2. Security → **App Passwords** → create one for "Mail" → copy the 16-character password
@@ -2095,7 +1712,7 @@ C:\xampp\php\php.exe -r "
 - **Send a test to a non-Gmail address** (Outlook, Yahoo). Gmail-to-Gmail always looks fine and tells you nothing.
 - Keep an unsubscribe route visible in the footer — a link to the tenant's notification preferences page. Below Gmail's bulk-sender thresholds you are not obliged to add a `List-Unsubscribe` header, but the footer link costs nothing and is what a reasonable reader expects.
 
-### C.7 Resend (Email — SaaS Alternative)
+### C.3 Resend (Email — SaaS Alternative)
 
 1. Sign up at [resend.com](https://resend.com) → verify your domain (DNS TXT records)
 2. **API Keys** → Create → copy

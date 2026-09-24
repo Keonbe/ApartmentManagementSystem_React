@@ -17,9 +17,9 @@
 |---|---|---|---|---|---|
 | **Online Bill Payment** | Payment Gateway | PayMongo (Sandbox / Live) | PayMongo *(unchanged)* | ✅ Implemented (Sandbox) | [Section 2.1](#21-online-bill-payment-paymongo) · [paymongo_integration_guide.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/paymongo_integration_guide.md) |
 | **Password Reset Link Delivery** | Email | None configured — Dev token bypass | Resend.com / Mailgun | ✅ Implemented (Dev Bypass) | [Section 2.2](#22-password-reset-link-delivery-email) |
-| **Announcement Broadcast — Email** | Email (Transactional) | PHPMailer + Gmail SMTP (Planned) | Resend.com / Mailgun | 🟡 UI Built — Backend Stubbed | [Section 2.3](#23-announcement-broadcast-email) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| **Announcement Broadcast — SMS** | SMS Gateway | Semaphore (Planned) | Semaphore *(unchanged)* / Vonage | 🟡 UI Built — Backend Stubbed | [Section 2.4](#24-announcement-broadcast-sms) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| **Tenant Preference: SMS** | SMS Gateway | Semaphore (Planned) | Semaphore *(unchanged)* | 🔴 UI Toggle Only — Not Wired | [Section 2.5](#25-tenant-notification-preferences) |
+| **Announcement Broadcast — Email** | Email (Transactional) | PHPMailer + Gmail SMTP (driver built; PHPMailer not installed) | Resend.com / Mailgun | 🟡 Built — runs on the `log` dry-run driver | [Section 2.3](#23-announcement-broadcast-email) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| **Announcement Broadcast — SMS** | SMS Gateway | Semaphore (driver live) | Semaphore *(unchanged — the only supported provider)* | 🟡 Driver live — go-live pending | [Section 2.4](#24-announcement-broadcast-sms) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| **Tenant Preference: SMS** | SMS Gateway | Semaphore | Semaphore *(unchanged)* | 🟡 Backend wired — tenant SMS/email toggles not in the UI yet | [Section 2.5](#25-tenant-notification-preferences) |
 | **Database** | Data Store | MySQL / MariaDB (XAMPP localhost) | Railway MySQL / PlanetScale | ✅ Running Locally | [Section 2.6](#26-database-mysqlmariadb) |
 | **File Storage** | Object Storage | Local disk (`backend/uploads/`) | Supabase Storage / Cloudinary | ✅ Running Locally | [Section 2.7](#27-file-storage-uploads) |
 | **Frontend Hosting** | Static CDN | Apache serves `/dist` | Vercel / Netlify | ✅ Running Locally | [Section 2.8](#28-frontend-hosting-react-spa) |
@@ -59,7 +59,7 @@ Tenant / Admin Browser
  ├── Railway MySQL / PlanetScale (Database)
  ├── Supabase Storage / Cloudinary (File Storage)
  ├── Resend / Mailgun (Email)
- ├── Semaphore / Vonage (SMS)
+ ├── Semaphore (SMS)
  └── PayMongo (Payment Gateway — unchanged)
 ```
 
@@ -227,45 +227,33 @@ Admin creates announcements with the `email` channel selected. Intended to deliv
 
 ### 2.4 Announcement Broadcast — SMS
 
-Same admin announcement flow, but routes the message body as an SMS to all tenants' registered phone numbers in `users.contact_no`.
+Same admin announcement flow; after the in-app notices, the message is texted to each recipient's `users.contact_no` through the shared pipeline (`dispatch_admin_action_broadcast()` → queue → `send_sms()` → Semaphore). Implementation and go-live: [sms_email_implementation.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md) §2.1 and Appendix C.1.
 
 **PHP Backend Files:**
 | File | Role |
 |---|---|
-| [`backend/api/create_announcement.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/create_announcement.php) | SMS dispatch block: **not yet implemented** |
+| [`backend/api/create_announcement.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/create_announcement.php) | Calls `dispatch_admin_action_broadcast()` after the commit; rewrites `announcements.channels` with the channels that reached someone |
+| [`backend/api/services/send_sms.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_sms.php) | `log` dry-run driver and the live Semaphore driver |
+| [`backend/api/services/send_notification.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_notification.php) | Dispatcher, opt-out checks, queue and drain |
 
 **Frontend Files:**
 | File | Role |
 |---|---|
-| [`ams-react/src/AdminPages/AdminAnnouncements.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAnnouncements.jsx) | **SMS** channel toggle in announcement form |
+| [`ams-react/src/AdminPages/AdminAnnouncements.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAnnouncements.jsx) | **SMS** / **Email** channel toggles (in-app always on), unit picker for "Specific unit", **Save draft** |
 
 **Step-by-Step Manual Verification (Dev Mode):**
-1. Log in as Admin → **Announcements** → enable the **SMS** channel toggle.
-2. Submit the announcement.
-3. Verify: `ams_db.announcements.channels` contains `"sms"`.
-4. **No SMS is dispatched** — the toggle is currently cosmetic only.
+1. Account Settings → **Notifications** tab: switch **SMS Notifications** on, leave **SMS Provider** on **Log**, save.
+2. Log in as Admin → **Announcements** → post an announcement to a tenant who has a mobile number.
+3. Verify: `SELECT status, recipient, message_body FROM notification_log WHERE channel='sms' ORDER BY id DESC LIMIT 5;` shows a `sent` row, and a `.txt` file appears in `backend/logs/notification_outbox/`. `announcements.channels` includes `"sms"`.
 
-**Current Dev Mode State:**
-- No SMS library or API client is installed. The `"sms"` channel flag is saved to the DB but PHP does nothing with it.
-
-**Planned for Production (Self-Hosted):**
-- Register at [Semaphore.co](https://semaphore.co/) (Philippine SMS provider) and get an API key.
-- In `create_announcement.php`, add a cURL call per tenant phone number:
-  ```php
-  // Semaphore SMS dispatch (planned)
-  curl_setopt($ch, CURLOPT_URL, "https://api.semaphore.co/api/v4/messages");
-  curl_setopt($ch, CURLOPT_POST, true);
-  curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-      'apikey'   => $settings['semaphore_api_key'],
-      'number'   => $tenant_phone,
-      'message'  => $announcement_body,
-      'sendername' => 'AMS'
-  ]));
-  ```
-- Store `semaphore_api_key` and `semaphore_sender_name` in `system_settings` and expose via `AdminAccountSettings.jsx`.
-- Full provider comparison: [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md).
+**Current State:**
+- SMS is live through **Semaphore**, the only supported provider (`sms_provider = 'semaphore'`, key `sms_api_key`, sender `sms_sender_name` + `sms_sender_approved`, spend guard `sms_daily_cap`). The default is `log`, which records the message and sends nothing.
+- The form's channel selection is honoured: SMS and email go out only when ticked (in-app always). "Specific unit" sends to that unit's current tenants; **Save draft** stores the announcement with `status = 'draft'` and notifies nobody.
+- Go-live still needs Semaphore credits and key, sender-name approval, and the queue drain scheduled (`backend/cron/run_queue.bat`).
 
 **SaaS Alternative:**
+
+> Only Semaphore is implemented in AMS (the Twilio / Vonage / Movider / iTexMo stubs were removed 2026-09-24). The Vonage / Twilio column is a reference comparison; switching would need a new driver in `backend/api/services/send_sms.php`.
 
 | Attribute | Self-Hosted (Semaphore PH) | SaaS Alternative (Vonage / Twilio) |
 |---|---|---|
@@ -283,40 +271,26 @@ Same admin announcement flow, but routes the message body as an SMS to all tenan
 
 ### 2.5 Tenant Notification Preferences
 
-Tenants can toggle SMS and Email preferences from their Notification Center. These preferences are stored locally and are intended to gate SMS/Email dispatch per tenant.
+Preferences decide, per tenant and per category, which channels may deliver. The backend is wired; the tenant page currently exposes only the in-app toggles.
 
 **PHP Backend Files:**
 | File | Role |
 |---|---|
-| [`backend/api/get_notifications.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_notifications.php) | Returns in-app notifications only — no preference-aware channel logic |
+| [`backend/api/get_notification_preferences.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/get_notification_preferences.php) | Per-category `in_app` / `sms` / `email` flags, global opt-outs, reachability |
+| [`backend/api/update_notification_preferences.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/update_notification_preferences.php) | Saves per-category flags and the global `sms_opt_out` / `email_opt_out` |
+| `user_channel_allowed()` in [`backend/config.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/config.php) | Checked by the dispatcher before every SMS/email: global opt-out → building switch → category |
 
 **Frontend Files:**
 | File | Role |
 |---|---|
-| [`ams-react/src/UserPages/UserNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) | Toggle switches for **In-App**, **SMS** (`smsChannel`), and **Email** preferences |
-| [`ams-react/src/AdminPages/AdminNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminNotifications.jsx) | Admin-side notification preferences (`smsEnabled`) |
+| [`ams-react/src/UserPages/UserNotifications.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/UserNotifications.jsx) | Loads and saves the **in-app** toggle per category through the two endpoints. It shows "Email and SMS delivery are not available yet." — SMS/email toggles are not built (implementation guide §3.2) |
+
+**Storage:** `notification_preferences` (`user_id`, `category`, `in_app_enabled`, `sms_enabled`, `email_enabled`; PK `user_id, category`) plus `users.sms_opt_out` / `users.email_opt_out`. Missing rows mean "enabled".
 
 **Step-by-Step Manual Verification (Dev Mode):**
-1. Log in as a tenant → **Notifications** → toggle the SMS preference on or off.
-2. Observe the toggle changes state visually.
-3. **Preference is not persisted to DB** — no API call is made.
-
-**Current Dev Mode State:**
-- Preference toggles are React `useState` only. They reset on page refresh. No `notification_preferences` table exists yet.
-
-**Planned for Production:**
-- Create `notification_preferences` table:
-  ```sql
-  CREATE TABLE notification_preferences (
-      user_id INT FK REFERENCES users(id),
-      channel ENUM('in-app', 'sms', 'email'),
-      enabled TINYINT DEFAULT 1,
-      PRIMARY KEY (user_id, channel)
-  );
-  ```
-- Wire `UserNotifications.jsx` toggles to a `POST /update_notification_preferences.php` endpoint.
-- During SMS/email dispatch in `create_announcement.php`, join `notification_preferences` to skip opted-out tenants.
-- Schema reference: [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md).
+1. Log in as a tenant → **Notifications** → switch a category's in-app toggle off → **Save**.
+2. Reload the page: the toggle stays off (it is persisted).
+3. SMS opt-outs can be tested only via the API or SQL until the tenant UI has the toggles: `POST update_notification_preferences.php {"sms_opt_out": true}` as the tenant, then post an announcement — no SMS row is written for that tenant (the dispatcher never calls `send_sms()` for them).
 
 **SaaS Note:** Notification preferences are application-level logic stored in the database. They work identically on both self-hosted and SaaS deployments — no migration impact.
 
@@ -397,7 +371,7 @@ Keys are stored in `ams_db.system_settings` (not in `.env` — this is a plain P
 | `paymongo_secret_key` | Admin > Account Settings | `create_checkout_session.php`, `paymongo_webhook.php` | Same (unchanged) |
 | `paymongo_public_key` | Admin > Account Settings | (frontend display reference only) | Same (unchanged) |
 | `paymongo_webhook_secret` | Admin > Account Settings | `paymongo_webhook.php` (HMAC validation) | Same (unchanged) |
-| `semaphore_api_key` | *(planned)* Admin > Account Settings | `create_announcement.php` SMS block | Same (unchanged) |
+| `sms_provider`, `sms_api_key`, `sms_sender_name`, `sms_sender_approved`, `sms_daily_cap` | Admin > Account Settings > Notifications | `services/send_sms.php` (every SMS), `get_sms_balance.php` | Same (unchanged) |
 | `smtp_host`, `smtp_user`, `smtp_pass` | *(planned)* Admin > Account Settings | `forgot_password.php`, `create_announcement.php` email block | Resend SMTP: `smtp.resend.com` / port 465 / API key as password |
 | `db_host`, `db_user`, `db_pass` | `backend/config.php` | All PHP API files | Railway/PlanetScale host + credentials (set as env vars) |
 

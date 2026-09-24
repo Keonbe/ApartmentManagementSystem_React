@@ -66,7 +66,7 @@ Tenant / Admin Browser
  ├── Railway MySQL / PlanetScale (Database — MySQL-compatible, no dialect rewrite)
  ├── Supabase Storage / Cloudinary (File Storage only — NOT Supabase's Postgres DB)
  ├── Resend / Mailgun (email)
- ├── Semaphore / Vonage (SMS)
+ ├── Semaphore (SMS)
  └── PayMongo (payment gateway — unchanged)
 ```
 
@@ -149,6 +149,8 @@ Tenant / Admin Browser
 ---
 
 ### 3.5 SMS Notifications — Semaphore API
+
+> Only Semaphore is implemented in AMS (the Twilio / Vonage / Movider / iTexMo stubs were removed 2026-09-24). The Vonage / Twilio column is a reference comparison; switching would need a new driver in `backend/api/services/send_sms.php`.
 
 | Attribute | Self-Hosted (Semaphore PH) | SaaS Alternative (Vonage / Twilio) |
 |---|---|---|

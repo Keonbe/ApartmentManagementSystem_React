@@ -1,6 +1,6 @@
 # AMS — Claude Code guide
 
-React 18 + Vite SPA (`ams-react/`) → plain PHP 8 endpoints (`backend/api/*.php`, no framework) → MariaDB 10.4 `ams_db`, served by XAMPP Apache on :8080. PHP is 8.0: mysqli returns false on errors (no exceptions).
+React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8 endpoints (`backend/api/*.php`, no framework) → MariaDB 10.4 `ams_db`, served by XAMPP Apache on :8080. PHP is 8.0: mysqli returns false on errors (no exceptions). Chat also runs a Node Socket.IO sidecar (`websocket-server/server.js`, :3001, `node server.js`; frontend URL `VITE_CHAT_SOCKET_URL` in `src/api/env.js`).
 
 ## Session start
 
@@ -13,7 +13,7 @@ React 18 + Vite SPA (`ams-react/`) → plain PHP 8 endpoints (`backend/api/*.php
 - Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`
 - Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no test runner exists). `build:selfhosted` uses the gitignored `.env.selfhosted` for other self-hosted deployments; a build guard fails production builds with localhost URLs
 - Deployment targets/guardrails: `docs/deployment/dual-deployment-environment-plan.md`; backend check `php backend/cron/check_environment.php`
-- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, included by every endpoint.
+- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, loaded through `config.php` (the four chat endpoints still send their own `*` header first — see security_audit §6e).
 - PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
 - DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seed_mock_data.sql`
 - Live API checks: curl with a Bearer token — recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`)
@@ -26,13 +26,15 @@ React 18 + Vite SPA (`ams-react/`) → plain PHP 8 endpoints (`backend/api/*.php
 - Notifications via `create_notification()`; admin queue via `notify_admins_queue()` / `resolve_admin_queue()`. Only queue rows are `'Pending'`.
 - Invoice "still owed" = `BILLING_OPEN_STATUSES` / `billing_open_status_sql()`. Charges onto invoices: `post_service_charge()` / `post_parking_charge()` (claim-first).
 - Migrations: new idempotent file in `backend/api/migrations/` + mirror into `SetupDB.sql`/seed.
-- Frontend API calls only through `ams-react/src/api/axiosConfig.js`; uploads via `src/api/fileUrl.js`; new routes registered in `App.jsx` with the right guard.
+- Frontend API calls only through `ams-react/src/api/axiosConfig.js` (the one exception: chat's socket.io-client in `context/ChatContext.jsx`); uploads via `src/api/fileUrl.js`; new routes registered in `App.jsx` with the right guard.
 
 ## Docs (authoritative first)
 
 - `docs/features/panelist_feature_checklist.md` — scope & status (panel requirements)
 - `docs/documentation/module_verification_guide.md` — audited modules: API contract, diagrams, workflow, tests
 - `docs/documentation/database_schema.md`, `system_design.md` — schema/overview (check code if they disagree)
+- `docs/features/sms_email_implementation.md` (+ `sms_email_mock_testing.md` runbook) — SMS/email pipeline, Semaphore
+- `docs/features/chat_design.md` — chat: "As built" section first; the rest is design
 - `docs/deployment/*` — deployment
 - Historical/possibly stale: `api_documentation.md`, `notification_services.md` (design), `todo.md`, `.agents/prd.md`
 

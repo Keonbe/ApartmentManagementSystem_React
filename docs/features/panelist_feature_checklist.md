@@ -1,9 +1,9 @@
 # AMS — Panelist Feature Checklist
 
 > **Project:** Apartment Management System
-> **Stack:** React 18 + Vite → PHP 8 → MySQL/MariaDB (XAMPP)
+> **Stack:** React 19 + Vite 8 → PHP 8 → MySQL/MariaDB (XAMPP), plus a Node.js Socket.IO chat server
 > **Context:** Small-to-medium scale apartment building (15–100 units)
-> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking, Utility Usage, Reports & Activity Log, Role-Based Access, Notification/Automation, Parking Reservation, Contract & Document Generation, and Visitor Management audited; 2026-09-21: Combined Scope Table's "extended rent" checkbox synced to the already-✅ 3.10 detail row)
+> **Last Updated:** September 2026 (Modules 4, 5, 10, 11 re-verified against current code; Financial Tracking, Utility Usage, Reports & Activity Log, Role-Based Access, Notification/Automation, Parking Reservation, Contract & Document Generation, and Visitor Management audited; 2026-09-21: Combined Scope Table's "extended rent" checkbox synced to the already-✅ 3.10 detail row; 2026-09-24: Module 7 re-marked after the chat merge (PR #8), announcements gained drafts and honoured SMS/email channels, room showcase images noted, settings split into tabs)
 
 ---
 
@@ -17,8 +17,8 @@
 | [x] | **Payment Methods**                     | [x] GCash, [x] cash, [x] bank transfer                                                                                                                                                                                                                                  |
 | [x] | **Maintenance Management**              | [x] Issue type: plumbing, electrical, structural/physical, water supply, general repair, others; [x] problem description, [x] location, [x] priority level: low/medium/high/urgent (admin-assigned during triage, not tenant-selected), [x] photo upload, [x] status: pending/in progress/completed, [x] date and time reported, [x] date and time resolved |
 | [x] | **Service Management**                  | [x] Cleaning, [x] laundry, [x] other services, [x] priced catalog, [x] tenant booking, [x] billing integration                                                                                                                                                          |
-| [ ] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [ ] two-way chat (admin ↔ tenant messaging)                                                                                                                                                                            |
-| [~] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [x] notification preferences (per-category and per-channel), [x] a daily automated sweep drives reminders/overdue/parking, [~] SMS notifications, [~] email notifications (built and wired, on dry-run drivers), [ ] automated reports         |
+| [~] | **Communication Management**            | [x] Announcements, [x] requests, [ ] complaints, [x] two-way chat (admin ↔ tenant messaging — built, socket server not yet authenticated)                                                                                                                                                                            |
+| [~] | **Notification / Automation**           | [x] Rent due reminders, [x] overdue alerts, [x] maintenance updates (in-app), [x] notification preferences (per-category; per-channel on the server, tenant UI pending), [x] a daily automated sweep drives reminders/overdue/parking, [~] SMS notifications (Semaphore driver live, go-live pending), [~] email notifications (built and wired, on the dry-run driver), [ ] automated reports         |
 | [x] | **Inquiry & Reservation Management**    | [x] Inquiry handling, [x] reservation tracking, [x] room/unit availability tracking, [x] reservation module                                                                                                                                                             |
 | [x] | **Parking Reservation**                 | [x] Parking slot listing, [x] reservation requests, [x] slot assignment management (numbered slots, admin picks a free one, released on move-out/archive/term end), [x] parking fee integration into billing (manual "Bill this month" or automatic monthly posting, admin-configurable, never billed twice) |
 | [x] | **Financial Tracking**                  | [x] Rent, [x] utilities, [x] invoices, [x] payment records, [x] revenue stream, [x] income reports, [x] balance monitoring                                                                                                                                              |
@@ -232,9 +232,9 @@ flowchart LR
     H2 --> I
     I --> CH{"Channel allowed?<br/>user_channel_allowed()"}
     CH -->|Yes| J["Email<br/>log driver (6.6)"]
-    CH -->|Yes| K["SMS<br/>log driver (6.7)"]
+    CH -->|Yes| K["SMS<br/>log / Semaphore (6.7)"]
     CH -->|No| SKIP
-    I --> L(["Tenant/Admin Notified — in-app live; SMS/email rendered and logged, not yet delivered"])
+    I --> L(["Tenant/Admin Notified — in-app live · SMS via Semaphore once configured · email rendered and logged"])
 ```
 
 ### Visitor Management Flow
@@ -385,9 +385,9 @@ flowchart TD
 > Admin Pages: [AdminUnits.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminUnits.jsx)
 > Tenant Pages: [MyRoom.jsx](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/MyRoom.jsx)
 
-- [x] **2.1 Room / Unit Listing** ✅ — `get_rooms.php`, `create_room.php`. No `capacity`/`max_occupants` column on `rooms` — occupant count is capped only implicitly via the per-excess-occupant surcharge.
+- [x] **2.1 Room / Unit Listing** ✅ — `get_rooms.php`, `create_room.php`. No per-room capacity column; a building-wide cap, `max_occupants_per_unit` (default 8, Settings → Leasing), is enforced on applications, occupant changes and household requests. Rooms can have admin-uploaded showcase images (`upload_room_images.php`, `delete_room_image.php`, `rooms.gallery`, public `backend/room_images/`).
 - [x] **2.2 Unit Availability Dashboard** ✅ — Room status in admin panel
-- [x] **2.3 Set Occupancy** ✅ — Via application approval. There is no per-unit "max occupants" cap; the ₱1,000/excess-occupant surcharge (configurable in `system_settings`) is the only occupancy-related rule enforced.
+- [x] **2.3 Set Occupancy** ✅ — Via application approval. A building-wide cap, `max_occupants_per_unit` (default 8, Settings → Leasing), is enforced on application, occupant change and household requests; separately, a ₱1,000/excess-occupant surcharge (configurable) applies above 4 occupants.
 - [x] **2.4 Unit Status Monitoring** ✅ — DB-backed condition, furnishing, inspection logs & inline edit
 - [x] **2.5 Occupancy Tracking** ✅ — Dynamic stay durations, active counts, and a 6-month occupancy trend (`get_report_data.php`). No dedicated "vacancy rate" metric — occupancy and vacancy are complementary, so this is covered by the same trend data rather than a separate figure.
 - [x] **2.6 Extended Rent / Lease Renewal** ✅ — `extend_lease.php`
@@ -458,10 +458,10 @@ flowchart TD
 - [x] **6.1 In-App Notifications** ✅ — Bell icon (polling every 60s) + notification center, scoped so an admin's "mark all read"/"clear all" can never touch a tenant's own notices
 - [x] **6.2 Rent Due Reminders** ✅ — Sent by a daily automated sweep (`run_notification_sweep()` in `backend/config.php`), claimed per invoice so the same reminder is never sent twice; also available on demand via `check_due_date_reminders.php` / `send_payment_reminder.php`
 - [x] **6.3 Overdue Alerts** ✅ — Same daily sweep promotes lapsed invoices and sends the alert, with the same once-per-invoice claim
-- [x] **6.4 Maintenance Status Updates** ✅ — In-app on every status change, plus SMS/email dispatch on the same change (see 4.10); external delivery still on the mock drivers (6.6/6.7)
-- [x] **6.5 Building Announcements** ✅ — `create_announcement.php`, targets all current tenants or one unit's tenant, respects each tenant's announcement preference
+- [x] **6.4 Maintenance Status Updates** ✅ — In-app on every status change, plus SMS/email dispatch on the same change (see 4.10); email on the mock driver, SMS live through Semaphore once configured (6.6/6.7)
+- [x] **6.5 Building Announcements** ✅ — `create_announcement.php`, targets all current tenants or one unit's tenants (unit picker), respects each tenant's announcement preference; SMS/email go out only when ticked, and drafts are saved without notifying anyone
 - [ ] **6.6 Email Notifications** 🔧 — Pipeline built and wired end to end: templates, dispatcher, queue with retry/quiet-hours/retention, admin settings UI, and all seven admin endpoints dispatching. Runs on the `log` (dry-run) driver — every message is rendered, gated and recorded, nothing is delivered. Remaining: install PHPMailer and set `email_driver = smtp` with Gmail App Password credentials
-- [ ] **6.7 SMS Notifications** 🔧 — Same pipeline, same wiring, including PH mobile normalisation and a one-segment GSM-7 cap so a message cannot silently cost triple. **Semaphore driver built** (2026-09-24) with a daily send cap, live credit-balance check and sender-name approval gate; the other four providers remain stubs. Remaining: a verified live delivery (M6-27), the queue drain scheduled in Task Scheduler, and `AMS` sender-name approval — until then messages use Semaphore's shared sender
+- [ ] **6.7 SMS Notifications** 🔧 — Same pipeline, same wiring, including PH mobile normalisation and a one-segment GSM-7 cap so a message cannot silently cost triple. **Semaphore driver built** (2026-09-24) with a daily send cap, live credit-balance check and sender-name approval gate; Semaphore is the only SMS provider (the four planned stubs were removed). It follows Semaphore's API rules: "TEST"-prefixed text is re-prefixed, the balance check is cached for its 2/min limit, and 429s are reported. Remaining: a verified live delivery (M6-27), the queue drain scheduled in Task Scheduler, and `AMS` sender-name approval — until then messages use Semaphore's shared sender
 - [x] **6.8 Notification Preferences** ✅ — Server-side per-category opt-out (`notification_preferences` table, `get_/update_notification_preferences.php`) now carries **per-channel** flags plus a global `sms_opt_out` / `email_opt_out`; critical notices (overdue, billing, decisions, maintenance/contract/move-out updates) can't be muted. `user_channel_allowed()` is the single gate every dispatch passes through. Tenant-facing UI for the channel toggles is still to come
 - **Automation** ✅ — A daily sweep (opportunistic on the first sign-in of the day, plus a CLI script `backend/cron/daily_sweep.php` for Windows Task Scheduler) drives reminders, overdue alerts, parking-permit expiry and automatic parking billing — see Module 10
 
@@ -469,15 +469,17 @@ flowchart TD
 
 ### Module 7 — Communication (Two-Way Chat)
 
-> Related Docs: [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md)
+> Related Docs: [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) (read its "As built" section)
+>
+> ⚠️ The Socket.IO server does not authenticate connections yet — see [security_audit.md §6e](../security_audit.md) CH-1.
 
-- [ ] **7.1 Admin → Tenant Messaging** 📋 — Design complete (`send_message.php`, `AdminChat.jsx`)
-- [ ] **7.2 Tenant → Admin Messaging** 📋 — Design complete (`TenantChat.jsx`, `start_conversation.php`)
-- [ ] **7.3 Conversation History** 📋 — Design complete (`get_messages.php`, `ChatWindow.jsx`)
-- [ ] **7.4 Unread Message Badge** 📋 — Design complete (`get_conversations.php` → unread_count)
-- [ ] **7.5 Admin Inbox** 📋 — Design complete (`AdminChat.jsx` sidebar)
-- [ ] **7.6 New Message Notification** 📋 — Design complete (triggers notification row on send)
-- [ ] **7.7 Complaints Management** 📋 — Design complete: conversation flagged `is_complaint` + `complaint_status` tracking, additive to §1–§11 (see [chat_design.md §12](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md))
+- [ ] **7.1 Admin → Tenant Messaging** 🔧 — Admin replies from the `/admin-messages` inbox (`AdminMessages.jsx`, socket or `send_message.php`); cannot yet start a thread with a tenant who hasn't written first
+- [x] **7.2 Tenant → Admin Messaging** ✅ — `ChatWidget.jsx` "support chat" opens the admin thread (`get_admin_user.php`), live over Socket.IO with HTTP fallback
+- [x] **7.3 Conversation History** ✅ — `get_chat_history.php` (caller's own thread, timestamps, marks as read), stored in `messages`
+- [x] **7.4 Unread Message Badge** ✅ — per-thread unread from `get_conversations.php`, total on the chat widget launcher; live via socket + polling
+- [x] **7.5 Admin Inbox** ✅ — `AdminMessages.jsx`: threads sorted by most recent, searchable, unread badges
+- [ ] **7.6 New Message Notification** 🔧 — Real-time push to an open widget/inbox only; no `notifications` row is written on send
+- [ ] **7.7 Complaints Management** 📋 — Design complete: conversation flagged `is_complaint` + `complaint_status` tracking, additive to §1–§11 — must be rebased onto the built `messages` table, since `conversations` does not exist (see [chat_design.md §12](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md))
 
 ---
 
@@ -568,22 +570,22 @@ flowchart TD
 | 4. Maintenance Request | 10 | 10 | 0 | 0 | 0 |
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
 | 6. Notification | 8 | 6 | 2 | 0 | 0 |
-| 7. Communication | 7 | 0 | 0 | 7 | 0 |
+| 7. Communication | 7 | 4 | 2 | 1 | 0 |
 | 8. Dashboard & Reports | 8 | 8 | 0 | 0 | 0 |
 | 9. Contracts | 7 | 7 | 0 | 0 | 0 |
 | 10. Parking | 4 | 4 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 4 | 4 | 0 | 0 | 0 |
-| **TOTAL** | **85** | **76** | **2** | **7** | **0** |
+| **TOTAL** | **85** | **80** | **4** | **1** | **0** |
 
-> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data), then again after closing 3.10 (Extended Rent Terms) on 2026-09-20, and again on 2026-09-23 when the SMS/email pipeline was wired into the admin endpoints — 4.10 closed, and 6.6 / 6.7 moved from 📋 to 🔧 (built and wired, still on the dry-run drivers).
+> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data), then again after closing 3.10 (Extended Rent Terms) on 2026-09-20, and again on 2026-09-23 when the SMS/email pipeline was wired into the admin endpoints — 4.10 closed, and 6.6 / 6.7 moved from 📋 to 🔧 (built and wired, still on the dry-run drivers), and on 2026-09-24 when Module 7 was re-marked after the chat merge (PR #8): 7.2–7.5 ✅, 7.1 and 7.6 🔧, 7.7 still 📋.
 
 ### Core Functionality Coverage
 
 | Core Requirement | Covered By |
 |---|---|
-| Payment Tracking & Billing | Module 3 (10 features) |
-| Communication Management | Module 7 (6 features) + Module 6 (8 features) |
+| Payment Tracking & Billing | Module 3 (12 features) |
+| Communication Management | Module 7 (7 features) + Module 6 (8 features) |
 | Maintenance Request | Module 4 (10 features) |
 | Inquiry and Reservation | Module 1.8 (inquiries + unit reservations), Module 10, Module 11.5, Module 12 |
 | Report Generation | Module 8 (8 features) |
@@ -627,9 +629,9 @@ There is no separate "1 month deposit" line distinct from the security deposit �
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 2.1 | **Room / Unit Listing** | List all units with: room ID, type, floor, monthly rate, current status. No `capacity`/`max_occupants` column exists on `rooms` | Small+ | `get_rooms.php`, `create_room.php`, `rooms` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
+| 2.1 | **Room / Unit Listing** | List all units with: room ID, type, floor, monthly rate, current status. No per-room capacity column (building-wide `max_occupants_per_unit` applies); optional admin-uploaded showcase gallery | Small+ | `get_rooms.php`, `create_room.php`, `rooms` table | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 | 2.2 | **Unit Availability Dashboard** | Visual overview: which rooms are Vacant / Occupied / Under Maintenance / Reserved | Small+ | `get_rooms.php` returns status per room | — |
-| 2.3 | **Set Occupancy** | Assign tenant to unit on approval, update room status to Occupied. There is no per-unit "max occupants" cap column — occupancy is only implicitly bounded by a ₱1,000-per-excess-occupant surcharge (configurable via `system_settings.occupant_surcharge_per_person`) applied above 4 occupants | Small+ | `update_tenant_status.php` (approval flow), `update_room.php` (manual admin assignment) | — |
+| 2.3 | **Set Occupancy** | Assign tenant to unit on approval, update room status to Occupied. Occupancy is capped building-wide by `max_occupants_per_unit` (default 8) — checked in `rent_application.php`, `update_occupants.php`, `household_members.php`, `process_tenant_request.php`; a ₱1,000-per-excess-occupant surcharge (`occupant_surcharge_per_person`) applies above 4 occupants | Small+ | `update_tenant_status.php` (approval flow), `update_room.php` (manual admin assignment) | — |
 | 2.4 | **Unit Status Monitoring** | Track room condition, last inspection date, maintenance history per unit, furnishing status | Medium | `rooms` table + `maintenance_requests` join (via `maintenance_requests.room_name`) | — |
 | 2.5 | **Occupancy Tracking** | Dashboard: occupancy rate, average stay duration, and a 6-month occupancy trend. No separate "vacancy rate" metric exists — occupancy and vacancy are complementary (vacancy = 100% − occupancy), so this is covered by the same trend data rather than a distinct figure | Medium | `get_report_data.php` | — |
 | 2.6 | **Extended Rent / Lease Renewal** | Admin extends lease end date, generates updated contract, adjusts rent if rate changed | Small+ | `extend_lease.php` | — |
@@ -661,7 +663,7 @@ There is no separate "1 month deposit" line distinct from the security deposit �
 | 3.7 | **Overdue Alerts** | Flag overdue invoices, notify tenant, surface overdue totals on the admin dashboard, and apply a configurable late fee (flat peso amount or % of recurring charges, applied once per invoice) | Small+ | `promote_overdue_invoices()` in `config.php`, `check_due_date_reminders.php`, `AdminPayments.jsx`, `PayBills.jsx`, `late_fee_*` system settings | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 3.8 | **Payment Proof Upload** | Tenant uploads screenshot/photo of GCash/bank transfer receipt for admin verification | Small+ | `upload_payment_proof.php` | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) |
 | 3.9 | **Security Deposit Tracking** | Record deposit on move-in, track deductions (damages, unpaid utilities) and apply the balance to rent at move-out. The deposit is non-refundable by design — `refund_amount` is always 0.00, so there is no refund calculation | Medium | `invoices.security_deposit`, `lease_contracts.deposit_amount`/`deposit_status`/`damage_deduction`/`utility_deduction`, `update_tenant_status.php` | — |
-| 3.10 | **Extended Rent Terms** | Handle lease extension billing: prorated amounts, adjusted rates, updated payment schedule | Medium | `extend_lease.php` + new invoice generation | — |
+| 3.10 | **Extended Rent Terms** | Lease extension billed on approval: whole months at the current rent (no proration), recorded in `lease_renewals` | Medium | `extend_lease.php` (files the request) → `process_tenant_request.php` (approval bills the months) | — |
 | 3.11 | **Payment Methods (GCash, Cash, Bank)** | Support and track multiple payment channels; verify online transfer references. In-person cash is always available alongside the active remote family (sandbox gateway or manual transfer), each channel individually toggleable | Small+ | `get_payment_channels.php`, `create_checkout_session.php`, `record_payment_admin.php`, `upload_payment_proof.php`, `schedule_payment.php` | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) |
 | 3.12 | **Term of Payment Rules** | Move-in billing is 1 month advance rent + 1 month security deposit, and approval is gated on complete documents plus a recorded terms agreement (item 1.7). Enforced in the approval and invoicing endpoints rather than by DB constraints | Small+ | `update_tenant_status.php`, `create_invoice.php` | — |
 
@@ -707,7 +709,7 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 | 4.7 | **Admin Assignment** | Admin assigns maintenance worker/contractor to the request, tracks who handled it | Medium | `assigned_to` field in `maintenance_requests` | — |
 | 4.8 | **Cost Estimation** | Admin enters estimated cost and records the actual cost separately at completion; flag if tenant-responsible (e.g., tenant-caused damage) | Medium | `estimated_cost`, `actual_cost`, `tenant_responsible` fields | — |
 | 4.9 | **Work Notes** | Admin/worker adds resolution notes: what was done, materials used, follow-up needed | Medium | `work_notes` field | — |
-| 4.10 | **Tenant Notification on Update** | When status changes, tenant receives in-app notification, including the reason when a request is rejected, and the same change dispatches SMS + email (mock drivers) | Small+ | `update_maintenance_status.php` → `notifications`, `dispatch_admin_action_notification()` | [sms_email_implementation.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md) |
+| 4.10 | **Tenant Notification on Update** | When status changes, tenant receives in-app notification, including the reason when a request is rejected, and the same change dispatches SMS + email (SMS via Semaphore once configured; email on the mock driver) | Small+ | `update_maintenance_status.php` → `notifications`, `dispatch_admin_action_notification()` | [sms_email_implementation.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md) |
 
 #### Issue Category Reference
 
@@ -738,7 +740,7 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 ### Module 6 — Notification Module
 
-**Context:** Tenants need to be informed about rent due dates, overdue payments, maintenance updates, and building announcements. In-app delivery is live. Email and SMS are built and wired into every admin endpoint, but run on the `log` dry-run drivers — messages are rendered, gated by each tenant's opt-outs and recorded, and nothing is sent until a provider is configured.
+**Context:** Tenants need to be informed about rent due dates, overdue payments, maintenance updates, and building announcements. In-app delivery is live. Email and SMS are built and wired into every admin endpoint and gated by each tenant's opt-outs. SMS has a live Semaphore driver; until an API key is saved and the provider switched off `log`, it runs on the dry-run driver like email — messages are rendered and recorded, and nothing is sent.
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
@@ -746,10 +748,10 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 | 6.2 | **Rent Due Reminders** | Sent by the daily automated sweep before the configured due-date window; each invoice is claimed so it is reminded at most once per day, whichever trigger fires it | Small+ | `run_notification_sweep()` / `claim_invoice_reminder()` in `backend/config.php`, `check_due_date_reminders.php`, `send_payment_reminder.php`, `backend/cron/daily_sweep.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.3 | **Overdue Alerts** | Same sweep promotes lapsed invoices and alerts the tenant, same per-invoice claim | Small+ | `run_notification_sweep()`, `promote_overdue_invoices()`, `AdminPayments.jsx`, `PayBills.jsx` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | 6.4 | **Maintenance Status Updates** | On every status change: "Your request … is now In Progress", including the rejection reason | Small+ | `update_maintenance_status.php` → `create_notification()` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
-| 6.5 | **Building Announcements** | Admin broadcasts to all current tenants or one unit's tenant; respects each tenant's announcement preference | Small+ | `create_announcement.php` → `create_notification()` per recipient | — |
+| 6.5 | **Building Announcements** | Admin broadcasts to all current tenants or one unit's tenants; respects each tenant's announcement preference; optional SMS/email channels (honoured, `channels` records what was delivered); drafts notify nobody | Small+ | `create_announcement.php` → `create_notification()` per recipient | — |
 | 6.6 | **Email Notifications** | Templates, dispatcher, queue and all seven admin endpoints wired; runs on the `log` dry-run driver. Remaining: PHPMailer + `email_driver = smtp` | Small+ | `services/send_email.php`, `email_templates.php` | [sms_email_implementation.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md) |
-| 6.7 | **SMS Notifications** | Same pipeline, with PH number normalisation and a one-segment GSM-7 cap; Semaphore driver built (daily cap, balance check, sender-approval gate); other providers stubs. Remaining: verified live send, scheduled queue drain, sender-name approval | Medium | `services/send_sms.php`, `send_notification.php` | [sms_email_implementation.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md) |
-| 6.8 | **Notification Preferences** | Tenant opts out per category (announcements, rent-due reminders, service/CCTV/parking updates, visitor updates, inquiry updates) in-app; overdue alerts, billing, and any decision notice can't be muted. Per-channel (email/SMS) preferences await 6.6/6.7 | Medium | `notification_preferences` table, `get_/update_notification_preferences.php`, `NOTIFICATION_PREF_CATEGORIES` in `backend/config.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| 6.7 | **SMS Notifications** | Same pipeline, with PH number normalisation and a one-segment GSM-7 cap; Semaphore driver built (daily cap, balance check, sender-approval gate); Semaphore is the only provider. Remaining: verified live send, scheduled queue drain, sender-name approval | Medium | `services/send_sms.php`, `send_notification.php` | [sms_email_implementation.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md) |
+| 6.8 | **Notification Preferences** | Tenant opts out per category (announcements, rent-due reminders, service/CCTV/parking updates, visitor updates, inquiry updates) in-app; overdue alerts, billing, and any decision notice can't be muted. Per-channel (email/SMS) flags and global opt-outs exist on the server (`user_channel_allowed()`); the tenant UI toggles are not built yet | Medium | `notification_preferences` table, `get_/update_notification_preferences.php`, `NOTIFICATION_PREF_CATEGORIES` in `backend/config.php` | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | — | **Automation** | Reminders, overdue alerts, parking-permit expiry and automatic parking billing all run from one daily sweep, claimed once per calendar day. It fires opportunistically (the first signed-in page load of the day) and can be forced (admin "Run now", or the CLI script for Windows Task Scheduler) | Small+ | `run_notification_sweep()` in `backend/config.php`, `backend/cron/daily_sweep.php` | [module_verification_guide.md §13](../documentation/module_verification_guide.md) |
 
 ---
@@ -760,13 +762,13 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 
 | # | Feature | Details | Scale | Implementation | Related Doc |
 |---|---|---|---|---|---|
-| 7.1 | **Admin → Tenant Messaging** | Admin selects a tenant and sends a direct message through the chat interface | Small+ | `send_message.php`, `AdminChat.jsx` | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
-| 7.2 | **Tenant → Admin Messaging** | Tenant opens chat, messages the property manager. No need to select — fixed admin partner | Small+ | `TenantChat.jsx` → `start_conversation.php` | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
-| 7.3 | **Conversation History** | Full message thread preserved; scrollable chat window with timestamps | Small+ | `get_messages.php`, `ChatWindow.jsx` | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
-| 7.4 | **Unread Message Badge** | Nav shows unread message count; updates on poll cycle | Small+ | `get_conversations.php` → unread_count | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
-| 7.5 | **Admin Inbox** | Admin sees list of all tenant conversations, sorted by most recent, with unread badges | Small+ | `AdminChat.jsx` sidebar | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
-| 7.6 | **New Message Notification** | When a message arrives, the recipient gets an in-app notification | Small+ | `send_message.php` creates notification row | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
-| 7.7 | **Complaints Management** | Conversation flagged `is_complaint` + `complaint_category` + `complaint_status` (Open → In Review → Resolved), additive to the §2 schema — not a separate system | Medium | `conversations.is_complaint`/`complaint_status`, `update_conversation_status.php` | [chat_design.md §12](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.1 | **Admin → Tenant Messaging** | Admin replies to tenant threads from the Messages inbox; starting a new thread with a tenant is not built yet | Small+ | `AdminMessages.jsx`, `ChatContext.jsx`, `send_message.php` / Socket.IO `websocket-server/server.js` | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.2 | **Tenant → Admin Messaging** | Tenant opens the chat widget and messages the admin; no selection needed | Small+ | `ChatWidget.jsx` → `get_admin_user.php`, `ChatContext.jsx` | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.3 | **Conversation History** | Full thread preserved in `messages`; scrollable chat with timestamps; read receipts via `is_read` | Small+ | `get_chat_history.php`, `ChatWidget.jsx` / `AdminMessages.jsx` | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.4 | **Unread Message Badge** | Unread count per thread and in total; live over the socket, polled every 6 s as fallback | Small+ | `get_conversations.php` → unread_count, `ChatWidget.jsx` | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.5 | **Admin Inbox** | Admin sees all threads sorted by most recent, searchable, with unread badges | Small+ | `AdminMessages.jsx` (`/admin-messages`) | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.6 | **New Message Notification** | Real-time push to an open chat only; an in-app `notifications` row on send is not built | Small+ | `websocket-server/server.js` (push); `send_message.php` (no notification yet) | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
+| 7.7 | **Complaints Management** | Planned: flag a thread as a complaint with category and status (Open → In Review → Resolved) — design must be rebased onto the flat `messages` table | Medium | Design only (chat_design.md §12) | [chat_design.md §12](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
 
 ---
 
@@ -825,7 +827,7 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 | 11.1 | **Role-Based Access Control** | Admin sees admin pages; tenant sees tenant pages. Every API call is authorised server-side from the session, with the role read live. Role changes and archiving end the user's sessions. Forged identity headers are overwritten | Small+ | `require_admin()` / `require_user()` / `get_authenticated_user()` in `config.php`, `manage_users.php`, route guards in `App.jsx` | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
 | 11.2 | **Admin Authentication** | Admin login with email/password → server-issued bearer session token (7 days). Per-account and per-IP lockout. Admin sign-ins logged | Small+ | `login.php`, `sessions` / `login_attempts` tables, `axiosConfig.js` (Authorization header, 401 → sign-out) | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
 | 11.3 | **Tenant Authentication** | Tenant login with email/password; same mechanism and lockout, different role. Archived accounts refused | Small+ | `login.php` | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
-| 11.4 | **Password Management** | Change own password (current password required, other devices signed out); forgot/reset by email (all sessions ended); admin reset of a user's password; admin profile & password in Account Settings; 8-character minimum everywhere | Small+ | `change_password.php`, `forgot_password.php`, `reset_password.php`, `manage_users.php`, `profile.php`, `AdminAccountSettings.jsx`, `ChangePasswordModal.jsx` | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
+| 11.4 | **Password Management** | Change own password (current password required, other devices signed out); forgot/reset by email (all sessions ended); admin reset of a user's password; admin profile & password in Settings → Account tab; 8-character minimum everywhere | Small+ | `change_password.php`, `forgot_password.php`, `reset_password.php`, `manage_users.php`, `profile.php`, `AdminAccountSettings.jsx` + `settings/AccountPanel.jsx`, `ChangePasswordModal.jsx` | [module_verification_guide.md §12](../documentation/module_verification_guide.md) |
 | 11.5 | **CCTV Access Requests** | Tenant requests to view CCTV footage; admin approves/rejects, tenant is notified either way, queue shows live approved/rejected counts | Medium | `cctv_request.php`, `get_cctv_requests.php`, `update_cctv_status.php`, `AdminCctv.jsx` | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) |
 
 ---
@@ -850,7 +852,7 @@ Cash is always offered; the remote channels depend on whether `payment_mode` is 
 | System Design | [system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/system_design.md) | DB schema, API inventory, auth design |
 | Todo / Backlog | [todo.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/todo.md) | Prioritized backlog (A-E priorities) |
 | Chat Design | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) | Two-way chat architecture, schema, endpoints, React components |
-| Notification Services | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) | SMS/email provider comparison, architecture, implementation plan |
+| Notification Services | [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) | *Historical* (Aug 2026) — the original SMS/email provider research; superseded by sms_email_implementation.md |
 | Payment System Design | [payment_system_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/payment_system_design.md) | Payment flow, GCash/bank/cash handling, proof upload |
 | Move-In / Move-Out | [move_in_move_out_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/move_in_move_out_design.md) | Move-in/move-out lifecycle, inspection, archiving |
 | Inquiry & Reservation | [inquiry_reservation_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/inquiry_reservation_design.md) | Inquiry funnel, unit reservation holds, expiry, conflict checks |

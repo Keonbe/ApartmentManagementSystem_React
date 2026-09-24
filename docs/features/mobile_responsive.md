@@ -1,6 +1,6 @@
 # Mobile Responsiveness Specification & System Prompt
 
-This document provides a structured prompt and implementation guidelines tailored for the **Apartment Management System (AMS)** stack (React 18 + Vite + Tailwind CSS + Modular CSS Custom Properties). It is organized by domain scopes to keep responsive rules isolated and maintainable.
+This document provides a structured prompt and implementation guidelines tailored for the **Apartment Management System (AMS)** stack (React 19 + Vite + Tailwind CSS + Modular CSS Custom Properties). It is organized by domain scopes to keep responsive rules isolated and maintainable.
 
 ---
 
@@ -37,7 +37,7 @@ Copy and use the following system prompt block when prompting an AI model or con
 You are an expert Frontend Engineer tasked with implementing full mobile responsiveness for the Apartment Management System (AMS) React SPA.
 
 ### Tech Stack Constraints
-- **Core UI**: React 18 + Tailwind CSS (used as base/layout styling).
+- **Core UI**: React 19 + Tailwind CSS 4 (used as base/layout styling).
 - **Domain-Scoped Responsive CSS**: Do not write monolithic CSS or excessively complex inline breakpoint utilities for fine-tuned layout corrections. Place responsive media queries in their corresponding domain folder under `src/assets/styles/responsive/`:
   - **Admin Views & Workflows**: `src/assets/styles/responsive/admin/`
   - **User/Resident Views & Portals**: `src/assets/styles/responsive/user/`

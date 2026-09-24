@@ -1,7 +1,20 @@
 # Two-Way Chat Feature — Implementation Design
 
-> **Stack context:** React 18 + Vite → PHP 8 (XAMPP) → MySQL/MariaDB  
-> **No WebSocket server available** on XAMPP — see approach selection below.
+> **Stack context:** React 19 + Vite → PHP 8 (XAMPP) → MySQL/MariaDB, plus a Node.js Socket.IO sidecar.
+> **Read "As built" first.** Sections 0–11 are the original design (HTTP polling, a `conversations` table). What shipped (PR #8) is different; §12 (complaints) is still design only.
+
+---
+
+## As built (2026-09-24)
+
+| Part | What the code does |
+|---|---|
+| Transport | **Socket.IO sidecar** `websocket-server/server.js` (Express 5 + socket.io 4 + mysql2, port 3001, started with `node server.js`; DB settings in `websocket-server/.env`). The frontend connects via `VITE_CHAT_SOCKET_URL` (`ams-react/src/api/env.js`). If the socket is down, `ChatContext` falls back to HTTP polling: history every 2.5 s, conversations every 6 s, sends through `send_message.php`. No SSE. |
+| Storage | One flat table `messages(id, sender_id, receiver_id, message, is_read, created_at)` — `backend/api/migrations/create_messages_table.sql`, and also created at request time by the chat endpoints. **No `conversations` table**; a "conversation" is the set of messages between two users. Not yet in `SetupDB.sql`. |
+| PHP endpoints | `get_chat_history.php?other_user_id=` (the caller's thread, marks as read) · `send_message.php` (`receiver_id`, `message`; `save_message.php` is an alias) · `get_conversations.php` (threads with last message + unread count) · `get_admin_user.php` (the admin a tenant chats with). Identity comes from the session (`config.php` rewrites `X-User-Id`); queries are prepared. |
+| Frontend | `context/ChatContext.jsx` (socket + polling state) · `Components/ChatWidget.jsx` (floating widget with unread total; tenant "support chat" opens the admin thread) · `AdminPages/AdminMessages.jsx` at `/admin-messages` (inbox: search, most recent first, unread badges). |
+| Not built | Admin starting a thread with a tenant who hasn't written (the inbox lists existing threads only) · a `notifications` row per message (§3.2 / §12) · a tenant↔admin membership rule (any signed-in user can message any user) · rate limiting · complaints (7.7, §12 — needs rebasing onto `messages`, since `conversations` does not exist). `send_message.php` calls `log_activity()` on every message with category `'chat'`, which is not in `LOG_CATEGORIES`. |
+| Security | **The socket server is unauthenticated**: any client can `join` any user's room and send with any `sender_id`; CORS is `*`; message bodies are logged to the console. See [security_audit.md](../security_audit.md) §6e. |
 
 ---
 

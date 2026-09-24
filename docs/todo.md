@@ -1,5 +1,7 @@
 # AMS — Development Todo
 
+> **Historical backlog.** The current open-work list is [consolidated_todo.md](consolidated_todo.md). Items below were re-checked against the code on 2026-09-24.
+
 ---
 
 ## Account Management
@@ -38,7 +40,7 @@
 * [x] `AdminUnits` reads and writes rooms from DB via `get_rooms.php` / `update_room.php`.
 * [x] Room occupancy history and lease history modals in `AdminUnits`.
 * [x] Syncing `rooms.tenant_name` / `lease_start` / `lease_end` from approved applications.
-* [ ] Define occupant change workflow:
+* [x] Define occupant change workflow *(done — tenant request → admin approval in `process_tenant_request.php`)*:
   * User requests an occupant count change (form in `MyRoom.jsx`).
   * Admin approval step before count is updated.
 * [x] Decide the model for multiple occupants — **decided 2026-09-16: one shared lease, lease holder plus household roster.**
@@ -50,7 +52,7 @@
   * [x] Migration: `household_members` table linked to `rent_applications` (`2026_09_decisions_features.sql`, mirrored into `SetupDB.sql`).
   * [x] `household_members.php` lists the roster and files add/remove requests (replace = remove + add); admins approve in Notifications through `process_tenant_request.php`.
   * [x] Household section in `MyRoom.jsx`; read-only list in the `AdminTenants` profile.
-  * [x] Occupant count never drops below the lease holder + active members and never exceeds `max_occupants_per_unit` (default 8, set in Settings → Lease Policy). Naming someone already counted doesn't change the rent.
+  * [x] Occupant count never drops below the lease holder + active members and never exceeds `max_occupants_per_unit` (default 8, set in Settings → Leasing). Naming someone already counted doesn't change the rent.
   * [x] Move-out, contract termination and archive end the household.
 * [ ] Add occupancy Terms & Conditions:
   * Shared occupancy responsibilities.
@@ -68,7 +70,7 @@
 * [x] Handle lease extension conflicts:
   * `create_reservation.php` rejects a hold when the room is not `vacant`, already has an `Active` reservation, or has a `Pending Review` rent application for the same room.
 * [x] Inquiry & reservation module — see [inquiry_reservation_design.md](features/inquiry_reservation_design.md).
-* [ ] Send lease expiration reminders:
+* [x] Send lease expiration reminders *(done — `send_lease_end_reminders()` in `config.php`, run by the daily sweep)*:
   * Check lease end date on login; insert a notification if < 30 days remaining.
   * Display a reminder banner on `MyRoom.jsx` when lease is expiring soon.
 * [ ] Define minimum and maximum rental duration settings.
@@ -82,14 +84,14 @@
 * [x] Payment recorded to `invoices` table via `pay_bill.php`.
 * [x] Payment history visible in `UserPaymentHistory.jsx` with receipt viewer.
 * [x] Admin settlement and manual payment recording via `AdminPayments.jsx`.
-* [ ] Add **reference number** field for payments:
+* [x] Add **reference number** field for payments *(done — `invoices.payment_reference`)*:
   * Add `payment_reference VARCHAR(100)` to `invoices` table.
   * Display in `UserPaymentHistory.jsx` receipts.
-* [ ] Upload proof of payment:
+* [x] Upload proof of payment *(done — `upload_payment_proof.php`)*:
   * File upload field in `PayBills.jsx` and `TrackApplication.jsx`.
   * New `upload_payment_proof.php` endpoint to store path.
-* [ ] Cross-reference uploaded proof with payment reference number (admin verification step).
-* [ ] Auto-mark invoices as `overdue` when `due_date` passes (scheduled PHP script or on-demand check).
+* [x] Cross-reference uploaded proof with payment reference number (admin verification step). *(done — admin verifies or rejects in Payments; `reject_payment_proof.php`)*
+* [x] Auto-mark invoices as `overdue` when `due_date` passes. *(done — `promote_overdue_invoices()`)*
 
 ---
 
@@ -106,9 +108,9 @@
 ## Unit Information
 
 * [x] Rooms seeded in DB with type, floor, monthly rent, and status.
-* [x] Room images included in Preview page and `AdminUnits` modals.
+* [x] Room images included in Preview page and `AdminUnits` modals — now admin-uploaded showcase images (`upload_room_images.php`, `rooms.gallery`).
 * [x] Decide on 360° room view — **decided 2026-09-16: not planned.** There are no panorama images to show; revisit only if they become available.
-* [x] `room_preview_mode` setting (`images` or `floor_plan`), switched in Settings → Lease Policy; `RoomPreviewModal.jsx` shows only the selected panel (built 2026-09-17).
+* [x] `room_preview_mode` setting (`images` or `floor_plan`), switched in Settings → Leasing; `RoomPreviewModal.jsx` shows only the selected panel (built 2026-09-17).
 
 ---
 
@@ -142,7 +144,7 @@
   * Created `update_maintenance_status.php` to persist status, assignee, cost, notes, tenant responsibility, and `resolved_at`.
   * Wired to backend DB (`assigned_to`, `estimated_cost`, `work_notes`, `resolved_at`).
 * [ ] Tenant responsibility / discretion defined in Terms & Conditions.
-* [ ] Maintenance approval workflow — notify tenant when status changes (insert to `notifications`).
+* [x] Maintenance approval workflow — notify tenant when status changes (insert to `notifications`). *(done — `update_maintenance_status.php`, plus SMS/email dispatch)*
 
 ---
 
@@ -162,7 +164,7 @@
   * Created `get_cctv_requests.php` and `update_cctv_status.php`.
   * Replaced mock `initialCctvRequests` array with live DB data.
   * Persists approve/reject actions.
-* [ ] Add **Data Privacy consent checkbox** to the CCTV request form.
+* [x] Add **Data Privacy consent checkbox** to the CCTV request form. *(done — `CctvRequest.jsx`)*
 * [ ] Restrict CCTV requests to incident-related purposes only (enforce via form validation and admin review).
 
 ---
@@ -254,8 +256,8 @@ Generate reports by:
 * [x] Announcements persisted to `announcements` table.
 * [x] Creating an announcement auto-creates in-app notifications for all non-admin users.
 * [x] Tenant announcement board at `/announcements` (`UserAnnouncements.jsx`).
-* [ ] Allow admin to schedule announcements for future delivery.
-* [ ] Allow admin to target specific tenants (currently sends to all non-admin users).
+* [ ] Allow admin to schedule announcements for future delivery. *(Drafts exist since 2026-09-24; scheduled sending does not.)*
+* [~] Allow admin to target specific tenants. *(One unit's current tenants can be targeted; individual tenants cannot.)*
 
 ---
 
@@ -279,15 +281,23 @@ Generate reports by:
 
 ---
 
+## Chat
+
+* [x] Two-way tenant ↔ admin chat (Socket.IO + `messages`, PR #8) — see [chat_design.md](features/chat_design.md) "As built".
+* [ ] Admin starts a thread with any tenant; notification row on new message; authenticate the socket server — tracked in [consolidated_todo.md](consolidated_todo.md).
+* [ ] Complaints (7.7).
+
+---
+
 # Open Questions
 
 * ~~Should occupant changes require admin approval or allow direct self-service?~~ **Decided 2026-09-16:** admin approval (see Room & Occupancy).
 * How should lease extension conflicts be resolved when a room is already reserved by another applicant?
 * ~~What is the password change/reset policy (max changes, cooldown period)?~~ **Decided 2026-09-16:** light policy — no cap or cooldown, new ≠ current, 3 reset requests per email per hour (see Account Management).
-* Is CCTV request approval manual (admin reviews) or automatic?
+* ~~Is CCTV request approval manual (admin reviews) or automatic?~~ **Answered in code:** manual — the admin approves or denies in CCTV requests (`update_cctv_status.php`).
 * ~~Should 360° room viewing be required or optional for listing?~~ **Decided 2026-09-16:** not planned; admin chooses images or floor plan (see Unit Information).
 * ~~Should multiple occupants share one lease or have individual agreements?~~ **Decided 2026-09-16:** one shared lease; lease holder has the only login; co-occupants go on a household roster (see Room & Occupancy).
-* Should parking/CCTV/maintenance status change notifications be sent automatically when admin updates status?
+* ~~Should parking/CCTV/maintenance status change notifications be sent automatically when admin updates status?~~ **Answered in code:** yes — each `update_*_status.php` notifies the tenant in-app and dispatches SMS/email per their preferences.
 * ~~Should the `expenses` field in reports be manually entered by admin or calculated from a separate `expenses` table?~~ **Decided 2026-09-16:** an `expenses` table with manual entry, added to the derived maintenance costs (see Reports).
 * ~~Should the inquiry module add a waitlist, conversion-rate reporting, or email/SMS on new inquiries?~~ **Decided 2026-09-16:** conversion report yes, basic waitlist yes, email/SMS TBA (see [inquiry_reservation_design.md §8](features/inquiry_reservation_design.md#8-planned-and-deferred)).
 * ~~Feature branches or direct pushes to `main`?~~ **Decided 2026-09-16:** routine work and bug fixes go straight to `main`; big implementations use a `feature/` branch (see [cicd_pipeline.md](deployment/cicd_pipeline.md#git-branching-strategy)).

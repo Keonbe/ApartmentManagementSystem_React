@@ -1,7 +1,7 @@
 # Product Requirements Document: Apartment Management System (AMS)
 
 > **Version:** 3.0 — September 2026 (Post-Defense Revision)
-> **Stack:** React 18 + Vite 5 (SPA) + PHP 8 API + MySQL / MariaDB 10 (XAMPP)
+> **Stack:** React 19 + Vite 8 (SPA) + PHP 8 API + MySQL / MariaDB 10 (XAMPP)
 > **Dev URL:** `http://localhost:8080/ApartmentManagementSystem_React/`
 > **Scale:** Small-to-medium residential building · up to 100 units · 1–3 admins · up to 200 active tenants
 
@@ -499,10 +499,10 @@ See `docs/features/service_management_design.md`.
 ## Module 6: Notification
 
 ### What It Does
-Keeps tenants and admin informed of important events through in-app notifications. SMS and email channels are designed and UI-stubbed; backend delivery not yet wired.
+Keeps tenants and admin informed of important events through in-app notifications. SMS and email are built on a shared dispatcher and queue: SMS through Semaphore (live driver, go-live pending), email on the dry-run driver until SMTP is configured.
 
 ### Implementation Status
-In-app notifications fully wired. SMS and email UI-built but backend stubbed.
+In-app notifications fully wired. SMS built (Semaphore — the only provider); email built on the `log` dry-run driver. Remaining: SMS go-live, SMTP, sweep-driven rent SMS, tenant SMS/email toggles, announcement channel selection.
 
 ---
 
@@ -514,7 +514,7 @@ In-app notifications fully wired. SMS and email UI-built but backend stubbed.
 | Invoice overdue | Tenant | In-app |
 | Application approved / rejected | Tenant | In-app |
 | Maintenance status changed | Tenant | In-app |
-| Announcement posted | All tenants | In-app (+ SMS/Email when wired) |
+| Announcement posted | All tenants | In-app + SMS/Email (per the building switches and tenant opt-outs) |
 | Move-out request received | Admin | In-app |
 | CCTV / Parking request status update | Tenant | In-app |
 | Due date approaching (3–5 days before) | Tenant | In-app |
@@ -540,21 +540,19 @@ In-app notifications fully wired. SMS and email UI-built but backend stubbed.
 
 ---
 
-### 6.3 SMS and Email Notifications (Designed — Not Yet Active)
+### 6.3 SMS and Email Notifications (Built — SMS go-live pending)
 
-**Current state:**
-- `announcements.channels` JSON field stores `["in-app", "sms", "email"]` selections from the UI
-- SMS and email toggles in `AdminAnnouncements.jsx` are UI-functional but do not trigger delivery
-- `UserNotifications.jsx` includes SMS/Email preference toggles (localStorage only)
+**Current state** (details: `docs/features/sms_email_implementation.md`):
+- Status endpoints, payment reminders and announcements dispatch SMS/email through `backend/api/services/send_notification.php` (queue + retries, quiet hours, opt-outs).
+- SMS: `send_sms()` with the `log` dry-run driver and the live **Semaphore** driver — the only provider. Settings `sms_provider`, `sms_api_key`, `sms_sender_name`, `sms_sender_approved`, `sms_daily_cap` in Account Settings → Notifications.
+- `announcements.channels` records the channels that actually reached someone; SMS and email go out only when ticked on the form (in-app always); a unit picker targets one unit; **Save draft** stores without notifying (fixed 2026-09-24).
+- `notification_preferences` table and `get/update_notification_preferences.php` exist; `UserNotifications.jsx` saves in-app toggles only.
 
-**What is needed to enable SMS (Semaphore):**
-- Register at Semaphore.co; store `semaphore_api_key` + `semaphore_sender_name` in `system_settings`
-- Add cURL dispatch loop in `create_announcement.php` per tenant phone number
-- Create `notification_preferences` table; wire toggles to `update_notification_preferences.php`
+**Remaining for SMS:** Semaphore credits + key, `AMS` sender-name approval, the queue drain scheduled, and a verified live send.
 
-**What is needed to enable Email (PHPMailer):**
-- Install PHPMailer via Composer; configure SMTP credentials in `system_settings` (`smtp_host`, `smtp_user`, `smtp_pass`)
-- Wire email dispatch in `create_announcement.php` and `forgot_password.php`
+**Remaining for Email (PHPMailer):**
+- Install PHPMailer via Composer; set the SMTP credentials in Account Settings (`smtp_host`, `smtp_username`, `smtp_password`) and switch the email driver to SMTP
+- Wire email into `forgot_password.php` (announcements already dispatch)
 
 ### Acceptance Criteria
 - Every invoice generation creates an in-app notification for the tenant
@@ -875,7 +873,7 @@ Fully implemented and DB-backed.
 
 | Item | Detail |
 |---|---|
-| Framework | React 18, Vite 5, React Router 6 |
+| Framework | React 19, Vite 8, React Router 7 (+ socket.io-client; Node.js Socket.IO chat server) |
 | State | `useState` + `useEffect` — no Redux or Zustand |
 | HTTP | Axios via `axiosConfig.js` — auto-injects `X-User-Id` and `X-Admin-Id` on every request |
 | Styling | Custom CSS with utility classes |
@@ -917,9 +915,9 @@ Fully implemented and DB-backed.
 |---|---|---|---|
 | **Payment Gateway** | PayMongo (Sandbox to Live) | Implemented (Sandbox) | `paymongo_secret_key`, `paymongo_public_key`, `paymongo_webhook_secret` in `system_settings` |
 | **Password Reset Email** | PHPMailer + SMTP | Dev bypass active | Must wire SMTP before production; remove `dev_token` response |
-| **Announcement Email** | PHPMailer + SMTP | UI built — backend stubbed | `smtp_host`, `smtp_user`, `smtp_pass` in `system_settings` |
-| **Announcement SMS** | Semaphore API | UI built — backend stubbed | `semaphore_api_key`, `semaphore_sender_name` in `system_settings` |
-| **Tenant Notification Preferences** | Internal | UI toggle only — not wired | Needs `notification_preferences` table |
+| **Announcement Email** | PHPMailer + SMTP | Built — `log` dry-run driver until SMTP is configured | `smtp_host`, `smtp_username`, `smtp_password`, `email_driver` in `system_settings` |
+| **Announcement SMS** | Semaphore API (only provider) | Built — live driver, go-live pending | `sms_provider`, `sms_api_key`, `sms_sender_name`, `sms_sender_approved`, `sms_daily_cap` in `system_settings` |
+| **Tenant Notification Preferences** | Internal | Backend wired (`notification_preferences`, global opt-outs); tenant UI saves in-app toggles only | SMS/email toggles in `UserNotifications.jsx` |
 
 ### PayMongo Integration Notes
 - Webhook delivery requires Ngrok for local testing (`ngrok http 8080`)
@@ -994,11 +992,11 @@ Core tenant, admin, payments, contracts, visitor management, and maintenance wor
 **Goal:** Wire SMS and email channels so they actually dispatch.
 
 **Scope:**
-- Configure PHPMailer SMTP in `system_settings`
-- Wire `create_announcement.php` email dispatch loop for all non-archived tenant emails
-- Register Semaphore API key; wire SMS dispatch cURL loop per tenant phone number
-- Create `notification_preferences` table; wire `UserNotifications.jsx` toggles to `update_notification_preferences.php`
-- Remove `dev_token` bypass from `forgot_password.php` and wire full email delivery
+- [ ] Configure PHPMailer SMTP in `system_settings` (the SMTP driver is built; PHPMailer is not installed)
+- [x] Announcement email/SMS dispatch — via `dispatch_admin_action_broadcast()` — SMS and email go out only when ticked on the form (in-app always); a unit picker targets one unit; **Save draft** stores without notifying (fixed 2026-09-24)
+- [x] Semaphore SMS driver — live; [ ] go-live (credits, sender approval, scheduled queue drain)
+- [x] `notification_preferences` table + endpoints; [ ] SMS/email toggles in `UserNotifications.jsx` (in-app only today)
+- [ ] Remove `dev_token` bypass from `forgot_password.php` and wire full email delivery
 
 ---
 

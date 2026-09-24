@@ -1,7 +1,45 @@
 # Apartment Management System — Full System Design
 
-> **Document Version:** 2.0 — July 2026
-> **Stack:** React (Vite) + PHP + MySQL (XAMPP / MariaDB)
+> **Document Version:** 2.1 — status refreshed 2026-09-24 (v2.0: July 2026)
+> **Stack:** React 19 + Vite 8 + Tailwind 4 → PHP 8 REST endpoints → MySQL/MariaDB (XAMPP), plus a Node.js Socket.IO chat server
+
+> **Read §0 first.** Sections 2–13 were written for v2.0 and are only partly refreshed: §0 is the current inventory, and where a later section disagrees with §0 or with the code, those win. Authoritative status: [panelist_feature_checklist.md](../features/panelist_feature_checklist.md); schema: [database_schema.md](database_schema.md).
+
+---
+
+## 0. Current State (2026-09-24)
+
+**Auth.** Login creates a session token in `sessions`; the SPA sends `Authorization: Bearer <token>` (`src/api/axiosConfig.js`) and endpoints call `require_admin()` / `require_user()` / `require_owner_or_admin()`. `config.php` overwrites any client-sent `X-User-Id` / `X-Admin-Id` from the session, so older endpoints that still read those headers get the session identity. A 401 signs the user out.
+
+**Processes.** Apache + PHP (API) · MariaDB · `websocket-server/server.js` (Socket.IO, :3001, chat) · cron: `backend/cron/process_queue.php` (every minute — SMS/email queue) and `daily_sweep.php` (reminders, automatic parking billing).
+
+**Tables (30 in `SetupDB.sql` + `messages`).** users, rooms, rent_applications, lease_contracts, lease_renewals, household_members · invoices, expenses, utility_readings, parking_charges · maintenance_requests, cctv_requests, parking_reservations, service_catalog, service_requests · visitor_logs, inquiries, unit_reservations, unit_waitlist · announcements, notifications, notification_preferences, notification_queue, notification_log, activity_logs · system_settings, sessions, login_attempts, password_resets, password_reset_requests · messages (chat, `create_messages_table.sql`).
+
+**Endpoints (104 in `backend/api/`), by area:**
+
+| Area | Endpoints |
+|---|---|
+| Auth & users | login, logout, registration, profile, change_password, forgot_password, reset_password, manage_users, get_users |
+| Rooms & units | get_rooms, create_room, update_room, upload_room_images, delete_room_image |
+| Applications & tenancy | rent_application, get_applications, update_tenant_status, get_tenants, archive_tenant, restore_tenant, my_room, update_occupants, household_members, extend_lease, record_move_out, process_tenant_request |
+| Inquiries & holds | submit_inquiry, get_inquiries, update_inquiry_status, create_reservation, update_reservation_status, expire_reservations, manage_waitlist |
+| Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file |
+| Billing & payments | get_invoices, create_invoice, adjust_invoice, pay_bill, record_payment_admin, upload_payment_proof, reject_payment_proof, schedule_payment, send_payment_reminder, check_due_date_reminders, get_payment_channels, create_checkout_session, release_checkout_session, paymongo_webhook, manage_expenses |
+| Utilities | get_utility_readings, save_utility_reading, delete_utility_reading, sync_utility_to_invoice, get_utilities_report_data |
+| Maintenance | maintenance_request, create_maintenance_request_admin, get_maintenance_requests, update_maintenance_status, sync_maintenance_to_invoice |
+| Services | get_service_catalog, manage_service_catalog, service_request, get_service_requests, update_service_status, sync_service_to_invoice |
+| Parking & CCTV | parking_reservation, get_parking_reservations, update_parking_status, get_available_parking_slots, sync_parking_to_invoice, cctv_request, get_cctv_requests, update_cctv_status |
+| Visitors | get_visitors, check_in_visitor, update_visitor_status |
+| Requests (tenant) | get_my_requests, cancel_request |
+| Announcements & notifications | create_announcement, get_announcements, create_notification, get_notifications, mark_notification_read, delete_notification, get_notification_preferences, update_notification_preferences, send_test_notification, get_sms_balance |
+| Chat | get_chat_history, send_message, save_message (alias), get_conversations, get_admin_user |
+| Admin & reports | dashboard_stats, get_report_data, get_activity_logs, get_system_settings, update_system_settings |
+
+Shared code: `backend/config.php` (auth, billing, tenancy, notification helpers), `backend/api/services/` (`send_notification.php`, `send_sms.php` — log / Semaphore, `send_email.php` — log / SMTP, `email_templates.php`).
+
+**Routes.** Public/tenant: `/`, `/home`, `/preview`, `/inquire`, `/login`, `/register`, `/reset-password`, `/services`, `/service-catalog`, `/service-booking`, `/pay-bills`, `/upload-payment`, `/payment-history`, `/user-utilities`, `/parking-reservation`, `/cctv-request`, `/maintenance-request`, `/visitor-management`, `/rent-application`, `/track-application`, `/my-room`, `/view-contract`, `/notifications`, `/my-requests`, `/announcements`, `/profile-settings`. Admin: `/admin-dashboard`, `/admin-inquiries`, `/admin-applications`, `/admin-units`, `/admin-tenants`, `/admin-contracts`, `/admin-payments`, `/admin-utilities`, `/admin-maintenance`, `/admin-services`, `/admin-parking`, `/admin-cctv`, `/admin-visitors`, `/admin-announcements`, `/admin-notifications`, `/admin-messages`, `/admin-reports`, `/admin-users`, `/admin-activity-logs`, `/admin-settings` (tabs: Account, Leasing, Payments, Parking, Notifications, Maintenance).
+
+**No module is mock-data backed any more** — every admin page above reads and writes the database.
 
 ---
 
@@ -22,7 +60,7 @@ AMS has two main actor roles:
 ## 2. Database — Entity Relationship Diagram
 
 > [!NOTE]
-> All 12 planned tables now exist in `ams_db`. The `user_id` FK has been added to `rent_applications`, and the `status` column has been added to `parking_reservations`. Remaining structural issues are documented inline.
+> *(v2.0 diagram — shows the original 12 tables only; the full 30 + `messages` are in §0 and [database_schema.md](database_schema.md).)* All 12 planned tables now exist in `ams_db`. The `user_id` FK has been added to `rent_applications`, and the `status` column has been added to `parking_reservations`. Remaining structural issues are documented inline.
 
 ```mermaid
 erDiagram
@@ -205,11 +243,11 @@ erDiagram
 |-------|-----------|-------------------|---------------|
 | `users` | ✅ Exists | — | ✅ Fully wired |
 | `rent_applications` | ✅ Exists | `user_id` FK added. `room_name` → `rooms.id` still string-only | ✅ Admin CRUD + user submission wired |
-| `maintenance_requests` | ✅ Exists | `user_id` FK nullable. **No `assigned_to`, `estimated_cost`, `work_notes` columns** | ✅ Submission wired; admin uses mock data for enrichment |
-| `cctv_requests` | ✅ Exists | `user_id` FK nullable | ✅ Submission wired; admin uses mock data |
-| `parking_reservations` | ✅ Exists | `user_id` FK nullable. `status` column added | ✅ Submission wired; admin still uses mock data |
+| `maintenance_requests` | ✅ Exists | `user_id` FK nullable. Assignee, estimated/actual cost, timeline and billing columns exist | ✅ Submission and admin board wired (`get_maintenance_requests`, `update_maintenance_status`) |
+| `cctv_requests` | ✅ Exists | `user_id` FK nullable | ✅ Submission and admin review wired (`get_cctv_requests`, `update_cctv_status`) |
+| `parking_reservations` | ✅ Exists | `user_id` FK nullable. `status` column added; numbered slots; monthly billing via `parking_charges` | ✅ Submission and admin approval wired |
 | `rooms` | ✅ Exists | `id` is `varchar` (letter-coded). `tenant_name` is string (not FK) | ✅ `AdminUnits` fully wired to `get_rooms.php` / `update_room.php` |
-| `invoices` | ✅ Exists | PK is `varchar(50)` (e.g. `'INV-...'`). No auto-overdue logic | ✅ `AdminPayments` + `PayBills` + `UserPaymentHistory` wired |
+| `invoices` | ✅ Exists | PK is `varchar(50)` (e.g. `'INV-...'`). Auto-overdue via `promote_overdue_invoices()` | ✅ `AdminPayments` + `PayBills` + `UserPaymentHistory` wired |
 | `lease_contracts` | ✅ Exists | PK is `varchar(50)`. No `user_id` FK (only `rent_application_id`) | ✅ `AdminContracts` wired; `ViewContract` derives from `my_room.php` (not this table) |
 | `announcements` | ✅ Exists | `channels` stored as `longtext` not JSON type | ✅ `AdminAnnouncements` create/read wired. `UserAnnouncements` wired |
 | `notifications` | ✅ Exists | No `related_entity_type`/`related_entity_id` for deep-linking | ✅ `UserNotifications` + `AdminNotifications` + `TopBar` fully wired |
@@ -241,7 +279,7 @@ flowchart TB
         J[Profile APIs\nprofile.php · change_password.php\nget_documents.php]
         K[Payment APIs\npay_bill.php · get_invoices.php\nrecord_payment_admin.php]
         L[Contract APIs\ncreate_contract.php · get_contracts.php\nupdate_contract_status.php\nupload_lease_document.php]
-        M[Announcement and Notification APIs\ncreate_announcement.php · get_announcements.php\nget_announcements_public.php\ncreate_notification.php · get_notifications.php\nmark_notification_read.php · delete_notification.php]
+        M[Announcement and Notification APIs\ncreate_announcement.php · get_announcements.php\nget_announcements.php\ncreate_notification.php · get_notifications.php\nmark_notification_read.php · delete_notification.php]
         N[Admin Dashboard APIs\ndashboard_stats.php · get_report_data.php\nget_activity_logs.php\nget_system_settings.php · update_system_settings.php]
         O[Room APIs\nget_rooms.php · update_room.php]
         P["Database (ams_db)\nMySQL / MariaDB"]
@@ -289,7 +327,7 @@ flowchart LR
 | `/profile-settings` | `ProfileSettings.jsx` | `profile.php`, `get_documents.php`, `change_password.php` | `users`, `rent_applications` | ✅ |
 | `/notifications` | `UserNotifications.jsx` | `get_notifications.php`, `mark_notification_read.php`, `delete_notification.php` | `notifications` | ✅ |
 | `/my-requests` | `UserMyRequests.jsx` | `get_my_requests.php`, `cancel_request.php` | `maintenance_requests`, `cctv_requests`, `parking_reservations` | ✅ |
-| `/announcements` | `UserAnnouncements.jsx` | `get_announcements_public.php` | `announcements` | ✅ |
+| `/announcements` | `UserAnnouncements.jsx` | `get_announcements.php` | `announcements` | ✅ |
 | `/payment-history` | `UserPaymentHistory.jsx` | `get_invoices.php` | `invoices` | ✅ |
 
 ### 5.3 Route Protection Summary
@@ -315,9 +353,9 @@ flowchart LR
 | `/admin-applications` | `AdminApplications.jsx` | View pending/all applications, document preview | `rent_applications` via `get_applications.php` | ✅ DB-backed |
 | `/admin-tenants` | `AdminTenants.jsx` | Pending Review, Active, Archive, Verify Docs, Approve/Reject | `rent_applications` | ✅ |
 | `/admin-payments` | `AdminPayments.jsx` | Billing grouped by tenant, Settlement, Receipt, History | `invoices` via `get_invoices.php`, `record_payment_admin.php` | ✅ DB-backed |
-| `/admin-maintenance` | `AdminMaintainance.jsx` | Kanban, Approval, Status updates, Cost/Assignee | `maintenance_requests` for read stub; **status updates in-memory only** | ⚠️ Partially mocked |
+| `/admin-maintenance` | `AdminMaintainance.jsx` | Kanban, Approval, Status updates, Cost/Assignee | `get_maintenance_requests.php`, `update_maintenance_status.php` | ✅ DB-backed |
 | `/admin-contracts` | `AdminContracts.jsx` | Generate, View, Upload Signed/Notarized, Eviction | `lease_contracts` via `create_contract.php`, `get_contracts.php`, `upload_lease_document.php` | ✅ DB-backed |
-| `/admin-services` | `AdminServicePage.jsx` | CCTV Review, Parking Approval, Service Toggles | **Mock data arrays only** | ⚠️ Fully mocked |
+| `/admin-services` | `AdminServicePage.jsx` | Service catalog, service requests, CCTV review | `get_service_catalog`, `manage_service_catalog`, `get_service_requests`, `update_service_status`, `sync_service_to_invoice`, `get_cctv_requests`, `update_cctv_status` | ✅ DB-backed |
 | `/admin-announcements` | `AdminAnnouncements.jsx` | Compose, Send, View history | `announcements` via `create_announcement.php`, `get_announcements.php` | ✅ DB-backed; auto-notifies tenants |
 | `/admin-reports` | `AdminReports.jsx` | Financial, Occupancy, Maintenance, Reservations | `get_report_data.php` | ✅ DB-backed; detailed reports wired |
 | `/admin-notifications` | `AdminNotifications.jsx` | Read/Delete admin alerts | `notifications` | ✅ DB-backed |
@@ -367,18 +405,20 @@ flowchart LR
 | `upload_lease_document.php` | POST | Upload signed/notarized lease to contract | ✅ |
 | `create_announcement.php` | POST | Persist announcement + auto-create notifications for all tenants | ✅ |
 | `get_announcements.php` | GET | Fetch all announcements (admin) | ✅ |
-| `get_announcements_public.php` | GET | Fetch sent announcements (tenant-facing) | ✅ |
+| `get_announcements.php` | GET | Fetch sent announcements (tenant-facing) | ✅ |
 | `create_notification.php` | POST | Manually insert a notification for a user | ✅ |
 | `get_notifications.php` | GET | Fetch notifications for a `userId` | ✅ |
 | `mark_notification_read.php` | POST | Mark notification(s) as read | ✅ |
 | `delete_notification.php` | POST | Delete a notification | ✅ |
 | `dashboard_stats.php` | GET | Aggregate live KPIs + income chart + new tenants | ✅ |
-| `get_report_data.php` | GET | Aggregate report data by timeframe/month/year | ✅ (endpoint done; frontend not wired) |
+| `get_report_data.php` | GET | Aggregate report data by timeframe/month/year | ✅ |
 | `get_activity_logs.php` | GET | Fetch system activity logs | ✅ |
 | `get_system_settings.php` | GET | Fetch system settings from DB | ✅ |
 | `update_system_settings.php` | POST | Update system settings in DB | ✅ |
 
 ### 7.2 Endpoints Still Missing
+
+> **Resolved.** Every endpoint below now exists except `get_my_contract.php`, which was superseded by `get_contracts.php` (used by `ViewContract.jsx`). §0 lists all 104.
 
 | Endpoint | Method | Priority | Description |
 |----------|--------|----------|-------------|
@@ -430,7 +470,7 @@ flowchart LR
 | `AdminPayments.jsx` | `/admin-payments` | Invoice-based billing, settlement, receipts |
 | `AdminMaintainance.jsx` | `/admin-maintenance` | Kanban + approval workflow (reads DB stub; writes in-memory) |
 | `AdminContracts.jsx` | `/admin-contracts` | Contract generation, upload, eviction tracking (DB-backed) |
-| `AdminServicePage.jsx` | `/admin-services` | CCTV + Parking request review (⚠️ mock data) |
+| `AdminServicePage.jsx` | `/admin-services` | Service catalog + requests, CCTV review (DB-backed) |
 | `AdminAnnouncements.jsx` | `/admin-announcements` | Compose and send announcements (DB-backed) |
 | `AdminReports.jsx` | `/admin-reports` | Financial, occupancy, maintenance reports (DB-backed) |
 | `AdminNotifications.jsx` | `/admin-notifications` | Admin notification management (DB-backed) |
@@ -445,7 +485,7 @@ flowchart LR
 | `AdminSidebar.jsx` | Collapsible admin navigation |
 | `AdminDashboardHeader.jsx` | Admin page headers |
 | `Footer.jsx` | Site footer (user pages only) |
-| `LogInModal.jsx` | Modal prompt for unauthenticated rent clicks |
+| *(removed)* `LogInModal.jsx` | No longer exists. Newer components: `ChatWidget`, `RoomPreviewModal`, `HouseholdPanel`, `AdminHouseholdList`, `WaitlistPanel`, `ExpensesModal`, `ServiceCatalogModal`; context: `context/ChatContext.jsx` |
 | `SuccessModal.jsx` | Reusable success confirmation modal |
 | `DocumentsModal.jsx` | View uploaded verification documents (ProfileSettings) |
 | `ChangePasswordModal.jsx` | Password change modal (ProfileSettings) |
@@ -463,12 +503,10 @@ flowchart LR
 | File | Purpose |
 |------|---------|
 | `migrations/SetupDB.sql` | Full initial DB schema creation |
-| `migrations/add_archive_columns.sql` | Adds archive columns to `rent_applications` |
-| `migrations/fix_and_fk.sql` | Additional FK and integrity fixes |
-| `migrations/priority_1_structural.sql` | Adds `user_id` FK to service tables; creates `rooms`, `invoices`, `lease_contracts` |
-| `migrations/priority_2_and_3.sql` | Creates `invoices` and `lease_contracts` tables |
-| `migrations/priority_4_and_5.sql` | Creates `announcements`, `notifications`, `activity_logs`, `system_settings`; adds admin route guards |
-| `migrations/priority_9_integrity.sql` | Adds `user_id` to `rent_applications`, `status` to `parking_reservations`, archive columns |
+| `migrations/2026_09_*.sql` | Idempotent upgrades for existing databases (billing integrity, contracts/visitors, decisions features, end tenancy, notifications/parking, payment-proof rejection, RBAC/activity logs, room gallery, SMS/email channels, Semaphore live/only, utility readings) — see [database_schema.md §3](database_schema.md) |
+| `migrations/create_messages_table.sql` | Chat `messages` table |
+| `migrations/clear_and_seed.sql`, `seed_reset.sql` | Reset helpers (CI-checked) |
+| *(removed)* | The old `add_archive_columns`, `fix_and_fk`, `priority_*` files no longer exist; their changes are in `SetupDB.sql` |
 
 ---
 
@@ -525,7 +563,7 @@ flowchart LR
     A -->|"ON DELETE SET NULL"| B
 ```
 
-The `user_id` FK is stored on submission via the `X-User-Id` HTTP header. `my_room.php` still queries by email for backward compatibility with pre-migration rows.
+The `user_id` FK is stored on submission from the session (`require_user()`); `config.php` overwrites any client `X-User-Id` header with the session identity. `my_room.php` still queries by email for backward compatibility with pre-migration rows.
 
 ### 10.2 Session Storage Structure
 
@@ -539,7 +577,7 @@ The `user_id` FK is stored on submission via the `X-User-Id` HTTP header. `my_ro
 }
 ```
 
-Stored in `sessionStorage` under key `loggedInUser`. The `id` field is used as `X-User-Id` header on all authenticated API calls via `axiosConfig.js`.
+Stored in `sessionStorage` under key `loggedInUser`, together with `sessionToken`. `axiosConfig.js` sends only `Authorization: Bearer <sessionToken>`; identity is resolved server-side from the `sessions` table.
 
 ---
 
@@ -656,19 +694,25 @@ ALTER TABLE maintenance_requests
 | AdminTenants | ✅ | `get_tenants.php` + approve/reject/archive APIs |
 | AdminPayments | ✅ | `get_invoices.php` + `record_payment_admin.php` |
 | AdminContracts | ✅ | `create_contract.php` + `get_contracts.php` + upload |
-| AdminMaintenance | ⚠️ | Reads DB stub; writes **in-memory only** |
-| AdminServices | ⚠️ | **Fully mocked** — no DB reads or writes |
+| AdminMaintenance | ✅ | `get_maintenance_requests.php` + `update_maintenance_status.php` (+ billing sync) |
+| AdminServices | ✅ | Service catalog/requests + CCTV review, DB-backed |
+| AdminParking / AdminCctv / AdminVisitors | ✅ | Their own pages, DB-backed |
+| AdminInquiries | ✅ | Inquiries, holds, waitlist, conversion |
+| AdminUtilities | ✅ | Meter readings → invoices |
+| AdminUsers | ✅ | `manage_users.php` (RBAC) |
+| AdminMessages / ChatWidget | ✅ | Chat — Socket.IO + `get_chat_history` / `send_message` / `get_conversations` (socket server not yet authenticated — security_audit §6e) |
+| SMS / Email | 🔧 | Pipeline + Semaphore driver built; runs on dry-run drivers until configured |
 | AdminAnnouncements | ✅ | `create_announcement.php` + `get_announcements.php`; auto-notifies tenants |
 | AdminReports | ✅ | `get_report_data.php` fully wired |
 | AdminNotifications | ✅ | `get_notifications.php` + mark read/delete |
 | AdminActivityLogs | ✅ | `get_activity_logs.php` + `log_activity()` on all mutations |
-| AdminSystemSettings | ✅ | `get_system_settings.php` + `update_system_settings.php` |
+| AdminSystemSettings | ✅ | `get_system_settings.php` + `update_system_settings.php`; tabbed (`AdminPages/settings/*`) |
 | UserNotifications | ✅ | DB-backed; TopBar bell also wired |
 | UserPayBills | ✅ | `get_invoices.php` + `pay_bill.php` |
 | UserMyRequests | ✅ | `get_my_requests.php` + `cancel_request.php` |
-| UserAnnouncements | ✅ | `get_announcements_public.php` |
+| UserAnnouncements | ✅ | `get_announcements.php` |
 | UserPaymentHistory | ✅ | `get_invoices.php` (all invoices with status) |
-| ViewContract | ⚠️ | Derived from `my_room.php`; not from `lease_contracts` table |
+| ViewContract | ✅ | `get_contracts.php` (`lease_contracts`) |
 | TrackApplication | ✅ | Status + initial payment wired |
 | Move-Out Request | ✅ | `record_move_out.php` + button in `MyRoom.jsx` + `AdminTenants.jsx` |
 | Payment Proof Upload | ✅ | `upload_payment_proof.php` + `PaymentUpload.jsx` + reference number field |
@@ -688,7 +732,7 @@ ALTER TABLE maintenance_requests
 | FR-1.1 | The system shall allow guests to register an account with first name, middle name, last name, suffix, email, password, contact number, and gender. | ✅ |
 | FR-1.2 | The system shall enforce unique email addresses during registration. | ✅ |
 | FR-1.3 | The system shall authenticate users via email and password and redirect them based on role (`user` or `admin`). | ✅ |
-| FR-1.4 | The system shall store the authenticated user session in `sessionStorage` and inject identity headers (`X-User-Id`, `X-Admin-Id`) on all API calls. | ✅ |
+| FR-1.4 | The system shall store the authenticated user session in `sessionStorage` and send the session token as `Authorization: Bearer` on all API calls (identity headers were removed 2026-09-14). | ✅ |
 | FR-1.5 | The system shall allow users to update their profile information (name, contact, avatar). | ✅ |
 | FR-1.6 | The system shall allow users to change their password (requiring current password verification). | ✅ |
 | FR-1.7 | The system shall allow users to preview uploaded verification documents (Valid ID, NBI Clearance) from their profile. | ✅ |
@@ -828,9 +872,11 @@ ALTER TABLE maintenance_requests
 | FR-10.3 | The system shall provide a tenant-facing announcement board showing all published announcements. | ✅ |
 | FR-10.4 | The system shall provide a Notification Center with history, read/unread status, and delete functionality. | ✅ |
 | FR-10.5 | The system shall display a live notification bell in the TopBar that reads unread count from the database. | ✅ |
-| FR-10.6 | The system shall allow admins to schedule announcements for future delivery. | 🔲 |
-| FR-10.7 | The system shall allow admins to target specific tenants for announcements (instead of all non-admin users). | 🔲 |
-| FR-10.8 | The system shall automatically send notifications when admin updates CCTV/parking/maintenance request status. | 🔲 |
+| FR-10.6 | The system shall allow admins to schedule announcements for future delivery. | 🔲 (drafts exist; scheduled sending does not) |
+| FR-10.7 | The system shall allow admins to target specific tenants for announcements (instead of all non-admin users). | 🔧 (one unit's tenants can be targeted) |
+| FR-10.8 | The system shall automatically send notifications when admin updates CCTV/parking/maintenance request status. | ✅ |
+| FR-10.9 | The system shall deliver notifications by SMS (Semaphore) and email (SMTP) through a queue with retries, quiet hours, a daily SMS cap and per-user opt-outs. | 🔧 (built; dry-run until configured) |
+| FR-10.10 | The system shall provide real-time tenant ↔ admin chat with conversation history and unread counts. | ✅ (admin-initiated threads and per-message notifications pending) |
 
 ---
 
@@ -908,7 +954,7 @@ ALTER TABLE maintenance_requests
 |----|-------------|--------|
 | NFR-2.1 | The system shall hash all user passwords using `bcrypt` before storage. | ✅ |
 | NFR-2.2 | The system shall guard all admin API endpoints with `verify_admin($conn, $admin_id)` server-side validation. | ✅ |
-| NFR-2.3 | The system shall inject `X-User-Id` and `X-Admin-Id` headers on all authenticated API requests via a centralized axios interceptor. | ✅ |
+| NFR-2.3 | The system shall attach the session token (`Authorization: Bearer`) to all authenticated API requests via a centralized axios interceptor; client identity headers are ignored server-side. | ✅ |
 | NFR-2.4 | The system shall implement route-level guards: `ProtectedRoute` (auth required), `TenantProtectedRoute` (approved tenant), `AdminProtectedRoute` (admin role). | ✅ |
 | NFR-2.5 | The system shall use parameterized SQL queries (prepared statements) for all database operations to prevent SQL injection. | ✅ |
 | NFR-2.6 | The system shall set CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) on all API endpoints. | ✅ |
@@ -961,7 +1007,7 @@ ALTER TABLE maintenance_requests
 | ID | Requirement | Status |
 |----|-------------|--------|
 | NFR-6.1 | The system shall support up to 14 rental units with room for additional seeding. | ✅ |
-| NFR-6.2 | The system shall support concurrent admin and tenant sessions via stateless API design (no server-side PHP sessions). | ✅ |
+| NFR-6.2 | The system shall support concurrent admin and tenant sessions via token-based sessions stored in the `sessions` table (no PHP session cookies). | ✅ |
 | NFR-6.3 | The system shall paginate large data sets in admin views (payment history, activity logs). | ✅ |
 
 ---

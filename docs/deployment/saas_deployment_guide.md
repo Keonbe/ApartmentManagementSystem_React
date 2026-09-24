@@ -58,7 +58,7 @@
 > | `SetupDB.sql` uses MariaDB-only syntax (`ADD COLUMN IF NOT EXISTS`) | `backend/api/migrations/` | Fails on a plain MySQL 8 server — use MariaDB |
 
 > [!NOTE]
-> **Email and SMS are not implemented in the code yet.** There is no PHPMailer, Resend or Semaphore integration — password resets and reminders are in-app only. [§8](#8-email-resend--sms-semaphore) covers account setup so they are ready when the code is written, but deploying does not turn them on.
+> **SMS is built on Semaphore; email is built but runs on the dry-run driver.** Both are configured in Admin → Account Settings → Notifications (database settings, not env vars). Password resets are still in-app only. [§8](#8-email-resend--sms-semaphore) covers the provider accounts; deploying does not turn either channel on.
 
 **Time needed:** roughly half a day for a first deployment (code prep 1–2 h, services 2 h, verification 1 h).
 
@@ -79,7 +79,7 @@ flowchart LR
     R -->|"HTTPS"| P["PayMongo API"]
     P -->|"Webhook POST<br/>/api/paymongo_webhook.php"| R
     R -.->|"future"| E["Resend (email)"]
-    R -.->|"future"| S["Semaphore (SMS)"]
+    R -->|"SMS (queue drain)"| S["Semaphore (SMS)"]
 ```
 
 **Resulting URLs** (placeholders used throughout this guide):
@@ -101,7 +101,7 @@ flowchart LR
 | Supabase | File storage — **only if you choose Option B** in §6 | Free (1 GB) | supabase.com |
 | PayMongo | Online payments (GCash, Maya, card) | Test mode is free | paymongo.com |
 | Resend | Email — setup only, see §8 | Free (3,000 emails/month) | resend.com |
-| Semaphore | SMS — setup only, see §8 | Pay per message | semaphore.co |
+| Semaphore | SMS — live driver, the only SMS provider; see §8 | Pay per message (prepaid credits) | semaphore.co |
 | cron-job.org | Optional scheduled sweeps, see §9 | Free | cron-job.org |
 
 ### 1.3 Tools on your computer
@@ -616,7 +616,7 @@ The endpoint verifies the `Paymongo-Signature` header, rejects events older than
 ## 8. Email (Resend) & SMS (Semaphore)
 
 > [!WARNING]
-> **Neither is wired into the code yet.** No endpoint sends email or SMS today; `forgot_password.php` only has a placeholder comment where the email would be sent. Complete the account setup below so credentials are ready, then implement the sending code (design notes: [notification_services.md](../features/notification_services.md), [external_services.md](../documentation/external_services.md)).
+> **SMS is implemented (Semaphore); email is implemented but on the dry-run driver.** Status endpoints and announcements dispatch through `backend/api/services/send_notification.php`; `send_sms()` and `send_email()` exist. `forgot_password.php` still does not send email. Implementation and go-live steps: [sms_email_implementation.md](../features/sms_email_implementation.md) (Appendix C).
 
 ### 8.1 Resend (email)
 
@@ -631,16 +631,17 @@ The endpoint verifies the `Paymongo-Signature` header, rejects events older than
 | `MAIL_FROM` | `AMS <noreply@yourapartment.com>` |
 | `APP_URL` | `https://<APP_DOMAIN>` — used to build links such as `/reset-password?email=…&token=…` |
 
-**Code needed before it works:** a `send_email($to, $subject, $html)` helper in `backend/config.php` that POSTs JSON to `https://api.resend.com/emails` with `Authorization: Bearer $RESEND_API_KEY`. Call it from `forgot_password.php` in place of the placeholder comment. (PHPMailer over `smtp.resend.com:465` with user `resend` and the API key as password is an alternative, but it requires adding Composer to the image.)
+**Code status:** `send_email()` exists in `backend/api/services/send_email.php` with `log` and SMTP (PHPMailer) drivers; there is no Resend HTTP driver. Using Resend's API would mean a driver that POSTs JSON to `https://api.resend.com/emails` with `Authorization: Bearer $RESEND_API_KEY`. Call it from `forgot_password.php` in place of the placeholder comment. (PHPMailer over `smtp.resend.com:465` with user `resend` and the API key as password is an alternative, but it requires adding Composer to the image.)
 
 ### 8.2 Semaphore (SMS)
 
 1. Sign up at semaphore.co → buy credits (₱0.50–₱1.00 per message).
 2. **Sender Names → Request** a sender name (e.g. `AMS`); approval takes 1–3 business days. Until approved, messages go out under a default name.
 3. **Account → API** → copy the API key.
-4. Add Railway variables `SEMAPHORE_API_KEY` and `SEMAPHORE_SENDER_NAME`. (A `semaphore_api_key` key also exists in `system_settings`; nothing reads it yet, so pick one place when you implement.)
+4. In Admin → Account Settings → **Notifications**: SMS Provider `Semaphore`, paste the API key, set the sender name, **Save**, then **Check balance**. These are database settings (`sms_api_key`, `sms_sender_name`, `sms_sender_approved`, `sms_daily_cap`), so each environment's database holds its own key — no env vars.
+5. Tick **Sender name approved** only once Semaphore shows it approved, and schedule the queue drain (`backend/cron/process_queue.php` every minute).
 
-**Code needed before it works:** a `send_sms($number, $message)` helper that POSTs `apikey`, `number`, `message`, `sendername` to `https://api.semaphore.co/api/v4/messages`, called from the reminder and overdue flows.
+**Code status:** built — `send_sms($conn, $phone, $message, …)` in `backend/api/services/send_sms.php` POSTs to `https://api.semaphore.co/api/v4/messages` and follows Semaphore's rules (one segment, "TEST" prefix guard, rate limits). Status updates, payment reminders and announcements use it; rent-due/overdue SMS from the daily sweep is not wired yet.
 
 ---
 
@@ -760,7 +761,7 @@ Figures from [saas_fallback_strategy.md §7](saas_fallback_strategy.md#7-recomme
 | Railway (API + MariaDB + 1 GB volume) | roughly ₱0–₱560, depending on usage beyond the US$5 credit |
 | Supabase Storage (Option B) | ₱0 up to 1 GB |
 | PayMongo | 2.9% + ₱15 per live transaction |
-| Resend / Semaphore | ₱0 until implemented; then free tier / ₱0.50–₱1.00 per SMS |
+| Resend / Semaphore | Email: ₱0 (Gmail SMTP) or Resend free tier · SMS: ₱0.50–₱1.00 per message once Semaphore is switched on |
 
 ---
 

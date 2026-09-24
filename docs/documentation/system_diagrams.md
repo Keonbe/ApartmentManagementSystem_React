@@ -1,7 +1,7 @@
 # AMS — System Diagrams
 
 > **Document Version:** 1.0 — August 2026
-> **Stack:** React 18 (Vite) + PHP 8 + MySQL/MariaDB 10 (XAMPP)
+> **Stack:** React 19 (Vite 8) + PHP 8 + MySQL/MariaDB 10 (XAMPP)
 > **Database:** `ams_db`
 
 ---

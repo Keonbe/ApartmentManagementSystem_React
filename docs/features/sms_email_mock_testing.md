@@ -13,7 +13,7 @@ That means the feature is fully demonstrable with **no SMS account, no Gmail cre
 
 Nothing on the dry-run path can reach the network. The only network calls in the service layer are inside the Semaphore driver (`_semaphore_request()` in `send_sms.php`), which runs only when `sms_provider = 'semaphore'`; the selftest's `DRY` check enforces that every network call sits in a provider-driver function.
 
-**Semaphore is a live driver** — selecting it spends real credits (go-live steps: §9). The other four (Twilio, Vonage, Movider, iTexMo) are **stubs**; selecting one makes sends fail with a clear reason rather than pretending to work.
+**Semaphore is the only real SMS provider** — selecting it spends real credits (go-live steps: §9). The Twilio / Vonage / Movider / iTexMo stubs were removed (2026-09-24); a building saved on one of them falls back to `log`.
 
 ## 2. Turn the channels on
 
@@ -99,7 +99,7 @@ FROM notification_log ORDER BY id DESC LIMIT 10;"
 |---|---|
 | `sent` | The driver accepted the message. On a `log` driver this means "recorded", not "delivered". |
 | `skipped` | A guard stopped it before any driver ran — the channel is switched off, or the tenant is opted out. `error_message` says which. |
-| `failed` | A driver rejected it: an invalid phone number, a stub provider, missing SMTP credentials. |
+| `failed` | A driver rejected it: an invalid phone number, Semaphore refusing it (bad key, rate limit, `Failed`/`Refunded`), missing SMTP credentials. `error_message` says which. |
 
 `message_body` is truncated to 500 characters and rows older than `notification_log_retention_days` (90 by default) are deleted on each drain — the log holds tenant numbers and addresses, so it is not kept indefinitely.
 
@@ -117,7 +117,7 @@ Opening the `.html` in a browser is the closest thing to seeing the real email. 
 
 This is the normal way to work. Sections 3 and 4 above are the command-line equivalents, kept for debugging; nothing here needs them.
 
-**Set up once:** Account Settings → Notification Services → tick **Email Notifications** and **SMS Notifications**, leave both drivers on **Log**, **Save**. Then open devtools (**F12 → Console**) and leave it open.
+**Set up once:** Account Settings → **Notifications** tab → tick **Email Notifications** and **SMS Notifications**, leave both drivers on **Log**, **Save**. Then open devtools (**F12 → Console**) and leave it open.
 
 ### 6.1 Real admin actions
 
@@ -157,7 +157,7 @@ Configure a real provider and that reverses automatically: admin actions go back
 /c/xampp/php/php.exe backend/cron/notification_selftest.php
 ```
 
-18 checks, no spend, exit code 0 on success. It forces both drivers to `log` before sending anything, so it is safe to run while Semaphore is configured. It creates its own fixture tenant, flips the switches it needs, and restores everything — safe to run against a database with real data, as often as you like. Add `--keep` to leave the fixtures behind for inspection.
+19 checks, no spend, exit code 0 on success. It forces both drivers to `log` before sending anything, so it is safe to run while Semaphore is configured. It creates its own fixture tenant, flips the switches it needs, and restores everything — safe to run against a database with real data, as often as you like. Add `--keep` to leave the fixtures behind for inspection.
 
 | ID | Proves |
 |---|---|
@@ -174,6 +174,7 @@ Configure a real provider and that reverses automatically: admin actions go back
 | M6-17 | Template values are escaped — an injected `<img onerror=…>` renders as text |
 | M6-18 / C11 | Old log rows are pruned; bodies are truncated to 500 characters |
 | M6-35 | `sms_provider = 'log'` writes the outbox file and a `sent` row |
+| M6-39 | A text starting with "TEST" (even after a stripped emoji) goes out as `AMS: Test…` — Semaphore silently drops messages that start with TEST |
 | DRY | Network calls live only in provider-driver functions, never on the dry-run path |
 
 ## 8. Reset
@@ -197,18 +198,17 @@ The code path does not change. In order:
 
 1. **Email** — install PHPMailer (`cd backend && composer require phpmailer/phpmailer:^6.9`; pin 6.x, PHPMailer 7 needs PHP 8.1 and local XAMPP is 8.0.30), fill the SMTP fields with a Gmail **App Password**, set **Delivery Method** to `SMTP`. Free and no lead time — do this one first.
 2. **SMS (Semaphore — built)** — full steps in [Appendix C.1](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md#c1-semaphore-sms--philippine-local). In short:
-   1. Apply `backend/api/migrations/2026_09_sms_semaphore_live.sql` (adds `sms_sender_approved`, `sms_daily_cap`).
+   1. Apply `backend/api/migrations/2026_09_sms_semaphore_live.sql` (adds `sms_sender_approved`, `sms_daily_cap`), then `2026_09_sms_semaphore_only.sql` (removes the dropped providers' settings).
    2. **Schedule the queue drain** — with a real provider, admin actions enqueue (the console shows `queued`, §6.4) and nothing is delivered until it runs:
       ```bat
-      schtasks /create /tn "AMS Notification Queue" /sc minute /mo 1 /tr "\"C:
-mpp\htdocs\ApartmentManagementSystem_React\backend\cronun_queue.bat\""
+      schtasks /create /tn "AMS Notification Queue" /sc minute /mo 1 /tr "\"C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\run_queue.bat\""
       ```
       Output goes to `backend/logs/queue_drain.log`.
-   3. Give your admin account a mobile number, then in Account Settings pick **Semaphore**, paste the API key, save, and press **Check balance**.
+   3. Give your admin account a mobile number, then in Account Settings pick **Semaphore**, paste the API key, save, and press **Check balance**. Semaphore allows 2 balance checks a minute, so a repeat within 60 s shows the cached answer ("as of HH:MM"); going over the limit shows "Semaphore rate limit reached (retry after Ns)".
    4. Enable SMS, save, **Send test** (SMS). Confirm the handset and the `notification_log` row.
    5. Tick **Sender name approved by Semaphore** only once the dashboard shows `AMS` approved; until then messages use the shared `SEMAPHORE` sender. Philippine carriers filter unregistered sender names silently.
    6. **Daily SMS Cap** (default 100) stops runaway spend; over-cap sends are `skipped`, not charged.
 
-Other providers (Twilio, Vonage, Movider, iTexMo) are still stubs — Appendix C has the API call for each.
+Semaphore is the only SMS provider; there are no other drivers.
 
 To stop spending at any time, set SMS Provider back to **Log** or switch SMS Notifications off. §0.4 of the implementation guide covers the carrier rules, and §0.3 the cost model.

@@ -1,6 +1,6 @@
 # Move-In / Move-Out Tracking — Workflow Design
 
-> **Stack context:** React 18 + Vite → PHP 8 (XAMPP) → MySQL/MariaDB  
+> **Stack context:** React 19 + Vite 8 → PHP 8 (XAMPP) → MySQL/MariaDB  
 > **Core Requirement:** Safe, admin-controlled lifecycle transitions. **No user self-service completion** of move-in or move-out.
 
 ---
