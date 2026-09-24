@@ -235,7 +235,7 @@ Expected baseline: all counts `0` except `utility_readings` = `4` (the seeded Ju
 | 3 | Rental Payment & Billing | ✅ Documented | [§6](#6-module-3--rental-payment--billing) |
 | 4 | Maintenance Request | ✅ Documented | [§7](#7-module-4--maintenance-request) |
 | 5 | Service Management | ✅ Documented (add-on catalog, bookings, billing, CCTV) | [§8](#8-module-5--service-management) |
-| 6 | Notification Module | ✅ Documented — in-app only; email/SMS remain designed (6.6/6.7) | [§13](#13-module-6--notifications--automation) |
+| 6 | Notification Module | ✅ Documented — in-app audited here; the email/SMS pipeline (6.6/6.7, SMS live via Semaphore) is tested in [sms_email_implementation.md §4.3](../features/sms_email_implementation.md#43-verification) | [§13](#13-module-6--notifications--automation) |
 | 7 | Communication (Two-Way Chat) | ⬜ Not yet audited | — |
 | 8 | Admin Dashboard & Reports | ✅ Documented — Financial Tracking (8.1–8.3), Utility Usage (8.7), Reports & Activity Log (8.4–8.6, extended for logging coverage), and demo data (8.8, `seed_mock_data.sql`) | [§9](#9-module-8--financial-tracking), [§10](#10-module-8--utility-usage), [§11](#11-module-8--reports--activity-log) |
 | 9 | Contract & Document Generation | ✅ Documented — transition guards, one contract per application, termination ends the tenancy | [§15](#15-module-9--contract--document-generation) |

@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 require_once "../config.php";
+require_once __DIR__ . '/services/send_notification.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -20,7 +21,10 @@ $title = trim((string)($input['title'] ?? ''));
 $body = trim((string)($input['body'] ?? ''));
 $send_to = trim((string)($input['sendTo'] ?? 'All tenants'));
 $unit = trim((string)($input['unit'] ?? ''));
-$channels = json_encode(['in-app']); // Email and SMS are not built (checklist 6.6 / 6.7).
+// Recorded as in-app, then rewritten after the broadcast with the channels that
+// actually reached someone — a tenant may be opted out of SMS, or the channel
+// may be switched off building-wide, and the stored record should say so.
+$channels = json_encode(['in-app']);
 
 if ($title === '' || $body === '') {
     http_response_code(422);
@@ -73,6 +77,7 @@ try {
     if (!$stmt->execute()) {
         throw new Exception("Announcement insert failed: " . $stmt->error);
     }
+    $announcement_id = $stmt->insert_id;
     $stmt->close();
 
     // Announcements respect each tenant's "Building announcements" preference.
@@ -82,8 +87,32 @@ try {
     }
 
     $conn->commit();
-    log_activity($conn, $admin_id, 'communication', "Created Announcement", "Title: $title; To: $send_to_label; Delivered in-app to $delivered of $recipient_count");
-    echo json_encode(["success" => true, "message" => "Announcement sent to $delivered tenant(s).", "recipient_count" => $recipient_count, "delivered" => $delivered]);
+
+    // Broadcast outside the transaction: an SMS or email problem must not roll
+    // back an announcement that tenants can already see in-app.
+    $notification_dispatch = dispatch_admin_action_broadcast(
+        $conn, $recipients, $notif_type, $title,
+        "AMS $tag: $title - $body",
+        email_announcement_template($title, $body, $tag)
+    );
+
+    $used = ['in-app'];
+    if ($notification_dispatch['sms'] > 0) $used[] = 'sms';
+    if ($notification_dispatch['email'] > 0) $used[] = 'email';
+    $used_json = json_encode($used);
+    $stmt = $conn->prepare("UPDATE announcements SET channels = ? WHERE id = ?");
+    $stmt->bind_param("si", $used_json, $announcement_id);
+    $stmt->execute();
+    $stmt->close();
+
+    log_activity($conn, $admin_id, 'communication', "Created Announcement", "Title: $title; To: $send_to_label; Delivered in-app to $delivered of $recipient_count; channels: " . implode(', ', $used));
+    echo json_encode([
+        "success" => true,
+        "message" => "Announcement sent to $delivered tenant(s).",
+        "recipient_count" => $recipient_count,
+        "delivered" => $delivered,
+        "notification_dispatch" => $notification_dispatch
+    ]);
 } catch (Exception $e) {
     $conn->rollback();
     server_error_response($e, "Failed to create announcement.");

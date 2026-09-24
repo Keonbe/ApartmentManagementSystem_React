@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . "/../config.php";
+require_once __DIR__ . '/services/send_notification.php';
 
 // Manual reminders from AdminPayments.jsx. Every reminder goes through
 // claim_invoice_reminder(), so an invoice is reminded at most once per day
@@ -40,6 +41,11 @@ try {
 
         $count = 0;
         $skipped = 0;
+        // Each invoice carries its own amount, so this dispatches per tenant and
+        // aggregates. One rendered sample goes back, not one per invoice — a
+        // hundred rendered emails in a console group is unreadable.
+        $dispatch_totals = ['sms' => 0, 'email' => 0, 'recipients' => 0];
+        $dispatch_sample = null;
         foreach ($rows as $inv) {
             if (!claim_invoice_reminder($conn, $inv['id'])) {
                 $skipped++;
@@ -47,9 +53,28 @@ try {
             }
             $overdue = new DateTime($inv['due_date']) < $today;
             [$title, $message] = reminder_text($inv, $today, $overdue, $custom_message);
-            create_notification($conn, $inv['user_id'], $overdue ? 'overdue' : 'rent_due', $title, $message);
+            $event = $overdue ? 'overdue' : 'rent_due';
+            create_notification($conn, $inv['user_id'], $event, $title, $message);
+
+            $d = dispatch_admin_action_notification(
+                $conn, $inv['user_id'], $event, $title, "AMS: $message",
+                email_payment_template(
+                    notify_recipient_name($conn, $inv['user_id']),
+                    $inv['total_amount'], $inv['room_name'] ?: 'no unit',
+                    $inv['billing_period'], $event, $inv['id']
+                )
+            );
+            if ($d['sms'] === 'sent' || $d['sms'] === 'queued') $dispatch_totals['sms']++;
+            if ($d['email'] === 'sent' || $d['email'] === 'queued') $dispatch_totals['email']++;
+            $dispatch_totals['recipients']++;
+            if ($dispatch_sample === null) $dispatch_sample = $d;
             $count++;
         }
+
+        $notification_dispatch = $dispatch_sample === null ? null : $dispatch_totals + [
+            'dry_run'  => $dispatch_sample['dry_run'],
+            'rendered' => $dispatch_sample['rendered'],
+        ];
 
         if ($count > 0) {
             log_activity($conn, $admin_id, 'billing', 'Sent Payment Reminders', "Sent payment reminders for {$count} invoice(s); {$skipped} already reminded today.");
@@ -59,7 +84,8 @@ try {
             "success" => true,
             "message" => "Sent reminders for {$count} invoice(s)." . ($skipped ? " {$skipped} were already reminded today." : ""),
             "count" => $count,
-            "skipped" => $skipped
+            "skipped" => $skipped,
+            "notification_dispatch" => $notification_dispatch
         ]);
         exit;
     }
@@ -101,10 +127,20 @@ try {
 
     $overdue = new DateTime($inv['due_date']) < $today;
     [$title, $message] = reminder_text($inv, $today, $overdue, $custom_message);
-    create_notification($conn, $inv['user_id'], $overdue ? 'overdue' : 'rent_due', $title, $message);
+    $event = $overdue ? 'overdue' : 'rent_due';
+    create_notification($conn, $inv['user_id'], $event, $title, $message);
 
     $tenantName = trim(($inv['first_name'] ?? '') . ' ' . ($inv['last_name'] ?? '')) ?: 'Tenant';
     $unit = $inv['room_name'] ?: 'no unit';
+
+    $notification_dispatch = dispatch_admin_action_notification(
+        $conn, $inv['user_id'], $event, $title, "AMS: $message",
+        email_payment_template(
+            $inv['first_name'] ?: 'Tenant',
+            $inv['total_amount'], $unit, $inv['billing_period'], $event, $inv['id']
+        )
+    );
+
     log_activity($conn, $admin_id, 'billing', 'Sent Payment Reminder', "Sent payment reminder to {$tenantName} (Unit {$unit}) for invoice {$invoice_id}.");
 
     echo json_encode([
@@ -112,7 +148,8 @@ try {
         "message" => "Reminder sent to {$tenantName} successfully.",
         "invoice_id" => $invoice_id,
         "last_reminder_date" => date('Y-m-d'),
-        "reminder_count" => (int)$inv['reminder_count'] + 1
+        "reminder_count" => (int)$inv['reminder_count'] + 1,
+        "notification_dispatch" => $notification_dispatch
     ]);
 } catch (Exception $e) {
     server_error_response($e, "Failed to send the reminder.");

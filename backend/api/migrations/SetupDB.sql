@@ -1037,6 +1037,11 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('sms_provider', 'log'),
 ('sms_api_key', ''),
 ('sms_sender_name', 'AMS'),
+-- Semaphore: post sendername only once the custom name is approved; until then
+-- messages go out under the shared 'SEMAPHORE' sender.
+('sms_sender_approved', '0'),
+-- Spend guard: max SMS sent per day ('0' = no cap). Over the cap is 'skipped'.
+('sms_daily_cap', '100'),
 ('sms_twilio_sid', ''),
 ('sms_twilio_auth_token', ''),
 ('sms_twilio_from_number', ''),

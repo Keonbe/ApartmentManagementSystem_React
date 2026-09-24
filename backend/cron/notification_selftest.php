@@ -191,8 +191,9 @@ try {
     }
     $final = queue_rows($conn, $uid)[0] ?? null;
     check('M6-13', 'A failing driver retries, backs off, then gives up',
-        $final && (int)$final['attempts'] === 3 && $final['status'] === 'failed',
-        implode(' -> ', $attempts_seen));
+        $final && (int)$final['attempts'] === 3 && $final['status'] === 'failed'
+            && str_contains((string)$final['error_message'], 'Twilio'),
+        implode(' -> ', $attempts_seen) . ($final && $final['error_message'] ? ' (error recorded)' : ' (no error recorded)'));
     put_setting($conn, 'sms_provider', 'log');
 
     // ── M6-14 — concurrent drains cannot double-send ────────
@@ -213,16 +214,23 @@ try {
     clear_state($conn, $uid);
     // Make the current hour the quiet window, whatever the clock says: start at
     // this hour, end at the next one. Holds for the wrap-around case too (23->00).
-    $now_hour = (int)date('G');
+    $now_hour = notification_clock_hour($conn);
     put_setting($conn, 'notifications_quiet_start', (string)$now_hour);
     put_setting($conn, 'notifications_quiet_end', (string)(($now_hour + 1) % 24));
     enqueue_notification($conn, $uid, 'sms', 'rent_due', ['to' => '09171234567', 'body' => 'AMS: rent due soon']);
     enqueue_notification($conn, $uid, 'sms', 'overdue', ['to' => '09171234567', 'body' => 'AMS: rent overdue']);
     $q = process_notification_queue($conn, 10);
     $states = [];
-    foreach (queue_rows($conn, $uid) as $r) $states[$r['event_type']] = $r['status'];
+    $held_until = null;
+    foreach (queue_rows($conn, $uid) as $r) {
+        $states[$r['event_type']] = $r['status'];
+        if ($r['event_type'] === 'rent_due') $held_until = $r['next_attempt_at'];
+    }
+    // Held until the window's end hour on the DB clock (PHP's may differ).
+    $held_ok = $held_until && (int)substr($held_until, 11, 2) === ($now_hour + 1) % 24;
     check('M6-15', 'A non-urgent SMS in quiet hours is deferred, not sent',
-        $q['deferred'] === 1 && ($states['rent_due'] ?? '') === 'pending', 'deferred ' . $q['deferred']);
+        $q['deferred'] === 1 && ($states['rent_due'] ?? '') === 'pending' && $held_ok,
+        'deferred ' . $q['deferred'] . ', held until ' . ($held_until ?? '-'));
     check('M6-16', 'An overdue SMS ignores quiet hours',
         $q['sent'] === 1 && ($states['overdue'] ?? '') === 'sent', 'sent ' . $q['sent']);
     put_setting($conn, 'notifications_quiet_start', '23');
@@ -255,15 +263,36 @@ try {
     check('C11', 'Logged message bodies are truncated to 500 characters',
         $row && mb_strlen($row['message_body']) === 500, $row ? mb_strlen($row['message_body']) . ' chars' : 'no row');
 
+    // ── M6-35 — the log driver records and contacts nothing ─
+    clear_state($conn, $uid);
+    put_setting($conn, 'sms_provider', 'log');
+    $outbox = __DIR__ . '/../logs/notification_outbox';
+    $before = count(glob($outbox . '/*-sms-*.txt') ?: []);
+    $ok = send_sms($conn, '0917 123 4567', 'AMS dry-run check', 'test', $uid);
+    $after = count(glob($outbox . '/*-sms-*.txt') ?: []);
+    $row = log_rows($conn, $uid, 'sms')[0] ?? null;
+    check('M6-35', "sms_provider 'log' writes the outbox and a sent row",
+        $ok && $after === $before + 1 && $row && $row['status'] === 'sent',
+        'outbox +' . ($after - $before) . ', log ' . ($row['status'] ?? 'none'));
+
     // ── Nothing contacts a provider in dry run ──────────────
-    $sources = glob(__DIR__ . '/../api/services/*.php');
+    // Real drivers (Semaphore) do open connections, so the rule is that every
+    // network call sits inside a provider-driver function; the dry-run path
+    // (send_sms/_sms_via_log, send_email/_email_via_log, the queue) has none.
+    $driver_fn = '/^(_send_via_\w+|_semaphore_request|semaphore_account_balance|_email_via_smtp)$/';
     $network = [];
-    foreach ($sources as $file) {
-        if (preg_match('/curl_init|file_get_contents\s*\(\s*[\'"]https?:/', file_get_contents($file))) {
-            $network[] = basename($file);
+    foreach (glob(__DIR__ . '/../api/services/*.php') as $file) {
+        $chunks = preg_split('/^function\s+(\w+)\s*\(/m', file_get_contents($file), -1, PREG_SPLIT_DELIM_CAPTURE);
+        // $chunks = [preamble, name1, body1, name2, body2, ...]
+        for ($i = 0; $i < count($chunks); $i += 2) {
+            $name = $i === 0 ? '(top level)' : $chunks[$i - 1];
+            if (preg_match('/curl_init|fsockopen|file_get_contents\s*\(\s*[\'"]https?:/', $chunks[$i])
+                && !preg_match($driver_fn, $name)) {
+                $network[] = basename($file) . ':' . $name;
+            }
         }
     }
-    check('DRY', 'No service file opens a network connection', !$network, $network ? implode(', ', $network) : 'clean');
+    check('DRY', 'Network calls live only in provider drivers', !$network, $network ? implode(', ', $network) : 'clean');
 
 } finally {
     // ── Restore ─────────────────────────────────────────────

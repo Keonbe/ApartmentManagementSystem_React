@@ -2,6 +2,8 @@
 
 > **For:** whoever is running this on XAMPP. Every command is copy-pasteable from Git Bash.
 > **Design and build order:** [`sms_email_implementation.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md). This page is only how to drive it.
+>
+> **Start at [§6](#6-from-the-admin-ui)** if you just want to see it work: admin actions print the message to the browser console, no command line involved. Sections 2–5 are the command-line equivalents, for debugging and for reading what the UI recorded.
 
 ## 1. What the mock is
 
@@ -9,13 +11,9 @@
 
 That means the feature is fully demonstrable with **no SMS account, no Gmail credentials, no PHPMailer and no spend**. Switching to a real provider later changes settings, not code.
 
-Nothing in the service layer can reach the network — verify it yourself:
+Nothing on the dry-run path can reach the network. The only network calls in the service layer are inside the Semaphore driver (`_semaphore_request()` in `send_sms.php`), which runs only when `sms_provider = 'semaphore'`; the selftest's `DRY` check enforces that every network call sits in a provider-driver function.
 
-```bash
-grep -rn "curl_init" backend/api/services/    # no output
-```
-
-The five real SMS drivers (Semaphore, Twilio, Vonage, Movider, iTexMo) are **stubs**. Selecting one makes sends fail with a clear reason rather than pretending to work.
+**Semaphore is a live driver** — selecting it spends real credits (go-live steps: §9). The other four (Twilio, Vonage, Movider, iTexMo) are **stubs**; selecting one makes sends fail with a clear reason rather than pretending to work.
 
 ## 2. Turn the channels on
 
@@ -30,6 +28,8 @@ WHERE setting_key IN ('notifications_sms_enabled','notifications_email_enabled')
 Put them back when you are done (§7). Leaving them on is harmless **only** while both drivers are `log` — with a real provider configured, this is the switch that starts spending money.
 
 ## 3. Send one message from the console
+
+> **Only with `sms_provider = 'log'`.** `0917 123 4567` below is a made-up number; with Semaphore selected it is a real stranger's phone and a real charge. On a live provider use **Send test** (§6.3), which only ever texts your own number.
 
 ```bash
 # SMS — note the deliberately messy number; it is normalised to +639171234567
@@ -115,15 +115,41 @@ Opening the `.html` in a browser is the closest thing to seeing the real email. 
 
 ## 6. From the admin UI
 
-**Account Settings → Notification Services** carries the same controls, and is the fastest way to see a send:
+This is the normal way to work. Sections 3 and 4 above are the command-line equivalents, kept for debugging; nothing here needs them.
 
-1. Tick **Email Notifications** and **SMS Notifications**, leave both drivers on **Log**, and **Save**.
-2. Make sure your admin account has a contact number and email (Profile section above) — a test cannot reach a blank field.
-3. Open devtools (**F12 → Console**), then press **Test SMS**, **Test Email** or **Test Both**.
+**Set up once:** Account Settings → Notification Services → tick **Email Notifications** and **SMS Notifications**, leave both drivers on **Log**, **Save**. Then open devtools (**F12 → Console**) and leave it open.
 
-The toast reports the outcome; the console holds the payload — drivers used, per-channel result, the exact SMS text with its character count, and the full email HTML. A dry run is labelled as such, so a `log` success can never be mistaken for a delivery.
+### 6.1 Real admin actions
 
-The test always goes to **your own** contact details, never a tenant's, and it reads the **saved** settings — save before testing a change.
+Every admin action that notifies a tenant now also dispatches SMS and email, and prints what it sent to the console — collapsed group, headed `AMS notification — <endpoint>`. Expand it for the per-channel result, the exact SMS text with its character count, the email subject and the full email HTML.
+
+| Do this | Event type | You should see |
+|---|---|---|
+| Maintenance → change a request's status | `maintenance_update` | The status update text, plus the rejection reason if you gave one |
+| Payments → **Send reminder** on one invoice | `rent_due` / `overdue` | The amount, unit and due date; overdue wording past the due date |
+| Payments → **Send to all** | `rent_due` / `overdue` | Aggregate counts plus one rendered sample — not one block per invoice |
+| Announcements → post one | `info` / `warning` / `action` | `Recipients: N`, and the tag in the SMS prefix |
+| CCTV / Parking / Service → change a status | that request's type | The request label and its new status |
+| Notifications → approve or decline a tenant request | the request's own type | The decision wording, including any invoices created |
+
+Nothing is delivered. `(DRY RUN, nothing sent)` in the group heading is the proof — it appears whenever both drivers are `log`, so a mock can never be misread as a real send. With one live driver and one mock (e.g. SMS on Semaphore, email on `log`) the heading instead names the mocked channel — `(email: dry run)` — from the response's `dry_run_channels`.
+
+### 6.2 What the console is actually showing you
+
+Two things are worth looking for, because they are invisible anywhere else:
+
+- **The SMS is the post-transform text.** A peso sign has already become `PHP`, and the text is cut at one 160-character GSM-7 segment. A long payment reminder *will* show as truncated mid-word — that is the hard cap, not a bug. If you dislike where it cuts, shorten the message, don't raise the limit: a second segment doubles the per-message cost.
+- **`SMS: skipped` with `Email: sent`** means the gate worked. The tenant is opted out of SMS (or that category), and the dispatcher stopped it — a different thing from the channel being switched off building-wide, which skips both.
+
+### 6.3 The test-send button
+
+The same section has **Test SMS / Test Email / Test Both**, which go to **your own** contact details rather than a tenant's. Use them to check credentials and templates without touching a real record. They read the **saved** settings, so save before testing a change, and your admin account needs a contact number and email.
+
+### 6.4 Why the queue looks empty
+
+While both drivers are `log`, admin actions dispatch **synchronously** — the send completes inside the request, which is why the result is in the console at all. Nothing reaches `notification_queue`.
+
+Configure a real provider and that reverses automatically: admin actions go back to enqueuing, the console reports `queued`, and `process_queue.php` (§4) does the sending. That switch is deliberate — a real provider means a network round trip per recipient, and an announcement to thirty tenants must not happen inside the admin's POST.
 
 ## 7. Run the selftest
 
@@ -131,7 +157,7 @@ The test always goes to **your own** contact details, never a tenant's, and it r
 /c/xampp/php/php.exe backend/cron/notification_selftest.php
 ```
 
-17 checks, no spend, exit code 0 on success. It creates its own fixture tenant, flips the switches it needs, and restores everything — safe to run against a database with real data, as often as you like. Add `--keep` to leave the fixtures behind for inspection.
+18 checks, no spend, exit code 0 on success. It forces both drivers to `log` before sending anything, so it is safe to run while Semaphore is configured. It creates its own fixture tenant, flips the switches it needs, and restores everything — safe to run against a database with real data, as often as you like. Add `--keep` to leave the fixtures behind for inspection.
 
 | ID | Proves |
 |---|---|
@@ -142,12 +168,13 @@ The test always goes to **your own** contact details, never a tenant's, and it r
 | M6-09 | A per-category SMS opt-out leaves email alone |
 | M6-10 | A tenant with no contact number produces no SMS row and no error |
 | M6-12 | Dispatch enqueues without sending; the drain delivers |
-| M6-13 | A failing driver retries with growing backoff, then gives up at `max_attempts` |
+| M6-13 | A failing driver retries with growing backoff, then gives up at `max_attempts`, with the reason copied to `notification_queue.error_message` |
 | M6-14 | Two drains running at once never send the same job twice |
-| M6-15 / M6-16 | Quiet hours hold a non-urgent text; an overdue notice ignores them |
+| M6-15 / M6-16 | Quiet hours hold a non-urgent text until the window's end hour on the **database** clock; an overdue notice ignores them |
 | M6-17 | Template values are escaped — an injected `<img onerror=…>` renders as text |
 | M6-18 / C11 | Old log rows are pruned; bodies are truncated to 500 characters |
-| DRY | No service file opens a network connection |
+| M6-35 | `sms_provider = 'log'` writes the outbox file and a `sent` row |
+| DRY | Network calls live only in provider-driver functions, never on the dry-run path |
 
 ## 8. Reset
 
@@ -169,6 +196,19 @@ rm -rf backend/logs/notification_outbox
 The code path does not change. In order:
 
 1. **Email** — install PHPMailer (`cd backend && composer require phpmailer/phpmailer:^6.9`; pin 6.x, PHPMailer 7 needs PHP 8.1 and local XAMPP is 8.0.30), fill the SMTP fields with a Gmail **App Password**, set **Delivery Method** to `SMTP`. Free and no lead time — do this one first.
-2. **SMS** — the driver for your provider still has to be written (Appendix C of the implementation guide has the API call for each). Before that matters, start the **sender-ID registration**: Philippine carriers filter unregistered A2P traffic silently, so the API returns success and nothing arrives. Semaphore takes 1–3 business days; Twilio and Vonage take a week or more and want business documents.
+2. **SMS (Semaphore — built)** — full steps in [Appendix C.1](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md#c1-semaphore-sms--philippine-local). In short:
+   1. Apply `backend/api/migrations/2026_09_sms_semaphore_live.sql` (adds `sms_sender_approved`, `sms_daily_cap`).
+   2. **Schedule the queue drain** — with a real provider, admin actions enqueue (the console shows `queued`, §6.4) and nothing is delivered until it runs:
+      ```bat
+      schtasks /create /tn "AMS Notification Queue" /sc minute /mo 1 /tr "\"C:
+mpp\htdocs\ApartmentManagementSystem_React\backend\cronun_queue.bat\""
+      ```
+      Output goes to `backend/logs/queue_drain.log`.
+   3. Give your admin account a mobile number, then in Account Settings pick **Semaphore**, paste the API key, save, and press **Check balance**.
+   4. Enable SMS, save, **Send test** (SMS). Confirm the handset and the `notification_log` row.
+   5. Tick **Sender name approved by Semaphore** only once the dashboard shows `AMS` approved; until then messages use the shared `SEMAPHORE` sender. Philippine carriers filter unregistered sender names silently.
+   6. **Daily SMS Cap** (default 100) stops runaway spend; over-cap sends are `skipped`, not charged.
 
-Keep both on `log` until the registration is approved. §0.4 of the implementation guide covers the carrier rules, and §0.3 the cost model.
+Other providers (Twilio, Vonage, Movider, iTexMo) are still stubs — Appendix C has the API call for each.
+
+To stop spending at any time, set SMS Provider back to **Log** or switch SMS Notifications off. §0.4 of the implementation guide covers the carrier rules, and §0.3 the cost model.

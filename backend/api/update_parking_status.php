@@ -4,6 +4,7 @@ require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 require_once "../config.php";
+require_once __DIR__ . '/services/send_notification.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -128,6 +129,16 @@ resolve_admin_queue($conn, 'parking_reservation', $id);
 create_notification($conn, (int)$current['user_id'], 'parking_reservation', $title, $message);
 log_activity($conn, $admin_id, 'service', "Updated Parking Reservation", $log);
 
+$notification_dispatch = dispatch_admin_action_notification(
+    $conn, (int)$current['user_id'], 'parking_reservation', $title, "AMS: $message",
+    email_status_update_template(
+        notify_recipient_name($conn, (int)$current['user_id']),
+        'parking',
+        $current['vehicle_model'] . ' (' . $current['plate_number'] . ')',
+        $status, $message
+    )
+);
+
 // In automatic billing mode the first month is posted as soon as the slot is assigned.
 $billing = null;
 if ($status === 'Assigned' && get_setting($conn, 'parking_billing_mode', 'manual') === 'auto') {
@@ -141,6 +152,7 @@ echo json_encode([
     "success" => true,
     "message" => "Parking reservation " . strtolower($status) . ".",
     "billing" => $billing,
+    "notification_dispatch" => $notification_dispatch,
 ]);
 $conn->close();
 ?>

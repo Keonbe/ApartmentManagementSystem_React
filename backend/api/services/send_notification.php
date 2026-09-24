@@ -29,7 +29,7 @@ const NOTIFICATION_URGENT_TYPES = ['overdue', 'action'];
 // ──────────────────────────────────────────────
 //  Dispatch
 // ──────────────────────────────────────────────
-function dispatch_external_notification($conn, $user_id, $event_type, $subject, $sms_text, $email_html) {
+function dispatch_external_notification($conn, $user_id, $event_type, $subject, $sms_text, $email_html, $force_mode = null) {
     $user_id = (int)$user_id;
     if ($user_id <= 0) return ['sms' => 'skipped', 'email' => 'skipped'];
 
@@ -40,7 +40,9 @@ function dispatch_external_notification($conn, $user_id, $event_type, $subject, 
     $stmt->close();
     if (!$user) return ['sms' => 'skipped', 'email' => 'skipped'];
 
-    $mode = get_setting($conn, 'notifications_dispatch_mode', 'queue') === 'sync' ? 'sync' : 'queue';
+    $mode = $force_mode === 'sync' ? 'sync'
+          : ($force_mode === 'queue' ? 'queue'
+          : (get_setting($conn, 'notifications_dispatch_mode', 'queue') === 'sync' ? 'sync' : 'queue'));
     $out  = ['sms' => 'skipped', 'email' => 'skipped'];
 
     // user_channel_allowed() in config.php is the single gate: the tenant's own
@@ -73,14 +75,84 @@ function dispatch_external_notification($conn, $user_id, $event_type, $subject, 
 }
 
 // Announcements and the daily sweep. Cheap now that each call is one INSERT.
-function dispatch_external_broadcast($conn, $user_ids, $event_type, $subject, $sms_text, $email_html) {
+function dispatch_external_broadcast($conn, $user_ids, $event_type, $subject, $sms_text, $email_html, $force_mode = null) {
     $totals = ['sms' => 0, 'email' => 0];
     foreach ($user_ids as $uid) {
-        $r = dispatch_external_notification($conn, $uid, $event_type, $subject, $sms_text, $email_html);
+        $r = dispatch_external_notification($conn, $uid, $event_type, $subject, $sms_text, $email_html, $force_mode);
         if ($r['sms'] === 'sent' || $r['sms'] === 'queued') $totals['sms']++;
         if ($r['email'] === 'sent' || $r['email'] === 'queued') $totals['email']++;
     }
     return $totals;
+}
+
+// ──────────────────────────────────────────────
+//  Admin-action dispatch (what the endpoints call)
+// ──────────────────────────────────────────────
+
+/**
+ * Sync only while both drivers are mocks. A real provider means a TCP+TLS round
+ * trip per recipient inside the admin's POST — the reason the queue exists (see
+ * the file header). Returning null here falls back to the configured mode, so
+ * configuring a provider cannot silently turn the admin UI into a blocking call.
+ */
+function _admin_action_mode($conn) {
+    $mock = get_setting($conn, 'sms_provider', 'log') === 'log'
+         && get_setting($conn, 'email_driver', 'log') === 'log';
+    return $mock ? 'sync' : null;
+}
+
+// Greeting for the email templates. Falls back rather than rendering "Hello ,".
+function notify_recipient_name($conn, $user_id) {
+    $user_id = (int)$user_id;
+    if ($user_id <= 0) return 'Tenant';
+    $stmt = $conn->prepare("SELECT first_name FROM users WHERE id = ?");
+    if (!$stmt) return 'Tenant';
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return !empty($row['first_name']) ? $row['first_name'] : 'Tenant';
+}
+
+/**
+ * Dispatch for an admin action and hand back what was rendered, so the endpoint
+ * can return it and the browser console can show the message itself.
+ *
+ * rendered.sms_text is the POST-transform text: send_sms() folds the peso sign
+ * and cuts at one GSM-7 segment before any driver sees it, so showing the raw
+ * input would misreport both. Both helpers are pure, so running them twice is free.
+ */
+function dispatch_admin_action_notification($conn, $user_id, $event_type, $subject, $sms_text, $email_html) {
+    $out = dispatch_external_notification($conn, $user_id, $event_type, $subject,
+                                          $sms_text, $email_html, _admin_action_mode($conn));
+    return $out + _admin_action_rendered($conn, $subject, $sms_text, $email_html);
+}
+
+function dispatch_admin_action_broadcast($conn, $user_ids, $event_type, $subject, $sms_text, $email_html) {
+    $out = dispatch_external_broadcast($conn, $user_ids, $event_type, $subject,
+                                       $sms_text, $email_html, _admin_action_mode($conn));
+    $out['recipients'] = count($user_ids);
+    return $out + _admin_action_rendered($conn, $subject, $sms_text, $email_html);
+}
+
+// One rendered sample plus the honesty flag: a 'log' driver recorded the message,
+// it did not deliver it, and the console must not let those read the same.
+// dry_run_channels says it per channel: with SMS on Semaphore and email still on
+// 'log', one message really went out and the other was only recorded.
+function _admin_action_rendered($conn, $subject, $sms_text, $email_html) {
+    $shown     = sms_single_segment(gsm7_safe((string)$sms_text));
+    $sms_dry   = get_setting($conn, 'sms_provider', 'log') === 'log';
+    $email_dry = get_setting($conn, 'email_driver', 'log') === 'log';
+    return [
+        'dry_run'          => $sms_dry && $email_dry,
+        'dry_run_channels' => ['sms' => $sms_dry, 'email' => $email_dry],
+        'rendered' => [
+            'sms_text'   => $shown,
+            'sms_length' => mb_strlen($shown),
+            'subject'    => $subject,
+            'email_html' => $email_html,
+        ],
+    ];
 }
 
 // ──────────────────────────────────────────────
@@ -134,7 +206,9 @@ function process_notification_queue($conn, $limit = 20) {
     // non-urgent traffic overnight prevents the most common complaint.
     $quiet_start = (int)get_setting($conn, 'notifications_quiet_start', '21');
     $quiet_end   = (int)get_setting($conn, 'notifications_quiet_end', '07');
-    $hour        = (int)date('G');
+    // The database clock, not PHP's: XAMPP ships PHP on Europe/Berlin while the
+    // DB runs on local time, and next_attempt_at is already compared to NOW().
+    $hour        = notification_clock_hour($conn);
     $in_quiet    = $quiet_start > $quiet_end
         ? ($hour >= $quiet_start || $hour < $quiet_end)   // window wraps midnight
         : ($hour >= $quiet_start && $hour < $quiet_end);
@@ -165,11 +239,14 @@ function process_notification_queue($conn, $limit = 20) {
             $attempts = (int)$job['attempts'] + 1;
             $status   = $attempts >= (int)$job['max_attempts'] ? 'failed' : 'pending';
             $backoff  = (int)min(60 * pow(2, $attempts), 3600);
+            // send_sms()/send_email() log the reason; copy it onto the job so a
+            // failed row explains itself without joining notification_log.
+            $error = _last_delivery_error_for($conn, (int)$job['user_id'], $job['channel']);
             $retry = $conn->prepare("UPDATE notification_queue
-                                     SET status = ?, attempts = ?, claim_token = NULL,
+                                     SET status = ?, attempts = ?, claim_token = NULL, error_message = ?,
                                          next_attempt_at = DATE_ADD(NOW(), INTERVAL ? SECOND)
                                      WHERE id = ?");
-            $retry->bind_param("siii", $status, $attempts, $backoff, $id);
+            $retry->bind_param("sisii", $status, $attempts, $error, $backoff, $id);
             $retry->execute();
             $retry->close();
             if ($status === 'failed') $counts['failed']++;
@@ -189,14 +266,36 @@ function process_notification_queue($conn, $limit = 20) {
     return $counts;
 }
 
-// Hold a quiet-hours SMS until the window ends rather than dropping it.
-function _queue_defer_to_quiet_end($conn, $id, $quiet_end) {
-    $next = new DateTime('today ' . str_pad((string)$quiet_end, 2, '0', STR_PAD_LEFT) . ':00:00');
-    if ($next <= new DateTime()) $next->modify('+1 day');
-    $when = $next->format('Y-m-d H:i:s');
+// Newest logged error for this user and channel, or null.
+function _last_delivery_error_for($conn, $user_id, $channel) {
+    $stmt = $conn->prepare("SELECT error_message FROM notification_log
+                            WHERE user_id <=> ? AND channel = ? ORDER BY id DESC LIMIT 1");
+    if (!$stmt) return null;
+    $uid = $user_id > 0 ? $user_id : null;
+    $stmt->bind_param("is", $uid, $channel);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row['error_message'] ?? null;
+}
 
-    $stmt = $conn->prepare("UPDATE notification_queue SET status = 'pending', claim_token = NULL, next_attempt_at = ? WHERE id = ?");
-    $stmt->bind_param("si", $when, $id);
+// Current hour (0-23) on the database clock that the queue schedules against.
+function notification_clock_hour($conn) {
+    $res = $conn->query("SELECT HOUR(NOW()) AS h");
+    return $res ? (int)$res->fetch_assoc()['h'] : (int)date('G');
+}
+
+// Hold a quiet-hours SMS until the window ends rather than dropping it. Computed
+// in SQL for the same reason as the hour check: next_attempt_at is DB time.
+function _queue_defer_to_quiet_end($conn, $id, $quiet_end) {
+    $end = (int)$quiet_end;
+    $stmt = $conn->prepare("UPDATE notification_queue
+                            SET status = 'pending', claim_token = NULL,
+                                next_attempt_at = IF(TIMESTAMP(CURDATE(), MAKETIME(?, 0, 0)) > NOW(),
+                                                     TIMESTAMP(CURDATE(), MAKETIME(?, 0, 0)),
+                                                     TIMESTAMP(CURDATE() + INTERVAL 1 DAY, MAKETIME(?, 0, 0)))
+                            WHERE id = ?");
+    $stmt->bind_param("iiii", $end, $end, $end, $id);
     $stmt->execute();
     $stmt->close();
 }

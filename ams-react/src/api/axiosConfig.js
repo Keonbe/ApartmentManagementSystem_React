@@ -36,7 +36,29 @@ api.interceptors.request.use((config) => {
 // signed out elsewhere, or ended by a password reset, role change or archive.
 // Without this the UI kept showing stale data and endless spinners while still
 // believing it was signed in.
-api.interceptors.response.use((response) => response, (error) => {
+// Any endpoint that dispatched an SMS/email returns notification_dispatch, and
+// it gets printed here rather than in each admin page. On the 'log' drivers the
+// console IS the message: nothing leaves the machine, so this is the only place
+// the rendered text and HTML can be read as the admin works.
+api.interceptors.response.use((response) => {
+    const d = response.data?.notification_dispatch;
+    if (d) {
+        // With one live driver and one mock, name the channel that only recorded.
+        const dryOnly = Object.entries(d.dry_run_channels || {}).filter(([, dry]) => dry).map(([ch]) => ch);
+        const dryLabel = d.dry_run ? ' (DRY RUN, nothing sent)' : dryOnly.length ? ` (${dryOnly.join(', ')}: dry run)` : '';
+        console.groupCollapsed(
+            `%cAMS notification — ${response.config?.url || 'request'}${dryLabel}`,
+            'color:#2563eb;font-weight:bold'
+        );
+        console.log('SMS:', d.sms, '· Email:', d.email);
+        if (d.recipients !== undefined) console.log('Recipients:', d.recipients);
+        console.log(`SMS text (${d.rendered?.sms_length} chars):\n${d.rendered?.sms_text}`);
+        console.log('Email subject:', d.rendered?.subject);
+        console.log('Email HTML:\n' + d.rendered?.email_html);
+        console.groupEnd();
+    }
+    return response;
+}, (error) => {
     const sentToken = error?.config?.headers?.Authorization;
     if (error?.response?.status === 401 && sentToken) {
         clearStoredSession();

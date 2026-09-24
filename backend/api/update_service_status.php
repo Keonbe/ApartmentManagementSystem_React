@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
+require_once __DIR__ . '/services/send_notification.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -111,6 +112,14 @@ try {
 
     create_notification($conn, $old['user_id'], 'service_status', $notif_title, $notif_msg);
 
+    $notification_dispatch = dispatch_admin_action_notification(
+        $conn, $old['user_id'], 'service_status', $notif_title, "AMS: $notif_msg",
+        email_status_update_template(
+            notify_recipient_name($conn, $old['user_id']),
+            'service', $service_name, $status, $notif_msg
+        )
+    );
+
     //ClearTheOriginalIntakeRowFromTheAdminBellOnceTheRequestIsSettled
     // (Once the booking leaves Pending the admin has acted on it.)
     if ($status !== 'Pending') {
@@ -124,7 +133,8 @@ try {
         "message" => "Service request marked $status.",
         "billed" => $billed,
         "invoiceId" => $invoice_id,
-        "warning" => $warning
+        "warning" => $warning,
+        "notification_dispatch" => $notification_dispatch
     ]);
 
 } catch (Exception $e) {

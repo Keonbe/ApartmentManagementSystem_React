@@ -4,6 +4,7 @@ require_once __DIR__ . '/../cors.php';
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 require_once "../config.php";
+require_once __DIR__ . '/services/send_notification.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -51,16 +52,29 @@ try {
     $cctv = $infoStmt->get_result()->fetch_assoc();
     $infoStmt->close();
 
+    $notification_dispatch = null;
     if ($cctv) {
         $notifTitle = "CCTV Request " . $status;
         $notifMsg = "Your CCTV footage request for " . $cctv['location_details'] . " on " . $cctv['incident_date'] . " has been " . strtolower($status) . ".";
         create_notification($conn, $cctv['user_id'], 'cctv_request', $notifTitle, $notifMsg);
+
+        $notification_dispatch = dispatch_admin_action_notification(
+            $conn, $cctv['user_id'], 'cctv_request', $notifTitle, "AMS: $notifMsg",
+            email_status_update_template(
+                notify_recipient_name($conn, $cctv['user_id']),
+                'CCTV footage', $cctv['location_details'], $status
+            )
+        );
     }
 
     resolve_admin_queue($conn, 'cctv_request', $id);
     log_activity($conn, $admin_id, 'service', "Updated CCTV Request", "CCTV Request ID: $id status set to $status");
 
-    echo json_encode(["success" => true, "message" => "CCTV request status updated successfully."]);
+    echo json_encode([
+        "success" => true,
+        "message" => "CCTV request status updated successfully.",
+        "notification_dispatch" => $notification_dispatch
+    ]);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(["success" => false, "message" => "Failed to update the CCTV request."]);
