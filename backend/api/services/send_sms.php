@@ -44,9 +44,17 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
 
     $provider = strtolower(get_setting($conn, 'sms_provider', 'log'));
 
+    // Spend guard: a real provider bills every send, so a runaway loop or a
+    // mis-targeted broadcast stops at the cap. The dry run costs nothing and
+    // is not capped, so mock testing is unaffected.
+    if ($provider !== 'log' && ($cap = _sms_daily_cap_reached($conn)) !== null) {
+        log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'skipped', "Daily SMS cap reached ($cap)");
+        return false;
+    }
+
     $result = match ($provider) {
         'log'       => _sms_via_log($conn, $phone, $message, $event_type, $user_id),
-        'semaphore' => _sms_provider_stub('Semaphore'),
+        'semaphore' => _send_via_semaphore($conn, $phone, $message),
         'twilio'    => _sms_provider_stub('Twilio'),
         'vonage'    => _sms_provider_stub('Vonage'),
         'movider'   => _sms_provider_stub('Movider'),
@@ -84,8 +92,126 @@ function _sms_via_log($conn, $phone, $message, $event_type, $user_id) {
     return ['ok' => true];
 }
 
-// The real drivers are deliberately not implemented yet: each one contacts a
-// paid API, and untested code that spends money is worse than an honest stub.
+// ──────────────────────────────────────────────
+//  Driver: Semaphore  (api.semaphore.co, Philippines)
+// ──────────────────────────────────────────────
+//  One POST per message; Semaphore charges one credit per 160-char segment,
+//  which sms_single_segment() has already enforced.
+function _send_via_semaphore($conn, $phone, $message) {
+    $api_key = get_setting($conn, 'sms_api_key', '');
+    if ($api_key === '') return ['ok' => false, 'error' => 'No Semaphore API key configured'];
+
+    $fields = [
+        'apikey'  => $api_key,
+        // normalize_ph_mobile() gives +639XXXXXXXXX; Semaphore wants 639XXXXXXXXX.
+        'number'  => ltrim($phone, '+'),
+        'message' => $message,
+    ];
+    // An unapproved sendername is rejected, so it is only sent once the admin
+    // has confirmed approval. Without it Semaphore uses its shared 'SEMAPHORE'.
+    $sender = trim((string)get_setting($conn, 'sms_sender_name', ''));
+    if ($sender !== '' && get_setting($conn, 'sms_sender_approved', '0') === '1') {
+        $fields['sendername'] = $sender;
+    }
+
+    [$code, $json, $raw, $err] = _semaphore_request('POST', '/messages', $fields);
+    if ($err !== null) return ['ok' => false, 'error' => $err];
+
+    // Success is a list of message objects, one per recipient. Validation
+    // errors come back as an object of field => messages, sometimes with a
+    // 200, so the status code alone is not enough.
+    $first = (is_array($json) && isset($json[0]) && is_array($json[0])) ? $json[0] : null;
+    if ($code >= 200 && $code < 300 && $first && !empty($first['message_id'])) {
+        $status = (string)($first['status'] ?? '');
+        if (in_array(strtolower($status), ['failed', 'refunded'], true)) {
+            return ['ok' => false, 'error' => "Semaphore marked message {$first['message_id']} as $status"];
+        }
+        return ['ok' => true];
+    }
+
+    return ['ok' => false, 'error' => _semaphore_error($code, $json, $raw)];
+}
+
+/**
+ * Live credit balance for the admin settings page. Never throws.
+ * Returns ['ok' => bool, 'credit_balance' => ?, 'account_name' => ?, 'status' => ?, 'error' => ?].
+ */
+function semaphore_account_balance($conn) {
+    $api_key = get_setting($conn, 'sms_api_key', '');
+    if ($api_key === '') return ['ok' => false, 'error' => 'No Semaphore API key configured'];
+
+    [$code, $json, $raw, $err] = _semaphore_request('GET', '/account', ['apikey' => $api_key]);
+    if ($err !== null) return ['ok' => false, 'error' => $err];
+
+    if ($code >= 200 && $code < 300 && is_array($json) && array_key_exists('credit_balance', $json)) {
+        return [
+            'ok'             => true,
+            'credit_balance' => $json['credit_balance'],
+            'account_name'   => $json['account_name'] ?? null,
+            'status'         => $json['status'] ?? null,
+        ];
+    }
+    return ['ok' => false, 'error' => _semaphore_error($code, $json, $raw)];
+}
+
+// Validation errors arrive as {"field": ["message", ...]} — often with a 200 —
+// so flatten them into something an admin can act on ("The selected apikey is
+// invalid.") instead of raw JSON.
+function _semaphore_error($code, $json, $raw) {
+    if (is_array($json) && $json && !isset($json[0])) {
+        $messages = [];
+        foreach ($json as $value) {
+            foreach ((array)$value as $m) if (is_scalar($m)) $messages[] = (string)$m;
+        }
+        if ($messages) return mb_substr('Semaphore: ' . implode(' ', $messages), 0, 300);
+    }
+    return mb_substr("Semaphore HTTP $code: " . (is_array($json) ? json_encode($json) : (string)$raw), 0, 300);
+}
+
+// Shared transport. Returns [http_code, decoded_json|null, raw_body, error|null].
+function _semaphore_request($method, $path, $fields) {
+    $url = 'https://api.semaphore.co/api/v4' . $path;
+    $ch  = curl_init();
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_CONNECTTIMEOUT => 5,
+    ];
+    if ($method === 'POST') {
+        $opts[CURLOPT_URL]        = $url;
+        $opts[CURLOPT_POST]       = true;
+        $opts[CURLOPT_POSTFIELDS] = http_build_query($fields);
+    } else {
+        $opts[CURLOPT_URL] = $url . '?' . http_build_query($fields);
+    }
+    curl_setopt_array($ch, $opts);
+
+    $raw  = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $cerr = curl_error($ch);
+    curl_close($ch);
+
+    if ($raw === false || $cerr !== '') return [$code, null, '', 'cURL error: ' . ($cerr ?: 'request failed')];
+    return [$code, json_decode($raw, true), $raw, null];
+}
+
+// ──────────────────────────────────────────────
+//  Daily cap
+// ──────────────────────────────────────────────
+// Returns the cap when today's sent count has reached it, else null.
+function _sms_daily_cap_reached($conn) {
+    $cap = (int)get_setting($conn, 'sms_daily_cap', '0');
+    if ($cap <= 0) return null;
+
+    $res = $conn->query("SELECT COUNT(*) AS n FROM notification_log
+                         WHERE channel = 'sms' AND status = 'sent' AND sent_at >= CURDATE()");
+    if (!$res) return null;
+    $sent = (int)$res->fetch_assoc()['n'];
+    return $sent >= $cap ? $cap : null;
+}
+
+// The remaining drivers are deliberately not implemented: each contacts a paid
+// API, and untested code that spends money is worse than an honest stub.
 // Appendix C of docs/features/sms_email_implementation.md has the cURL call for
 // each; adding one is a single function plus a line in the match above.
 function _sms_provider_stub($name) {

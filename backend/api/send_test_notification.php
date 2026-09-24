@@ -59,7 +59,7 @@ if (($channel === 'sms' || $channel === 'both')) {
             'status'    => $ok ? 'sent' : 'failed',
             'driver'    => $sms_provider,
             'recipient' => $me['contact_no'],
-            'reason'    => $ok ? null : _last_delivery_error($conn, $admin_id, 'sms'),
+            'reason'    => $ok ? null : _last_delivery_error_for($conn, $admin_id, 'sms'),
         ];
     }
 }
@@ -75,7 +75,7 @@ if (($channel === 'email' || $channel === 'both')) {
             'status'    => $ok ? 'sent' : 'failed',
             'driver'    => $email_driver,
             'recipient' => $me['email_address'],
-            'reason'    => $ok ? null : _last_delivery_error($conn, $admin_id, 'email'),
+            'reason'    => $ok ? null : _last_delivery_error_for($conn, $admin_id, 'email'),
         ];
     }
 }
@@ -83,11 +83,14 @@ if (($channel === 'email' || $channel === 'both')) {
 log_activity($conn, $admin_id, 'system', 'Sent Test Notification', 'Channel: ' . $channel . ' (sms driver: ' . $sms_provider . ', email driver: ' . $email_driver . ')');
 
 // The rendered bodies come back so the caller can print exactly what would have
-// gone out. dry_run says whether anything actually left the building, so a log
-// driver's success can never be mistaken for a delivery.
+// gone out. dry_run says whether any tested channel only recorded its message,
+// so a log driver's success can never be mistaken for a delivery.
+$sms_dry   = $sms_provider === 'log';
+$email_dry = $email_driver === 'log';
 echo json_encode([
     "success"  => true,
-    "dry_run"  => ($sms_provider === 'log' || $email_driver === 'log'),
+    "dry_run"  => ($channel !== 'email' && $sms_dry) || ($channel !== 'sms' && $email_dry),
+    "dry_run_channels" => ["sms" => $sms_dry, "email" => $email_dry],
     "drivers"  => ["sms" => $sms_provider, "email" => $email_driver],
     "channels" => ["sms_enabled" => $sms_enabled, "email_enabled" => $email_enabled],
     "results"  => $results,
@@ -98,15 +101,5 @@ echo json_encode([
         "email_html" => $email_html,
     ],
 ]);
-
-function _last_delivery_error($conn, $user_id, $channel) {
-    $stmt = $conn->prepare("SELECT error_message FROM notification_log
-                            WHERE user_id = ? AND channel = ? ORDER BY id DESC LIMIT 1");
-    $stmt->bind_param("is", $user_id, $channel);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return $row ? $row['error_message'] : null;
-}
 
 $conn->close();
