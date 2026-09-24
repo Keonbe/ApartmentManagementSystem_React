@@ -850,3 +850,36 @@ Admin: sees tenant replies in a "Tenant Messages" admin page
 
 > [!TIP]
 > **Recommendation unchanged:** HTTP Polling → SSE is the right progression for AMS on XAMPP. If you're unsure whether tenants even want chat, ship **Alt E** (notification reply) first to validate demand with zero new infrastructure, then build real chat when users ask for it.
+
+---
+
+## 12. Complaints Management (7.7)
+
+Checklist item 7.7 asks for a way to file and track a tenant complaint as distinct from ordinary chit-chat. This doc (§1–§11) never covered it — this section closes that gap. It's additive to the schema and endpoints already designed above; there's no separate complaints system.
+
+### Design: a tag on the conversation, not a new table
+
+A complaint is a **conversation flagged as a complaint**, plus a resolution state an admin can track. Reuse `conversations` and `messages` as-is; don't fork into a parallel `complaints` table, which would duplicate history/read-state/notification logic already solved in §2–§3.
+
+```sql
+-- Additive to add_chat_tables.sql (or its own small migration, same conventions)
+ALTER TABLE conversations
+    ADD COLUMN is_complaint  TINYINT(1) NOT NULL DEFAULT 0,
+    ADD COLUMN complaint_category ENUM('Maintenance','Billing','Neighbor','Noise','Staff','Other') NULL,
+    ADD COLUMN complaint_status   ENUM('Open','In Review','Resolved') NULL,
+    ADD COLUMN resolved_at        DATETIME NULL;
+```
+
+- `is_complaint` flips on when the tenant starts the thread via a "File a Complaint" entry point in `TenantChat.jsx` instead of the plain "Message Admin" one — `start_conversation.php` accepts an optional `{ is_complaint, complaint_category }` and sets them at creation. A conversation's complaint flag doesn't change after creation (a complaint that becomes a casual thread just gets a new `complaint_status` of `Resolved`; it can't be un-flagged).
+- `complaint_status` starts `Open`, admin moves it to `In Review`/`Resolved` from the conversation view (small `update_conversation_status.php` endpoint, mirroring the pattern of `update_maintenance_status.php`: session-authenticated admin, validates the transition, `log_activity()`, and fires `create_notification()` to the tenant on change — same pipeline §3's `send_message.php` already uses).
+- `AdminChat.jsx`'s inbox sidebar gets a filter/badge for `is_complaint = 1 AND complaint_status != 'Resolved'`, so open complaints don't get lost in the general message list.
+
+### Why not a separate system
+
+- **Permissions**: the IDOR guard in §10 already scopes every read/write to `admin_id`/`tenant_id` on the conversation row; a parallel complaints table would need the same guard rewritten and re-verified.
+- **History**: a complaint is a conversation — the tenant explaining the issue, the admin asking follow-ups, is exactly the `messages` thread this doc already designs.
+- **Notifications**: `send_message.php` already creates a notification row per message (§3.2, §7.6) — a complaint status change just needs the same `create_notification()` call, not a new dispatch path.
+
+### Scope
+
+Build this after §9 Phase 1–2 (conversations/messages + UI) are working — it's a small additive migration plus one status endpoint and one UI filter, not a phase of its own.
