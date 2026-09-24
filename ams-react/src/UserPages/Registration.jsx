@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.png";
@@ -29,8 +28,22 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
         }
     };
 
+    const [hasSubmitted, setHasSubmitted] = useState(false);
+
     const handleRegister = async (e) => {
         e.preventDefault();
+        setHasSubmitted(true);
+        setMessage('');
+
+        // Validations
+        if (password.length < 6) {
+            setMessage("Password must be at least 6 characters.");
+            return;
+        }
+        if (password !== conPassword) {
+            setMessage("Passwords do not match.");
+            return;
+        }
 
         const payload = {
             first_name: firstname.trim(),
@@ -65,6 +78,17 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
             .custom-ams-logo {
                 font-family: 'Playfair Display', Georgia, serif !important;
             }
+            input:focus ~ label .floating-hint,
+            input:not(:placeholder-shown) ~ label .floating-hint {
+                display: none !important;
+            }
+            .required-asterisk {
+                display: none !important;
+            }
+            form.has-submitted input:invalid ~ label .required-asterisk,
+            .has-error input:invalid ~ label .required-asterisk {
+                display: inline !important;
+            }
         `}
             </style>
 
@@ -92,15 +116,15 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
             <div className="registration-form-panel col-span-1 md:col-span-6 flex flex-col justify-center items-center p-6 sm:p-12 bg-white overflow-y-auto">
                 <div className="w-full max-w-md flex flex-col items-center my-auto">
 
-                    {/* Back to Home Action */}
+                    {/* Back to Login Action */}
                     <div className="w-full flex justify-start mb-3">
                         <button
                             type="button"
-                            onClick={handleBackHome}
+                            onClick={onLoginRedirect}
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
-                            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
-                            <span>{t('reg.backHome')}</span>
+                            <ArrowLeft className="w-4 h-4" />
+                            <span>Back to Login</span>
                         </button>
                     </div>
 
@@ -117,125 +141,163 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
 
                     <div className="w-full space-y-5">
                         <div className="text-center">
-                            <h2 className="registration-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                {t('reg.heading')}
+                            <h2 className="registration-heading text-3xl font-black tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
+                                Create Account
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">{t('reg.subtitle')}</p>
                         </div>
 
-                        <form className="space-y-4" onSubmit={handleRegister}>
+                        <form className={`space-y-4 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleRegister} onInvalid={() => setHasSubmitted(true)}>
                             {/*NameGroupFirstAndMiddle*/}
                             <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.firstName')}</label>
+                                <div className="relative group">
                                     <input
                                         value={firstname}
                                         type="text"
-                                        placeholder="Juan"
-                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        id="reg-firstname"
+                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                        placeholder=" "
                                         required
                                         onChange={(e) => setFirstName(e.target.value)}
                                     />
+                                    <label
+                                        htmlFor="reg-firstname"
+                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
+                                    >
+                                        {t('reg.firstName')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter first name</span>
+                                    </label>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.middleName')}</label>
+                                <div className="relative group">
                                     <input
                                         value={middlename}
                                         type="text"
-                                        placeholder="Optional"
-                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        id="reg-middlename"
+                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                        placeholder=" "
                                         onChange={(e) => setMiddleName(e.target.value)}
                                     />
+                                    <label
+                                        htmlFor="reg-middlename"
+                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
+                                    >
+                                        {t('reg.middleName')} <span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>
+                                    </label>
                                 </div>
                             </div>
 
                             {/*NameGroupLastAndSuffix*/}
                             <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.lastName')}</label>
+                                <div className="relative group">
                                     <input
                                         value={lastname}
                                         type="text"
-                                        placeholder="Dela Cruz"
-                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        id="reg-lastname"
+                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                        placeholder=" "
                                         required
                                         onChange={(e) => setLastName(e.target.value)}
                                     />
+                                    <label
+                                        htmlFor="reg-lastname"
+                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
+                                    >
+                                        {t('reg.lastName')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter last name</span>
+                                    </label>
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.suffix')}</label>
+                                <div className="relative group">
                                     <input
                                         value={suffix}
                                         type="text"
-                                        placeholder="Jr, III (Optional)"
-                                        className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                        id="reg-suffix"
+                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                        placeholder=" "
                                         onChange={(e) => setSuffix(e.target.value)}
                                     />
+                                    <label
+                                        htmlFor="reg-suffix"
+                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
+                                    >
+                                        {t('reg.suffix')} <span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>
+                                    </label>
                                 </div>
                             </div>
 
                             {/*EmailAddressField*/}
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.email')}</label>
+                            <div className="relative group">
                                 <input
                                     value={email}
                                     type="email"
-                                    placeholder="JuanDelaCruz@email.com"
-                                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                    id="reg-email"
+                                    className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                    placeholder=" "
                                     required
                                     onChange={(e) => setEmail(e.target.value)}
                                 />
+                                <label
+                                    htmlFor="reg-email"
+                                    className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
+                                >
+                                    {t('reg.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter email address</span>
+                                </label>
                             </div>
 
                             {/*PasswordFields*/}
-                            <div className="registration-password-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.password')}</label>
-                                    <div className="relative">
-                                        <input
-                                            value={password}
-                                            type={showPass ? "text" : "password"}
-                                            placeholder="••••••••••••"
-                                            className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-10 box-border"
-                                            required
-                                            onChange={(e) => setPassword(e.target.value)}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPass(!showPass)}
-                                            className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
-                                        >
-                                            <FontAwesomeIcon icon={showPass ? faEyeSlash : faEye} className="text-xs" />
-                                        </button>
-                                    </div>
+                            <div className="registration-password-grid grid grid-cols-1 gap-4">
+                                <div className="relative group">
+                                    <input
+                                        value={password}
+                                        type={showPass ? "text" : "password"}
+                                        id="reg-password"
+                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-10 box-border"
+                                        placeholder=" "
+                                        required
+                                        onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                    <label
+                                        htmlFor="reg-password"
+                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
+                                    >
+                                        {t('reg.password')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Create password</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPass(!showPass)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20"
+                                    >
+                                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('reg.confirmPassword')}</label>
-                                    <div className="relative">
-                                        <input
-                                            value={conPassword}
-                                            type={showConfirmPass ? "text" : "password"}
-                                            placeholder="••••••••••••"
-                                            className="focus-glow w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-10 box-border"
-                                            required
-                                            onChange={(e) => setConPassword(e.target.value)}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowConfirmPass(!showConfirmPass)}
-                                            className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
-                                        >
-                                            <FontAwesomeIcon icon={showConfirmPass ? faEyeSlash : faEye} className="text-xs" />
-                                        </button>
-                                    </div>
+                                <div className="relative group">
+                                    <input
+                                        value={conPassword}
+                                        type={showConfirmPass ? "text" : "password"}
+                                        id="reg-confirm"
+                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-10 box-border"
+                                        placeholder=" "
+                                        required
+                                        onChange={(e) => setConPassword(e.target.value)}
+                                    />
+                                    <label
+                                        htmlFor="reg-confirm"
+                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
+                                    >
+                                        {t('reg.confirmPassword')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Confirm password</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20"
+                                    >
+                                        {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
                                 </div>
                             </div>
 
                             {message && (
-                                <p className="text-center text-xs font-semibold text-rose-500 m-0 pt-1">
-                                    {message}
-                                </p>
+                                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-center font-semibold text-center shadow-sm">
+                                    <span>{message}</span>
+                                </div>
                             )}
 
                             <button type="submit" className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2">

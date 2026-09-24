@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.png";
@@ -18,10 +17,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [forgotMessage, setForgotMessage] = useState('');
     const [forgotToken, setForgotToken] = useState('');
     const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
+    const [hasSubmitted, setHasSubmitted] = useState(false);
     const { t } = useLang();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setHasSubmitted(true);
         setMessage('');
 
         try {
@@ -53,6 +54,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
     const handleForgotSubmit = async (e) => {
         e.preventDefault();
+        setHasSubmitted(true);
         setForgotMessage('');
         setForgotToken('');
         setIsSubmittingForgot(true);
@@ -77,6 +79,17 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
           @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&display=swap');
           .custom-ams-logo {
             font-family: 'Playfair Display', Georgia, serif !important;
+          }
+          input:focus ~ label .floating-hint,
+          input:not(:placeholder-shown) ~ label .floating-hint {
+            display: none !important;
+          }
+          .required-asterisk {
+            display: none !important;
+          }
+          form.has-submitted input:invalid ~ label .required-asterisk,
+          .has-error input:invalid ~ label .required-asterisk {
+            display: inline !important;
           }
         `}
             </style>
@@ -105,15 +118,15 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
             <div className="login-form-panel col-span-1 md:col-span-6 flex flex-col justify-center items-center p-8 sm:p-16 bg-white shadow-xl md:shadow-none">
                 <div className="w-full max-w-md flex flex-col items-center">
 
-                    {/* Back to Home Action */}
+                    {/* Back Action */}
                     <div className="w-full flex justify-start mb-4">
                         <button
                             type="button"
-                            onClick={onHomeRedirect}
+                            onClick={isForgotPassword ? () => { setIsForgotPassword(false); setForgotMessage(''); setForgotToken(''); setHasSubmitted(false); } : onHomeRedirect}
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
-                            <FontAwesomeIcon icon={faArrowLeft} className="text-xs" />
-                            <span>{t('login.backHome')}</span>
+                            <ArrowLeft className="w-4 h-4" />
+                            <span>{isForgotPassword ? 'Back to Login' : t('login.backHome')}</span>
                         </button>
                     </div>
 
@@ -130,8 +143,8 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
                     <div className="w-full space-y-6">
                         <div className="text-center">
-                            <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                {isForgotPassword ? "Reset Password" : t('login.heading')}
+                            <h2 className="login-heading text-3xl font-black tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
+                                {isForgotPassword ? "Reset Password" : "Log In"}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">
                                 {isForgotPassword ? "Enter your email to receive a reset link" : t('login.subtitle')}
@@ -139,49 +152,61 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                         </div>
 
                         {!isForgotPassword ? (
-                        <form className="space-y-5" onSubmit={handleSubmit}>
+                        <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleSubmit} onInvalid={() => setHasSubmitted(true)}>
                             {/*EmailAddressField*/}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('login.email')}</label>
+                            <div className="relative group">
                                 <input
                                     type="email"
-                                    placeholder="JuanDelaCruz@email.com"
-                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                    id="login-email"
+                                    className="block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                    placeholder=" "
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                 />
+                                <label
+                                    htmlFor="login-email"
+                                    className="absolute text-sm text-slate-600 font-semibold duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 cursor-text"
+                                >
+                                    {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your registered email</span>
+                                </label>
                             </div>
 
                             {/*PasswordField*/}
                             <div className="space-y-1.5">
-                                <div className="flex justify-between items-center">
-                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('login.password')}</label>
-                                    <button type="button" onClick={() => { setIsForgotPassword(true); setMessage(''); setForgotMessage(''); }} className="text-xs text-indigo-600 hover:underline font-semibold bg-transparent border-0 p-0 cursor-pointer">{t('login.forgot')}</button>
-                                </div>
-                                <div className="relative">
+                                <div className="relative group">
                                     <input
                                         type={showPassword ? "text" : "password"}
-                                        placeholder="••••••••••••"
-                                        className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
+                                        id="login-password"
+                                        className="block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-12 box-border"
+                                        placeholder=" "
                                         required
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                     />
+                                    <label
+                                        htmlFor="login-password"
+                                        className="absolute text-sm text-slate-600 font-semibold duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 cursor-text"
+                                    >
+                                        {t('login.password')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your password</span>
+                                    </label>
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-0 cursor-pointer"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20"
                                     >
-                                        <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
+                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
+                                </div>
+                                <div className="flex justify-end items-center mt-1">
+                                    <button type="button" onClick={() => { setIsForgotPassword(true); setMessage(''); setForgotMessage(''); setHasSubmitted(false); }} className="text-xs text-indigo-600 hover:underline font-semibold bg-transparent border-0 p-0 cursor-pointer">{t('login.forgot')}</button>
                                 </div>
                             </div>
 
                             {message && (
-                                <p className="text-center text-xs font-semibold text-rose-500 m-0 pt-1">
-                                    {message}
-                                </p>
+                                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-center font-semibold text-center shadow-sm">
+                                    <span>{message === "Invalid email or password" ? "The email or password you entered is incorrect. Please try again." : message}</span>
+                                </div>
                             )}
 
                             <button type="submit" className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide">
@@ -189,7 +214,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             </button>
                         </form>
                         ) : (
-                        <form className="space-y-5" onSubmit={handleForgotSubmit}>
+                        <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleForgotSubmit} onInvalid={() => setHasSubmitted(true)}>
                             {forgotMessage && (
                                 <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs rounded-xl flex items-center justify-between">
                                     <span>{forgotMessage}</span>
@@ -205,32 +230,31 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 </div>
                             )}
 
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">{t('login.email')}</label>
+                            <div className="relative group">
                                 <input
                                     type="email"
-                                    placeholder="JuanDelaCruz@email.com"
-                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner box-border"
+                                    id="forgot-email"
+                                    className="block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                    placeholder=" "
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                 />
+                                <label
+                                    htmlFor="forgot-email"
+                                    className="absolute text-sm text-slate-600 font-semibold duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 cursor-text"
+                                >
+                                    {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your registered email</span>
+                                </label>
                             </div>
 
                             <div className="pt-2 flex flex-col space-y-3">
                                 <button
                                     type="submit"
                                     disabled={isSubmittingForgot}
-                                    className="btn-interactive w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70 box-border"
+                                    className="btn-interactive w-full bg-[#6366f1] text-white py-3.5 px-4 rounded-xl font-bold text-sm hover:bg-[#4f46e5] transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70 box-border"
                                 >
                                     {isSubmittingForgot ? 'Sending...' : 'Send Reset Link'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { setIsForgotPassword(false); setForgotMessage(''); setForgotToken(''); }}
-                                    className="btn-interactive w-full bg-white text-slate-600 py-3 px-4 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors focus:outline-none border border-slate-200 cursor-pointer box-border"
-                                >
-                                    Back to Login
                                 </button>
                             </div>
                         </form>

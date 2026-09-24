@@ -15,3 +15,6 @@ deploy/env/*.env
 docs/progress_report.md
 backend/logs/
 docs/AMS_Development_Timeline.xlsx
+
+# Ignore specific downloaded skills
+.agents/skills/ui-ux-pro-max-skill
