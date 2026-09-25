@@ -80,6 +80,8 @@ Use this table before any deployment — capstone demo, pilot, or full productio
 | F-1 | Add backend format validation for `contact_no` in `profile.php` (PH mobile pattern) | Garbage data stored; client-only validation bypassed via direct API calls | `[x]` |
 | F-2 | Add plate number length + alphanumeric check in `parking_reservation.php` | Raw untrusted strings stored directly in the DB | `[x]` |
 | F-3 | Confirm all SQL queries use `bind_param` prepared statements — no string interpolation | SQL injection | `[x]` |
+| F-4 | Client-side limits mirror the schema (`ams-react/src/utils/validation.js` `LIMITS`, `fileLimits.js`), 2026-09-25 | Silent truncation (MariaDB runs non-strict) and wasted uploads. **Convenience only**: a direct API call skips it | `[x]` |
+| F-5 | Typed server-side validation on every write endpoint, one 422 contract, then strict SQL mode. Sweep of all 104 endpoints on 2026-09-25: worst are `update_room` (raw fields), `update_tenant_status` (negative deductions), `upload_payment_proof` (proof not required), `rent_application` (rent taken from client) | Bad data stored; invariants enforced only by the UI | `[ ]` deferred, see [backend plan](audits/input_validation_backend_plan.md) |
 
 ---
 
