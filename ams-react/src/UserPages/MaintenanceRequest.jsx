@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
 import { MAINTENANCE_CATEGORIES } from '../config/maintenanceOptions';
+import { LIMITS, checkDate, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import '../assets/styles/responsive/user/maintenance-request.responsive.css';
 
 export default function MaintenanceRequest() {
@@ -52,23 +54,43 @@ export default function MaintenanceRequest() {
         setIsDragging(false);
     };
 
+    const acceptFile = (file) => {
+        const fileError = checkFile(file, FILE_RULES.maintenance);
+        if (fileError) {
+            alert(fileError);
+            return;
+        }
+        setUploadedFile(file);
+    };
+
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragging(false);
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            setUploadedFile(e.dataTransfer.files[0]);
+            acceptFile(e.dataTransfer.files[0]);
         }
     };
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
-            setUploadedFile(e.target.files[0]);
+            acceptFile(e.target.files[0]);
+            e.target.value = '';
         }
     };
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
+        const formError = firstError(
+            issueType ? '' : 'Please choose the type of issue.',
+            checkDate(preferredDate, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
+            preferredTime ? '' : 'Please choose a time window.',
+            description.trim() ? '' : 'Please describe the problem.'
+        );
+        if (formError) {
+            alert(formError);
+            return;
+        }
 
         const formData = new FormData();
         formData.append('issueType', issueType);
@@ -178,6 +200,7 @@ export default function MaintenanceRequest() {
                             rows={4}
                             placeholder={t('maintenance.descPlaceholder')}
                             value={description}
+                            maxLength={LIMITS.message}
                             onChange={(e) => setDescription(e.target.value)}
                             className="maintenance-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
                             style={{ color: '#1e293b' }}
@@ -200,7 +223,7 @@ export default function MaintenanceRequest() {
                                     <input
                                         type="file"
                                         id="file-upload-input"
-                                        accept="image/*,video/*"
+                                        accept={acceptFor(FILE_RULES.maintenance)}
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />

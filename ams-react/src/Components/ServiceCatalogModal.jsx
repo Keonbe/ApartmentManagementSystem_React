@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTimes, faBroom, faTshirt, faConciergeBell } from '@fortawesome/free-solid-svg-icons';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkIntRange, checkLength } from '../utils/validation';
 
 const CATEGORIES = [
     { value: 'cleaning', label: 'Cleaning' },
@@ -89,7 +90,12 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
         setError(null);
 
         if (!form.name.trim()) return setError('Service name is required.');
-        if (form.price === '' || Number(form.price) < 0) return setError('Price must be zero or greater.');
+        const nameError = checkLength(form.name, LIMITS.serviceName, 'Service name');
+        if (nameError) return setError(nameError);
+        const priceError = checkAmount(form.price, { label: 'Price' });
+        if (priceError) return setError(priceError);
+        const leadError = checkIntRange(form.leadTimeDays, 0, 365, 'Lead time');
+        if (leadError) return setError(leadError);
         if (Number(form.minQuantity) <= 0) return setError('Minimum quantity must be greater than zero.');
         if (form.maxQuantity !== '' && Number(form.maxQuantity) < Number(form.minQuantity)) {
             return setError('Maximum quantity cannot be less than the minimum.');
@@ -159,6 +165,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         <input
                             type="text"
                             value={form.name}
+                            maxLength={LIMITS.serviceName}
                             onChange={set('name')}
                             placeholder="e.g. Standard Unit Cleaning"
                             className={inputClass}
@@ -171,6 +178,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         <textarea
                             rows={3}
                             value={form.description}
+                            maxLength={LIMITS.notes}
                             onChange={set('description')}
                             placeholder="What the tenant gets for this fee."
                             className={`${inputClass} resize-none`}
@@ -183,6 +191,7 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                             type="number"
                             step="0.01"
                             min="0"
+                            max={MAX_AMOUNT}
                             value={form.price}
                             onChange={set('price')}
                             className={inputClass}
@@ -229,6 +238,8 @@ export default function ServiceCatalogModal({ isOpen, service, onClose, onSave, 
                         <input
                             type="number"
                             min="0"
+                            max="365"
+                            step="1"
                             value={form.leadTimeDays}
                             onChange={set('leadTimeDays')}
                             className={inputClass}

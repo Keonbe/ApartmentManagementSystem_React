@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -199,7 +201,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Title *</label>
-            <input type="text" value={newReq.title} onChange={e => setNewReq({ ...newReq, title: e.target.value })} className={`w-full px-3 py-2 text-sm border ${validationErrors.title ? 'border-red-500' : 'border-slate-200'} rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500`} placeholder="Brief description of the issue" />
+            <input type="text" maxLength={LIMITS.maintenanceTitle} value={newReq.title} onChange={e => setNewReq({ ...newReq, title: e.target.value })} className={`w-full px-3 py-2 text-sm border ${validationErrors.title ? 'border-red-500' : 'border-slate-200'} rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500`} placeholder="Brief description of the issue" />
           </div>
 
           <div>
@@ -234,7 +236,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Details</label>
-            <textarea rows={3} value={newReq.description} onChange={e => setNewReq({ ...newReq, description: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" placeholder="Provide more details about the problem..."></textarea>
+            <textarea rows={3} maxLength={LIMITS.message} value={newReq.description} onChange={e => setNewReq({ ...newReq, description: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" placeholder="Provide more details about the problem..."></textarea>
           </div>
 
           <div>
@@ -242,8 +244,13 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
             <div className="w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-center relative bg-slate-50 hover:bg-slate-100 hover:border-indigo-400 transition-colors">
               <input
                 type="file"
-                accept="image/*,video/*"
-                onChange={e => setNewPhoto(e.target.files?.[0] || null)}
+                accept={acceptFor(FILE_RULES.maintenance)}
+                onChange={e => {
+                  const file = e.target.files?.[0] || null;
+                  const fileError = checkFile(file, FILE_RULES.maintenance);
+                  if (fileError) { alert(fileError); e.target.value = ''; setNewPhoto(null); return; }
+                  setNewPhoto(file);
+                }}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
               <FontAwesomeIcon icon={faUpload} className="text-slate-400 mb-2 text-lg" />
@@ -522,7 +529,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             </div>
 
             <div className="shrink-0 relative">
-              <textarea value={newNote} onChange={e => setNewNote(e.target.value)} rows={2} className="w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-none shadow-sm" placeholder="Add a note..."></textarea>
+              <textarea maxLength={LIMITS.notes} value={newNote} onChange={e => setNewNote(e.target.value)} rows={2} className="w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-none shadow-sm" placeholder="Add a note..."></textarea>
               <button onClick={handleAddNote} disabled={!newNote.trim() || saving} className="absolute right-2 bottom-3 w-7 h-7 rounded bg-indigo-50 flex items-center justify-center text-indigo-600 border-0 cursor-pointer disabled:opacity-50 hover:bg-indigo-100 transition-colors"><FontAwesomeIcon icon={faPaperPlane} className="text-xs" /></button>
             </div>
           </div>
@@ -542,6 +549,16 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
   const [rejectReason, setRejectReason] = useState('');
 
   const handleConfirm = () => {
+    const actionError = firstError(
+      type === 'start' ? checkLength(assigneeDraft, LIMITS.assignedTo, 'Assignee') : '',
+      type === 'start' && estimateDraft !== '' ? checkAmount(estimateDraft, { label: 'Estimated cost' }) : '',
+      type === 'complete' ? checkAmount(actualCostDraft, { label: 'Actual cost' }) : '',
+      type === 'reject' ? (rejectReason.trim() ? checkLength(rejectReason, LIMITS.reason, 'Reason') : 'Please give a reason for rejecting.') : ''
+    );
+    if (actionError) {
+      alert(actionError);
+      return;
+    }
     let payload;
     if (type === 'start') {
       payload = { status: 'In Progress' };
@@ -567,11 +584,11 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
           <div className="space-y-3 mb-5">
             <div>
               <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assign To</label>
-              <input type="text" value={assigneeDraft} onChange={e => setAssigneeDraft(e.target.value)} placeholder="Personnel or contractor" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+              <input type="text" maxLength={LIMITS.assignedTo} value={assigneeDraft} onChange={e => setAssigneeDraft(e.target.value)} placeholder="Personnel or contractor" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱)</label>
-              <input type="number" min="0" value={estimateDraft} onChange={e => setEstimateDraft(e.target.value)} placeholder="Optional" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+              <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={estimateDraft} onChange={e => setEstimateDraft(e.target.value)} placeholder="Optional" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
             </div>
           </div>
         )}
@@ -579,7 +596,7 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
         {type === 'complete' && (
           <div className="mb-5">
             <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Actual Cost (₱) *</label>
-            <input type="number" min="0" value={actualCostDraft} onChange={e => setActualCostDraft(e.target.value)} placeholder="Enter 0 if there was no cost" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+            <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={actualCostDraft} onChange={e => setActualCostDraft(e.target.value)} placeholder="Enter 0 if there was no cost" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
             {req.estimatedCost !== null && req.estimatedCost !== undefined && (
               <p className="text-[11px] text-slate-400 m-0 mt-1">Estimate was {formatCurrency(req.estimatedCost)}.</p>
             )}
@@ -589,7 +606,7 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
         {type === 'reject' && (
           <div className="mb-5">
             <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason *</label>
-            <textarea rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Explain why this request is being rejected" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" />
+            <textarea rows={3} maxLength={LIMITS.reason} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Explain why this request is being rejected" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" />
             <p className="text-[11px] text-slate-400 m-0 mt-1">The tenant will be notified with this reason.</p>
           </div>
         )}

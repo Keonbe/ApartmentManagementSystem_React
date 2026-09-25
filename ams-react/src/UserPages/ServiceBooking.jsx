@@ -5,6 +5,8 @@ import { faCloudUploadAlt, faUndo, faHourglassHalf, faBroom, faTshirt, faConcier
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import { LIMITS, checkAmount, checkDate, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import '../assets/styles/responsive/user/service-booking.responsive.css';
 
 //MapsTheCatalogIconColumnOntoRealFontAwesomeIcons
@@ -116,13 +118,25 @@ export default function ServiceBooking() {
     //File uploading drop mechanics
     const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
     const handleDragLeave = () => setIsDragging(false);
+    // service_request.php has no size limit of its own; config.php's 12M
+    // post_max_size would drop a bigger file silently, so hold it to 10 MB here.
+    const acceptFile = (file) => {
+        const fileError = checkFile(file, FILE_RULES.service);
+        if (fileError) {
+            setFormError(fileError);
+            return;
+        }
+        setFormError(null);
+        setUploadedFile(file);
+    };
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) setUploadedFile(e.dataTransfer.files[0]);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) acceptFile(e.dataTransfer.files[0]);
     };
     const handleFileChange = (e) => {
-        if (e.target.files && e.target.files[0]) setUploadedFile(e.target.files[0]);
+        if (e.target.files && e.target.files[0]) acceptFile(e.target.files[0]);
+        e.target.value = '';
     };
 
     const handleFormSubmit = async (e) => {
@@ -131,6 +145,15 @@ export default function ServiceBooking() {
 
         if (!selected) {
             setFormError(t('serviceBooking.selectServiceFirst'));
+            return;
+        }
+        const bookingError = firstError(
+            isQuantified ? checkAmount(quantity, { min: Number(selected.minQuantity ?? 0), max: selected.maxQuantity != null ? Number(selected.maxQuantity) : undefined, label: 'Quantity' }) : '',
+            checkDate(preferredDate, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
+            preferredTimeSlot ? '' : t('serviceBooking.selectTime')
+        );
+        if (bookingError) {
+            setFormError(bookingError);
             return;
         }
 
@@ -311,6 +334,7 @@ export default function ServiceBooking() {
                                 rows={4}
                                 placeholder={t('serviceBooking.notesPlaceholder')}
                                 value={notes}
+                                maxLength={LIMITS.notes}
                                 onChange={(e) => setNotes(e.target.value)}
                                 className="service-booking-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
                                 style={{ color: '#1e293b' }}
@@ -330,7 +354,7 @@ export default function ServiceBooking() {
                                     <>
                                         <input
                                             type="file"
-                                            accept="image/*,.pdf"
+                                            accept={acceptFor(FILE_RULES.service)}
                                             onChange={handleFileChange}
                                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                         />

@@ -25,6 +25,7 @@ import {
   faPlay
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import ServiceCatalogModal from '../Components/ServiceCatalogModal';
 
@@ -290,6 +291,7 @@ const AdminServicePage = () => {
     } catch (err) {
       fetchData();
       console.error('CCTV status update failed:', err);
+      alert(apiErrorMessage(err, 'Failed to update CCTV status.'));
     }
   };
 
@@ -325,7 +327,7 @@ const AdminServicePage = () => {
       }
     } catch (err) {
       console.error('Failed to save catalog service:', err);
-      alert('Failed to save service. Please try again.');
+      alert(apiErrorMessage(err, 'Failed to save service. Please try again.'));
     } finally {
       setSavingService(false);
     }
@@ -348,6 +350,7 @@ const AdminServicePage = () => {
     } catch (err) {
       fetchData();
       console.error('Catalog toggle failed:', err);
+      alert(apiErrorMessage(err, 'Failed to update service.'));
     }
   };
 
@@ -360,7 +363,7 @@ const AdminServicePage = () => {
       fetchData();
     } catch (err) {
       console.error('Failed to delete catalog service:', err);
-      alert('Failed to remove service. Please try again.');
+      alert(apiErrorMessage(err, 'Failed to remove service. Please try again.'));
     }
   };
 
