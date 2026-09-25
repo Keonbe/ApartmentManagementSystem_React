@@ -7,6 +7,7 @@ import {
   faClock, faCheckCircle, faTimesCircle, faBuilding, faCalendarAlt
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { apiErrorMessage } from '../utils/apiError';
 
 export default function AdminCctv() {
   const [requests, setRequests] = useState([]);
@@ -55,7 +56,7 @@ export default function AdminCctv() {
       }
     } catch (err) {
       console.error('Error updating CCTV status:', err);
-      alert('Server error updating status.');
+      alert(apiErrorMessage(err, 'Server error updating status.'));
     }
   };
 
