@@ -231,8 +231,8 @@ error_log = /var/log/php/ams_errors.log
   Every document that used to be a static `/uploads/...` link (gov IDs, NBI clearances, payment proofs, leases, avatars, attachments) is now served only through the authenticated `backend/api/download_file.php` endpoint, which checks the resource's owner or admin role before reading the file — `fileUrl.js` on the frontend already points there. The Docker image (`Dockerfile`) applies the same `Require all denied` at the vhost level instead of a `.htaccess`, since a mounted uploads volume hides it.
 - [ ] **Confirm `php.ini` limits** on server:
   ```ini
-  upload_max_filesize = 10M
-  post_max_size = 12M
+   upload_max_filesize = 25M
+   post_max_size = 32M
   max_execution_time = 60
   memory_limit = 128M
   ```

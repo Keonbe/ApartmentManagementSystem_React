@@ -243,7 +243,7 @@ export const ChatProvider = ({ children }) => {
         await fetchChatHistory(admin.id);
     }, [fetchAdminUser, fetchChatHistory, setActiveChat, userId, userRole]);
 
-    const sendMessage = useCallback(async (receiverId, message, attachment = null) => {
+    const sendMessage = useCallback(async (receiverId, message, attachment = null, replyToId = null) => {
         if ((!message.trim() && !attachment) || !userId) return;
 
         const receiver = parseInt(receiverId, 10);
@@ -255,6 +255,17 @@ export const ChatProvider = ({ children }) => {
             receiver_id: receiver,
             message: message.trim(),
             attachment_path: attachment ? URL.createObjectURL(attachment) : null,
+            reply_to_id: replyToId,
+            ...(() => {
+                const replyTarget = replyToId
+                    ? messages.find((item) => String(item.id) === String(replyToId))
+                    : null;
+                return replyTarget ? {
+                    reply_message: replyTarget.message || null,
+                    reply_attachment_path: replyTarget.attachment_path || null,
+                    reply_sender_id: replyTarget.sender_id,
+                } : {};
+            })(),
             created_at: new Date().toISOString(),
             is_read: 0,
         };
@@ -268,6 +279,7 @@ export const ChatProvider = ({ children }) => {
                     sender_id: userId,
                     receiver_id: receiver,
                     message: message.trim(),
+                    reply_to_id: replyToId,
                 });
             } else {
                 let response;
@@ -275,12 +287,13 @@ export const ChatProvider = ({ children }) => {
                     const formData = new FormData();
                     formData.append('receiver_id', receiver);
                     formData.append('message', message.trim());
+                    if (replyToId) formData.append('reply_to_id', replyToId);
                     formData.append('attachment', attachment);
                     response = await api.post('send_message.php', formData, {
                         headers: { 'Content-Type': 'multipart/form-data' },
                     });
                 } else {
-                    response = await api.post('send_message.php', { receiver_id: receiver, message: message.trim() });
+                    response = await api.post('send_message.php', { receiver_id: receiver, message: message.trim(), reply_to_id: replyToId });
                 }
 
                 if (response.data?.success && response.data.message) {
@@ -296,7 +309,7 @@ export const ChatProvider = ({ children }) => {
             setMessages((prev) => prev.filter((msg) => msg.id !== optimisticMessage.id));
             throw error;
         }
-    }, [refreshChatState, userId]);
+    }, [messages, refreshChatState, userId]);
 
     const handleTyping = useCallback((receiverId, isTypingNow) => {
         const socket = socketRef.current;

@@ -49,14 +49,14 @@ io.on('connection', (socket) => {
 
     // Handle sending a message
     socket.on('send_message', async (data) => {
-        const { sender_id, receiver_id, message } = data;
+        const { sender_id, receiver_id, message, reply_to_id = null } = data;
         
         try {
             if (!pool) await createPool();
             
             const [result] = await pool.execute(
-                'INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)',
-                [sender_id, receiver_id, message]
+                'INSERT INTO messages (sender_id, receiver_id, message, reply_to_id) VALUES (?, ?, ?, ?)',
+                [sender_id, receiver_id, message, reply_to_id]
             );
             
             const newMessage = {
@@ -64,6 +64,7 @@ io.on('connection', (socket) => {
                 sender_id,
                 receiver_id,
                 message,
+                reply_to_id,
                 created_at: new Date()
             };
 

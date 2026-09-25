@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
@@ -73,8 +73,11 @@ const AdminMessages = () => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
+  const cameraInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const selectedConversationIdRef = useRef(null);
 
@@ -120,9 +123,10 @@ const AdminMessages = () => {
     if ((!message && !attachment) || !activeChat || sending) return;
     setSending(true);
     try {
-      await sendMessage(activeChat.other_user_id, message, attachment);
+      await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
       setDraft('');
       setAttachment(null);
+      setReplyingTo(null);
     } catch (error) {
       console.error('Failed to send admin message:', error);
     } finally {
@@ -207,18 +211,23 @@ const AdminMessages = () => {
                               </span>
                             </div>
                           )}
-                          <div className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                            <div className="relative max-w-[85%] sm:max-w-[70%]">
+                          <div className={`group flex items-center gap-1 sm:gap-2 ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                            <div className="relative min-w-0 max-w-[calc(100%-2rem)] sm:max-w-[70%]">
                               <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(message.created_at)}`} className={`transition-colors ${hasText
                                 ? `rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? (expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-md' : 'bg-indigo-600 text-white rounded-br-md') : (expandedTimestampId === messageKey ? 'bg-slate-100 text-slate-800 border border-slate-300 rounded-bl-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md')}`
                                 : ''} cursor-pointer`}>
+                                {message.reply_to_id && <div className={`mb-2 border-l-2 pl-2 text-xs opacity-80 ${isAdmin ? 'border-indigo-200' : 'border-slate-400'}`}><span className="font-semibold">{Number(message.reply_sender_id) === Number(userId) ? 'You' : activeChat.other_user_name}</span><p className="m-0 truncate">{message.reply_message || (message.reply_attachment_path ? 'Attachment' : 'Message')}</p></div>}
                                 {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p>}
                                 {message.attachment_path && (() => {
                                   const mediaUrl = message.attachment_path.startsWith('blob:') ? message.attachment_path : new URL(`../${message.attachment_path}`, api.defaults.baseURL).href;
                                   const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(message.attachment_path);
-                                  return <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo }); }} aria-label={`View full ${isVideo ? 'video' : 'image'}`} className={`${hasText ? 'mt-2 ' : ''}block max-w-full border-0 bg-transparent p-0 cursor-zoom-in`}>
-                                    {isVideo ? <video src={mediaUrl} preload="metadata" className="max-w-full max-h-64 rounded-lg" /> : <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-64 rounded-lg" />}
-                                  </button>;
+                                  return isVideo
+                                    ? <div className={`${hasText ? 'mt-2 ' : ''}relative block max-w-full overflow-hidden rounded-lg bg-black`} onClick={(event) => { event.stopPropagation(); if (!event.currentTarget.querySelector('video')?.paused) setMediaPreview({ src: mediaUrl, isVideo: true }); }}>
+                                      <video src={mediaUrl} controls playsInline preload="metadata" aria-label="Message video. Tap again while playing to view full size." className="block max-w-full max-h-64 rounded-lg" />
+                                    </div>
+                                    : <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo: false }); }} aria-label="View full image" className={`${hasText ? 'mt-2 ' : ''}relative block max-w-full overflow-hidden rounded-lg border-0 bg-transparent p-0 cursor-zoom-in`}>
+                                      <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-64 rounded-lg" />
+                                    </button>;
                                 })()}
                               </div>
                               {expandedTimestampId === messageKey && (
@@ -231,14 +240,21 @@ const AdminMessages = () => {
                                   {Number(message.is_read) === 1 ? 'Seen' : 'Sent'}
                                 </p>
                               )}
+                              {isAdmin && <button type="button" onClick={() => setReplyingTo(message)} aria-label="Reply to this message" title="Reply" className="absolute top-1/2 -left-8 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-white shadow text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
+                              {!isAdmin && <button type="button" onClick={() => setReplyingTo(message)} aria-label="Reply to this message" title="Reply" className="absolute top-1/2 -right-8 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full border-0 bg-white shadow text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
                             </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                  <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-slate-100 flex gap-2 shrink-0">
-                    <label className="px-3 flex items-center cursor-pointer text-slate-500" title="Attach image or video (max 8 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file?.size > 8 * 1024 * 1024) { window.alert('File must be 8 MB or smaller.'); event.target.value = ''; return; } setAttachment(file || null); }} /></label>
+                  {replyingTo && <div className="mx-3 mt-3 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
+                  <form onSubmit={handleSend} className={`p-3 md:p-4 flex gap-2 shrink-0 ${replyingTo ? '' : 'border-t border-slate-100'}`}>
+                    <label className="px-3 flex items-center cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) { setAttachment(null); return; } const isVideo = file.type.startsWith('video/'); const maxSize = (isVideo ? 25 : 10) * 1024 * 1024; if (file.size > maxSize) { window.alert(`${isVideo ? 'Video' : 'Image'} must be ${isVideo ? 25 : 10} MB or smaller.`); event.target.value = ''; return; } setAttachment(file); }} /></label>
+                    <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-3 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
+                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 10 * 1024 * 1024) { window.alert('Image must be 10 MB or smaller.'); return; } setAttachment(file); }} />
+                    <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-3 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
+                    <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 25 * 1024 * 1024) { window.alert('Video must be 25 MB or smaller.'); return; } setAttachment(file); }} />
                     <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={attachment?.name || 'Write a reply...'} className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border border-transparent focus:border-indigo-300 focus:outline-none text-sm" />
                     <button disabled={(!draft.trim() && !attachment) || sending} type="submit" className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
                   </form>

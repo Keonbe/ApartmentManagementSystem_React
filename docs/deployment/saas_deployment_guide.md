@@ -223,8 +223,8 @@ RUN apt-get update \
 # upload_max_filesize / post_max_size cannot be changed with ini_set() at
 # runtime, so config.php's calls have no effect — set them here instead.
 RUN { \
-      echo "upload_max_filesize=10M"; \
-      echo "post_max_size=12M"; \
+      echo "upload_max_filesize=25M"; \
+      echo "post_max_size=32M"; \
       echo "memory_limit=128M"; \
       echo "expose_php=Off"; \
       echo "display_errors=Off"; \

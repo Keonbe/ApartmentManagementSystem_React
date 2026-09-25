@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `message` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `is_read` tinyint(1) NOT NULL DEFAULT 0,
+  `reply_to_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_sender` (`sender_id`),
   KEY `async_receiver` (`receiver_id`),

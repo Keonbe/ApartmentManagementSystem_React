@@ -7,7 +7,10 @@ import {
     faComment, 
     faTimes, 
     faPaperPlane, 
-    faArrowLeft 
+    faArrowLeft,
+    faCamera,
+    faVideo,
+    faReply,
 } from '@fortawesome/free-solid-svg-icons';
 import { faPaperclip } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
@@ -31,8 +34,11 @@ const ChatWidget = () => {
 
     const [newMessage, setNewMessage] = useState('');
     const [attachment, setAttachment] = useState(null);
+    const [replyingTo, setReplyingTo] = useState(null);
     const [expandedTimestampId, setExpandedTimestampId] = useState(null);
     const [mediaPreview, setMediaPreview] = useState(null);
+    const cameraInputRef = useRef(null);
+    const videoInputRef = useRef(null);
     const messagesEndRef = useRef(null);
     const chatWindowRef = useRef(null);
     const totalUnreadCount = conversations.reduce((sum, conv) => sum + Number(conv.unread_count || 0), 0);
@@ -84,10 +90,11 @@ const ChatWidget = () => {
     const handleSendMessage = (e) => {
         e.preventDefault();
         if ((newMessage.trim() || attachment) && activeChat) {
-            sendMessage(activeChat.other_user_id, newMessage.trim(), attachment)
+            sendMessage(activeChat.other_user_id, newMessage.trim(), attachment, replyingTo?.id)
                 .then(() => {
                     setNewMessage('');
                     setAttachment(null);
+                    setReplyingTo(null);
                     if (handleTyping) {
                         handleTyping(activeChat.other_user_id, false);
                     }
@@ -138,7 +145,7 @@ const ChatWidget = () => {
     if (!userId) return null;
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 font-sans">
+        <div className="fixed bottom-2 right-2 z-50 font-sans sm:bottom-6 sm:right-6">
             {!isChatOpen ? (
                 /* Floating Chat Trigger Button */
                 <button
@@ -158,7 +165,7 @@ const ChatWidget = () => {
                 /* Chat Container Window */
                 <div 
                     ref={chatWindowRef}
-                    className="w-80 sm:w-96 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200"
+                    className="w-[min(24rem,calc(100vw-1rem))] h-[min(500px,calc(100dvh-1rem))] min-h-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 sm:h-[500px]"
                 >
                     {/* Header */}
                     <div className="bg-indigo-600 p-4 text-white flex justify-between items-center shrink-0">
@@ -257,7 +264,7 @@ const ChatWidget = () => {
                         </div>
                     ) : (
                         /* Active Conversation Message Stream */
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
                             {messages.length === 0 ? (
                                 <div className="text-center text-slate-400 text-xs mt-10">
                                     Send a message to start this conversation.
@@ -285,20 +292,25 @@ const ChatWidget = () => {
                                                     </span>
                                                 </div>
                                             )}
-                                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`group flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                        {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-0 bg-white text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 shadow"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
                                                 <div className="relative max-w-[80%]">
-                                                    <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(msg.created_at)}`} className={`cursor-pointer transition-colors ${isMediaOnlyMessage ? '' : `px-4 py-2 rounded-2xl text-sm shadow-sm ${
-                                                        isMe
-                                                            ? expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-none' : 'bg-indigo-600 text-white rounded-br-none'
-                                                            : expandedTimestampId === messageKey ? 'bg-slate-100 border border-slate-300 text-slate-800 rounded-bl-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
+                                                    <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(msg.created_at)}`} className={`cursor-pointer transition-colors ${isMediaOnlyMessage ? '' : `px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe
+                                                        ? expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-none' : 'bg-indigo-600 text-white rounded-br-none'
+                                                        : expandedTimestampId === messageKey ? 'bg-slate-100 border border-slate-300 text-slate-800 rounded-bl-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
                                                     }`}`}>
+                                                        {msg.reply_to_id && <div className={`mb-2 border-l-2 pl-2 text-xs opacity-80 ${isMe ? 'border-indigo-200' : 'border-slate-400'}`}><strong>{Number(msg.reply_sender_id) === Number(userId) ? 'You' : activeChat.other_user_name}</strong><p className="m-0 truncate">{msg.reply_message || (msg.reply_attachment_path ? 'Attachment' : 'Message')}</p></div>}
                                                         {msg.message && <p className="m-0 break-words">{msg.message}</p>}
                                                         {msg.attachment_path && (() => {
                                                             const mediaUrl = msg.attachment_path.startsWith('blob:') ? msg.attachment_path : new URL(`../${msg.attachment_path}`, api.defaults.baseURL).href;
                                                             const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(msg.attachment_path);
-                                                            return <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo }); }} aria-label={`View full ${isVideo ? 'video' : 'image'}`} className="mt-2 block max-w-full border-0 bg-transparent p-0 cursor-zoom-in">
-                                                                {isVideo ? <video src={mediaUrl} preload="metadata" className="max-w-full max-h-52 rounded-lg" /> : <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-52 rounded-lg" />}
-                                                            </button>;
+                                                            return isVideo
+                                                                ? <div className="mt-2 relative block max-w-full overflow-hidden rounded-lg bg-black" onClick={(event) => { event.stopPropagation(); if (!event.currentTarget.querySelector('video')?.paused) setMediaPreview({ src: mediaUrl, isVideo: true }); }}>
+                                                                    <video src={mediaUrl} controls playsInline preload="metadata" aria-label="Message video. Tap again while playing to view full size." className="block max-w-full max-h-52 rounded-lg" />
+                                                                </div>
+                                                                : <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo: false }); }} aria-label="View full image" className="mt-2 relative block max-w-full overflow-hidden rounded-lg border-0 bg-transparent p-0 cursor-zoom-in">
+                                                                    <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-52 rounded-lg" />
+                                                                </button>;
                                                         })()}
                                                     </div>
                                                     {expandedTimestampId === messageKey && (
@@ -312,6 +324,7 @@ const ChatWidget = () => {
                                                         </p>
                                                     )}
                                                 </div>
+                                        {!isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-0 bg-white text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
                                             </div>
                                         </div>
                                     );
@@ -323,9 +336,14 @@ const ChatWidget = () => {
 
                     {/* Input Field Section */}
                     {activeChat && (
-                        <div className="p-3 bg-white border-t border-slate-200 shrink-0">
+                        <div className={`p-2 sm:p-3 bg-white shrink-0 ${replyingTo ? '' : 'border-t border-slate-200'}`}>
+                            {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                             <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                                <label className="px-2 cursor-pointer text-slate-500" title="Attach image or video (max 8 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file?.size > 8 * 1024 * 1024) { window.alert('File must be 8 MB or smaller.'); event.target.value = ''; return; } setAttachment(file || null); }} /></label>
+                                <label className="px-2 cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) { setAttachment(null); return; } const isVideo = file.type.startsWith('video/'); const maxSize = (isVideo ? 25 : 10) * 1024 * 1024; if (file.size > maxSize) { window.alert(`${isVideo ? 'Video' : 'Image'} must be ${isVideo ? 25 : 10} MB or smaller.`); event.target.value = ''; return; } setAttachment(file); }} /></label>
+                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-2 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
+                                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 10 * 1024 * 1024) { window.alert('Image must be 10 MB or smaller.'); return; } setAttachment(file); }} />
+                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-2 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
+                                <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 25 * 1024 * 1024) { window.alert('Video must be 25 MB or smaller.'); return; } setAttachment(file); }} />
                                 <input
                                     type="text"
                                     value={newMessage}

@@ -31,6 +31,10 @@ function ensure_messages_table($conn) {
     if ($column->num_rows === 0) {
         $conn->query("ALTER TABLE messages ADD attachment_path VARCHAR(255) NULL");
     }
+    $replyColumn = $conn->query("SHOW COLUMNS FROM messages LIKE 'reply_to_id'");
+    if ($replyColumn->num_rows === 0) {
+        $conn->query("ALTER TABLE messages ADD reply_to_id INT(11) NULL");
+    }
 }
 
 $user_id = intval($_SERVER['HTTP_X_USER_ID'] ?? $_SERVER['HTTP_X_ADMIN_ID'] ?? 0);
@@ -53,11 +57,13 @@ if (!$other_user_id) {
 try {
     ensure_messages_table($conn);
 
-    $query = "SELECT id, sender_id, receiver_id, message, attachment_path, created_at, is_read
-              FROM messages 
-              WHERE (sender_id = ? AND receiver_id = ?) 
-                 OR (sender_id = ? AND receiver_id = ?)
-              ORDER BY created_at ASC, id ASC";
+    $query = "SELECT m.id, m.sender_id, m.receiver_id, m.message, m.attachment_path, m.created_at, m.is_read, m.reply_to_id,
+                     r.message AS reply_message, r.attachment_path AS reply_attachment_path, r.sender_id AS reply_sender_id
+              FROM messages m
+              LEFT JOIN messages r ON r.id = m.reply_to_id
+              WHERE (m.sender_id = ? AND m.receiver_id = ?)
+                 OR (m.sender_id = ? AND m.receiver_id = ?)
+              ORDER BY m.created_at ASC, m.id ASC";
 
     $stmt = $conn->prepare($query);
     if (!$stmt) {
