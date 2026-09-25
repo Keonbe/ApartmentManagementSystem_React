@@ -86,7 +86,25 @@ export const checkAmount = (value, { min = 0, max = MAX_AMOUNT, label = 'Amount'
   return '';
 };
 
-export const checkIntRange = (value, min, max, label = 'Value') => {
+// Manual payment references (PaymentUpload's rules, shared with PayBills):
+// GCash is exactly 13 digits; a bank reference is up to 55 characters and not
+// digits only. Anything else fits invoices.payment_reference.
+export const checkPaymentReference = (reference, method = '') => {
+  const ref = String(reference ?? '').trim();
+  const m = String(method).toLowerCase();
+  if (!ref) return 'Reference number is required.';
+  if (m.includes('gcash')) {
+    return /^\d{13}$/.test(ref) ? '' : 'GCash reference number must be exactly 13 digits.';
+  }
+  if (m.includes('bank')) {
+    if (ref.length > 55) return 'Bank transfer reference must be 55 characters or fewer.';
+    if (/^\d+$/.test(ref)) return 'Bank transfer reference cannot be numbers only.';
+    return '';
+  }
+  return checkLength(ref, LIMITS.paymentReference, 'Reference number');
+};
+
+export const checkIntRange =(value, min, max, label = 'Value') => {
   const n = Number(value);
   if (!Number.isInteger(n)) return `${label} must be a whole number.`;
   if (n < min || n > max) return `${label} must be between ${min} and ${max}.`;

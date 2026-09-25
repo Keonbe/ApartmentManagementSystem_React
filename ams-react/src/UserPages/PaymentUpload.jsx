@@ -5,6 +5,9 @@ import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesC
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
+import { LIMITS, checkLength, checkPaymentReference, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
 
 export default function PaymentUpload() {
@@ -38,6 +41,13 @@ export default function PaymentUpload() {
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
+            const fileError = checkFile(file, FILE_RULES.receiptImage);
+            if (fileError) {
+                setError(fileError);
+                e.target.value = '';
+                return;
+            }
+            setError('');
             setProofImage(file);
             setPreviewUrl(URL.createObjectURL(file));
         }
@@ -61,20 +71,13 @@ export default function PaymentUpload() {
             return;
         }
 
-        if (paymentMethod === 'GCash') {
-            if (!/^\d{13}$/.test(referenceNo)) {
-                setError("GCash Reference Number must be exactly 13 digits.");
-                return;
-            }
-        } else if (paymentMethod === 'Bank Transfer') {
-            if (referenceNo.length > 55) {
-                setError("Bank Transfer Reference Number must be 55 characters or less.");
-                return;
-            }
-            if (/^\d+$/.test(referenceNo)) {
-                setError("Bank Transfer Reference Number cannot consist of numbers only.");
-                return;
-            }
+        const invalid = firstError(
+            checkLength(senderName, LIMITS.senderName, 'Sender name'),
+            checkPaymentReference(referenceNo, paymentMethod)
+        );
+        if (invalid) {
+            setError(invalid);
+            return;
         }
 
         setUploading(true);
@@ -110,7 +113,7 @@ export default function PaymentUpload() {
             }
         } catch (err) {
             console.error("Upload error:", err);
-            setError("A network error occurred while uploading.");
+            setError(apiErrorMessage(err, "A network error occurred while uploading."));
         } finally {
             setUploading(false);
         }
@@ -161,8 +164,9 @@ export default function PaymentUpload() {
                             <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.senderName')}</label>
                             <input 
                                 type="text" 
-                                value={senderName} 
-                                onChange={e => setSenderName(e.target.value)} 
+                                value={senderName}
+                                onChange={e => setSenderName(e.target.value)}
+                                maxLength={LIMITS.senderName}
                                 required
                                 className="focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
                                 placeholder="E.g. Juan Dela Cruz"
@@ -176,7 +180,7 @@ export default function PaymentUpload() {
                                 onChange={handleReferenceChange} 
                                 required
                                 inputMode={paymentMethod === 'GCash' ? "numeric" : "text"}
-                                maxLength={paymentMethod === 'GCash' ? 13 : undefined}
+                                maxLength={paymentMethod === 'GCash' ? 13 : paymentMethod === 'Bank Transfer' ? 55 : LIMITS.paymentReference}
                                 className="focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
                                 placeholder={paymentMethod === 'GCash' ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
                             />
@@ -194,9 +198,9 @@ export default function PaymentUpload() {
                         
                         {!previewUrl ? (
                             <div className="payment-dropzone card-interactive relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
-                                <input 
-                                    type="file" 
-                                    accept="image/jpeg,image/png,image/jpg" 
+                                <input
+                                    type="file"
+                                    accept={acceptFor(FILE_RULES.receiptImage)}
                                     onChange={handleImageChange}
                                     required
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
@@ -218,9 +222,9 @@ export default function PaymentUpload() {
                                     <label className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} />
                                         <span>{t('paymentUpload.changePhoto')}</span>
-                                        <input 
-                                            type="file" 
-                                            accept="image/jpeg,image/png,image/jpg" 
+                                        <input
+                                            type="file"
+                                            accept={acceptFor(FILE_RULES.receiptImage)}
                                             onChange={handleImageChange}
                                             className="hidden"
                                         />

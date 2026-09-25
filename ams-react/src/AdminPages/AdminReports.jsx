@@ -13,6 +13,7 @@ import {
   faChartPie, faSave, faSpinner, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { MAX_AMOUNT, checkAmount, checkDate, firstError } from '../utils/validation';
 import ExpensesModal from '../Components/ExpensesModal';
 import { expenseCategoryLabel } from '../config/expenseCategories';
 
@@ -316,6 +317,17 @@ const AdminReports = () => {
   };
 
   const handleSaveAndIssueInvoice = async () => {
+    // Blank lines count as 0; anything else must be a non-negative amount that
+    // fits the decimal(10,2) columns, and the due date a real calendar day.
+    const amountFields = [['rent', 'Base rent'], ['water', 'Water'], ['electric', 'Electric'], ['parking', 'Parking'], ['lateFee', 'Late fee']];
+    const invoiceError = firstError(
+      ...amountFields.map(([key, label]) => checkAmount(invoiceForm[key] === '' ? 0 : invoiceForm[key], { label })),
+      invoiceForm.dueDate ? checkDate(invoiceForm.dueDate, { label: 'Due date' }) : ''
+    );
+    if (invoiceError) {
+      alert(invoiceError);
+      return;
+    }
     if (invoiceMode === 'adjust') {
       if (!selectedAdjustInvoiceId) {
         alert('Please select an invoice to adjust.');
@@ -2377,6 +2389,9 @@ const AdminReports = () => {
                       <input 
                         type="number" 
                         value={invoiceForm.rent} 
+                        min="0"
+                        max={MAX_AMOUNT}
+                        step="0.01"
                         onChange={e => setInvoiceForm(p => ({ ...p, rent: e.target.value }))}
                         className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
                       />
@@ -2388,6 +2403,9 @@ const AdminReports = () => {
                       <input 
                         type="number" 
                         value={invoiceForm.water} 
+                        min="0"
+                        max={MAX_AMOUNT}
+                        step="0.01"
                         onChange={e => setInvoiceForm(p => ({ ...p, water: e.target.value }))}
                         className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
                       />
@@ -2399,6 +2417,9 @@ const AdminReports = () => {
                       <input 
                         type="number" 
                         value={invoiceForm.electric} 
+                        min="0"
+                        max={MAX_AMOUNT}
+                        step="0.01"
                         onChange={e => setInvoiceForm(p => ({ ...p, electric: e.target.value }))}
                         className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
                       />
@@ -2410,6 +2431,9 @@ const AdminReports = () => {
                       <input 
                         type="number" 
                         value={invoiceForm.parking} 
+                        min="0"
+                        max={MAX_AMOUNT}
+                        step="0.01"
                         onChange={e => setInvoiceForm(p => ({ ...p, parking: e.target.value }))}
                         className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
                       />
@@ -2419,6 +2443,9 @@ const AdminReports = () => {
                       <input 
                         type="number" 
                         value={invoiceForm.lateFee} 
+                        min="0"
+                        max={MAX_AMOUNT}
+                        step="0.01"
                         onChange={e => setInvoiceForm(p => ({ ...p, lateFee: e.target.value }))}
                         className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
                       />

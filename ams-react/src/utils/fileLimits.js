@@ -12,6 +12,8 @@ export const FILE_RULES = {
   document:    { maxMB: 10, ext: ['jpg', 'jpeg', 'png', 'pdf'], label: 'JPG, PNG or PDF' },
   // upload_payment_proof.php
   paymentProof: { maxMB: 10, ext: ['jpg', 'jpeg', 'png', 'webp', 'pdf'], label: 'JPG, PNG, WEBP or PDF' },
+  // PaymentUpload receipt photo (the page promises JPG/PNG up to 5 MB)
+  receiptImage: { maxMB: 5, ext: ['jpg', 'jpeg', 'png'], label: 'JPG or PNG' },
   // store_room_image(), profile.php avatar
   image:       { maxMB: 10, ext: IMAGE, label: 'JPG, PNG, GIF or WEBP' },
   // store_maintenance_attachment()

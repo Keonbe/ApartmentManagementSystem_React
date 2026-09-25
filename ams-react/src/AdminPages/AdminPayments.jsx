@@ -10,6 +10,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError } from '../utils/validation';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
@@ -310,6 +311,14 @@ const AdminPayments = () => {
 
 const handleMarkAsPaid = async () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId) return;
+    const recordError = firstError(
+      amountTendered !== '' ? checkAmount(amountTendered, { label: 'Amount tendered' }) : '',
+      checkLength(paymentReference, LIMITS.paymentReference, 'Reference number')
+    );
+    if (recordError) {
+      alert(recordError);
+      return;
+    }
     
     try {
       const res = await api.post('/record_payment_admin.php', {
@@ -347,6 +356,11 @@ const handleMarkAsPaid = async () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId) return;
     const reason = window.prompt("Why is this payment proof being rejected? The tenant will see this message.");
     if (!reason || !reason.trim()) return;
+    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
+    if (reasonError) {
+      alert(reasonError);
+      return;
+    }
 
     try {
       const res = await api.post('/reject_payment_proof.php', {
@@ -673,12 +687,12 @@ const handleMarkAsPaid = async () => {
                       {isExtendedRent && (
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Prorated Base Rent</label>
-                          <input type="number" value={extendedAmount} onChange={e => setExtendedAmount(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
+                          <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={extendedAmount} onChange={e => setExtendedAmount(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
                         </div>
                       )}
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Custom Add-ons</label>
-                        <input type="number" value={customAddOns} onChange={e => setCustomAddOns(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
+                        <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={customAddOns} onChange={e => setCustomAddOns(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
                       </div>
                     </div>
                     <div className="text-right flex flex-col items-end">
@@ -713,7 +727,7 @@ const handleMarkAsPaid = async () => {
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Amount Tendered</label>
-                          <input type="number" value={amountTendered} onChange={e => setAmountTendered(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
+                          <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={amountTendered} onChange={e => setAmountTendered(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Change</label>
@@ -727,6 +741,7 @@ const handleMarkAsPaid = async () => {
                           <input
                             type="text"
                             value={paymentReference}
+                            maxLength={LIMITS.paymentReference}
                             onChange={e => setPaymentReference(e.target.value)}
                             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white"
                             placeholder={activeTenant.paymentReference || 'Transfer / transaction reference'}

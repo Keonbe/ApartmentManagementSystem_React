@@ -5,6 +5,9 @@ import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
+import { checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
 
 export default function PayBills() {
@@ -172,7 +175,8 @@ export default function PayBills() {
         }
 
         if (currentMethodObj.family === 'in_person') {
-            if (!scheduledDate) { alert('Please select a date.'); return; }
+            const dateError = checkDate(scheduledDate, { min: localDateString(), label: 'Schedule date' });
+            if (dateError) { alert(dateError); return; }
             try {
                 const res = await api.post("/schedule_payment.php", {
                     invoice_id: billDetails.invoiceId,
@@ -187,7 +191,7 @@ export default function PayBills() {
                 }
             } catch (error) {
                 console.error(error);
-                alert("Failed to schedule payment.");
+                alert(apiErrorMessage(error, "Failed to schedule payment."));
             }
             return;
         }
@@ -215,24 +219,35 @@ export default function PayBills() {
             return;
         }
 
-        let proofPath = null;
-        if (proofFile) {
-            const formData = new FormData();
-            formData.append('invoice_id', billDetails.invoiceId);
-            formData.append('payment_reference', paymentReference);
-            formData.append('payment_method', currentMethodObj.label);
-            formData.append('proof', proofFile);
+        // Manual (GCash / bank) payments need a reference and a proof: pay_bill.php
+        // refuses a non-cash payment until upload_payment_proof.php has stored one.
+        const referenceError = checkPaymentReference(paymentReference, currentMethodObj.label);
+        if (referenceError) { alert(referenceError); return; }
+        const proofError = proofFile ? checkFile(proofFile, FILE_RULES.paymentProof) : 'Please attach your proof of payment.';
+        if (proofError) { alert(proofError); return; }
 
-            try {
-                const uploadRes = await api.post('/upload_payment_proof.php', formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                if (uploadRes.data.success) {
-                    proofPath = uploadRes.data.proof_path;
-                }
-            } catch (err) {
-                console.error("Proof upload failed:", err);
+        let proofPath = null;
+        const formData = new FormData();
+        formData.append('invoice_id', billDetails.invoiceId);
+        formData.append('payment_reference', paymentReference);
+        formData.append('payment_method', currentMethodObj.label);
+        formData.append('proof', proofFile);
+
+        try {
+            const uploadRes = await api.post('/upload_payment_proof.php', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (!uploadRes.data.success) {
+                alert(apiErrorMessage(uploadRes, "Payment proof could not be uploaded."));
+                return;
             }
+            proofPath = uploadRes.data.proof_path;
+        } catch (err) {
+            // Without a stored proof pay_bill.php would refuse anyway, so stop
+            // here and say why instead of sending a request that must fail (L8).
+            console.error("Proof upload failed:", err);
+            alert(apiErrorMessage(err, "Payment proof could not be uploaded."));
+            return;
         }
 
         try {
@@ -252,7 +267,7 @@ export default function PayBills() {
             }
         } catch (error) {
             console.error("Error submitting payment:", error);
-            alert("Payment failed.");
+            alert(apiErrorMessage(error, "Payment failed."));
         }
     };
 
@@ -473,6 +488,8 @@ export default function PayBills() {
                                         placeholder="e.g. 1002 9382 1823"
                                         value={paymentReference}
                                         onChange={e => setPaymentReference(e.target.value)}
+                                        maxLength={LIMITS.paymentReference}
+                                        required
                                         className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
                                     />
                                 </div>
@@ -482,8 +499,14 @@ export default function PayBills() {
                                     </label>
                                     <input 
                                         type="file" 
-                                        accept="image/*,.pdf"
-                                        onChange={e => setProofFile(e.target.files[0])}
+                                        accept={acceptFor(FILE_RULES.paymentProof)}
+                                        required
+                                        onChange={e => {
+                                            const file = e.target.files[0] || null;
+                                            const fileError = checkFile(file, FILE_RULES.paymentProof);
+                                            if (fileError) { alert(fileError); e.target.value = ''; setProofFile(null); return; }
+                                            setProofFile(file);
+                                        }}
                                         className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 min-h-[44px]"
                                     />
                                 </div>
@@ -501,7 +524,7 @@ export default function PayBills() {
                                         value={scheduledDate}
                                         onChange={e => setScheduledDate(e.target.value)}
                                         className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
-                                        min={new Date().toISOString().split('T')[0]}
+                                        min={localDateString()}
                                     />
                                 </div>
                                 <div>
