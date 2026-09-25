@@ -324,7 +324,8 @@ if ($id > 0 && !empty($status)) {
                     'application_update',
                     'Your Rental Application Is Approved',
                     null,
-                    $email_html
+                    $email_html,
+                    'sync'
                 );
             } catch (Throwable $notification_error) {
                 error_log('Could not dispatch application approval email: ' . $notification_error->getMessage());

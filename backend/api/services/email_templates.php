@@ -77,7 +77,7 @@ function email_application_approved_template($tenant_name, $room, $monthly_rent,
              . "<p style=\"color:#334155;line-height:1.6;\">Congratulations! Your rental application has been approved and <strong>Unit " . esc($room) . "</strong> has been assigned to you.</p>"
              . "<p style=\"color:#334155;line-height:1.6;\">Your move-in invoice covers one month of advance rent and one month of security deposit:</p>"
              . "<p style=\"color:#334155;line-height:1.6;\"><strong>Total: {$amount}</strong><br>Payment due: <strong>" . esc($due_date) . "</strong></p>"
-             . "<p style=\"color:#334155;line-height:1.6;\">Please sign in to your tenant portal to review your invoice and complete the move-in payment. Contact the management office if you need assistance.</p>";
+             . "<p style=\"color:#334155;line-height:1.6;\">Please sign in to your tenant portal to review your invoice and complete the move-in payment. Contact the admin if you need assistance.</p>";
     return email_base_template('Your Rental Application Is Approved', $content);
 }
 
