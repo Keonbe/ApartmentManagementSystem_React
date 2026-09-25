@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { PASSWORD_MAX_BYTES, checkPassword } from '../utils/validation';
 
 export default function ChangePasswordModal({ isOpen, onClose }) {
     const [currentPassword, setCurrentPassword] = useState('');
@@ -22,8 +23,9 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
         setMessage('');
         setIsSuccess(false);
 
-        if (newPassword.length < 8) {
-            setMessage("New password length must be atleast 8 characters");
+        const passwordError = checkPassword(newPassword);
+        if (passwordError) {
+            setMessage(passwordError);
             return;
         }
 
@@ -107,6 +109,7 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                             <input
                                 type={showNewPass ? "text" : "password"}
                                 placeholder="••••••••••••"
+                                maxLength={PASSWORD_MAX_BYTES}
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm pr-12"
@@ -129,6 +132,7 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                             <input
                                 type={showConfirmPass ? "text" : "password"}
                                 placeholder="••••••••••••"
+                                maxLength={PASSWORD_MAX_BYTES}
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm pr-12"

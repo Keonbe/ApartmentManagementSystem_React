@@ -8,6 +8,7 @@ import {
   faUsers, faFilter
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkPassword, checkPhMobile, firstError } from '../utils/validation';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
@@ -85,6 +86,11 @@ const AdminUsers = () => {
   };
 
   const handleSaveEdit = async () => {
+    const invalid = firstError(
+      checkEmail(editForm.email),
+      String(editForm.contact_no ?? '').trim() ? checkPhMobile(editForm.contact_no) : ''
+    );
+    if (invalid) { showToast(invalid, 'error'); return; }
     setSaving(true);
     try {
       const res = await api.post('/manage_users.php', { action: 'update', user_id: editUser.id, ...editForm });
@@ -98,7 +104,8 @@ const AdminUsers = () => {
   };
 
   const handleResetPassword = async () => {
-    if (newPassword.length < 8) { showToast('Password must be at least 8 characters.', 'error'); return; }
+    const passwordError = checkPassword(newPassword);
+    if (passwordError) { showToast(passwordError, 'error'); return; }
     setSaving(true);
     try {
       const res = await api.post('/manage_users.php', { action: 'reset_password', user_id: showResetModal, new_password: newPassword });
@@ -324,17 +331,18 @@ const AdminUsers = () => {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'First Name *', key: 'first_name' },
-                  { label: 'Middle Name', key: 'middle_name' },
-                  { label: 'Last Name *', key: 'last_name' },
-                  { label: 'Suffix', key: 'suffix' },
-                  { label: 'Contact No.', key: 'contact_no' },
-                  { label: 'Email *', key: 'email' },
+                  { label: 'First Name *', key: 'first_name', max: LIMITS.firstName },
+                  { label: 'Middle Name', key: 'middle_name', max: LIMITS.middleName },
+                  { label: 'Last Name *', key: 'last_name', max: LIMITS.lastName },
+                  { label: 'Suffix', key: 'suffix', max: LIMITS.suffix },
+                  { label: 'Contact No.', key: 'contact_no', max: 16 },
+                  { label: 'Email *', key: 'email', max: LIMITS.userEmail },
                 ].map(f => (
                   <div key={f.key}>
                     <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{f.label}</label>
                     <input
-                      type={f.key === 'email' ? 'email' : 'text'}
+                      type={f.key === 'email' ? 'email' : f.key === 'contact_no' ? 'tel' : 'text'}
+                      maxLength={f.max}
                       value={editForm[f.key]}
                       onChange={e => setEditForm({ ...editForm, [f.key]: e.target.value })}
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
@@ -377,7 +385,7 @@ const AdminUsers = () => {
               <p className="text-xs text-slate-500 m-0">Enter a new password for this account. The user will need to use this password on their next login.</p>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Password (min 8 chars)</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} maxLength={PASSWORD_MAX_BYTES}
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
                   placeholder="Enter new password" />
               </div>

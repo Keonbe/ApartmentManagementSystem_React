@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import api from "../api/axiosConfig";
+import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkPassword, firstError } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 import { useLang } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.png";
 import '../assets/styles/responsive/user/registration.responsive.css';
@@ -35,9 +37,14 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
         setHasSubmitted(true);
         setMessage('');
 
-        // Validations
-        if (password.length < 6) {
-            setMessage("Password must be at least 6 characters.");
+        // Validations (names are capped by maxLength to the users columns)
+        const invalid = firstError(
+            !firstname.trim() || !lastname.trim() ? 'First and last name are required.' : '',
+            checkEmail(email),
+            checkPassword(password)
+        );
+        if (invalid) {
+            setMessage(invalid);
             return;
         }
         if (password !== conPassword) {
@@ -66,7 +73,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
         }
         catch (e) {
             console.error("Error:", e);
-            setMessage("Unable to register account. Please try again.");
+            setMessage(apiErrorMessage(e, "Unable to register account. Please try again."));
         }
     };
 
@@ -155,6 +162,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={firstname}
                                         type="text"
                                         id="reg-firstname"
+                                        maxLength={LIMITS.firstName}
                                         className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
                                         placeholder=" "
                                         required
@@ -172,6 +180,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={middlename}
                                         type="text"
                                         id="reg-middlename"
+                                        maxLength={LIMITS.middleName}
                                         className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
                                         placeholder=" "
                                         onChange={(e) => setMiddleName(e.target.value)}
@@ -192,6 +201,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={lastname}
                                         type="text"
                                         id="reg-lastname"
+                                        maxLength={LIMITS.lastName}
                                         className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
                                         placeholder=" "
                                         required
@@ -209,6 +219,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={suffix}
                                         type="text"
                                         id="reg-suffix"
+                                        maxLength={LIMITS.suffix}
                                         className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
                                         placeholder=" "
                                         onChange={(e) => setSuffix(e.target.value)}
@@ -228,6 +239,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                     value={email}
                                     type="email"
                                     id="reg-email"
+                                    maxLength={LIMITS.userEmail}
                                     className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
                                     placeholder=" "
                                     required
@@ -248,6 +260,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={password}
                                         type={showPass ? "text" : "password"}
                                         id="reg-password"
+                                        maxLength={PASSWORD_MAX_BYTES}
                                         className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-10 box-border"
                                         placeholder=" "
                                         required
@@ -273,6 +286,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                                         value={conPassword}
                                         type={showConfirmPass ? "text" : "password"}
                                         id="reg-confirm"
+                                        maxLength={PASSWORD_MAX_BYTES}
                                         className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-10 box-border"
                                         placeholder=" "
                                         required

@@ -4,6 +4,7 @@ import api from '../api/axiosConfig';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from "../assets/Apartment_Pic.png";
+import { PASSWORD_MAX_BYTES, checkPassword } from '../utils/validation';
 import '../assets/styles/responsive/user/login.responsive.css';
 
 export default function ResetPassword() {
@@ -28,8 +29,9 @@ export default function ResetPassword() {
             return;
         }
 
-        if (password.length < 8) {
-            setMessage("Password must be at least 8 characters.");
+        const passwordError = checkPassword(password);
+        if (passwordError) {
+            setMessage(passwordError);
             return;
         }
 
@@ -143,6 +145,7 @@ export default function ResetPassword() {
                                                     value={password}
                                                     onChange={(e) => setPassword(e.target.value)}
                                                     minLength={8}
+                                                    maxLength={PASSWORD_MAX_BYTES}
                                                 />
                                                 <button
                                                     type="button"
@@ -165,6 +168,7 @@ export default function ResetPassword() {
                                                     value={confirmPassword}
                                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                                     minLength={8}
+                                                    maxLength={PASSWORD_MAX_BYTES}
                                                 />
                                             </div>
                                         </div>

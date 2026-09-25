@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
+import { checkEmail, checkPassword, checkPhMobile, firstError } from '../utils/validation';
 import { SETTINGS_TABS, SETTINGS_TAB_IDS } from './settings/tabs';
 import SettingsNav from './settings/SettingsNav';
 import AccountPanel from './settings/AccountPanel';
@@ -108,6 +109,11 @@ const AdminAccountSettings = () => {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
+    const invalid = firstError(checkEmail(email), phone.trim() ? checkPhMobile(phone) : '');
+    if (invalid) {
+      showToast('error', 'Check Your Details', invalid);
+      return;
+    }
     setSavingProfile(true);
     try {
       const res = await api.post('profile.php', {
@@ -133,8 +139,9 @@ const AdminAccountSettings = () => {
       showToast('error', 'Password Mismatch', 'New passwords do not match. Please verify and try again.');
       return;
     }
-    if (newPassword.length < 8) {
-      showToast('error', 'Password Too Short', 'Use at least 8 characters.');
+    const passwordError = checkPassword(newPassword);
+    if (passwordError) {
+      showToast('error', 'Password Not Accepted', passwordError);
       return;
     }
     setSavingPassword(true);

@@ -6,6 +6,9 @@ import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
+import { LIMITS, checkEmail, checkPhMobile, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
 
 // Stand-in photos for the camera fallback when no camera stream is available.
@@ -77,6 +80,12 @@ export default function ProfileSettings() {
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+            const fileError = checkFile(file, FILE_RULES.image);
+            if (fileError) {
+                alert(fileError);
+                e.target.value = '';
+                return;
+            }
             setSelectedFile(file); // Store the file for later upload
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -155,22 +164,23 @@ export default function ProfileSettings() {
         }
     };
 
-    const validatePhilippineNumber = (number) => {
-        if (number.length !== 10) return "Mobile number must be exactly 10 digits.";
-        if (!/^[89]/.test(number)) return "Invalid prefix.";
-        if (/^(\d)\1+$/.test(number)) return "Repetitive number pattern flagged.";
-        if ("012345678901".includes(number) || "09876543210".includes(number)) return "Sequential numbers rejected.";
-        return "";
-    };
 
     // Update your handleFormSubmit function with this complete flow
     const handleFormSubmit = async (e) => {
         e.preventDefault();
 
-        // Validate phone number
-        const validationError = validatePhilippineNumber(phoneRawNumber);
+        // Validate phone number (same rule as profile.php: +63 9XXXXXXXXX)
+        const validationError = checkPhMobile(phoneRawNumber);
         if (validationError) {
             setPhoneError(validationError);
+            return;
+        }
+        const detailsError = firstError(
+            !firstName.trim() || !lastName.trim() ? 'First and last name are required.' : '',
+            checkEmail(email)
+        );
+        if (detailsError) {
+            alert(detailsError);
             return;
         }
 
@@ -234,7 +244,7 @@ export default function ProfileSettings() {
             }
         } catch (error) {
             console.error("Error updating profile settings payload workflow:", error);
-            alert("An error occurred while saving your profile data layers.");
+            alert(apiErrorMessage(error, "An error occurred while saving your profile data layers."));
         }
     };
 
@@ -312,7 +322,7 @@ export default function ProfileSettings() {
                                                 }
                                             } catch (err) {
                                                 console.error("Error deleting avatar:", err);
-                                                alert("An error occurred during avatar deletion processing.");
+                                                alert(apiErrorMessage(err, "An error occurred during avatar deletion processing."));
                                             }
                                         }
                                     }}
@@ -367,7 +377,7 @@ export default function ProfileSettings() {
                                 <div className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 relative cursor-pointer group transition-colors min-h-[110px]">
                                     <input
                                         type="file"
-                                        accept="image/*"
+                                        accept={acceptFor(FILE_RULES.image)}
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
@@ -417,6 +427,7 @@ export default function ProfileSettings() {
                                     <input
                                         type="text"
                                         value={firstName}
+                                        maxLength={LIMITS.firstName}
                                         onChange={(e) => setFirstName(e.target.value)}
                                         className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                         required
@@ -427,6 +438,7 @@ export default function ProfileSettings() {
                                     <input
                                         type="text"
                                         value={lastName}
+                                        maxLength={LIMITS.lastName}
                                         onChange={(e) => setLastName(e.target.value)}
                                         className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                         required
@@ -437,6 +449,7 @@ export default function ProfileSettings() {
                                     <input
                                         type="text"
                                         value={suffix}
+                                        maxLength={LIMITS.suffix}
                                         onChange={(e) => setSuffix(e.target.value)}
                                         className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                     />
@@ -467,8 +480,9 @@ export default function ProfileSettings() {
                                 <div className="flex flex-col space-y-1.5">
                                     <label className="text-sm font-bold text-slate-700">{t('profile.email')}</label>
                                     <input
-                                        type="text"
+                                        type="email"
                                         value={email}
+                                        maxLength={LIMITS.userEmail}
                                         onChange={(e) => setEmail(e.target.value)}
                                         className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
                                         required

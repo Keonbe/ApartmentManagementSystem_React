@@ -1,6 +1,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserShield, faKey, faSave, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, INPUT } from './SettingsSection';
+import { LIMITS, PASSWORD_MAX_BYTES } from '../../utils/validation';
 
 // Profile and password save through their own endpoints (profile.php,
 // change_password.php), so each keeps its own button rather than the page's
@@ -22,16 +23,16 @@ export default function AccountPanel({
         <form onSubmit={onProfileSubmit} className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Field label="First Name">
-              <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={INPUT} required />
+              <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={INPUT} maxLength={LIMITS.firstName} required />
             </Field>
             <Field label="Last Name">
-              <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className={INPUT} required />
+              <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className={INPUT} maxLength={LIMITS.lastName} required />
             </Field>
             <Field label="Email Address">
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT} required />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT} maxLength={LIMITS.userEmail} required />
             </Field>
             <Field label="Contact Number">
-              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09123456789" className={INPUT} />
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09123456789" className={INPUT} maxLength={16} />
             </Field>
           </div>
           <div className="flex justify-end">
@@ -59,10 +60,10 @@ export default function AccountPanel({
           </Field>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Field label="New Password" hint="At least 8 characters.">
-              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={INPUT} required />
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={INPUT} maxLength={PASSWORD_MAX_BYTES} required />
             </Field>
             <Field label="Confirm New Password">
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={INPUT} required />
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={INPUT} maxLength={PASSWORD_MAX_BYTES} required />
             </Field>
           </div>
           <div className="flex justify-end">
