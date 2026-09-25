@@ -642,11 +642,14 @@ CREATE TABLE IF NOT EXISTS `notification_log` (
   `message_body` text DEFAULT NULL COMMENT 'truncated to 500 chars by the writer',
   `status` enum('sent','failed','skipped') NOT NULL DEFAULT 'sent',
   `error_message` text DEFAULT NULL,
+  `provider_message_id` varchar(64) DEFAULT NULL COMMENT 'Semaphore message_id',
+  `provider_status` varchar(20) DEFAULT NULL COMMENT 'status Semaphore returned at send time',
   `sent_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `idx_log_channel_status` (`channel`, `status`),
   KEY `idx_log_user` (`user_id`),
   KEY `idx_log_sent_at` (`sent_at`),
+  KEY `idx_log_provider_msg` (`provider_message_id`),
   CONSTRAINT `fk_notif_log_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

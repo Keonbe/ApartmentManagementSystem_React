@@ -213,48 +213,53 @@ function process_notification_queue($conn, $limit = 20) {
         ? ($hour >= $quiet_start || $hour < $quiet_end)   // window wraps midnight
         : ($hour >= $quiet_start && $hour < $quiet_end);
 
+    // Same-text SMS jobs (an announcement to every tenant) go out together:
+    // Semaphore takes up to 1,000 numbers per POST and recommends that over one
+    // call per number. Email, and SMS whose text is unique, go one at a time.
+    $sms_groups = [];
+    $singles    = [];
     foreach ($jobs as $job) {
-        $id      = (int)$job['id'];
-        $payload = json_decode($job['payload'], true) ?: [];
-
         if ($job['channel'] === 'sms' && $in_quiet && !in_array($job['event_type'], NOTIFICATION_URGENT_TYPES, true)) {
-            _queue_defer_to_quiet_end($conn, $id, $quiet_end);
+            _queue_defer_to_quiet_end($conn, (int)$job['id'], $quiet_end);
             $counts['deferred']++;
             continue;
         }
+        $job['_payload'] = json_decode($job['payload'], true) ?: [];
+        if ($job['channel'] === 'sms') {
+            $sms_groups[$job['event_type'] . "\0" . ($job['_payload']['body'] ?? '')][] = $job;
+        } else {
+            $singles[] = $job;
+        }
+    }
+    foreach ($sms_groups as $key => $group) {
+        if (count($group) === 1) {
+            $singles[] = $group[0];
+            unset($sms_groups[$key]);
+        }
+    }
 
-        // The only place a provider is ever contacted.
+    // Providers rate-limit bursts, so pace the provider calls. Skipped for the
+    // dry run, which contacts nothing.
+    $pace = get_setting($conn, 'sms_provider', 'log') !== 'log';
+
+    foreach ($sms_groups as $group) {
+        $items = [];
+        foreach ($group as $job) {
+            $items[(int)$job['id']] = ['phone' => $job['_payload']['to'] ?? '', 'user_id' => (int)$job['user_id']];
+        }
+        // The only place a provider is ever contacted (with send_sms/send_email below).
+        $results = send_sms_bulk($conn, $items, $group[0]['_payload']['body'] ?? '', $group[0]['event_type']);
+        foreach ($group as $job) _queue_mark_job($conn, $job, !empty($results[(int)$job['id']]), $counts);
+        if ($pace) usleep(200000);
+    }
+
+    foreach ($singles as $job) {
+        $payload = $job['_payload'];
         $ok = $job['channel'] === 'email'
             ? send_email($conn, $payload['to'] ?? '', $payload['subject'] ?? '', $payload['body'] ?? '', $job['event_type'], (int)$job['user_id'])
             : send_sms($conn, $payload['to'] ?? '', $payload['body'] ?? '', $job['event_type'], (int)$job['user_id']);
-
-        $counts['processed']++;
-        if ($ok) {
-            $done = $conn->prepare("UPDATE notification_queue SET status = 'sent', claim_token = NULL, processed_at = NOW() WHERE id = ?");
-            $done->bind_param("i", $id);
-            $done->execute();
-            $done->close();
-            $counts['sent']++;
-        } else {
-            $attempts = (int)$job['attempts'] + 1;
-            $status   = $attempts >= (int)$job['max_attempts'] ? 'failed' : 'pending';
-            $backoff  = (int)min(60 * pow(2, $attempts), 3600);
-            // send_sms()/send_email() log the reason; copy it onto the job so a
-            // failed row explains itself without joining notification_log.
-            $error = _last_delivery_error_for($conn, (int)$job['user_id'], $job['channel']);
-            $retry = $conn->prepare("UPDATE notification_queue
-                                     SET status = ?, attempts = ?, claim_token = NULL, error_message = ?,
-                                         next_attempt_at = DATE_ADD(NOW(), INTERVAL ? SECOND)
-                                     WHERE id = ?");
-            $retry->bind_param("sisii", $status, $attempts, $error, $backoff, $id);
-            $retry->execute();
-            $retry->close();
-            if ($status === 'failed') $counts['failed']++;
-        }
-
-        // Providers rate-limit bursts and cap per-recipient volume, so pace the
-        // batch. Skipped for the dry run, which contacts nothing.
-        if (get_setting($conn, 'sms_provider', 'log') !== 'log') usleep(200000);
+        _queue_mark_job($conn, $job, $ok, $counts);
+        if ($pace) usleep(200000);
     }
 
     // When a real SMTP driver is in use, hold one PHPMailer instance with
@@ -287,6 +292,36 @@ function notification_clock_hour($conn) {
 
 // Hold a quiet-hours SMS until the window ends rather than dropping it. Computed
 // in SQL for the same reason as the hour check: next_attempt_at is DB time.
+// Record one job's outcome: done, or back to pending with exponential backoff
+// until max_attempts, then failed.
+function _queue_mark_job($conn, $job, $ok, &$counts) {
+    $id = (int)$job['id'];
+    $counts['processed']++;
+    if ($ok) {
+        $done = $conn->prepare("UPDATE notification_queue SET status = 'sent', claim_token = NULL, processed_at = NOW() WHERE id = ?");
+        $done->bind_param("i", $id);
+        $done->execute();
+        $done->close();
+        $counts['sent']++;
+        return;
+    }
+
+    $attempts = (int)$job['attempts'] + 1;
+    $status   = $attempts >= (int)$job['max_attempts'] ? 'failed' : 'pending';
+    $backoff  = (int)min(60 * pow(2, $attempts), 3600);
+    // send_sms()/send_email() log the reason; copy it onto the job so a
+    // failed row explains itself without joining notification_log.
+    $error = _last_delivery_error_for($conn, (int)$job['user_id'], $job['channel']);
+    $retry = $conn->prepare("UPDATE notification_queue
+                             SET status = ?, attempts = ?, claim_token = NULL, error_message = ?,
+                                 next_attempt_at = DATE_ADD(NOW(), INTERVAL ? SECOND)
+                             WHERE id = ?");
+    $retry->bind_param("sisii", $status, $attempts, $error, $backoff, $id);
+    $retry->execute();
+    $retry->close();
+    if ($status === 'failed') $counts['failed']++;
+}
+
 function _queue_defer_to_quiet_end($conn, $id, $quiet_end) {
     $end = (int)$quiet_end;
     $stmt = $conn->prepare("UPDATE notification_queue

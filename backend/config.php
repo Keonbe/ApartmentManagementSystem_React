@@ -1543,21 +1543,31 @@ function normalize_ph_mobile($phone) {
     return preg_match('/^9\d{9}$/', $digits) ? '+63' . $digits : null;
 }
 
-// An SMS holding a peso sign, an em dash or a smart quote is UCS-2 encoded, and
-// the segment size drops from 160 characters to 70 — so a message that looks
-// like one SMS silently bills as three. Fold those characters to their GSM-7
-// equivalents and drop anything still outside the alphabet.
+// Semaphore bills one credit per 160 ASCII characters. A peso sign, an em dash,
+// a smart quote or an accented letter makes the message Unicode, and the segment
+// size drops to 70 — so a message that looks like one SMS silently bills as three.
+// Fold those characters to plain ASCII (ñ → n keeps "Parañaque" readable) and
+// drop anything still outside it. The GSM extension characters [ ] { } ~ ^ | \ `
+// are dropped too: carriers count each as two.
 function gsm7_safe($text) {
     $map = [
         '₱' => 'PHP ', '—' => '-', '–' => '-', '…' => '...',
         '“' => '"', '”' => '"', '‘' => "'", '’' => "'",
         '•' => '*', '₽' => '', '°' => 'deg', '™' => '', '®' => '', '©' => '',
-        "\xC2\xA0" => ' ',
+        '£' => 'GBP ', '¥' => 'JPY ', '€' => 'EUR ',
+        'ñ' => 'n', 'Ñ' => 'N', 'ç' => 'c', 'Ç' => 'C', 'ß' => 'ss',
+        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'å' => 'a', 'æ' => 'ae',
+        'Á' => 'A', 'À' => 'A', 'Â' => 'A', 'Ä' => 'A', 'Å' => 'A', 'Æ' => 'AE',
+        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'É' => 'E', 'È' => 'E', 'Ê' => 'E', 'Ë' => 'E',
+        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i', 'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
+        'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'ö' => 'o', 'ø' => 'o', 'Ó' => 'O', 'Ò' => 'O', 'Ô' => 'O', 'Ö' => 'O', 'Ø' => 'O',
+        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U',
+        "\xC2\xA0" => ' ', "\t" => ' ',
     ];
     $text = strtr((string)$text, $map);
-    // GSM-7 basic set, minus the extension table we do not need.
-    $text = preg_replace('/[^A-Za-z0-9@£$¥èéùìòÇØøÅåÆæßÉ\r\n .,:;!?"#%&\'()*+\-\/<=>¡¿§_@]/u', '', $text);
-    return preg_replace('/[ \t]+/', ' ', $text);
+    // Printable ASCII, minus the GSM extension characters.
+    $text = preg_replace('/[^A-Za-z0-9\r\n .,:;!?"#%&\'()*+\-\/<=>@_$]/', '', $text);
+    return preg_replace('/ {2,}/', ' ', $text);
 }
 
 // One SMS segment, hard. Anything longer belongs in an email: a second segment
@@ -1579,8 +1589,11 @@ function sms_avoid_ignored_prefix($text) {
 // The only writer into notification_log. message_body is truncated because the
 // log otherwise keeps names, unit numbers, amounts, phone numbers and email
 // addresses in full and forever; prune_notification_log() bounds how long.
-// $status is 'sent', 'failed' or 'skipped'.
-function log_notification_delivery($conn, $user_id, $channel, $event_type, $recipient, $subject, $body, $status = 'sent', $error = null) {
+// $status is 'sent', 'failed' or 'skipped'. $provider_message_id / $provider_status
+// are what Semaphore answered (message_id, and Queued/Pending/Sent/...): 'sent'
+// here means the provider accepted it, and the id lets a later check trace delivery.
+function log_notification_delivery($conn, $user_id, $channel, $event_type, $recipient, $subject, $body, $status = 'sent', $error = null,
+                                   $provider_message_id = null, $provider_status = null) {
     if (!in_array($channel, ['in-app', 'email', 'sms'], true)) return 0;
     if (!in_array($status, ['sent', 'failed', 'skipped'], true)) $status = 'sent';
 
@@ -1588,11 +1601,15 @@ function log_notification_delivery($conn, $user_id, $channel, $event_type, $reci
     $recipient = $recipient === null ? null : mb_substr((string)$recipient, 0, 255);
     $subject   = $subject === null ? null : mb_substr((string)$subject, 0, 255);
     $body      = $body === null ? null : mb_substr((string)$body, 0, 500);
+    $provider_message_id = $provider_message_id === null || $provider_message_id === '' ? null : mb_substr((string)$provider_message_id, 0, 64);
+    $provider_status     = $provider_status === null || $provider_status === '' ? null : mb_substr((string)$provider_status, 0, 20);
 
-    $stmt = $conn->prepare("INSERT INTO notification_log (user_id, channel, event_type, recipient, subject, message_body, status, error_message)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = $conn->prepare("INSERT INTO notification_log (user_id, channel, event_type, recipient, subject, message_body, status, error_message,
+                                                          provider_message_id, provider_status)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     if (!$stmt) return 0;
-    $stmt->bind_param("isssssss", $user_id, $channel, $event_type, $recipient, $subject, $body, $status, $error);
+    $stmt->bind_param("isssssssss", $user_id, $channel, $event_type, $recipient, $subject, $body, $status, $error,
+                      $provider_message_id, $provider_status);
     $stmt->execute();
     $id = $stmt->insert_id;
     $stmt->close();

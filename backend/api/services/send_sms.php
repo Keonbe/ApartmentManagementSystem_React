@@ -22,8 +22,7 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
     $original = $phone;
 
     // Building-wide switch. Ships off, so nothing can send by accident.
-    $enabled = get_setting($conn, 'notifications_sms_enabled', '0');
-    if ($enabled !== '1' && $enabled !== 'true') {
+    if (!_sms_enabled($conn)) {
         log_notification_delivery($conn, $user_id, 'sms', $event_type, $original, null, $message, 'skipped', 'SMS globally disabled');
         return false;
     }
@@ -38,37 +37,114 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
         return false;
     }
 
-    // Cost control (§0.3): one GSM-7 segment, hard. A single "PHP" written as a
-    // peso sign, or an em dash, makes the whole message UCS-2 at 70 chars per
-    // segment, so what looks like one message bills as three.
-    // The "TEST" guard runs on the cleaned text (a leading emoji is stripped by
-    // gsm7_safe(), which could expose "Test"), then re-caps for the added prefix.
+    // One ASCII segment and no leading "TEST" (see _sms_prepare_text()).
     // Applied to every driver so the dry-run outbox shows what Semaphore gets.
-    $message = sms_single_segment(sms_avoid_ignored_prefix(sms_single_segment($message)));
+    $message = _sms_prepare_text($message);
 
     $provider = strtolower(get_setting($conn, 'sms_provider', 'log'));
 
     // Spend guard: a real provider bills every send, so a runaway loop or a
     // mis-targeted broadcast stops at the cap. The dry run costs nothing and
     // is not capped, so mock testing is unaffected.
-    if ($provider !== 'log' && ($cap = _sms_daily_cap_reached($conn)) !== null) {
-        log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'skipped', "Daily SMS cap reached ($cap)");
+    if ($provider !== 'log' && ($cap = _sms_daily_cap_left($conn)) !== null && $cap['left'] <= 0) {
+        log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'skipped', "Daily SMS cap reached ({$cap['cap']})");
         return false;
     }
 
     $result = match ($provider) {
         'log'       => _sms_via_log($conn, $phone, $message, $event_type, $user_id),
-        'semaphore' => _send_via_semaphore($conn, $phone, $message),
+        'semaphore' => _semaphore_result_for(_send_via_semaphore($conn, [$phone], $message), $phone, true),
         default     => ['ok' => false, 'error' => "Unknown SMS provider: $provider"],
     };
 
-    if ($result['ok']) {
-        log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'sent');
-        return true;
+    _sms_log_result($conn, $user_id, $event_type, $phone, $message, $result);
+    return $result['ok'];
+}
+
+/**
+ * Same text to many recipients in as few provider calls as possible. Semaphore
+ * takes up to 1,000 comma-separated numbers per POST /messages and recommends it
+ * over one call per number, which is what gets throttled. Used by the queue drain
+ * for announcements; every recipient still gets its own notification_log row.
+ *
+ * $items: [key => ['phone' => ..., 'user_id' => ...]]. Returns [key => bool].
+ */
+const SEMAPHORE_MAX_RECIPIENTS = 1000;
+
+function send_sms_bulk($conn, $items, $message, $event_type = 'general') {
+    $results = [];
+    if (!$items) return $results;
+
+    if (!_sms_enabled($conn)) {
+        foreach ($items as $k => $it) {
+            log_notification_delivery($conn, $it['user_id'] ?? null, 'sms', $event_type, $it['phone'] ?? '', null, $message, 'skipped', 'SMS globally disabled');
+            $results[$k] = false;
+        }
+        return $results;
     }
 
-    log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message, 'failed', $result['error']);
-    return false;
+    $text     = _sms_prepare_text($message);
+    $provider = strtolower(get_setting($conn, 'sms_provider', 'log'));
+
+    $numbers = [];   // key => +639XXXXXXXXX
+    foreach ($items as $k => $it) {
+        $n = normalize_ph_mobile($it['phone'] ?? '');
+        if ($n === null) {
+            log_notification_delivery($conn, $it['user_id'] ?? null, 'sms', $event_type, $it['phone'] ?? '', null, $text, 'failed', 'Invalid phone number');
+            $results[$k] = false;
+            continue;
+        }
+        $numbers[$k] = $n;
+    }
+
+    // The cap counts messages, so a broadcast larger than what is left today
+    // sends the first part and leaves the rest to retry tomorrow.
+    if ($provider !== 'log' && ($cap = _sms_daily_cap_left($conn)) !== null) {
+        $left = max(0, $cap['left']);
+        foreach (array_slice($numbers, $left, null, true) as $k => $n) {
+            log_notification_delivery($conn, $items[$k]['user_id'] ?? null, 'sms', $event_type, $n, null, $text, 'skipped', "Daily SMS cap reached ({$cap['cap']})");
+            $results[$k] = false;
+        }
+        $numbers = array_slice($numbers, 0, $left, true);
+    }
+
+    foreach (array_chunk($numbers, SEMAPHORE_MAX_RECIPIENTS, true) as $chunk) {
+        $response = $provider === 'semaphore'
+            ? _send_via_semaphore($conn, array_values(array_unique($chunk)), $text)
+            : null;
+        foreach ($chunk as $k => $n) {
+            $user_id = $items[$k]['user_id'] ?? null;
+            $result = match ($provider) {
+                'log'       => _sms_via_log($conn, $n, $text, $event_type, $user_id),
+                'semaphore' => _semaphore_result_for($response, $n, count($chunk) === 1),
+                default     => ['ok' => false, 'error' => "Unknown SMS provider: $provider"],
+            };
+            _sms_log_result($conn, $user_id, $event_type, $n, $text, $result);
+            $results[$k] = $result['ok'];
+        }
+    }
+    return $results;
+}
+
+// ──────────────────────────────────────────────
+//  Shared steps
+// ──────────────────────────────────────────────
+function _sms_enabled($conn) {
+    $enabled = get_setting($conn, 'notifications_sms_enabled', '0');
+    return $enabled === '1' || $enabled === 'true';
+}
+
+// Cost control (§0.3): one ASCII segment, hard — see gsm7_safe(). The "TEST"
+// guard runs on the cleaned text (a leading emoji is stripped, which could
+// expose "Test"), then re-caps for the added prefix.
+function _sms_prepare_text($message) {
+    return sms_single_segment(sms_avoid_ignored_prefix(sms_single_segment($message)));
+}
+
+function _sms_log_result($conn, $user_id, $event_type, $phone, $message, $result) {
+    log_notification_delivery($conn, $user_id, 'sms', $event_type, $phone, null, $message,
+        $result['ok'] ? 'sent' : 'failed', $result['ok'] ? null : $result['error'],
+        $result['message_id'] ?? null, $result['status'] ?? null);
 }
 
 // ──────────────────────────────────────────────
@@ -95,16 +171,22 @@ function _sms_via_log($conn, $phone, $message, $event_type, $user_id) {
 // ──────────────────────────────────────────────
 //  Driver: Semaphore  (api.semaphore.co, Philippines)
 // ──────────────────────────────────────────────
-//  One POST per message; Semaphore charges one credit per 160-char segment,
-//  which sms_single_segment() has already enforced.
-function _send_via_semaphore($conn, $phone, $message) {
+//  One POST for up to SEMAPHORE_MAX_RECIPIENTS numbers sharing one text;
+//  Semaphore charges one credit per 160-char segment per recipient, which
+//  sms_single_segment() has already held to one.
+//
+//  Returns ['ok' => false, 'error' => ...] when the whole call failed, else
+//  ['ok' => true, 'by_number' => [last 10 digits => message object], 'list' => [...]].
+//  _semaphore_result_for() turns that into one recipient's result.
+function _send_via_semaphore($conn, $phones, $message) {
     $api_key = get_setting($conn, 'sms_api_key', '');
     if ($api_key === '') return ['ok' => false, 'error' => 'No Semaphore API key configured'];
 
     $fields = [
         'apikey'  => $api_key,
-        // normalize_ph_mobile() gives +639XXXXXXXXX; Semaphore wants 639XXXXXXXXX.
-        'number'  => ltrim($phone, '+'),
+        // normalize_ph_mobile() gives +639XXXXXXXXX; Semaphore wants 639XXXXXXXXX,
+        // comma-separated for more than one.
+        'number'  => implode(',', array_map(fn($p) => ltrim($p, '+'), $phones)),
         'message' => $message,
     ];
     // An unapproved sendername is rejected, so it is only sent once the admin
@@ -122,14 +204,39 @@ function _send_via_semaphore($conn, $phone, $message) {
     // 200, so the status code alone is not enough.
     $first = (is_array($json) && isset($json[0]) && is_array($json[0])) ? $json[0] : null;
     if ($code >= 200 && $code < 300 && $first && !empty($first['message_id'])) {
-        $status = (string)($first['status'] ?? '');
-        if (in_array(strtolower($status), ['failed', 'refunded'], true)) {
-            return ['ok' => false, 'error' => "Semaphore marked message {$first['message_id']} as $status"];
+        $by_number = [];
+        foreach ($json as $m) {
+            if (!is_array($m) || empty($m['message_id'])) continue;
+            $digits = preg_replace('/\D+/', '', (string)($m['recipient'] ?? ''));
+            if ($digits !== '') $by_number[substr($digits, -10)] = $m;
         }
-        return ['ok' => true];
+        return ['ok' => true, 'by_number' => $by_number, 'list' => $json];
     }
 
     return ['ok' => false, 'error' => _semaphore_error($code, $json, $raw, $retry_after)];
+}
+
+// One recipient's outcome from a _send_via_semaphore() answer. Queued, Pending
+// and Sent all count as accepted; Failed and Refunded do not. $single lets a
+// one-number call use the only object even if its recipient field is shaped
+// differently from what was sent.
+function _semaphore_result_for($response, $phone, $single = false) {
+    if (!$response['ok']) return $response;
+
+    $key = substr(preg_replace('/\D+/', '', (string)$phone), -10);
+    $m   = $response['by_number'][$key]
+        ?? ($single && count($response['list']) === 1 ? $response['list'][0] : null);
+    if (!is_array($m) || empty($m['message_id'])) {
+        return ['ok' => false, 'error' => 'Semaphore returned no message for this recipient'];
+    }
+
+    $id     = (string)$m['message_id'];
+    $status = (string)($m['status'] ?? '');
+    if (in_array(strtolower($status), ['failed', 'refunded'], true)) {
+        return ['ok' => false, 'error' => "Semaphore marked message $id as $status",
+                'message_id' => $id, 'status' => $status];
+    }
+    return ['ok' => true, 'message_id' => $id, 'status' => $status];
 }
 
 /**
@@ -245,8 +352,8 @@ function _semaphore_request($method, $path, $fields) {
 // ──────────────────────────────────────────────
 //  Daily cap
 // ──────────────────────────────────────────────
-// Returns the cap when today's sent count has reached it, else null.
-function _sms_daily_cap_reached($conn) {
+// ['cap' => cap, 'left' => messages still allowed today], or null when uncapped.
+function _sms_daily_cap_left($conn) {
     $cap = (int)get_setting($conn, 'sms_daily_cap', '0');
     if ($cap <= 0) return null;
 
@@ -254,7 +361,7 @@ function _sms_daily_cap_reached($conn) {
                          WHERE channel = 'sms' AND status = 'sent' AND sent_at >= CURDATE()");
     if (!$res) return null;
     $sent = (int)$res->fetch_assoc()['n'];
-    return $sent >= $cap ? $cap : null;
+    return ['cap' => $cap, 'left' => $cap - $sent];
 }
 
 // ──────────────────────────────────────────────

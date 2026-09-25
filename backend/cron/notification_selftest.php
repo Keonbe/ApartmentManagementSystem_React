@@ -285,6 +285,31 @@ try {
         $helper_ok && $row && $row['message_body'] === 'AMS: Test reminder',
         $row ? '"' . $row['message_body'] . '"' : 'no row');
 
+    // ── M6-41 — same-text SMS jobs drain as one bulk send ───
+    clear_state($conn, $uid);
+    $before = count(glob($outbox . '/*-sms-*.txt') ?: []);
+    foreach (['09171234567', '0917 123 4567', '+63 917 123 4567', '12345'] as $to) {
+        enqueue_notification($conn, $uid, 'sms', 'info', ['to' => $to, 'body' => 'AMS bulk test']);
+    }
+    $drain = process_notification_queue($conn, 10);
+    $after = count(glob($outbox . '/*-sms-*.txt') ?: []);
+    $by_status = [];
+    foreach (log_rows($conn, $uid, 'sms') as $r) $by_status[$r['status']] = ($by_status[$r['status']] ?? 0) + 1;
+    check('M6-41', 'Same-text SMS jobs go out together; a bad number fails alone',
+        $drain['sent'] === 3 && ($by_status['sent'] ?? 0) === 3 && ($by_status['failed'] ?? 0) === 1 && $after === $before + 3,
+        "sent {$drain['sent']}, log " . json_encode($by_status) . ', outbox +' . ($after - $before));
+
+    // ── M6-42 — a Semaphore answer maps back to each recipient ─
+    $list = [['message_id' => 11, 'recipient' => '639171111111', 'status' => 'Queued'],
+             ['message_id' => 12, 'recipient' => '639172222222', 'status' => 'Refunded']];
+    $resp = ['ok' => true, 'list' => $list, 'by_number' => ['9171111111' => $list[0], '9172222222' => $list[1]]];
+    $a = _semaphore_result_for($resp, '+639171111111');
+    $b = _semaphore_result_for($resp, '+639172222222');
+    $c = _semaphore_result_for($resp, '+639173333333');
+    check('M6-42', 'Semaphore bulk answers map per recipient (Queued ok, Refunded/missing fail)',
+        $a['ok'] && $a['message_id'] === '11' && $a['status'] === 'Queued' && !$b['ok'] && !$c['ok'],
+        "a={$a['status']}, b=" . ($b['ok'] ? 'ok' : 'fail') . ', c=' . ($c['ok'] ? 'ok' : 'fail'));
+
     // ── Nothing contacts a provider in dry run ──────────────
     // Real drivers (Semaphore) do open connections, so the rule is that every
     // network call sits inside a provider-driver function; the dry-run path

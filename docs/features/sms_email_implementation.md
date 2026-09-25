@@ -113,7 +113,7 @@ Implemented 2026-09-22. Phase 1 builds on these rather than restating them.
 |---|---|---|
 | `user_channel_allowed($conn, $user_id, $type, $channel)` | C2 | The one gate before any send. Checks `users.<channel>_opt_out` **first**, then the building-wide `notifications_<channel>_enabled`, then the per-category row (absent row = allowed, category-less type = allowed). |
 | `normalize_ph_mobile($phone)` | C12 | Strips non-digits first, then normalises `09…` / `639…` / `+639…` / `00639…` to E.164; `null` when it is not a PH mobile. `0917 123 4567` and `(0917)123-4567` both work. |
-| `gsm7_safe($text)` | §0.3 | Folds `₱`→`PHP `, em/en dash, smart quotes and ellipsis to GSM-7 and drops the rest, so a message cannot silently bill as three UCS-2 segments. |
+| `gsm7_safe($text)` | §0.3 | Folds `₱`→`PHP `, em/en dash, smart quotes, ellipsis and accented letters (`ñ`→`n`) to plain ASCII and drops the rest, so a message cannot silently bill as three Unicode segments (Semaphore counts 160 ASCII chars per credit). |
 | `sms_single_segment($text, $limit = 160)` | §0.3 | One segment, hard. |
 | `log_notification_delivery(...)` | C11 | The only writer into `notification_log`; truncates the body to 500 chars. |
 | `prune_notification_log($conn, $limit = 5000)` | C11 | Deletes past the retention setting, capped per call. Called at the end of every queue drain (`process_notification_queue()`; selftest M6-18). |
@@ -226,7 +226,7 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 | `backend/api/services/email_templates.php` | §1.5 as written, `esc()` on every interpolated value (C10). |
 | `backend/api/services/send_notification.php` | `dispatch_external_notification()`, `dispatch_external_broadcast()`, `enqueue_notification()`, `process_notification_queue()`. |
 | `backend/cron/process_queue.php` | CLI drain. Task Scheduler entry point. |
-| `backend/cron/notification_selftest.php` | 19 dry-run checks (M6-02…M6-18, C11, M6-35, M6-39, DRY). The verification gate for this module. |
+| `backend/cron/notification_selftest.php` | 21 dry-run checks (M6-02…M6-18, C11, M6-35, M6-39, M6-41, M6-42, DRY). The verification gate for this module. |
 | `backend/api/send_test_notification.php` | Admin-only test send; returns the rendered message for the settings UI to print to the browser console. |
 | `ams-react/src/AdminPages/AdminAccountSettings.jsx` + `settings/NotificationsPanel.jsx` | §3.3 — Notifications tab: provider (Log / Semaphore), API key, sender name + approval, balance check, daily cap, test sends. |
 | `backend/api/get_sms_balance.php` | Admin-only Semaphore credit balance (cached 60 s — `/account` allows 2 calls a minute). |
@@ -1496,6 +1496,8 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-38 | `GET get_sms_balance.php` as tenant / unauthenticated / admin on `log` | 403 / 401 / `success:false` "only available when the SMS provider is Semaphore" |
 | M6-39 | `send_sms()` of "🔔 Test reminder" (selftest) | Logged and sent as `AMS: Test reminder` — Semaphore silently drops messages starting with "TEST" |
 | M6-40 | Two `GET get_sms_balance.php` calls within a minute, provider `semaphore` | Second answer is `Semaphore rate limit reached (retry after 60s)` on a 429 (seen live with an invalid key, 2026-09-24); with a valid key the second call is served from the 60 s cache (`cached: true`, `checked_at`) and Semaphore is not called |
+| M6-41 | Drain four same-text SMS jobs, one with number `12345` (selftest) | One bulk send: 3 `sent` rows, 1 `failed` (Invalid phone number), outbox +3 |
+| M6-42 | `_semaphore_result_for()` on a two-message Semaphore answer (selftest) | `Queued` recipient ok with its `message_id`; `Refunded` and missing recipients fail |
 
 **Tier 2 — live provider (costs credits; run once, record the result)**
 
@@ -1515,7 +1517,7 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-33 | Queue drains on Railway with no cron | Rows drain via the sweep/poll piggyback (C7) |
 | M6-34 | Outbound port 587 from the Railway container | SMTP connects — verify before relying on it |
 
-**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18, C11, M6-35, M6-39 and DRY (19 checks) in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
+**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18, C11, M6-35, M6-39, M6-41, M6-42 and DRY (21 checks) in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
 
 > **[`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)**
 
@@ -1669,16 +1671,17 @@ Complete map of every event that triggers a notification, the endpoint that fire
 |---|---|
 | Number | `normalize_ph_mobile()` gives `+639…`; the driver posts `639…` |
 | Sender name | `sendername` is posted **only** when `sms_sender_approved = '1'`. Otherwise it is omitted and Semaphore uses its shared `SEMAPHORE` sender — an unapproved name gets the message rejected |
-| Success | The response must be a JSON **list** whose first message has a `message_id` and a status other than `Failed`/`Refunded` |
+| Success | The response must be a JSON **list** of message objects. Each recipient is matched to its object by `recipient` (last 10 digits) and succeeds when it has a `message_id` and a status other than `Failed`/`Refunded`; a recipient with no object fails with `Semaphore returned no message for this recipient`. The `message_id` and returned status are stored in `notification_log.provider_message_id` / `provider_status` (migration `2026_09_sms_provider_message_id.sql`) |
 | Errors | Semaphore returns validation errors as `{"field": ["message"]}` **with HTTP 200** (verified: an invalid key does this), so the status code alone is not trusted. These are flattened to e.g. `Semaphore: The selected apikey is invalid.` in `notification_log.error_message` and `notification_queue.error_message` |
 | Spend cap | `sms_daily_cap` (default `100`, `0` = none): once today's `sent` SMS rows reach it, further sends log `skipped` with `Daily SMS cap reached (N)` and cost nothing. Applies to real providers only, not `log` |
 | Balance | `GET backend/api/get_sms_balance.php` (admin-only) → `credit_balance`, `account_name`, `account_status` via Semaphore's `/api/v4/account`. The key never leaves the server |
 | Clock | Quiet hours use the **database** clock (`HOUR(NOW())`). `config.php` pins PHP to `APP_TIMEZONE` (default `Asia/Manila`; XAMPP ships `Europe/Berlin`) and sets the DB session `time_zone` to the same offset, so both clocks agree on any host; `check_environment.php` errors if they drift |
-| "TEST" prefix | Semaphore **silently ignores** any message that starts with "TEST": the API accepts it and it never arrives. `sms_avoid_ignored_prefix()` (config.php) prefixes such text with `AMS: ` (case-insensitive, after GSM-7 cleanup), for every driver, so the log and the dry-run outbox show what was really sent |
-| Rate limits | `POST /messages` 120/min — the drain sends at most 20 jobs a minute, 200 ms apart. `GET /account` **2/min** — a successful balance is cached for 60 s in `backend/logs/semaphore_account.json` (keyed to a hash of the API key; errors are not cached). A 429 is logged as `Semaphore rate limit reached (retry after Ns)` from `Retry-After`; queued jobs retry on their normal backoff |
+| "TEST" prefix | Semaphore **silently ignores** any message that starts with "TEST": the API accepts it and it never arrives. `sms_avoid_ignored_prefix()` (config.php) prefixes such text with `AMS: ` (case-insensitive, after ASCII cleanup), for every driver, so the log and the dry-run outbox show what was really sent |
+| Rate limits | `POST /messages` 120/min — the drain claims at most 20 jobs a minute and makes one call per job or per same-text group, 200 ms apart. `GET /account` **2/min** — a successful balance is cached for 60 s in `backend/logs/semaphore_account.json` (keyed to a hash of the API key; errors are not cached). A 429 is logged as `Semaphore rate limit reached (retry after Ns)` from `Retry-After`; queued jobs retry on their normal backoff |
 | Endpoints | Only `/messages` and `/account`. `/priority` and `/otp` cost 2 credits per message, and `/otp` is for one-time passwords only, so AMS never calls them |
-| Recipients | One POST per recipient. Semaphore accepts up to 1000 comma-separated numbers per call and prefers bulk calls, but at ~30 tenants and 20 jobs/min AMS is far under the limit; grouping identical queued bodies is a future option |
-| Delivery status | A `Queued`/`Pending`/`Sent` answer is logged as `sent` (accepted by Semaphore). Final carrier delivery is not polled (`GET /messages/{id}`, 30/min) |
+| Recipients | The queue drain groups claimed SMS jobs with the same `event_type` and body (an announcement) and sends each group through `send_sms_bulk()`: one POST with up to 1000 comma-separated numbers (`SEMAPHORE_MAX_RECIPIENTS`), as Semaphore recommends over per-number calls. Duplicate numbers are sent once. Invalid numbers fail on their own, each recipient still gets its own `notification_log` row and its queue job its own retry. The daily cap sends only what is left today and logs the rest `skipped`. Unique texts, sync mode and **Send test** still use single-number `send_sms()` |
+| Delivery status | A `Queued`/`Pending`/`Sent` answer is logged as `sent` (accepted by Semaphore), with the answer kept in `provider_status`. Final carrier delivery is not polled (`GET /messages/{id}`, 30/min); `provider_message_id` is what such a check would use |
+| Encoding | Semaphore bills one credit per **160 ASCII characters**. `gsm7_safe()` folds `₱`, dashes, smart quotes and accented letters (`ñ`→`n`, `é`→`e`, `£`→`GBP `) to ASCII and drops everything else, including the GSM extension characters (square and curly brackets, tilde, caret, pipe, backslash, backtick) that carriers count double |
 
 **Verify setup:** use **Send test** in Account Settings, then:
 
