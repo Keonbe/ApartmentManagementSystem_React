@@ -80,6 +80,7 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks �
 
 | Status | Priority | Task | Source |
 |---|---|---|---|
+| [ ] | High | **Sec** System-wide backend input validation: shared `v_*` helpers in `config.php`, typed checks on every write endpoint (worst: `update_room`, `update_tenant_status` negative deductions, `upload_payment_proof` proof not required, `rent_application` rent from client), one 422 error contract, no leaked DB errors, then MariaDB strict mode. **Deferred — not started.** | [input_validation_backend_plan.md](audits/input_validation_backend_plan.md) |
 | [ ] | Medium | **Bug** PayMongo return URLs fall back to a hardcoded `localhost` hash URL that `BrowserRouter` can't route. Build them from a server setting (M11, remaining part). | [Audit M11](audits/ams_security_workflow_audit_2026-09-16.md#m11), [Guide §18.1 #4](documentation/module_verification_guide.md#181-defects) |
 | [ ] | Medium | **Bug** M2: editing an expired contract's dates rewrites the lease dates of a room that has since been re-let. | [Audit M2](audits/ams_security_workflow_audit_2026-09-16.md#m2) |
 | [ ] | Medium | **Bug** M5: a "Converted" unit hold leaves the unit reserved forever. | [Audit M5](audits/ams_security_workflow_audit_2026-09-16.md#m5) |
