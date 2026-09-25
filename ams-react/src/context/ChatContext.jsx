@@ -92,6 +92,7 @@ export const ChatProvider = ({ children }) => {
                     return {
                         ...conv,
                         last_message: normalizedMessage.message,
+                        last_message_attachment_path: normalizedMessage.attachment_path || null,
                         last_message_sender_id: Number(normalizedMessage.sender_id),
                         last_message_time: normalizedMessage.created_at,
                         unread_count: incrementUnread ? Number(conv.unread_count || 0) + 1 : Number(conv.unread_count || 0),
@@ -242,8 +243,8 @@ export const ChatProvider = ({ children }) => {
         await fetchChatHistory(admin.id);
     }, [fetchAdminUser, fetchChatHistory, setActiveChat, userId, userRole]);
 
-    const sendMessage = useCallback(async (receiverId, message) => {
-        if (!message.trim() || !userId) return;
+    const sendMessage = useCallback(async (receiverId, message, attachment = null) => {
+        if ((!message.trim() && !attachment) || !userId) return;
 
         const receiver = parseInt(receiverId, 10);
         if (!receiver) return;
@@ -253,6 +254,7 @@ export const ChatProvider = ({ children }) => {
             sender_id: userId,
             receiver_id: receiver,
             message: message.trim(),
+            attachment_path: attachment ? URL.createObjectURL(attachment) : null,
             created_at: new Date().toISOString(),
             is_read: 0,
         };
@@ -261,17 +263,25 @@ export const ChatProvider = ({ children }) => {
 
         try {
             const socket = socketRef.current;
-            if (socket && socket.connected) {
+            if (socket && socket.connected && !attachment) {
                 socket.emit('send_message', {
                     sender_id: userId,
                     receiver_id: receiver,
                     message: message.trim(),
                 });
             } else {
-                const response = await api.post('send_message.php', {
-                    receiver_id: receiver,
-                    message: message.trim(),
-                });
+                let response;
+                if (attachment) {
+                    const formData = new FormData();
+                    formData.append('receiver_id', receiver);
+                    formData.append('message', message.trim());
+                    formData.append('attachment', attachment);
+                    response = await api.post('send_message.php', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' },
+                    });
+                } else {
+                    response = await api.post('send_message.php', { receiver_id: receiver, message: message.trim() });
+                }
 
                 if (response.data?.success && response.data.message) {
                     setMessages((prev) => prev.map((msg) => (

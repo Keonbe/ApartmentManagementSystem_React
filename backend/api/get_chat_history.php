@@ -1,10 +1,9 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, X-User-Id, X-Admin-Id");
+require_once __DIR__ . '/../cors.php';
 header("Content-Type: application/json");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
     exit;
 }
 
@@ -28,6 +27,10 @@ function ensure_messages_table($conn) {
     if (!$conn->query($sql)) {
         throw new Exception('Unable to ensure messages table: ' . $conn->error);
     }
+    $column = $conn->query("SHOW COLUMNS FROM messages LIKE 'attachment_path'");
+    if ($column->num_rows === 0) {
+        $conn->query("ALTER TABLE messages ADD attachment_path VARCHAR(255) NULL");
+    }
 }
 
 $user_id = intval($_SERVER['HTTP_X_USER_ID'] ?? $_SERVER['HTTP_X_ADMIN_ID'] ?? 0);
@@ -50,7 +53,7 @@ if (!$other_user_id) {
 try {
     ensure_messages_table($conn);
 
-    $query = "SELECT id, sender_id, receiver_id, message, created_at, is_read 
+    $query = "SELECT id, sender_id, receiver_id, message, attachment_path, created_at, is_read
               FROM messages 
               WHERE (sender_id = ? AND receiver_id = ?) 
                  OR (sender_id = ? AND receiver_id = ?)

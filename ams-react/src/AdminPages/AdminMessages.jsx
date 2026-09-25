@@ -1,15 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faPaperPlane, faComments, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
 import { getAvatarUrl } from '../utils/avatarUrl';
+import api from '../api/axiosConfig';
 
 const formatTime = (date) => {
   if (!date) return '';
   const parsed = new Date(date);
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+};
+
+const getConversationPreview = (conversation, userId) => {
+  if (conversation.last_message_attachment_path) {
+    const sender = Number(conversation.last_message_sender_id) === Number(userId)
+      ? 'You'
+      : conversation.other_user_name || 'Tenant';
+    const mediaType = /\.(mp4|webm|mov)(?:\?|$)/i.test(conversation.last_message_attachment_path) ? 'video' : 'photo';
+    return `${sender} sent a ${mediaType}`;
+  }
+  if (conversation.last_message) return conversation.last_message;
+  return 'No messages yet';
 };
 
 const formatMessageDateTime = (date) => {
@@ -26,6 +39,17 @@ const formatMessageDateTime = (date) => {
   else if (parsed.toDateString() === yesterday.toDateString()) dayLabel = 'Yesterday';
 
   return `${dayLabel} · ${formatTime(parsed)}`;
+};
+
+const formatExactMessageDateTime = (date) => {
+  if (!date) return '';
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime())
+    ? ''
+    : parsed.toLocaleString([], {
+      year: 'numeric', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', second: '2-digit',
+    });
 };
 
 const TenantAvatar = ({ conversation, sizeClass = 'w-11 h-11' }) => {
@@ -48,12 +72,24 @@ const AdminMessages = () => {
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [attachment, setAttachment] = useState(null);
+  const [expandedTimestampId, setExpandedTimestampId] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
   const messagesContainerRef = useRef(null);
   const selectedConversationIdRef = useRef(null);
 
   useEffect(() => {
     fetchConversations?.();
   }, [fetchConversations]);
+
+  useEffect(() => {
+    if (!mediaPreview) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setMediaPreview(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mediaPreview]);
 
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -81,11 +117,12 @@ const AdminMessages = () => {
   const handleSend = async (event) => {
     event.preventDefault();
     const message = draft.trim();
-    if (!message || !activeChat || sending) return;
+    if ((!message && !attachment) || !activeChat || sending) return;
     setSending(true);
     try {
-      await sendMessage(activeChat.other_user_id, message);
+      await sendMessage(activeChat.other_user_id, message, attachment);
       setDraft('');
+      setAttachment(null);
     } catch (error) {
       console.error('Failed to send admin message:', error);
     } finally {
@@ -129,7 +166,7 @@ const AdminMessages = () => {
                           <span className="text-[10px] text-slate-400 shrink-0">{formatTime(conversation.last_message_time)}</span>
                         </div>
                         <div className="mt-1 flex justify-between gap-2 items-center">
-                          <span className="text-xs text-slate-500 truncate">{conversation.last_message || 'No messages yet'}</span>
+                          <span className="text-xs text-slate-500 truncate">{getConversationPreview(conversation, userId)}</span>
                           {unread > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
                         </div>
                       </div>
@@ -149,7 +186,9 @@ const AdminMessages = () => {
                   </header>
                   <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
                     {messages.length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">No messages in this conversation yet.</p> : messages.map((message, index) => {
+                      const messageKey = message.id || index;
                       const isAdmin = String(message.sender_id) === String(userId);
+                      const hasText = Boolean(message.message?.trim());
                       const messageDate = new Date(message.created_at);
                       const previousDate = index > 0 ? new Date(messages[index - 1].created_at) : null;
                       const minuteGap = previousDate && !Number.isNaN(previousDate.getTime())
@@ -160,7 +199,7 @@ const AdminMessages = () => {
                         (laterMessage) => String(laterMessage.sender_id) === String(userId)
                       );
                       return (
-                        <div key={message.id || index}>
+                        <div key={messageKey} className={expandedTimestampId === messageKey ? 'pb-4' : ''}>
                           {showDateSeparator && (
                             <div className="flex justify-center my-5">
                               <span className="text-slate-500 text-[11px] font-medium">
@@ -169,12 +208,24 @@ const AdminMessages = () => {
                             </div>
                           )}
                           <div className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                            <div className="max-w-[85%] sm:max-w-[70%]">
-                              <div
-                                className={`rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? 'bg-indigo-600 text-white rounded-br-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md'}`}
-                              >
-                                <p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p>
+                            <div className="relative max-w-[85%] sm:max-w-[70%]">
+                              <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(message.created_at)}`} className={`transition-colors ${hasText
+                                ? `rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? (expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-md' : 'bg-indigo-600 text-white rounded-br-md') : (expandedTimestampId === messageKey ? 'bg-slate-100 text-slate-800 border border-slate-300 rounded-bl-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md')}`
+                                : ''} cursor-pointer`}>
+                                {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p>}
+                                {message.attachment_path && (() => {
+                                  const mediaUrl = message.attachment_path.startsWith('blob:') ? message.attachment_path : new URL(`../${message.attachment_path}`, api.defaults.baseURL).href;
+                                  const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(message.attachment_path);
+                                  return <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo }); }} aria-label={`View full ${isVideo ? 'video' : 'image'}`} className={`${hasText ? 'mt-2 ' : ''}block max-w-full border-0 bg-transparent p-0 cursor-zoom-in`}>
+                                    {isVideo ? <video src={mediaUrl} preload="metadata" className="max-w-full max-h-64 rounded-lg" /> : <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-64 rounded-lg" />}
+                                  </button>;
+                                })()}
                               </div>
+                              {expandedTimestampId === messageKey && (
+                                <p className={`pointer-events-none absolute top-full z-10 mt-1 w-max max-w-[min(80vw,20rem)] whitespace-normal break-words text-[10px] leading-3.5 text-slate-500 animate-fade-in-up ${isAdmin ? 'right-0 text-right' : 'left-0 text-left'}`}>
+                                  {formatExactMessageDateTime(message.created_at)}
+                                </p>
+                              )}
                               {isLatestSentMessage && (
                                 <p className="m-0 mt-1 text-right text-[10px] text-slate-500 font-medium">
                                   {Number(message.is_read) === 1 ? 'Seen' : 'Sent'}
@@ -187,8 +238,9 @@ const AdminMessages = () => {
                     })}
                   </div>
                   <form onSubmit={handleSend} className="p-3 md:p-4 border-t border-slate-100 flex gap-2 shrink-0">
-                    <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a reply..." className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border border-transparent focus:border-indigo-300 focus:outline-none text-sm" />
-                    <button disabled={!draft.trim() || sending} type="submit" className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
+                    <label className="px-3 flex items-center cursor-pointer text-slate-500" title="Attach image or video (max 8 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file?.size > 8 * 1024 * 1024) { window.alert('File must be 8 MB or smaller.'); event.target.value = ''; return; } setAttachment(file || null); }} /></label>
+                    <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={attachment?.name || 'Write a reply...'} className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border border-transparent focus:border-indigo-300 focus:outline-none text-sm" />
+                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
                   </form>
                 </>
               ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-8"><div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center text-2xl mb-4"><FontAwesomeIcon icon={faComments} /></div><h3 className="text-lg font-bold text-slate-800 m-0">Select a conversation</h3><p className="text-sm text-slate-500 mt-2">Choose a tenant from the list to view and reply to messages.</p></div>}
@@ -196,6 +248,16 @@ const AdminMessages = () => {
           </section>
         </div>
       </main>
+      {mediaPreview && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label="Full-size message attachment" onClick={() => setMediaPreview(null)}>
+          <button type="button" onClick={() => setMediaPreview(null)} aria-label="Close full-size preview" className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/15 text-white hover:bg-white/25 cursor-pointer">
+            <span aria-hidden="true" className="text-2xl leading-none">×</span>
+          </button>
+          {mediaPreview.isVideo
+            ? <video controls autoPlay src={mediaPreview.src} className="max-h-full max-w-full rounded-lg" onClick={(event) => event.stopPropagation()} />
+            : <img src={mediaPreview.src} alt="Full-size message attachment" className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} />}
+        </div>
+      )}
     </div>
   );
 };

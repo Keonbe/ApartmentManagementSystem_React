@@ -1,10 +1,9 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, X-User-Id, X-Admin-Id");
+require_once __DIR__ . '/../cors.php';
 header("Content-Type: application/json");
 
 if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
+    http_response_code(204);
     exit;
 }
 
@@ -54,6 +53,14 @@ try {
                     LIMIT 1
                 ) AS last_message,
                 (
+                    SELECT attachment_path
+                    FROM messages
+                    WHERE (sender_id = ? AND receiver_id = u.id)
+                       OR (sender_id = u.id AND receiver_id = ?)
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1
+                ) AS last_message_attachment_path,
+                (
                     SELECT sender_id
                     FROM messages
                     WHERE (sender_id = ? AND receiver_id = u.id)
@@ -90,7 +97,7 @@ try {
     if (!$stmt) {
         throw new Exception('Prepare failed: ' . $conn->error);
     }
-     $stmt->bind_param("iiiiiiiiii", $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id);
+     $stmt->bind_param("iiiiiiiiiiii", $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -101,6 +108,7 @@ try {
             'other_user_name' => $row['other_user_name'],
             'other_user_avatar' => $row['other_user_avatar'],
             'last_message' => $row['last_message'],
+            'last_message_attachment_path' => $row['last_message_attachment_path'],
             'last_message_sender_id' => isset($row['last_message_sender_id']) ? (int) $row['last_message_sender_id'] : null,
             'last_message_time' => $row['last_message_time'],
             'unread_count' => (int) ($row['unread_count'] ?? 0),
