@@ -48,7 +48,7 @@ const translations = {
     'reg.error': 'Unable to register account. Please try again.',
 
     // --- Home ---
-    'home.badge': 'Premium Rental Property',
+    'home.badge': 'Quality Rental Property',
     'home.rentedBadge': 'Tenant Portal',
     'home.heading': 'Renting, Made Easy',
     'home.welcomeBack': 'Welcome Back,',
@@ -641,7 +641,7 @@ const translations = {
     'reg.error': 'Hindi mairehistro ang account. Pakisubukang muli.',
 
     // --- Home ---
-    'home.badge': 'Premium na Pag-aarkila',
+    'home.badge': 'De-kalidad na Paupahan',
     'home.rentedBadge': 'Portal ng Upa',
     'home.heading': 'Pag-upa, Pinadali',
     'home.welcomeBack': 'Maligayang Pagbabalik,',

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowRight, faEnvelopeOpenText } from '@fortawesome/free-solid-svg-icons';
+import { ArrowRight, Mail, MapPin, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from '../api/axiosConfig';
@@ -38,24 +37,28 @@ export default function Home({ onCardClick, username }) {
                     alt="Apartment Background"
                     className="home-bg-image w-full h-full object-cover animate-fade-in"
                 />
-                {/*Modern Dark Gradient Overlay Mask for pristine text readability*/}
                 <div className="home-gradient-overlay absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-transparent"></div>
             </div>
 
             {/*Clean Floating Content Panel Layout*/}
             <div className="home-content-container w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">
-                <div className="home-content-panel max-w-2xl space-y-6 bg-slate-900/40 backdrop-blur-md p-8 md:p-10 rounded-3xl border border-white/10 shadow-2xl">
+                <div className="home-content-panel max-w-2xl space-y-6 bg-slate-950/70 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl shadow-black/50 animate-slide-up">
 
-                    <span className="text-[10px] tracking-widest uppercase font-bold px-3 py-1.5 rounded-lg bg-[#6366f1] text-white inline-block select-none shadow-sm">
-                        {t('home.badge')}
+                    <span className="text-[10px] sm:text-xs tracking-widest uppercase font-bold px-3.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 inline-flex items-center space-x-2 shadow-sm">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400"></span>
+                        </span>
+                        <span>{t('home.badge')}</span>
                     </span>
 
                     <div className="space-y-2">
-                        <h1 className="home-heading text-4xl md:text-5xl font-sans font-extrabold m-0 text-white tracking-tight leading-tight">
+                        <h1 className="home-heading text-4xl sm:text-5xl md:text-6xl font-sans font-black m-0 text-white tracking-tight leading-tight drop-shadow-md">
                             {username ? `${t('home.welcomeBack')} ${username}` : t('home.heading')}
                         </h1>
-                        <p className="text-indigo-200/90 font-semibold text-lg m-0">
-                            {t('home.location')}
+                        <p className="text-indigo-300 font-semibold text-lg flex items-center space-x-2 m-0">
+                            <MapPin className="w-5 h-5" />
+                            <span>{t('home.location')}</span>
                         </p>
                     </div>
 
@@ -63,27 +66,33 @@ export default function Home({ onCardClick, username }) {
                         {t('home.description')}
                     </p>
 
-                    <div className="home-cta-row pt-4 flex flex-wrap gap-4 items-center justify-between border-t border-white/10 mt-2">
-                        <div className="flex space-x-4 text-xs font-semibold text-white/80">
-                            <span>• {counts.total} {t('home.totalUnits')}</span>
-                            <span className="text-emerald-400">• {counts.available} {t('home.availableRooms')}</span>
+                    <div className="home-cta-row pt-5 flex flex-wrap gap-5 items-center justify-between border-t border-white/10 mt-2">
+                        <div className="flex space-x-5 text-sm font-semibold text-slate-300">
+                            <span className="flex items-center space-x-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                <span><strong className="text-white">{counts.total}</strong> {t('home.totalUnits')}</span>
+                            </span>
+                            <span className="flex items-center space-x-1.5 text-emerald-400">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                <span><strong className="text-emerald-300">{counts.available}</strong> {t('home.availableRooms')}</span>
+                            </span>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                             <button
                                 onClick={() => navigate('/inquire')}
-                                className="home-inquire-btn btn-interactive bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl text-xs transition-all duration-200 border border-white/20 cursor-pointer flex items-center space-x-2 backdrop-blur-sm"
+                                className="w-full sm:w-auto home-inquire-btn btn-interactive bg-white/10 hover:bg-white/20 text-white font-bold px-5 py-3 rounded-xl text-sm transition-all duration-300 border border-white/10 cursor-pointer flex items-center justify-center space-x-2 group"
                             >
-                                <FontAwesomeIcon icon={faEnvelopeOpenText} />
+                                <Mail className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
                                 <span>{t('inquiry.homeCta')}</span>
                             </button>
 
                             <button
                                 onClick={onCardClick}
-                                className="home-cta-btn btn-interactive bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-bold px-6 py-3 rounded-xl text-xs transition-all duration-200 shadow-lg shadow-emerald-950/30 border-0 cursor-pointer flex items-center space-x-2"
+                                className="w-full sm:w-auto home-cta-btn btn-interactive bg-indigo-500 hover:bg-indigo-600 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-bold px-6 py-3 rounded-xl text-sm transition-all duration-300 shadow-lg shadow-indigo-600/30 border-0 cursor-pointer flex items-center justify-center space-x-2 group"
                             >
                                 <span>{t('home.cta')}</span>
-                                <FontAwesomeIcon icon={faArrowRight} />
+                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </button>
                         </div>
                     </div>
@@ -91,6 +100,17 @@ export default function Home({ onCardClick, username }) {
                 </div>
             </div>
 
+            <style>
+                {`
+                @keyframes slide-up {
+                    0% { opacity: 0; transform: translateY(20px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                }
+                .animate-slide-up {
+                    animation: slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+                `}
+            </style>
         </div>
     );
 }

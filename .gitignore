@@ -18,3 +18,7 @@ docs/AMS_Development_Timeline.xlsx
 
 # Ignore specific downloaded skills
 .agents/skills/ui-ux-pro-max-skill
+
+.agents/skills/impeccable
+.agents/skills/MemSkill
+

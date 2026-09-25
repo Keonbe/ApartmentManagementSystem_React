@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEnvelopeOpenText } from '@fortawesome/free-solid-svg-icons';
+import { Eye, Mail, MapPin, CheckCircle2 } from 'lucide-react';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import api from '../api/axiosConfig';
@@ -52,85 +51,101 @@ export default function Preview({ onRentClick, onInquireClick }) {
 
     return (
         <div className="preview-page-root w-full h-auto lg:h-[calc(100vh-76px)] bg-slate-50 p-4 md:p-8 lg:overflow-hidden box-border">
-            <div className="w-full h-full grid grid-cols-1 lg:grid-cols-12 gap-6 text-left items-stretch">
+            <div className="w-full h-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 text-left items-stretch">
 
                 {/*Left Column Layout*/}
-                <div className="lg:col-span-7 flex flex-col min-h-0 space-y-6">
+                <div className="lg:col-span-7 flex flex-col min-h-0 space-y-8 animate-slide-up">
 
                     {/*Modern Dynamic Hero Banner*/}
-                    <div className="preview-hero-banner relative rounded-2xl overflow-hidden shadow-xl bg-gradient-to-r from-[#3b4276] via-[#4f46e5] to-[#6366f1] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent)] pointer-events-none"></div>
+                    <div className="preview-hero-banner relative rounded-[2rem] overflow-hidden shadow-xl bg-[#3b4276] flex flex-col sm:flex-row items-stretch flex-shrink-0 w-full group">
                         
-                        {/*Increased image wrapper dimensions to accurately reproduce the old landscape placeholder style heights*/}
-                        <div className="preview-hero-image w-full sm:w-72 overflow-hidden relative min-h-[200px] sm:min-h-[240px]">
+                        <div className="preview-hero-image w-full sm:w-2/5 overflow-hidden relative min-h-[200px] sm:min-h-full">
                             <img
                                 src={ApartmentPic}
                                 alt="Apartment"
-                                className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                                className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-700 group-hover:scale-105"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t sm:bg-gradient-to-r from-black/20 via-transparent to-transparent"></div>
+                            {/* Removed gradient overlay as requested */}
                         </div>
                         
-                        <div className="preview-hero-content p-8 text-white flex flex-col justify-center flex-grow relative z-10 space-y-3">
+                        <div className="preview-hero-content p-8 md:p-10 text-white flex flex-col justify-center flex-grow relative z-10 space-y-4 w-full sm:w-3/5">
                             <div>
-                                <span className="text-[10px] tracking-widest uppercase font-bold px-2.5 py-1 rounded-md bg-white/20 backdrop-blur-sm inline-block mb-2">{t('preview.featured')}</span>
-                                <h2 className="text-3xl font-bold text-white m-0 tracking-tight">{t('preview.title')}</h2>
-                                <p className="text-white/80 text-base m-0 font-medium mt-1">{t('preview.location')}</p>
+                                <span className="text-[10px] sm:text-xs tracking-widest uppercase font-bold px-3 py-1.5 rounded-full bg-white/20 border border-white/30 text-white backdrop-blur-md inline-flex items-center space-x-1.5 mb-3">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                    <span>{t('preview.featured')}</span>
+                                </span>
+                                <h2 className="text-3xl sm:text-4xl font-black text-white m-0 tracking-tight leading-tight">{t('preview.title')}</h2>
+                                <p className="text-indigo-100 text-sm sm:text-base m-0 font-medium flex items-center space-x-2 mt-2">
+                                    <MapPin className="w-4 h-4" />
+                                    <span>{t('preview.location')}</span>
+                                </p>
                             </div>
                             <div className="pt-2 flex flex-wrap gap-2 text-xs">
-                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• {t('preview.parking')}</span>
-                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm font-medium border border-white/10">• {t('preview.bathroom')}</span>
+                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-md font-medium border border-white/20 flex items-center space-x-1 text-white"><CheckCircle2 className="w-3 h-3 text-white"/> <span>{t('preview.parking')}</span></span>
+                                <span className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-md font-medium border border-white/20 flex items-center space-x-1 text-white"><CheckCircle2 className="w-3 h-3 text-white"/> <span>{t('preview.bathroom')}</span></span>
                             </div>
                         </div>
                     </div>
 
                     {/*Scrollable Room Cards Track Container*/}
-                    <div className="preview-room-list-scroll w-full flex-grow overflow-y-auto pr-1 max-h-[450px] lg:max-h-none">
-                        <h2 className="text-2xl font-extrabold tracking-tight mb-4 select-none" style={{ color: '#1e293b', fontWeight: '800' }}>
-                            {t('preview.availableRooms')}
-                        </h2>
+                    <div className="preview-room-list-scroll w-full flex-grow overflow-y-auto pr-2 pb-4 max-h-[500px] lg:max-h-none custom-scrollbar">
+                        <div className="flex items-center justify-between mb-6 sticky top-0 bg-slate-50 py-2 z-10 rounded-xl">
+                            <h2 className="text-2xl font-black tracking-tight text-slate-900 m-0">
+                                {t('preview.availableRooms')}
+                            </h2>
+                            <span className="text-sm font-semibold text-slate-500 bg-slate-200/50 px-3 py-1 rounded-full">{rooms.length} Units</span>
+                        </div>
 
                         {loading ? (
-                            <div className="flex items-center justify-center py-12">
-                                <span className="text-slate-500 font-semibold text-sm">{t('preview.loading')}</span>
+                            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+                                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                                <span className="text-slate-500 font-medium text-sm">{t('preview.loading')}</span>
                             </div>
                         ) : rooms.length === 0 ? (
-                            <div className="bg-slate-100/50 rounded-2xl p-8 border border-dashed border-slate-200 text-center">
-                                <p className="text-slate-500 font-medium text-sm m-0">{t('preview.noRooms')}</p>
+                            <div className="bg-white rounded-[2rem] p-12 border border-dashed border-slate-300 text-center shadow-sm">
+                                <p className="text-slate-500 font-medium m-0">{t('preview.noRooms')}</p>
                             </div>
                         ) : (
-                            <div className="preview-room-grid stagger-children grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="preview-room-grid grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 {rooms.map((room) => {
                                     const canPreview = previewMode === 'floor_plan' || (room.images && room.images.length > 0);
                                     return (
-                                    <div key={room.id} className="card-interactive bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md hover:border-slate-200 transition-all duration-200 h-fit">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-slate-800 m-0" style={{ color: '#1e293b' }}>Room {room.id}</h3>
-                                            <p className="text-slate-500 text-xs my-1">{room.type} • {room.floor}</p>
-                                            <p className="text-[#3b4276] font-extrabold text-lg mt-1 m-0">{room.price}</p>
+                                    <div key={room.id} className="card-interactive bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60 flex flex-col justify-between hover:shadow-xl hover:shadow-indigo-900/5 hover:border-indigo-100 transition-all duration-300 h-fit group">
+                                        
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 className="text-xl font-bold text-slate-900 m-0">Room {room.id}</h3>
+                                                <p className="text-slate-500 text-xs mt-1 mb-0 font-medium">{room.type} • {room.floor}</p>
+                                            </div>
+                                            <span className="bg-emerald-50 text-emerald-600 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide border border-emerald-100">Vacant</span>
                                         </div>
-                                        <div className={`preview-room-card-actions grid gap-2 mt-4 ${canPreview ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                        
+                                        <div className="mb-5">
+                                            <p className="text-[#3b4276] font-black text-2xl m-0 tracking-tight">{room.price}</p>
+                                        </div>
+
+                                        <div className="preview-room-card-actions flex gap-2">
                                             {canPreview && (
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenPreview(room.id)}
-                                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-all border-0 cursor-pointer flex items-center justify-center space-x-1.5 shadow-sm"
+                                                className="flex-[1] bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-semibold py-2.5 rounded-xl text-xs transition-all border border-slate-200 cursor-pointer flex items-center justify-center shadow-sm group/btn"
+                                                title={t('preview.viewLayout')}
                                             >
-                                                <FontAwesomeIcon icon={faEye} />
-                                                <span>{t('preview.viewLayout')}</span>
+                                                <Eye className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
                                             </button>
                                             )}
                                             <button
                                                 type="button"
                                                 onClick={() => onInquireClick(room.id)}
-                                                className="w-full bg-white hover:bg-slate-50 text-[#3b4276] border border-[#3b4276]/30 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5"
+                                                className={`bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5 ${canPreview ? 'flex-[1.5]' : 'flex-[1]'}`}
                                             >
-                                                <FontAwesomeIcon icon={faEnvelopeOpenText} />
-                                                <span>{t('preview.inquire')}</span>
+                                                <Mail className="w-4 h-4" />
+                                                <span className="hidden sm:inline lg:hidden xl:inline">{t('preview.inquire')}</span>
                                             </button>
                                             <button
                                                 onClick={() => onRentClick(room.id)}
-                                                className="w-full bg-[#10b981] hover:bg-[#059669] hover:scale-[1.02] active:scale-[0.98] text-white font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm border-0 cursor-pointer text-center"
+                                                className={`bg-[#10b981] hover:bg-[#059669] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-black py-2.5 rounded-xl text-xs transition-all duration-200 shadow-md shadow-emerald-600/30 border-0 cursor-pointer text-center uppercase tracking-wide ${canPreview ? 'flex-[3]' : 'flex-[2]'}`}
                                             >
                                                 {t('preview.rentNow')}
                                             </button>
@@ -145,10 +160,10 @@ export default function Preview({ onRentClick, onInquireClick }) {
                 </div>
 
                 {/*Right Column: Maps Embed*/}
-                <div className="preview-map-wrapper lg:col-span-5 h-[400px] lg:h-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex">
+                <div className="preview-map-wrapper lg:col-span-5 h-[400px] lg:h-full bg-white rounded-[2rem] border-2 border-[#3b4276] shadow-xl overflow-hidden flex animate-slide-up" style={{animationDelay: '0.1s'}}>
                     <iframe
                         src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3866.795386520632!2d121.00438957587829!3d14.26515188519988!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd7d000a3458f3%3A0x44fda1a8f72e3c6a!2sAngcanan%20Apartment!5e0!3m2!1sen!2sph!4v1783046721885!5m2!1sen!2sph"
-                        className="w-full h-full border-0 flex-grow min-h-0"
+                        className="w-full h-full border-0 flex-grow min-h-0 grayscale-[20%] contrast-125 transition-all duration-700 hover:grayscale-0 hover:contrast-100 rounded-2xl"
                         allowFullScreen=""
                         loading="lazy"
                         referrerPolicy="strict-origin-when-cross-origin"
@@ -157,6 +172,30 @@ export default function Preview({ onRentClick, onInquireClick }) {
                 </div>
                                     
             </div>
+
+            <style>
+                {`
+                @keyframes slide-up {
+                    0% { opacity: 0; transform: translateY(20px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                }
+                .animate-slide-up {
+                    animation: slide-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                    opacity: 0;
+                }
+                
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background-color: #cbd5e1;
+                    border-radius: 20px;
+                }
+                `}
+            </style>
 
             {/*Injected Room Visual Layout Overlays*/}
             <RoomPreviewModal
