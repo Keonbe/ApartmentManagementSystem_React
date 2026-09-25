@@ -226,7 +226,7 @@ export default function PayBills() {
         const proofError = proofFile ? checkFile(proofFile, FILE_RULES.paymentProof) : 'Please attach your proof of payment.';
         if (proofError) { alert(proofError); return; }
 
-        let proofPath = null;
+        let proofPath;
         const formData = new FormData();
         formData.append('invoice_id', billDetails.invoiceId);
         formData.append('payment_reference', paymentReference);
