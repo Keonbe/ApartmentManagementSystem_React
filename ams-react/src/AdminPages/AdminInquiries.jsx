@@ -9,6 +9,8 @@ import {
   faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkEmail, checkIntRange, checkLength, checkPhMobile, firstError } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 import { getSystemSettings } from '../config/systemSettings';
 import WaitlistPanel from '../Components/WaitlistPanel';
 
@@ -126,13 +128,18 @@ export default function AdminInquiries() {
       return true;
     } catch (err) {
       console.error('Error updating inquiry:', err);
-      setActionError('Server error updating the inquiry.');
+      setActionError(apiErrorMessage(err, 'Server error updating the inquiry.'));
       return false;
     }
   };
 
   const updateReservation = async (id, status, reason = '') => {
     setActionError(null);
+    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
+    if (reasonError) {
+      alert(reasonError);
+      return;
+    }
     try {
       const res = await api.post('update_reservation_status.php', { id, status, reason });
       if (!res.data.success) {
@@ -143,7 +150,7 @@ export default function AdminInquiries() {
       await fetchSupporting();
     } catch (err) {
       console.error('Error updating reservation:', err);
-      alert('Server error updating the reservation.');
+      alert(apiErrorMessage(err, 'Server error updating the reservation.'));
     }
   };
 
@@ -151,6 +158,20 @@ export default function AdminInquiries() {
     setActionError(null);
     if (!resRoom) {
       setActionError('Select a unit to reserve.');
+      return;
+    }
+    // create_reservation.php stores these in columns of 150/30/150 characters;
+    // they come from the inquiry, so a bad value is caught here, not truncated.
+    const reserveError = firstError(
+      checkIntRange(resHoldDays, 1, 90, 'Hold days'),
+      resFee !== '' ? checkAmount(resFee, { label: 'Reservation fee' }) : '',
+      checkLength(selected?.fullName, LIMITS.fullName, 'Name'),
+      checkLength(selected?.contactNo, 30, 'Contact number'),
+      checkLength(selected?.email, LIMITS.email, 'Email'),
+      checkLength(resNotes, LIMITS.notes, 'Notes')
+    );
+    if (reserveError) {
+      setActionError(reserveError);
       return;
     }
     try {
@@ -176,7 +197,7 @@ export default function AdminInquiries() {
       await fetchSupporting();
     } catch (err) {
       console.error('Error creating reservation:', err);
-      setActionError('Server error creating the reservation.');
+      setActionError(apiErrorMessage(err, 'Server error creating the reservation.'));
     }
   };
 
@@ -184,6 +205,14 @@ export default function AdminInquiries() {
     setActionError(null);
     if (!logForm.full_name.trim() || !logForm.contact_no.trim() || !logForm.email.trim()) {
       setActionError('Name, contact number, and email are required.');
+      return;
+    }
+    const logError = firstError(
+      checkPhMobile(logForm.contact_no) ? 'Enter a valid PH mobile number (e.g. 0917 123 4567).' : '',
+      checkEmail(logForm.email)
+    );
+    if (logError) {
+      setActionError(logError);
       return;
     }
     try {
@@ -197,7 +226,7 @@ export default function AdminInquiries() {
       fetchData();
     } catch (err) {
       console.error('Error logging inquiry:', err);
-      setActionError('Server error logging the inquiry.');
+      setActionError(apiErrorMessage(err, 'Server error logging the inquiry.'));
     }
   };
 
@@ -673,6 +702,7 @@ export default function AdminInquiries() {
                 <textarea
                   rows="3"
                   value={notes}
+                  maxLength={LIMITS.notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Record what was discussed, follow-up dates, or screening notes..."
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-y"
@@ -779,6 +809,8 @@ export default function AdminInquiries() {
                   onClick={async () => {
                     const reason = prompt('Reason for closing this inquiry:');
                     if (reason === null) return;
+                    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
+                    if (reasonError) { alert(reasonError); return; }
                     const ok = await updateInquiry({ id: selected.id, status: 'Closed', admin_notes: notes, closed_reason: reason });
                     if (ok) setShowDetail(false);
                   }}
@@ -849,6 +881,7 @@ export default function AdminInquiries() {
                   <input
                     type="number"
                     min="0"
+                    max={MAX_AMOUNT}
                     step="0.01"
                     value={resFee}
                     onChange={(e) => setResFee(e.target.value)}
@@ -863,6 +896,7 @@ export default function AdminInquiries() {
                 <textarea
                   rows="2"
                   value={resNotes}
+                  maxLength={LIMITS.notes}
                   onChange={(e) => setResNotes(e.target.value)}
                   placeholder="Terms agreed, deposit arrangement, etc."
                   className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500 resize-y"
@@ -920,14 +954,15 @@ export default function AdminInquiries() {
               </div>
 
               {[
-                { key: 'full_name', label: 'Full Name', type: 'text', placeholder: 'e.g. Juan Dela Cruz' },
-                { key: 'contact_no', label: 'Contact Number', type: 'tel', placeholder: 'e.g. 0917 123 4567' },
-                { key: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. juan@email.com' },
+                { key: 'full_name', label: 'Full Name', type: 'text', placeholder: 'e.g. Juan Dela Cruz', max: LIMITS.fullName },
+                { key: 'contact_no', label: 'Contact Number', type: 'tel', placeholder: 'e.g. 0917 123 4567', max: 16 },
+                { key: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. juan@email.com', max: LIMITS.email },
               ].map(field => (
                 <div key={field.key}>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{field.label}</label>
                   <input
                     type={field.type}
+                    maxLength={field.max}
                     value={logForm[field.key]}
                     onChange={(e) => setLogForm({ ...logForm, [field.key]: e.target.value })}
                     placeholder={field.placeholder}
@@ -955,6 +990,7 @@ export default function AdminInquiries() {
                 <textarea
                   rows="3"
                   value={logForm.message}
+                  maxLength={LIMITS.message}
                   onChange={(e) => setLogForm({ ...logForm, message: e.target.value })}
                   placeholder="Summarize the inquiry..."
                   className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 resize-y"

@@ -10,6 +10,8 @@ import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
+import { FILE_RULES, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 
 export default function TrackApplication() {
@@ -26,17 +28,9 @@ export default function TrackApplication() {
 
     const validateAndSetContractFile = (file) => {
         if (!file) return;
-        const maxSize = 5 * 1024 * 1024; // 5MB
-        if (file.size > maxSize) {
-            alert("The selected file is too large. The maximum limit is 5MB.");
-            return;
-        }
-        const isPdfType = file.type === 'application/pdf';
-        const fileExtension = file.name.split('.').pop().toLowerCase();
-        const isPdfExt = fileExtension === 'pdf';
-        
-        if (!isPdfType && !isPdfExt) {
-            alert("Invalid file format. Only PDF files are allowed.");
+        const fileError = checkFile(file, FILE_RULES.pdf);
+        if (fileError) {
+            alert(fileError);
             return;
         }
         setContractFile(file);
@@ -72,7 +66,7 @@ export default function TrackApplication() {
             }
         } catch (err) {
             console.error("Contract upload error:", err);
-            alert("Failed to upload contract. Please try again.");
+            alert(apiErrorMessage(err, "Failed to upload contract. Please try again."));
         } finally {
             setUploadingContract(false);
         }
@@ -142,7 +136,7 @@ export default function TrackApplication() {
             }
         } catch (error) {
             console.error("Error submitting initial payment:", error);
-            alert("Payment failed. Please try again.");
+            alert(apiErrorMessage(error, "Payment failed. Please try again."));
         } finally {
             setPaying(false);
         }

@@ -5,6 +5,9 @@ import SuccessModal from '../Components/SuccessModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import { LIMITS, checkEmail, checkPhMobile, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
 
 export default function RentApplication() {
@@ -114,22 +117,11 @@ export default function RentApplication() {
 
     const validateFile = (file) => {
         if (!file) return false;
-
-        const maxSizeBytes = 10 * 1024 * 1024; //10MB
-        if (file.size > maxSizeBytes) {
-            alert(`File "${file.name}" exceeds the 10MB size limit. Please upload a smaller file.`);
+        const fileError = checkFile(file, FILE_RULES.document);
+        if (fileError) {
+            alert(fileError);
             return false;
         }
-
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
-        const fileExtension = file.name.split('.').pop().toLowerCase();
-        const allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-
-        if (!allowedExtensions.includes(fileExtension) || (file.type && !allowedMimeTypes.includes(file.type))) {
-            alert(`Invalid file format for "${file.name}". Only JPEG, PNG, and PDF formats are allowed.`);
-            return false;
-        }
-
         return true;
     };
 
@@ -142,26 +134,6 @@ export default function RentApplication() {
             setPhoneRawNumber(val);
             setPhoneError('');
         }
-    };
-
-    const validatePhilippineNumber = (number) => {
-        if (number.length !== 10) {
-            return "Mobile number must be exactly 10 digits (e.g., 9171234567).";
-        }
-        
-        if (!/^[89]/.test(number)) {
-            return "Invalid prefix. Real Philippine mobile numbers must start with 9 or 8.";
-        }
-
-        if (/^(\d)\1+$/.test(number)) {
-            return "Fake number pattern detected. Please enter a valid number.";
-        }
-
-        if ("012345678901".includes(number) || "09876543210".includes(number)) {
-            return "Sequential numbers are not accepted as valid contact records.";
-        }
-
-        return "";
     };
 
     const handleOccupantsInput = (e) => {
@@ -207,8 +179,18 @@ export default function RentApplication() {
             return;
         }
 
-        if (phoneError) {
-            alert("Please correct the invalid contact details before submitting.");
+        // Checked here too: phoneError is only set on blur, so a field never
+        // focused would otherwise slip through.
+        const phoneCheck = checkPhMobile(phoneRawNumber);
+        if (phoneCheck) setPhoneError(phoneCheck);
+        const detailsError = firstError(
+            !firstName.trim() || !lastName.trim() ? 'First and last name are required.' : '',
+            phoneCheck ? "Please correct the invalid contact details before submitting." : '',
+            checkEmail(email),
+            gender ? '' : 'Please select your gender.'
+        );
+        if (detailsError) {
+            alert(detailsError);
             return;
         }
 
@@ -258,7 +240,7 @@ export default function RentApplication() {
             }
         } catch (error) {
             console.error("Error submitting application:", error);
-            alert("A network error occurred.");
+            alert(apiErrorMessage(error, "A network error occurred."));
         }
     };
 
@@ -366,6 +348,7 @@ export default function RentApplication() {
                                     <input
                                         type="text"
                                         value={firstName}
+                                        maxLength={LIMITS.applicantName}
                                         disabled
                                         className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                     />
@@ -375,6 +358,7 @@ export default function RentApplication() {
                                     <input
                                         type="text"
                                         value={middleName}
+                                        maxLength={LIMITS.applicantName}
                                         disabled
                                         className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                     />
@@ -384,6 +368,7 @@ export default function RentApplication() {
                                     <input
                                         type="text"
                                         value={lastName}
+                                        maxLength={LIMITS.applicantName}
                                         disabled
                                         className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                     />
@@ -395,6 +380,7 @@ export default function RentApplication() {
                                         placeholder="e.g. Jr, Sr, III"
                                         value={suffix}
                                         disabled={isReadOnly}
+                                        maxLength={LIMITS.suffix}
                                         onChange={(e) => setSuffix(e.target.value)}
                                         className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed"
                                     />
@@ -417,7 +403,7 @@ export default function RentApplication() {
                                             value={phoneRawNumber}
                                             disabled={isReadOnly}
                                             onChange={handlePhoneRawInput}
-                                            onBlur={() => setPhoneError(validatePhilippineNumber(phoneRawNumber))}
+                                            onBlur={() => setPhoneError(checkPhMobile(phoneRawNumber))}
                                             className={`focus-glow w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed box-border ${phoneError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
                                             required
                                         />
@@ -432,6 +418,7 @@ export default function RentApplication() {
                                     <input
                                         type="email"
                                         value={email}
+                                        maxLength={LIMITS.email}
                                         disabled
                                         className="w-full px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 focus:outline-none shadow-inner text-sm cursor-not-allowed"
                                     />
@@ -567,7 +554,7 @@ export default function RentApplication() {
                                                     <>
                                                         <input
                                                             type="file"
-                                                            accept=".pdf,.jpg,.jpeg,.png"
+                                                            accept={acceptFor(FILE_RULES.document)}
                                                             onChange={(e) => {
                                                                 if (e.target.files && e.target.files[0]) {
                                                                     const file = e.target.files[0];
@@ -637,7 +624,7 @@ export default function RentApplication() {
                                                     <>
                                                         <input
                                                             type="file"
-                                                            accept=".pdf,.jpg,.jpeg,.png"
+                                                            accept={acceptFor(FILE_RULES.document)}
                                                             onChange={(e) => {
                                                                 if (e.target.files && e.target.files[0]) {
                                                                     const file = e.target.files[0];
@@ -708,7 +695,7 @@ export default function RentApplication() {
                                                 <>
                                                     <input
                                                         type="file"
-                                                        accept=".pdf,.jpg,.jpeg,.png"
+                                                        accept={acceptFor(FILE_RULES.document)}
                                                         onChange={(e) => {
                                                             if (e.target.files && e.target.files[0]) {
                                                                 const file = e.target.files[0];

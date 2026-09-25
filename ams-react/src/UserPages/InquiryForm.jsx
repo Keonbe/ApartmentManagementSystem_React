@@ -4,6 +4,7 @@ import { faEnvelopeOpenText, faExclamationTriangle, faInfoCircle } from '@fortaw
 import { useNavigate, useLocation } from 'react-router-dom';
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
+import { LIMITS, checkDate, checkIntRange, checkPhMobile, localDateString } from '../utils/validation';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
 
@@ -72,9 +73,15 @@ export default function InquiryForm() {
             setErrorMsg(t('inquiry.errorEmail'));
             return;
         }
-        const normalizedContact = contactNo.trim().replace(/[\s-]/g, '');
-        if (!/^(?:\+63|0)9\d{9}$/.test(normalizedContact)) {
+        if (checkPhMobile(contactNo)) {
             setErrorMsg(t('inquiry.errorContact'));
+            return;
+        }
+
+        const optionalError = (occupants !== '' && occupants != null ? checkIntRange(occupants, 1, 20, 'Occupants') : '')
+            || (moveIn ? checkDate(moveIn, { min: localDateString(), label: 'Preferred move-in date' }) : '');
+        if (optionalError) {
+            setErrorMsg(optionalError);
             return;
         }
 
@@ -227,7 +234,7 @@ export default function InquiryForm() {
                         <input
                             type="date"
                             value={moveIn}
-                            min={new Date().toISOString().split('T')[0]}
+                            min={localDateString()}
                             onChange={(e) => setMoveIn(e.target.value)}
                             className={inputClass}
                             style={{ color: '#1e293b' }}
@@ -241,6 +248,7 @@ export default function InquiryForm() {
                         <textarea
                             rows="5"
                             value={message}
+                            maxLength={LIMITS.message}
                             onChange={(e) => setMessage(e.target.value)}
                             placeholder={t('inquiry.messagePlaceholder')}
                             className={`${inputClass} resize-y`}
