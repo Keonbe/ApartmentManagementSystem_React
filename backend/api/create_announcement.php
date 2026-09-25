@@ -21,10 +21,20 @@ $title = trim((string)($input['title'] ?? ''));
 $body = trim((string)($input['body'] ?? ''));
 $send_to = trim((string)($input['sendTo'] ?? 'All tenants'));
 $unit = trim((string)($input['unit'] ?? ''));
+$is_draft = !empty($input['draft']);
+// In-app always goes out. SMS and email go out only when the admin picked them:
+// with Semaphore live, every SMS costs credits, so an unticked box must mean
+// "not sent" rather than "sent anyway".
+$requested = is_array($input['channels'] ?? null) ? array_map('strtolower', $input['channels']) : [];
+$want_sms   = in_array('sms', $requested, true);
+$want_email = in_array('email', $requested, true);
 // Recorded as in-app, then rewritten after the broadcast with the channels that
 // actually reached someone — a tenant may be opted out of SMS, or the channel
-// may be switched off building-wide, and the stored record should say so.
-$channels = json_encode(['in-app']);
+// may be switched off building-wide, and the stored record should say so. A
+// draft keeps the channels it was composed with.
+$channels = json_encode($is_draft
+    ? array_values(array_merge(['in-app'], $want_sms ? ['sms'] : [], $want_email ? ['email'] : []))
+    : ['in-app']);
 
 if ($title === '' || $body === '') {
     http_response_code(422);
@@ -59,6 +69,18 @@ $stmt->execute();
 $recipients = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'user_id'));
 $stmt->close();
 
+// A draft notifies nobody: store it and stop.
+if ($is_draft) {
+    $recipient_count = count($recipients);
+    $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, status, recipient_count) VALUES (?, ?, ?, ?, ?, 'draft', ?)");
+    $stmt->bind_param("sssssi", $tag, $title, $body, $send_to_label, $channels, $recipient_count);
+    if (!$stmt->execute()) server_error_response(new Exception($stmt->error), "Failed to save the draft.");
+    $stmt->close();
+    log_activity($conn, $admin_id, 'communication', "Saved Announcement Draft", "Title: $title; To: $send_to_label");
+    echo json_encode(["success" => true, "message" => "Draft saved. Nobody was notified.", "draft" => true]);
+    exit;
+}
+
 if (!$recipients) {
     http_response_code(422);
     echo json_encode(["success" => false, "message" => $send_to_label === 'All Tenants'
@@ -92,8 +114,9 @@ try {
     // back an announcement that tenants can already see in-app.
     $notification_dispatch = dispatch_admin_action_broadcast(
         $conn, $recipients, $notif_type, $title,
-        "AMS $tag: $title - $body",
-        email_announcement_template($title, $body, $tag)
+        // null skips that channel in dispatch_external_notification().
+        $want_sms ? "AMS $tag: $title - $body" : null,
+        $want_email ? email_announcement_template($title, $body, $tag) : null
     );
 
     $used = ['in-app'];

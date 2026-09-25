@@ -10,34 +10,12 @@ const TEST_CHANNELS = [
   { key: 'both', label: 'Test Both' },
 ];
 
-// Credential fields for the providers whose drivers are still stubs.
-const STUB_PROVIDER_FIELDS = {
-  twilio: [
-    { key: 'smsTwilioSid', label: 'Account SID', secret: true },
-    { key: 'smsTwilioAuthToken', label: 'Auth Token', secret: true },
-    { key: 'smsTwilioFromNumber', label: 'From Number', placeholder: '+1...' },
-  ],
-  vonage: [
-    { key: 'smsVonageApiKey', label: 'API Key', secret: true },
-    { key: 'smsVonageApiSecret', label: 'API Secret', secret: true },
-  ],
-  movider: [
-    { key: 'smsMoviderApiKey', label: 'API Key', secret: true },
-    { key: 'smsMoviderApiSecret', label: 'API Secret', secret: true },
-  ],
-  itexmo: [
-    { key: 'smsItexmoApiCode', label: 'API Code', secret: true },
-    { key: 'smsItexmoPassword', label: 'API Password', secret: true },
-  ],
-};
-
 export default function NotificationsPanel({
   settings, updateSetting, isDirty,
   testingChannel, onTest, checkingBalance, smsBalance, onCheckBalance,
 }) {
   const provider = settings.smsProvider || 'log';
   const dryChannels = [provider === 'log' && 'SMS', settings.emailDriver === 'log' && 'email'].filter(Boolean);
-  const stubFields = STUB_PROVIDER_FIELDS[provider];
 
   return (
     <>
@@ -69,21 +47,11 @@ export default function NotificationsPanel({
             <select value={provider} onChange={(e) => updateSetting('smsProvider', e.target.value)} className={INPUT}>
               <option value="log">Log (dry run — records, sends nothing)</option>
               <option value="semaphore">Semaphore (Philippines)</option>
-              <option value="twilio">Twilio (global)</option>
-              <option value="vonage">Vonage / Nexmo (global)</option>
-              <option value="movider">Movider (Southeast Asia)</option>
-              <option value="itexmo">iTexMo (Philippines, budget)</option>
             </select>
             {provider === 'semaphore' && (
               <p className="text-[11px] text-amber-600 m-0">
                 Live: every SMS spends Semaphore credits. Admin actions queue their messages and the queue task
                 delivers them within about a minute — it must be scheduled (see the go-live guide).
-              </p>
-            )}
-            {stubFields && (
-              <p className="text-[11px] text-amber-600 m-0">
-                This provider's driver is not built yet — sends will be recorded as failures. Philippine carriers
-                also require a registered sender ID before any message is delivered.
               </p>
             )}
           </Field>
@@ -130,7 +98,7 @@ export default function NotificationsPanel({
                 />
               </Field>
 
-              <Field label="Credit Balance" hint={isDirty ? 'Save your changes first — this uses the saved key.' : 'Uses the saved key.'}>
+              <Field label="Credit Balance" hint={isDirty ? 'Save your changes first — this uses the saved key.' : 'Uses the saved key. Semaphore allows 2 checks a minute, so a repeat within 60 s shows the last result.'}>
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
@@ -145,6 +113,11 @@ export default function NotificationsPanel({
                     <span className="text-sm text-slate-800">
                       <strong>{smsBalance.credits}</strong> credits
                       {smsBalance.account && <span className="text-slate-500"> · {smsBalance.account}</span>}
+                      {smsBalance.cached && smsBalance.checkedAt && (
+                        <span className="text-slate-500">
+                          {' '}· as of {new Date(smsBalance.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </span>
                   )}
                   {smsBalance?.error && <span className="text-xs text-rose-600">{smsBalance.error}</span>}
@@ -152,19 +125,6 @@ export default function NotificationsPanel({
               </Field>
             </>
           )}
-
-          {stubFields && stubFields.map((f) => (
-            <Field key={f.key} label={f.label}>
-              <input
-                type={f.secret ? 'password' : 'text'}
-                aria-label={f.label}
-                value={settings[f.key] || ''}
-                onChange={(e) => updateSetting(f.key, e.target.value)}
-                placeholder={f.placeholder}
-                className={INPUT_MONO}
-              />
-            </Field>
-          ))}
 
           {provider !== 'log' && (
             <Field label="Daily SMS Cap" hint="Most SMS sent per day. Beyond it messages are recorded as skipped, not charged. 0 = no cap.">

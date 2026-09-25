@@ -44,7 +44,7 @@ export default function ParkingPanel({ settings, updateSetting }) {
         <Field label="Monthly Parking Fee" hint="Added to the tenant's invoice for each month of the permit term.">
           <WithUnit prefix="₱" suffix="per slot / month">
             <input
-              type="number" min="1" step="50"
+              type="number" min="1" step="1"
               value={settings.parkingMonthlyFee}
               onChange={(e) => updateSetting('parkingMonthlyFee', Number(e.target.value))}
               className={`${INPUT_NUMBER} w-28`}

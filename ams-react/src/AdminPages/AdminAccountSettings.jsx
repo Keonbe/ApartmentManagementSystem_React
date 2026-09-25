@@ -200,13 +200,20 @@ const AdminAccountSettings = () => {
   };
 
   // Live Semaphore credits. Reads the stored key, so save first. Semaphore
-  // rate-limits this endpoint, hence a button rather than polling on load.
+  // allows this call twice a minute, hence a button rather than polling on
+  // load; the server reuses an answer for 60 s and says so (cached/checked_at).
   const handleCheckBalance = async () => {
     setCheckingBalance(true);
     try {
       const res = await api.get('get_sms_balance.php');
       setSmsBalance(res.data.success
-        ? { credits: res.data.credit_balance, account: res.data.account_name, status: res.data.account_status }
+        ? {
+            credits: res.data.credit_balance,
+            account: res.data.account_name,
+            status: res.data.account_status,
+            cached: !!res.data.cached,
+            checkedAt: res.data.checked_at,
+          }
         : { error: res.data.message || 'Could not read the balance.' });
     } catch (err) {
       setSmsBalance({ error: err?.response?.data?.message || err.message || 'Could not read the balance.' });

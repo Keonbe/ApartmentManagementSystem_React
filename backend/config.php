@@ -29,6 +29,11 @@ if (!defined('APP_URL')) define('APP_URL', rtrim(ams_env('APP_URL', ''), '/'));
 if (!defined('DEPLOYMENT_TARGET')) define('DEPLOYMENT_TARGET', ams_env('DEPLOYMENT_TARGET', 'local'));
 if (!defined('DEPLOYMENT_ID')) define('DEPLOYMENT_ID', ams_env('DEPLOYMENT_ID', ''));
 define('UPLOADS_DIR', __DIR__ . '/uploads');
+// The building's clock. XAMPP ships PHP on Europe/Berlin and a hosted MySQL is
+// often UTC, so both are pinned here: PHP below, the DB session once connected.
+// Quiet hours, due/overdue and the SMS timestamps all assume one clock.
+if (!defined('APP_TIMEZONE')) define('APP_TIMEZONE', ams_env('APP_TIMEZONE', 'Asia/Manila'));
+if (!@date_default_timezone_set(APP_TIMEZONE)) date_default_timezone_set('Asia/Manila');
 
 // A payment setting from the deployment's environment, when the host keeps it
 // there instead of in system_settings: paymongo_secret_key <- PAYMONGO_SECRET_KEY.
@@ -103,6 +108,10 @@ if ($db_error !== null) {
         die("Connection failed: " . $db_error);
     }
 }
+
+// Same clock for NOW()/CURDATE(). A numeric offset needs no MySQL timezone
+// tables; Asia/Manila has no DST, so the offset never changes.
+$conn->query("SET time_zone = '" . date('P') . "'");
 
 // Priority 4: Observability
 //
@@ -1458,14 +1467,6 @@ const SECRET_SETTING_KEYS = [
     'smtp_username',
     'smtp_password',
     'sms_api_key',
-    'sms_twilio_sid',
-    'sms_twilio_auth_token',
-    'sms_vonage_api_key',
-    'sms_vonage_api_secret',
-    'sms_movider_api_key',
-    'sms_movider_api_secret',
-    'sms_itexmo_api_code',
-    'sms_itexmo_password',
 ];
 
 const SECRET_MASK_PREFIX = '••••';
@@ -1564,6 +1565,15 @@ function gsm7_safe($text) {
 function sms_single_segment($text, $limit = 160) {
     $text = trim(gsm7_safe($text));
     return mb_strlen($text) <= $limit ? $text : rtrim(mb_substr($text, 0, $limit - 1)) . '.';
+}
+
+// Semaphore silently drops any message that starts with "TEST": the API accepts
+// it, returns a message_id and bills nothing, and it never arrives — so the log
+// would say 'sent'. Prefix such text instead of trusting admins to avoid the
+// word. Matched case-insensitively and as a prefix ("Testing", "TEST:") to be safe.
+function sms_avoid_ignored_prefix($text) {
+    $text = ltrim((string)$text);
+    return stripos($text, 'test') === 0 ? 'AMS: ' . $text : $text;
 }
 
 // The only writer into notification_log. message_body is truncated because the

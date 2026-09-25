@@ -1,6 +1,7 @@
 <?php
 /**
- * Multi-provider SMS sender (checklist 6.6).
+ * SMS sender (checklist 6.6). Semaphore is the only real provider; 'log' is
+ * the dry run.
  *
  * Usage:
  *   require_once __DIR__ . '/services/send_sms.php';
@@ -40,7 +41,10 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
     // Cost control (§0.3): one GSM-7 segment, hard. A single "PHP" written as a
     // peso sign, or an em dash, makes the whole message UCS-2 at 70 chars per
     // segment, so what looks like one message bills as three.
-    $message = sms_single_segment($message);
+    // The "TEST" guard runs on the cleaned text (a leading emoji is stripped by
+    // gsm7_safe(), which could expose "Test"), then re-caps for the added prefix.
+    // Applied to every driver so the dry-run outbox shows what Semaphore gets.
+    $message = sms_single_segment(sms_avoid_ignored_prefix(sms_single_segment($message)));
 
     $provider = strtolower(get_setting($conn, 'sms_provider', 'log'));
 
@@ -55,10 +59,6 @@ function send_sms($conn, $phone, $message, $event_type = 'general', $user_id = n
     $result = match ($provider) {
         'log'       => _sms_via_log($conn, $phone, $message, $event_type, $user_id),
         'semaphore' => _send_via_semaphore($conn, $phone, $message),
-        'twilio'    => _sms_provider_stub('Twilio'),
-        'vonage'    => _sms_provider_stub('Vonage'),
-        'movider'   => _sms_provider_stub('Movider'),
-        'itexmo'    => _sms_provider_stub('iTexMo'),
         default     => ['ok' => false, 'error' => "Unknown SMS provider: $provider"],
     };
 
@@ -114,7 +114,7 @@ function _send_via_semaphore($conn, $phone, $message) {
         $fields['sendername'] = $sender;
     }
 
-    [$code, $json, $raw, $err] = _semaphore_request('POST', '/messages', $fields);
+    [$code, $json, $raw, $err, $retry_after] = _semaphore_request('POST', '/messages', $fields);
     if ($err !== null) return ['ok' => false, 'error' => $err];
 
     // Success is a list of message objects, one per recipient. Validation
@@ -129,35 +129,75 @@ function _send_via_semaphore($conn, $phone, $message) {
         return ['ok' => true];
     }
 
-    return ['ok' => false, 'error' => _semaphore_error($code, $json, $raw)];
+    return ['ok' => false, 'error' => _semaphore_error($code, $json, $raw, $retry_after)];
 }
 
 /**
  * Live credit balance for the admin settings page. Never throws.
- * Returns ['ok' => bool, 'credit_balance' => ?, 'account_name' => ?, 'status' => ?, 'error' => ?].
+ * Returns ['ok' => bool, 'credit_balance' => ?, 'account_name' => ?, 'status' => ?,
+ *          'checked_at' => ?, 'cached' => bool, 'error' => ?].
+ *
+ * Semaphore allows GET /account only 2 times a minute, so a successful answer is
+ * reused for SEMAPHORE_ACCOUNT_CACHE_SECONDS. The cache is tied to a hash of the
+ * key, so pasting a new key checks again at once. Errors are never cached.
  */
+const SEMAPHORE_ACCOUNT_CACHE_SECONDS = 60;
+
 function semaphore_account_balance($conn) {
     $api_key = get_setting($conn, 'sms_api_key', '');
     if ($api_key === '') return ['ok' => false, 'error' => 'No Semaphore API key configured'];
 
-    [$code, $json, $raw, $err] = _semaphore_request('GET', '/account', ['apikey' => $api_key]);
+    $cache_file = __DIR__ . '/../../logs/semaphore_account.json';
+    $key_hash   = hash('sha256', $api_key);
+    $cached     = is_file($cache_file) ? json_decode((string)@file_get_contents($cache_file), true) : null;
+    if (is_array($cached) && ($cached['key_hash'] ?? '') === $key_hash
+        && time() - (int)($cached['checked_ts'] ?? 0) < SEMAPHORE_ACCOUNT_CACHE_SECONDS) {
+        return [
+            'ok'             => true,
+            'credit_balance' => $cached['credit_balance'] ?? null,
+            'account_name'   => $cached['account_name'] ?? null,
+            'status'         => $cached['status'] ?? null,
+            'checked_at'     => $cached['checked_at'] ?? null,
+            'cached'         => true,
+        ];
+    }
+
+    [$code, $json, $raw, $err, $retry_after] = _semaphore_request('GET', '/account', ['apikey' => $api_key]);
     if ($err !== null) return ['ok' => false, 'error' => $err];
 
     if ($code >= 200 && $code < 300 && is_array($json) && array_key_exists('credit_balance', $json)) {
-        return [
+        $result = [
             'ok'             => true,
             'credit_balance' => $json['credit_balance'],
             'account_name'   => $json['account_name'] ?? null,
             'status'         => $json['status'] ?? null,
+            'checked_at'     => date('c'),
+            'cached'         => false,
         ];
+        $dir = dirname($cache_file);
+        if (is_dir($dir) || @mkdir($dir, 0777, true)) {
+            @file_put_contents($cache_file, json_encode([
+                'key_hash'       => $key_hash,
+                'checked_ts'     => time(),
+                'checked_at'     => $result['checked_at'],
+                'credit_balance' => $result['credit_balance'],
+                'account_name'   => $result['account_name'],
+                'status'         => $result['status'],
+            ]), LOCK_EX);
+        }
+        return $result;
     }
-    return ['ok' => false, 'error' => _semaphore_error($code, $json, $raw)];
+    return ['ok' => false, 'error' => _semaphore_error($code, $json, $raw, $retry_after)];
 }
 
 // Validation errors arrive as {"field": ["message", ...]} — often with a 200 —
 // so flatten them into something an admin can act on ("The selected apikey is
-// invalid.") instead of raw JSON.
-function _semaphore_error($code, $json, $raw) {
+// invalid.") instead of raw JSON. A 429 names the wait from Retry-After; the
+// queue's own backoff (2 minutes and up) already outlasts it.
+function _semaphore_error($code, $json, $raw, $retry_after = null) {
+    if ($code === 429) {
+        return 'Semaphore rate limit reached' . ($retry_after !== null ? " (retry after {$retry_after}s)" : '');
+    }
     if (is_array($json) && $json && !isset($json[0])) {
         $messages = [];
         foreach ($json as $value) {
@@ -168,14 +208,21 @@ function _semaphore_error($code, $json, $raw) {
     return mb_substr("Semaphore HTTP $code: " . (is_array($json) ? json_encode($json) : (string)$raw), 0, 300);
 }
 
-// Shared transport. Returns [http_code, decoded_json|null, raw_body, error|null].
+// Shared transport. Returns [http_code, decoded_json|null, raw_body, error|null,
+// retry_after_seconds|null]. Only /messages and /account are ever called: the
+// /priority and /otp routes bill 2 credits, and /otp is for one-time codes only.
 function _semaphore_request($method, $path, $fields) {
     $url = 'https://api.semaphore.co/api/v4' . $path;
     $ch  = curl_init();
+    $retry_after = null;
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_HEADERFUNCTION => function ($ch, $line) use (&$retry_after) {
+            if (preg_match('/^Retry-After:\s*(\d+)/i', $line, $m)) $retry_after = (int)$m[1];
+            return strlen($line);
+        },
     ];
     if ($method === 'POST') {
         $opts[CURLOPT_URL]        = $url;
@@ -191,8 +238,8 @@ function _semaphore_request($method, $path, $fields) {
     $cerr = curl_error($ch);
     curl_close($ch);
 
-    if ($raw === false || $cerr !== '') return [$code, null, '', 'cURL error: ' . ($cerr ?: 'request failed')];
-    return [$code, json_decode($raw, true), $raw, null];
+    if ($raw === false || $cerr !== '') return [$code, null, '', 'cURL error: ' . ($cerr ?: 'request failed'), null];
+    return [$code, json_decode($raw, true), $raw, null, $retry_after];
 }
 
 // ──────────────────────────────────────────────
@@ -208,14 +255,6 @@ function _sms_daily_cap_reached($conn) {
     if (!$res) return null;
     $sent = (int)$res->fetch_assoc()['n'];
     return $sent >= $cap ? $cap : null;
-}
-
-// The remaining drivers are deliberately not implemented: each contacts a paid
-// API, and untested code that spends money is worse than an honest stub.
-// Appendix C of docs/features/sms_email_implementation.md has the cURL call for
-// each; adding one is a single function plus a line in the match above.
-function _sms_provider_stub($name) {
-    return ['ok' => false, 'error' => "$name driver is not implemented yet - see Appendix C. Set sms_provider to 'log' for the dry run."];
 }
 
 // ──────────────────────────────────────────────

@@ -36,6 +36,7 @@ The Railway domain is the **API**, not the database. The Dockerfile copies `back
 | `APP_ENV` | `development` | `production` | Hides error detail and the password-reset dev token; turns on strict CORS |
 | `ALLOWED_ORIGINS` | unset | unset until a frontend exists, then `https://<frontend-domain>` | CORS allowlist (§4) |
 | `APP_URL` | unset | `https://<frontend-domain>` later | Public URL of the SPA; PayMongo return links must start with it |
+| `APP_TIMEZONE` | `Asia/Manila` | `Asia/Manila` | PHP timezone; the DB session `time_zone` is set to the same offset in `config.php` |
 | `DEPLOYMENT_TARGET` | `local` | `saas` | `local` / `saas` / `selfhosted`; checked by `cron/check_environment.php` |
 | `DEPLOYMENT_ID` | unset | `saas-prod` | Unique deployment name stamped into the DB and uploads by `--claim` |
 | `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET` | unset | optional | Override the values stored in Admin → Settings |

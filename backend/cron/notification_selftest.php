@@ -180,7 +180,7 @@ try {
 
     // ── M6-13 — retry and backoff ───────────────────────────
     clear_state($conn, $uid);
-    put_setting($conn, 'sms_provider', 'twilio');   // a stub driver: always fails
+    put_setting($conn, 'sms_provider', 'selftest_unknown');   // unknown provider: always fails, no network
     enqueue_notification($conn, $uid, 'sms', 'test', ['to' => '09171234567', 'body' => 'AMS retry test']);
     $attempts_seen = [];
     for ($i = 0; $i < 4; $i++) {
@@ -192,7 +192,7 @@ try {
     $final = queue_rows($conn, $uid)[0] ?? null;
     check('M6-13', 'A failing driver retries, backs off, then gives up',
         $final && (int)$final['attempts'] === 3 && $final['status'] === 'failed'
-            && str_contains((string)$final['error_message'], 'Twilio'),
+            && str_contains((string)$final['error_message'], 'Unknown SMS provider'),
         implode(' -> ', $attempts_seen) . ($final && $final['error_message'] ? ' (error recorded)' : ' (no error recorded)'));
     put_setting($conn, 'sms_provider', 'log');
 
@@ -274,6 +274,16 @@ try {
     check('M6-35', "sms_provider 'log' writes the outbox and a sent row",
         $ok && $after === $before + 1 && $row && $row['status'] === 'sent',
         'outbox +' . ($after - $before) . ', log ' . ($row['status'] ?? 'none'));
+
+    // ── M6-39 — Semaphore drops messages that start with "TEST" ─
+    clear_state($conn, $uid);
+    $helper_ok = sms_avoid_ignored_prefix('TEST: ok') === 'AMS: TEST: ok'
+        && sms_avoid_ignored_prefix('AMS: Test message') === 'AMS: Test message';
+    send_sms($conn, '09171234567', "\u{1F514} Test reminder", 'test', $uid);   // leading emoji is stripped first
+    $row = log_rows($conn, $uid, 'sms')[0] ?? null;
+    check('M6-39', 'An SMS starting with TEST is prefixed so Semaphore does not drop it',
+        $helper_ok && $row && $row['message_body'] === 'AMS: Test reminder',
+        $row ? '"' . $row['message_body'] . '"' : 'no row');
 
     // ── Nothing contacts a provider in dry run ──────────────
     // Real drivers (Semaphore) do open connections, so the rule is that every

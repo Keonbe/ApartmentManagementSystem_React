@@ -30,6 +30,9 @@ echo json_encode([
     "credit_balance" => $result['credit_balance'] ?? null,
     "account_name"   => $result['account_name'] ?? null,
     "account_status" => $result['status'] ?? null,
+    // GET /account is limited to 2/min, so a repeat within 60 s is served from cache.
+    "cached"         => $result['cached'] ?? false,
+    "checked_at"     => $result['checked_at'] ?? null,
     "message"        => $result['ok'] ? null : $result['error'],
 ]);
 

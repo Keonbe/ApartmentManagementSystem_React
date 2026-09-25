@@ -1022,7 +1022,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('late_fee_type', 'flat'),
 ('late_fee_value', '200'),
 -- SMS and email notification channels (checklist 6.6 / 6.7). sms_provider accepts
--- 'log', 'semaphore', 'twilio', 'vonage', 'movider' or 'itexmo'; 'log' is the
+-- 'log' or 'semaphore' (the only real SMS provider); 'log' is the
 -- dry-run driver, which records to notification_log and sends nothing. The
 -- secret-valued keys here are masked by get_system_settings.php.
 ('smtp_host', 'smtp.gmail.com'),
@@ -1042,15 +1042,6 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('sms_sender_approved', '0'),
 -- Spend guard: max SMS sent per day ('0' = no cap). Over the cap is 'skipped'.
 ('sms_daily_cap', '100'),
-('sms_twilio_sid', ''),
-('sms_twilio_auth_token', ''),
-('sms_twilio_from_number', ''),
-('sms_vonage_api_key', ''),
-('sms_vonage_api_secret', ''),
-('sms_movider_api_key', ''),
-('sms_movider_api_secret', ''),
-('sms_itexmo_api_code', ''),
-('sms_itexmo_password', ''),
 -- Building-wide kill switches. Both ship off: email needs SMTP credentials and
 -- SMS costs money and needs a carrier-registered sender ID.
 ('notifications_email_enabled', '0'),

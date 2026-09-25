@@ -13,7 +13,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 - Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`
 - Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no test runner exists). `build:selfhosted` uses the gitignored `.env.selfhosted` for other self-hosted deployments; a build guard fails production builds with localhost URLs
 - Deployment targets/guardrails: `docs/deployment/dual-deployment-environment-plan.md`; backend check `php backend/cron/check_environment.php`
-- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, loaded through `config.php` (the four chat endpoints still send their own `*` header first — see security_audit §6e).
+- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `APP_TIMEZONE`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, loaded through `config.php` (the four chat endpoints still send their own `*` header first — see security_audit §6e).
 - PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
 - DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seed_mock_data.sql`
 - Live API checks: curl with a Bearer token — recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`)

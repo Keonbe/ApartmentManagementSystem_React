@@ -62,6 +62,7 @@ echo "  db=" . DB_USER . '@' . DB_HOST . ':' . DB_PORT . '/' . DB_NAME . "\n";
 echo "  app_url=" . (APP_URL ?: '(unset)') . "\n";
 echo "  allowed_origins=" . ($origins ? implode(',', $origins) : '(unset)') . "\n";
 echo "  uploads=" . UPLOADS_DIR . "\n";
+echo "  timezone=" . date_default_timezone_get() . " (" . date('P') . ")\n";
 echo "  config.env.php=" . (file_exists(__DIR__ . '/../config.env.php') ? 'present' : 'absent') . "\n\n";
 
 // --- Static settings -------------------------------------------------------
@@ -108,6 +109,17 @@ if ($prod) {
 }
 if ($target === 'selfhosted' && preg_match('/railway\.(app|internal)|rlwy\.net/i', DB_HOST . ' ' . APP_URL)) {
     $errors[] = 'Self-hosted deployment points at a Railway host (DB_HOST or APP_URL) — that is the SaaS infrastructure.';
+}
+
+// --- Clock -----------------------------------------------------------------
+// config.php pins PHP and the DB session to APP_TIMEZONE; quiet hours read the
+// DB clock and due/overdue reads PHP's, so a drift between them is an error.
+$db_now = $conn->query("SELECT DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i') AS t");
+$db_now = $db_now ? $db_now->fetch_assoc()['t'] : null;
+if ($db_now === null) {
+    $errors[] = 'Could not read the database clock: ' . $conn->error;
+} elseif (abs(strtotime($db_now) - strtotime(date('Y-m-d H:i'))) > 120) {
+    $errors[] = "PHP clock (" . date('Y-m-d H:i') . ") and database clock ($db_now) disagree; check APP_TIMEZONE.";
 }
 
 // --- Payment settings ------------------------------------------------------
