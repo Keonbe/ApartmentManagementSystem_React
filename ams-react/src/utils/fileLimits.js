@@ -39,5 +39,23 @@ export const checkFile = (file, rule) => {
   return '';
 };
 
+// config.php sets post_max_size to 12M: a request whose files add up to more
+// than that arrives with no files at all, so multi-file uploads check the sum.
+export const POST_MAX_MB = 12;
+
+export const checkFiles = (files, rule, { maxCount = Infinity } = {}) => {
+  const list = Array.from(files || []);
+  if (list.length > maxCount) return `You can upload at most ${maxCount} file(s) here.`;
+  for (const file of list) {
+    const error = checkFile(file, rule);
+    if (error) return error;
+  }
+  const total = list.reduce((sum, f) => sum + f.size, 0);
+  if (total > POST_MAX_MB * MB) {
+    return `These files add up to ${(total / MB).toFixed(1)} MB. Upload at most ${POST_MAX_MB} MB at a time.`;
+  }
+  return '';
+};
+
 // accept= value for an <input type="file"> from a rule.
 export const acceptFor = (rule) => rule.ext.map((e) => `.${e}`).join(',');

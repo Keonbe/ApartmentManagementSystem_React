@@ -8,6 +8,8 @@ import {
   faFileAlt, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { LIMITS, checkLength } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 
 const AdminApplications = () => {
@@ -54,12 +56,13 @@ const AdminApplications = () => {
         rejection_reason: rejectionReason 
       });
       if (!res.data.success) {
-        alert("Backend Error: " + res.data.message);
+        alert(apiErrorMessage(res, 'Failed to update the application.'));
         return;
       }
       fetchApplications();
     } catch (err) {
       console.error("Error updating status:", err);
+      alert(apiErrorMessage(err, 'Failed to update the application.'));
     }
   };
 
@@ -340,6 +343,8 @@ const AdminApplications = () => {
                     onClick={() => { 
                       const reason = prompt("Enter reason for rejecting this application:");
                       if (reason === null) return; // User cancelled
+                      const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
+                      if (reasonError) { alert(reasonError); return; }
                       updateStatus(selectedApp.id, 'Rejected', reason); 
                       setShowProfileModal(false); 
                     }} 

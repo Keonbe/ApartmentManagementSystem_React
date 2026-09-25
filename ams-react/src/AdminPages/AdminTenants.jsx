@@ -9,6 +9,8 @@ import {
   faSignOutAlt, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError, localDateString } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import AdminHouseholdList from '../Components/AdminHouseholdList';
 
@@ -126,6 +128,15 @@ const AdminTenants = () => {
     const damages = parseFloat(damageDeduction) || 0;
     const utilities = parseFloat(utilityDeduction) || 0;
     const netRefund = Math.max(0, baseDeposit - damages - utilities);
+    const clearanceError = firstError(
+      checkAmount(damages, { label: 'Damage deduction' }),
+      checkAmount(utilities, { label: 'Utility deduction' }),
+      checkLength(damageNotes, LIMITS.reason, 'Damage notes')
+    );
+    if (clearanceError) {
+      alert(clearanceError);
+      return;
+    }
 
     const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
 
@@ -149,7 +160,7 @@ const AdminTenants = () => {
       }
     } catch (err) {
       console.error("Error confirming clearance:", err);
-      alert("Failed to submit move-out clearance.");
+      alert(apiErrorMessage(err, "Failed to submit move-out clearance."));
     }
   };
 
@@ -160,7 +171,7 @@ const AdminTenants = () => {
     setMoveOutTarget(tenant);
     const date = new Date();
     date.setDate(date.getDate() + 15);
-    setMoveOutDate(date.toISOString().split('T')[0]);
+    setMoveOutDate(localDateString(date));
     setShowProfileModal(false);
     setShowMoveOutModal(true);
   };
@@ -214,7 +225,11 @@ const AdminTenants = () => {
         archiveReason,
         archiveNotes,
       };
-      await api.post('/archive_tenant.php', payload);
+      const res = await api.post('/archive_tenant.php', payload);
+      if (!res.data.success) {
+        alert(apiErrorMessage(res, 'Failed to archive tenant.'));
+        return;
+      }
       fetchTenants();
       setShowArchiveModal(false);
       setArchiveTarget(null);
@@ -222,6 +237,7 @@ const AdminTenants = () => {
       setArchiveNotes('');
     } catch (err) {
       console.error("Error archiving tenant:", err);
+      alert(apiErrorMessage(err, 'Failed to archive tenant.'));
     }
   };
 
@@ -236,7 +252,7 @@ const AdminTenants = () => {
       }
     } catch (err) {
       console.error("Error restoring tenant:", err);
-      alert('Failed to restore tenant.');
+      alert(apiErrorMessage(err, 'Failed to restore tenant.'));
     }
   };
 
@@ -927,6 +943,7 @@ const AdminTenants = () => {
                 <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Additional Notes</label>
                 <textarea
                   value={archiveNotes}
+                  maxLength={LIMITS.notes}
                   onChange={(e) => setArchiveNotes(e.target.value)}
                   rows={3}
                   placeholder="Optional notes about this archival..."
@@ -995,12 +1012,12 @@ const AdminTenants = () => {
                     min={(() => {
                       const d = new Date();
                       d.setDate(d.getDate() + 15);
-                      return d.toISOString().split('T')[0];
+                      return localDateString(d);
                     })()}
                     max={(() => {
                       const d = new Date();
                       d.setDate(d.getDate() + 30);
-                      return d.toISOString().split('T')[0];
+                      return localDateString(d);
                     })()}
                     onChange={(e) => setMoveOutDate(e.target.value)}
                     className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 bg-white text-slate-800"
@@ -1060,6 +1077,7 @@ const AdminTenants = () => {
                       <input
                         type="number"
                         min="0"
+                        max={MAX_AMOUNT}
                         value={damageDeduction}
                         onChange={(e) => setDamageDeduction(Math.max(0, parseFloat(e.target.value) || 0))}
                         className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800"
@@ -1071,6 +1089,7 @@ const AdminTenants = () => {
                       <input
                         type="text"
                         value={damageNotes}
+                        maxLength={LIMITS.reason}
                         onChange={(e) => setDamageNotes(e.target.value)}
                         className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
                         placeholder="e.g., Wall repaint, key replacement"
@@ -1089,6 +1108,7 @@ const AdminTenants = () => {
                     <input
                       type="number"
                       min="0"
+                      max={MAX_AMOUNT}
                       value={utilityDeduction}
                       onChange={(e) => setUtilityDeduction(Math.max(0, parseFloat(e.target.value) || 0))}
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800"

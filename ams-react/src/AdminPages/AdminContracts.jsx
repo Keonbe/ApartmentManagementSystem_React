@@ -11,6 +11,9 @@ import {
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkDate, checkLength, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 
 const statusConfig = {
   active: { label: 'Active', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
@@ -157,6 +160,17 @@ const AdminContracts = () => {
   };
 
   const handleGenerate = async () => {
+    const contractError = firstError(
+      form.tenantId ? '' : 'Please select a tenant.',
+      checkAmount(form.deposit, { label: 'Security deposit' }),
+      checkDate(form.leaseStart, { label: 'Lease start' }),
+      checkDate(form.leaseEnd, { label: 'Lease end' }),
+      form.leaseEnd <= form.leaseStart ? 'Lease end date must be after the lease start date.' : ''
+    );
+    if (contractError) {
+      alert(contractError);
+      return;
+    }
     try {
       const payload = {
         rentApplicationId: form.tenantId,
@@ -171,10 +185,11 @@ const AdminContracts = () => {
         setCreateStep(1);
         setForm({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
       } else {
-        alert(res.data.message);
+        alert(apiErrorMessage(res, 'Failed to create contract.'));
       }
     } catch (err) {
       console.error(err);
+      alert(apiErrorMessage(err, 'Failed to create contract.'));
     }
   };
 
@@ -192,8 +207,9 @@ const AdminContracts = () => {
     }
     const start = new Date(editForm.leaseStart);
     const end = new Date(editForm.leaseEnd);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      alert("Invalid date format selected.");
+    const dateError = firstError(checkDate(editForm.leaseStart, { label: 'Lease start' }), checkDate(editForm.leaseEnd, { label: 'Lease end' }));
+    if (dateError || isNaN(start.getTime()) || isNaN(end.getTime())) {
+      alert(dateError || "Invalid date format selected.");
       return;
     }
     if (end <= start) {
@@ -225,19 +241,25 @@ const AdminContracts = () => {
         }));
         setIsEditingDates(false);
       } else {
-        alert(res.data.message);
+        alert(apiErrorMessage(res, 'Failed to update lease dates.'));
       }
     } catch (err) {
       console.error(err);
+      alert(apiErrorMessage(err, 'Failed to update lease dates.'));
     }
   };
 
   const handleUploadFile = async (contractId, docType) => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
-    fileInput.accept = '.pdf,.jpg,.jpeg,.png';
+    fileInput.accept = acceptFor(FILE_RULES.document);
     fileInput.onchange = async (e) => {
       if (e.target.files && e.target.files[0]) {
+        const fileError = checkFile(e.target.files[0], FILE_RULES.document);
+        if (fileError) {
+          alert(fileError);
+          return;
+        }
         const formData = new FormData();
         formData.append('contractId', contractId);
         formData.append('docType', docType);
@@ -257,10 +279,11 @@ const AdminContracts = () => {
                }));
             }
           } else {
-            alert(res.data.message);
+            alert(apiErrorMessage(res, 'Failed to upload the document.'));
           }
         } catch(err) {
           console.error(err);
+          alert(apiErrorMessage(err, 'Failed to upload the document.'));
         }
       }
     };
@@ -279,9 +302,12 @@ const AdminContracts = () => {
         if (selectedContract && selectedContract.id === contractId) {
            setSelectedContract(prev => ({ ...prev, [docType]: { uploaded: false, fileName: null, uploadDate: null } }));
         }
+      } else {
+        alert(apiErrorMessage(res, 'Failed to remove the document.'));
       }
     } catch(err) {
       console.error(err);
+      alert(apiErrorMessage(err, 'Failed to remove the document.'));
     }
   };
 
@@ -307,7 +333,7 @@ const AdminContracts = () => {
       }
     } catch (err) {
       console.error(err);
-      alert('Failed to activate contract.');
+      alert(apiErrorMessage(err, 'Failed to activate contract.'));
     }
   };
 
@@ -321,7 +347,7 @@ const AdminContracts = () => {
       }
     } catch(err) {
       console.error(err);
-      alert('Failed to flag contract for eviction.');
+      alert(apiErrorMessage(err, 'Failed to flag contract for eviction.'));
     }
   };
 
@@ -335,7 +361,7 @@ const AdminContracts = () => {
       }
     } catch(err) {
       console.error(err);
-      alert('Failed to clear eviction flag.');
+      alert(apiErrorMessage(err, 'Failed to clear eviction flag.'));
     }
   };
 
@@ -348,6 +374,11 @@ const AdminContracts = () => {
     if (reason === null) return; // cancelled
     if (!reason.trim()) {
       alert('A reason is required to terminate a contract.');
+      return;
+    }
+    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
+    if (reasonError) {
+      alert(reasonError);
       return;
     }
     if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released. Continue?')) {
@@ -556,11 +587,11 @@ const AdminContracts = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
-                      <input type="number" value={form.rent} onChange={e => setForm(p => ({...p, rent: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
+                      <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={form.rent} onChange={e => setForm(p => ({...p, rent: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Security Deposit *</label>
-                      <input type="number" value={form.deposit} onChange={e => setForm(p => ({...p, deposit: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
+                      <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={form.deposit} onChange={e => setForm(p => ({...p, deposit: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">

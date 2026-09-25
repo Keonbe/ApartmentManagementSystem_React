@@ -5,6 +5,8 @@ import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
+import { checkIntRange, localDateString } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
@@ -133,7 +135,7 @@ export default function MyRoom() {
     const handleUpdateOccupants = async (e) => {
         if (e) e.preventDefault();
 
-        if (!occupants || occupants < 1 || occupants > 8) {
+        if (checkIntRange(occupants, 1, 8, 'Occupants')) {
             alert("Please enter a valid number of occupants between 1 and 8.");
             return;
         }
@@ -160,7 +162,7 @@ export default function MyRoom() {
             }
         } catch (err) {
             console.error("Failed to update occupants:", err);
-            alert("A network error occurred while submitting your request.");
+            alert(apiErrorMessage(err, "A network error occurred while submitting your request."));
         }
     };
 
@@ -174,8 +176,8 @@ export default function MyRoom() {
     const handleExtendRent = async (e) => {
         if (e) e.preventDefault();
 
-        const months = parseInt(additionalMonths, 10);
-        if (!months || months < 1 || months > 12) {
+        const months = Number(additionalMonths);
+        if (checkIntRange(months, 1, 12, 'Extension')) {
             alert("Please enter a valid extension period between 1 and 12 months.");
             return;
         }
@@ -197,14 +199,14 @@ export default function MyRoom() {
             }
         } catch (err) {
             console.error("Failed to extend lease:", err);
-            alert("A network error occurred while submitting your request.");
+            alert(apiErrorMessage(err, "A network error occurred while submitting your request."));
         }
     };
 
     const handleEndRent = () => {
         const date = new Date();
         date.setDate(date.getDate() + 15);
-        setMoveOutDate(date.toISOString().split('T')[0]);
+        setMoveOutDate(localDateString(date));
         setShowMoveOutModal(true);
     };
 
@@ -604,12 +606,12 @@ export default function MyRoom() {
                                     min={(() => {
                                         const d = new Date();
                                         d.setDate(d.getDate() + 15);
-                                        return d.toISOString().split('T')[0];
+                                        return localDateString(d);
                                     })()}
                                     max={(() => {
                                         const d = new Date();
                                         d.setDate(d.getDate() + 30);
-                                        return d.toISOString().split('T')[0];
+                                        return localDateString(d);
                                     })()}
                                     onChange={(e) => setMoveOutDate(e.target.value)}
                                     className="w-full px-4 py-2.5 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-sm box-border font-bold"

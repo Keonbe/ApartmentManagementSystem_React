@@ -10,6 +10,9 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { publicAssetUrl } from '../api/fileUrl';
+import { MAX_AMOUNT, checkAmount, checkDate, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFiles } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 
 const daysRemaining = (leaseEnd) => {
   if (!leaseEnd) return null;
@@ -158,6 +161,8 @@ const AdminUnits = () => {
 
   const handleAddUnit = async () => {
     if (!unitForm.id || !unitForm.floor || !unitForm.rent) return;
+    const unitError = checkAmount(unitForm.rent, { label: 'Monthly rent', allowZero: false });
+    if (unitError) { setAddUnitError(unitError); return; }
     setAddUnitError('');
     setAddUnitSubmitting(true);
     try {
@@ -184,7 +189,12 @@ const AdminUnits = () => {
   const handleAssignTenant = async () => {
     if (!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd || !selectedUnit) return;
     if (!assignForm.identityVerified) { setLeaseError('Please confirm identity verification before assigning a tenant.'); return; }
-    const error = validateLeaseDuration(assignForm.moveIn, assignForm.leaseEnd);
+    const error = firstError(
+      checkDate(assignForm.moveIn, { label: 'Move-in date' }),
+      checkDate(assignForm.leaseEnd, { label: 'Lease end' }),
+      assignForm.rent !== '' && assignForm.rent != null ? checkAmount(assignForm.rent, { label: 'Monthly rent', allowZero: false }) : '',
+      validateLeaseDuration(assignForm.moveIn, assignForm.leaseEnd)
+    );
     if (error) { setLeaseError(error); return; }
     setLeaseError('');
 
@@ -205,16 +215,22 @@ const AdminUnits = () => {
         fetchRooms();
         setShowAssignModal(false);
         setAssignForm(emptyAssignForm);
+      } else {
+        setLeaseError(apiErrorMessage(response, 'Failed to assign tenant.'));
       }
     } catch (error) {
       console.error('Failed to assign tenant:', error);
-      alert('Failed to assign tenant. Check console for details.');
+      alert(apiErrorMessage(error, 'Failed to assign tenant.'));
     }
   };
 
   const handleExtendLease = async () => {
     if (!extendForm.newLeaseEnd || !selectedUnit) return;
-    const error = validateLeaseDuration(selectedUnit.leaseEnd, extendForm.newLeaseEnd);
+    const error = firstError(
+      checkDate(extendForm.newLeaseEnd, { label: 'New lease end' }),
+      extendForm.newRent !== '' ? checkAmount(extendForm.newRent, { label: 'New rent', allowZero: false }) : '',
+      validateLeaseDuration(selectedUnit.leaseEnd, extendForm.newLeaseEnd)
+    );
     if (error) { setLeaseError(error); return; }
     setLeaseError('');
 
@@ -232,10 +248,12 @@ const AdminUnits = () => {
         fetchRooms();
         setExtendForm({ newLeaseEnd: '', newRent: '' });
         setShowExtendForm(false);
+      } else {
+        setLeaseError(apiErrorMessage(response, 'Failed to extend lease.'));
       }
     } catch (error) {
       console.error('Failed to extend lease:', error);
-      alert('Failed to extend lease. Check console for details.');
+      alert(apiErrorMessage(error, 'Failed to extend lease.'));
     }
   };
 
@@ -397,11 +415,11 @@ const AdminUnits = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Unit Number *</label>
-                  <input value={unitForm.id} onChange={e => setUnitForm({ ...unitForm, id: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="e.g. 6A" />
+                  <input value={unitForm.id} maxLength={50} onChange={e => setUnitForm({ ...unitForm, id: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="e.g. 6A" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Floor *</label>
-                  <input value={unitForm.floor} onChange={e => setUnitForm({ ...unitForm, floor: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="e.g. 6F" />
+                  <input value={unitForm.floor} maxLength={50} onChange={e => setUnitForm({ ...unitForm, floor: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="e.g. 6F" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -415,7 +433,7 @@ const AdminUnits = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
-                  <input type="number" value={unitForm.rent} onChange={e => setUnitForm({ ...unitForm, rent: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="6500" />
+                  <input type="number" min="1" max={MAX_AMOUNT} step="0.01" value={unitForm.rent} onChange={e => setUnitForm({ ...unitForm, rent: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="6500" />
                 </div>
               </div>
             </div>
@@ -535,6 +553,12 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
   const handleUploadImages = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    const filesError = checkFiles(files, FILE_RULES.image, { maxCount: 8 - galleryImages.length });
+    if (filesError) {
+      setGalleryError(filesError);
+      e.target.value = '';
+      return;
+    }
     setGalleryError('');
     setIsUploadingImages(true);
     try {
@@ -597,7 +621,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
       }
     } catch (err) {
       console.error("Error updating room monitoring:", err);
-      alert("Failed to update status monitoring attributes.");
+      alert(apiErrorMessage(err, "Failed to update status monitoring attributes."));
     } finally {
       setIsUpdating(false);
     }
@@ -764,7 +788,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   {isUploadingImages ? 'Uploading...' : 'Upload Images'}
                   <input
                     type="file"
-                    accept="image/*"
+                    accept={acceptFor(FILE_RULES.image)}
                     multiple
                     onChange={handleUploadImages}
                     disabled={galleryImages.length >= 8 || isUploadingImages}
@@ -835,7 +859,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent (optional)</label>
-                          <input type="number" value={extendForm.newRent} onChange={e => setExtendForm({ ...extendForm, newRent: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder={String(unit.rent)} />
+                          <input type="number" min="1" max={MAX_AMOUNT} step="0.01" value={extendForm.newRent} onChange={e => setExtendForm({ ...extendForm, newRent: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder={String(unit.rent)} />
                         </div>
                       </div>
                       {extendForm.newLeaseEnd && (
