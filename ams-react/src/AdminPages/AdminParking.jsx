@@ -7,6 +7,7 @@ import {
   faClock, faTimesCircle, faBuilding, faEye, faReceipt, faParking, faUnlock, faFileInvoiceDollar
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 
 const STATUS_BADGE = {
@@ -92,6 +93,10 @@ export default function AdminParking() {
         slotNumber: mode === 'assign' ? Number(slot) : undefined,
         reason: mode !== 'assign' ? reason.trim() : undefined,
       });
+      if (!res.data.success) {
+        setNotice({ ok: false, text: apiErrorMessage(res, 'Could not update the reservation.') });
+        return;
+      }
       const billing = res.data.billing;
       setNotice({
         ok: true,
@@ -100,7 +105,7 @@ export default function AdminParking() {
       setDialog(null);
       fetchParkingReservations();
     } catch (err) {
-      setNotice({ ok: false, text: err.response?.data?.message || 'Could not update the reservation.' });
+      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not update the reservation.') });
     } finally {
       setBusyId(null);
     }
@@ -111,10 +116,10 @@ export default function AdminParking() {
     setNotice(null);
     try {
       const res = await api.post('sync_parking_to_invoice.php', { reservation_id: reservation.id });
-      setNotice({ ok: true, text: res.data.message });
+      setNotice({ ok: !!res.data.success, text: res.data.success ? res.data.message : apiErrorMessage(res, 'Could not bill the parking fee.') });
       fetchParkingReservations();
     } catch (err) {
-      setNotice({ ok: false, text: err.response?.data?.message || 'Could not bill the parking fee.' });
+      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not bill the parking fee.') });
     } finally {
       setBusyId(null);
     }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { checkDate, firstError, localDateString } from '../utils/validation';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/cctv-request.responsive.css';
 
@@ -20,12 +21,21 @@ export default function CctvRequest() {
     const twoMonthsAgo = new Date();
     twoMonthsAgo.setMonth(today.getMonth() - 2);
 
-    const maxDateString = today.toISOString().split('T')[0];
-    const minDateString = twoMonthsAgo.toISOString().split('T')[0];
+    const maxDateString = localDateString(today);
+    const minDateString = localDateString(twoMonthsAgo);
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
+        const formError = firstError(
+            checkDate(incidentDate, { min: minDateString, max: maxDateString, label: 'Incident date' }),
+            incidentTime && locationDetails ? '' : 'Please choose the time window and location.',
+            reasonRequest.trim() ? '' : 'Please describe why you need the footage.'
+        );
+        if (formError) {
+            alert(formError);
+            return;
+        }
 
         const payload = {
             incidentDate: incidentDate,
@@ -141,6 +151,7 @@ export default function CctvRequest() {
                             rows={3}
                             placeholder={t('cctv.reasonPlaceholder')}
                             value={reasonRequest}
+                            maxLength={1000}
                             onChange={(e) => setReasonRequest(e.target.value)}
                             className="cctv-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
                             style={{ color: '#1e293b' }}

@@ -7,6 +7,9 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { LIMITS, checkContactNumber, checkLength, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-visitors.responsive.css';
 
@@ -87,6 +90,14 @@ export default function UserVisitors() {
       alert('Please fill in all required fields.');
       return;
     }
+    const visitorError = firstError(
+      checkLength(registerForm.visitorName, LIMITS.fullName, 'Visitor name'),
+      checkContactNumber(registerForm.contactNumber)
+    );
+    if (visitorError) {
+      alert(visitorError);
+      return;
+    }
     setSubmitting(true);
     try {
       // The unit and host are always the tenant's own current tenancy —
@@ -150,6 +161,7 @@ export default function UserVisitors() {
       }
     } catch (err) {
       console.error('Failed to mark visitor departure:', err);
+      alert(apiErrorMessage(err, 'Failed to update status.'));
     }
   };
 
@@ -429,6 +441,7 @@ export default function UserVisitors() {
                   required
                   placeholder="e.g. Juan Dela Cruz"
                   value={registerForm.visitorName}
+                  maxLength={LIMITS.fullName}
                   onChange={(e) => setRegisterForm({ ...registerForm, visitorName: e.target.value })}
                   className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
@@ -441,6 +454,7 @@ export default function UserVisitors() {
                   required
                   placeholder="e.g. 0917 123 4567"
                   value={registerForm.contactNumber}
+                  maxLength={30}
                   onChange={(e) => setRegisterForm({ ...registerForm, contactNumber: e.target.value })}
                   className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
@@ -495,6 +509,7 @@ export default function UserVisitors() {
                     type="text"
                     placeholder="e.g. D01-19-12345"
                     value={registerForm.idNumber}
+                    maxLength={LIMITS.idNumber}
                     onChange={(e) => setRegisterForm({ ...registerForm, idNumber: e.target.value })}
                     className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono"
                   />
@@ -508,6 +523,7 @@ export default function UserVisitors() {
                     type="text"
                     placeholder="e.g. N02-1234"
                     value={registerForm.vehiclePlate}
+                    maxLength={LIMITS.visitorPlate}
                     onChange={(e) => setRegisterForm({ ...registerForm, vehiclePlate: e.target.value })}
                     className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
                   />
@@ -516,8 +532,13 @@ export default function UserVisitors() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idPhoto')}</label>
                   <input
                     type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => setRegisterForm({ ...registerForm, idPhoto: e.target.files[0] || null })}
+                    accept={acceptFor(FILE_RULES.visitorId)}
+                    onChange={(e) => {
+                      const file = e.target.files[0] || null;
+                      const fileError = checkFile(file, FILE_RULES.visitorId);
+                      if (fileError) { alert(fileError); e.target.value = ''; setRegisterForm({ ...registerForm, idPhoto: null }); return; }
+                      setRegisterForm({ ...registerForm, idPhoto: file });
+                    }}
                     className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
                   />
                 </div>

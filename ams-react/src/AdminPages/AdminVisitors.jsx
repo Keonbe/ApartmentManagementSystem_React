@@ -9,6 +9,9 @@ import {
   faDoorOpen, faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { LIMITS, checkContactNumber, checkLength, firstError } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 
@@ -120,6 +123,14 @@ export default function AdminVisitors() {
       alert('Please fill in all required fields.');
       return;
     }
+    const visitorError = firstError(
+      checkLength(checkInForm.visitorName, LIMITS.fullName, 'Visitor name'),
+      checkContactNumber(checkInForm.contactNumber)
+    );
+    if (visitorError) {
+      alert(visitorError);
+      return;
+    }
     setSubmitting(true);
     try {
       let payload;
@@ -159,7 +170,7 @@ export default function AdminVisitors() {
       }
     } catch (err) {
       console.error('Failed to check in visitor:', err);
-      alert('Server error occurred during visitor check-in.');
+      alert(apiErrorMessage(err, 'Server error occurred during visitor check-in.'));
     } finally {
       setSubmitting(false);
     }
@@ -169,6 +180,8 @@ export default function AdminVisitors() {
   const handleReviewAction = async (id, action) => {
     const note = action === 'denied' ? prompt('Enter reason for declining entry (optional):') : '';
     if (action === 'denied' && note === null) return; // User cancelled prompt
+    const noteError = checkLength(note, LIMITS.reason, 'Reason');
+    if (noteError) { alert(noteError); return; }
 
     try {
       const res = await api.post('update_visitor_status.php', {
@@ -183,7 +196,7 @@ export default function AdminVisitors() {
       }
     } catch (err) {
       console.error('Failed to update visitor status:', err);
-      alert('Server error updating visitor status.');
+      alert(apiErrorMessage(err, 'Server error updating visitor status.'));
     }
   };
 
@@ -208,7 +221,7 @@ export default function AdminVisitors() {
       }
     } catch (err) {
       console.error('Failed to checkout visitor:', err);
-      alert('Server error during visitor checkout.');
+      alert(apiErrorMessage(err, 'Server error during visitor checkout.'));
     } finally {
       setSubmitting(false);
     }
@@ -230,7 +243,7 @@ export default function AdminVisitors() {
       }
     } catch (err) {
       console.error('Failed to update overstay threshold:', err);
-      alert('Error updating system setting.');
+      alert(apiErrorMessage(err, 'Error updating system setting.'));
     } finally {
       setSubmitting(false);
     }
@@ -661,6 +674,7 @@ export default function AdminVisitors() {
                   required
                   placeholder="e.g. Maria Santos"
                   value={checkInForm.visitorName}
+                  maxLength={LIMITS.fullName}
                   onChange={(e) => setCheckInForm({ ...checkInForm, visitorName: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />
@@ -674,6 +688,7 @@ export default function AdminVisitors() {
                     required
                     placeholder="e.g. 0917 123 4567"
                     value={checkInForm.contactNumber}
+                  maxLength={30}
                     onChange={(e) => setCheckInForm({ ...checkInForm, contactNumber: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
@@ -732,6 +747,7 @@ export default function AdminVisitors() {
                     type="text"
                     placeholder="e.g. N02-18-9382"
                     value={checkInForm.idNumber}
+                    maxLength={LIMITS.idNumber}
                     onChange={(e) => setCheckInForm({ ...checkInForm, idNumber: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
@@ -745,6 +761,7 @@ export default function AdminVisitors() {
                     type="text"
                     placeholder="e.g. ABC 1234"
                     value={checkInForm.vehiclePlate}
+                    maxLength={LIMITS.visitorPlate}
                     onChange={(e) => setCheckInForm({ ...checkInForm, vehiclePlate: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase font-mono"
                   />
@@ -753,8 +770,13 @@ export default function AdminVisitors() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
                   <input
                     type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => setCheckInForm({ ...checkInForm, idPhoto: e.target.files[0] || null })}
+                    accept={acceptFor(FILE_RULES.visitorId)}
+                    onChange={(e) => {
+                      const file = e.target.files[0] || null;
+                      const fileError = checkFile(file, FILE_RULES.visitorId);
+                      if (fileError) { alert(fileError); e.target.value = ''; setCheckInForm({ ...checkInForm, idPhoto: null }); return; }
+                      setCheckInForm({ ...checkInForm, idPhoto: file });
+                    }}
                     className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
                   />
                 </div>
@@ -811,6 +833,7 @@ export default function AdminVisitors() {
                   rows="2"
                   placeholder="e.g. Left premises peacefully, returned guest ID pass..."
                   value={checkoutNotes}
+                  maxLength={LIMITS.notes}
                   onChange={(e) => setCheckoutNotes(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                 />

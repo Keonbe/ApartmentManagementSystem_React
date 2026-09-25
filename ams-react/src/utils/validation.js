@@ -69,6 +69,11 @@ export const checkPhMobile = (value) => {
   return '';
 };
 
+// Any contact number, landlines included — check_in_visitor.php's rule.
+export const checkContactNumber = (value) =>
+  /^[0-9+\-\s()]{7,30}$/.test(String(value ?? '').trim())
+    ? '' : 'Contact number must be 7-30 characters of digits, spaces, +, - or ().';
+
 export const checkPassword = (password) => {
   const pw = String(password ?? '');
   if (pw.length < PASSWORD_MIN) return `Password must be at least ${PASSWORD_MIN} characters.`;

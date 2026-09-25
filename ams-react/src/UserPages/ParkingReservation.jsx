@@ -5,6 +5,8 @@ import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
+import { LIMITS } from '../utils/validation';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/parking-reservation.responsive.css';
 
@@ -173,15 +175,9 @@ export default function ParkingReservation() {
 
     const validateFile = (file) => {
         if (!file) return false;
-        const maxSizeBytes = 10 * 1024 * 1024; //10MB
-        if (file.size > maxSizeBytes) {
-            alert(`File "${file.name}" exceeds 10MB limit.`);
-            return false;
-        }
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (!allowedExtensions.includes(ext)) {
-            alert("Only JPG, PNG, and PDF files are accepted.");
+        const fileError = checkFile(file, FILE_RULES.document);
+        if (fileError) {
+            alert(fileError);
             return false;
         }
         return true;
@@ -366,6 +362,7 @@ export default function ParkingReservation() {
                             type="text"
                             placeholder="e.g. Yamaha Nmax / Honda Click"
                             value={vehicleModel}
+                            maxLength={LIMITS.vehicleModel}
                             required
                             onChange={(e) => setVehicleModel(e.target.value)}
                             className="parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
@@ -382,6 +379,7 @@ export default function ParkingReservation() {
                             type="text"
                             placeholder={getPlatePlaceholder()}
                             value={plateNumber}
+                            maxLength={LIMITS.plate}
                             onChange={handlePlateNumberChange}
                             onBlur={() => setPhonePlateError(validatePhilippinePlate(plateNumber))}
                             required
@@ -448,7 +446,7 @@ export default function ParkingReservation() {
                                     <input
                                         type="file"
                                         id="file-upload-input"
-                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        accept={acceptFor(FILE_RULES.document)}
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
