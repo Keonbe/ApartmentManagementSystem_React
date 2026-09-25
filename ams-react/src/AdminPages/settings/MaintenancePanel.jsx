@@ -1,5 +1,6 @@
 import { faWrench, faBuilding, faInfoCircle, faFileContract } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, WithUnit, Callout, INPUT, INPUT_NUMBER } from './SettingsSection';
+import { MAX_AMOUNT } from '../../utils/validation';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
@@ -15,7 +16,7 @@ export default function MaintenancePanel({ settings, updateSetting }) {
         <Field label="Monthly Budget Allocation" icon={faBuilding}>
           <WithUnit prefix="₱" suffix="/ month">
             <input
-              type="number" min="0" step="1000"
+              type="number" min="0" max={MAX_AMOUNT} step="1000"
               value={settings.maintenanceMonthlyBudget}
               onChange={(e) => updateSetting('maintenanceMonthlyBudget', Number(e.target.value))}
               className={`${INPUT_NUMBER} w-40`}

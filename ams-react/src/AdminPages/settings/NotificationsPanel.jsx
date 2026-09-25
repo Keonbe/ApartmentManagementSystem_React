@@ -3,6 +3,7 @@ import {
   faEnvelope, faCommentSms, faInfoCircle, faPaperPlane, faSpinner, faDollarSign, faClock,
 } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, WithUnit, Switch, Callout, INPUT, INPUT_MONO, INPUT_BASE, CHECKBOX } from './SettingsSection';
+import { LIMITS } from '../../utils/validation';
 
 const TEST_CHANNELS = [
   { key: 'sms', label: 'Test SMS' },
@@ -131,6 +132,7 @@ export default function NotificationsPanel({
               <input
                 type="number"
                 min={0}
+                max={100000}
                 aria-label="Daily SMS cap"
                 value={settings.smsDailyCap ?? 100}
                 onChange={(e) => updateSetting('smsDailyCap', e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
@@ -183,7 +185,7 @@ export default function NotificationsPanel({
                 <input type="text" value={settings.smtpHost || ''} onChange={(e) => updateSetting('smtpHost', e.target.value)} placeholder="smtp.gmail.com" className={INPUT_MONO} />
               </Field>
               <Field label="SMTP Port">
-                <input type="number" value={settings.smtpPort ?? 587} onChange={(e) => updateSetting('smtpPort', parseInt(e.target.value) || 587)} className={INPUT_MONO} />
+                <input type="number" min="1" max="65535" value={settings.smtpPort ?? 587} onChange={(e) => updateSetting('smtpPort', parseInt(e.target.value) || 587)} className={INPUT_MONO} />
               </Field>
               <Field label="SMTP Username">
                 <input type="text" value={settings.smtpUsername || ''} onChange={(e) => updateSetting('smtpUsername', e.target.value)} placeholder="you@gmail.com" className={INPUT_MONO} />
@@ -192,7 +194,7 @@ export default function NotificationsPanel({
                 <input type="password" value={settings.smtpPassword || ''} onChange={(e) => updateSetting('smtpPassword', e.target.value)} placeholder="Google App Password" className={INPUT_MONO} />
               </Field>
               <Field label="From Email">
-                <input type="text" value={settings.smtpFromEmail || ''} onChange={(e) => updateSetting('smtpFromEmail', e.target.value)} placeholder="Defaults to the SMTP username" className={INPUT_MONO} />
+                <input type="email" maxLength={LIMITS.userEmail} value={settings.smtpFromEmail || ''} onChange={(e) => updateSetting('smtpFromEmail', e.target.value)} placeholder="Defaults to the SMTP username" className={INPUT_MONO} />
               </Field>
             </>
           )}
@@ -256,7 +258,7 @@ export default function NotificationsPanel({
           <Field label="Cost per SMS" hint="Used to estimate the cost of an announcement before it is sent.">
             <WithUnit prefix="₱">
               <input
-                type="number" step="0.01" min="0"
+                type="number" step="0.01" min="0" max="100"
                 value={settings.smsUnitCost ?? 0.5}
                 onChange={(e) => updateSetting('smsUnitCost', parseFloat(e.target.value) || 0)}
                 className={`${INPUT_BASE} w-28`}

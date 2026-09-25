@@ -7,6 +7,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
+import { LIMITS, checkLength, firstError } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 
 const channelIcons = { 'in-app': faDesktop, 'sms': faMobileAlt, 'email': faEnvelope };
 const statusConfig = {
@@ -84,6 +86,14 @@ const AdminAnnouncements = () => {
       setNotice({ ok: false, text: 'Title and message are required.' });
       return;
     }
+    const lengthError = firstError(
+      checkLength(form.title, LIMITS.announcementTitle, 'Title'),
+      checkLength(form.body, LIMITS.message, 'Message')
+    );
+    if (lengthError) {
+      setNotice({ ok: false, text: lengthError });
+      return;
+    }
     if (specific && !form.unit) {
       setNotice({ ok: false, text: 'Choose the unit to send this announcement to.' });
       return;
@@ -105,7 +115,7 @@ const AdminAnnouncements = () => {
         fetchAnnouncements();
       }
     } catch (err) {
-      setNotice({ ok: false, text: err?.response?.data?.message || 'Could not send the announcement.' });
+      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not send the announcement.') });
     } finally {
       setSending(null);
     }
@@ -163,12 +173,17 @@ const AdminAnnouncements = () => {
 
               <div className="mb-3">
                 <label className={LABEL}>Title</label>
-                <input type="text" placeholder="Announcement title" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className={INPUT} />
+                <input type="text" placeholder="Announcement title" maxLength={LIMITS.announcementTitle} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className={INPUT} />
               </div>
 
               <div className="mb-4">
                 <label className={LABEL}>Message</label>
-                <textarea aria-label="Message" placeholder="Type your message here..." rows={4} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} className="focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                <textarea aria-label="Message" placeholder="Type your message here..." rows={4} maxLength={LIMITS.message} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} className="focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                <p className="m-0 mt-1 text-[11px] text-slate-400 text-right">
+                  {form.body.length}/{LIMITS.message}
+                  {/* create_announcement.php sends "AMS <tag>: <title> - <body>" cut to one 160-character SMS. */}
+                  {form.channels.includes('sms') && ` · SMS carries the first 160 characters (${`AMS ${form.type}: ${form.title.trim()} - ${form.body.trim()}`.length} now)`}
+                </p>
               </div>
 
               {/* Delivery Channels */}

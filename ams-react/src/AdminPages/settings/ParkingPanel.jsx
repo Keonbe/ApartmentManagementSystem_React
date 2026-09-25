@@ -1,6 +1,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCar, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, WithUnit, PillOption, INPUT_NUMBER } from './SettingsSection';
+import { MAX_AMOUNT } from '../../utils/validation';
 
 const BILLING_MODES = [
   { value: 'manual', label: 'Manual' },
@@ -44,7 +45,7 @@ export default function ParkingPanel({ settings, updateSetting }) {
         <Field label="Monthly Parking Fee" hint="Added to the tenant's invoice for each month of the permit term.">
           <WithUnit prefix="₱" suffix="per slot / month">
             <input
-              type="number" min="1" step="1"
+              type="number" min="1" max={MAX_AMOUNT} step="1"
               value={settings.parkingMonthlyFee}
               onChange={(e) => updateSetting('parkingMonthlyFee', Number(e.target.value))}
               className={`${INPUT_NUMBER} w-28`}
