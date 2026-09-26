@@ -34,7 +34,7 @@ Every helper sends a 422 `{"success":false,"message":...,"field":...}` and exits
 - `v_date($in, $key, $fmt = 'Y-m-d')`: `createFromFormat` with a round-trip check. Returns the normalized string, which is what gets stored.
 - `v_enum($in, $key, array $allowed)`.
 - `v_email($in, $key, $max = 150)`: `FILTER_VALIDATE_EMAIL` plus a length cap.
-- `v_ph_mobile($in, $key)`: reuses `normalize_ph_mobile()` (config.php:1534) and replaces the 4 different phone rules.
+- `v_ph_mobile($in, $key)`: reuses `normalize_ph_mobile()` (config.php:1534). **Done 2026-09-26 in place:** every contact-number save path (profile, manage_users, household_members, rent_application, submit_inquiry, check_in_visitor, create_reservation) now calls `normalize_ph_mobile()` directly and stores `+639XXXXXXXXX`; a helper would only fold those calls together.
 - `v_password($pw)`: `PASSWORD_MIN_LENGTH` (config.php:1287) plus a **72-byte max**, which bcrypt otherwise silently truncates.
 - `validate_upload($file, array $ext_to_mime, $max_bytes)`: upload error code, size, extension and finfo checks. Code is lifted from `store_maintenance_attachment()` (config.php:1139); that helper and `store_room_image()` are refactored onto it.
 - `server_error($e_or_msg)`: `error_log`s the detail and returns a generic 500. Fixes L1 for the `$stmt->error` / `$e->getMessage()` leaks.

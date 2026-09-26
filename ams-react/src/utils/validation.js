@@ -69,6 +69,23 @@ export const checkPhMobile = (value) => {
   return '';
 };
 
+// The 10-digit local part (9XXXXXXXXX) of a stored number in any format —
+// "+639…", "+63 9…", "639…", "0063…", "09…". Mirrors normalize_ph_mobile()
+// in config.php, so a legacy value pre-fills a fixed-+63 input correctly.
+export const toPhLocal10 = (value) => {
+  let digits = String(value ?? '').replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.startsWith('63')) digits = digits.slice(2);
+  else if (digits.startsWith('0')) digits = digits.slice(1);
+  return digits.slice(0, 10);
+};
+
+// The stored format every endpoint normalizes to: +639XXXXXXXXX.
+export const toPhE164 = (local10) => {
+  const digits = toPhLocal10(local10);
+  return digits ? `+63${digits}` : '';
+};
+
 // Any contact number, landlines included — check_in_visitor.php's rule.
 export const checkContactNumber = (value) =>
   /^[0-9+\-\s()]{7,30}$/.test(String(value ?? '').trim())
@@ -136,6 +153,12 @@ export const checkDate = (value, { min, max, label = 'Date' } = {}) => {
 export const localDateString = (date = new Date()) => {
   const pad = (n) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+// Local HH:mm for time inputs.
+export const localTimeString = (date = new Date()) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
 // First non-empty message from a list of checks.

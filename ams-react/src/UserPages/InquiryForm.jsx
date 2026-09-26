@@ -4,7 +4,8 @@ import { faEnvelopeOpenText, faExclamationTriangle, faInfoCircle } from '@fortaw
 import { useNavigate, useLocation } from 'react-router-dom';
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
-import { LIMITS, checkDate, checkIntRange, checkPhMobile, localDateString } from '../utils/validation';
+import { LIMITS, checkDate, checkIntRange, checkPhMobile, localDateString, toPhLocal10, toPhE164 } from '../utils/validation';
+import PhoneInput from '../Components/PhoneInput';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
 
@@ -18,7 +19,7 @@ function sessionPrefill() {
         return {
             name: [user.first_name, user.last_name].filter(Boolean).join(' ').trim(),
             email: user.email_address || user.email || '',
-            contact: user.contact_no || '',
+            contact: toPhLocal10(user.contact_no),
         };
     } catch {
         return {}; // Corrupt session payload — leave the form blank.
@@ -90,7 +91,7 @@ export default function InquiryForm() {
             const res = await api.post('submit_inquiry.php', {
                 full_name: fullName.trim(),
                 email: email.trim(),
-                contact_no: contactNo.trim(),
+                contact_no: toPhE164(contactNo),
                 room_name: roomName,
                 occupants: occupants,
                 preferred_move_in: moveIn,
@@ -166,16 +167,12 @@ export default function InquiryForm() {
 
                     <div className="flex flex-col space-y-2">
                         <label className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.contactNo')}</label>
-                        <input
-                            type="tel"
+                        <PhoneInput
                             required
-                            maxLength={16}
-                            inputMode="tel"
                             value={contactNo}
-                            onChange={(e) => setContactNo(e.target.value)}
+                            onChange={setContactNo}
                             placeholder={t('inquiry.contactNoPlaceholder')}
-                            className={inputClass}
-                            style={{ color: '#1e293b' }}
+                            inputClassName="inquiry-input focus-glow w-full px-4 py-3 rounded-r-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
                         />
                     </div>
 

@@ -2,6 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserShield, faKey, faSave, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, INPUT } from './SettingsSection';
 import { LIMITS, PASSWORD_MAX_BYTES } from '../../utils/validation';
+import PhoneInput from '../../Components/PhoneInput';
 
 // Profile and password save through their own endpoints (profile.php,
 // change_password.php), so each keeps its own button rather than the page's
@@ -32,7 +33,7 @@ export default function AccountPanel({
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT} maxLength={LIMITS.userEmail} required />
             </Field>
             <Field label="Contact Number">
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="09123456789" className={INPUT} maxLength={16} />
+              <PhoneInput value={phone} onChange={setPhone} inputClassName={`${INPUT} rounded-l-none`} />
             </Field>
           </div>
           <div className="flex justify-end">

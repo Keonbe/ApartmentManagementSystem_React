@@ -6,7 +6,8 @@ import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
-import { LIMITS, checkEmail, checkPhMobile, firstError } from '../utils/validation';
+import { LIMITS, checkEmail, checkPhMobile, firstError, toPhLocal10, toPhE164 } from '../utils/validation';
+import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
@@ -26,7 +27,7 @@ export default function ProfileSettings() {
     const [firstName, setFirstName] = useState(loggedInUser.first_name || '');
     const [lastName, setLastName] = useState(loggedInUser.last_name || '');
     const [suffix, setSuffix] = useState(loggedInUser.suffix || '');
-    const [phoneRawNumber, setPhoneRawNumber] = useState(loggedInUser.contact_no ? loggedInUser.contact_no.replace('+63 ', '') : '');
+    const [phoneRawNumber, setPhoneRawNumber] = useState(toPhLocal10(loggedInUser.contact_no));
     const [phoneError, setPhoneError] = useState('');
     const [email, setEmail] = useState(loggedInUser.email_address || '');
     const [gender, setGender] = useState(loggedInUser.gender || '');
@@ -54,7 +55,7 @@ export default function ProfileSettings() {
                     setSuffix(data.suffix || '');
                     setGender(data.gender || '');
                     if (data.contact_no) {
-                        setPhoneRawNumber(data.contact_no.replace('+63 ', ''));
+                        setPhoneRawNumber(toPhLocal10(data.contact_no));
                     }
                     if (data.avatar_url) {
                         // Ensure the URL is properly formatted for the browser
@@ -156,12 +157,9 @@ export default function ProfileSettings() {
         }
     };
 
-    const handlePhoneRawInput = (e) => {
-        const val = e.target.value.replace(/\D/g, '');
-        if (val.length <= 10) {
-            setPhoneRawNumber(val);
-            setPhoneError('');
-        }
+    const handlePhoneChange = (digits) => {
+        setPhoneRawNumber(digits);
+        setPhoneError('');
     };
 
 
@@ -169,7 +167,7 @@ export default function ProfileSettings() {
     const handleFormSubmit = async (e) => {
         e.preventDefault();
 
-        // Validate phone number (same rule as profile.php: +63 9XXXXXXXXX)
+        // Validate phone number (same rule as profile.php: +639XXXXXXXXX)
         const validationError = checkPhMobile(phoneRawNumber);
         if (validationError) {
             setPhoneError(validationError);
@@ -207,7 +205,7 @@ export default function ProfileSettings() {
             }
 
             // 2. Submit the primary profile data updates via JSON
-            const fullContactNumber = `+63 ${phoneRawNumber}`;
+            const fullContactNumber = toPhE164(phoneRawNumber);
             const profileData = {
                 oldEmail: loggedInUser.email_address,
                 email: email.trim(),
@@ -459,22 +457,12 @@ export default function ProfileSettings() {
                             <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
                                     <label className="text-sm font-bold text-slate-700">{t('profile.contactNumber')}</label>
-                                    <div className="w-full flex relative">
-                                        <div className="flex items-center space-x-1 px-3 bg-slate-100 border border-slate-200 rounded-l-xl text-slate-800 text-sm font-bold select-none border-r-0 pointer-events-none opacity-80 box-border">
-                                            <span>🇵🇭</span>
-                                            <span className="text-slate-600 text-xs font-semibold">+63</span>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            placeholder="917 123 4567"
-                                            value={phoneRawNumber}
-                                            onChange={handlePhoneRawInput}
-                                            className={`focus-glow w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm box-border ${phoneError ? 'border-red-400' : 'border-slate-200'}`}
-                                            required
-                                        />
-                                    </div>
-                                    {phoneError && <p className="text-red-500 text-xs mt-1">{phoneError}</p>}
+                                    <PhoneInput
+                                        value={phoneRawNumber}
+                                        onChange={handlePhoneChange}
+                                        error={phoneError}
+                                        required
+                                    />
                                 </div>
 
                                 <div className="flex flex-col space-y-1.5">

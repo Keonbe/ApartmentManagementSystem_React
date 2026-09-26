@@ -5,7 +5,8 @@ import SuccessModal from '../Components/SuccessModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
-import { LIMITS, checkEmail, checkPhMobile, firstError } from '../utils/validation';
+import { LIMITS, checkEmail, checkPhMobile, firstError, toPhLocal10, toPhE164 } from '../utils/validation';
+import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
@@ -68,7 +69,7 @@ export default function RentApplication() {
         fetchUserProfile();
     }, [defaultEmail, loggedInUser.id]);
     
-    const [phoneRawNumber, setPhoneRawNumber] = useState(editApp?.contact_no?.replace('+63 ', '') || '');
+    const [phoneRawNumber, setPhoneRawNumber] = useState(toPhLocal10(editApp?.contact_no));
     const [phoneError, setPhoneError] = useState('');
 
     const [email] = useState(editApp?.email || defaultEmail);
@@ -125,15 +126,10 @@ export default function RentApplication() {
         return true;
     };
 
-    const handlePhoneRawInput = (e) => {
+    const handlePhoneChange = (digits) => {
         if (isReadOnly) return;
-        
-        const val = e.target.value.replace(/\D/g, '');
-        
-        if (val.length <= 10) {
-            setPhoneRawNumber(val);
-            setPhoneError('');
-        }
+        setPhoneRawNumber(digits);
+        setPhoneError('');
     };
 
     const handleOccupantsInput = (e) => {
@@ -205,7 +201,7 @@ export default function RentApplication() {
             return;
         }
 
-        const fullContactNumber = `+63 ${phoneRawNumber}`;
+        const fullContactNumber = toPhE164(phoneRawNumber);
         const finalMonthlyRent = monthlyRent + (occupants > 4 ? (occupants - 4) * 1000 : 0);
 
         const formData = new FormData();
@@ -391,26 +387,14 @@ export default function RentApplication() {
                                 
                                 <div className="flex flex-col space-y-1.5">
                                     <label className="text-sm font-bold text-slate-700">{t('rent.contactNo')}</label>
-                                    <div className="w-full flex relative">
-                                        <div className="flex items-center space-x-1 px-3 bg-slate-100 border border-slate-200 rounded-l-xl text-slate-800 text-sm font-bold select-none border-r-0 pointer-events-none opacity-80">
-                                            <span>🇵🇭</span>
-                                            <span className="text-slate-600 text-xs font-semibold">+63</span>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            placeholder="917 123 4567"
-                                            value={phoneRawNumber}
-                                            disabled={isReadOnly}
-                                            onChange={handlePhoneRawInput}
-                                            onBlur={() => setPhoneError(checkPhMobile(phoneRawNumber))}
-                                            className={`focus-glow w-full flex-grow px-4 py-2.5 rounded-r-xl bg-slate-50 border text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm disabled:opacity-75 disabled:cursor-not-allowed box-border ${phoneError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
-                                            required
-                                        />
-                                    </div>
-                                    {phoneError && (
-                                        <span className="text-[11px] text-red-500 font-medium leading-none mt-1">{phoneError}</span>
-                                    )}
+                                    <PhoneInput
+                                        value={phoneRawNumber}
+                                        disabled={isReadOnly}
+                                        onChange={handlePhoneChange}
+                                        onBlur={() => setPhoneError(checkPhMobile(phoneRawNumber))}
+                                        error={phoneError}
+                                        required
+                                    />
                                 </div>
 
                                 <div className="flex flex-col space-y-1.5">

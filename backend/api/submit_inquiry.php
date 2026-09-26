@@ -86,7 +86,7 @@ if ($email === '')                                      $errors[] = "Email addre
 elseif (!filter_var($email, FILTER_VALIDATE_EMAIL))     $errors[] = "Please enter a valid email address.";
 elseif (mb_strlen($email) > 150)                        $errors[] = "Email address is too long.";
 if ($contact_no === '')                                 $errors[] = "Contact number is required.";
-elseif (mb_strlen($contact_no) > 30)                    $errors[] = "Contact number is too long.";
+elseif (($contact_no = normalize_ph_mobile($contact_no) ?? '') === '') $errors[] = "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).";
 if (mb_strlen($room_name) > 50)                         $errors[] = "Invalid unit selection.";
 if ($occupants !== null && ($occupants < 1 || $occupants > 20)) $errors[] = "Occupants must be between 1 and 20.";
 if ($move_in !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $move_in)) $errors[] = "Invalid preferred move-in date.";

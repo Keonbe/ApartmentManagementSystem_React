@@ -159,11 +159,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ── Contact Number Validation (F-1) ──
+    // Stored normalized as +639XXXXXXXXX (the form has a fixed +63 prefix).
     if (!empty($contact_no)) {
-        $clean_contact = preg_replace('/[\s\-]/', '', $contact_no);
-        if (!preg_match('/^(\+63|0)?9\d{9}$/', $clean_contact)) {
+        $contact_no = normalize_ph_mobile($contact_no);
+        if ($contact_no === null) {
             http_response_code(422);
-            echo json_encode(["success" => false, "message" => "Invalid Philippine mobile contact format (e.g. +63 912 345 6789 or 09123456789)."]);
+            echo json_encode(["success" => false, "message" => "Invalid Philippine mobile number (e.g. +63 912 345 6789)."]);
             exit;
         }
     }

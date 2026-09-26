@@ -108,7 +108,9 @@ try {
     }
 
     // 4. Create the hold.
-    $contact_no = $contact_no !== '' ? $contact_no : null;
+    // Normalized to +639XXXXXXXXX when it is a PH mobile; an older inquiry's
+    // free-text number is kept as-is rather than blocking the hold.
+    $contact_no = $contact_no !== '' ? (normalize_ph_mobile($contact_no) ?? $contact_no) : null;
     $email      = $email !== '' ? $email : null;
     $notes      = $notes !== '' ? $notes : null;
 

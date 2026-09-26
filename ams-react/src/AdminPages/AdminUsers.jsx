@@ -8,7 +8,8 @@ import {
   faUsers, faFilter
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkPassword, checkPhMobile, firstError } from '../utils/validation';
+import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkPassword, checkPhMobile, firstError, toPhLocal10, toPhE164 } from '../utils/validation';
+import PhoneInput from '../Components/PhoneInput';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
@@ -81,7 +82,7 @@ const AdminUsers = () => {
     setEditForm({
       first_name: u.first_name, middle_name: u.middle_name || '',
       last_name: u.last_name, suffix: u.suffix || '',
-      contact_no: u.contact_no || '', gender: u.gender || '', email: u.email
+      contact_no: toPhLocal10(u.contact_no), gender: u.gender || '', email: u.email
     });
   };
 
@@ -93,7 +94,7 @@ const AdminUsers = () => {
     if (invalid) { showToast(invalid, 'error'); return; }
     setSaving(true);
     try {
-      const res = await api.post('/manage_users.php', { action: 'update', user_id: editUser.id, ...editForm });
+      const res = await api.post('/manage_users.php', { action: 'update', user_id: editUser.id, ...editForm, contact_no: toPhE164(editForm.contact_no) });
       if (res.data.success) {
         await fetchUsers();
         setEditUser(null);
@@ -340,13 +341,21 @@ const AdminUsers = () => {
                 ].map(f => (
                   <div key={f.key}>
                     <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{f.label}</label>
-                    <input
-                      type={f.key === 'email' ? 'email' : f.key === 'contact_no' ? 'tel' : 'text'}
-                      maxLength={f.max}
-                      value={editForm[f.key]}
-                      onChange={e => setEditForm({ ...editForm, [f.key]: e.target.value })}
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
-                    />
+                    {f.key === 'contact_no' ? (
+                      <PhoneInput
+                        value={editForm.contact_no}
+                        onChange={digits => setEditForm({ ...editForm, contact_no: digits })}
+                        inputClassName="w-full px-3 py-2 text-sm border border-slate-200 rounded-r-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
+                      />
+                    ) : (
+                      <input
+                        type={f.key === 'email' ? 'email' : 'text'}
+                        maxLength={f.max}
+                        value={editForm[f.key]}
+                        onChange={e => setEditForm({ ...editForm, [f.key]: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
+                      />
+                    )}
                   </div>
                 ))}
               </div>

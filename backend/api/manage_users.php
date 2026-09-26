@@ -82,8 +82,9 @@ switch ($action) {
 
         if ($fn === '' || $ln === '' || $em === '') fail(422, "First name, last name, and email are required.");
         if (!filter_var($em, FILTER_VALIDATE_EMAIL)) fail(422, "Please enter a valid email address.");
-        if ($ph !== '' && !preg_match('/^(\+63|0)?9\d{9}$/', preg_replace('/[\s\-]/', '', $ph))) {
-            fail(422, "Invalid Philippine mobile number (e.g. 09123456789).");
+        if ($ph !== '') {
+            $ph = normalize_ph_mobile($ph); // stored as +639XXXXXXXXX
+            if ($ph === null) fail(422, "Invalid Philippine mobile number (e.g. +63 912 345 6789).");
         }
 
         $chk = $conn->prepare("SELECT 1 FROM users WHERE email_address = ? AND id != ?");

@@ -37,11 +37,18 @@ $id_number = trim($input['idNumber'] ?? $input['id_number'] ?? '');
 $vehicle_plate = strtoupper(trim($input['vehiclePlate'] ?? $input['vehicle_plate'] ?? ''));
 $expected_at_raw = trim($input['expectedAt'] ?? $input['expected_at'] ?? '');
 
+$visit_at_raw = trim($input['visitAt'] ?? $input['visit_at'] ?? '');
+
 if (mb_strlen($visitor_name) > 150) fail(422, "Visitor name must be 150 characters or fewer.");
-if (mb_strlen($contact_number) > 30) fail(422, "Contact number must be 30 characters or fewer.");
-if ($contact_number !== '' && !preg_match('/^[0-9+\-\s()]{7,30}$/', $contact_number)) fail(422, "Contact number format is invalid.");
+// Philippine mobile only, stored as +639XXXXXXXXX like every other contact
+// number (the form has a fixed +63 prefix).
+if ($contact_number !== '') {
+    $contact_number = normalize_ph_mobile($contact_number);
+    if ($contact_number === null) fail(422, "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).");
+}
 if (mb_strlen($purpose) > 255) fail(422, "Purpose must be 255 characters or fewer.");
 if (!in_array($id_type, VISITOR_ID_TYPES, true)) fail(422, "Invalid ID type.");
+if ($id_number === '') fail(422, "ID number is required.");
 if (mb_strlen($id_number) > 50) fail(422, "ID number must be 50 characters or fewer.");
 if (mb_strlen($vehicle_plate) > 30) fail(422, "Vehicle plate must be 30 characters or fewer.");
 
@@ -85,9 +92,20 @@ if ($visitor_name === '' || $contact_number === '' || $purpose === '') {
 
 // Expected arrival: required for a tenant's pre-registration (check_in_at is
 // only ever stamped once the visitor is actually approved/admitted, so a
-// pending row needs its own idea of "when"), ignored for a walk-in the admin
-// is logging as it happens.
+// pending row needs its own idea of "when"), ignored for a walk-in.
+//
+// A walk-in's visit date/time is the admin's visitAt: defaults to now, may be
+// back-dated up to 24 hours (a visitor logged late), never in the future
+// beyond a 5-minute clock allowance. It becomes check_in_at.
 $expected_at = null;
+$check_in_at = date('Y-m-d H:i:s');
+if ($isAdmin && $visit_at_raw !== '') {
+    $visit_dt = DateTime::createFromFormat('Y-m-d\TH:i', $visit_at_raw) ?: DateTime::createFromFormat('Y-m-d H:i:s', $visit_at_raw);
+    if (!$visit_dt) fail(422, "Visit date/time must be a valid date/time.");
+    if ($visit_dt > new DateTime('+5 minutes')) fail(422, "Visit date/time cannot be in the future.");
+    if ($visit_dt < new DateTime('-24 hours')) fail(422, "Visit date/time can be back-dated by at most 24 hours.");
+    $check_in_at = $visit_dt->format('Y-m-d H:i:s');
+}
 if (!$isAdmin) {
     if ($expected_at_raw === '') fail(422, "Expected arrival date/time is required.");
     $expected_dt = DateTime::createFromFormat('Y-m-d\TH:i', $expected_at_raw) ?: DateTime::createFromFormat('Y-m-d H:i:s', $expected_at_raw);
@@ -122,8 +140,8 @@ if (isset($_FILES['idPhoto']) && $_FILES['idPhoto']['error'] !== UPLOAD_ERR_NO_F
 
 $initial_status = $isAdmin ? 'checked_in' : 'pending_approval';
 
-$stmt = $conn->prepare("INSERT INTO visitor_logs (user_id, room_name, visitor_name, contact_number, id_type, id_number, id_photo_path, purpose, vehicle_plate, status, expected_at, created_by, check_in_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-$stmt->bind_param("issssssssssi", $target_user_id, $room_name, $visitor_name, $contact_number, $id_type, $id_number, $id_photo_path, $purpose, $vehicle_plate, $initial_status, $expected_at, $auth['id']);
+$stmt = $conn->prepare("INSERT INTO visitor_logs (user_id, room_name, visitor_name, contact_number, id_type, id_number, id_photo_path, purpose, vehicle_plate, status, expected_at, created_by, check_in_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("issssssssssis", $target_user_id, $room_name, $visitor_name, $contact_number, $id_type, $id_number, $id_photo_path, $purpose, $vehicle_plate, $initial_status, $expected_at, $auth['id'], $check_in_at);
 if (!$stmt->execute()) fail(500, "Failed to record the visitor.");
 $new_id = $stmt->insert_id;
 $stmt->close();

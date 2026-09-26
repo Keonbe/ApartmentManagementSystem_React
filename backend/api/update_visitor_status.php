@@ -30,6 +30,9 @@ $checkout_notes = trim($input['checkoutNotes'] ?? $input['checkout_notes'] ?? ''
 $admin_notes = trim($input['adminNotes'] ?? $input['admin_notes'] ?? '');
 
 if (!$id || $action === '') fail(422, "Visitor ID and action are required.");
+// Same UI caps as the forms (LIMITS.notes / LIMITS.reason in validation.js).
+if (mb_strlen($checkout_notes) > 1000) fail(422, "Checkout note must be 1000 characters or fewer.");
+if (mb_strlen($admin_notes) > 1000) fail(422, "Note must be 1000 characters or fewer.");
 
 $q = $conn->prepare("SELECT * FROM visitor_logs WHERE id = ?");
 $q->bind_param("i", $id);

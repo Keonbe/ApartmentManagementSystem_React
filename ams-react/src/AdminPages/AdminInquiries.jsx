@@ -9,7 +9,8 @@ import {
   faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkEmail, checkIntRange, checkLength, checkPhMobile, firstError } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkEmail, checkIntRange, checkLength, checkPhMobile, firstError, toPhE164 } from '../utils/validation';
+import PhoneInput from '../Components/PhoneInput';
 import { apiErrorMessage } from '../utils/apiError';
 import { getSystemSettings } from '../config/systemSettings';
 import WaitlistPanel from '../Components/WaitlistPanel';
@@ -208,7 +209,7 @@ export default function AdminInquiries() {
       return;
     }
     const logError = firstError(
-      checkPhMobile(logForm.contact_no) ? 'Enter a valid PH mobile number (e.g. 0917 123 4567).' : '',
+      checkPhMobile(logForm.contact_no) ? 'Enter a valid PH mobile number (e.g. +63 917 123 4567).' : '',
       checkEmail(logForm.email)
     );
     if (logError) {
@@ -216,7 +217,7 @@ export default function AdminInquiries() {
       return;
     }
     try {
-      const res = await api.post('submit_inquiry.php', logForm);
+      const res = await api.post('submit_inquiry.php', { ...logForm, contact_no: toPhE164(logForm.contact_no) });
       if (!res.data.success) {
         setActionError(res.data.message || 'Failed to log the inquiry.');
         return;
@@ -955,19 +956,27 @@ export default function AdminInquiries() {
 
               {[
                 { key: 'full_name', label: 'Full Name', type: 'text', placeholder: 'e.g. Juan Dela Cruz', max: LIMITS.fullName },
-                { key: 'contact_no', label: 'Contact Number', type: 'tel', placeholder: 'e.g. 0917 123 4567', max: 16 },
+                { key: 'contact_no', label: 'Contact Number', type: 'tel' },
                 { key: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. juan@email.com', max: LIMITS.email },
               ].map(field => (
                 <div key={field.key}>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{field.label}</label>
-                  <input
-                    type={field.type}
-                    maxLength={field.max}
-                    value={logForm[field.key]}
-                    onChange={(e) => setLogForm({ ...logForm, [field.key]: e.target.value })}
-                    placeholder={field.placeholder}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500"
-                  />
+                  {field.type === 'tel' ? (
+                    <PhoneInput
+                      value={logForm.contact_no}
+                      onChange={(digits) => setLogForm({ ...logForm, contact_no: digits })}
+                      inputClassName="w-full rounded-r-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500"
+                    />
+                  ) : (
+                    <input
+                      type={field.type}
+                      maxLength={field.max}
+                      value={logForm[field.key]}
+                      onChange={(e) => setLogForm({ ...logForm, [field.key]: e.target.value })}
+                      placeholder={field.placeholder}
+                      className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500"
+                    />
+                  )}
                 </div>
               ))}
 

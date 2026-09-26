@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPeopleRoof, faUserPlus, faUserMinus, faClock } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import PhoneInput from './PhoneInput';
+import { checkPhMobile, toPhE164 } from '../utils/validation';
 
 // Household roster on My Room (household_members.php). One shared lease: the
 // lease holder signs in; the people living with them are listed here. Adding or
@@ -50,7 +52,12 @@ export default function HouseholdPanel() {
 
   const submitAdd = (e) => {
     e.preventDefault();
-    send({ action: 'add', ...form }, () => setForm({ fullName: '', relationship: '', contactNo: '' }));
+    const phoneError = form.contactNo ? checkPhMobile(form.contactNo) : '';
+    if (phoneError) {
+      setNotice({ ok: false, text: phoneError });
+      return;
+    }
+    send({ action: 'add', ...form, contactNo: toPhE164(form.contactNo) }, () => setForm({ fullName: '', relationship: '', contactNo: '' }));
   };
 
   const requestRemove = (m) => {
@@ -143,7 +150,13 @@ export default function HouseholdPanel() {
         </label>
         <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Mobile (optional)
-          <input value={form.contactNo} maxLength={13} placeholder="09XXXXXXXXX" onChange={(e) => setForm({ ...form, contactNo: e.target.value.trim() })} className={inputCls} disabled={full} />
+          <PhoneInput
+            value={form.contactNo}
+            onChange={(digits) => setForm({ ...form, contactNo: digits })}
+            disabled={full}
+            prefixClassName="flex items-center gap-1 px-2.5 rounded-l-xl bg-slate-800 border border-white/10 border-r-0 text-slate-200 text-sm font-bold select-none pointer-events-none normal-case tracking-normal"
+            inputClassName="w-full px-3 py-2 rounded-r-xl bg-slate-950/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border normal-case tracking-normal font-normal disabled:opacity-60"
+          />
         </label>
         <div className="sm:col-span-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <p className="text-[11px] text-slate-400 m-0">

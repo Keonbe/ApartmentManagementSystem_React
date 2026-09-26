@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
-import { checkEmail, checkPassword, checkPhMobile, firstError } from '../utils/validation';
+import { checkEmail, checkPassword, checkPhMobile, firstError, toPhLocal10, toPhE164 } from '../utils/validation';
 import { SETTINGS_TABS, SETTINGS_TAB_IDS } from './settings/tabs';
 import SettingsNav from './settings/SettingsNav';
 import AccountPanel from './settings/AccountPanel';
@@ -74,7 +74,7 @@ const AdminAccountSettings = () => {
           const p = res.data.data;
           setFirstName(p.first_name || '');
           setLastName(p.last_name || '');
-          setPhone(p.contact_no || '');
+          setPhone(toPhLocal10(p.contact_no));
           setProfileExtras({ middle_name: p.middle_name || '', suffix: p.suffix || '', gender: p.gender || '' });
         }
       } catch (err) {
@@ -117,7 +117,7 @@ const AdminAccountSettings = () => {
     setSavingProfile(true);
     try {
       const res = await api.post('profile.php', {
-        firstName, lastName, email, contactNo: phone,
+        firstName, lastName, email, contactNo: toPhE164(phone),
         middleName: profileExtras.middle_name, suffix: profileExtras.suffix, gender: profileExtras.gender
       });
       if (!res.data.success) throw new Error(res.data.message);

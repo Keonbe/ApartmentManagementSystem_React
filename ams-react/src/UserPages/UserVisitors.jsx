@@ -7,7 +7,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import { LIMITS, checkContactNumber, checkLength, firstError } from '../utils/validation';
+import { LIMITS, checkDate, checkLength, checkPhMobile, firstError, localDateString, toPhE164 } from '../utils/validation';
+import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import { useLang } from '../config/i18n';
@@ -24,26 +25,29 @@ export default function UserVisitors() {
   const [error, setError] = useState(null);
 
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  // The allowed arrival window (now to 30 days ahead) is fixed when the form opens.
+  // The allowed arrival dates (today to 30 days ahead, local time) are fixed
+  // when the form opens.
   const [expectedBounds, setExpectedBounds] = useState({ min: '', max: '' });
 
   const openRegisterModal = () => {
     const now = Date.now();
     setExpectedBounds({
-      min: new Date(now).toISOString().slice(0, 16),
-      max: new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+      min: localDateString(new Date(now)),
+      max: localDateString(new Date(now + 30 * 24 * 60 * 60 * 1000)),
     });
     setShowRegisterModal(true);
   };
-  const [registerForm, setRegisterForm] = useState({
+  const emptyRegisterForm = {
     visitorName: '',
     contactNumber: '',
     purpose: 'Personal Visit',
     idType: 'National ID',
     idNumber: '',
     vehiclePlate: '',
-    expectedAt: ''
-  });
+    expectedDate: '',
+    expectedTime: ''
+  };
+  const [registerForm, setRegisterForm] = useState(emptyRegisterForm);
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState(null);
 
@@ -86,13 +90,19 @@ export default function UserVisitors() {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    if (!registerForm.visitorName || !registerForm.contactNumber || !registerForm.expectedAt) {
+    if (!registerForm.visitorName || !registerForm.contactNumber || !registerForm.idNumber.trim()
+        || !registerForm.expectedDate || !registerForm.expectedTime) {
       alert('Please fill in all required fields.');
       return;
     }
+    // check_in_visitor.php accepts an arrival up to 1 hour in the past.
+    const expectedAt = `${registerForm.expectedDate}T${registerForm.expectedTime}`;
     const visitorError = firstError(
       checkLength(registerForm.visitorName, LIMITS.fullName, 'Visitor name'),
-      checkContactNumber(registerForm.contactNumber)
+      checkPhMobile(registerForm.contactNumber),
+      checkLength(registerForm.idNumber, LIMITS.idNumber, 'ID number'),
+      checkDate(registerForm.expectedDate, { ...expectedBounds, label: 'Arrival date' }),
+      new Date(expectedAt).getTime() < Date.now() - 60 * 60 * 1000 ? 'Arrival time cannot be in the past.' : ''
     );
     if (visitorError) {
       alert(visitorError);
@@ -102,38 +112,29 @@ export default function UserVisitors() {
     try {
       // The unit and host are always the tenant's own current tenancy —
       // resolved server-side from the session, not from anything posted here.
-      let payload;
+      const fields = {
+        visitorName: registerForm.visitorName,
+        contactNumber: toPhE164(registerForm.contactNumber),
+        purpose: registerForm.purpose,
+        idType: registerForm.idType,
+        idNumber: registerForm.idNumber.trim(),
+        vehiclePlate: registerForm.vehiclePlate,
+        expectedAt,
+      };
+      let payload = fields;
       let headers = {};
 
       if (registerForm.idPhoto) {
         payload = new FormData();
-        payload.append('visitorName', registerForm.visitorName);
-        payload.append('contactNumber', registerForm.contactNumber);
-        payload.append('purpose', registerForm.purpose);
-        payload.append('idType', registerForm.idType);
-        payload.append('idNumber', registerForm.idNumber);
-        payload.append('vehiclePlate', registerForm.vehiclePlate);
-        payload.append('expectedAt', registerForm.expectedAt);
+        Object.entries(fields).forEach(([key, value]) => payload.append(key, value));
         payload.append('idPhoto', registerForm.idPhoto);
         headers = { 'Content-Type': 'multipart/form-data' };
-      } else {
-        payload = { ...registerForm };
-        delete payload.idPhoto;
       }
 
       const res = await api.post('check_in_visitor.php', payload, { headers });
       if (res.data.success) {
         setShowRegisterModal(false);
-        setRegisterForm({
-          visitorName: '',
-          contactNumber: '',
-          purpose: 'Personal Visit',
-          idType: 'National ID',
-          idNumber: '',
-          vehiclePlate: '',
-          expectedAt: '',
-          idPhoto: null
-        });
+        setRegisterForm(emptyRegisterForm);
         fetchTenantData();
       } else {
         alert(res.data.message || 'Failed to register visitor.');
@@ -449,14 +450,10 @@ export default function UserVisitors() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.contactNumber')} *</label>
-                <input
-                  type="tel"
+                <PhoneInput
                   required
-                  placeholder="e.g. 0917 123 4567"
                   value={registerForm.contactNumber}
-                  maxLength={30}
-                  onChange={(e) => setRegisterForm({ ...registerForm, contactNumber: e.target.value })}
-                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  onChange={(digits) => setRegisterForm({ ...registerForm, contactNumber: digits })}
                 />
               </div>
 
@@ -475,23 +472,36 @@ export default function UserVisitors() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedAt')} *</label>
-                <input
-                  type="datetime-local"
-                  required
-                  min={expectedBounds.min}
-                  max={expectedBounds.max}
-                  value={registerForm.expectedAt}
-                  onChange={(e) => setRegisterForm({ ...registerForm, expectedAt: e.target.value })}
-                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedDate')} *</label>
+                  <input
+                    type="date"
+                    required
+                    min={expectedBounds.min}
+                    max={expectedBounds.max}
+                    value={registerForm.expectedDate}
+                    onChange={(e) => setRegisterForm({ ...registerForm, expectedDate: e.target.value })}
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedTime')} *</label>
+                  <input
+                    type="time"
+                    required
+                    value={registerForm.expectedTime}
+                    onChange={(e) => setRegisterForm({ ...registerForm, expectedTime: e.target.value })}
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idType')}</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idType')} *</label>
                   <select
+                    required
                     value={registerForm.idType}
                     onChange={(e) => setRegisterForm({ ...registerForm, idType: e.target.value })}
                     className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
@@ -504,9 +514,10 @@ export default function UserVisitors() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idNumber')}</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idNumber')} *</label>
                   <input
                     type="text"
+                    required
                     placeholder="e.g. D01-19-12345"
                     value={registerForm.idNumber}
                     maxLength={LIMITS.idNumber}

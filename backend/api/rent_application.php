@@ -105,6 +105,14 @@ if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($emai
     exit;
 }
 
+// Stored normalized as +639XXXXXXXXX (the form has a fixed +63 prefix).
+$contact_no = normalize_ph_mobile($contact_no);
+if ($contact_no === null) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX)."]);
+    exit;
+}
+
 if (!$agree_terms) {
     echo json_encode(["success" => false, "message" => "You must agree to the Terms & Conditions before submitting your application."]);
     exit;

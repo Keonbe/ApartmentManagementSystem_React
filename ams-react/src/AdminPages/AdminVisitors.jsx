@@ -9,11 +9,23 @@ import {
   faDoorOpen, faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, checkContactNumber, checkLength, firstError } from '../utils/validation';
+import { LIMITS, checkLength, checkPhMobile, firstError, localDateString, localTimeString, toPhE164 } from '../utils/validation';
+import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
+
+// Preset checkout notes; "Other" lets the desk type a short one instead. The
+// chosen text is stored as-is in visitor_logs.checkout_notes.
+const CHECKOUT_NOTE_OPTIONS = [
+  'Left normally',
+  'Returned visitor pass / ID',
+  'Left together with the tenant',
+  'Overstayed – reminded before leaving',
+  'Escorted out by security',
+];
+const CHECKOUT_NOTE_OTHER = '__other__';
 
 export default function AdminVisitors() {
   const [visitors, setVisitors] = useState([]);
@@ -41,8 +53,9 @@ export default function AdminVisitors() {
   const [showThresholdModal, setShowThresholdModal] = useState(false);
   const [selectedVisitorForCheckout, setSelectedVisitorForCheckout] = useState(null);
 
-  // Form States
-  const [checkInForm, setCheckInForm] = useState({
+  // Form States. The visit date/time default to "now" each time the form opens;
+  // the desk can back-date it (up to 24 h) for a visitor logged late.
+  const emptyCheckInForm = () => ({
     visitorName: '',
     contactNumber: '',
     unit: '',
@@ -50,10 +63,25 @@ export default function AdminVisitors() {
     idType: 'National ID',
     idNumber: '',
     vehiclePlate: '',
+    visitDate: localDateString(),
+    visitTime: localTimeString(),
     idPhoto: null
   });
+  const [checkInForm, setCheckInForm] = useState(emptyCheckInForm);
+  const [visitDateBounds, setVisitDateBounds] = useState({ min: '', max: '' });
 
-  const [checkoutNotes, setCheckoutNotes] = useState('');
+  const openCheckInModal = () => {
+    const now = Date.now();
+    setCheckInForm(emptyCheckInForm());
+    setVisitDateBounds({
+      min: localDateString(new Date(now - 24 * 60 * 60 * 1000)),
+      max: localDateString(new Date(now)),
+    });
+    setShowCheckInModal(true);
+  };
+
+  const [checkoutNote, setCheckoutNote] = useState(CHECKOUT_NOTE_OPTIONS[0]);
+  const [checkoutOther, setCheckoutOther] = useState('');
   const [thresholdHours, setThresholdHours] = useState(24);
   const [submitting, setSubmitting] = useState(false);
 
@@ -119,13 +147,21 @@ export default function AdminVisitors() {
   // Check In / New Visitor Action
   const handleCheckInSubmit = async (e) => {
     e.preventDefault();
-    if (!checkInForm.visitorName || !checkInForm.contactNumber || !checkInForm.unit) {
+    if (!checkInForm.visitorName || !checkInForm.contactNumber || !checkInForm.unit
+        || !checkInForm.idNumber.trim() || !checkInForm.visitDate || !checkInForm.visitTime) {
       alert('Please fill in all required fields.');
       return;
     }
+    // check_in_visitor.php accepts a visit from 24 hours ago to 5 minutes ahead.
+    const visitAt = `${checkInForm.visitDate}T${checkInForm.visitTime}`;
+    const visitMs = new Date(visitAt).getTime();
     const visitorError = firstError(
       checkLength(checkInForm.visitorName, LIMITS.fullName, 'Visitor name'),
-      checkContactNumber(checkInForm.contactNumber)
+      checkPhMobile(checkInForm.contactNumber),
+      checkLength(checkInForm.idNumber, LIMITS.idNumber, 'ID number'),
+      Number.isNaN(visitMs) ? 'Enter a valid visit date and time.' : '',
+      visitMs > Date.now() + 5 * 60 * 1000 ? 'Visit time cannot be in the future.' : '',
+      visitMs < Date.now() - 24 * 60 * 60 * 1000 ? 'Visit time can be back-dated by at most 24 hours.' : ''
     );
     if (visitorError) {
       alert(visitorError);
@@ -133,37 +169,30 @@ export default function AdminVisitors() {
     }
     setSubmitting(true);
     try {
-      let payload;
+      const fields = {
+        visitorName: checkInForm.visitorName,
+        contactNumber: toPhE164(checkInForm.contactNumber),
+        unit: checkInForm.unit,
+        purpose: checkInForm.purpose,
+        idType: checkInForm.idType,
+        idNumber: checkInForm.idNumber.trim(),
+        vehiclePlate: checkInForm.vehiclePlate,
+        visitAt,
+      };
+      let payload = fields;
       let headers = {};
 
       if (checkInForm.idPhoto) {
         payload = new FormData();
-        payload.append('visitorName', checkInForm.visitorName);
-        payload.append('contactNumber', checkInForm.contactNumber);
-        payload.append('unit', checkInForm.unit);
-        payload.append('purpose', checkInForm.purpose);
-        payload.append('idType', checkInForm.idType);
-        payload.append('idNumber', checkInForm.idNumber);
-        payload.append('vehiclePlate', checkInForm.vehiclePlate);
+        Object.entries(fields).forEach(([key, value]) => payload.append(key, value));
         payload.append('idPhoto', checkInForm.idPhoto);
         headers = { 'Content-Type': 'multipart/form-data' };
-      } else {
-        payload = checkInForm;
       }
 
       const res = await api.post('check_in_visitor.php', payload, { headers });
       if (res.data.success) {
         setShowCheckInModal(false);
-        setCheckInForm({
-          visitorName: '',
-          contactNumber: '',
-          unit: '',
-          purpose: 'Personal Visit',
-          idType: 'National ID',
-          idNumber: '',
-          vehiclePlate: '',
-          idPhoto: null
-        });
+        setCheckInForm(emptyCheckInForm());
         fetchVisitors();
       } else {
         alert(res.data.message || 'Failed to log visitor.');
@@ -204,6 +233,13 @@ export default function AdminVisitors() {
   const handleCheckoutSubmit = async (e) => {
     e.preventDefault();
     if (!selectedVisitorForCheckout) return;
+    const checkoutNotes = checkoutNote === CHECKOUT_NOTE_OTHER ? checkoutOther.trim() : checkoutNote;
+    if (!checkoutNotes) {
+      alert('Describe the checkout in a few words.');
+      return;
+    }
+    const notesError = checkLength(checkoutNotes, LIMITS.notes, 'Checkout note');
+    if (notesError) { alert(notesError); return; }
     setSubmitting(true);
     try {
       const res = await api.post('update_visitor_status.php', {
@@ -214,7 +250,8 @@ export default function AdminVisitors() {
       if (res.data.success) {
         setShowCheckoutModal(false);
         setSelectedVisitorForCheckout(null);
-        setCheckoutNotes('');
+        setCheckoutNote(CHECKOUT_NOTE_OPTIONS[0]);
+        setCheckoutOther('');
         fetchVisitors();
       } else {
         alert(res.data.message || 'Failed to checkout visitor.');
@@ -384,7 +421,7 @@ export default function AdminVisitors() {
                   {/* Log New Visitor Button */}
                   <button
                     type="button"
-                    onClick={() => setShowCheckInModal(true)}
+                    onClick={openCheckInModal}
                     className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-md hover:shadow-indigo-200 active:scale-[0.98] border-0 cursor-pointer shrink-0"
                   >
                     <FontAwesomeIcon icon={faUserPlus} />
@@ -683,14 +720,10 @@ export default function AdminVisitors() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Contact Number *</label>
-                  <input
-                    type="tel"
+                  <PhoneInput
                     required
-                    placeholder="e.g. 0917 123 4567"
                     value={checkInForm.contactNumber}
-                  maxLength={30}
-                    onChange={(e) => setCheckInForm({ ...checkInForm, contactNumber: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    onChange={(digits) => setCheckInForm({ ...checkInForm, contactNumber: digits })}
                   />
                 </div>
                 <div>
@@ -711,6 +744,31 @@ export default function AdminVisitors() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Visit Date *</label>
+                  <input
+                    type="date"
+                    required
+                    min={visitDateBounds.min}
+                    max={visitDateBounds.max}
+                    value={checkInForm.visitDate}
+                    onChange={(e) => setCheckInForm({ ...checkInForm, visitDate: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Visit Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={checkInForm.visitTime}
+                    onChange={(e) => setCheckInForm({ ...checkInForm, visitTime: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Purpose of Visit *</label>
                 <select
@@ -728,7 +786,7 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID Type</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID Type *</label>
                   <select
                     value={checkInForm.idType}
                     onChange={(e) => setCheckInForm({ ...checkInForm, idType: e.target.value })}
@@ -742,9 +800,10 @@ export default function AdminVisitors() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">ID Number (Optional)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ID Number *</label>
                   <input
                     type="text"
+                    required
                     placeholder="e.g. N02-18-9382"
                     value={checkInForm.idNumber}
                     maxLength={LIMITS.idNumber}
@@ -828,16 +887,33 @@ export default function AdminVisitors() {
 
             <form onSubmit={handleCheckoutSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Checkout Notes (Optional)</label>
-                <textarea
-                  rows="2"
-                  placeholder="e.g. Left premises peacefully, returned guest ID pass..."
-                  value={checkoutNotes}
-                  maxLength={LIMITS.notes}
-                  onChange={(e) => setCheckoutNotes(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
+                <label className="block text-xs font-bold text-slate-700 mb-1">Checkout Note *</label>
+                <select
+                  required
+                  value={checkoutNote}
+                  onChange={(e) => setCheckoutNote(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                >
+                  {CHECKOUT_NOTE_OPTIONS.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                  <option value={CHECKOUT_NOTE_OTHER}>Other…</option>
+                </select>
               </div>
+              {checkoutNote === CHECKOUT_NOTE_OTHER && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Other Note *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Picked up by a family member"
+                    value={checkoutOther}
+                    maxLength={LIMITS.reason}
+                    onChange={(e) => setCheckoutOther(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button

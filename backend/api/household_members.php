@@ -92,7 +92,10 @@ switch ($action) {
 
         if (mb_strlen($name) < 2 || mb_strlen($name) > 150) fail(422, "Full name must be 2 to 150 characters.");
         if (!in_array($relationship, HOUSEHOLD_RELATIONSHIPS, true)) fail(422, "Choose a relationship from the list.");
-        if ($contact !== '' && !preg_match('/^(09|\+639)\d{9}$/', $contact)) fail(422, "Contact number must be a PH mobile number (09XXXXXXXXX).");
+        if ($contact !== '') {
+            $contact = normalize_ph_mobile($contact); // stored as +639XXXXXXXXX
+            if ($contact === null) fail(422, "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).");
+        }
 
         // Pending additions count toward the limit too, so a tenant can't queue past it.
         $stmt = $conn->prepare("SELECT SUM(status = 'Active') AS active, SUM(status = 'Pending') AS pending, SUM(LOWER(full_name) = LOWER(?)) AS same_name FROM household_members WHERE rent_application_id = ? AND status IN ('Active', 'Pending')");
