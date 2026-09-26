@@ -168,7 +168,8 @@ if ($status_changed && $current['user_id']) {
     $notification_dispatch = dispatch_admin_action_notification(
         $conn, $current['user_id'], 'maintenance_update',
         "Maintenance Update - $label",
-        "AMS: $message",
+        sms_status_update_template('maintenance', $label, $new_status,
+            $rejection_reason !== null ? "Reason: $rejection_reason" : ''),
         email_status_update_template(
             notify_recipient_name($conn, $current['user_id']),
             'maintenance', $label, $new_status, $rejection_reason ?? ''

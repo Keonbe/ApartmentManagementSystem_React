@@ -57,7 +57,8 @@ try {
             create_notification($conn, $inv['user_id'], $event, $title, $message);
 
             $d = dispatch_admin_action_notification(
-                $conn, $inv['user_id'], $event, $title, "AMS: $message",
+                $conn, $inv['user_id'], $event, $title,
+                sms_payment_template($inv['total_amount'], $inv['room_name'], $inv['due_date'], $event, $custom_message, $today),
                 email_payment_template(
                     notify_recipient_name($conn, $inv['user_id']),
                     $inv['total_amount'], $inv['room_name'] ?: 'no unit',
@@ -134,7 +135,8 @@ try {
     $unit = $inv['room_name'] ?: 'no unit';
 
     $notification_dispatch = dispatch_admin_action_notification(
-        $conn, $inv['user_id'], $event, $title, "AMS: $message",
+        $conn, $inv['user_id'], $event, $title,
+        sms_payment_template($inv['total_amount'], $unit, $inv['due_date'], $event, $custom_message, $today),
         email_payment_template(
             $inv['first_name'] ?: 'Tenant',
             $inv['total_amount'], $unit, $inv['billing_period'], $event, $inv['id']

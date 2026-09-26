@@ -38,7 +38,7 @@ $sms_provider  = get_setting($conn, 'sms_provider', 'log');
 $email_driver  = get_setting($conn, 'email_driver', 'log');
 
 $stamp     = date('M j, H:i');
-$sms_text  = sms_single_segment("AMS: Test message sent $stamp. If you received this, SMS notifications are working.");
+$sms_text  = sms_test_template($stamp);
 $subject   = "AMS test notification - $stamp";
 $email_html = email_announcement_template(
     'Test notification',

@@ -310,6 +310,59 @@ try {
         $a['ok'] && $a['message_id'] === '11' && $a['status'] === 'Queued' && !$b['ok'] && !$c['ok'],
         "a={$a['status']}, b=" . ($b['ok'] ? 'ok' : 'fail') . ', c=' . ($c['ok'] ? 'ok' : 'fail'));
 
+    // ── M6-43..47 — SMS templates follow Semaphore's rules ──
+    // (sms_templates.php R1-R8.) Oversized inputs with the characters that
+    // force Unicode, so every template has to shorten and clean.
+    $huge = str_repeat("Nag-ayos \u{2014} \u{201C}ma\u{00F1}ana\u{201D} \u{20B1}500 ", 25);
+    $today = new DateTime('2026-09-26');
+    $all = [
+        'announcement' => sms_announcement_template($huge, $huge, 'Urgent'),
+        'rent_due'     => sms_payment_template(5490, $huge, '2026-09-29', 'rent_due', '', $today),
+        'due_today'    => sms_payment_template(5490, $huge, '2026-09-26', 'rent_due', '', $today),
+        'overdue'      => sms_payment_template(5490, $huge, '2026-09-01', 'overdue', '', $today),
+        'custom'       => sms_payment_template(5490, $huge, '2026-09-29', 'rent_due', $huge, $today),
+        'status'       => sms_status_update_template($huge, $huge, 'Rejected', $huge),
+        'status_bare'  => sms_status_update_template('', $huge, 'Approved', $huge),
+        'lease'        => sms_lease_reminder_template($huge, '2026-10-26', 30),
+        'test'         => sms_test_template('Sep 26, 09:00'),
+    ];
+    $bad = [];
+    foreach ($all as $name => $s) {
+        if (mb_strlen($s) > 160 || gsm7_safe($s) !== $s || strpos($s, 'AMS') !== 0) $bad[] = "$name(" . mb_strlen($s) . ')';
+    }
+    check('M6-43', 'Every SMS template is one ASCII segment starting with AMS', !$bad,
+        $bad ? 'bad: ' . implode(', ', $bad) : count($all) . ' templates');
+
+    $o = $all['overdue'];
+    check('M6-44', 'The overdue SMS keeps amount, due date and its last word',
+        strpos($o, 'PHP 5,490.00') !== false && strpos($o, 'Sep 1, 2026') !== false
+        && substr($o, -strlen('further penalties.')) === 'further penalties.',
+        mb_strlen($o) . ' chars');
+
+    $s = sms_status_update_template('maintenance', 'Leaking pipe', 'Rejected', 'Reason: ' . $huge);
+    check('M6-45', 'A long reason is shortened; the status is never cut',
+        strpos($s, 'is now Rejected.') !== false && substr($s, -3) === '...' && mb_strlen($s) <= 160,
+        mb_strlen($s) . ' chars');
+
+    clear_state($conn, $uid);
+    dispatch_external_notification($conn, $uid, 'contract_update', 'Lease Approaching End',
+        sms_lease_reminder_template('101', '2026-10-26', 30),
+        email_lease_reminder_template('Selftest', '101', 'Oct 26, 2026', 30), 'sync');
+    $sms = log_rows($conn, $uid, 'sms');
+    $email = log_rows($conn, $uid, 'email');
+    check('M6-46', 'The lease-end reminder goes out by SMS and email',
+        count($sms) === 1 && $sms[0]['status'] === 'sent' && count($email) === 1 && $email[0]['status'] === 'sent',
+        count($sms) . ' sms, ' . count($email) . ' email');
+
+    $a = sms_announcement_template('Water', 'Details at https://bit.ly/x9 and www.example.com/notice. Store water.', 'General');
+    $c = sms_payment_template(5490, '101', '2026-09-29', 'rent_due', 'Pay at pay.example.com/abc or example.ph today.', $today);
+    $svc = sms_status_update_template('service', 'Aircon cleaning', 'Completed', sms_amount(1500) . ' has been added to your invoice.');
+    $has_link = '~https?://|www\.|\.(?:com|ph|ly)\b~i';
+    check('M6-47', 'Links are stripped from free text; no invoice ID in SMS',
+        !preg_match($has_link, $a) && !preg_match($has_link, $c) && strpos($a, 'Store water.') !== false
+        && !preg_match('/INV-|invoice [A-Z0-9-]{4,}/', $svc),
+        '"' . $a . '"');
+
     // ── Nothing contacts a provider in dry run ──────────────
     // Real drivers (Semaphore) do open connections, so the rule is that every
     // network call sits inside a provider-driver function; the dry-run path

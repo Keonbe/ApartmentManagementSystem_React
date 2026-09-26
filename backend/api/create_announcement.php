@@ -115,7 +115,7 @@ try {
     $notification_dispatch = dispatch_admin_action_broadcast(
         $conn, $recipients, $notif_type, $title,
         // null skips that channel in dispatch_external_notification().
-        $want_sms ? "AMS $tag: $title - $body" : null,
+        $want_sms ? sms_announcement_template($title, $body, $tag) : null,
         $want_email ? email_announcement_template($title, $body, $tag) : null
     );
 

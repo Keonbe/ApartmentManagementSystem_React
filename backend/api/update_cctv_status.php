@@ -59,7 +59,8 @@ try {
         create_notification($conn, $cctv['user_id'], 'cctv_request', $notifTitle, $notifMsg);
 
         $notification_dispatch = dispatch_admin_action_notification(
-            $conn, $cctv['user_id'], 'cctv_request', $notifTitle, "AMS: $notifMsg",
+            $conn, $cctv['user_id'], 'cctv_request', $notifTitle,
+            sms_status_update_template('CCTV footage', $cctv['location_details'], $status),
             email_status_update_template(
                 notify_recipient_name($conn, $cctv['user_id']),
                 'CCTV footage', $cctv['location_details'], $status

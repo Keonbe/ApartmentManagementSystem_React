@@ -21,6 +21,7 @@
 require_once __DIR__ . '/send_sms.php';
 require_once __DIR__ . '/send_email.php';
 require_once __DIR__ . '/email_templates.php';
+require_once __DIR__ . '/sms_templates.php';
 
 // Event types that ignore quiet hours. Rent already overdue, and an announcement
 // the admin marked action-required, are the two things worth a 23:00 buzz.

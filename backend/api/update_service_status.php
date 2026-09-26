@@ -113,7 +113,10 @@ try {
     create_notification($conn, $old['user_id'], 'service_status', $notif_title, $notif_msg);
 
     $notification_dispatch = dispatch_admin_action_notification(
-        $conn, $old['user_id'], 'service_status', $notif_title, "AMS: $notif_msg",
+        $conn, $old['user_id'], 'service_status', $notif_title,
+        // The invoice ID stays out of the SMS (sms_templates.php R7).
+        sms_status_update_template('service', $service_name, $status,
+            $billed && $invoice_id ? sms_amount($old['total_cost']) . ' has been added to your invoice.' : ''),
         email_status_update_template(
             notify_recipient_name($conn, $old['user_id']),
             'service', $service_name, $status, $notif_msg

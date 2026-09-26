@@ -138,7 +138,7 @@ Nothing is delivered. `(DRY RUN, nothing sent)` in the group heading is the proo
 
 Two things are worth looking for, because they are invisible anywhere else:
 
-- **The SMS is the post-transform text.** A peso sign has already become `PHP`, and the text is cut at one 160-character GSM-7 segment. A long payment reminder *will* show as truncated mid-word — that is the hard cap, not a bug. If you dislike where it cuts, shorten the message, don't raise the limit: a second segment doubles the per-message cost.
+- **The SMS is the text from `sms_templates.php`** (implementation guide §1.5a), not the in-app message. It fits in one 160-character ASCII segment. When it is too long, only the free-text part (a title, label, reason or announcement body) is shortened, at a word boundary with `...`. The status, amount and due date are always whole, and links in free text are removed. Do not raise the limit: a second segment doubles the per-message cost.
 - **`SMS: skipped` with `Email: sent`** means the gate worked. The tenant is opted out of SMS (or that category), and the dispatcher stopped it — a different thing from the channel being switched off building-wide, which skips both.
 
 ### 6.3 The test-send button
@@ -157,7 +157,7 @@ Configure a real provider and that reverses automatically: admin actions go back
 /c/xampp/php/php.exe backend/cron/notification_selftest.php
 ```
 
-19 checks, no spend, exit code 0 on success. It forces both drivers to `log` before sending anything, so it is safe to run while Semaphore is configured. It creates its own fixture tenant, flips the switches it needs, and restores everything — safe to run against a database with real data, as often as you like. Add `--keep` to leave the fixtures behind for inspection.
+26 checks, no spend, exit code 0 on success. It forces both drivers to `log` before sending anything, so it is safe to run while Semaphore is configured. It creates its own fixture tenant, flips the switches it needs, and restores everything — safe to run against a database with real data, as often as you like. Add `--keep` to leave the fixtures behind for inspection.
 
 | ID | Proves |
 |---|---|
@@ -175,6 +175,11 @@ Configure a real provider and that reverses automatically: admin actions go back
 | M6-18 / C11 | Old log rows are pruned; bodies are truncated to 500 characters |
 | M6-35 | `sms_provider = 'log'` writes the outbox file and a `sent` row |
 | M6-39 | A text starting with "TEST" (even after a stripped emoji) goes out as `AMS: Test…` — Semaphore silently drops messages that start with TEST |
+| M6-41 / M6-42 | Same-text SMS jobs go out as one bulk send; Semaphore's answer maps back to each recipient |
+| M6-43 | Every SMS template stays one ASCII segment starting with `AMS`, even with oversized, accented input |
+| M6-44 / M6-45 | The overdue SMS keeps amount, date and its last word; a long reason is shortened, the status never cut |
+| M6-46 | The lease-end reminder goes out by SMS and email |
+| M6-47 | Links are stripped from free text; no invoice ID in an SMS |
 | DRY | Network calls live only in provider-driver functions, never on the dry-run path |
 
 ## 8. Reset

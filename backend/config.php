@@ -216,7 +216,8 @@ function expire_lapsed_contracts($conn) {
 // forced re-run the same day never sends a duplicate.
 function send_lease_end_reminders($conn) {
     $days = max(0, (int)get_setting($conn, 'lease_end_reminder_days', 30));
-    $stmt = $conn->prepare("SELECT lc.id, ra.user_id, ra.room_name, lc.lease_end FROM lease_contracts lc
+    $stmt = $conn->prepare("SELECT lc.id, ra.user_id, ra.room_name, lc.lease_end,
+                                   DATEDIFF(lc.lease_end, CURDATE()) AS days_left FROM lease_contracts lc
                             JOIN rent_applications ra ON ra.id = lc.rent_application_id
                             WHERE lc.status = 'active' AND lc.renewal_reminder_sent_at IS NULL
                               AND lc.lease_end IS NOT NULL
@@ -239,6 +240,19 @@ function send_lease_end_reminders($conn) {
             $end = date('M j, Y', strtotime($row['lease_end']));
             create_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
                 "Your lease for $unit ends on $end. Visit My Room to request an extension if you'd like to stay.");
+
+            // SMS and email too. After the claim, so a re-run never texts twice,
+            // and never allowed to stop the rest of the sweep.
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                dispatch_external_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
+                    sms_lease_reminder_template($row['room_name'], $row['lease_end'], $row['days_left']),
+                    email_lease_reminder_template(notify_recipient_name($conn, $row['user_id']),
+                        $row['room_name'] ?: '-', $end, (int)$row['days_left']),
+                    _admin_action_mode($conn));
+            } catch (Throwable $e) {
+                error_log('Lease-end reminder dispatch failed: ' . $e->getMessage());
+            }
         }
     }
     $claim->close();

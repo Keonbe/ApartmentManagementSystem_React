@@ -23,6 +23,7 @@
   - [1.3 SMS Service — send_sms.php](#13-sms-service--send_smsphp)
   - [1.4 Email Service — send_email.php](#14-email-service--send_emailphp)
   - [1.5 Email Templates — email_templates.php](#15-email-templates--email_templatesphp)
+  - [1.5a SMS Templates — sms_templates.php](#15a-sms-templates--sms_templatesphp)
   - [1.6 Central Dispatcher — send_notification.php](#16-central-dispatcher--send_notificationphp)
 - [Phase 2 — Wire to Existing Endpoints](#phase-2--wire-to-existing-endpoints)
   - [2.1 Announcements](#21-announcements--create_announcementphp)
@@ -224,9 +225,10 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 | `backend/api/services/send_sms.php` | `send_sms()` plus the `log` dry-run driver and `write_mock_outbox()`. **Semaphore** is the live driver (Appendix C.1) and the only real SMS provider; any other `sms_provider` value fails with "Unknown SMS provider". |
 | `backend/api/services/send_email.php` | `send_email()` with two drivers chosen by the new **`email_driver`** setting (`log` \| `smtp`). |
 | `backend/api/services/email_templates.php` | §1.5 as written, `esc()` on every interpolated value (C10). |
+| `backend/api/services/sms_templates.php` | §1.5a: one SMS template per event, following Semaphore's content rules (R1–R8). Added 2026-09-26. |
 | `backend/api/services/send_notification.php` | `dispatch_external_notification()`, `dispatch_external_broadcast()`, `enqueue_notification()`, `process_notification_queue()`. |
 | `backend/cron/process_queue.php` | CLI drain. Task Scheduler entry point. |
-| `backend/cron/notification_selftest.php` | 21 dry-run checks (M6-02…M6-18, C11, M6-35, M6-39, M6-41, M6-42, DRY). The verification gate for this module. |
+| `backend/cron/notification_selftest.php` | 26 dry-run checks (M6-02…M6-18, C11, M6-35, M6-39, M6-41…M6-47, DRY). The verification gate for this module. |
 | `backend/api/send_test_notification.php` | Admin-only test send; returns the rendered message for the settings UI to print to the browser console. |
 | `ams-react/src/AdminPages/AdminAccountSettings.jsx` + `settings/NotificationsPanel.jsx` | §3.3 — Notifications tab: provider (Log / Semaphore), API key, sender name + approval, balance check, daily cap, test sends. |
 | `backend/api/get_sms_balance.php` | Admin-only Semaphore credit balance (cached 60 s — `/account` allows 2 calls a minute). |
@@ -726,6 +728,37 @@ function email_lease_reminder_template($tenant_name, $room, $lease_end, $days_le
 
 ---
 
+### 1.5a SMS Templates — sms_templates.php
+
+**File:** [`backend/api/services/sms_templates.php`](../../backend/api/services/sms_templates.php). **Shipped 2026-09-26.** It is the SMS counterpart of §1.5 and is loaded by `send_notification.php` next to it. Before this, every endpoint passed `"AMS: $message"` (its in-app text), and `sms_single_segment()` cut that at 160 characters. As a result, the overdue reminder ended "…avoid further pe." and a long rejection reason pushed the status off the end.
+
+**Semaphore content rules.** Sources: [semaphore.co/docs](https://semaphore.co/docs), `/faq` and `/terms` (checked 2026-09-26), plus the carrier and NTC rules in [§0.4](#04-philippine-sms-rules--compliance). The rules also sit in the file header, so the next template follows them. Transport rules (bulk POSTs, rate limits, sender name) are in [App. C.1](#c1-semaphore-sms--philippine-local).
+
+| # | Rule (source) | How the templates follow it |
+|---|---|---|
+| R1 | 1 credit per 160 ASCII chars; longer is split and billed per 153 (docs, FAQ) | Every template is ≤160 **after** `gsm7_safe()`, which is the length Semaphore bills |
+| R2 | Non-ASCII drops to 70-char Unicode segments (FAQ) | Fixed text is ASCII (`PHP 5,490.00`, `-`). Free text is cleaned before it is measured |
+| R3 | A message that starts with "TEST" is silently dropped (docs, FAQ) | Every template starts with `AMS`. `sms_avoid_ignored_prefix()` stays as the backstop |
+| R4 | No impersonation (terms) | `AMS:` names the sender, even under Semaphore's shared sender name |
+| R5 | No links: carriers filter A2P URLs and block shorteners (§0.4) | No template has a link. `sms_fit()` strips URLs, `www.` hosts and bare domains from free text |
+| R6 | Transactional only; no ads without consent (terms, NTC spam rules) | Each text is a fact about the tenant's own account or request |
+| R7 | No sensitive data (§0.4) | No passwords, OTPs, invoice or payment references. The service-completed SMS gives the amount, not the invoice ID |
+| R8 | No spam or mailbombs (terms) | Templates add no sends. The existing daily claims and `sms_daily_cap` decide frequency |
+
+**How a template is built.** `sms_fit($head, $flex, $tail)` keeps `$head` and `$tail` (the status, amount, date, unit) whole. It shortens only `$flex` (a title, label, reason or body), cutting at a word boundary and ending with `...`. Small helpers do the formatting: `sms_unit()` gives "Unit A" or "your unit", `sms_amount()` gives `PHP 5,490.00`, and `sms_date()` gives `Oct 5, 2026`.
+
+| Function | Used by | Example |
+|---|---|---|
+| `sms_announcement_template($title, $body, $tag)` | `create_announcement.php` | `AMS Urgent: Water interruption - Water will be off on Oct 1 from 9am to 5pm while the tanks are cleaned. Please store enough water the night before. Updates...` |
+| `sms_payment_template($amount, $room, $due_date, $event, $custom, $today)` | `send_payment_reminder.php` | `AMS: Payment of PHP 5,490.00 for Unit D was due Jun 15, 2026 (103 days overdue). Please pay now to avoid further penalties.` There is also a variant for due soon and one for due today. A custom admin message keeps `(PHP x due <date>)` |
+| `sms_status_update_template($type, $label, $status, $details)` | maintenance, CCTV, parking, service, `process_tenant_request.php` | `AMS: Your maintenance request "Structural/Physical" is now Rejected. Reason: The reported leak comes from the unit above and is the responsibility of that...` |
+| `sms_lease_reminder_template($room, $lease_end, $days_left)` | `send_lease_end_reminders()` (sweep) | `AMS: Your lease for Unit A ends Oct 6, 2026 (10 days left). To stay, request an extension in My Room or contact the office.` |
+| `sms_test_template($stamp)` | `send_test_notification.php` | `AMS: Test message sent Sep 26, 20:46. If you received this, SMS notifications are working.` |
+
+The in-app text is unchanged. It still comes from each endpoint (and from `reminder_text()` for reminders). Application approval stays email-only. Selftest: M6-43 to M6-47 ([§4.3](#43-verification)).
+
+---
+
 ### 1.6 Central Dispatcher — send_notification.php
 
 **File:** [`backend/api/services/send_notification.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/services/send_notification.php) — **shipped**, and it holds the queue drain too. The per-channel opt-out ladder written out twice below is now one `user_channel_allowed()` call per channel (config.php), so C2 ordering lives in exactly one place.
@@ -1026,6 +1059,8 @@ The same pattern applies to each status-change endpoint. After the existing `cre
 > **This is the highest-value wiring in Phase 2 and the one most at risk from C5.** The sweep runs from `get_notifications.php` — a poll that *every signed-in page* makes. The first request of the day claims the run, so if the sweep sends synchronously, one unlucky tenant's page load carries every rent-due SMS and email for the whole building. Enqueuing is not optional here.
 >
 > The sweep is also the natural place to **drain** the queue on Railway (C7): after the reminder loops, call `process_notification_queue($conn, 20)` — the same function `process_queue.php` wraps. One tenant's poll then carries at most 20 sends, and the next poll carries the next 20.
+
+> **Status (2026-09-26).** The **lease-end reminder** now goes out by SMS and email. `send_lease_end_reminders()` dispatches `sms_lease_reminder_template()` + `email_lease_reminder_template()` after its once-per-lease claim. It is wrapped in try/catch, and the mode is `_admin_action_mode()`: sync on the `log` drivers, otherwise the configured mode, which is `queue` by default. **Rent-due and overdue reminders from the sweep are still in-app only.** The design below is not yet wired; when it is, use `sms_payment_template()` (§1.5a), not `"AMS: " . $message`.
 
 The sweep already calls `create_notification()` for rent-due and overdue reminders (lines 1641, 1660). Add SMS/email dispatch alongside:
 
@@ -1498,6 +1533,11 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-40 | Two `GET get_sms_balance.php` calls within a minute, provider `semaphore` | Second answer is `Semaphore rate limit reached (retry after 60s)` on a 429 (seen live with an invalid key, 2026-09-24); with a valid key the second call is served from the 60 s cache (`cached: true`, `checked_at`) and Semaphore is not called |
 | M6-41 | Drain four same-text SMS jobs, one with number `12345` (selftest) | One bulk send: 3 `sent` rows, 1 `failed` (Invalid phone number), outbox +3 |
 | M6-42 | `_semaphore_result_for()` on a two-message Semaphore answer (selftest) | `Queued` recipient ok with its `message_id`; `Refunded` and missing recipients fail |
+| M6-43 | Every SMS template with 500-char inputs full of `₱`, `ñ`, em dashes, smart quotes (selftest) | ≤160 chars, ASCII-clean (`gsm7_safe($s) === $s`), starts with `AMS` (§1.5a R1–R3) |
+| M6-44 | Overdue template with a long unit name (selftest) | Keeps `PHP 5,490.00`, the due date and ends `further penalties.` — the old blind cut ended "…pe." |
+| M6-45 | Status template, `Rejected`, 500-char reason (selftest) | `is now Rejected.` intact; the reason ends with `...` |
+| M6-46 | Lease-end templates dispatched to the fixture, sync (selftest) | One `sent` SMS row and one `sent` email row. The sweep wiring itself was checked live on 2026-09-26: a lease moved 10 days out gave `lease_end_reminders_sent 1` plus an SMS row and an email row |
+| M6-47 | Announcement body and custom reminder containing `https://bit.ly/…`, `www.…`, `pay.example.com/…`; service-completed SMS (selftest) | No link survives (R5); no invoice ID in the service SMS (R7) |
 
 **Tier 2 — live provider (costs credits; run once, record the result)**
 
@@ -1517,7 +1557,7 @@ Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — 
 | M6-33 | Queue drains on Railway with no cron | Rows drain via the sweep/poll piggyback (C7) |
 | M6-34 | Outbound port 587 from the Railway container | SMTP connects — verify before relying on it |
 
-**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18, C11, M6-35, M6-39, M6-41, M6-42 and DRY (21 checks) in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
+**Running the tests.** Tier 1 is automated — `php backend/cron/notification_selftest.php` covers M6-02 through M6-18, C11, M6-35, M6-39, M6-41 through M6-47 and DRY (26 checks) in one run, on the mock drivers, with no spend. The manual recipes that used to sit here (send one SMS, send one email, dispatch and drain, read the log and the outbox) are in the runbook:
 
 > **[`sms_email_mock_testing.md`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)**
 
@@ -1547,6 +1587,7 @@ After all tests pass:
 | ✅ `backend/api/services/send_sms.php` | 1 | **Shipped:** `log` driver + mock outbox; **Semaphore** live (C.1) — the only real provider |
 | ✅ `backend/api/services/send_email.php` | 1 | **Shipped:** `log` driver + an SMTP branch that waits for PHPMailer |
 | ✅ `backend/api/services/email_templates.php` | 1 | **Shipped:** escaped throughout (C10) |
+| ✅ `backend/api/services/sms_templates.php` | 1 | **Shipped 2026-09-26:** SMS templates to Semaphore's content rules (§1.5a) |
 | ✅ `backend/api/services/send_notification.php` | 1 | **Shipped:** dispatcher, enqueue and the queue drain |
 | ✅ `backend/api/migrations/2026_09_sms_email_channels.sql` | 1 | Schema migration — **shipped** |
 | ✅ `backend/cron/process_queue.php` | 1 | **Shipped:** CLI drain (moved to Phase 1 per §0.2) |
@@ -1594,7 +1635,7 @@ Complete map of every event that triggers a notification, the endpoint that fire
 
 > **Two corrections (v1.1).**
 >
-> **Every SMS body below contains `₱` or an em dash**, which forces UCS-2 and cuts the segment to 70 characters — a message you think is one segment bills as three ([§0.3](#03-cost-model)). Rewrite them GSM-7-clean: `PHP 4,500` not `₱4,500`, `-` not `—`, no emoji. `gsm7_safe()` does this at send time, but fix the source strings so the character budget is honest.
+> **Resolved 2026-09-26.** The original SMS bodies contained `₱` or an em dash, which forces UCS-2 and 70-character segments ([§0.3](#03-cost-model)). The shipped texts now come from `sms_templates.php` ([§1.5a](#15a-sms-templates--sms_templatesphp)): ASCII-only, ≤160 characters, no links. The SMS Text column below shows what is actually sent.
 >
 > **The "SMS" column is a menu, not a plan.** Sending all twelve by SMS to every tenant is 240–510 messages/month for 30 units. The `Default` column below is the recommendation: email carries everything, SMS carries only what is time-critical and cheap.
 
@@ -1608,17 +1649,18 @@ Complete map of every event that triggers a notification, the endpoint that fire
 
 | Event | Endpoint | Notification Type | SMS Text | Email Subject |
 |---|---|---|---|---|
-| Announcement | `create_announcement.php` | info / warning / action | `AMS: {title} — {body:120}` | `📢 AMS Announcement: {title}` |
-| Maintenance status | `update_maintenance_status.php` | maintenance_update | `AMS: Your request "{label}" is now {status}.` | `🔧 Maintenance Update — {label}` |
-| CCTV decision | `update_cctv_status.php` | cctv_request | `AMS: Your CCTV request for {location} has been {status}.` | `📹 CCTV Request — {status}` |
-| Parking decision | `update_parking_status.php` | parking_reservation | `AMS: Your parking request has been {status}.` | `🅿️ Parking Update — {status}` |
-| Service status | `update_service_status.php` | service_status | `AMS: Service request #{id} is now {status}.` | `🛎️ Service Request — {status}` |
-| Lease extension | `process_tenant_request.php` | lease_extension_request | `AMS: Your lease extension has been {decision}.` | `📋 Lease Extension — {decision}` |
-| Occupancy change | `process_tenant_request.php` | occupancy_change_request | `AMS: Your occupancy change has been {decision}.` | `👥 Occupancy Request — {decision}` |
-| Rent due (sweep) | `config.php` sweep | rent_due | `AMS: Your ₱{amount} rent for {room} is due {date}.` | `⏰ Rent Due — Unit {room}` |
-| Overdue (sweep) | `config.php` sweep | overdue | `AMS: Your ₱{amount} rent for {room} is overdue.` | `⚠️ Overdue Payment — Unit {room}` |
-| Payment confirmed | `paymongo_webhook.php` | payment_received | `AMS: ₱{amount} received for {room}. Ref: {ref}` | `💰 Payment Received — Unit {room}` |
-| Lease expiring | `config.php` sweep | lease_expiring | `AMS: Your lease for {room} expires in {days} days.` | `📋 Lease Expiring — Unit {room}` |
+| Announcement | `create_announcement.php` | info / warning / action | `AMS {tag}: {title:60} - {body…}` (`AMS:` for General) | `📢 AMS Announcement: {title}` |
+| Maintenance status | `update_maintenance_status.php` | maintenance_update | `AMS: Your maintenance request "{label:40}" is now {status}. Reason: {reason…}` | `🔧 Maintenance Update — {label}` |
+| CCTV decision | `update_cctv_status.php` | cctv_request | `AMS: Your CCTV footage request "{location:40}" is now {status}.` | `📹 CCTV Request — {status}` |
+| Parking decision | `update_parking_status.php` | parking_reservation | `AMS: Your parking request "{model} ({plate})" is now {status}. Slot #{n} for {m} month(s).` / `Reason: {reason…}` | `🅿️ Parking Update — {status}` |
+| Service status | `update_service_status.php` | service_status | `AMS: Your service request "{name}" is now {status}. PHP {amount} has been added to your invoice.` (no invoice ID, R7) | `🛎️ Service Request — {status}` |
+| Lease extension | `process_tenant_request.php` | lease_extension_request | `AMS: Your lease extension request is now {decision}.` (+ monthly-billing note) | `📋 Lease Extension — {decision}` |
+| Occupancy change | `process_tenant_request.php` | occupancy_change_request | `AMS: Your {request label} is now {decision}.` | `👥 Occupancy Request — {decision}` |
+| Rent due (admin reminder) | `send_payment_reminder.php` | rent_due | `AMS: Payment of PHP {amount} for Unit {room} is due {date} ({n} days left). Please pay via your tenant portal.` | `Payment Reminder - Unit {room}` |
+| Overdue (admin reminder) | `send_payment_reminder.php` | overdue | `AMS: Payment of PHP {amount} for Unit {room} was due {date} ({n} days overdue). Please pay now to avoid further penalties.` | `Payment Reminder - Unit {room}` |
+| Rent due / overdue (sweep) | `config.php` sweep | rent_due / overdue | **Not sent yet**, in-app only (§2.5). Use `sms_payment_template()` when wired | — |
+| Payment confirmed | `paymongo_webhook.php` | payment_received | **Not sent**, in-app only | — |
+| Lease expiring | `config.php` sweep (`send_lease_end_reminders()`) | contract_update | `AMS: Your lease for Unit {room} ends {date} ({n} days left). To stay, request an extension in My Room or contact the office.` | `Lease Expiring Soon - Unit {room}` |
 
 ---
 
@@ -1682,6 +1724,7 @@ Complete map of every event that triggers a notification, the endpoint that fire
 | Recipients | The queue drain groups claimed SMS jobs with the same `event_type` and body (an announcement) and sends each group through `send_sms_bulk()`: one POST with up to 1000 comma-separated numbers (`SEMAPHORE_MAX_RECIPIENTS`), as Semaphore recommends over per-number calls. Duplicate numbers are sent once. Invalid numbers fail on their own, each recipient still gets its own `notification_log` row and its queue job its own retry. The daily cap sends only what is left today and logs the rest `skipped`. Unique texts, sync mode and **Send test** still use single-number `send_sms()` |
 | Delivery status | A `Queued`/`Pending`/`Sent` answer is logged as `sent` (accepted by Semaphore), with the answer kept in `provider_status`. Final carrier delivery is not polled (`GET /messages/{id}`, 30/min); `provider_message_id` is what such a check would use |
 | Encoding | Semaphore bills one credit per **160 ASCII characters**. `gsm7_safe()` folds `₱`, dashes, smart quotes and accented letters (`ñ`→`n`, `é`→`e`, `£`→`GBP `) to ASCII and drops everything else, including the GSM extension characters (square and curly brackets, tilde, caret, pipe, backslash, backtick) that carriers count double |
+| Content | Every message text comes from `sms_templates.php` ([§1.5a](#15a-sms-templates--sms_templatesphp)), which is written to Semaphore's docs, FAQ and terms. That means one 160-char ASCII segment, `AMS` first (never "TEST"), no links, transactional facts only, and no invoice or payment references. Only the free-text part is shortened, never the status, amount or date |
 
 **Verify setup:** use **Send test** in Account Settings, then:
 

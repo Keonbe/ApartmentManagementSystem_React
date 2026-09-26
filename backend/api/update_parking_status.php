@@ -84,18 +84,21 @@ try {
         $upd->bind_param("ii", $slot_number, $id);
         $title = "Parking Slot Assigned";
         $message = "Your parking request for {$current['vehicle_model']} ({$current['plate_number']}) has been approved. You have been assigned slot #$slot_number for {$current['duration_months']} month(s).";
+        $sms_details = "Slot #$slot_number for {$current['duration_months']} month(s).";
         $log = "Reservation ID: $id assigned slot #$slot_number";
     } elseif ($status === 'Rejected') {
         $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Rejected', rejection_reason = ? WHERE id = ? AND status = 'Pending'");
         $upd->bind_param("si", $reason, $id);
         $title = "Parking Request Rejected";
         $message = "Your parking request for {$current['vehicle_model']} ({$current['plate_number']}) was not approved. Reason: $reason";
+        $sms_details = "Reason: $reason";
         $log = "Reservation ID: $id rejected. Reason: $reason";
     } else {
         $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Released', released_at = NOW(), release_reason = ? WHERE id = ? AND status = 'Assigned'");
         $upd->bind_param("si", $reason, $id);
         $title = "Parking Slot Released";
         $message = "Your parking slot for {$current['vehicle_model']} ({$current['plate_number']}) has been released. Reason: $reason";
+        $sms_details = "Reason: $reason";
         $log = "Reservation ID: $id released. Reason: $reason";
     }
 
@@ -130,7 +133,9 @@ create_notification($conn, (int)$current['user_id'], 'parking_reservation', $tit
 log_activity($conn, $admin_id, 'service', "Updated Parking Reservation", $log);
 
 $notification_dispatch = dispatch_admin_action_notification(
-    $conn, (int)$current['user_id'], 'parking_reservation', $title, "AMS: $message",
+    $conn, (int)$current['user_id'], 'parking_reservation', $title,
+    sms_status_update_template('parking',
+        $current['vehicle_model'] . ' (' . $current['plate_number'] . ')', $status, $sms_details),
     email_status_update_template(
         notify_recipient_name($conn, (int)$current['user_id']),
         'parking',

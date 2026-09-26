@@ -98,7 +98,7 @@ Keep a checklist of all 104 files in the audit doc and mark each as done. Read-o
 
 ## Verification
 - `php -l` on every changed PHP file.
-- `php backend/cron/notification_selftest.php` stays 21/21.
+- `php backend/cron/notification_selftest.php` stays 26/26.
 - `php backend/cron/check_environment.php`.
 - For each Phase 2 module, live curl with Bearer tokens (seed accounts, verification guide §1.4/§3.2):
   - one happy path;
