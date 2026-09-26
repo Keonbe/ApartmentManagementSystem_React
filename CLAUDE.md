@@ -40,7 +40,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 
 ## Workflow rules
 
-- Git: bug fixes and routine work are committed straight to `main`. Big implementations (e.g. the chat module, a new module) go on a `feature/<name>` branch, then merge to `main` once verified. No required-PR branch protection.
+- Git: all work, including big implementations, is committed straight to `main`, with no feature branches. Split a large change into one commit per area or phase. No required-PR branch protection.
 
 - Work directly by default. Use a subagent only for broad read-only sweeps whose raw output the main thread doesn't need (e.g. "which endpoints lack `log_activity`"); prefer `repo-sweep` (Sonnet). Don't spawn subagents for single-area fixes, edits, or verification.
 - Prefer Edit over full-file Write unless most of the file changes.
