@@ -124,6 +124,9 @@ erDiagram
         varchar proof_of_payment_path
         varchar sender_name
         varchar billing_period "e.g. 'January 2026'"
+        date rent_period_start "tenancy month a rent invoice bills"
+        date rent_period_key "generated: rent_period_start unless cancelled"
+        varchar payment_group "ADV-… advance payment"
         varchar status "pending | paid | overdue | pending-verification"
         timestamp paid_at
         date due_date
@@ -511,7 +514,7 @@ erDiagram
 ### Billing
 | Table | Purpose |
 |---|---|
-| `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. `base_rent`/`water`/`electricity`/`parking`/`services`/`maintenance`/`late_fee` are itemized and summed into `total_amount`; `services` and `maintenance` accumulate (each can hold more than one completed charge's cost in the same month) — `maintenance` is kept separate from `services` so a tenant-caused repair recharge (audit H10) doesn't blend into voluntary add-on bookings. `water`/`electricity` are set once from a single utility reading — `sync_utility_to_invoice.php` refuses to merge into an invoice that already carries them, and adds to `total_amount` rather than recomputing it. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. Creation is insert-only (`create_invoice.php`, audit H8) — re-issuing an existing id is refused; `adjust_invoice.php` edits only the manual lines (`base_rent`/`water`/`electricity`/`parking`/`late_fee`/`due_date`) and always recomputes `total_amount` from every column, so `services`/`maintenance`/`security_deposit` can never be dropped. |
+| `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. `base_rent`/`water`/`electricity`/`parking`/`services`/`maintenance`/`late_fee` are itemized and summed into `total_amount`; `services` and `maintenance` accumulate (each can hold more than one completed charge's cost in the same month) — `maintenance` is kept separate from `services` so a tenant-caused repair recharge (audit H10) doesn't blend into voluntary add-on bookings. `water`/`electricity` are set once from a single utility reading — `sync_utility_to_invoice.php` refuses to merge into an invoice that already carries them, and adds to `total_amount` rather than recomputing it. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. Creation is insert-only (`create_invoice.php`, audit H8) — re-issuing an existing id is refused; `adjust_invoice.php` edits only the manual lines (`base_rent`/`water`/`electricity`/`parking`/`late_fee`/`due_date`) and always recomputes `total_amount` from every column, so `services`/`maintenance`/`security_deposit` can never be dropped. **Rent periods (2026-09-26):** a rent invoice's `rent_period_start` is the first day of the tenancy month it bills — the contract's lease-start day in that month, clamped to month end — and its due date. The daily sweep (`generate_due_rent_invoices()`) issues each month 7 days before it starts and never back-bills a month that has already started. `UNIQUE (user_id, rent_period_key)`, where the STORED generated `rent_period_key` is `rent_period_start` except on a cancelled row, stops any writer billing a month twice. Older rent invoices have no `rent_period_start` and are matched by their `billing_period` label. `payment_group` (`ADV-…`) ties the months of one advance payment, which are paid together but settled and receipted one invoice at a time. |
 | `expenses` | Building expenses an admin enters by hand (`manage_expenses.php`): utilities, supplies, salaries, common-area upkeep, taxes and fees, insurance, other. `get_report_data.php` adds them to the maintenance costs it derives from `maintenance_requests` — repairs are never entered here, so nothing is counted twice. |
 | `utility_readings` | One row per unit per billing month (`UNIQUE (room_name, billing_period)`). `billing_period` is `YYYY-MM`, while invoices label the same month `"September 2026"` — always convert with `utility_period_label()` before matching. Previous/current readings form a chain per unit, so readings are recorded oldest-first and only the latest un-invoiced one may be deleted. `is_invoiced` is claimed atomically before the charge is posted, and `invoice_id` records the invoice it landed on. |
 
@@ -596,6 +599,7 @@ Each is idempotent and only needed for a database created before it; a fresh `Se
 | `2026_09_sms_semaphore_live.sql` | `sms_sender_approved`, `sms_daily_cap` settings |
 | `2026_09_sms_semaphore_only.sql` | Removes the dropped Twilio/Vonage/Movider/iTexMo settings; resets a removed `sms_provider` to `log` |
 | `2026_09_sms_provider_message_id.sql` | `notification_log.provider_message_id` / `provider_status` (+ index) |
+| `2026_09_rent_periods_advance.sql` | `invoices.rent_period_start`, generated `rent_period_key`, `payment_group`, the `uq_invoice_rent_period` unique key; rewrites move-in `billing_period` from `YYYY-MM` to `Month YYYY` and marks them tenancy month 0 |
 | `create_messages_table.sql` | The chat `messages` table (not in `SetupDB.sql` yet) |
 
 ### `clear_and_seed.sql` and `seed_reset.sql`

@@ -168,12 +168,17 @@ if ($id > 0 && !empty($status)) {
                 $check_res = $check_inv->get_result();
                 if ($check_res->num_rows === 0) {
                     $invoice_id = 'INV-' . uniqid();
-                    $billing_period = date('Y-m'); // Must be YYYY-MM to fit VARCHAR(7)
+                    // The same "Month YYYY" label every other writer uses (this
+                    // used to be 'YYYY-MM', which the duplicate-rent check never
+                    // matched). The advance rent is tenancy month 0;
+                    // settle_invoice() moves it to the payment date, when the
+                    // tenancy actually starts.
+                    $billing_period = billing_period_label(new DateTime($lease_start));
                     $due_date = date('Y-m-d', strtotime('+7 days'));
                     $total_amount = $monthly_rent * 2; // 1st month + 1 month deposit
-                    
-                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
-                    $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
+
+                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, rent_period_start, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
+                    $inv_stmt->bind_param("siidddsss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $lease_start, $due_date);
                     if (!$inv_stmt->execute()) {
                         throw new Exception("Failed to create move-in invoice: " . $inv_stmt->error);
                     }

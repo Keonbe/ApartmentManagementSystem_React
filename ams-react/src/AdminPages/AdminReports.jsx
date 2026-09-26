@@ -13,7 +13,7 @@ import {
   faChartPie, faSave, faSpinner, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { MAX_AMOUNT, checkAmount, checkDate, firstError } from '../utils/validation';
+import { MAX_AMOUNT, checkAmount, checkDate, firstError, localDateString } from '../utils/validation';
 import ExpensesModal from '../Components/ExpensesModal';
 import { expenseCategoryLabel } from '../config/expenseCategories';
 
@@ -259,7 +259,9 @@ const AdminReports = () => {
 
   const openGenerateInvoiceModal = () => {
     const defaultPeriod = `${monthsList.find(m => m.value === selectedMonth)?.label || 'Current Month'} ${selectedYear}`;
-    const defaultDue = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-15`;
+    // The 15th of the report month, but never a date already past.
+    const monthDue = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-15`;
+    const defaultDue = monthDue < localDateString() ? localDateString() : monthDue;
     const defaultInvId = `INV-${selectedYear}${String(selectedMonth).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
     
     const firstTenant = tenantInvoiceOptions[0];
@@ -320,9 +322,15 @@ const AdminReports = () => {
     // Blank lines count as 0; anything else must be a non-negative amount that
     // fits the decimal(10,2) columns, and the due date a real calendar day.
     const amountFields = [['rent', 'Base rent'], ['water', 'Water'], ['electric', 'Electric'], ['parking', 'Parking'], ['lateFee', 'Late fee']];
+    // No due date in the past (create_invoice.php / adjust_invoice.php enforce
+    // it too); an adjustment may keep the invoice's own, already lapsed date.
+    const originalDue = invoiceMode === 'adjust'
+      ? String(adjustableInvoices.find(i => i.id === selectedAdjustInvoiceId)?.due_date || '').slice(0, 10)
+      : '';
+    const dueUnchanged = invoiceMode === 'adjust' && invoiceForm.dueDate === originalDue;
     const invoiceError = firstError(
       ...amountFields.map(([key, label]) => checkAmount(invoiceForm[key] === '' ? 0 : invoiceForm[key], { label })),
-      invoiceForm.dueDate ? checkDate(invoiceForm.dueDate, { label: 'Due date' }) : ''
+      invoiceForm.dueDate && !dueUnchanged ? checkDate(invoiceForm.dueDate, { min: localDateString(), label: 'Due date' }) : ''
     );
     if (invoiceError) {
       alert(invoiceError);
@@ -2368,9 +2376,10 @@ const AdminReports = () => {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Due Date</label>
-                    <input 
-                      type="date" 
-                      value={invoiceForm.dueDate} 
+                    <input
+                      type="date"
+                      min={invoiceMode === 'create' ? localDateString() : undefined}
+                      value={invoiceForm.dueDate}
                       onChange={e => setInvoiceForm(p => ({ ...p, dueDate: e.target.value }))}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
                     />

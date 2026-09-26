@@ -30,13 +30,13 @@
 | Category | Open tasks | High |
 |---|---|---|
 | [Urgent](#urgent--panelist-checklist-gaps) (panelist checklist gaps) | 3 | 3 |
-| Backend | 12 | 0 |
+| Backend | 11 | 0 |
 | Frontend | 8 | 0 |
 | Security | 18 | 5 |
 | Deployment | 16 | 0 |
 | Testing and quality | 2 | 0 |
 | Documentation | 8 | 0 |
-| **Total** | **67** | **5** |
+| **Total** | **66** | **5** |
 
 The Urgent row's "High" count is its own 3 Urgent items, not audit-High — see the note on priority above. The Total's High column counts only true audit-High items (Security 5), so it does not double-count the Urgent row.
 
@@ -90,7 +90,6 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks �
 | [ ] | Low | **Bug** L6: lease extensions skip the 24-month cap and `CONTRACT_TRANSITIONS`, and don't re-arm the lease-end reminder. | [Audit L6](audits/ams_security_workflow_audit_2026-09-16.md#l6) |
 | [ ] | Low | **Maint** L7: `get_rooms.php` runs N+1 queries, and the sweep, overstay and overdue checks run on every poll or GET. | [Audit L7](audits/ams_security_workflow_audit_2026-09-16.md#l7) |
 | [ ] | Low | **Maint** L10: `service_request.php` writes its queue row by hand. Use `notify_admins_queue()`. | [Audit L10](audits/ams_security_workflow_audit_2026-09-16.md#l10) |
-| [ ] | Unprioritized | **Enh** Generate monthly invoices automatically (no scheduler exists yet; prd v2.0). | [date_dependent_testing §14](date_dependent_testing.md#14-tips--gotchas), [prd v2.0](../.agents/prd.md#v20--future-backlog-post-defense) |
 | [ ] | Unprioritized | **Enh** Scheduled announcements (FR-10.6), targeting specific tenants instead of only "all" or "one unit" (FR-10.7), and reservation reports per module (parking, CCTV, maintenance per unit) (FR-11.7). | [todo.md Announcements](todo.md#announcements), [todo.md Reports](todo.md#reports), [system_design FR-10](documentation/system_design.md#fr-10-announcements--notifications) |
 | [ ] | Unprioritized | **Enh / Bug** Service-management known limitations: no recurring bookings, no staff-assignment UI, reversal after payment is manual, and `parking_reservation.php` still stores `../uploads/` paths. | [service_management_design §8](features/service_management_design.md#8-known-limitations) |
 
@@ -202,6 +201,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | Panel feedback (2026-09-26): fixed +63 contact numbers stored as `+639XXXXXXXXX`; visitor ID number required, visit date/time, checkout-note dropdown; payment confirmation loop (tenant notified on submit, live "awaiting / confirmed / rejected" on PayBills); **monthly rent invoices generated automatically** from the lease start (`generate_due_rent_invoices()` in the daily sweep, no back-billing, no past due dates), lease extensions billed the same way. | [verification guide §6](documentation/module_verification_guide.md#6-module-3--rental-payment--billing), [§16](documentation/module_verification_guide.md) |
 | [x] | Frontend input validation (2026-09-25, `feature/frontend-validation`): shared `utils/validation.js` (column-size `LIMITS`, PH mobile rule matching `profile.php`, password 8-72, amounts within decimal(10,2), real calendar dates), `utils/fileLimits.js` (each upload endpoint's types/size plus the 12 MB `post_max_size` total) and `utils/apiError.js`. Applied to account, billing, tenancy, applicant, maintenance/service, parking/visitor/CCTV, announcement and settings forms. Fixed along the way: Registration allowed 6-character passwords, both phone checks accepted numbers starting with 8 that the backend rejects, visitor ID photos accepted PDFs the backend refuses, UTC date defaults were a day early in Manila before 08:00, AdminParking showed failed updates as success, archiving a tenant ignored the result. The backend is still the boundary: see the deferred plan. | [input_validation_backend_plan.md](audits/input_validation_backend_plan.md) |
 | [x] | Docs refresh (2026-09-24): README rewritten to the current code; `todo.md` stale rows ticked; `system_design.md` got a §0 current-state inventory (104 endpoints, 30 tables + `messages`, all routes) and its mock/`X-User-Id` claims corrected; stack version aligned to React 19 / Vite 8 across README, CLAUDE.md, checklist, guides, prd | [README.md](../README.md), [system_design §0](documentation/system_design.md) |
 | [x] | Two-way chat (PR #8, 2026-09-22/24): Socket.IO sidecar `websocket-server/` with HTTP polling fallback, flat `messages` table, `get_chat_history` / `send_message` / `get_conversations` / `get_admin_user`, `ChatWidget` + `ChatContext`, admin inbox `/admin-messages`. Checklist 7.2–7.5 ✅; gaps in the Urgent row | [chat_design As built](features/chat_design.md) |

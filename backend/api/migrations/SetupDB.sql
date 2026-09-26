@@ -110,6 +110,12 @@ CREATE TABLE `invoices` (
   `proof_rejection_reason` varchar(255) DEFAULT NULL,
   `sender_name` varchar(150) DEFAULT NULL,
   `billing_period` varchar(50) NOT NULL,
+  -- Rent periods and advance payments (2026_09_rent_periods_advance.sql): the
+  -- tenancy month a rent invoice bills; the same date minus cancelled rows,
+  -- for the unique key; and the ADV-… group of one advance payment.
+  `rent_period_start` date DEFAULT NULL,
+  `rent_period_key` date GENERATED ALWAYS AS (IF(`status` = 'cancelled', NULL, `rent_period_start`)) STORED,
+  `payment_group` varchar(40) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',
   `cancel_reason` varchar(50) DEFAULT NULL,
   `paid_at` timestamp NULL DEFAULT NULL,
@@ -122,6 +128,8 @@ CREATE TABLE `invoices` (
   PRIMARY KEY (`id`),
   KEY `fk_invoice_user` (`user_id`),
   KEY `fk_invoice_rent_app` (`rent_application_id`),
+  UNIQUE KEY `uq_invoice_rent_period` (`user_id`, `rent_period_key`),
+  KEY `idx_invoice_payment_group` (`payment_group`),
   CONSTRAINT `fk_invoice_rent_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_invoice_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

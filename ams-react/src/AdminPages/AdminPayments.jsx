@@ -10,7 +10,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError, localDateString } from '../utils/validation';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 
@@ -667,7 +667,7 @@ const handleMarkAsPaid = async () => {
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Due Date</p>
-                      <input type="date" value={activeTenant.dueDate} onChange={e => handleUpdateTenantField('dueDate', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800" />
+                      <input type="date" min={localDateString()} value={activeTenant.dueDate} onChange={e => handleUpdateTenantField('dueDate', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800" />
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Term</p>

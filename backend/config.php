@@ -978,12 +978,23 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
                     // very move-in payment (audit C1) — an expired contract goes
                     // through the lease-renewal/restore flow instead, and
                     // 'eviction-pending' stays untouched.
-                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE rent_application_id = ? AND status = 'draft'");
-                    $ctr_upd->bind_param("i", $app_id);
+                    // The tenancy starts on this payment, so the contract takes
+                    // the same dates as the room (it used to keep the approval
+                    // date, and the two disagreed) — rent months are billed
+                    // from the contract's lease_start.
+                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active', lease_start = ?, lease_end = ? WHERE rent_application_id = ? AND status = 'draft'");
+                    $ctr_upd->bind_param("ssi", $lease_start, $lease_end, $app_id);
                     $ctr_upd->execute();
                     $ctr_upd->close();
                 }
                 $ctr_check->close();
+
+                // The move-in invoice's advance rent is tenancy month 0.
+                $period_label = billing_period_label(new DateTime($lease_start));
+                $inv_period = $conn->prepare("UPDATE IGNORE invoices SET rent_period_start = ?, billing_period = ? WHERE id = ?");
+                $inv_period->bind_param("sss", $lease_start, $period_label, $invoice_id);
+                $inv_period->execute();
+                $inv_period->close();
                 $activated = true;
             }
         }
@@ -1097,6 +1108,120 @@ function get_active_tenancy($conn, $user_id) {
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return $row ?: null;
+}
+
+// ── Rent periods (panel feedback 2026-09-26) ──
+// Rent is billed per tenancy month, anchored on the contract's lease_start:
+// month k starts on rent_period_start(lease_start, k) and is due that day.
+// Month 0's rent is the advance month inside the move-in invoice. A period is
+// never generated once its start date has passed, so no invoice is ever
+// issued with a due date in the past (no back-billing).
+//
+// invoices.rent_period_start marks a rent invoice's month. The unique key on
+// (user_id, rent_period_key) — rent_period_key is rent_period_start except on
+// a cancelled invoice — makes creating a month claim-first: the generator, an
+// advance payment and a lease extension can never bill the same month twice.
+
+// Days before a tenancy month starts that its rent invoice is issued.
+const RENT_INVOICE_LEAD_DAYS = 7;
+
+// Start of tenancy month $k: the lease-start day in the k-th month after it,
+// clamped to that month's last day (a lease from Jan 31 bills Feb 28, Mar 31).
+function rent_period_start($lease_start, $k) {
+    $start = new DateTime($lease_start);
+    $day = (int)$start->format('j');
+    $month = (new DateTime($start->format('Y-m-01')))->modify('+' . (int)$k . ' month');
+    $month->setDate((int)$month->format('Y'), (int)$month->format('n'), min($day, (int)$month->format('t')));
+    return $month->format('Y-m-d');
+}
+
+// The tenancy's current monthly rent. rent_applications.monthly_rent is kept
+// live (occupant changes rewrite it — apply_occupant_count()); the room rate
+// is only a fallback for a row that never had one.
+function tenancy_monthly_rent($conn, $app_id) {
+    $stmt = $conn->prepare("SELECT ra.monthly_rent, r.monthly_rent AS room_rent FROM rent_applications ra LEFT JOIN rooms r ON r.id = ra.room_name WHERE ra.id = ?");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) return 0.0;
+    return (float)$row['monthly_rent'] > 0 ? (float)$row['monthly_rent'] : (float)($row['room_rent'] ?? 0);
+}
+
+// Whether the tenancy month starting $period_start is already billed: by its
+// own rent_period_start, or — for invoices written before rent periods
+// existed — by a non-cancelled rent invoice carrying the same "Month YYYY" label.
+function rent_period_billed($conn, $user_id, $period_start) {
+    $label = billing_period_label(new DateTime($period_start));
+    $stmt = $conn->prepare("SELECT 1 FROM invoices WHERE user_id = ? AND status <> 'cancelled'
+                            AND (rent_period_start = ? OR (rent_period_start IS NULL AND base_rent > 0 AND billing_period = ?)) LIMIT 1");
+    $stmt->bind_param("iss", $user_id, $period_start, $label);
+    $stmt->execute();
+    $billed = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $billed;
+}
+
+// Issues the rent invoice for one tenancy month, due on the month's start.
+// Returns the new invoice id, or null when that month is already billed
+// (including by a concurrent writer — the unique key refuses the second row).
+function create_rent_invoice($conn, $user_id, $app_id, $period_start, $rent, $payment_group = null) {
+    if (rent_period_billed($conn, $user_id, $period_start)) return null;
+
+    $period = new DateTime($period_start);
+    $label = billing_period_label($period);
+    $invoice_id = 'INV-' . $period->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+    $rent = round((float)$rent, 2);
+
+    $stmt = $conn->prepare("INSERT IGNORE INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date, rent_period_start, payment_group)
+                            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)");
+    $stmt->bind_param("siiddssss", $invoice_id, $user_id, $app_id, $rent, $rent, $label, $period_start, $period_start, $payment_group);
+    $stmt->execute();
+    $created = $stmt->affected_rows > 0;
+    $stmt->close();
+    return $created ? $invoice_id : null;
+}
+
+// Daily-sweep step: for every running tenancy, issue the rent invoice of each
+// tenancy month that starts within RENT_INVOICE_LEAD_DAYS (and before the
+// lease ends). Months whose start has already passed are skipped, not
+// back-billed. Returns the number of invoices created.
+function generate_due_rent_invoices($conn) {
+    $rows = $conn->query("SELECT ra.id AS app_id, ra.user_id, lc.lease_start, lc.lease_end
+                          FROM lease_contracts lc
+                          JOIN rent_applications ra ON ra.id = lc.rent_application_id
+                          WHERE lc.status IN ('active', 'eviction-pending')
+                            AND ra.status IN ('Approved', 'active', 'pending-move-out')
+                            AND ra.user_id IS NOT NULL AND lc.lease_start IS NOT NULL AND lc.lease_end IS NOT NULL");
+    if (!$rows) return 0;
+
+    $today = date('Y-m-d');
+    $horizon = date('Y-m-d', strtotime('+' . RENT_INVOICE_LEAD_DAYS . ' days'));
+    $created = 0;
+
+    while ($t = $rows->fetch_assoc()) {
+        $user_id = (int)$t['user_id'];
+        $app_id = (int)$t['app_id'];
+        $rent = null;
+
+        // First tenancy month (after the move-in month) that has not started yet.
+        $k = 1;
+        while (($start = rent_period_start($t['lease_start'], $k)) < $today && $k < 600) $k++;
+
+        for (; $start <= $horizon && $start < $t['lease_end']; $start = rent_period_start($t['lease_start'], ++$k)) {
+            $rent = $rent ?? tenancy_monthly_rent($conn, $app_id);
+            if ($rent <= 0) break;
+            $invoice_id = create_rent_invoice($conn, $user_id, $app_id, $start, $rent);
+            if (!$invoice_id) continue;
+            $created++;
+            $label = billing_period_label(new DateTime($start));
+            $due = (new DateTime($start))->format('M j, Y');
+            create_notification($conn, $user_id, 'billing', "Rent Invoice: $label",
+                "Your rent for $label (₱" . number_format($rent, 2) . ") is due on $due. You can pay it on the Pay Bills page.",
+                'Resolved', "invoice:$invoice_id");
+        }
+    }
+    return $created;
 }
 
 // Utility readings (checklist 8.7) are keyed by a 'YYYY-MM' billing period — the
@@ -1828,6 +1953,9 @@ function run_notification_sweep($conn, $force = false) {
     $result = [
         'ran' => true,
         'marked_overdue' => promote_overdue_invoices($conn),
+        // Before the parking step, so a month's parking charge lands on that
+        // month's rent invoice rather than opening one of its own.
+        'rent_invoices_created' => generate_due_rent_invoices($conn),
         'upcoming_reminders_sent' => 0,
         'overdue_reminders_sent' => 0,
         'parking_released' => 0,
@@ -1896,12 +2024,12 @@ function run_notification_sweep($conn, $force = false) {
     $result['contracts_expired'] = expire_lapsed_contracts($conn);
     $result['lease_end_reminders_sent'] = send_lease_end_reminders($conn);
 
-    $did = $result['marked_overdue'] + $result['upcoming_reminders_sent'] + $result['overdue_reminders_sent']
+    $did = $result['marked_overdue'] + $result['rent_invoices_created'] + $result['upcoming_reminders_sent'] + $result['overdue_reminders_sent']
          + $result['parking_released'] + $result['parking_charges_posted']
          + $result['contracts_expired'] + $result['lease_end_reminders_sent'];
     if ($did > 0) {
         log_activity($conn, null, 'system', 'Daily Notification Sweep',
-            "Marked overdue: {$result['marked_overdue']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}; contracts expired: {$result['contracts_expired']}; lease-end reminders sent: {$result['lease_end_reminders_sent']}",
+            "Marked overdue: {$result['marked_overdue']}; rent invoices created: {$result['rent_invoices_created']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}; contracts expired: {$result['contracts_expired']}; lease-end reminders sent: {$result['lease_end_reminders_sent']}",
             0);
     }
 

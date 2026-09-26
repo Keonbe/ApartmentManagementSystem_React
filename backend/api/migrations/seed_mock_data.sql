@@ -376,6 +376,18 @@ INSERT IGNORE INTO `utility_readings`
 ('K', 12, '2026-07', '2026-07-31',  80.00,  86.50, 40.00, 6.50, 260.00, 15.00, 1500.00, 1568.00, 12.00, 68.00, 816.00, 9.00, 1, 'INV-202607-12', NULL, @admin_id, '2026-07-31 16:30:00'),
 ('K', 12, '2026-08', '2026-08-31',  86.50,  93.20, 40.00, 6.70, 268.00,  0.00, 1568.00, 1635.00, 12.00, 67.00, 804.00, 8.00, 1, 'INV-202608-12', NULL, @admin_id, '2026-08-31 16:30:00');
 
+-- ============================================================
+-- 15. RENT PERIODS (2026_09_rent_periods_advance.sql)
+-- The two move-in invoices (security_deposit > 0) are tenancy month 0. The
+-- other seeded rent invoices predate rent periods and are matched by their
+-- "Month YYYY" label instead; the daily sweep bills each tenancy month from
+-- the next one that starts on or after today.
+-- ============================================================
+UPDATE `invoices` i
+  JOIN `lease_contracts` lc ON lc.rent_application_id = i.rent_application_id
+   SET i.rent_period_start = lc.lease_start
+ WHERE i.id IN ('INV-202601-14', 'INV-202608-7');
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================

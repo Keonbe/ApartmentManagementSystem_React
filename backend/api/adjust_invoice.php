@@ -92,6 +92,13 @@ if (array_key_exists('dueDate', $input) && !empty($input['dueDate'])) {
         echo json_encode(["success" => false, "message" => "Due date must be a valid date (YYYY-MM-DD)."]);
         exit;
     }
+    // Same rule as create_invoice.php: a due date can move, but never into
+    // the past. Resaving the invoice's own (already lapsed) date is allowed.
+    if ($due_date !== $row['due_date'] && $due_date < date('Y-m-d')) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Due date cannot be in the past."]);
+        exit;
+    }
 }
 
 $old_total = (float)$row['total_amount'];

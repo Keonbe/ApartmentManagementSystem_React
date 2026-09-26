@@ -611,7 +611,7 @@ ORDER BY lc.id DESC LIMIT 1;
 - **`billing_period` is a display string** — never parsed by the backend. Safe to set to any human-readable value (`"September 2026"`).
 - **`rooms.id` is VARCHAR** — always quote it: `WHERE id = 'A'`, not `WHERE id = A`.
 - **`lease_start` / `lease_end` are set by `record_payment_admin.php`** using `date('Y-m-d')` at first-payment approval. To test a specific start date, `UPDATE rooms` directly after approval.
-- **No auto-scheduler exists yet** — monthly invoices do not generate automatically. All invoice creation is admin-initiated. See `docs/todo.md` Priority B for the planned automation.
+- **Monthly rent invoices generate automatically** (since 2026-09-26): the daily sweep (`generate_due_rent_invoices()`, also run by `check_due_date_reminders.php`) issues each tenancy month's rent invoice 7 days before it starts, due on the contract's lease-start day. To test a month without waiting, move the contract's `lease_start` so that a month starts within the next 7 days, then run the sweep. It never back-bills a month that has already started.
 - **Restore all date patches after testing** — always note the original value before patching a `due_date`, `lease_end`, or any date column. Keep a scratchpad of originals.
 - **`rooms.id` in examples** — substitute real IDs from your `rooms` table (e.g. `'A'`, `'B'`, `'1'`, etc.) wherever the examples use `'A'` or `<room_id>`.
 - **Multiple invoices** — a tenant can have several invoices (initial + monthly). Always filter by `id` rather than `user_id` alone when patching a specific invoice to avoid unintended changes.
