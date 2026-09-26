@@ -52,7 +52,7 @@ if (!in_array($scheduled_time_slot, $allowed_slots, true)) {
 $update = $conn->prepare("
     UPDATE invoices
     SET status = 'scheduled', scheduled_date = ?, scheduled_time_slot = ?, payment_gateway = 'in_person'
-    WHERE id = ? AND user_id = ? AND status IN " . billing_open_status_sql() . "
+    WHERE ? IN (id, payment_group) AND user_id = ? AND status IN " . billing_open_status_sql() . "
 ");
 $update->bind_param("sssi", $scheduled_date, $scheduled_time_slot, $invoice_id, $user_id);
 
@@ -71,9 +71,9 @@ if ($update->execute()) {
     // A reschedule replaces the earlier row instead of adding a second one.
     resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
     notify_admins_queue($conn, 'cash_payment_declared', $invoice_id, 'In-Person Payment Scheduled',
-        "A tenant scheduled an in-person payment for invoice $invoice_id on $scheduled_date ($scheduled_time_slot).");
+        "A tenant scheduled an in-person payment for " . payment_key_label($invoice_id) . " on $scheduled_date ($scheduled_time_slot).");
     create_notification($conn, $user_id, 'payment', 'Payment Scheduled',
-        "Your in-person payment for invoice $invoice_id is scheduled on $scheduled_date ($scheduled_time_slot). You will be notified once management records it.",
+        "Your in-person payment for " . payment_key_label($invoice_id) . " is scheduled on $scheduled_date ($scheduled_time_slot). You will be notified once management records it.",
         'Resolved', "invoice:$invoice_id");
     echo json_encode(["success" => true, "message" => "Payment scheduled successfully"]);
 } else {

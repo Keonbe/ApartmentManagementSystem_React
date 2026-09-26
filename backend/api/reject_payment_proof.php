@@ -35,7 +35,8 @@ try {
     // nowhere to go and the invoice quietly dropped off the overdue list,
     // reminders and eviction-monitoring queries forever. Only a row actually
     // in that status may be rejected; anything else has already moved on.
-    $inv_q = $conn->prepare("SELECT user_id, due_date FROM invoices WHERE id = ? AND status = 'pending-verification'");
+    // $invoice_id may be an advance payment's group id: all its months go back.
+    $inv_q = $conn->prepare("SELECT user_id, due_date FROM invoices WHERE ? IN (id, payment_group) AND status = 'pending-verification' ORDER BY due_date LIMIT 1");
     $inv_q->bind_param("s", $invoice_id);
     $inv_q->execute();
     $invoice = $inv_q->get_result()->fetch_assoc();
@@ -51,9 +52,10 @@ try {
     $due_date = $invoice['due_date'];
     $new_status = ($due_date !== null && $due_date < date('Y-m-d')) ? 'overdue' : 'pending';
 
-    $upd = $conn->prepare("UPDATE invoices SET status = ?, proof_rejection_reason = ?, proof_of_payment_path = NULL, payment_reference = NULL
-                            WHERE id = ? AND status = 'pending-verification'");
-    $upd->bind_param("sss", $new_status, $reason, $invoice_id);
+    $upd = $conn->prepare("UPDATE invoices SET status = CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 'overdue' ELSE 'pending' END,
+                                   proof_rejection_reason = ?, proof_of_payment_path = NULL, payment_reference = NULL
+                            WHERE ? IN (id, payment_group) AND status = 'pending-verification'");
+    $upd->bind_param("ss", $reason, $invoice_id);
     $upd->execute();
     if ($upd->affected_rows === 0) {
         $upd->close();
@@ -63,12 +65,12 @@ try {
 
     $conn->commit();
 
-    log_activity($conn, $admin_id, 'billing', "Rejected Payment Proof", "Invoice ID: $invoice_id, Reason: $reason");
+    log_activity($conn, $admin_id, 'billing', "Rejected Payment Proof", ucfirst(payment_key_label($invoice_id)) . ", Reason: $reason");
     resolve_admin_queue($conn, 'payment_verification', $invoice_id);
 
     if (!empty($invoice['user_id'])) {
         create_notification($conn, (int)$invoice['user_id'], 'payment', 'Payment Proof Rejected',
-            "Your payment proof for invoice $invoice_id was not accepted: $reason. Please submit a new payment.",
+            "Your payment proof for " . payment_key_label($invoice_id) . " was not accepted: $reason. Please submit a new payment.",
             'Resolved', "invoice:$invoice_id");
     }
 

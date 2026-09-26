@@ -118,7 +118,7 @@ try {
         // matched so legacy 'YYYY-MM' periods still line up.
         $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
         $stmt = $conn->prepare("SELECT id, water, electricity FROM invoices
-                                WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable
+                                WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL
                                 ORDER BY base_rent DESC, created_at ASC LIMIT 1 FOR UPDATE");
         $stmt->bind_param("iss", $user_id, $label, $period);
         $stmt->execute();

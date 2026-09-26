@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
-import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
+import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import { checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -62,6 +62,17 @@ export default function PayBills() {
     const byDueDate = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
     const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !i.payment_group).sort(byDueDate);
     const awaitingInvoices = invoices.filter(i => AWAITING_STATUSES.includes(i.status)).sort(byDueDate);
+    // One "awaiting" banner per payment: an advance payment's months together.
+    const awaitingEntries = Object.values(awaitingInvoices.reduce((acc, inv) => {
+        const key = inv.payment_group || inv.id;
+        if (!acc[key]) {
+            acc[key] = { ...inv, id: key, months: [inv.billing_period] };
+        } else {
+            acc[key].total_amount = (parseFloat(acc[key].total_amount) || 0) + (parseFloat(inv.total_amount) || 0);
+            acc[key].months.push(inv.billing_period);
+        }
+        return acc;
+    }, {})).map(e => (e.payment_group ? { ...e, billing_period: `Advance: ${e.months.join(', ')}` } : e));
     const activeInv = payableInvoices[0] || awaitingInvoices[0] || null;
 
     {/*Billing breakdown parameters mirroring system metrics*/}
@@ -84,6 +95,75 @@ export default function PayBills() {
     };
     const isAwaiting = AWAITING_STATUSES.includes(billDetails.status);
     const fmtMoney = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+    // ── Advance payment (advance_payment.php) ──
+    // The tenant bills N upcoming months as one group (payment_group 'ADV-…')
+    // and pays them with one payment; each month stays its own invoice and
+    // receipt. The pay endpoints take the group id in place of an invoice id.
+    const [advance, setAdvance] = useState(null); // preview: { available, months[], monthly_rent, lease_end }
+    const [advanceCount, setAdvanceCount] = useState(1);
+    const [advanceBusy, setAdvanceBusy] = useState(false);
+    const [payingAdvance, setPayingAdvance] = useState(false);
+
+    const loadAdvance = async () => {
+        try {
+            const res = await api.get('/advance_payment.php');
+            if (res.data.success) setAdvance(res.data);
+        } catch (err) {
+            console.error('Failed to load advance payment options:', err);
+        }
+    };
+
+    // The open advance payment, from the watched invoices so its status stays live.
+    const groupInvoices = invoices.filter(i => i.payment_group && OPEN_STATUSES.includes(i.status)).sort(byDueDate);
+    const groupKey = groupInvoices[0]?.payment_group || null;
+    const groupMonths = groupInvoices.filter(i => i.payment_group === groupKey);
+    const groupTotal = groupMonths.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0);
+    const groupPayable = groupMonths.length > 0 && groupMonths.every(i => PAYABLE_STATUSES.includes(i.status));
+    const payingGroup = payingAdvance && groupKey && groupPayable;
+
+    // What the payment panel pays: the open advance payment when the tenant
+    // chose it, otherwise the bill on screen.
+    const payKey = payingGroup ? groupKey : billDetails.invoiceId;
+    const payLabel = payingGroup
+        ? `advance payment (${groupMonths.map(i => i.billing_period).join(', ')})`
+        : (billDetails.billingPeriod || 'this bill');
+
+    const handleCreateAdvance = async () => {
+        setAdvanceBusy(true);
+        try {
+            const res = await api.post('/advance_payment.php', { action: 'create', months: advanceCount });
+            if (res.data.success) {
+                await Promise.all([refresh(), loadAdvance()]);
+                setPayingAdvance(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                alert(res.data.message || 'Could not prepare the advance payment.');
+            }
+        } catch (err) {
+            alert(apiErrorMessage(err, 'Could not prepare the advance payment.'));
+        } finally {
+            setAdvanceBusy(false);
+        }
+    };
+
+    const handleCancelAdvance = async () => {
+        if (!groupKey || !window.confirm('Cancel this advance payment? Months that have not started yet are removed from your bills.')) return;
+        setAdvanceBusy(true);
+        try {
+            const res = await api.post('/advance_payment.php', { action: 'cancel', group: groupKey });
+            if (res.data.success) {
+                setPayingAdvance(false);
+                await Promise.all([refresh(), loadAdvance()]);
+            } else {
+                alert(res.data.message || 'Could not cancel the advance payment.');
+            }
+        } catch (err) {
+            alert(apiErrorMessage(err, 'Could not cancel the advance payment.'));
+        } finally {
+            setAdvanceBusy(false);
+        }
+    };
 
     const dueStatus = (() => {
         if (!billDetails.dueDate) return null;
@@ -128,6 +208,8 @@ export default function PayBills() {
             }
         };
         fetchChannels();
+        const loadAdvanceOnMount = async () => { await loadAdvance(); };
+        loadAdvanceOnMount();
 
         // HashRouter: the gateway's return query sits after the hash (#/pay-bills?status=...).
         const hash = window.location.hash;
@@ -176,11 +258,11 @@ export default function PayBills() {
 
     const handlePaymentExecution = async (e) => {
         e.preventDefault();
-        if (!billDetails.invoiceId) {
+        if (!payKey) {
             alert("No pending invoice found.");
             return;
         }
-        if (isAwaiting) {
+        if (!payingGroup && isAwaiting) {
             alert("This bill already has a payment awaiting confirmation.");
             return;
         }
@@ -190,14 +272,14 @@ export default function PayBills() {
             if (dateError) { alert(dateError); return; }
             try {
                 const res = await api.post("/schedule_payment.php", {
-                    invoice_id: billDetails.invoiceId,
+                    invoice_id: payKey,
                     scheduled_date: scheduledDate,
                     scheduled_time_slot: scheduledTimeSlot
                 });
                 if (res.data.success) {
                     await refresh();
                     setNotice({
-                        message: 'Payment scheduled',
+                        message: payingGroup ? 'Advance payment scheduled' : 'Payment scheduled',
                         subtext: `Please pay at the admin office on ${scheduledDate} (${scheduledTimeSlot}). You will be notified once management records your payment.`,
                     });
                 } else {
@@ -214,10 +296,10 @@ export default function PayBills() {
             try {
                 const returnBase = appReturnBase();
                 const res = await api.post("/create_checkout_session.php", {
-                    invoice_id: billDetails.invoiceId,
+                    invoice_id: payKey,
                     channel: currentMethodObj.id,
-                    success_url: `${returnBase}#/pay-bills?status=success&invoice_id=${encodeURIComponent(billDetails.invoiceId)}`,
-                    cancel_url: `${returnBase}#/pay-bills?status=cancelled&invoice_id=${encodeURIComponent(billDetails.invoiceId)}`
+                    success_url: `${returnBase}#/pay-bills?status=success&invoice_id=${encodeURIComponent(payKey)}`,
+                    cancel_url: `${returnBase}#/pay-bills?status=cancelled&invoice_id=${encodeURIComponent(payKey)}`
                 });
                 
                 if (res.data.success && res.data.checkout_url) {
@@ -242,7 +324,7 @@ export default function PayBills() {
 
         let proofPath;
         const formData = new FormData();
-        formData.append('invoice_id', billDetails.invoiceId);
+        formData.append('invoice_id', payKey);
         formData.append('payment_reference', paymentReference);
         formData.append('payment_method', currentMethodObj.label);
         formData.append('proof', proofFile);
@@ -266,7 +348,7 @@ export default function PayBills() {
 
         try {
             const res = await api.post("/pay_bill.php", {
-                invoiceId: billDetails.invoiceId,
+                invoiceId: payKey,
                 paymentMethod: currentMethodObj.label,
                 paymentReference: paymentReference,
                 proofOfPaymentPath: proofPath
@@ -277,8 +359,8 @@ export default function PayBills() {
                 setProofFile(null);
                 await refresh();
                 setNotice({
-                    message: 'Payment submitted',
-                    subtext: `Your ${currentMethodObj.label} payment is awaiting verification by management. This page updates by itself, and you will be notified once it is confirmed.`,
+                    message: payingGroup ? 'Advance payment submitted' : 'Payment submitted',
+                    subtext: `Your ${currentMethodObj.label} payment for ${payLabel} is awaiting verification by management. This page updates by itself, and you will be notified once it is confirmed.`,
                 });
             } else {
                 console.error("Server Error:", res.data.message);
@@ -305,7 +387,7 @@ export default function PayBills() {
                 </div>
 
                 {/* Payments awaiting management's (or the gateway's) confirmation */}
-                {awaitingInvoices.map(inv => (
+                {awaitingEntries.map(inv => (
                     <div key={inv.id} className="w-full bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
                         <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 text-lg">
                             <FontAwesomeIcon icon={faHourglassHalf} />
@@ -436,6 +518,40 @@ export default function PayBills() {
                 <div className="stagger-children grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
 
                     {/*Left Grid Parameter Block: Billing Items Statement Breakdown Ledger*/}
+                    {payingGroup ? (
+                    <div className="pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border-2 border-indigo-200 shadow-md p-5 sm:p-8 space-y-5">
+                        <div className="flex justify-between items-start border-b border-slate-100 pb-3 gap-3">
+                            <div>
+                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Advance payment</h3>
+                                <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                    One payment for {groupMonths.length} month{groupMonths.length === 1 ? '' : 's'}. Each month keeps its own invoice and receipt.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPayingAdvance(false)}
+                                className="text-xs font-bold text-indigo-600 hover:underline bg-transparent border-0 cursor-pointer p-1 shrink-0"
+                            >
+                                Back to current bill
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            {groupMonths.map(i => (
+                                <div key={i.id} className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                    <span>
+                                        Rent — {i.billing_period}
+                                        <span className="block text-[11px] text-slate-400">Due {i.due_date} · {i.id}</span>
+                                    </span>
+                                    <span className="font-bold text-slate-900">{fmtMoney(i.total_amount)}</span>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="border-t-2 border-slate-900 pt-4 flex justify-between items-center">
+                            <span className="text-base font-extrabold text-slate-800">Total</span>
+                            <span className="pay-bills-total-due text-2xl font-black text-indigo-600">{fmtMoney(groupTotal)}</span>
+                        </div>
+                    </div>
+                    ) : (
                     <div className="pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div>
@@ -514,6 +630,7 @@ export default function PayBills() {
                             <span className="pay-bills-total-due text-2xl font-black text-indigo-600">₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                     </div>
+                    )}
 
                     {/*Right Grid Parameter Block: Clearing Channel Allocation Panel Controls*/}
                     <div className="pay-bills-card card-interactive md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
@@ -664,15 +781,109 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                disabled={!activeInv || isAwaiting}
+                                disabled={payingGroup ? false : (!activeInv || isAwaiting)}
                                 className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed disabled:hover:scale-100"
                             >
-                                {isAwaiting ? 'Awaiting confirmation' : t('payBills.proceedToPay')}
+                                {payingGroup
+                                    ? `Pay advance (${fmtMoney(groupTotal)})`
+                                    : isAwaiting ? 'Awaiting confirmation' : t('payBills.proceedToPay')}
                             </button>
                         </div>
 
                     </div>
                 </div>
+
+                {/* Pay in advance: bill N upcoming months as one payment */}
+                {advance?.available && (
+                    <div className="pay-bills-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-4">
+                        <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 text-lg">
+                                <FontAwesomeIcon icon={faCalendarPlus} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Pay in advance</h3>
+                                <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                    Prepay upcoming months in one payment. Each month still gets its own invoice and receipt, due on your usual rent day.
+                                </p>
+                            </div>
+                        </div>
+
+                        {groupKey ? (
+                            groupPayable ? (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <p className="text-sm text-slate-700 m-0">
+                                        Advance payment ready: <strong>{groupMonths.map(i => i.billing_period).join(', ')}</strong> — <strong>{fmtMoney(groupTotal)}</strong>
+                                    </p>
+                                    <div className="flex gap-2 shrink-0">
+                                        {!payingGroup && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setPayingAdvance(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold border-0 cursor-pointer"
+                                            >
+                                                Pay now
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleCancelAdvance}
+                                            disabled={advanceBusy}
+                                            className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50"
+                                        >
+                                            Cancel advance
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-600 m-0">
+                                    Your advance payment for {groupMonths.map(i => i.billing_period).join(', ')} is awaiting confirmation (see above).
+                                </p>
+                            )
+                        ) : advance.months?.length > 0 ? (
+                            <div className="space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                    <label htmlFor="advance-months" className="text-sm font-bold text-slate-700">Months to prepay</label>
+                                    <select
+                                        id="advance-months"
+                                        value={Math.min(advanceCount, advance.months.length)}
+                                        onChange={e => setAdvanceCount(Number(e.target.value))}
+                                        className="pay-bills-input px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500 cursor-pointer"
+                                    >
+                                        {advance.months.map((m, i) => (
+                                            <option key={m.period_start} value={i + 1}>{i + 1} month{i === 0 ? '' : 's'}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    {advance.months.slice(0, Math.min(advanceCount, advance.months.length)).map(m => (
+                                        <div key={m.period_start} className="flex justify-between text-sm text-slate-600">
+                                            <span>Rent — {m.billing_period} <span className="text-[11px] text-slate-400">(due {m.due_date})</span></span>
+                                            <span className="font-bold text-slate-900">{fmtMoney(m.amount)}</span>
+                                        </div>
+                                    ))}
+                                    <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-extrabold text-slate-800">
+                                        <span>Total</span>
+                                        <span className="text-indigo-600">
+                                            {fmtMoney(advance.months.slice(0, Math.min(advanceCount, advance.months.length)).reduce((s, m) => s + m.amount, 0))}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleCreateAdvance}
+                                    disabled={advanceBusy}
+                                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50"
+                                >
+                                    {advanceBusy ? 'Preparing…' : 'Continue to payment'}
+                                </button>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-slate-600 m-0">
+                                There are no upcoming months left to prepay before your lease ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
+                            </p>
+                        )}
+                    </div>
+                )}
 
             </div>
 

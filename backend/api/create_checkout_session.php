@@ -35,30 +35,33 @@ $paymongo_types = [
 
 $method_types = $paymongo_types[$channel] ?? ['gcash', 'card', 'paymaya'];
 
-// 1. Fetch invoice
-$stmt = $conn->prepare("SELECT i.*, u.first_name, u.last_name, u.email_address as email FROM invoices i JOIN users u ON i.user_id = u.id WHERE i.id = ? AND i.user_id = ?");
-$stmt->bind_param("si", $invoice_id, $user_id);
-$stmt->execute();
-$res = $stmt->get_result();
+// 1. The invoices this checkout pays: one invoice, or every month of an
+// advance payment when $invoice_id is its group id (config.php, "Advance
+// payments"). Cancelled months are not part of it.
+$invoices = array_values(array_filter(
+    payment_key_invoices($conn, $invoice_id, $user_id),
+    fn($row) => $row['status'] !== 'cancelled'
+));
 
-if (!$res || $res->num_rows === 0) {
+if (!$invoices) {
     echo json_encode(["success" => false, "message" => "Invoice not found or access denied"]);
     exit;
 }
 
-$invoice = $res->fetch_assoc();
-
 // Only a genuinely open invoice may be paid. 'paid' alone was checked before,
 // which let a cancelled invoice be charged and allowed a second concurrent
-// checkout session to be opened against one already in 'processing'.
-if (!in_array($invoice['status'], BILLING_OPEN_STATUSES, true) || $invoice['status'] === 'processing') {
-    $msg = $invoice['status'] === 'paid'
-        ? "Invoice is already paid"
-        : ($invoice['status'] === 'processing'
-            ? "A payment for this invoice is already in progress. Please finish or cancel it first."
-            : "This invoice is not open for payment.");
-    echo json_encode(["success" => false, "message" => $msg]);
-    exit;
+// checkout session to be opened against one already in 'processing'. For an
+// advance payment every month must still be open.
+foreach ($invoices as $invoice) {
+    if (!in_array($invoice['status'], BILLING_OPEN_STATUSES, true) || $invoice['status'] === 'processing') {
+        $msg = $invoice['status'] === 'paid'
+            ? "Invoice is already paid"
+            : ($invoice['status'] === 'processing'
+                ? "A payment for this invoice is already in progress. Please finish or cancel it first."
+                : "This invoice is not open for payment.");
+        echo json_encode(["success" => false, "message" => $msg]);
+        exit;
+    }
 }
 
 // Claim the invoice before calling the gateway (audit C2). The check above is
@@ -68,36 +71,56 @@ if (!in_array($invoice['status'], BILLING_OPEN_STATUSES, true) || $invoice['stat
 // steals checkout_session_id from the other, so a real payment on the
 // abandoned session gets discarded by the webhook as "superseded".
 $open_statuses = billing_open_status_sql();
-$claim = $conn->prepare("UPDATE invoices SET status = 'processing' WHERE id = ? AND user_id = ? AND status IN $open_statuses AND status <> 'processing'");
+// The statuses these invoices actually held before the claim below, so a
+// failure past this point can hand each back exactly instead of guessing.
+$prev_statuses = array_column($invoices, 'status', 'id');
+
+// Any failure below must give the claim back, or the invoices are stuck in
+// 'processing' with no checkout session ever created for them.
+function release_checkout_claim($conn, $prev_statuses, $user_id) {
+    $release = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ? AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
+    foreach ($prev_statuses as $id => $prev_status) {
+        $id = (string)$id;
+        $release->bind_param("ssi", $prev_status, $id, $user_id);
+        $release->execute();
+    }
+    $release->close();
+}
+
+$claim = $conn->prepare("UPDATE invoices SET status = 'processing' WHERE ? IN (id, payment_group) AND user_id = ? AND status IN $open_statuses AND status <> 'processing'");
 $claim->bind_param("si", $invoice_id, $user_id);
 $claim->execute();
-$claimed = $claim->affected_rows > 0;
+$claimed = $claim->affected_rows;
 $claim->close();
 
-if (!$claimed) {
+// All or nothing: an advance payment is only paid online as a whole.
+if ($claimed !== count($invoices)) {
+    if ($claimed > 0) release_checkout_claim($conn, $prev_statuses, $user_id);
     echo json_encode(["success" => false, "message" => "A payment for this invoice is already in progress. Please finish or cancel it first."]);
     exit;
 }
 
-// The status this invoice actually held before the claim above, so a failure
-// past this point can hand it back exactly instead of guessing a new one.
-$prev_status = $invoice['status'];
-
-// Any failure below must give the claim back, or the invoice is stuck in
-// 'processing' with no checkout session ever created for it.
-function release_checkout_claim($conn, $invoice_id, $user_id, $prev_status) {
-    $release = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ? AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
-    $release->bind_param("ssi", $prev_status, $invoice_id, $user_id);
-    $release->execute();
-    $release->close();
-}
-
-// Calculate total amount in centavos (PHP)
-$total_amount = (float)($invoice['total_amount'] ?? 0);
-if ($total_amount <= 0) {
-    $total_amount = (float)($invoice['base_rent'] ?? 0) + (float)($invoice['security_deposit'] ?? 0) + (float)($invoice['water'] ?? 0) + (float)($invoice['electricity'] ?? 0) + (float)($invoice['parking'] ?? 0) + (float)($invoice['late_fee'] ?? 0);
+// Calculate total amount in centavos (PHP), one line item per invoice
+$line_items = [];
+$total_amount = 0.0;
+foreach ($invoices as $invoice) {
+    $row_total = (float)$invoice['total_amount'];
+    $total_amount += $row_total;
+    $line_items[] = [
+        'currency' => 'PHP',
+        'amount' => (int)round($row_total * 100),
+        'name' => count($invoices) > 1
+            ? 'Rent ' . $invoice['billing_period'] . ' (Invoice #' . $invoice['id'] . ')'
+            : 'Invoice #' . $invoice['id'],
+        'quantity' => 1
+    ];
 }
 $amount_cents = (int)round($total_amount * 100);
+if ($amount_cents <= 0) {
+    release_checkout_claim($conn, $prev_statuses, $user_id);
+    echo json_encode(["success" => false, "message" => "This invoice has nothing to pay."]);
+    exit;
+}
 
 // 2. Fetch PayMongo Secret Key
 $settings_res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key = 'paymongo_secret_key'");
@@ -110,7 +133,7 @@ if ($settings_res) {
 $secret_key = ams_env_setting('paymongo_secret_key') ?? ($settings['paymongo_secret_key'] ?? '');
 
 if (empty($secret_key)) {
-    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
+    release_checkout_claim($conn, $prev_statuses, $user_id);
     echo json_encode(["success" => false, "message" => "PayMongo is not configured. Please contact administrator."]);
     exit;
 }
@@ -142,19 +165,14 @@ $payload = [
             'send_email_receipt' => false,
             'show_description' => true,
             'show_line_items' => true,
-            'line_items' => [
-                [
-                    'currency' => 'PHP',
-                    'amount' => $amount_cents,
-                    'name' => 'Invoice #' . $invoice_id,
-                    'quantity' => 1
-                ]
-            ],
+            'line_items' => $line_items,
             'payment_method_types' => $method_types,
             'success_url' => $success_url,
             'cancel_url' => $cancel_url,
-            'description' => 'Apartment Payment for Invoice ' . $invoice_id,
+            'description' => 'Apartment Payment for ' . ucfirst(payment_key_label($invoice_id)),
             'metadata' => [
+                // An invoice id or an advance payment's group id; the webhook
+                // settles every invoice it covers.
                 'invoice_id' => (string)$invoice_id,
                 'user_id' => (string)$user_id
             ]
@@ -195,7 +213,7 @@ if ($ca_bundle && is_readable($ca_bundle)) {
     error_log("PayMongo: no CA bundle found; TLS peer verification disabled (development only).");
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 } else {
-    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
+    release_checkout_claim($conn, $prev_statuses, $user_id);
     echo json_encode(["success" => false, "message" => "Payment gateway TLS certificate store is not configured on this server."]);
     exit;
 }
@@ -214,14 +232,14 @@ if ($http_code !== 200 || $response === false) {
             $err_msg = "PayMongo: " . $err_data['errors'][0]['detail'];
         }
     }
-    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
+    release_checkout_claim($conn, $prev_statuses, $user_id);
     echo json_encode(["success" => false, "message" => $err_msg]);
     exit;
 }
 
 $response_data = json_decode($response, true);
 if (isset($response_data['errors'])) {
-    release_checkout_claim($conn, $invoice_id, $user_id, $prev_status);
+    release_checkout_claim($conn, $prev_statuses, $user_id);
     echo json_encode(["success" => false, "message" => "Payment gateway error: " . $response_data['errors'][0]['detail']]);
     exit;
 }
@@ -245,12 +263,12 @@ $payment_method = $channel_method_map[$channel] ?? 'Online (Sandbox)';
 // still being the 'processing' row this request claimed with no session id yet,
 // so a second request can't overwrite the session id this one just got from the
 // gateway (the other half of the C2 race — see the claim above).
-$update = $conn->prepare("UPDATE invoices SET checkout_session_id = ?, payment_gateway = 'paymongo_sandbox', payment_method = ? WHERE id = ? AND status = 'processing' AND checkout_session_id IS NULL");
-$update->bind_param("sss", $checkout_session_id, $payment_method, $invoice_id);
+$update = $conn->prepare("UPDATE invoices SET checkout_session_id = ?, payment_gateway = 'paymongo_sandbox', payment_method = ? WHERE ? IN (id, payment_group) AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
+$update->bind_param("sssi", $checkout_session_id, $payment_method, $invoice_id, $user_id);
 $update->execute();
 
 if ($update->affected_rows > 0) {
-    log_activity($conn, null, 'billing', 'Started Online Payment', "Invoice $invoice_id sent to checkout via $payment_method");
+    log_activity($conn, null, 'billing', 'Started Online Payment', ucfirst(payment_key_label($invoice_id)) . " sent to checkout via $payment_method");
     echo json_encode(["success" => true, "checkout_url" => $checkout_url]);
 } else {
     // The claim was ours, but the row no longer matches (e.g. the webhook for

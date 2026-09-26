@@ -425,7 +425,7 @@ function post_service_charge($conn, $service_request_id) {
 
         //4.FindThisTenantsAdjustableInvoiceForThePeriod (label format, plus legacy 'Y-m')
         $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable ORDER BY created_at ASC LIMIT 1");
+        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL ORDER BY created_at ASC LIMIT 1");
         $stmt->bind_param("iss", $user_id, $period, $legacy_period);
         $stmt->execute();
         $invoice = $stmt->get_result()->fetch_assoc();
@@ -592,7 +592,7 @@ function post_maintenance_charge($conn, $maintenance_request_id) {
         $legacy_period = $now->format('Y-m');
 
         $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable ORDER BY created_at ASC LIMIT 1");
+        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL ORDER BY created_at ASC LIMIT 1");
         $stmt->bind_param("iss", $user_id, $period, $legacy_period);
         $stmt->execute();
         $invoice = $stmt->get_result()->fetch_assoc();
@@ -1222,6 +1222,90 @@ function generate_due_rent_invoices($conn) {
         }
     }
     return $created;
+}
+
+// ── Advance payments (panel feedback 2026-09-26) ──
+// A tenant can prepay several future months at once. Each month is its own
+// rent invoice (so each gets its own receipt); the months share a
+// payment_group 'ADV-…' and are paid with one payment. The pay endpoints take
+// either an invoice id or a group id as their "payment key" and target rows
+// with `? IN (id, payment_group)` — invoice ids start 'INV-', group ids
+// 'ADV-', so one value can never match both.
+
+// Most months a tenant can prepay in one advance payment.
+const ADVANCE_PAYMENT_MAX_MONTHS = 6;
+
+function is_payment_group_key($key) {
+    return is_string($key) && strncmp($key, 'ADV-', 4) === 0;
+}
+
+// "invoice INV-…" or "advance payment ADV-…", for messages and logs.
+function payment_key_label($key) {
+    return (is_payment_group_key($key) ? 'advance payment ' : 'invoice ') . $key;
+}
+
+// The invoices a payment key covers, oldest month first. $user_id limits them
+// to one owner (null = any, for admins); $statuses to those states (null = all).
+function payment_key_invoices($conn, $key, $user_id = null, $statuses = null) {
+    $sql = "SELECT id, user_id, status, total_amount, billing_period, due_date, checkout_session_id, payment_group
+            FROM invoices WHERE ? IN (id, payment_group)";
+    $types = "s";
+    $params = [$key];
+    if ($user_id !== null) {
+        $sql .= " AND user_id = ?";
+        $types .= "i";
+        $params[] = (int)$user_id;
+    }
+    if ($statuses !== null) {
+        $sql .= " AND status IN ('" . implode("','", $statuses) . "')";
+    }
+    $sql .= " ORDER BY due_date ASC, id ASC";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+
+// Settles everything a payment key covers: one invoice, or each open month of
+// an advance payment through its own settle_invoice() call — so every month
+// ends up a separate paid invoice with its own receipt and "Payment Received"
+// notice. $amount_paid (desk only) must cover the combined total. Returns
+// settle_invoice()'s shape plus 'invoice_ids', the invoices settled.
+function settle_payment_key($conn, $key, $payment_method, $payment_reference = null, $amount_paid = null) {
+    if (!is_payment_group_key($key)) {
+        $result = settle_invoice($conn, $key, $payment_method, $payment_reference, $amount_paid);
+        $result['invoice_ids'] = $result['ok'] ? [$key] : [];
+        return $result;
+    }
+
+    $fail = fn($message, $settled = []) => ['ok' => false, 'message' => $message, 'invoice_id' => $key,
+                                            'user_id' => null, 'activated' => false, 'invoice_ids' => $settled];
+    $rows = payment_key_invoices($conn, $key, null, BILLING_OPEN_STATUSES);
+    if (!$rows) return $fail("Advance payment not found or already settled.");
+
+    $total = array_sum(array_map(fn($row) => (float)$row['total_amount'], $rows));
+    if ($amount_paid !== null && $amount_paid + 0.009 < $total) {
+        return $fail("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the advance payment total (₱" . number_format($total, 2) . "). Partial payments are not supported.");
+    }
+
+    $settled = [];
+    foreach ($rows as $row) {
+        $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null);
+        if (!$result['ok']) {
+            return $fail("Settled " . count($settled) . " of " . count($rows) . " months; {$row['id']} failed: {$result['message']}", $settled);
+        }
+        $settled[] = $row['id'];
+    }
+
+    // The group's own queue rows (a proof or cash declaration made for the
+    // whole advance payment); settle_invoice() resolves per-invoice ones.
+    resolve_admin_queue($conn, 'payment_verification', $key);
+    resolve_admin_queue($conn, 'cash_payment_declared', $key);
+
+    return ['ok' => true, 'message' => count($settled) . " month(s) of the advance payment settled.", 'invoice_id' => $key,
+            'user_id' => (int)$rows[0]['user_id'], 'activated' => false, 'invoice_ids' => $settled];
 }
 
 // Utility readings (checklist 8.7) are keyed by a 'YYYY-MM' billing period — the
@@ -2159,7 +2243,7 @@ function post_parking_charge($conn, $reservation_id, DateTime $month) {
         }
 
         $adjustable = "('" . implode("','", SERVICE_ADJUSTABLE_INVOICE_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable ORDER BY created_at ASC LIMIT 1");
+        $stmt = $conn->prepare("SELECT id FROM invoices WHERE user_id = ? AND billing_period IN (?, ?) AND status IN $adjustable AND payment_group IS NULL ORDER BY created_at ASC LIMIT 1");
         $stmt->bind_param("iss", $user_id, $label, $period);
         $stmt->execute();
         $invoice = $stmt->get_result()->fetch_assoc();

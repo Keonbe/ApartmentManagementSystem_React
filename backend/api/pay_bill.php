@@ -50,13 +50,16 @@ if (!$is_cash) {
     // reminders and disappear from the eviction-monitoring query with nothing
     // to show for it. upload_payment_proof.php must be called first — it sets
     // proof_of_payment_path and queues the admin review.
-    $proof_q = $conn->prepare("SELECT proof_of_payment_path FROM invoices WHERE id = ? AND user_id = ?");
+    // $invoice_id may be an advance payment's group id (config.php, "Advance
+    // payments"): then every month in it must carry the proof.
+    $proof_q = $conn->prepare("SELECT COUNT(*) AS n, MIN(proof_of_payment_path IS NOT NULL AND proof_of_payment_path <> '') AS all_have_proof
+                               FROM invoices WHERE ? IN (id, payment_group) AND user_id = ? AND status <> 'cancelled'");
     $proof_q->bind_param("si", $invoice_id, $user_id);
     $proof_q->execute();
     $proof_row = $proof_q->get_result()->fetch_assoc();
     $proof_q->close();
 
-    if (empty($proof_row['proof_of_payment_path'])) {
+    if (!(int)$proof_row['n'] || !(int)$proof_row['all_have_proof']) {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "Upload a payment proof before submitting a non-cash payment."]);
         exit;
@@ -67,28 +70,42 @@ if (!$is_cash) {
 // guard a tenant could re-submit against an already-'paid' invoice and knock
 // it back to 'pending-verification' (and the old code also blanked paid_at
 // unconditionally, erasing when it was actually settled).
-$stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, status = ? WHERE id = ? AND user_id = ? AND status IN " . billing_open_status_sql());
+$stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, status = ? WHERE ? IN (id, payment_group) AND user_id = ? AND status IN " . billing_open_status_sql());
 $stmt->bind_param("ssssi", $payment_method, $payment_reference, $status, $invoice_id, $user_id);
 
 if ($stmt->execute()) {
-    if ($stmt->affected_rows === 0) {
-        http_response_code(409);
-        echo json_encode(["success" => false, "message" => "This invoice is not open for payment — it may already be settled or cancelled."]);
-        $stmt->close();
-        $conn->close();
-        exit;
+    $changed = $stmt->affected_rows > 0;
+    if (!$changed) {
+        // Zero changed rows also happens when nothing needed changing: the
+        // PayBills manual path calls this right after upload_payment_proof.php,
+        // which already stored the same method, reference and status. That
+        // used to be reported as "not open" after a successful submission.
+        $same = $conn->prepare("SELECT 1 FROM invoices WHERE ? IN (id, payment_group) AND user_id = ? AND status = ? AND payment_method <=> ? LIMIT 1");
+        $same->bind_param("siss", $invoice_id, $user_id, $status, $payment_method);
+        $same->execute();
+        $already_applied = (bool)$same->get_result()->fetch_assoc();
+        $same->close();
+        if (!$already_applied) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "This invoice is not open for payment — it may already be settled or cancelled."]);
+            $stmt->close();
+            $conn->close();
+            exit;
+        }
     }
-    log_activity($conn, $user_id, 'payment', "Tenant payment action", "Invoice ID: $invoice_id, Method: $payment_method, Status: $status, Ref: $payment_reference");
+    if ($changed) {
+        log_activity($conn, $user_id, 'payment', "Tenant payment action", ucfirst(payment_key_label($invoice_id)) . ", Method: $payment_method, Status: $status, Ref: $payment_reference");
+    }
 
     // A cash-on-hand declaration means the tenant intends to pay at the desk —
     // an admin should see it in the queue rather than only finding it by
     // scanning the billing list (audit M12). A non-cash declaration is
     // already queued by upload_payment_proof.php.
-    if ($is_cash) {
+    if ($is_cash && $changed) {
         notify_admins_queue($conn, 'cash_payment_declared', $invoice_id, 'Cash Payment Declared',
-            "A tenant declared a cash-on-hand payment for invoice $invoice_id. Expect them at the desk.");
+            "A tenant declared a cash-on-hand payment for " . payment_key_label($invoice_id) . ". Expect them at the desk.");
         create_notification($conn, $user_id, 'payment', 'Cash Payment Declared',
-            "Your cash payment for invoice $invoice_id is noted. Please pay at the admin office; you will be notified once management records it.",
+            "Your cash payment for " . payment_key_label($invoice_id) . " is noted. Please pay at the admin office; you will be notified once management records it.",
             'Resolved', "invoice:$invoice_id");
     }
 

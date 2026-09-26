@@ -107,21 +107,36 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         // Bind the event to the checkout session this invoice actually opened.
         // Without this, any validly-signed event naming an invoice id could
         // settle it, including a stale event from a superseded session.
-        $chk = $conn->prepare("SELECT status, checkout_session_id, user_id, total_amount FROM invoices WHERE id = ?");
-        $chk->bind_param("s", $invoice_id);
-        $chk->execute();
-        $inv_row = $chk->get_result()->fetch_assoc();
-        $chk->close();
+        //
+        // The metadata id may be an advance payment's group id (config.php,
+        // "Advance payments"): then the event covers every month in it, and
+        // the checks below apply to the months together — the same session on
+        // each, the sum as the amount due, "paid" only once all are.
+        $group_rows = array_values(array_filter(
+            payment_key_invoices($conn, $invoice_id),
+            fn($row) => $row['status'] !== 'cancelled'
+        ));
 
-        if (!$inv_row) {
+        if (!$group_rows) {
             http_response_code(200);
             echo json_encode(["success" => true, "message" => "Unknown invoice; ignored"]);
             $conn->close();
             exit;
         }
 
-        if ($session_id && !empty($inv_row['checkout_session_id'])
-            && !hash_equals($inv_row['checkout_session_id'], $session_id)) {
+        $unpaid_rows = array_values(array_filter($group_rows, fn($row) => $row['status'] !== 'paid'));
+        $session_rows = array_filter($group_rows, fn($row) => !empty($row['checkout_session_id']));
+        $inv_row = [
+            'status' => $unpaid_rows ? $unpaid_rows[0]['status'] : 'paid',
+            'user_id' => $group_rows[0]['user_id'],
+            'total_amount' => array_sum(array_map(fn($row) => (float)$row['total_amount'], $group_rows)),
+        ];
+        $superseded = false;
+        foreach ($session_rows as $row) {
+            if ($session_id && !hash_equals($row['checkout_session_id'], $session_id)) $superseded = true;
+        }
+
+        if ($superseded) {
             http_response_code(200);
             echo json_encode(["success" => true, "message" => "Event belongs to a superseded checkout session; ignored"]);
             $conn->close();
@@ -149,7 +164,7 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             $expected_centavos = (int)round((float)$inv_row['total_amount'] * 100);
 
             if ($paid_centavos === null || (int)$paid_centavos !== $expected_centavos) {
-                $mismatch = $conn->prepare("UPDATE invoices SET status = 'pending-verification' WHERE id = ? AND status IN " . billing_open_status_sql());
+                $mismatch = $conn->prepare("UPDATE invoices SET status = 'pending-verification' WHERE ? IN (id, payment_group) AND status IN " . billing_open_status_sql());
                 $mismatch->bind_param("s", $invoice_id);
                 $mismatch->execute();
                 $mismatch->close();
@@ -191,7 +206,8 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             // room/application/contract exactly like a desk payment does.
             // Before this, the webhook only flipped the invoice to 'paid' and
             // left the application 'Approved' and the contract a draft.
-            $result = settle_invoice($conn, $invoice_id, $pm_label ?: 'PayMongo (Sandbox)', null, null);
+            // An advance payment settles each of its months (settle_payment_key()).
+            $result = settle_payment_key($conn, $invoice_id, $pm_label ?: 'PayMongo (Sandbox)', null, null);
 
             $actor = !empty($inv_row['user_id']) ? (int)$inv_row['user_id'] : null;
 
@@ -211,7 +227,7 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
 
             log_activity($conn, $actor, 'billing', 'Online Payment Received', "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a'), $actor ?? 0);
         } else {
-            $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ? AND status IN " . billing_open_status_sql());
+            $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE ? IN (id, payment_group) AND status IN " . billing_open_status_sql());
             $stmt->bind_param("ss", $status, $invoice_id);
 
             if (!$stmt->execute()) {

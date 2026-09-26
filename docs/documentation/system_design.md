@@ -15,7 +15,7 @@
 
 **Tables (30 in `SetupDB.sql` + `messages`).** users, rooms, rent_applications, lease_contracts, lease_renewals, household_members · invoices, expenses, utility_readings, parking_charges · maintenance_requests, cctv_requests, parking_reservations, service_catalog, service_requests · visitor_logs, inquiries, unit_reservations, unit_waitlist · announcements, notifications, notification_preferences, notification_queue, notification_log, activity_logs · system_settings, sessions, login_attempts, password_resets, password_reset_requests · messages (chat, `create_messages_table.sql`).
 
-**Endpoints (104 in `backend/api/`), by area:**
+**Endpoints (105 in `backend/api/`), by area:**
 
 | Area | Endpoints |
 |---|---|
@@ -24,7 +24,7 @@
 | Applications & tenancy | rent_application, get_applications, update_tenant_status, get_tenants, archive_tenant, restore_tenant, my_room, update_occupants, household_members, extend_lease, record_move_out, process_tenant_request |
 | Inquiries & holds | submit_inquiry, get_inquiries, update_inquiry_status, create_reservation, update_reservation_status, expire_reservations, manage_waitlist |
 | Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file |
-| Billing & payments | get_invoices, create_invoice, adjust_invoice, pay_bill, record_payment_admin, upload_payment_proof, reject_payment_proof, schedule_payment, send_payment_reminder, check_due_date_reminders, get_payment_channels, create_checkout_session, release_checkout_session, paymongo_webhook, manage_expenses |
+| Billing & payments | get_invoices, create_invoice, adjust_invoice, advance_payment, pay_bill, record_payment_admin, upload_payment_proof, reject_payment_proof, schedule_payment, send_payment_reminder, check_due_date_reminders, get_payment_channels, create_checkout_session, release_checkout_session, paymongo_webhook, manage_expenses |
 | Utilities | get_utility_readings, save_utility_reading, delete_utility_reading, sync_utility_to_invoice, get_utilities_report_data |
 | Maintenance | maintenance_request, create_maintenance_request_admin, get_maintenance_requests, update_maintenance_status, sync_maintenance_to_invoice |
 | Services | get_service_catalog, manage_service_catalog, service_request, get_service_requests, update_service_status, sync_service_to_invoice |
@@ -418,7 +418,7 @@ flowchart LR
 
 ### 7.2 Endpoints Still Missing
 
-> **Resolved.** Every endpoint below now exists except `get_my_contract.php`, which was superseded by `get_contracts.php` (used by `ViewContract.jsx`). §0 lists all 104.
+> **Resolved.** Every endpoint below now exists except `get_my_contract.php`, which was superseded by `get_contracts.php` (used by `ViewContract.jsx`). §0 lists all 105.
 
 | Endpoint | Method | Priority | Description |
 |----------|--------|----------|-------------|

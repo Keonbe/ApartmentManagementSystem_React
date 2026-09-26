@@ -106,30 +106,8 @@ const AdminPayments = () => {
           const t = grouped[inv.user_id];
           
           if (inv.status === 'pending' || inv.status === 'overdue' || inv.status === 'pending-verification' || inv.status === 'scheduled' || inv.status === 'processing' || inv.status === 'payment-failed') {
-            t.status = inv.status;
-            t.dueDate = inv.due_date;
-            t.scheduledDate = inv.scheduled_date;
-            t.scheduledTimeSlot = inv.scheduled_time_slot;
-            t.billingPeriod = inv.billing_period;
-            t.lastReminderDate = inv.last_reminder_date;
-            t.reminderCount = inv.reminder_count;
-            t.billing.baseRent = parseFloat(inv.base_rent || 0);
-            t.billing.water = parseFloat(inv.water || 0);
-            t.billing.electricity = parseFloat(inv.electricity || 0);
-            t.billing.parking = parseFloat(inv.parking || 0);
-            t.billing.services = parseFloat(inv.services || 0);
-            t.billing.maintenance = parseFloat(inv.maintenance || 0);
-            t.billing.securityDeposit = parseFloat(inv.security_deposit || 0);
-            t.billing.lateFee = parseFloat(inv.late_fee || 0);
             t.outstandingBalance += parseFloat(inv.total_amount || 0);
-            t.pendingInvoiceId = inv.id;
-            if (inv.proof_of_payment_path) t.proofOfPaymentPath = inv.proof_of_payment_path;
-            if (inv.payment_reference) t.paymentReference = inv.payment_reference;
-            if (inv.sender_name) t.senderName = inv.sender_name;
-            if (inv.payment_gateway) t.paymentGateway = inv.payment_gateway;
-            if (inv.payment_method) {
-               t.preferredMethod = inv.payment_method;
-            }
+            (t.openInvoices = t.openInvoices || []).push(inv);
           } else if (inv.status === 'paid') {
             const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
             t.history.push({
@@ -153,6 +131,49 @@ const AdminPayments = () => {
           }
         });
         
+        // The bill the desk acts on: one awaiting the admin's decision first
+        // (a proof, then a scheduled cash visit, then a checkout in flight),
+        // otherwise the earliest due. An advance payment's months are acted on
+        // together — pendingInvoiceId is then its ADV-… group id, which
+        // record_payment_admin.php / reject_payment_proof.php accept, and
+        // pendingAmount is what that one action settles.
+        const RANK = { 'pending-verification': 0, scheduled: 1, processing: 2 };
+        Object.values(grouped).forEach(t => {
+          const open = t.openInvoices || [];
+          if (open.length === 0) return;
+          const sel = [...open].sort((a, b) =>
+            (RANK[a.status] ?? 3) - (RANK[b.status] ?? 3) || String(a.due_date || '').localeCompare(String(b.due_date || ''))
+          )[0];
+          const months = sel.payment_group
+            ? open.filter(i => i.payment_group === sel.payment_group).sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)))
+            : [sel];
+          const sum = (key) => months.reduce((s, i) => s + parseFloat(i[key] || 0), 0);
+
+          t.status = sel.status;
+          t.dueDate = sel.due_date;
+          t.scheduledDate = sel.scheduled_date;
+          t.scheduledTimeSlot = sel.scheduled_time_slot;
+          t.billingPeriod = sel.payment_group ? months.map(i => i.billing_period).join(', ') : sel.billing_period;
+          t.lastReminderDate = sel.last_reminder_date;
+          t.reminderCount = sel.reminder_count;
+          t.billing.baseRent = sum('base_rent');
+          t.billing.water = sum('water');
+          t.billing.electricity = sum('electricity');
+          t.billing.parking = sum('parking');
+          t.billing.services = sum('services');
+          t.billing.maintenance = sum('maintenance');
+          t.billing.securityDeposit = sum('security_deposit');
+          t.billing.lateFee = sum('late_fee');
+          t.pendingInvoiceId = sel.payment_group || sel.id;
+          t.pendingAmount = sum('total_amount');
+          t.advanceGroup = sel.payment_group ? { key: sel.payment_group, months } : null;
+          if (sel.proof_of_payment_path) t.proofOfPaymentPath = sel.proof_of_payment_path;
+          if (sel.payment_reference) t.paymentReference = sel.payment_reference;
+          if (sel.sender_name) t.senderName = sel.sender_name;
+          if (sel.payment_gateway) t.paymentGateway = sel.payment_gateway;
+          if (sel.payment_method) t.preferredMethod = sel.payment_method;
+        });
+
         const tenantArray = Object.values(grouped);
         setTenants(tenantArray);
         if (tenantArray.length > 0) setSelectedTenantId(tenantArray[0].id);
@@ -248,9 +269,11 @@ const AdminPayments = () => {
 
   const calculateTotal = () => {
     if (!activeTenant) return 0;
-    return isExtendedRent 
+    // What "Clear & Process" settles (one invoice, or one advance payment's
+    // months) — not every open invoice, which the button never settled.
+    return isExtendedRent
       ? Number(extendedAmount) + Number(customAddOns)
-      : (activeTenant.outstandingBalance || 0) + Number(customAddOns);
+      : (activeTenant.pendingAmount || 0) + Number(customAddOns);
   };
   const totalDue = calculateTotal();
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
@@ -685,6 +708,22 @@ const handleMarkAsPaid = async () => {
                       <p className={`text-sm font-medium m-0 mt-0.5 ${activeTenant.advanceStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{activeTenant.advanceStatus}</p>
                     </div>
                   </div>
+
+                  {activeTenant.advanceGroup && (
+                    <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                      <p className="m-0 text-xs font-bold text-indigo-800">
+                        Advance payment · {activeTenant.advanceGroup.months.length} month{activeTenant.advanceGroup.months.length === 1 ? '' : 's'} · <span className="font-mono">{activeTenant.advanceGroup.key}</span>
+                      </p>
+                      <p className="m-0 mt-1 text-[11px] text-indigo-700">
+                        Paid with one payment; confirming it settles each month as its own invoice, with its own receipt.
+                      </p>
+                      <ul className="m-0 mt-2 pl-4 text-[11px] text-indigo-900 space-y-0.5">
+                        {activeTenant.advanceGroup.months.map(m => (
+                          <li key={m.id}>{m.billing_period} — due {m.due_date} — {formatCurrency(m.total_amount)} <span className="text-indigo-500">({m.id})</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   <div className="flex flex-col gap-2 mb-4">
                     <div className="flex items-center gap-2">
@@ -1170,7 +1209,7 @@ const handleMarkAsPaid = async () => {
               <p className="text-sm text-slate-600 mb-4">Are you sure you want to process this payment? This action will generate an official receipt record row.</p>
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm space-y-2 mb-6">
                 <div className="flex justify-between"><span className="text-slate-500">Tenant</span><span className="font-semibold text-slate-800">{activeTenant.name}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Period</span><span className="font-semibold text-slate-800">{billingPeriod}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Period</span><span className="font-semibold text-slate-800 text-right">{activeTenant.billingPeriod || billingPeriod}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-bold text-emerald-600">{formatCurrency(totalDue)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Method</span><span className="font-semibold text-slate-800">{paymentMethod}</span></div>
               </div>

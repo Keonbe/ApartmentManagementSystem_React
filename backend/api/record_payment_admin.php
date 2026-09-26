@@ -32,7 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // single place the move-in cascade, the admin-queue resolution and the
     // tenant notification live, so a desk payment and an online payment
     // activate a move-in identically.
-    $result = settle_invoice($conn, $invoice_id, $payment_method, $payment_reference, $amount_paid);
+    // $invoice_id may be an advance payment's group id: each of its months is
+    // settled as its own invoice (settle_payment_key()).
+    $result = settle_payment_key($conn, $invoice_id, $payment_method, $payment_reference, $amount_paid);
 
     if (!$result['ok']) {
         // These messages are written above for the admin and carry no internals.
@@ -42,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    log_activity($conn, $admin_id, 'billing', "Recorded Payment", "Invoice ID: $invoice_id settled via $payment_method");
+    log_activity($conn, $admin_id, 'billing', "Recorded Payment", ucfirst(payment_key_label($invoice_id)) . " settled via $payment_method" . (count($result['invoice_ids']) > 1 ? " (" . implode(", ", $result['invoice_ids']) . ")" : ""));
 
     echo json_encode(["success" => true, "message" => "Payment successfully finalized and saved."]);
     $conn->close();

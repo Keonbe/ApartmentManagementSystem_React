@@ -30,7 +30,7 @@ $stmt = $conn->prepare("
     UPDATE invoices
     SET status = CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 'overdue' ELSE 'pending' END,
         checkout_session_id = NULL
-    WHERE id = ? AND user_id = ? AND status = 'processing'
+    WHERE ? IN (id, payment_group) AND user_id = ? AND status = 'processing'
 ");
 $stmt->bind_param("si", $invoice_id, $user_id);
 
@@ -46,7 +46,7 @@ $released = $stmt->affected_rows > 0;
 $stmt->close();
 
 if ($released) {
-    log_activity($conn, $user_id, 'payment', 'Online checkout released', "Invoice ID: $invoice_id");
+    log_activity($conn, $user_id, 'payment', 'Online checkout released', payment_key_label($invoice_id));
 }
 
 // Not being in 'processing' is not an error — the webhook may have already
