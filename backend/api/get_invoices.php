@@ -101,6 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'sender_name' => $row['sender_name'] ?? null,
                 'payment_reference' => $row['payment_reference'] ?? null,
                 'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null,
+                // Why an admin sent the proof back — the tenant's bill page shows it.
+                'proof_rejection_reason' => $row['proof_rejection_reason'] ?? null,
+                'rent_period_start' => $row['rent_period_start'] ?? null,
+                'payment_group' => $row['payment_group'] ?? null,
                 'billing_period' => $row['billing_period'] ?? null,
                 'scheduled_date' => $row['scheduled_date'] ?? null,
                 'scheduled_time_slot' => $row['scheduled_time_slot'] ?? null,

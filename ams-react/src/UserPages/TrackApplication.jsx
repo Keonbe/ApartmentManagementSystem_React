@@ -10,6 +10,7 @@ import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
+import SuccessModal from '../Components/SuccessModal';
 import { FILE_RULES, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/track-application.responsive.css';
@@ -25,6 +26,13 @@ export default function TrackApplication() {
     const [paying, setPaying] = useState(false);
     const [contractFile, setContractFile] = useState(null);
     const [uploadingContract, setUploadingContract] = useState(false);
+    // Back from a PayMongo checkout, the move-in invoice stays 'processing'
+    // until the webhook lands; say so instead of an alert.
+    const [notice, setNotice] = useState(() => (
+        /[?&]status=success\b/.test(window.location.hash)
+            ? { message: 'Payment sent', subtext: 'We are waiting for the payment gateway to confirm it. You will be notified once it is confirmed.' }
+            : null
+    ));
 
     const validateAndSetContractFile = (file) => {
         if (!file) return;
@@ -129,8 +137,11 @@ export default function TrackApplication() {
             });
 
             if (res.data.success) {
-                alert("Cash payment method selected successfully. Please proceed to the management office to settle your payment. Your room details will be unlocked once management confirms receipt of the payment.");
-                window.location.reload();
+                setNotice({
+                    message: 'Cash payment declared',
+                    subtext: 'Please settle your payment at the management office. Your room details unlock once management confirms receipt, and you will be notified.',
+                    reloadOnClose: true,
+                });
             } else {
                 alert(res.data.message || "Failed to process payment.");
             }
@@ -200,10 +211,8 @@ export default function TrackApplication() {
             const queryParams = new URLSearchParams(hash.split('?')[1]);
             const status = queryParams.get('status');
             if (status === 'success') {
-                setTimeout(() => {
-                    alert("Payment successfully processed! Your initial payment status is now updating.");
-                    navigate('/track-application', { replace: true });
-                }, 500);
+                // The "Payment sent" notice is set from the URL on first render.
+                navigate('/track-application', { replace: true });
             } else if (status === 'cancelled') {
                 setTimeout(() => {
                     alert("Payment was cancelled.");
@@ -792,6 +801,17 @@ export default function TrackApplication() {
                     </div>
                 )}
             </div>
+
+            <SuccessModal
+                isOpen={!!notice}
+                onClose={() => {
+                    const reload = notice?.reloadOnClose;
+                    setNotice(null);
+                    if (reload) window.location.reload();
+                }}
+                message={notice?.message}
+                subtext={notice?.subtext}
+            />
         </div>
     );
 }

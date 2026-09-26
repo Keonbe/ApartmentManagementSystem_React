@@ -87,6 +87,9 @@ if ($stmt->execute()) {
     if ($is_cash) {
         notify_admins_queue($conn, 'cash_payment_declared', $invoice_id, 'Cash Payment Declared',
             "A tenant declared a cash-on-hand payment for invoice $invoice_id. Expect them at the desk.");
+        create_notification($conn, $user_id, 'payment', 'Cash Payment Declared',
+            "Your cash payment for invoice $invoice_id is noted. Please pay at the admin office; you will be notified once management records it.",
+            'Resolved', "invoice:$invoice_id");
     }
 
     echo json_encode(["success" => true, "message" => "Payment processed successfully"]);

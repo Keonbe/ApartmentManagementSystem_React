@@ -65,6 +65,16 @@ if ($update->execute()) {
         exit;
     }
     log_activity($conn, $user_id, 'payment', "In-person payment scheduled", "Invoice ID: $invoice_id, Date: $scheduled_date ($scheduled_time_slot)");
+
+    // Both sides hear about the booking: the admin queue row is the same one a
+    // cash declaration uses, which settle_invoice() resolves once it is paid.
+    // A reschedule replaces the earlier row instead of adding a second one.
+    resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
+    notify_admins_queue($conn, 'cash_payment_declared', $invoice_id, 'In-Person Payment Scheduled',
+        "A tenant scheduled an in-person payment for invoice $invoice_id on $scheduled_date ($scheduled_time_slot).");
+    create_notification($conn, $user_id, 'payment', 'Payment Scheduled',
+        "Your in-person payment for invoice $invoice_id is scheduled on $scheduled_date ($scheduled_time_slot). You will be notified once management records it.",
+        'Resolved', "invoice:$invoice_id");
     echo json_encode(["success" => true, "message" => "Payment scheduled successfully"]);
 } else {
     echo json_encode(["success" => false, "message" => "Failed to schedule payment"]);

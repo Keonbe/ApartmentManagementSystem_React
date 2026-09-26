@@ -28,6 +28,14 @@ const AdminPayments = () => {
   const [previewProof, setPreviewProof] = useState(null);
   const [sendingReminder, setSendingReminder] = useState(false);
   const [batchSending, setBatchSending] = useState(false);
+  // Confirmation that a decision went through and reached the tenant.
+  const [flash, setFlash] = useState(null);
+  const showFlash = (text) => {
+    setFlash(text);
+    setTimeout(() => setFlash(null), 6000);
+  };
+  const [rejectModal, setRejectModal] = useState(null); // { invoiceId, tenant } while open
+  const [rejectReason, setRejectReason] = useState('');
   
   const handleSendReminder = async (invoiceId) => {
     if (!invoiceId) return;
@@ -334,7 +342,8 @@ const handleMarkAsPaid = async () => {
       // Safely check if the response is successful
       if (res.data && res.data.success) {
         fetchInvoices();
-        setIsExtendedRent(false); 
+        showFlash(`Payment confirmed for ${activeTenant.name}. The tenant has been notified and their receipt is ready.`);
+        setIsExtendedRent(false);
         setExtendedAmount(0); 
         setCustomAddOns(0);
         setAmountTendered('');
@@ -352,11 +361,17 @@ const handleMarkAsPaid = async () => {
     }
   };
 
-  const handleRejectProof = async () => {
+  const handleRejectProof = () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId) return;
-    const reason = window.prompt("Why is this payment proof being rejected? The tenant will see this message.");
-    if (!reason || !reason.trim()) return;
-    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
+    setRejectReason('');
+    setRejectModal({ invoiceId: activeTenant.pendingInvoiceId, tenant: activeTenant.name });
+  };
+
+  const submitRejectProof = async (e) => {
+    e.preventDefault();
+    if (!rejectModal) return;
+    const reason = rejectReason.trim();
+    const reasonError = reason ? checkLength(reason, LIMITS.reason, 'Reason') : 'Enter the reason the tenant will see.';
     if (reasonError) {
       alert(reasonError);
       return;
@@ -364,11 +379,13 @@ const handleMarkAsPaid = async () => {
 
     try {
       const res = await api.post('/reject_payment_proof.php', {
-        invoiceId: activeTenant.pendingInvoiceId,
-        reason: reason.trim()
+        invoiceId: rejectModal.invoiceId,
+        reason
       });
       if (res.data && res.data.success) {
         fetchInvoices();
+        showFlash(`Payment proof returned to ${rejectModal.tenant}. The tenant has been notified with your reason.`);
+        setRejectModal(null);
       } else {
         alert(res.data?.message || "Failed to reject payment proof.");
       }
@@ -1269,6 +1286,43 @@ const handleMarkAsPaid = async () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setRejectModal(null)}>
+          <form onSubmit={submitRejectProof} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-bold text-slate-800 m-0">Reject Payment Proof</h3>
+              <button type="button" onClick={() => setRejectModal(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
+                <FontAwesomeIcon icon={faTimes} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 m-0">
+              {rejectModal.tenant}'s invoice returns to unpaid and they are notified with this reason, so they can pay again.
+            </p>
+            <textarea
+              required
+              rows="3"
+              autoFocus
+              maxLength={LIMITS.reason}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. The reference number does not match any GCash transaction."
+              className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 box-border"
+            />
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setRejectModal(null)} className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer">Cancel</button>
+              <button type="submit" className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 border-0 cursor-pointer">Reject &amp; Notify Tenant</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {flash && (
+        <div role="status" className="fixed bottom-6 right-6 z-50 max-w-sm flex items-start gap-3 rounded-xl bg-emerald-600 text-white px-4 py-3 shadow-2xl text-sm font-semibold">
+          <FontAwesomeIcon icon={faCheckCircle} className="mt-0.5" />
+          <span>{flash}</span>
         </div>
       )}
     </div>

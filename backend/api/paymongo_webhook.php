@@ -159,6 +159,11 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
                     "PayMongo reported ₱$paid_display for invoice $invoice_id, but the invoice total is ₱" . number_format((float)$inv_row['total_amount'], 2) . ". Verify manually before marking it paid.");
 
                 $actor = !empty($inv_row['user_id']) ? (int)$inv_row['user_id'] : null;
+                if ($actor) {
+                    create_notification($conn, $actor, 'payment', 'Payment Being Verified',
+                        "Your online payment for invoice $invoice_id was received and is being verified by management. You will be notified once it is confirmed.",
+                        'Resolved', "invoice:$invoice_id");
+                }
                 log_activity($conn, $actor, 'billing', 'Online Payment Amount Mismatch',
                     "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a') . ", Paid: ₱$paid_display, Expected: ₱" . number_format((float)$inv_row['total_amount'], 2), $actor ?? 0);
 

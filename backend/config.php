@@ -997,7 +997,8 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
         if ($inv_res && !empty($inv_res['user_id'])) {
             create_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Received',
-                "Your payment for invoice $invoice_id has been received and recorded ($payment_method). Thank you!");
+                "Your payment for invoice $invoice_id has been confirmed and recorded ($payment_method). Your receipt is ready in Payment History. Thank you!",
+                'Resolved', "invoice:$invoice_id");
         }
 
         return [

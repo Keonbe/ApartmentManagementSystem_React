@@ -1,7 +1,9 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck } from '@fortawesome/free-solid-svg-icons';
 
-export default function SuccessModal({ isOpen, onClose, message = "Successfully completed" }) {
+// subtext and action ({ label, onClick }) are optional; without them the modal
+// reads exactly as before.
+export default function SuccessModal({ isOpen, onClose, message = "Successfully completed", subtext = "Your request has been recorded in the system.", action = null }) {
     if (!isOpen) return null;
 
     return (
@@ -44,9 +46,18 @@ export default function SuccessModal({ isOpen, onClose, message = "Successfully 
                         {message}
                     </h3>
                     <p className="text-xs text-slate-400 font-medium m-0">
-                        Your request has been recorded in the system.
+                        {subtext}
                     </p>
                 </div>
+
+                {action && (
+                    <button
+                        onClick={action.onClick}
+                        className="btn-interactive w-full bg-white hover:bg-slate-50 text-indigo-700 font-bold py-3 rounded-xl text-sm transition-all duration-200 border border-indigo-200 cursor-pointer"
+                    >
+                        {action.label}
+                    </button>
+                )}
 
                 {/*CloseActionButton*/}
                 <button

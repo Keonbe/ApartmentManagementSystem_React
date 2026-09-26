@@ -5,6 +5,7 @@ import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesC
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
+import SuccessModal from '../Components/SuccessModal';
 import { LIMITS, checkLength, checkPaymentReference, firstError } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -23,6 +24,7 @@ export default function PaymentUpload() {
     const [previewUrl, setPreviewUrl] = useState('');
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
+    const [submitted, setSubmitted] = useState(false);
 
     if (!invoiceId) {
         return (
@@ -106,8 +108,7 @@ export default function PaymentUpload() {
             });
 
             if (res.data.success) {
-                alert("Payment proof uploaded successfully! Our management will verify it shortly.");
-                navigate(returnUrl || '/home');
+                setSubmitted(true);
             } else {
                 setError(res.data.message || "Failed to upload payment proof.");
             }
@@ -260,6 +261,13 @@ export default function PaymentUpload() {
                     </div>
                 </form>
             </div>
+
+            <SuccessModal
+                isOpen={submitted}
+                onClose={() => navigate(returnUrl || '/home')}
+                message="Payment submitted"
+                subtext="Your payment proof is awaiting verification by management. You will be notified as soon as it is confirmed."
+            />
         </div>
     );
 }

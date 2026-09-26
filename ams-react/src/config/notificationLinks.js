@@ -34,6 +34,7 @@ export const ADMIN_NOTIFICATION_LINKS = {
   service_request: '/admin-services',
   inquiry: '/admin-inquiries',
   payment_verification: '/admin-payments',
+  cash_payment_declared: '/admin-payments',
   occupancy_request: '/admin-notifications',
   household_request: '/admin-notifications',
   unit_waitlist: '/admin-inquiries',

@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
+import SuccessModal from '../Components/SuccessModal';
+import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import { checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -24,23 +26,66 @@ export default function PayBills() {
     const currentDate = new Date();
     const currentMonthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-    {/*Billing breakdown parameters mirroring system metrics*/}
-    const [billDetails, setBillDetails] = useState({
-        baseRent: 0,
-        water: 0,
-        electricity: 0,
-        parking: 0,
-        services: 0,
-        maintenance: 0,
-        securityDeposit: 0,
-        lateFee: 0,
-        invoiceId: null,
-        dueDate: '',
-        billingPeriod: '',
-        status: 'pending'
-    });
+    // Confirmation modal: shown after the tenant submits a payment, and again
+    // when management's decision arrives (useInvoiceWatch polls for it).
+    // Back from a PayMongo checkout: the invoice stays 'processing' until the
+    // webhook lands; useInvoiceWatch keeps polling and shows "Payment confirmed" then.
+    const [notice, setNotice] = useState(() => (
+        /[?&]status=success\b/.test(window.location.hash)
+            ? {
+                message: 'Payment sent',
+                subtext: 'We are waiting for the payment gateway to confirm it. This page updates by itself, and you will also get a notification.',
+            }
+            : null
+    ));
 
-    const dueStatus = useMemo(() => {
+    const handleTransitions = (events) => {
+        const confirmed = events.filter(e => e.type === 'confirmed');
+        if (confirmed.length > 0) {
+            const first = confirmed[0].invoice;
+            const total = confirmed.reduce((sum, e) => sum + (parseFloat(e.invoice.total_amount) || 0), 0);
+            setNotice({
+                message: 'Payment confirmed',
+                subtext: confirmed.length === 1
+                    ? `Management confirmed your payment of ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} for ${first.billing_period || `invoice ${first.id}`}. Your receipt is ready.`
+                    : `Management confirmed ${confirmed.length} payments totalling ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}. A receipt for each month is ready.`,
+                action: { label: 'View receipt', onClick: () => navigate('/payment-history', { state: { receiptId: first.id } }) },
+            });
+        }
+        // A rejection or a declined checkout shows as a banner on the bill itself.
+    };
+
+    const { invoices, loaded, refresh } = useInvoiceWatch({ onTransition: handleTransitions });
+
+    // The bill on screen: the earliest-due invoice the tenant still has to pay;
+    // failing that, the earliest one awaiting confirmation (shown read-only).
+    const byDueDate = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
+    const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !i.payment_group).sort(byDueDate);
+    const awaitingInvoices = invoices.filter(i => AWAITING_STATUSES.includes(i.status)).sort(byDueDate);
+    const activeInv = payableInvoices[0] || awaitingInvoices[0] || null;
+
+    {/*Billing breakdown parameters mirroring system metrics*/}
+    const billDetails = {
+        baseRent: parseFloat(activeInv?.base_rent) || 0,
+        water: parseFloat(activeInv?.water) || 0,
+        electricity: parseFloat(activeInv?.electricity) || 0,
+        parking: parseFloat(activeInv?.parking) || 0,
+        services: parseFloat(activeInv?.services) || 0,
+        maintenance: parseFloat(activeInv?.maintenance) || 0,
+        securityDeposit: parseFloat(activeInv?.security_deposit) || 0,
+        lateFee: parseFloat(activeInv?.late_fee) || 0,
+        invoiceId: activeInv?.id || null,
+        dueDate: activeInv?.due_date || '',
+        billingPeriod: activeInv?.billing_period || '',
+        status: activeInv?.status || 'pending',
+        rejectionReason: activeInv?.proof_rejection_reason || '',
+        scheduledDate: activeInv?.scheduled_date || '',
+        scheduledTimeSlot: activeInv?.scheduled_time_slot || '',
+    };
+    const isAwaiting = AWAITING_STATUSES.includes(billDetails.status);
+    const fmtMoney = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+    const dueStatus = (() => {
         if (!billDetails.dueDate) return null;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -56,43 +101,9 @@ export default function PayBills() {
             isDueSoon: diffDays > 0 && diffDays <= 3,
             formattedDate: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         };
-    }, [billDetails.dueDate, billDetails.status]);
+    })();
 
     useEffect(() => {
-        const fetchInvoice = async () => {
-            const loggedInUserStr = sessionStorage.getItem('loggedInUser');
-            if (loggedInUserStr) {
-                const user = JSON.parse(loggedInUserStr);
-                try {
-                    const res = await api.get(`/get_invoices.php?userId=${user.id}`);
-                    if (res.data.success && res.data.invoices && res.data.invoices.length > 0) {
-                        // 'processing' and 'payment-failed' must be included: an
-                        // abandoned or declined online checkout leaves the invoice
-                        // in one of those states, and omitting them made the bill
-                        // disappear from this page entirely while still owed.
-                        const activeInv = res.data.invoices.find(i => ['pending', 'overdue', 'pending-verification', 'scheduled', 'processing', 'payment-failed'].includes(i.status));
-                        if (activeInv) {
-                            setBillDetails({
-                                baseRent: parseFloat(activeInv.base_rent) || 0,
-                                water: parseFloat(activeInv.water) || 0,
-                                electricity: parseFloat(activeInv.electricity) || 0,
-                                parking: parseFloat(activeInv.parking) || 0,
-                                services: parseFloat(activeInv.services) || 0,
-                                maintenance: parseFloat(activeInv.maintenance) || 0,
-                                securityDeposit: parseFloat(activeInv.security_deposit) || 0,
-                                lateFee: parseFloat(activeInv.late_fee) || 0,
-                                invoiceId: activeInv.id,
-                                dueDate: activeInv.due_date || '',
-                                billingPeriod: activeInv.billing_period || '',
-                                status: activeInv.status || 'pending'
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error("Failed to fetch invoice:", error);
-                }
-            }
-        };
         const fetchChannels = async () => {
             try {
                 const res = await api.get('/get_payment_channels.php');
@@ -117,19 +128,15 @@ export default function PayBills() {
             }
         };
         fetchChannels();
-        fetchInvoice();
 
-        // Wait, the router is using HashRouter, so the search might be after the hash like #/pay-bills?status=...
-        // Let's parse the hash string
+        // HashRouter: the gateway's return query sits after the hash (#/pay-bills?status=...).
         const hash = window.location.hash;
         if (hash.includes('?')) {
             const queryParams = new URLSearchParams(hash.split('?')[1]);
             const status = queryParams.get('status');
             if (status === 'success') {
-                setTimeout(() => {
-                    alert("Payment successfully processed! Your invoice status is now updating.");
-                    navigate('/pay-bills', { replace: true });
-                }, 500);
+                // The "Payment sent" notice is set from the URL on first render.
+                navigate('/pay-bills', { replace: true });
             } else if (status === 'cancelled') {
                 // Hand the invoice back to 'pending'/'overdue'. Without this it
                 // stays in 'processing' and becomes unpayable.
@@ -144,11 +151,11 @@ export default function PayBills() {
                     }
                     alert("Payment was cancelled.");
                     navigate('/pay-bills', { replace: true });
-                    fetchInvoice();
+                    refresh();
                 })();
             }
         }
-    }, [navigate]);
+    }, [navigate, refresh]);
 
     const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.services + billDetails.maintenance + billDetails.securityDeposit + billDetails.lateFee;
 
@@ -173,6 +180,10 @@ export default function PayBills() {
             alert("No pending invoice found.");
             return;
         }
+        if (isAwaiting) {
+            alert("This bill already has a payment awaiting confirmation.");
+            return;
+        }
 
         if (currentMethodObj.family === 'in_person') {
             const dateError = checkDate(scheduledDate, { min: localDateString(), label: 'Schedule date' });
@@ -184,8 +195,11 @@ export default function PayBills() {
                     scheduled_time_slot: scheduledTimeSlot
                 });
                 if (res.data.success) {
-                    alert("Payment scheduled successfully.");
-                    window.location.reload();
+                    await refresh();
+                    setNotice({
+                        message: 'Payment scheduled',
+                        subtext: `Please pay at the admin office on ${scheduledDate} (${scheduledTimeSlot}). You will be notified once management records your payment.`,
+                    });
                 } else {
                     alert(res.data.message);
                 }
@@ -207,7 +221,7 @@ export default function PayBills() {
                 });
                 
                 if (res.data.success && res.data.checkout_url) {
-                    window.location.href = res.data.checkout_url;
+                    window.location.assign(res.data.checkout_url);
                 } else {
                     alert(res.data.message || "Failed to create checkout session.");
                 }
@@ -259,8 +273,13 @@ export default function PayBills() {
             });
 
             if (res.data.success) {
-                alert(`Payment submitted successfully via ${currentMethodObj.label}.`);
-                window.location.reload();
+                setPaymentReference('');
+                setProofFile(null);
+                await refresh();
+                setNotice({
+                    message: 'Payment submitted',
+                    subtext: `Your ${currentMethodObj.label} payment is awaiting verification by management. This page updates by itself, and you will be notified once it is confirmed.`,
+                });
             } else {
                 console.error("Server Error:", res.data.message);
                 alert(res.data.message);
@@ -285,8 +304,78 @@ export default function PayBills() {
                     </p>
                 </div>
 
-                {/* Due Date & Overdue Reminder Banner */}
-                {dueStatus && (
+                {/* Payments awaiting management's (or the gateway's) confirmation */}
+                {awaitingInvoices.map(inv => (
+                    <div key={inv.id} className="w-full bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 text-lg">
+                            <FontAwesomeIcon icon={faHourglassHalf} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-sm sm:text-base font-extrabold text-sky-900 m-0">
+                                    {inv.status === 'scheduled' ? 'In-person payment scheduled'
+                                        : inv.status === 'processing' ? 'Online payment processing'
+                                        : 'Payment awaiting verification'}
+                                </h4>
+                                <span className="bg-sky-200 text-sky-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                    {inv.billing_period || inv.id}
+                                </span>
+                            </div>
+                            <p className="text-xs sm:text-sm text-sky-800 m-0 mt-1 leading-relaxed">
+                                {inv.status === 'scheduled'
+                                    ? <>Please pay <strong>{fmtMoney(inv.total_amount)}</strong> at the admin office on <strong>{inv.scheduled_date}</strong>{inv.scheduled_time_slot ? ` (${inv.scheduled_time_slot})` : ''}. You will be notified once management records it.</>
+                                    : inv.status === 'processing'
+                                    ? <>Your online payment of <strong>{fmtMoney(inv.total_amount)}</strong> is being confirmed by the payment gateway. This page updates by itself.</>
+                                    : <>Your {inv.payment_method || ''} payment of <strong>{fmtMoney(inv.total_amount)}</strong>{inv.payment_reference ? <> (ref. {inv.payment_reference})</> : null} is being verified by management. You will be notified as soon as it is confirmed; this page updates by itself.</>}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+
+                {/* Management sent the proof back, or the online checkout was declined */}
+                {!isAwaiting && billDetails.rejectionReason && (
+                    <div className="w-full bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 text-lg">
+                            <FontAwesomeIcon icon={faTimesCircle} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm sm:text-base font-extrabold text-rose-900 m-0">Payment proof not accepted</h4>
+                            <p className="text-xs sm:text-sm text-rose-700 m-0 mt-1 leading-relaxed">
+                                Management returned your payment for {billDetails.billingPeriod || 'this bill'}: <strong>{billDetails.rejectionReason}</strong>. Please submit a new payment below.
+                            </p>
+                        </div>
+                    </div>
+                )}
+                {billDetails.status === 'payment-failed' && (
+                    <div className="w-full bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 text-lg">
+                            <FontAwesomeIcon icon={faTimesCircle} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm sm:text-base font-extrabold text-rose-900 m-0">Online payment did not go through</h4>
+                            <p className="text-xs sm:text-sm text-rose-700 m-0 mt-1 leading-relaxed">
+                                Please try again or choose another payment method.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {loaded && !activeInv && (
+                    <div className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-lg">
+                            <FontAwesomeIcon icon={faCheckCircle} />
+                        </div>
+                        <div>
+                            <h4 className="text-sm sm:text-base font-extrabold text-emerald-900 m-0">You're all paid up</h4>
+                            <p className="text-xs sm:text-sm text-emerald-800 m-0 mt-1 leading-relaxed">
+                                There is no open bill right now. Receipts for past payments are in your payment history.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Due Date & Overdue Reminder Banner (not while a payment awaits confirmation) */}
+                {dueStatus && !isAwaiting && (
                     <>
                         {dueStatus.isOverdue ? (
                             <div className="w-full bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
@@ -575,9 +664,10 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center"
+                                disabled={!activeInv || isAwaiting}
+                                className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed disabled:hover:scale-100"
                             >
-                                {t('payBills.proceedToPay')}
+                                {isAwaiting ? 'Awaiting confirmation' : t('payBills.proceedToPay')}
                             </button>
                         </div>
 
@@ -585,6 +675,14 @@ export default function PayBills() {
                 </div>
 
             </div>
+
+            <SuccessModal
+                isOpen={!!notice}
+                onClose={() => setNotice(null)}
+                message={notice?.message}
+                subtext={notice?.subtext}
+                action={notice?.action}
+            />
         </div>
     );
 }

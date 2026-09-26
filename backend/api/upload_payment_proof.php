@@ -85,7 +85,9 @@ if ($proof_file) {
     }
 }
 
-$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, status = 'pending-verification'";
+// A fresh proof replaces any earlier rejection, so the tenant's bill page
+// stops showing the old rejection reason.
+$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, status = 'pending-verification', proof_rejection_reason = NULL";
 $params = [$payment_method, $payment_reference, $sender_name];
 $types = "sss";
 
@@ -134,6 +136,14 @@ if ($stmt->execute()) {
     if (!$already_queued) {
         notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Payment Proof Submitted',
             "A $payment_method payment proof was submitted for invoice $invoice_id and is waiting for verification.");
+    }
+
+    // The tenant's own receipt of the submission; the admin's decision
+    // follows as "Payment Received" (settle_invoice) or "Payment Proof Rejected".
+    if (!$is_admin) {
+        create_notification($conn, $user_id, 'payment', 'Payment Submitted',
+            "Your $payment_method payment for invoice $invoice_id was submitted and is awaiting verification by management. You will be notified once it is confirmed.",
+            'Resolved', "invoice:$invoice_id");
     }
 
     echo json_encode([

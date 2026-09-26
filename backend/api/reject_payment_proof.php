@@ -68,7 +68,8 @@ try {
 
     if (!empty($invoice['user_id'])) {
         create_notification($conn, (int)$invoice['user_id'], 'payment', 'Payment Proof Rejected',
-            "Your payment proof for invoice $invoice_id was not accepted: $reason. Please submit a new payment.");
+            "Your payment proof for invoice $invoice_id was not accepted: $reason. Please submit a new payment.",
+            'Resolved', "invoice:$invoice_id");
     }
 
     echo json_encode(["success" => true, "message" => "Payment proof rejected; invoice returned to $new_status."]);
