@@ -73,6 +73,29 @@
   animation: fadeInUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Subtle entrance for chat messages; reply actions reveal on hover-capable
+   screens only, while remaining available at all times on touch devices. */
+.message-enter {
+  animation: fadeInUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.message-reply-button {
+  opacity: 1;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .message-reply-button {
+    opacity: 0;
+    transition: opacity 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  }
+
+  .group:hover .message-reply-button,
+  .group:focus-within .message-reply-button {
+    opacity: 1;
+  }
+}
+
 /* Button tap feedback */
 .btn-interactive {
   transition:

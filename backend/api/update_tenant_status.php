@@ -311,6 +311,31 @@ if ($id > 0 && !empty($status)) {
         }
 
         $conn->commit();
+        // Queue the approval email only after the transaction commits. Notification
+        // failures must never roll back a completed application approval.
+        if ($status === 'Approved' && !empty($tenant_id)) {
+            try {
+                require_once __DIR__ . '/services/send_notification.php';
+                $due_date = date('Y-m-d', strtotime('+7 days'));
+                $email_html = email_application_approved_template(
+                    notify_recipient_name($conn, $tenant_id),
+                    $room ?? '',
+                    $monthly_rent ?? 0,
+                    $due_date
+                );
+                dispatch_external_notification(
+                    $conn,
+                    $tenant_id,
+                    'application_update',
+                    'Your Rental Application Is Approved',
+                    null,
+                    $email_html,
+                    'sync'
+                );
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch application approval email: ' . $notification_error->getMessage());
+            }
+        }
         $response = ["success" => true];
         if ($status === 'moved-out') {
             $response["balance_due"] = $balance > 0 ? round($balance, 2) : 0;

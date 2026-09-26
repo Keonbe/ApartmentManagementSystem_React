@@ -161,13 +161,8 @@ export default function NotificationsPanel({
           <Field label="Delivery Method">
             <select value={settings.emailDriver || 'log'} onChange={(e) => updateSetting('emailDriver', e.target.value)} className={INPUT}>
               <option value="log">Log (dry run — records, sends nothing)</option>
-              <option value="smtp">SMTP (requires PHPMailer)</option>
+              <option value="smtp">SMTP</option>
             </select>
-            {settings.emailDriver === 'smtp' && (
-              <p className="text-[11px] text-amber-600 m-0">
-                PHPMailer is not installed yet. Until it is, SMTP sends fail and are recorded as failures.
-              </p>
-            )}
           </Field>
           <Field label="From Name">
             <input
