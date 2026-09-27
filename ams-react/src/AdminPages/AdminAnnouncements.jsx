@@ -3,12 +3,18 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faSave, faMobileAlt, faEnvelope, faDesktop, faCalendarAlt, faUsers, faPaperPlane, faSpinner, faLock,
+  faSave, faMobileAlt, faEnvelope, faDesktop, faCalendarAlt, faUsers, faPaperPlane, faSpinner, faLock, faExclamationTriangle,
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
-import { LIMITS, checkLength, firstError } from '../utils/validation';
+import { LIMITS, TITLE_MIN, checkText } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { invalidCls } from '../Components/form/formHelpers';
+
+const SEND_TO = ['All tenants', 'Specific unit'];
+const TYPES = ['General', 'Urgent', 'Reminder'];
 
 const channelIcons = { 'in-app': faDesktop, 'sms': faMobileAlt, 'email': faEnvelope };
 const statusConfig = {
@@ -24,12 +30,56 @@ const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: ''
 const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
 const LABEL = 'block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1';
 
+const getSmsPrefix = (type) => (type === 'General' || !type ? 'AMS: ' : `AMS ${type}: `);
+const getSmsText = (type, title, body) => {
+  const t = (title || '').trim();
+  const b = (body || '').trim();
+  if (!t && !b) return '';
+  const prefix = getSmsPrefix(type);
+  if (!t) return `${prefix}${b}`;
+  if (!b) return `${prefix}${t}`;
+  return `${prefix}${t} - ${b}`;
+};
+
 const AdminAnnouncements = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [sending, setSending] = useState(null); // 'send' | 'draft' | null
   const [notice, setNotice] = useState(null);   // { ok, text }
+  // Keys match create_announcement.php's body (tag/body are the form's type/body).
+  const isSmsActive = form.channels.includes('sms');
+  const smsText = getSmsText(form.type, form.title, form.body);
+  const smsLength = smsText.length;
+  const isSmsOverLimit = isSmsActive && smsLength > 160;
+
+  const fields = useFieldErrors({
+    sendTo: (v) => (SEND_TO.includes(v) ? '' : 'Choose who receives this.'),
+    unit: (v, all) => (all.sendTo !== 'Specific unit' ? '' : v ? '' : 'Choose the unit to send this announcement to.'),
+    tag: (v) => (TYPES.includes(v) ? '' : 'Choose a type.'),
+    title: (v) => checkText(v, { label: 'Title', min: TITLE_MIN, max: LIMITS.announcementTitle }),
+    body: (v, all) => {
+      const err = checkText(v, { label: 'Message', max: LIMITS.message });
+      if (err) return err;
+      if (all?.isSmsActive && all?.smsLength > 160) {
+        return `SMS exceeds the 160-character limit (${all.smsLength}/160). Please shorten the message or uncheck SMS delivery to send.`;
+      }
+      return '';
+    },
+  }, { idPrefix: 'announce-' });
+  const values = { sendTo: form.sendTo, unit: form.unit, tag: form.type, title: form.title, body: form.body };
+  const setField = (key, value, formKey = key) => {
+    setForm(p => ({ ...p, [formKey]: value }));
+    fields.clearError(key);
+    if (key === 'tag' || key === 'title') {
+      fields.clearError('body');
+    }
+  };
+  const blurText = (key) => {
+    const v = form[key].trim();
+    if (v !== form[key]) setForm(p => ({ ...p, [key]: v }));
+    if (v) fields.validateField(key, { ...values, [key]: v, isSmsActive, smsLength });
+  };
 
   const fetchTenants = async () => {
     try {
@@ -81,41 +131,50 @@ const AdminAnnouncements = () => {
     : tenants.length;
 
   const handleSend = async (draft) => {
+    if (sending) return;
     setNotice(null);
-    if (!form.title.trim() || !form.body.trim()) {
-      setNotice({ ok: false, text: 'Title and message are required.' });
+    const clean = { ...form, title: form.title.trim(), body: form.body.trim() };
+    setForm(clean);
+    const cleanSmsText = getSmsText(form.type, clean.title, clean.body);
+    const cleanSmsLength = cleanSmsText.length;
+    const cleanSmsOver = isSmsActive && cleanSmsLength > 160;
+
+    if (!fields.validateAll({
+      ...values,
+      title: clean.title,
+      body: clean.body,
+      isSmsActive: !draft && isSmsActive,
+      smsLength: cleanSmsLength,
+    })) return;
+
+    if (!draft && cleanSmsOver) {
+      fields.setFieldError('body', `SMS message exceeds 160 characters (${cleanSmsLength}/160). Please shorten the text or uncheck SMS delivery to send.`);
+      setNotice({
+        ok: false,
+        text: `SMS message exceeds 160 characters (${cleanSmsLength}/160). Please shorten the text or uncheck SMS delivery to send.`,
+      });
       return;
     }
-    const lengthError = firstError(
-      checkLength(form.title, LIMITS.announcementTitle, 'Title'),
-      checkLength(form.body, LIMITS.message, 'Message')
-    );
-    if (lengthError) {
-      setNotice({ ok: false, text: lengthError });
-      return;
-    }
-    if (specific && !form.unit) {
-      setNotice({ ok: false, text: 'Choose the unit to send this announcement to.' });
-      return;
-    }
+
     setSending(draft ? 'draft' : 'send');
     try {
       const response = await api.post('create_announcement.php', {
         tag: form.type,
-        title: form.title.trim(),
-        body: form.body.trim(),
+        title: clean.title,
+        body: clean.body,
         sendTo: form.sendTo,
         unit: specific ? form.unit : '',
         channels: form.channels,
         draft,
       });
+      if (!response.data.success && fields.applyServerErrors(response)) return;
       setNotice({ ok: !!response.data.success, text: response.data.message || (response.data.success ? 'Done.' : 'Failed.') });
       if (response.data.success) {
         setForm(EMPTY_FORM);
         fetchAnnouncements();
       }
     } catch (err) {
-      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not send the announcement.') });
+      if (!fields.applyServerErrors(err)) setNotice({ ok: false, text: apiErrorMessage(err, 'Could not send the announcement.') });
     } finally {
       setSending(null);
     }
@@ -124,9 +183,13 @@ const AdminAnnouncements = () => {
   // In-app always goes out; only SMS and email are optional.
   const toggleChannel = (ch) => {
     if (ch === 'in-app') return;
-    setForm(prev => ({
-      ...prev, channels: prev.channels.includes(ch) ? prev.channels.filter(c => c !== ch) : [...prev.channels, ch],
-    }));
+    setForm(prev => {
+      const nextChannels = prev.channels.includes(ch) ? prev.channels.filter(c => c !== ch) : [...prev.channels, ch];
+      return { ...prev, channels: nextChannels };
+    });
+    if (ch === 'sms') {
+      fields.clearError('body');
+    }
   };
 
   const sendLabel = specific ? (form.unit ? `Send to Unit ${form.unit}` : 'Send to unit') : 'Send to all tenants';
@@ -147,43 +210,83 @@ const AdminAnnouncements = () => {
 
               <div className={`grid grid-cols-1 gap-3 mb-3 ${specific ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                 <div>
-                  <label className={LABEL}>Send to</label>
-                  <select value={form.sendTo} onChange={e => setForm(p => ({ ...p, sendTo: e.target.value, unit: '' }))} className={INPUT}>
-                    <option>All tenants</option><option>Specific unit</option>
+                  <label htmlFor="announce-sendTo" className={LABEL}>Send to</label>
+                  <select {...fields.fieldA11y('sendTo')} value={form.sendTo} onChange={e => { setForm(p => ({ ...p, sendTo: e.target.value, unit: '' })); fields.clearError('sendTo'); fields.clearError('unit'); }} className={INPUT + invalidCls(fields.errors.sendTo)}>
+                    {SEND_TO.map(s => <option key={s}>{s}</option>)}
                   </select>
+                  <FieldError id="announce-sendTo" error={fields.errors.sendTo} />
                 </div>
                 {specific && (
                   <div>
-                    <label className={LABEL}>Unit</label>
-                    <select value={form.unit} onChange={e => setForm(p => ({ ...p, unit: e.target.value }))} className={INPUT}>
-                      <option value="">{units.length ? 'Choose a unit…' : 'No occupied units'}</option>
+                    <label htmlFor="announce-unit" className={LABEL}>Unit</label>
+                    <select {...fields.fieldA11y('unit')} value={form.unit} onChange={e => setField('unit', e.target.value)} className={INPUT + invalidCls(fields.errors.unit)}>
+                      <option value="" disabled>{units.length ? 'Choose a unit…' : 'No occupied units'}</option>
                       {units.map(u => (
                         <option key={u.name} value={u.name}>Unit {u.name} ({u.count} tenant{u.count === 1 ? '' : 's'})</option>
                       ))}
                     </select>
+                    <FieldError id="announce-unit" error={fields.errors.unit} />
                   </div>
                 )}
                 <div>
-                  <label className={LABEL}>Type</label>
-                  <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} className={INPUT}>
-                    <option>General</option><option>Urgent</option><option>Reminder</option>
+                  <label htmlFor="announce-tag" className={LABEL}>Type</label>
+                  <select {...fields.fieldA11y('tag')} value={form.type} onChange={e => setField('tag', e.target.value, 'type')} className={INPUT + invalidCls(fields.errors.tag)}>
+                    {TYPES.map(t => <option key={t}>{t}</option>)}
                   </select>
+                  <FieldError id="announce-tag" error={fields.errors.tag} />
                 </div>
               </div>
 
               <div className="mb-3">
-                <label className={LABEL}>Title</label>
-                <input type="text" placeholder="Announcement title" maxLength={LIMITS.announcementTitle} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} className={INPUT} />
+                <label htmlFor="announce-title" className={LABEL}>Title</label>
+                <input type="text" {...fields.fieldA11y('title')} autoComplete="off" placeholder="Announcement title" maxLength={LIMITS.announcementTitle} value={form.title}
+                  onChange={e => setField('title', e.target.value)} onBlur={() => blurText('title')} className={INPUT + invalidCls(fields.errors.title)} />
+                <FieldError id="announce-title" error={fields.errors.title} />
               </div>
 
               <div className="mb-4">
-                <label className={LABEL}>Message</label>
-                <textarea aria-label="Message" placeholder="Type your message here..." rows={4} maxLength={LIMITS.message} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} className="focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" />
-                <p className="m-0 mt-1 text-[11px] text-slate-400 text-right">
-                  {form.body.length}/{LIMITS.message}
-                  {/* create_announcement.php sends "AMS <tag>: <title> - <body>" cut to one 160-character SMS. */}
-                  {form.channels.includes('sms') && ` · SMS carries the first 160 characters (${`AMS ${form.type}: ${form.title.trim()} - ${form.body.trim()}`.length} now)`}
+                <label htmlFor="announce-body" className={LABEL}>Message</label>
+                <textarea {...fields.fieldA11y('body')} placeholder="Type your message here..." rows={4} maxLength={LIMITS.message} value={form.body}
+                  onChange={e => setField('body', e.target.value)} onBlur={() => blurText('body')}
+                  className={"focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 text-slate-800 placeholder-slate-400 resize-none outline-none focus:bg-white focus:border-indigo-500 transition-all" + invalidCls(fields.errors.body)} />
+                <FieldError id="announce-body" error={fields.errors.body} />
+                <p className="sr-only" aria-live="polite">
+                  {form.body.length} / {LIMITS.message} characters
                 </p>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mt-1 text-[11px]">
+                  <div>
+                    {isSmsOverLimit ? (
+                      <span className="inline-flex items-center gap-1.5 text-rose-600 font-semibold">
+                        <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-500" />
+                        SMS exceeds 160-character limit ({smsLength}/160)
+                      </span>
+                    ) : isSmsActive && smsLength > 0 ? (
+                      <span className="text-slate-500">
+                        SMS preview: {smsLength}/160 characters (1 segment)
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-right">
+                    <span className="text-slate-400">{form.body.length} / {LIMITS.message} characters</span>
+                    {isSmsActive && (
+                      <span className={isSmsOverLimit ? 'font-semibold text-rose-600 ml-1.5' : 'text-slate-500 ml-1.5'}>
+                        · SMS: {smsLength}/160 {isSmsOverLimit ? `(+${smsLength - 160} over)` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {isSmsOverLimit && (
+                  <div className="mt-2.5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5 shadow-sm">
+                    <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-500 text-sm mt-0.5 shrink-0" />
+                    <div className="space-y-1">
+                      <p className="font-semibold m-0">SMS character limit exceeded</p>
+                      <p className="m-0 text-rose-700 leading-relaxed">
+                        The combined announcement text formatted for SMS is <strong>{smsLength} characters</strong> (exceeds the 160-character limit by {smsLength - 160}). Sending via SMS is blocked until the title or message is shortened, or SMS delivery is unchecked.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Delivery Channels */}
@@ -200,7 +303,7 @@ const AdminAnnouncements = () => {
                   ))}
                 </div>
                 <p className="text-[11px] text-slate-400 m-0 mt-2">
-                  SMS and email reach only tenants who have them enabled and not opted out. SMS may cost credits.
+                  SMS and email reach only tenants who have them enabled and not opted out. SMS is capped at 160 characters (1 segment) per announcement.
                 </p>
               </div>
 
@@ -211,13 +314,14 @@ const AdminAnnouncements = () => {
               </div>
 
               {notice && (
-                <div className={`mb-4 rounded-lg px-3 py-2 text-xs font-medium ${notice.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
+                <div role={notice.ok ? 'status' : 'alert'} className={`mb-4 rounded-lg px-3 py-2 text-xs font-medium ${notice.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}`}>
                   {notice.text}
                 </div>
               )}
 
               <div className="flex flex-wrap gap-3">
-                <button type="button" onClick={() => handleSend(false)} disabled={!!sending}
+                <button type="button" onClick={() => handleSend(false)} disabled={!!sending || isSmsOverLimit}
+                  title={isSmsOverLimit ? `SMS length (${smsLength}/160) exceeds the 160-character limit. Shorten text or uncheck SMS.` : undefined}
                   className="btn-interactive flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                   <FontAwesomeIcon icon={sending === 'send' ? faSpinner : faPaperPlane} spin={sending === 'send'} />
                   {sendLabel}

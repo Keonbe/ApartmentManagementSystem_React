@@ -45,6 +45,23 @@ if (!in_array($tag, ['General', 'Urgent', 'Reminder'], true)) {
     $tag = 'General';
 }
 
+if ($want_sms && !$is_draft) {
+    $prefix = ($tag === '' || strcasecmp($tag, 'General') === 0) ? 'AMS: ' : "AMS $tag: ";
+    $sms_full = $prefix . $title . ' - ' . $body;
+    $sms_len = mb_strlen($sms_full);
+    if ($sms_len > 160) {
+        http_response_code(422);
+        echo json_encode([
+            "success" => false,
+            "message" => "Announcement exceeds the 160-character limit for SMS delivery ($sms_len characters). Please shorten the text or uncheck SMS.",
+            "fieldErrors" => [
+                "body" => "Announcement exceeds the 160-character limit for SMS delivery ($sms_len characters). Please shorten the text or uncheck SMS."
+            ]
+        ]);
+        exit;
+    }
+}
+
 // Recipients. The audience used to be ignored: every non-admin account got the
 // announcement — including applicants still under review, rejected applicants
 // and moved-out tenants — even when "Specific unit" was chosen.
