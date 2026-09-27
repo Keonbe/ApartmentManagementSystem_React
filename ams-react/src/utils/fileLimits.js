@@ -1,6 +1,6 @@
 // Upload rules, mirrored from each backend endpoint so a wrong file is refused
 // before a 10 MB round trip. The backend re-checks everything (size, extension
-// and the real MIME type via finfo). Note config.php caps post_max_size at 12M.
+// and the real MIME type via finfo). See POST_MAX_MB below for the request cap.
 
 const MB = 1024 * 1024;
 
@@ -24,6 +24,18 @@ export const FILE_RULES = {
   visitorId:   { maxMB: 5, ext: ['jpg', 'jpeg', 'png', 'webp'], label: 'JPG, PNG or WEBP' },
   // lease upload on TrackApplication
   pdf:         { maxMB: 5, ext: ['pdf'], label: 'PDF' },
+  // send_message.php: images up to 10 MB, videos up to 25 MB
+  chatImage:   { maxMB: 10, ext: ['jpg', 'jpeg', 'png', 'gif', 'webp'], label: 'JPG, PNG, GIF or WEBP' },
+  chatVideo:   { maxMB: 25, ext: ['mp4', 'webm', 'mov'], label: 'MP4, WEBM or MOV' },
+};
+
+// Chat attachments: the image or video rule, picked by extension.
+export const checkChatFile = (file) => {
+  if (!file) return '';
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (FILE_RULES.chatVideo.ext.includes(ext)) return checkFile(file, FILE_RULES.chatVideo);
+  if (FILE_RULES.chatImage.ext.includes(ext)) return checkFile(file, FILE_RULES.chatImage);
+  return `"${file.name}" is not an allowed file type. Send an image (${FILE_RULES.chatImage.label}) or a video (${FILE_RULES.chatVideo.label}).`;
 };
 
 // Returns an error message, or '' when the file is acceptable (or absent).
@@ -39,8 +51,10 @@ export const checkFile = (file, rule) => {
   return '';
 };
 
-// config.php sets post_max_size to 12M: a request whose files add up to more
-// than that arrives with no files at all, so multi-file uploads check the sum.
+// A request over PHP's post_max_size arrives with no files at all, so
+// multi-file uploads check the sum. config.php's ini_set('post_max_size', '12M')
+// has no effect (the setting can't change at runtime); php.ini decides it (40M on
+// local XAMPP). 12 MB stays as a conservative cap that fits any host set to it.
 export const POST_MAX_MB = 12;
 
 export const checkFiles = (files, rule, { maxCount = Infinity } = {}) => {

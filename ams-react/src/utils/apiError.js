@@ -12,3 +12,25 @@ export const apiErrorMessage = (errOrRes, fallback = 'Something went wrong. Plea
   }
   return fallback;
 };
+
+// Field-level errors from a failed call, as { field: message }. Reads both
+// shapes: an `errors` map (values may be strings or arrays of strings) and the
+// single `{message, field}` the backend plan's validation_fail() will send.
+// Returns {} when the response names no field, so the caller shows the banner.
+export const apiFieldErrors = (errOrRes) => {
+  const data = errOrRes?.response?.data ?? errOrRes?.data;
+  if (!data || typeof data !== 'object') return {};
+  const out = {};
+  // `fieldErrors` is the same map under the name create_announcement.php uses.
+  const map = data.errors ?? data.fieldErrors;
+  if (map && typeof map === 'object' && !Array.isArray(map)) {
+    for (const [field, msg] of Object.entries(map)) {
+      const text = Array.isArray(msg) ? msg.find((m) => typeof m === 'string' && m.trim()) : msg;
+      if (typeof text === 'string' && text.trim()) out[field] = text;
+    }
+  }
+  if (typeof data.field === 'string' && data.field && typeof data.message === 'string' && !out[data.field]) {
+    out[data.field] = data.message;
+  }
+  return out;
+};

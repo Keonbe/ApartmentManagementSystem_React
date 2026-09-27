@@ -11,7 +11,6 @@ export const INPUT_MONO = `${INPUT} font-mono`;
 // Short numeric inputs that sit next to a unit ("12 months").
 export const INPUT_NUMBER = `${INPUT_BASE} text-center font-bold`;
 export const CHECKBOX = 'rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4';
-
 // Tailwind only ships classes it can see written out, so tones are spelled in full.
 const TONES = {
   indigo: 'bg-indigo-50 text-indigo-600',
@@ -42,17 +41,20 @@ export function SettingsSection({ icon, tone = 'indigo', title, description, act
   );
 }
 
-export function Field({ label, icon, hint, children, className = '' }) {
+// `htmlFor` ties the label to its input; `error` shows under the input, which
+// sets aria-describedby={`${htmlFor}-error`} itself.
+export function Field({ label, icon, hint, error, htmlFor, children, className = '' }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       {label && (
-        <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+        <label htmlFor={htmlFor} className="text-sm font-semibold text-slate-700 flex items-center gap-2">
           {icon && <FontAwesomeIcon icon={icon} className="text-slate-400 text-xs" />}
           {label}
         </label>
       )}
       {children}
-      {hint && <p className="text-[11px] text-slate-500 m-0 leading-relaxed">{hint}</p>}
+      {error && <p id={`${htmlFor}-error`} role="alert" className="text-red-500 text-xs m-0">{error}</p>}
+      {hint &&<p className="text-[11px] text-slate-500 m-0 leading-relaxed">{hint}</p>}
     </div>
   );
 }

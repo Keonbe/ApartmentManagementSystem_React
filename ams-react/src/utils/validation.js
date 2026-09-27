@@ -31,7 +31,19 @@ export const LIMITS = {
   locationDetails: 50,    // cctv_requests.location_details
   notes: 1000,            // TEXT columns: a sane UI cap, not a schema limit
   message: 2000,
+  clause: 2000,           // system_settings text values
+  unitId: 50,             // rooms.room_name / floor
+  billingPeriod: 50,
+  landlordText: 150,      // landlord name/address/contact settings
+  smtpField: 190,         // SMTP host/user, API keys
+  search: 100,            // search boxes: no column, just a sane cap
 };
+
+// Shortest acceptable title or subject.
+export const TITLE_MIN = 3;
+
+// Dates further ahead than this are almost always a typo.
+export const MAX_FUTURE_YEARS = 10;
 
 // decimal(10,2) — the largest amount any money column can hold.
 export const MAX_AMOUNT = 99999999.99;
@@ -46,11 +58,40 @@ export const checkRequired = (value, label = 'This field') =>
 export const checkLength = (value, max, label = 'This field') =>
   String(value ?? '').trim().length > max ? `${label} must be ${max} characters or fewer.` : '';
 
-export const checkEmail = (value) => {
+// Control characters other than tab/newline, and inline script tags. Text is
+// escaped on output everywhere; this only stops junk from being stored.
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const UNSAFE_TEXT =/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]|<\s*script/i;
+
+// Free text: trimmed first, so whitespace-only counts as empty.
+export const checkText = (value, { label = 'This field', max, min = 0, required = true } = {}) => {
   const v = String(value ?? '').trim();
-  if (!v) return 'Email is required.';
+  if (!v) return required ? `${label} is required.` : '';
+  if (min && v.length < min) return `${label} must be at least ${min} characters.`;
+  if (max && v.length > max) return `${label} must be ${max} characters or fewer.`;
+  if (UNSAFE_TEXT.test(v)) return `${label} contains characters that are not allowed.`;
+  return '';
+};
+
+// Personal names: letters (any script, ñ included), spaces and . ' -
+export const checkPersonName = (value, { label = 'Name', max = LIMITS.fullName, required = true } = {}) => {
+  const base = checkText(value, { label, max, required });
+  if (base) return base;
+  const v = String(value ?? '').trim();
+  if (!v) return '';
+  if (/^[\d\s]+$/.test(v)) return `${label} cannot be only numbers.`;
+  if (!/^[\p{L}\p{M}][\p{L}\p{M}\s.'-]*$/u.test(v)) return `${label} can only contain letters, spaces, periods, apostrophes and hyphens.`;
+  return '';
+};
+
+export const normalizeEmail = (value) => String(value ?? '').trim().toLowerCase();
+
+export const checkEmail = (value, { max = LIMITS.email, required = true } = {}) => {
+  const v = String(value ?? '').trim();
+  if (!v) return required ? 'Email is required.' : '';
   // Same shape PHP's FILTER_VALIDATE_EMAIL accepts for ordinary addresses.
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Enter a valid email address.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Please enter a valid email address (e.g. name@domain.com).';
+  if (v.length > max) return `Email must be ${max} characters or fewer.`;
   return '';
 };
 
@@ -91,6 +132,8 @@ export const checkContactNumber = (value) =>
   /^[0-9+\-\s()]{7,30}$/.test(String(value ?? '').trim())
     ? '' : 'Contact number must be 7-30 characters of digits, spaces, +, - or ().';
 
+// Length only: for Login and "current password" fields, where an older
+// password that predates the complexity rules must still be accepted.
 export const checkPassword = (password) => {
   const pw = String(password ?? '');
   if (pw.length < PASSWORD_MIN) return `Password must be at least ${PASSWORD_MIN} characters.`;
@@ -98,13 +141,38 @@ export const checkPassword = (password) => {
   return '';
 };
 
-export const checkAmount = (value, { min = 0, max = MAX_AMOUNT, label = 'Amount', allowZero = true } = {}) => {
+// Rules for a new password — the same ones password_policy_error() in
+// backend/config.php enforces. Drives PasswordChecklist too.
+export const PASSWORD_RULES = [
+  { key: 'length', label: `At least ${PASSWORD_MIN} characters`, test: (pw) => pw.length >= PASSWORD_MIN },
+  { key: 'upper', label: 'One uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+  { key: 'lower', label: 'One lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+  { key: 'digit', label: 'One number', test: (pw) => /\d/.test(pw) },
+  { key: 'symbol', label: 'One symbol (e.g. ! @ # $)', test: (pw) => /[^A-Za-z0-9\s]/.test(pw) },
+];
+
+export const checkNewPassword = (password) => {
+  const pw = String(password ?? '');
+  if (!pw) return 'Password is required.';
+  const lengthError = checkPassword(pw);
+  if (lengthError) return lengthError;
+  const missing = PASSWORD_RULES.filter((r) => !r.test(pw)).map((r) => r.label.toLowerCase());
+  return missing.length ? `Password needs ${missing.join(', ')}.` : '';
+};
+
+export const checkPasswordMatch = (password, confirm) => {
+  if (!String(confirm ?? '')) return 'Please confirm the password.';
+  return confirm === password ? '' : 'Passwords do not match.';
+};
+
+export const checkAmount = (value, { min = 0, max = MAX_AMOUNT, label = 'Amount', allowZero = true, required = true } = {}) => {
   const raw = String(value ?? '').trim();
-  if (raw === '') return `${label} is required.`;
+  if (raw === '') return required ? `${label} is required.` : '';
   const n = Number(raw);
   if (!Number.isFinite(n)) return `${label} must be a number.`;
   if (n < min || (!allowZero && n === 0)) return `${label} must be ${allowZero ? 'at least' : 'more than'} ${min}.`;
   if (n > max) return `${label} must not exceed ${max.toLocaleString()}.`;
+  if (/\.\d{3,}$/.test(raw)) return `${label} can have at most 2 decimal places.`;
   return '';
 };
 
@@ -153,6 +221,28 @@ export const checkDate = (value, { min, max, label = 'Date' } = {}) => {
 export const localDateString = (date = new Date()) => {
   const pad = (n) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+// Local YYYY-MM-DD shifted by whole days / years from today (or `from`).
+export const addDays = (days, from = new Date()) => {
+  const d = new Date(from);
+  d.setDate(d.getDate() + days);
+  return localDateString(d);
+};
+
+export const addYears = (years, from = new Date()) => {
+  const d = new Date(from);
+  d.setFullYear(d.getFullYear() + years);
+  return localDateString(d);
+};
+
+// The furthest date a forward-looking date input accepts.
+export const maxFutureDate = () => addYears(MAX_FUTURE_YEARS);
+
+// End must not be before start. Empty values are left to checkDate/required.
+export const checkDateRange = (start, end, { startLabel = 'Start date', endLabel = 'End date' } = {}) => {
+  if (!start || !end) return '';
+  return end < start ? `${endLabel} cannot be before ${startLabel.toLowerCase()}.` : '';
 };
 
 // Local HH:mm for time inputs.
