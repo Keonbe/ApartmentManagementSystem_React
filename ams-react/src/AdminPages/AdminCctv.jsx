@@ -8,6 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
+import { LIMITS } from '../utils/validation';
 
 export default function AdminCctv() {
   const [requests, setRequests] = useState([]);
@@ -136,7 +137,7 @@ export default function AdminCctv() {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
                   <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                  <input
+                  <input maxLength={LIMITS.search}
                     type="text"
                     placeholder="Search by tenant, unit, incident location, or reason..."
                     value={searchQuery}

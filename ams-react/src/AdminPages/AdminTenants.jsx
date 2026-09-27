@@ -9,8 +9,17 @@ import {
   faSignOutAlt, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError, localDateString } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, addDays, checkAmount, checkDate, checkText } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import CharCount from '../Components/form/CharCount';
+import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+
+// update_tenant_status.php: a scheduled move-out is 15–30 days ahead.
+const MOVE_OUT_MIN_DAYS = 15;
+const MOVE_OUT_MAX_DAYS = 30;
+const money = (v) => Number(v) || 0;
 import { fileUrl } from '../api/fileUrl';
 import AdminHouseholdList from '../Components/AdminHouseholdList';
 
@@ -117,35 +126,50 @@ const AdminTenants = () => {
     setDamageNotes('');
     setUtilityDeduction(0);
     setShowProfileModal(false);
+    tenantForms.setErrors({});
     setShowClearanceModal(true);
   };
 
+  // One hook for the archive, move-out and clearance modals; each submit
+  // checks only its own fields. Keys match the endpoints' body fields.
+  const [savingAction, setSavingAction] = useState('');
+  const tenantForms = useFieldErrors({
+    archiveReason: (v) => (archiveReasons.includes(v) ? '' : 'Choose an archive reason.'),
+    archiveNotes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
+    requested_move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(MOVE_OUT_MIN_DAYS), max: addDays(MOVE_OUT_MAX_DAYS) })
+      .replace(/cannot be before .*/, `must be at least ${MOVE_OUT_MIN_DAYS} days from today.`)
+      .replace(/cannot be after .*/, `cannot be more than ${MOVE_OUT_MAX_DAYS} days from today.`),
+    damage_deduction: (v) => checkAmount(v, { label: 'Damage deduction', required: false }),
+    damage_notes: (v) => checkText(v, { label: 'Inspection notes', max: LIMITS.reason, required: false }),
+    utility_deduction: (v) => checkAmount(v, { label: 'Utility balance', required: false }),
+  }, { idPrefix: 'tenant-' });
+  const tenantValues = {
+    archiveReason, archiveNotes, requested_move_out_date: moveOutDate,
+    damage_deduction: damageDeduction, damage_notes: damageNotes, utility_deduction: utilityDeduction,
+  };
+  const blurTenantField = (name) => tenantForms.validateField(name, tenantValues);
+
   const handleConfirmClearance = async () => {
-    if (!clearanceTarget) return;
+    if (!clearanceTarget || savingAction) return;
 
     const rentStr = clearanceTarget.rent ? String(clearanceTarget.rent) : '4000';
     const baseDeposit = parseFloat(rentStr.replace(/[^0-9.]/g, '')) || 4000;
-    const damages = parseFloat(damageDeduction) || 0;
-    const utilities = parseFloat(utilityDeduction) || 0;
+    const damages = money(damageDeduction);
+    const utilities = money(utilityDeduction);
     const netRefund = Math.max(0, baseDeposit - damages - utilities);
-    const clearanceError = firstError(
-      checkAmount(damages, { label: 'Damage deduction' }),
-      checkAmount(utilities, { label: 'Utility deduction' }),
-      checkLength(damageNotes, LIMITS.reason, 'Damage notes')
-    );
-    if (clearanceError) {
-      alert(clearanceError);
-      return;
-    }
+    const notes = String(damageNotes).trim();
+    setDamageNotes(notes);
+    if (!tenantForms.validateAll({ ...tenantValues, damage_notes: notes }, ['damage_deduction', 'damage_notes', 'utility_deduction'])) return;
 
     const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
 
+    setSavingAction('clearance');
     try {
       const res = await api.post('/update_tenant_status.php', {
         id: clearanceTarget.id,
         status: 'moved-out',
         damage_deduction: damages,
-        damage_notes: damageNotes,
+        damage_notes: notes,
         utility_deduction: utilities,
         clearance_notes: summaryNotes
       });
@@ -155,12 +179,14 @@ const AdminTenants = () => {
         setShowClearanceModal(false);
         setClearanceTarget(null);
         fetchTenants();
-      } else {
+      } else if (!tenantForms.applyServerErrors(res)) {
         alert(res.data.message || "Failed to complete move-out clearance.");
       }
     } catch (err) {
       console.error("Error confirming clearance:", err);
-      alert(apiErrorMessage(err, "Failed to submit move-out clearance."));
+      if (!tenantForms.applyServerErrors(err)) alert(apiErrorMessage(err, "Failed to submit move-out clearance."));
+    } finally {
+      setSavingAction('');
     }
   };
 
@@ -169,34 +195,18 @@ const AdminTenants = () => {
 
   const handleInitiateMoveOutClick = (tenant) => {
     setMoveOutTarget(tenant);
-    const date = new Date();
-    date.setDate(date.getDate() + 15);
-    setMoveOutDate(localDateString(date));
+    setMoveOutDate(addDays(MOVE_OUT_MIN_DAYS));
+    tenantForms.setErrors({});
     setShowProfileModal(false);
     setShowMoveOutModal(true);
   };
 
   const handleConfirmMoveOut = async () => {
-    if (!moveOutTarget || !moveOutDate) return;
+    if (!moveOutTarget || savingAction) return;
+    if (!tenantForms.validateAll(tenantValues, ['requested_move_out_date'])) return;
 
+    setSavingAction('moveout');
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const selected = new Date(moveOutDate);
-      selected.setHours(0, 0, 0, 0);
-
-      const diffTime = selected.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays < 15) {
-        alert("Prior notice of at least 15 days is required before actual move-out.");
-        return;
-      }
-      if (diffDays > 30) {
-        alert("Move-out notice cannot exceed 30 days in advance.");
-        return;
-      }
-
       const res = await api.post('/update_tenant_status.php', {
         id: moveOutTarget.id,
         status: 'pending-move-out',
@@ -208,26 +218,32 @@ const AdminTenants = () => {
         setShowMoveOutModal(false);
         setMoveOutTarget(null);
         fetchTenants();
-      } else {
+      } else if (!tenantForms.applyServerErrors(res)) {
         alert(res.data.message || "Failed to update tenant status.");
       }
     } catch (err) {
       console.error("Error setting move out date:", err);
-      alert(err.response?.data?.message || "Failed to update status. Please try again.");
+      if (!tenantForms.applyServerErrors(err)) alert(apiErrorMessage(err, "Failed to update status. Please try again."));
+    } finally {
+      setSavingAction('');
     }
   };
 
   const handleArchiveTenant = async () => {
-    if (!archiveTarget) return;
+    if (!archiveTarget || savingAction) return;
+    const notes = archiveNotes.trim();
+    setArchiveNotes(notes);
+    if (!tenantForms.validateAll({ ...tenantValues, archiveNotes: notes }, ['archiveReason', 'archiveNotes'])) return;
+    setSavingAction('archive');
     try {
       const payload = {
         id: archiveTarget.id,
         archiveReason,
-        archiveNotes,
+        archiveNotes: notes,
       };
       const res = await api.post('/archive_tenant.php', payload);
       if (!res.data.success) {
-        alert(apiErrorMessage(res, 'Failed to archive tenant.'));
+        if (!tenantForms.applyServerErrors(res)) alert(apiErrorMessage(res, 'Failed to archive tenant.'));
         return;
       }
       fetchTenants();
@@ -237,7 +253,9 @@ const AdminTenants = () => {
       setArchiveNotes('');
     } catch (err) {
       console.error("Error archiving tenant:", err);
-      alert(apiErrorMessage(err, 'Failed to archive tenant.'));
+      if (!tenantForms.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to archive tenant.'));
+    } finally {
+      setSavingAction('');
     }
   };
 
@@ -260,6 +278,7 @@ const AdminTenants = () => {
     setArchiveTarget(tenant);
     setArchiveReason('End of Lease');
     setArchiveNotes('');
+    tenantForms.setErrors({});
     setShowArchiveModal(true);
   };
 
@@ -403,7 +422,7 @@ const AdminTenants = () => {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
-                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search tenants, units, emails..." className="flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
+                <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search tenants, units, emails..." className="flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
               </div>
 
               {/* Sorting Filters */}
@@ -928,27 +947,33 @@ const AdminTenants = () => {
 
               {/* Archive Reason */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Archive Reason *</label>
+                <label htmlFor="tenant-archiveReason" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Archive Reason *</label>
                 <select
+                  {...tenantForms.fieldA11y('archiveReason')}
                   value={archiveReason}
-                  onChange={(e) => setArchiveReason(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-violet-500 bg-white text-slate-800"
+                  onChange={(e) => { setArchiveReason(e.target.value); tenantForms.clearError('archiveReason'); }}
+                  className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-violet-500 bg-white text-slate-800${invalidCls(tenantForms.errors.archiveReason)}`}
                 >
                   {archiveReasons.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
+                <FieldError id="tenant-archiveReason" error={tenantForms.errors.archiveReason} />
               </div>
 
               {/* Notes */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Additional Notes</label>
+                <label htmlFor="tenant-archiveNotes" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Additional Notes</label>
                 <textarea
+                  {...tenantForms.fieldA11y('archiveNotes')}
                   value={archiveNotes}
                   maxLength={LIMITS.notes}
-                  onChange={(e) => setArchiveNotes(e.target.value)}
+                  onChange={(e) => { setArchiveNotes(e.target.value); tenantForms.clearError('archiveNotes'); }}
+                  onBlur={() => { const v = archiveNotes.trim(); setArchiveNotes(v); tenantForms.validateField('archiveNotes', { ...tenantValues, archiveNotes: v }); }}
                   rows={3}
                   placeholder="Optional notes about this archival..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-violet-500 bg-white text-slate-700 resize-y"
+                  className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-violet-500 bg-white text-slate-700 resize-y${invalidCls(tenantForms.errors.archiveNotes)}`}
                 />
+                <FieldError id="tenant-archiveNotes" error={tenantForms.errors.archiveNotes} />
+                <CharCount value={archiveNotes} max={LIMITS.notes} />
               </div>
 
               {/* Warning */}
@@ -962,7 +987,7 @@ const AdminTenants = () => {
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
               <button onClick={() => setShowArchiveModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button onClick={handleArchiveTenant} className="px-5 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 shadow-sm border-0 cursor-pointer">
+              <button type="button" onClick={handleArchiveTenant} disabled={!!savingAction} className="px-5 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 shadow-sm border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                 <FontAwesomeIcon icon={faArchive} className="mr-1.5" /> Confirm Archive
               </button>
             </div>
@@ -1005,31 +1030,26 @@ const AdminTenants = () => {
 
                 {/* Date Picker */}
                 <div className="text-left">
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Planned Move-Out Date *</label>
+                  <label htmlFor="tenant-requested_move_out_date" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Planned Move-Out Date *</label>
                   <input
                     type="date"
+                    {...tenantForms.fieldA11y('requested_move_out_date')}
                     value={moveOutDate}
-                    min={(() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 15);
-                      return localDateString(d);
-                    })()}
-                    max={(() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 30);
-                      return localDateString(d);
-                    })()}
-                    onChange={(e) => setMoveOutDate(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 bg-white text-slate-800"
+                    min={addDays(MOVE_OUT_MIN_DAYS)}
+                    max={addDays(MOVE_OUT_MAX_DAYS)}
+                    onChange={(e) => { setMoveOutDate(e.target.value); tenantForms.clearError('requested_move_out_date'); }}
+                    onBlur={() => blurTenantField('requested_move_out_date')}
+                    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 bg-white text-slate-800${invalidCls(tenantForms.errors.requested_move_out_date)}`}
                     required
                   />
+                  <FieldError id="tenant-requested_move_out_date" error={tenantForms.errors.requested_move_out_date} />
                 </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-                <button onClick={() => setShowMoveOutModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-                <button onClick={handleConfirmMoveOut} className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 shadow-sm border-0 cursor-pointer">
-                  Confirm Schedule
+                <button type="button" onClick={() => setShowMoveOutModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+                <button type="button" onClick={handleConfirmMoveOut} disabled={!!savingAction} className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 shadow-sm border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                  {savingAction === 'moveout' ? 'Saving…' : 'Confirm Schedule'}
                 </button>
               </div>
             </div>
@@ -1073,27 +1093,38 @@ const AdminTenants = () => {
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Damage Deductions (₱)</label>
+                      <label htmlFor="tenant-damage_deduction" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Damage Deductions (₱)</label>
+                      {/* Kept as typed and validated, instead of being clamped on every keystroke. */}
                       <input
                         type="number"
+                        {...tenantForms.fieldA11y('damage_deduction')}
+                        inputMode="decimal"
                         min="0"
                         max={MAX_AMOUNT}
+                        step="0.01"
                         value={damageDeduction}
-                        onChange={(e) => setDamageDeduction(Math.max(0, parseFloat(e.target.value) || 0))}
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800"
+                        onKeyDown={blockNonNumericKeys}
+                        onChange={(e) => { setDamageDeduction(e.target.value); tenantForms.clearError('damage_deduction'); }}
+                        onBlur={() => blurTenantField('damage_deduction')}
+                        className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800${invalidCls(tenantForms.errors.damage_deduction)}`}
                         placeholder="0.00"
                       />
+                      <FieldError id="tenant-damage_deduction" error={tenantForms.errors.damage_deduction} />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Inspection Notes / Details</label>
+                      <label htmlFor="tenant-damage_notes" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Inspection Notes / Details</label>
                       <input
                         type="text"
+                        {...tenantForms.fieldA11y('damage_notes')}
+                        autoComplete="off"
                         value={damageNotes}
                         maxLength={LIMITS.reason}
-                        onChange={(e) => setDamageNotes(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                        onChange={(e) => { setDamageNotes(e.target.value); tenantForms.clearError('damage_notes'); }}
+                        onBlur={() => { const v = damageNotes.trim(); setDamageNotes(v); tenantForms.validateField('damage_notes', { ...tenantValues, damage_notes: v }); }}
+                        className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800${invalidCls(tenantForms.errors.damage_notes)}`}
                         placeholder="e.g., Wall repaint, key replacement"
                       />
+                      <FieldError id="tenant-damage_notes" error={tenantForms.errors.damage_notes} />
                     </div>
                   </div>
                 </div>
@@ -1104,16 +1135,22 @@ const AdminTenants = () => {
                     2. Unpaid Utility Bills Settlement
                   </label>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Unpaid Electricity & Water Balance (₱)</label>
+                    <label htmlFor="tenant-utility_deduction" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Unpaid Electricity & Water Balance (₱)</label>
                     <input
                       type="number"
+                      {...tenantForms.fieldA11y('utility_deduction')}
+                      inputMode="decimal"
                       min="0"
                       max={MAX_AMOUNT}
+                      step="0.01"
                       value={utilityDeduction}
-                      onChange={(e) => setUtilityDeduction(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800"
+                      onKeyDown={blockNonNumericKeys}
+                      onChange={(e) => { setUtilityDeduction(e.target.value); tenantForms.clearError('utility_deduction'); }}
+                      onBlur={() => blurTenantField('utility_deduction')}
+                      className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800${invalidCls(tenantForms.errors.utility_deduction)}`}
                       placeholder="0.00"
                     />
+                    <FieldError id="tenant-utility_deduction" error={tenantForms.errors.utility_deduction} />
                   </div>
                 </div>
 
@@ -1129,16 +1166,16 @@ const AdminTenants = () => {
                     </div>
                     <div className="flex justify-between text-rose-600">
                       <span>Less: Room Damages:</span>
-                      <span className="font-semibold">-₱{damageDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      <span className="font-semibold">-₱{money(damageDeduction).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between text-rose-600">
                       <span>Less: Unpaid Utilities:</span>
-                      <span className="font-semibold">-₱{utilityDeduction.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      <span className="font-semibold">-₱{money(utilityDeduction).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="border-t border-indigo-200 pt-2 flex justify-between font-bold text-sm text-indigo-950">
                       <span>Net Refundable Security Deposit:</span>
                       <span className="text-emerald-600 font-black">
-                        ₱{Math.max(0, (parseFloat(String(clearanceTarget.rent || '4000').replace(/[^0-9.]/g, '')) || 4000) - damageDeduction - utilityDeduction).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        ₱{Math.max(0, (parseFloat(String(clearanceTarget.rent || '4000').replace(/[^0-9.]/g, '')) || 4000) - money(damageDeduction) - money(utilityDeduction)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
@@ -1147,7 +1184,7 @@ const AdminTenants = () => {
 
               <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50">
                 <button onClick={() => setShowClearanceModal(false)} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-                <button onClick={handleConfirmClearance} className="px-5 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-semibold hover:bg-slate-900 shadow-sm border-0 cursor-pointer flex items-center gap-2">
+                <button type="button" onClick={handleConfirmClearance} disabled={!!savingAction} className="px-5 py-2.5 bg-slate-800 text-white rounded-lg text-sm font-semibold hover:bg-slate-900 shadow-sm border-0 cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   <FontAwesomeIcon icon={faCheckCircle} /> Confirm Clearance & Complete Move Out
                 </button>
               </div>

@@ -11,7 +11,9 @@ import { appReturnBase } from '../api/env';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
-import { FILE_RULES, checkFile } from '../utils/fileLimits';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import FieldError from '../Components/form/FieldError';
+import FileChip from '../Components/form/FileChip';
 import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 
@@ -34,22 +36,35 @@ export default function TrackApplication() {
             : null
     ));
 
-    const validateAndSetContractFile = (file) => {
+    const [contractError, setContractError] = useState('');
+    const [contractInputKey, setContractInputKey] = useState(0);
+
+    const clearContractFile = () => {
+        setContractFile(null);
+        setContractInputKey(k => k + 1); // remounts the file inputs, clearing them
+    };
+
+    const validateAndSetContractFile = (e) => {
+        const file = e.target.files?.[0];
         if (!file) return;
         const fileError = checkFile(file, FILE_RULES.pdf);
+        setContractError(fileError);
         if (fileError) {
-            alert(fileError);
+            e.target.value = '';
+            setContractFile(null);
             return;
         }
         setContractFile(file);
     };
 
     const handleContractUpload = async (e) => {
-        e.preventDefault();
+        e?.preventDefault();
+        if (uploadingContract) return;
         if (!contractFile) {
-            alert("Please select a signed contract file to upload.");
+            setContractError("Please select the signed contract (PDF) to upload.");
             return;
         }
+        setContractError('');
         setUploadingContract(true);
         try {
             const formData = new FormData();
@@ -68,13 +83,13 @@ export default function TrackApplication() {
                     signed_lease_path: res.data.filePath,
                     contract_id: res.data.contractId
                 }));
-                setContractFile(null);
+                clearContractFile();
             } else {
-                alert(res.data.message || "Failed to upload contract.");
+                setContractError(res.data.message || "Failed to upload contract.");
             }
         } catch (err) {
             console.error("Contract upload error:", err);
-            alert(apiErrorMessage(err, "Failed to upload contract. Please try again."));
+            setContractError(apiErrorMessage(err, "Failed to upload contract. Please try again."));
         } finally {
             setUploadingContract(false);
         }
@@ -111,8 +126,7 @@ export default function TrackApplication() {
                 }
             } catch (error) {
                 console.error("Error creating checkout session:", error);
-                const msg = error?.response?.data?.message || "Payment gateway error.";
-                alert(msg);
+                alert(apiErrorMessage(error, "Payment gateway error."));
             }
             return;
         }
@@ -439,27 +453,45 @@ export default function TrackApplication() {
                                     </div>
 
                                     {application.signed_lease_path ? (
-                                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm">
-                                            <div className="flex items-center space-x-3 text-emerald-400 font-bold">
-                                                <FontAwesomeIcon icon={faCheckCircle} className="text-lg" />
-                                                <div>
-                                                    <p className="m-0 text-white font-bold">Signed Lease Contract Uploaded</p>
-                                                    <p className="m-0 text-xs font-normal text-emerald-300">Your signed contract has been attached. You may now proceed to initial payment below.</p>
+                                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 space-y-3 text-sm">
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                                <div className="flex items-center space-x-3 text-emerald-400 font-bold">
+                                                    <FontAwesomeIcon icon={faCheckCircle} className="text-lg" />
+                                                    <div>
+                                                        <p className="m-0 text-white font-bold">Signed Lease Contract Uploaded</p>
+                                                        <p className="m-0 text-xs font-normal text-emerald-300">Your signed contract has been attached. You may now proceed to initial payment below.</p>
+                                                    </div>
                                                 </div>
+                                                <label className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition-all border border-white/10 shrink-0">
+                                                    <span>{t('trackApp.reupload')}</span>
+                                                    <input
+                                                        key={contractInputKey}
+                                                        type="file"
+                                                        id="contract-file"
+                                                        name="file"
+                                                        accept={acceptFor(FILE_RULES.pdf)}
+                                                        aria-invalid={contractError ? true : undefined}
+                                                        aria-describedby={contractError ? 'contract-file-error' : undefined}
+                                                        className="hidden"
+                                                        onChange={validateAndSetContractFile}
+                                                    />
+                                                </label>
                                             </div>
-                                            <label className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition-all border border-white/10 shrink-0">
-                                                <span>{t('trackApp.reupload')}</span>
-                                                <input 
-                                                    type="file" 
-                                                    accept="application/pdf" 
-                                                    className="hidden" 
-                                                    onChange={(e) => {
-                                                        if (e.target.files?.[0]) {
-                                                            validateAndSetContractFile(e.target.files[0]);
-                                                        }
-                                                    }} 
-                                                />
-                                            </label>
+                                            {/* A re-picked file used to be kept but never sent: this branch had no upload button. */}
+                                            {contractFile && (
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                                    <FileChip file={contractFile} onRemove={clearContractFile} className="flex-1 mt-0" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleContractUpload}
+                                                        disabled={uploadingContract}
+                                                        className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-4 py-2 rounded-xl text-xs border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                                    >
+                                                        {uploadingContract ? 'Uploading...' : 'Upload new copy'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                            <FieldError id="contract-file" error={contractError} />
                                         </div>
                                     ) : (
                                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-3">
@@ -470,15 +502,16 @@ export default function TrackApplication() {
                                             <p className="text-slate-300 text-xs m-0">
                                                 You must upload your signed contract first (PDF format only; max 5MB) before initial payment options are enabled.
                                             </p>
-                                            <form onSubmit={handleContractUpload} className="track-app-upload-form flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
-                                                <input 
-                                                    type="file" 
-                                                    accept="application/pdf"
-                                                    onChange={(e) => {
-                                                        if (e.target.files?.[0]) {
-                                                            validateAndSetContractFile(e.target.files[0]);
-                                                        }
-                                                    }}
+                                            <form onSubmit={handleContractUpload} className="track-app-upload-form flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1" noValidate>
+                                                <input
+                                                    key={contractInputKey}
+                                                    type="file"
+                                                    id="contract-file"
+                                                    name="file"
+                                                    accept={acceptFor(FILE_RULES.pdf)}
+                                                    aria-invalid={contractError ? true : undefined}
+                                                    aria-describedby={contractError ? 'contract-file-error' : undefined}
+                                                    onChange={validateAndSetContractFile}
                                                     className="flex-1 text-xs text-slate-300 bg-white/5 border border-white/10 rounded-xl p-2.5 outline-none file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
                                                 />
                                                 <button
@@ -499,6 +532,8 @@ export default function TrackApplication() {
                                                     )}
                                                 </button>
                                             </form>
+                                            {contractFile && <FileChip file={contractFile} onRemove={clearContractFile} />}
+                                            <FieldError id="contract-file" error={contractError} />
                                         </div>
                                     )}
                                 </div>

@@ -9,9 +9,17 @@ import {
   faUsers, faBan, faArrowRight, faHourglassHalf, faComment, faListOl
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkEmail, checkIntRange, checkLength, checkPhMobile, firstError, toPhE164 } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkEmail, checkIntRange, checkLength, checkPersonName, checkPhMobile, checkText, localDateString, localTimeString, maxFutureDate, normalizeEmail, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import CharCount from '../Components/form/CharCount';
+import ReasonModal from '../Components/form/ReasonModal';
+import { blockNonIntegerKeys, blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+
+const MAX_HOLD_DAYS = 90;
+const EMPTY_LOG = { full_name: '', contact_no: '', email: '', room_name: '', message: '', source: 'walk-in' };
 import { getSystemSettings } from '../config/systemSettings';
 import WaitlistPanel from '../Components/WaitlistPanel';
 
@@ -53,7 +61,46 @@ export default function AdminInquiries() {
   const [resNotes, setResNotes] = useState('');
 
   // Walk-in / phone log modal state
-  const [logForm, setLogForm] = useState({ full_name: '', contact_no: '', email: '', room_name: '', message: '', source: 'walk-in' });
+  const [logForm, setLogForm] = useState(EMPTY_LOG);
+  const [busy, setBusy] = useState(''); // which action is in flight
+  // { kind: 'closeInquiry' | 'cancelHold', id } while a reason is being entered (was window.prompt()).
+  const [reasonFor, setReasonFor] = useState(null);
+
+  // Keys match the endpoints' body fields.
+  const detailErrors = useFieldErrors({
+    admin_notes: (v) => checkText(v, { label: 'Admin notes', max: LIMITS.notes, required: false }),
+    viewing_date: (v) => {
+      if (!v) return 'Pick a viewing date and time first.';
+      const [date] = String(v).split('T');
+      if (date < localDateString()) return 'Viewing date cannot be in the past.';
+      if (date > maxFutureDate()) return 'Viewing date is too far in the future.';
+      return '';
+    },
+  }, { idPrefix: 'inquiry-detail-' });
+  const reserveErrors = useFieldErrors({
+    room_name: (v) => (rooms.some(r => String(r.id) === String(v)) ? '' : 'Select a unit to reserve.'),
+    hold_days: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_HOLD_DAYS, 'Hold period'),
+    reservation_fee: (v) => checkAmount(v, { label: 'Reservation fee', required: false }),
+    notes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
+  }, { idPrefix: 'reserve-' });
+  const logErrors = useFieldErrors({
+    full_name: (v) => checkPersonName(v, { label: 'Full name', max: LIMITS.fullName }),
+    contact_no: (v) => checkPhMobile(v),
+    email: (v) => checkEmail(v, { max: LIMITS.email }),
+    room_name: (v) => (!v || rooms.some(r => String(r.id) === String(v)) ? '' : 'Choose a listed unit.'),
+    message: (v) => checkText(v, { label: 'Message', max: LIMITS.message, required: false }),
+  }, { idPrefix: 'log-' });
+  const reserveValues = () => ({ room_name: resRoom, hold_days: resHoldDays, reservation_fee: resFee, notes: resNotes });
+  const setLogField = (key, value) => {
+    setLogForm(f => ({ ...f, [key]: value }));
+    logErrors.clearError(key);
+  };
+  const blurLogField = (key) => {
+    const raw = logForm[key];
+    const v = key === 'email' ? normalizeEmail(raw) : (key === 'full_name' || key === 'message') ? String(raw).trim() : raw;
+    if (v !== raw) setLogForm(f => ({ ...f, [key]: v }));
+    if (key === 'contact_no' || v) logErrors.validateField(key, { ...logForm, [key]: v });
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -117,64 +164,80 @@ export default function AdminInquiries() {
     }
   };
 
-  const updateInquiry = async (payload) => {
+  // Returns true on success; with `throwOnError` a failure throws instead
+  // (ReasonModal shows the message).
+  const updateInquiry = async (payload, { throwOnError = false } = {}) => {
     setActionError(null);
+    let message = '';
+    setBusy('inquiry');
     try {
       const res = await api.post('update_inquiry_status.php', payload);
-      if (!res.data.success) {
-        setActionError(res.data.message || 'Failed to update inquiry.');
-        return false;
+      if (res.data.success) {
+        await fetchData();
+        return true;
       }
-      await fetchData();
-      return true;
+      if (!detailErrors.applyServerErrors(res)) message = res.data.message || 'Failed to update inquiry.';
     } catch (err) {
       console.error('Error updating inquiry:', err);
-      setActionError(apiErrorMessage(err, 'Server error updating the inquiry.'));
-      return false;
+      if (!detailErrors.applyServerErrors(err)) message = apiErrorMessage(err, 'Server error updating the inquiry.');
+    } finally {
+      setBusy('');
     }
+    if (message && throwOnError) throw new Error(message);
+    if (message) setActionError(message);
+    return false;
   };
 
+  // Throws on failure so a reason modal can show it.
   const updateReservation = async (id, status, reason = '') => {
     setActionError(null);
-    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
-    if (reasonError) {
-      alert(reasonError);
-      return;
-    }
+    let res;
     try {
-      const res = await api.post('update_reservation_status.php', { id, status, reason });
-      if (!res.data.success) {
-        alert(res.data.message || 'Failed to update reservation.');
-        return;
-      }
-      await fetchData();
-      await fetchSupporting();
+      res = await api.post('update_reservation_status.php', { id, status, reason });
     } catch (err) {
       console.error('Error updating reservation:', err);
-      alert(apiErrorMessage(err, 'Server error updating the reservation.'));
+      throw new Error(apiErrorMessage(err, 'Server error updating the reservation.'), { cause: err });
+    }
+    if (!res.data.success) throw new Error(res.data.message || 'Failed to update reservation.');
+    await fetchData();
+    await fetchSupporting();
+  };
+
+  const markReservation = async (id, status) => {
+    try {
+      await updateReservation(id, status);
+    } catch (err) {
+      alert(err.message);
     }
   };
 
-  const submitReservation = async () => {
-    setActionError(null);
-    if (!resRoom) {
-      setActionError('Select a unit to reserve.');
-      return;
+  const confirmReason = async (reason) => {
+    if (reasonFor.kind === 'cancelHold') {
+      await updateReservation(reasonFor.id, 'Cancelled', reason);
+    } else {
+      const ok = await updateInquiry({ id: selected.id, status: 'Closed', admin_notes: notes.trim(), closed_reason: reason }, { throwOnError: true });
+      if (ok) setShowDetail(false);
     }
+    setReasonFor(null);
+  };
+
+  const submitReservation = async (e) => {
+    e?.preventDefault();
+    if (busy) return;
+    setActionError(null);
+    const clean = { ...reserveValues(), notes: resNotes.trim() };
+    setResNotes(clean.notes);
+    if (!reserveErrors.validateAll(clean)) return;
     // create_reservation.php stores these in columns of 150/30/150 characters;
     // they come from the inquiry, so a bad value is caught here, not truncated.
-    const reserveError = firstError(
-      checkIntRange(resHoldDays, 1, 90, 'Hold days'),
-      resFee !== '' ? checkAmount(resFee, { label: 'Reservation fee' }) : '',
-      checkLength(selected?.fullName, LIMITS.fullName, 'Name'),
-      checkLength(selected?.contactNo, 30, 'Contact number'),
-      checkLength(selected?.email, LIMITS.email, 'Email'),
-      checkLength(resNotes, LIMITS.notes, 'Notes')
-    );
-    if (reserveError) {
-      setActionError(reserveError);
+    const carriedError = checkLength(selected?.fullName, LIMITS.fullName, 'Name')
+      || checkLength(selected?.contactNo, 30, 'Contact number')
+      || checkLength(selected?.email, LIMITS.email, 'Email');
+    if (carriedError) {
+      setActionError(carriedError);
       return;
     }
+    setBusy('reserve');
     try {
       const res = await api.post('create_reservation.php', {
         inquiry_id: selected?.id,
@@ -182,12 +245,12 @@ export default function AdminInquiries() {
         reserved_for_name: selected?.fullName || '',
         contact_no: selected?.contactNo || '',
         email: selected?.email || '',
-        hold_days: resHoldDays,
-        reservation_fee: resFee,
-        notes: resNotes,
+        hold_days: Number(clean.hold_days),
+        reservation_fee: clean.reservation_fee,
+        notes: clean.notes,
       });
       if (!res.data.success) {
-        setActionError(res.data.message || 'Failed to create the reservation.');
+        if (!reserveErrors.applyServerErrors(res)) setActionError(res.data.message || 'Failed to create the reservation.');
         return;
       }
       setShowReserveModal(false);
@@ -198,36 +261,34 @@ export default function AdminInquiries() {
       await fetchSupporting();
     } catch (err) {
       console.error('Error creating reservation:', err);
-      setActionError(apiErrorMessage(err, 'Server error creating the reservation.'));
+      if (!reserveErrors.applyServerErrors(err)) setActionError(apiErrorMessage(err, 'Server error creating the reservation.'));
+    } finally {
+      setBusy('');
     }
   };
 
-  const submitLoggedInquiry = async () => {
+  const submitLoggedInquiry = async (e) => {
+    e?.preventDefault();
+    if (busy) return;
     setActionError(null);
-    if (!logForm.full_name.trim() || !logForm.contact_no.trim() || !logForm.email.trim()) {
-      setActionError('Name, contact number, and email are required.');
-      return;
-    }
-    const logError = firstError(
-      checkPhMobile(logForm.contact_no) ? 'Enter a valid PH mobile number (e.g. +63 917 123 4567).' : '',
-      checkEmail(logForm.email)
-    );
-    if (logError) {
-      setActionError(logError);
-      return;
-    }
+    const clean = { ...logForm, full_name: logForm.full_name.trim(), email: normalizeEmail(logForm.email), message: logForm.message.trim() };
+    setLogForm(clean);
+    if (!logErrors.validateAll(clean)) return;
+    setBusy('log');
     try {
-      const res = await api.post('submit_inquiry.php', { ...logForm, contact_no: toPhE164(logForm.contact_no) });
+      const res = await api.post('submit_inquiry.php', { ...clean, contact_no: toPhE164(clean.contact_no) });
       if (!res.data.success) {
-        setActionError(res.data.message || 'Failed to log the inquiry.');
+        if (!logErrors.applyServerErrors(res)) setActionError(res.data.message || 'Failed to log the inquiry.');
         return;
       }
       setShowLogModal(false);
-      setLogForm({ full_name: '', contact_no: '', email: '', room_name: '', message: '', source: 'walk-in' });
+      setLogForm(EMPTY_LOG);
       fetchData();
     } catch (err) {
       console.error('Error logging inquiry:', err);
-      setActionError(apiErrorMessage(err, 'Server error logging the inquiry.'));
+      if (!logErrors.applyServerErrors(err)) setActionError(apiErrorMessage(err, 'Server error logging the inquiry.'));
+    } finally {
+      setBusy('');
     }
   };
 
@@ -240,6 +301,7 @@ export default function AdminInquiries() {
     setWaitlistMsg(null);
     setResHoldDays(holdDays);
     setActionError(null);
+    detailErrors.setErrors({});
     setShowDetail(true);
   };
 
@@ -397,7 +459,7 @@ export default function AdminInquiries() {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => { setActionError(null); setShowLogModal(true); }}
+                  onClick={() => { setActionError(null); logErrors.setErrors({}); setShowLogModal(true); }}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm"
                 >
                   <FontAwesomeIcon icon={faPlus} /> Log Walk-in Inquiry
@@ -418,7 +480,7 @@ export default function AdminInquiries() {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
                   <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                  <input
+                  <input maxLength={LIMITS.search}
                     type="text"
                     placeholder={view === 'inquiries' ? 'Search by name, email, contact, unit, or message...' : 'Search by name, unit, or contact...'}
                     value={searchQuery}
@@ -598,7 +660,7 @@ export default function AdminInquiries() {
                                 <div className="flex justify-end gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => updateReservation(res.id, 'Converted')}
+                                    onClick={() => markReservation(res.id, 'Converted')}
                                     className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition-colors border-0 cursor-pointer"
                                     title="Mark as converted to an application"
                                   >
@@ -606,11 +668,7 @@ export default function AdminInquiries() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const reason = prompt('Reason for cancelling this hold:');
-                                      if (reason === null) return;
-                                      updateReservation(res.id, 'Cancelled', reason);
-                                    }}
+                                    onClick={() => setReasonFor({ kind: 'cancelHold', id: res.id })}
                                     className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition-colors border-0 cursor-pointer"
                                     title="Cancel hold and release the unit"
                                   >
@@ -699,56 +757,65 @@ export default function AdminInquiries() {
               )}
 
               <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Admin Notes</label>
+                <label htmlFor="inquiry-detail-admin_notes" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Admin Notes</label>
                 <textarea
                   rows="3"
+                  {...detailErrors.fieldA11y('admin_notes')}
                   value={notes}
                   maxLength={LIMITS.notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={(e) => { setNotes(e.target.value); detailErrors.clearError('admin_notes'); }}
+                  onBlur={() => { const v = notes.trim(); setNotes(v); detailErrors.validateField('admin_notes', { admin_notes: v }); }}
                   placeholder="Record what was discussed, follow-up dates, or screening notes..."
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-y"
+                  className={`w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-y${invalidCls(detailErrors.errors.admin_notes)}`}
                 />
+                <FieldError id="inquiry-detail-admin_notes" error={detailErrors.errors.admin_notes} />
+                <CharCount value={notes} max={LIMITS.notes} />
 
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Viewing Schedule</label>
+                <label htmlFor="inquiry-detail-viewing_date" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Viewing Schedule</label>
                 <input
                   type="datetime-local"
+                  {...detailErrors.fieldA11y('viewing_date')}
+                  min={`${localDateString()}T${localTimeString()}`}
+                  max={`${maxFutureDate()}T23:59`}
                   value={viewingDate}
-                  onChange={(e) => setViewingDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white"
+                  onChange={(e) => { setViewingDate(e.target.value); detailErrors.clearError('viewing_date'); }}
+                  onBlur={() => viewingDate && detailErrors.validateField('viewing_date', { viewing_date: viewingDate })}
+                  className={`w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white${invalidCls(detailErrors.errors.viewing_date)}`}
                 />
+                <FieldError id="inquiry-detail-viewing_date" error={detailErrors.errors.viewing_date} />
               </div>
 
               {/* Pipeline actions */}
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
+                  disabled={!!busy}
                   onClick={async () => {
-                    const ok = await updateInquiry({ id: selected.id, status: 'Contacted', admin_notes: notes });
+                    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
+                    const ok = await updateInquiry({ id: selected.id, status: 'Contacted', admin_notes: notes.trim() });
                     if (ok) setShowDetail(false);
                   }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-xs font-bold text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-xs font-bold text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FontAwesomeIcon icon={faPhone} /> Mark Contacted
                 </button>
 
                 <button
                   type="button"
+                  disabled={!!busy}
                   onClick={async () => {
-                    if (!viewingDate) {
-                      setActionError('Pick a viewing date and time first.');
-                      return;
-                    }
-                    const ok = await updateInquiry({ id: selected.id, status: 'Scheduled', admin_notes: notes, viewing_date: viewingDate.replace('T', ' ') + ':00' });
+                    if (!detailErrors.validateAll({ admin_notes: notes, viewing_date: viewingDate })) return;
+                    const ok = await updateInquiry({ id: selected.id, status: 'Scheduled', admin_notes: notes.trim(), viewing_date: viewingDate.replace('T', ' ') + ':00' });
                     if (ok) setShowDetail(false);
                   }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FontAwesomeIcon icon={faCalendarAlt} /> Schedule Viewing
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => { setActionError(null); setShowReserveModal(true); }}
+                  onClick={() => { setActionError(null); reserveErrors.setErrors({}); setShowReserveModal(true); }}
                   disabled={selected.status === 'Reserved'}
                   className="flex items-center justify-center gap-2 rounded-xl bg-violet-50 border border-violet-200 px-4 py-3 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
@@ -797,25 +864,24 @@ export default function AdminInquiries() {
               <div className="flex gap-2.5 pt-3 border-t border-slate-200">
                 <button
                   type="button"
+                  disabled={!!busy}
                   onClick={async () => {
-                    const ok = await updateInquiry({ id: selected.id, status: selected.status, admin_notes: notes });
+                    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
+                    const ok = await updateInquiry({ id: selected.id, status: selected.status, admin_notes: notes.trim() });
                     if (ok) setShowDetail(false);
                   }}
-                  className="flex-1 rounded-xl bg-slate-800 px-4 py-3 text-xs font-bold text-white hover:bg-slate-900 transition-colors border-0 cursor-pointer"
+                  className="flex-1 rounded-xl bg-slate-800 px-4 py-3 text-xs font-bold text-white hover:bg-slate-900 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save Notes
+                  {busy === 'inquiry' ? 'Saving…' : 'Save Notes'}
                 </button>
                 <button
                   type="button"
-                  onClick={async () => {
-                    const reason = prompt('Reason for closing this inquiry:');
-                    if (reason === null) return;
-                    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
-                    if (reasonError) { alert(reasonError); return; }
-                    const ok = await updateInquiry({ id: selected.id, status: 'Closed', admin_notes: notes, closed_reason: reason });
-                    if (ok) setShowDetail(false);
+                  disabled={!!busy}
+                  onClick={() => {
+                    if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;
+                    setReasonFor({ kind: 'closeInquiry', id: selected.id });
                   }}
-                  className="flex-1 rounded-xl bg-white border-2 border-rose-200 px-4 py-3 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  className="flex-1 rounded-xl bg-white border-2 border-rose-200 px-4 py-3 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Close Inquiry
                 </button>
@@ -828,10 +894,10 @@ export default function AdminInquiries() {
       {/* ─── RESERVE UNIT MODAL ─── */}
       {showReserveModal && selected && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowReserveModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={submitReservation} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-violet-600 to-violet-800">
               <h3 className="text-lg font-bold m-0">Reserve a Unit</h3>
-              <button onClick={() => setShowReserveModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
+              <button type="button" aria-label="Close" onClick={() => setShowReserveModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
@@ -849,17 +915,19 @@ export default function AdminInquiries() {
               </p>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Unit (vacant only)</label>
+                <label htmlFor="reserve-room_name" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Unit (vacant only)</label>
                 <select
+                  {...reserveErrors.fieldA11y('room_name')}
                   value={resRoom}
-                  onChange={(e) => setResRoom(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500"
+                  onChange={(e) => { setResRoom(e.target.value); reserveErrors.clearError('room_name'); }}
+                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.room_name)}`}
                 >
-                  <option value="">Select a unit...</option>
+                  <option value="" disabled>Select a unit...</option>
                   {rooms.map(r => (
                     <option key={r.id} value={r.id}>Room {r.id} — {r.type} (₱{Number(r.rent).toLocaleString()}/mo)</option>
                   ))}
                 </select>
+                <FieldError id="reserve-room_name" error={reserveErrors.errors.room_name} />
                 {rooms.length === 0 && (
                   <p className="text-xs text-amber-600 font-medium mt-1.5 m-0">No vacant units are available to reserve.</p>
                 )}
@@ -867,62 +935,78 @@ export default function AdminInquiries() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
+                  <label htmlFor="reserve-hold_days" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
+                  {/* Kept as typed: Number('') used to turn an empty field into 0. */}
                   <input
                     type="number"
+                    {...reserveErrors.fieldA11y('hold_days')}
+                    inputMode="numeric"
                     min="1"
-                    max="90"
+                    max={MAX_HOLD_DAYS}
+                    step="1"
                     value={resHoldDays}
-                    onChange={(e) => setResHoldDays(Number(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500"
+                    onKeyDown={blockNonIntegerKeys}
+                    onChange={(e) => { setResHoldDays(e.target.value); reserveErrors.clearError('hold_days'); }}
+                    onBlur={() => reserveErrors.validateField('hold_days', reserveValues())}
+                    className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.hold_days)}`}
                   />
+                  <FieldError id="reserve-hold_days" error={reserveErrors.errors.hold_days} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Reservation Fee (₱)</label>
+                  <label htmlFor="reserve-reservation_fee" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Reservation Fee (₱)</label>
                   <input
                     type="number"
+                    {...reserveErrors.fieldA11y('reservation_fee')}
+                    inputMode="decimal"
                     min="0"
                     max={MAX_AMOUNT}
                     step="0.01"
                     value={resFee}
-                    onChange={(e) => setResFee(e.target.value)}
+                    onKeyDown={blockNonNumericKeys}
+                    onChange={(e) => { setResFee(e.target.value); reserveErrors.clearError('reservation_fee'); }}
+                    onBlur={() => reserveErrors.validateField('reservation_fee', reserveValues())}
                     placeholder="0.00"
-                    className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500"
+                    className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500${invalidCls(reserveErrors.errors.reservation_fee)}`}
                   />
+                  <FieldError id="reserve-reservation_fee" error={reserveErrors.errors.reservation_fee} />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
+                <label htmlFor="reserve-notes" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Notes</label>
                 <textarea
                   rows="2"
+                  {...reserveErrors.fieldA11y('notes')}
                   value={resNotes}
                   maxLength={LIMITS.notes}
-                  onChange={(e) => setResNotes(e.target.value)}
+                  onChange={(e) => { setResNotes(e.target.value); reserveErrors.clearError('notes'); }}
+                  onBlur={() => { const v = resNotes.trim(); setResNotes(v); reserveErrors.validateField('notes', { ...reserveValues(), notes: v }); }}
                   placeholder="Terms agreed, deposit arrangement, etc."
-                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500 resize-y"
+                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-500 resize-y${invalidCls(reserveErrors.errors.notes)}`}
                 />
+                <FieldError id="reserve-notes" error={reserveErrors.errors.notes} />
+                <CharCount value={resNotes} max={LIMITS.notes} />
               </div>
 
               <button
-                type="button"
-                onClick={submitReservation}
-                className="w-full rounded-xl bg-violet-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-violet-700 transition-colors border-0 cursor-pointer shadow-md"
+                type="submit"
+                disabled={!!busy}
+                className="w-full rounded-xl bg-violet-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-violet-700 transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Place Hold
+                {busy === 'reserve' ? 'Placing hold…' : 'Place Hold'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 
       {/* ─── LOG WALK-IN / PHONE INQUIRY MODAL ─── */}
       {showLogModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowLogModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={submitLoggedInquiry} noValidate>
             <div className="px-6 py-5 flex items-center justify-between text-white bg-gradient-to-r from-indigo-600 to-indigo-800">
               <h3 className="text-lg font-bold m-0">Log an Inquiry</h3>
-              <button onClick={() => setShowLogModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
+              <button type="button" aria-label="Close" onClick={() => setShowLogModal(false)} className="text-white hover:bg-white/20 p-2 rounded-xl border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
@@ -960,62 +1044,90 @@ export default function AdminInquiries() {
                 { key: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. juan@email.com', max: LIMITS.email },
               ].map(field => (
                 <div key={field.key}>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{field.label}</label>
+                  <label htmlFor={`log-${field.key}`} className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{field.label}</label>
                   {field.type === 'tel' ? (
                     <PhoneInput
+                      id="log-contact_no"
+                      name="contact_no"
                       value={logForm.contact_no}
-                      onChange={(digits) => setLogForm({ ...logForm, contact_no: digits })}
-                      inputClassName="w-full rounded-r-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500"
+                      onChange={(digits) => setLogField('contact_no', digits)}
+                      onBlur={() => blurLogField('contact_no')}
+                      error={logErrors.errors.contact_no}
+                      inputClassName={`w-full rounded-r-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors.contact_no)}`}
                     />
                   ) : (
-                    <input
-                      type={field.type}
-                      maxLength={field.max}
-                      value={logForm[field.key]}
-                      onChange={(e) => setLogForm({ ...logForm, [field.key]: e.target.value })}
-                      placeholder={field.placeholder}
-                      className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500"
-                    />
+                    <>
+                      <input
+                        type={field.type}
+                        {...logErrors.fieldA11y(field.key)}
+                        inputMode={field.type === 'email' ? 'email' : undefined}
+                        autoComplete="off"
+                        maxLength={field.max}
+                        value={logForm[field.key]}
+                        onChange={(e) => setLogField(field.key, e.target.value)}
+                        onBlur={() => blurLogField(field.key)}
+                        placeholder={field.placeholder}
+                        className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors[field.key])}`}
+                      />
+                      <FieldError id={`log-${field.key}`} error={logErrors.errors[field.key]} />
+                    </>
                   )}
                 </div>
               ))}
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Unit of Interest</label>
+                <label htmlFor="log-room_name" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Unit of Interest</label>
                 <select
+                  {...logErrors.fieldA11y('room_name')}
                   value={logForm.room_name}
-                  onChange={(e) => setLogForm({ ...logForm, room_name: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500"
+                  onChange={(e) => setLogField('room_name', e.target.value)}
+                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500${invalidCls(logErrors.errors.room_name)}`}
                 >
                   <option value="">No specific unit</option>
                   {rooms.map(r => (
                     <option key={r.id} value={r.id}>Room {r.id} — {r.type}</option>
                   ))}
                 </select>
+                <FieldError id="log-room_name" error={logErrors.errors.room_name} />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">What did they ask?</label>
+                <label htmlFor="log-message" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">What did they ask?</label>
                 <textarea
                   rows="3"
+                  {...logErrors.fieldA11y('message')}
                   value={logForm.message}
                   maxLength={LIMITS.message}
-                  onChange={(e) => setLogForm({ ...logForm, message: e.target.value })}
+                  onChange={(e) => setLogField('message', e.target.value)}
+                  onBlur={() => blurLogField('message')}
                   placeholder="Summarize the inquiry..."
-                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 resize-y"
+                  className={`w-full rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 resize-y${invalidCls(logErrors.errors.message)}`}
                 />
+                <FieldError id="log-message" error={logErrors.errors.message} />
+                <CharCount value={logForm.message} max={LIMITS.message} />
               </div>
 
               <button
-                type="button"
-                onClick={submitLoggedInquiry}
-                className="w-full rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-md"
+                type="submit"
+                disabled={!!busy}
+                className="w-full rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Inquiry
+                {busy === 'log' ? 'Saving…' : 'Save Inquiry'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
+      )}
+
+      {reasonFor && (
+        <ReasonModal
+          title={reasonFor.kind === 'cancelHold' ? 'Cancel Hold' : 'Close Inquiry'}
+          description={reasonFor.kind === 'cancelHold' ? 'The unit is released and becomes available again.' : undefined}
+          label={reasonFor.kind === 'cancelHold' ? 'Reason for cancelling this hold' : 'Reason for closing this inquiry'}
+          confirmLabel={reasonFor.kind === 'cancelHold' ? 'Cancel Hold' : 'Close Inquiry'}
+          onConfirm={confirmReason}
+          onClose={() => setReasonFor(null)}
+        />
       )}
     </div>
   );

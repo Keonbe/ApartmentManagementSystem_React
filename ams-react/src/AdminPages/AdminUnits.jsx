@@ -10,9 +10,15 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { publicAssetUrl } from '../api/fileUrl';
-import { MAX_AMOUNT, checkAmount, checkDate, firstError } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFiles } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+
+const UNIT_TYPES = ['Studio', '1BR', '2BR'];
+const FIELD_CLS = 'w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white';
 
 const daysRemaining = (leaseEnd) => {
   if (!leaseEnd) return null;
@@ -159,45 +165,71 @@ const AdminUnits = () => {
     return '';
   };
 
-  const handleAddUnit = async () => {
-    if (!unitForm.id || !unitForm.floor || !unitForm.rent) return;
-    const unitError = checkAmount(unitForm.rent, { label: 'Monthly rent', allowZero: false });
-    if (unitError) { setAddUnitError(unitError); return; }
+  // Field checks for the three unit forms. Keys match create_room.php /
+  // update_room.php where a matching body field exists.
+  const unitErrors = useFieldErrors({
+    id: (v) => checkText(v, { label: 'Unit number', max: LIMITS.unitId }),
+    floor: (v) => checkText(v, { label: 'Floor', max: LIMITS.unitId }),
+    type: (v) => (UNIT_TYPES.includes(v) ? '' : 'Choose a unit type.'),
+    rent: (v) => checkAmount(v, { label: 'Monthly rent', min: 0.01, allowZero: false }),
+  }, { idPrefix: 'unit-' });
+  const assignErrors = useFieldErrors({
+    userId: (v) => (users.some(u => String(u.id) === String(v)) ? '' : 'Choose the tenant to assign.'),
+    moveIn: (v) => checkDate(v, { label: 'Move-in date', min: localDateString(), max: maxFutureDate() })
+      .replace(/cannot be before .*/, 'cannot be in the past.'),
+    leaseEnd: (v, all) => checkDate(v, { label: 'Lease end', max: maxFutureDate() })
+      || checkDateRange(all.moveIn, v, { startLabel: 'Move-in date', endLabel: 'Lease end' })
+      || validateLeaseDuration(all.moveIn, v),
+    rent: (v) => (v !== '' && v != null ? checkAmount(v, { label: 'Monthly rent', min: 0.01, allowZero: false }) : ''),
+    identityVerified: (v) => (v ? '' : 'Please confirm identity verification before assigning a tenant.'),
+  }, { idPrefix: 'assign-' });
+  const extendErrors = useFieldErrors({
+    newLeaseEnd: (v) => checkDate(v, { label: 'New lease end', max: maxFutureDate() })
+      || (selectedUnit ? validateLeaseDuration(selectedUnit.leaseEnd, v) : ''),
+    newRent: (v) => (v !== '' ? checkAmount(v, { label: 'New rent', min: 0.01, allowZero: false }) : ''),
+  }, { idPrefix: 'extend-' });
+  const [assigning, setAssigning] = useState(false);
+  const [extending, setExtending] = useState(false);
+
+  const handleAddUnit = async (e) => {
+    e?.preventDefault();
+    if (addUnitSubmitting) return;
+    const clean = { ...unitForm, id: unitForm.id.trim(), floor: unitForm.floor.trim() };
+    setUnitForm(clean);
+    if (!unitErrors.validateAll(clean)) return;
     setAddUnitError('');
     setAddUnitSubmitting(true);
     try {
       const response = await api.post('create_room.php', {
-        id: unitForm.id,
-        type: unitForm.type,
-        floor: unitForm.floor,
-        rent: Number(unitForm.rent)
+        id: clean.id,
+        type: clean.type,
+        floor: clean.floor,
+        rent: Number(clean.rent)
       });
       if (response.data.success) {
         await fetchRooms();
         setUnitForm(emptyUnitForm);
         setShowAddModal(false);
-      } else {
+      } else if (!unitErrors.applyServerErrors(response)) {
         setAddUnitError(response.data.message || 'Failed to create unit.');
       }
     } catch (err) {
-      setAddUnitError(err.response?.data?.message || 'Failed to create unit.');
+      if (!unitErrors.applyServerErrors(err)) setAddUnitError(apiErrorMessage(err, 'Failed to create unit.'));
     } finally {
       setAddUnitSubmitting(false);
     }
   };
 
-  const handleAssignTenant = async () => {
-    if (!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd || !selectedUnit) return;
-    if (!assignForm.identityVerified) { setLeaseError('Please confirm identity verification before assigning a tenant.'); return; }
-    const error = firstError(
-      checkDate(assignForm.moveIn, { label: 'Move-in date' }),
-      checkDate(assignForm.leaseEnd, { label: 'Lease end' }),
-      assignForm.rent !== '' && assignForm.rent != null ? checkAmount(assignForm.rent, { label: 'Monthly rent', allowZero: false }) : '',
-      validateLeaseDuration(assignForm.moveIn, assignForm.leaseEnd)
-    );
-    if (error) { setLeaseError(error); return; }
+  const closeAddModal = () => { setShowAddModal(false); setAddUnitError(''); unitErrors.setErrors({}); };
+  const closeAssignModal = () => { setShowAssignModal(false); setLeaseError(''); assignErrors.setErrors({}); };
+
+  const handleAssignTenant = async (e) => {
+    e?.preventDefault();
+    if (!selectedUnit || assigning) return;
+    if (!assignErrors.validateAll(assignForm)) return;
     setLeaseError('');
 
+    setAssigning(true);
     try {
       const payload = {
         id: selectedUnit.id,
@@ -215,27 +247,25 @@ const AdminUnits = () => {
         fetchRooms();
         setShowAssignModal(false);
         setAssignForm(emptyAssignForm);
-      } else {
+      } else if (!assignErrors.applyServerErrors(response)) {
         setLeaseError(apiErrorMessage(response, 'Failed to assign tenant.'));
       }
     } catch (error) {
       console.error('Failed to assign tenant:', error);
-      alert(apiErrorMessage(error, 'Failed to assign tenant.'));
+      if (!assignErrors.applyServerErrors(error)) setLeaseError(apiErrorMessage(error, 'Failed to assign tenant.'));
+    } finally {
+      setAssigning(false);
     }
   };
 
   const handleExtendLease = async () => {
-    if (!extendForm.newLeaseEnd || !selectedUnit) return;
-    const error = firstError(
-      checkDate(extendForm.newLeaseEnd, { label: 'New lease end' }),
-      extendForm.newRent !== '' ? checkAmount(extendForm.newRent, { label: 'New rent', allowZero: false }) : '',
-      validateLeaseDuration(selectedUnit.leaseEnd, extendForm.newLeaseEnd)
-    );
-    if (error) { setLeaseError(error); return; }
+    if (!selectedUnit || extending) return;
+    if (!extendErrors.validateAll(extendForm)) return;
     setLeaseError('');
 
     const newRent = Number(extendForm.newRent) || selectedUnit.rent;
-    
+
+    setExtending(true);
     try {
       const payload = {
         id: selectedUnit.id,
@@ -248,12 +278,14 @@ const AdminUnits = () => {
         fetchRooms();
         setExtendForm({ newLeaseEnd: '', newRent: '' });
         setShowExtendForm(false);
-      } else {
+      } else if (!extendErrors.applyServerErrors(response)) {
         setLeaseError(apiErrorMessage(response, 'Failed to extend lease.'));
       }
     } catch (error) {
       console.error('Failed to extend lease:', error);
-      alert(apiErrorMessage(error, 'Failed to extend lease.'));
+      if (!extendErrors.applyServerErrors(error)) setLeaseError(apiErrorMessage(error, 'Failed to extend lease.'));
+    } finally {
+      setExtending(false);
     }
   };
 
@@ -271,7 +303,7 @@ const AdminUnits = () => {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3 flex-1 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
-                <input
+                <input maxLength={LIMITS.search}
                   type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Search units, tenants..."
                   className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
@@ -396,8 +428,8 @@ const AdminUnits = () => {
 
       {/* Add New Unit Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => { setShowAddModal(false); setAddUnitError(''); }}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={closeAddModal}>
+          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()} onSubmit={handleAddUnit} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><FontAwesomeIcon icon={faBuilding} /></div>
@@ -406,49 +438,55 @@ const AdminUnits = () => {
                   <p className="text-xs text-slate-400 m-0 mt-0.5">Create a new apartment unit</p>
                 </div>
               </div>
-              <button onClick={() => { setShowAddModal(false); setAddUnitError(''); }} className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button type="button" onClick={closeAddModal} aria-label="Close" className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               {addUnitError && (
-                <div className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{addUnitError}</div>
+                <div role="alert" className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{addUnitError}</div>
               )}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Unit Number *</label>
-                  <input value={unitForm.id} maxLength={50} onChange={e => setUnitForm({ ...unitForm, id: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="e.g. 6A" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Floor *</label>
-                  <input value={unitForm.floor} maxLength={50} onChange={e => setUnitForm({ ...unitForm, floor: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="e.g. 6F" />
-                </div>
+                {[['id', 'Unit Number *', 'e.g. 6A'], ['floor', 'Floor *', 'e.g. 6F']].map(([key, label, placeholder]) => (
+                  <div key={key}>
+                    <label htmlFor={`unit-${key}`} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>
+                    <input {...unitErrors.fieldA11y(key)} autoComplete="off" value={unitForm[key]} maxLength={LIMITS.unitId}
+                      onChange={e => { setUnitForm({ ...unitForm, [key]: e.target.value }); unitErrors.clearError(key); }}
+                      onBlur={() => { const v = unitForm[key].trim(); setUnitForm({ ...unitForm, [key]: v }); if (v) unitErrors.validateField(key, { ...unitForm, [key]: v }); }}
+                      className={FIELD_CLS + invalidCls(unitErrors.errors[key])} placeholder={placeholder} />
+                    <FieldError id={`unit-${key}`} error={unitErrors.errors[key]} />
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Type *</label>
-                  <select value={unitForm.type} onChange={e => setUnitForm({ ...unitForm, type: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all bg-white text-slate-800">
-                    <option>Studio</option>
-                    <option>1BR</option>
-                    <option>2BR</option>
+                  <label htmlFor="unit-type" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Type *</label>
+                  <select {...unitErrors.fieldA11y('type')} value={unitForm.type} onChange={e => { setUnitForm({ ...unitForm, type: e.target.value }); unitErrors.clearError('type'); }} className={FIELD_CLS + invalidCls(unitErrors.errors.type)}>
+                    {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
+                  <FieldError id="unit-type" error={unitErrors.errors.type} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
-                  <input type="number" min="1" max={MAX_AMOUNT} step="0.01" value={unitForm.rent} onChange={e => setUnitForm({ ...unitForm, rent: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 transition-all text-slate-800 bg-white" placeholder="6500" />
+                  <label htmlFor="unit-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
+                  <input type="number" {...unitErrors.fieldA11y('rent')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={unitForm.rent}
+                    onKeyDown={blockNonNumericKeys}
+                    onChange={e => { setUnitForm({ ...unitForm, rent: e.target.value }); unitErrors.clearError('rent'); }}
+                    onBlur={() => unitForm.rent !== '' && unitErrors.validateField('rent', unitForm)}
+                    className={FIELD_CLS + invalidCls(unitErrors.errors.rent)} placeholder="6500" />
+                  <FieldError id="unit-rent" error={unitErrors.errors.rent} />
                 </div>
               </div>
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-              <button onClick={() => { setShowAddModal(false); setAddUnitError(''); }} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button onClick={handleAddUnit} disabled={!unitForm.id || !unitForm.floor || !unitForm.rent || addUnitSubmitting} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{addUnitSubmitting ? 'Adding...' : 'Add Unit'}</button>
+              <button type="button" onClick={closeAddModal} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+              <button type="submit" disabled={addUnitSubmitting} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{addUnitSubmitting ? 'Adding...' : 'Add Unit'}</button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 
       {/* Assign Tenant Modal */}
       {showAssignModal && selectedUnit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => { setShowAssignModal(false); setLeaseError(''); }}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={closeAssignModal}>
+          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()} onSubmit={handleAssignTenant} noValidate>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center"><FontAwesomeIcon icon={faUserPlus} /></div>
@@ -457,37 +495,55 @@ const AdminUnits = () => {
                   <p className="text-xs text-slate-400 m-0 mt-0.5">{selectedUnit.type} · {selectedUnit.floor}</p>
                 </div>
               </div>
-              <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
+              <button type="button" onClick={closeAssignModal} aria-label="Close" className="btn-interactive text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 border-0 bg-transparent cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-base" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant User *</label>
-                <select 
-                  value={assignForm.userId} 
+                <label htmlFor="assign-userId" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant User *</label>
+                <select
+                  {...assignErrors.fieldA11y('userId')}
+                  value={assignForm.userId}
                   onChange={e => {
                     const selectedUser = users.find(u => String(u.id) === e.target.value);
-                    setAssignForm({ 
-                      ...assignForm, 
+                    setAssignForm({
+                      ...assignForm,
                       userId: e.target.value,
-                      tenantName: selectedUser ? selectedUser.name : '' 
+                      tenantName: selectedUser ? selectedUser.name : ''
                     });
-                  }} 
-                  className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white"
+                    assignErrors.clearError('userId');
+                  }}
+                  className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.userId)}`}
                 >
-                  <option value="">-- Choose Existing User --</option>
+                  <option value="" disabled>-- Choose Existing User --</option>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
                   ))}
                 </select>
+                <FieldError id="assign-userId" error={assignErrors.errors.userId} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Move-in Date *</label>
-                  <input type="date" value={assignForm.moveIn} onChange={e => { setAssignForm({ ...assignForm, moveIn: e.target.value }); setLeaseError(''); }} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
+                  <label htmlFor="assign-moveIn" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Move-in Date *</label>
+                  <input type="date" {...assignErrors.fieldA11y('moveIn')} min={localDateString()} max={maxFutureDate()} value={assignForm.moveIn}
+                    onChange={e => {
+                      const moveIn = e.target.value;
+                      // A lease end now before the move-in is cleared rather than kept invalid.
+                      const leaseEnd = assignForm.leaseEnd && moveIn && assignForm.leaseEnd <= moveIn ? '' : assignForm.leaseEnd;
+                      setAssignForm({ ...assignForm, moveIn, leaseEnd });
+                      assignErrors.clearError('moveIn');
+                      setLeaseError('');
+                    }}
+                    onBlur={() => assignForm.moveIn && assignErrors.validateField('moveIn', assignForm)}
+                    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.moveIn)}`} />
+                  <FieldError id="assign-moveIn" error={assignErrors.errors.moveIn} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
-                  <input type="date" value={assignForm.leaseEnd} onChange={e => { setAssignForm({ ...assignForm, leaseEnd: e.target.value }); setLeaseError(''); }} className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
+                  <label htmlFor="assign-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                  <input type="date" {...assignErrors.fieldA11y('leaseEnd')} min={assignForm.moveIn || localDateString()} max={maxFutureDate()} value={assignForm.leaseEnd}
+                    onChange={e => { setAssignForm({ ...assignForm, leaseEnd: e.target.value }); assignErrors.clearError('leaseEnd'); setLeaseError(''); }}
+                    onBlur={() => assignForm.leaseEnd && assignErrors.validateField('leaseEnd', assignForm)}
+                    className={`w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(assignErrors.errors.leaseEnd)}`} />
+                  <FieldError id="assign-leaseEnd" error={assignErrors.errors.leaseEnd} />
                 </div>
               </div>
               {assignForm.moveIn && assignForm.leaseEnd && (
@@ -504,18 +560,20 @@ const AdminUnits = () => {
               <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
                 <input
                   type="checkbox"
+                  {...assignErrors.fieldA11y('identityVerified')}
                   checked={assignForm.identityVerified || false}
-                  onChange={e => setAssignForm({ ...assignForm, identityVerified: e.target.checked })}
+                  onChange={e => { setAssignForm({ ...assignForm, identityVerified: e.target.checked }); assignErrors.clearError('identityVerified'); }}
                   className="mt-0.5"
                 />
                 <span>I confirm this tenant's valid ID and NBI clearance have been verified in person, and they have agreed to the Terms &amp; Conditions.</span>
               </label>
+              <FieldError id="assign-identityVerified" error={assignErrors.errors.identityVerified} />
             </div>
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-              <button onClick={() => { setShowAssignModal(false); setLeaseError(''); }} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
-              <button onClick={handleAssignTenant} disabled={!assignForm.userId || !assignForm.moveIn || !assignForm.leaseEnd || !assignForm.identityVerified} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">Assign Tenant</button>
+              <button type="button" onClick={closeAssignModal} className="px-4 py-2 text-sm text-slate-600 font-medium hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+              <button type="submit" disabled={assigning} className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-sm border-0 cursor-pointer disabled:opacity-40">{assigning ? 'Assigning…' : 'Assign Tenant'}</button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 
@@ -526,6 +584,7 @@ const AdminUnits = () => {
           onAssign={() => { setShowDetailModal(false); setAssignForm({ ...emptyAssignForm, rent: String(selectedUnit.rent) }); setShowAssignModal(true); }}
           showExtendForm={showExtendForm} setShowExtendForm={setShowExtendForm} extendForm={extendForm} setExtendForm={setExtendForm} onExtendLease={handleExtendLease}
           minLeaseDuration={minLeaseDuration} leaseError={leaseError} setLeaseError={setLeaseError}
+          extendErrors={extendErrors} extending={extending}
           onUpdateSuccess={fetchRooms}
         />
       )}
@@ -534,7 +593,7 @@ const AdminUnits = () => {
 };
 
 /* ─── Unit Detail Tabbed Modal Sub-Component ─── */
-const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError, onUpdateSuccess }) => {
+const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExtendForm, extendForm, setExtendForm, onExtendLease, minLeaseDuration, leaseError, setLeaseError, extendErrors, extending, onUpdateSuccess }) => {
   const [activeTab, setActiveTab] = useState('overview');
   
   // Unit status monitoring edit states
@@ -603,6 +662,12 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
   };
 
   const handleSaveMonitoring = async () => {
+    if (isUpdating) return;
+    // An inspection is a past event: not in the future, not decades ago.
+    const inspectionError = editInspectionDate
+      ? checkDate(editInspectionDate, { label: 'Last inspection date', min: addYears(-10), max: localDateString() })
+      : '';
+    if (inspectionError) { alert(inspectionError); return; }
     setIsUpdating(true);
     try {
       const res = await api.post('update_room.php', {
@@ -746,10 +811,14 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Last Inspection Date</label>
-                        <input 
-                          type="date" 
-                          value={editInspectionDate} 
+                        <label htmlFor="monitor-inspection" className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Last Inspection Date</label>
+                        <input
+                          type="date"
+                          id="monitor-inspection"
+                          name="last_inspection_date"
+                          min={addYears(-10)}
+                          max={localDateString()}
+                          value={editInspectionDate}
                           onChange={e => setEditInspectionDate(e.target.value)}
                           className="w-full px-2 py-1 text-xs border border-slate-200 rounded-lg outline-none bg-white text-slate-800"
                         />
@@ -848,18 +917,27 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                     </div>
                   </div>
                   {!showExtendForm ? (
-                    <button onClick={() => { setShowExtendForm(true); setLeaseError(''); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Lease / Adjust Rent</button>
+                    <button onClick={() => { setShowExtendForm(true); setLeaseError(''); extendErrors.setErrors({}); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Lease / Adjust Rent</button>
                   ) : (
                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
                       <h4 className="text-sm font-semibold text-slate-800 m-0">Extend Lease</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Lease End *</label>
-                          <input type="date" value={extendForm.newLeaseEnd} onChange={e => { setExtendForm({ ...extendForm, newLeaseEnd: e.target.value }); setLeaseError(''); }} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" />
+                          <label htmlFor="extend-newLeaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Lease End *</label>
+                          <input type="date" {...extendErrors.fieldA11y('newLeaseEnd')} min={unit.leaseEnd || localDateString()} max={maxFutureDate()} value={extendForm.newLeaseEnd}
+                            onChange={e => { setExtendForm({ ...extendForm, newLeaseEnd: e.target.value }); extendErrors.clearError('newLeaseEnd'); setLeaseError(''); }}
+                            onBlur={() => extendForm.newLeaseEnd && extendErrors.validateField('newLeaseEnd', extendForm)}
+                            className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newLeaseEnd)}`} />
+                          <FieldError id="extend-newLeaseEnd" error={extendErrors.errors.newLeaseEnd} />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent (optional)</label>
-                          <input type="number" min="1" max={MAX_AMOUNT} step="0.01" value={extendForm.newRent} onChange={e => setExtendForm({ ...extendForm, newRent: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder={String(unit.rent)} />
+                          <label htmlFor="extend-newRent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent (optional)</label>
+                          <input type="number" {...extendErrors.fieldA11y('newRent')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={extendForm.newRent}
+                            onKeyDown={blockNonNumericKeys}
+                            onChange={e => { setExtendForm({ ...extendForm, newRent: e.target.value }); extendErrors.clearError('newRent'); }}
+                            onBlur={() => extendErrors.validateField('newRent', extendForm)}
+                            className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newRent)}`} placeholder={String(unit.rent)} />
+                          <FieldError id="extend-newRent" error={extendErrors.errors.newRent} />
                         </div>
                       </div>
                       {extendForm.newLeaseEnd && (
@@ -874,8 +952,8 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                         </div>
                       )}
                       <div className="flex gap-3">
-                        <button onClick={onExtendLease} disabled={!extendForm.newLeaseEnd} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 border-0 cursor-pointer disabled:opacity-40">Confirm Extension</button>
-                        <button onClick={() => { setShowExtendForm(false); setLeaseError(''); }} className="px-4 py-2 text-sm text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
+                        <button type="button" onClick={onExtendLease} disabled={extending} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 border-0 cursor-pointer disabled:opacity-40">{extending ? 'Saving…' : 'Confirm Extension'}</button>
+                        <button type="button" onClick={() => { setShowExtendForm(false); setLeaseError(''); extendErrors.setErrors({}); }} className="px-4 py-2 text-sm text-slate-600 hover:bg-white rounded-lg border-0 bg-transparent cursor-pointer">Cancel</button>
                       </div>
 
                       {/* Previous Extensions Table */}

@@ -7,9 +7,25 @@ import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
-import { checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
+import { addDays, checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import FileChip from '../Components/form/FileChip';
+import { invalidCls } from '../Components/form/formHelpers';
+
+// schedule_payment.php accepts today up to 60 days ahead, morning/afternoon.
+const SCHEDULE_MAX_DAYS = 60;
+const TIME_SLOTS = ['morning', 'afternoon'];
+
+// Per-method reference rules (same as PaymentUpload / checkPaymentReference).
+const referenceInputProps = (label = '') => {
+    const m = label.toLowerCase();
+    if (m.includes('gcash')) return { maxLength: 13, inputMode: 'numeric', placeholder: '13-digit GCash reference' };
+    if (m.includes('bank')) return { maxLength: 55, inputMode: 'text', placeholder: 'e.g. BDO-2026-000123' };
+    return { maxLength: LIMITS.paymentReference, inputMode: 'text', placeholder: 'e.g. 1002 9382 1823' };
+};
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
 
 export default function PayBills() {
@@ -246,6 +262,7 @@ export default function PayBills() {
     const handleMethodSelect = (methodId) => {
         setSelectedMethod(methodId);
         setIsDropdownOpen(false);
+        payForm.setErrors({});
         {/*Block enrollment if not digital*/}
         const methodObj = paymentChannels.find(m => m.id === methodId);
         if (methodObj && !methodObj.isDigital) {
@@ -255,9 +272,40 @@ export default function PayBills() {
 
     const [paymentReference, setPaymentReference] = useState('');
     const [proofFile, setProofFile] = useState(null);
+    const [isPaying, setIsPaying] = useState(false);
+    const [proofInputKey, setProofInputKey] = useState(0);
+
+    // Only the fields of the chosen method are checked.
+    const family = currentMethodObj.family;
+    const payForm = useFieldErrors(
+        family === 'manual' ? {
+            payment_reference: (v) => checkPaymentReference(v, currentMethodObj.label),
+            proof: (f) => (f ? checkFile(f, FILE_RULES.paymentProof) : 'Please attach your proof of payment.'),
+        } : family === 'in_person' ? {
+            scheduled_date: (v) => checkDate(v, { min: localDateString(), max: addDays(SCHEDULE_MAX_DAYS), label: 'Schedule date' }),
+            scheduled_time_slot: (v) => (TIME_SLOTS.includes(v) ? '' : 'Please choose a time slot.'),
+        } : {},
+        { idPrefix: 'pay-' }
+    );
+    const payValues = { payment_reference: paymentReference, proof: proofFile, scheduled_date: scheduledDate, scheduled_time_slot: scheduledTimeSlot };
+
+    const clearProof = () => {
+        setProofFile(null);
+        setProofInputKey(k => k + 1); // remounts the file input, clearing it
+    };
 
     const handlePaymentExecution = async (e) => {
         e.preventDefault();
+        if (isPaying) return;
+        setIsPaying(true);
+        try {
+            await executePayment();
+        } finally {
+            setIsPaying(false);
+        }
+    };
+
+    const executePayment = async () => {
         if (!payKey) {
             alert("No pending invoice found.");
             return;
@@ -268,8 +316,7 @@ export default function PayBills() {
         }
 
         if (currentMethodObj.family === 'in_person') {
-            const dateError = checkDate(scheduledDate, { min: localDateString(), label: 'Schedule date' });
-            if (dateError) { alert(dateError); return; }
+            if (!payForm.validateAll(payValues)) return;
             try {
                 const res = await api.post("/schedule_payment.php", {
                     invoice_id: payKey,
@@ -282,12 +329,12 @@ export default function PayBills() {
                         message: payingGroup ? 'Advance payment scheduled' : 'Payment scheduled',
                         subtext: `Please pay at the admin office on ${scheduledDate} (${scheduledTimeSlot}). You will be notified once management records your payment.`,
                     });
-                } else {
+                } else if (!payForm.applyServerErrors(res)) {
                     alert(res.data.message);
                 }
             } catch (error) {
                 console.error(error);
-                alert(apiErrorMessage(error, "Failed to schedule payment."));
+                if (!payForm.applyServerErrors(error)) alert(apiErrorMessage(error, "Failed to schedule payment."));
             }
             return;
         }
@@ -309,23 +356,21 @@ export default function PayBills() {
                 }
             } catch (error) {
                 console.error("Error creating checkout session:", error);
-                const msg = error?.response?.data?.message || "Payment gateway error.";
-                alert(msg);
+                alert(apiErrorMessage(error, "Payment gateway error."));
             }
             return;
         }
 
         // Manual (GCash / bank) payments need a reference and a proof: pay_bill.php
         // refuses a non-cash payment until upload_payment_proof.php has stored one.
-        const referenceError = checkPaymentReference(paymentReference, currentMethodObj.label);
-        if (referenceError) { alert(referenceError); return; }
-        const proofError = proofFile ? checkFile(proofFile, FILE_RULES.paymentProof) : 'Please attach your proof of payment.';
-        if (proofError) { alert(proofError); return; }
+        const reference = paymentReference.trim();
+        setPaymentReference(reference);
+        if (!payForm.validateAll({ ...payValues, payment_reference: reference })) return;
 
         let proofPath;
         const formData = new FormData();
         formData.append('invoice_id', payKey);
-        formData.append('payment_reference', paymentReference);
+        formData.append('payment_reference', reference);
         formData.append('payment_method', currentMethodObj.label);
         formData.append('proof', proofFile);
 
@@ -334,7 +379,7 @@ export default function PayBills() {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             if (!uploadRes.data.success) {
-                alert(apiErrorMessage(uploadRes, "Payment proof could not be uploaded."));
+                if (!payForm.applyServerErrors(uploadRes)) payForm.setFieldError('proof', apiErrorMessage(uploadRes, "Payment proof could not be uploaded."));
                 return;
             }
             proofPath = uploadRes.data.proof_path;
@@ -342,7 +387,7 @@ export default function PayBills() {
             // Without a stored proof pay_bill.php would refuse anyway, so stop
             // here and say why instead of sending a request that must fail (L8).
             console.error("Proof upload failed:", err);
-            alert(apiErrorMessage(err, "Payment proof could not be uploaded."));
+            if (!payForm.applyServerErrors(err)) payForm.setFieldError('proof', apiErrorMessage(err, "Payment proof could not be uploaded."));
             return;
         }
 
@@ -350,13 +395,13 @@ export default function PayBills() {
             const res = await api.post("/pay_bill.php", {
                 invoiceId: payKey,
                 paymentMethod: currentMethodObj.label,
-                paymentReference: paymentReference,
+                paymentReference: reference,
                 proofOfPaymentPath: proofPath
             });
 
             if (res.data.success) {
                 setPaymentReference('');
-                setProofFile(null);
+                clearProof();
                 await refresh();
                 setNotice({
                     message: payingGroup ? 'Advance payment submitted' : 'Payment submitted',
@@ -686,35 +731,52 @@ export default function PayBills() {
                         {currentMethodObj.family === 'manual' && (
                             <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {t('payBills.refNo')}
+                                    <label htmlFor="pay-payment_reference" className="block text-xs font-bold text-slate-700 mb-1">
+                                        {t('payBills.refNo')} <span className="text-red-500">*</span>
                                     </label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="e.g. 1002 9382 1823"
+                                    <input
+                                        type="text"
+                                        {...payForm.fieldA11y('payment_reference')}
+                                        {...referenceInputProps(currentMethodObj.label)}
+                                        autoComplete="off"
                                         value={paymentReference}
-                                        onChange={e => setPaymentReference(e.target.value)}
-                                        maxLength={LIMITS.paymentReference}
+                                        onChange={e => {
+                                            const gcash = (currentMethodObj.label || '').toLowerCase().includes('gcash');
+                                            setPaymentReference(gcash ? e.target.value.replace(/\D/g, '') : e.target.value);
+                                            payForm.clearError('payment_reference');
+                                        }}
+                                        onBlur={() => {
+                                            const v = paymentReference.trim();
+                                            setPaymentReference(v);
+                                            if (v) payForm.validateField('payment_reference', { ...payValues, payment_reference: v });
+                                        }}
                                         required
-                                        className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
+                                        className={`pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500${invalidCls(payForm.errors.payment_reference)}`}
                                     />
+                                    <FieldError id="pay-payment_reference" error={payForm.errors.payment_reference} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        {t('payBills.proofOfPayment')}
+                                    <label htmlFor="pay-proof" className="block text-xs font-bold text-slate-700 mb-1">
+                                        {t('payBills.proofOfPayment')} <span className="text-red-500">*</span>
                                     </label>
-                                    <input 
-                                        type="file" 
+                                    <input
+                                        key={proofInputKey}
+                                        type="file"
+                                        {...payForm.fieldA11y('proof')}
                                         accept={acceptFor(FILE_RULES.paymentProof)}
                                         required
                                         onChange={e => {
                                             const file = e.target.files[0] || null;
                                             const fileError = checkFile(file, FILE_RULES.paymentProof);
-                                            if (fileError) { alert(fileError); e.target.value = ''; setProofFile(null); return; }
+                                            payForm.setFieldError('proof', fileError);
+                                            if (fileError) { e.target.value = ''; setProofFile(null); return; }
                                             setProofFile(file);
                                         }}
                                         className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 min-h-[44px]"
                                     />
+                                    <p className="text-[11px] text-slate-400 m-0 mt-1">{FILE_RULES.paymentProof.label}, up to {FILE_RULES.paymentProof.maxMB} MB.</p>
+                                    <FieldError id="pay-proof" error={payForm.errors.proof} />
+                                    <FileChip file={proofFile} onRemove={clearProof} />
                                 </div>
                             </div>
                         )}
@@ -722,29 +784,36 @@ export default function PayBills() {
                         {currentMethodObj.family === 'in_person' && (
                             <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        Schedule Date
+                                    <label htmlFor="pay-scheduled_date" className="block text-xs font-bold text-slate-700 mb-1">
+                                        Schedule Date <span className="text-red-500">*</span>
                                     </label>
-                                    <input 
-                                        type="date" 
+                                    <input
+                                        type="date"
+                                        {...payForm.fieldA11y('scheduled_date')}
                                         value={scheduledDate}
-                                        onChange={e => setScheduledDate(e.target.value)}
-                                        className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500"
+                                        onChange={e => { setScheduledDate(e.target.value); payForm.clearError('scheduled_date'); }}
+                                        onBlur={() => scheduledDate && payForm.validateField('scheduled_date', payValues)}
+                                        required
+                                        className={`pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500${invalidCls(payForm.errors.scheduled_date)}`}
                                         min={localDateString()}
+                                        max={addDays(SCHEDULE_MAX_DAYS)}
                                     />
+                                    <FieldError id="pay-scheduled_date" error={payForm.errors.scheduled_date} />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                                        Time Slot
+                                    <label htmlFor="pay-scheduled_time_slot" className="block text-xs font-bold text-slate-700 mb-1">
+                                        Time Slot <span className="text-red-500">*</span>
                                     </label>
-                                    <select 
+                                    <select
+                                        {...payForm.fieldA11y('scheduled_time_slot')}
                                         value={scheduledTimeSlot}
-                                        onChange={e => setScheduledTimeSlot(e.target.value)}
-                                        className="pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500 cursor-pointer"
+                                        onChange={e => { setScheduledTimeSlot(e.target.value); payForm.clearError('scheduled_time_slot'); }}
+                                        className={`pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500 cursor-pointer${invalidCls(payForm.errors.scheduled_time_slot)}`}
                                     >
                                         <option value="morning">Morning (9am-12pm)</option>
                                         <option value="afternoon">Afternoon (1pm-5pm)</option>
                                     </select>
+                                    <FieldError id="pay-scheduled_time_slot" error={payForm.errors.scheduled_time_slot} />
                                 </div>
                             </div>
                         )}
@@ -781,10 +850,10 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                disabled={payingGroup ? false : (!activeInv || isAwaiting)}
+                                disabled={isPaying || (payingGroup ? false : (!activeInv || isAwaiting))}
                                 className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed disabled:hover:scale-100"
                             >
-                                {payingGroup
+                                {isPaying ? 'Processing…' : payingGroup
                                     ? `Pay advance (${fmtMoney(groupTotal)})`
                                     : isAwaiting ? 'Awaiting confirmation' : t('payBills.proceedToPay')}
                             </button>

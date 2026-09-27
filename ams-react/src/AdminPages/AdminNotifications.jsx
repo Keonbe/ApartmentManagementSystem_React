@@ -12,6 +12,17 @@ import {
 
 import api from '../api/axiosConfig';
 import { ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, formatRelativeTime } from '../config/notificationLinks';
+import { LIMITS, checkIntRange } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
+
+// update_system_settings.php: 0–30 days before due; every 1–30 days when overdue.
+const REMINDER_VALIDATORS = {
+  rent_due_reminder_days: (v, all) => (all.rentDueEnabled ? checkIntRange(v === '' ? NaN : v, 0, 30, 'Days before due date') : ''),
+  overdue_reminder_interval_days: (v, all) => (all.overdueEnabled ? checkIntRange(v === '' ? NaN : v, 1, 30, 'Repeat interval') : ''),
+};
 
 // Keyed on the types the backend actually writes. Filters used to look for
 // 'maintenance' (the data says 'maintenance_request') and 'rent_due' (never in the
@@ -56,6 +67,7 @@ const AdminNotifications = () => {
   // used to live in localStorage, and a failed save said "saved to local session".
   const [settings, setSettings] = useState({ rentDueEnabled: true, rentDueDays: '3', overdueEnabled: true, overdueDays: '3' });
   const [savingSettings, setSavingSettings] = useState(false);
+  const reminderErrors = useFieldErrors(REMINDER_VALIDATORS, { idPrefix: 'reminder-' });
   const [runningSweep, setRunningSweep] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
@@ -103,13 +115,17 @@ const AdminNotifications = () => {
     window.dispatchEvent(new CustomEvent(ADMIN_NOTIFICATIONS_EVENT));
   };
 
+  const reminderValues = () => ({
+    ...settings,
+    rent_due_reminder_days: settings.rentDueDays,
+    overdue_reminder_interval_days: settings.overdueDays,
+  });
+
   const handleSaveSettings = async () => {
+    if (savingSettings) return;
+    if (!reminderErrors.validateAll(reminderValues())) return;
     const days = Number(settings.rentDueDays);
     const interval = Number(settings.overdueDays);
-    if (!Number.isInteger(days) || days < 0 || days > 30 || !Number.isInteger(interval) || interval < 1 || interval > 30) {
-      setNotice({ ok: false, text: 'Reminder days must be whole numbers: 0–30 days before due, and every 1–30 days when overdue.' });
-      return;
-    }
     setSavingSettings(true);
     try {
       await api.post('update_system_settings.php', {
@@ -120,7 +136,7 @@ const AdminNotifications = () => {
       });
       setNotice({ ok: true, text: 'Reminder settings saved.' });
     } catch (err) {
-      setNotice({ ok: false, text: err.response?.data?.message || 'Could not save reminder settings.' });
+      if (!reminderErrors.applyServerErrors(err)) setNotice({ ok: false, text: apiErrorMessage(err, 'Could not save reminder settings.') });
     } finally {
       setSavingSettings(false);
     }
@@ -211,7 +227,7 @@ const AdminNotifications = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm focus-within:border-indigo-500 transition-all flex-1 max-w-sm">
                     <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                    <input type="text" placeholder="Search requests & notifications..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
+                    <input maxLength={LIMITS.search} type="text" placeholder="Search requests & notifications..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={handleMarkAllRead} disabled={unreadCount === 0} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors disabled:opacity-50">
@@ -344,10 +360,13 @@ const AdminNotifications = () => {
                     </div>
                     <label className="flex items-center justify-between text-xs text-slate-600 gap-2">
                       Days before due date
-                      <input type="number" min="0" max="30" value={settings.rentDueDays} disabled={!settings.rentDueEnabled}
-                        onChange={e => setSettings(p => ({ ...p, rentDueDays: e.target.value }))}
-                        className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm disabled:opacity-50" />
+                      <input type="number" {...reminderErrors.fieldA11y('rent_due_reminder_days')} inputMode="numeric" min="0" max="30" step="1" value={settings.rentDueDays} disabled={!settings.rentDueEnabled}
+                        onKeyDown={blockNonIntegerKeys}
+                        onChange={e => { setSettings(p => ({ ...p, rentDueDays: e.target.value })); reminderErrors.clearError('rent_due_reminder_days'); }}
+                        onBlur={() => reminderErrors.validateField('rent_due_reminder_days', reminderValues())}
+                        className={`w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm disabled:opacity-50${invalidCls(reminderErrors.errors.rent_due_reminder_days)}`} />
                     </label>
+                    <FieldError id="reminder-rent_due_reminder_days" error={reminderErrors.errors.rent_due_reminder_days} />
 
                     <div className="flex items-center justify-between">
                       <div>
@@ -360,10 +379,13 @@ const AdminNotifications = () => {
                     </div>
                     <label className="flex items-center justify-between text-xs text-slate-600 gap-2">
                       Repeat every (days)
-                      <input type="number" min="1" max="30" value={settings.overdueDays} disabled={!settings.overdueEnabled}
-                        onChange={e => setSettings(p => ({ ...p, overdueDays: e.target.value }))}
-                        className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm disabled:opacity-50" />
+                      <input type="number" {...reminderErrors.fieldA11y('overdue_reminder_interval_days')} inputMode="numeric" min="1" max="30" step="1" value={settings.overdueDays} disabled={!settings.overdueEnabled}
+                        onKeyDown={blockNonIntegerKeys}
+                        onChange={e => { setSettings(p => ({ ...p, overdueDays: e.target.value })); reminderErrors.clearError('overdue_reminder_interval_days'); }}
+                        onBlur={() => reminderErrors.validateField('overdue_reminder_interval_days', reminderValues())}
+                        className={`w-16 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm disabled:opacity-50${invalidCls(reminderErrors.errors.overdue_reminder_interval_days)}`} />
                     </label>
+                    <FieldError id="reminder-overdue_reminder_interval_days" error={reminderErrors.errors.overdue_reminder_interval_days} />
                   </div>
 
                   <button onClick={handleSaveSettings} disabled={savingSettings} className="w-full py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors border-0 cursor-pointer shadow-sm disabled:opacity-50">

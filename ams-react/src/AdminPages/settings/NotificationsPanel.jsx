@@ -4,6 +4,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, WithUnit, Switch, Callout, INPUT, INPUT_MONO, INPUT_BASE, CHECKBOX } from './SettingsSection';
 import { LIMITS } from '../../utils/validation';
+import { blockNonIntegerKeys, blockNonNumericKeys, numberValue } from '../../Components/form/formHelpers';
 
 const TEST_CHANNELS = [
   { key: 'sms', label: 'Test SMS' },
@@ -57,9 +58,10 @@ export default function NotificationsPanel({
             )}
           </Field>
 
-          <Field label="Sender Name">
+          <Field label="Sender Name" htmlFor="setting-smsSenderName">
             <input
-              type="text"
+              id="setting-smsSenderName" name="smsSenderName"
+              type="text" autoComplete="off"
               value={settings.smsSenderName || ''}
               onChange={(e) => updateSetting('smsSenderName', e.target.value)}
               placeholder="AMS"
@@ -89,10 +91,10 @@ export default function NotificationsPanel({
 
           {provider === 'semaphore' && (
             <>
-              <Field label="Semaphore API Key">
+              <Field label="Semaphore API Key" htmlFor="setting-smsApiKey">
                 <input
-                  type="password"
-                  aria-label="Semaphore API key"
+                  id="setting-smsApiKey" name="smsApiKey"
+                  type="password" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}
                   value={settings.smsApiKey || ''}
                   onChange={(e) => updateSetting('smsApiKey', e.target.value)}
                   className={INPUT_MONO}
@@ -131,11 +133,14 @@ export default function NotificationsPanel({
             <Field label="Daily SMS Cap" hint="Most SMS sent per day. Beyond it messages are recorded as skipped, not charged. 0 = no cap.">
               <input
                 type="number"
+                inputMode="numeric"
                 min={0}
                 max={100000}
+                step={1}
                 aria-label="Daily SMS cap"
                 value={settings.smsDailyCap ?? 100}
-                onChange={(e) => updateSetting('smsDailyCap', e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
+                onKeyDown={blockNonIntegerKeys}
+                onChange={(e) => updateSetting('smsDailyCap', numberValue(e))}
                 className={`${INPUT_BASE} w-32 font-mono`}
               />
             </Field>
@@ -164,9 +169,10 @@ export default function NotificationsPanel({
               <option value="smtp">SMTP</option>
             </select>
           </Field>
-          <Field label="From Name">
+          <Field label="From Name" htmlFor="setting-smtpFromName">
             <input
-              type="text"
+              id="setting-smtpFromName" name="smtpFromName"
+              type="text" autoComplete="off" maxLength={LIMITS.landlordText}
               value={settings.smtpFromName || ''}
               onChange={(e) => updateSetting('smtpFromName', e.target.value)}
               placeholder="AMS Notifications"
@@ -176,20 +182,21 @@ export default function NotificationsPanel({
 
           {settings.emailDriver === 'smtp' && (
             <>
-              <Field label="SMTP Host">
-                <input type="text" value={settings.smtpHost || ''} onChange={(e) => updateSetting('smtpHost', e.target.value)} placeholder="smtp.gmail.com" className={INPUT_MONO} />
+              <Field label="SMTP Host" htmlFor="setting-smtpHost">
+                <input type="text" id="setting-smtpHost" name="smtpHost" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField} value={settings.smtpHost || ''} onChange={(e) => updateSetting('smtpHost', e.target.value)} placeholder="smtp.gmail.com" className={INPUT_MONO} />
               </Field>
-              <Field label="SMTP Port">
-                <input type="number" min="1" max="65535" value={settings.smtpPort ?? 587} onChange={(e) => updateSetting('smtpPort', parseInt(e.target.value) || 587)} className={INPUT_MONO} />
+              <Field label="SMTP Port" htmlFor="setting-smtpPort">
+                <input type="number" id="setting-smtpPort" name="smtpPort" inputMode="numeric" min="1" max="65535" step="1" required value={settings.smtpPort ?? 587} onKeyDown={blockNonIntegerKeys} onChange={(e) => updateSetting('smtpPort', numberValue(e))} className={INPUT_MONO} />
               </Field>
-              <Field label="SMTP Username">
-                <input type="text" value={settings.smtpUsername || ''} onChange={(e) => updateSetting('smtpUsername', e.target.value)} placeholder="you@gmail.com" className={INPUT_MONO} />
+              <Field label="SMTP Username" htmlFor="setting-smtpUsername">
+                <input type="text" id="setting-smtpUsername" name="smtpUsername" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField} value={settings.smtpUsername || ''} onChange={(e) => updateSetting('smtpUsername', e.target.value)} placeholder="you@gmail.com" className={INPUT_MONO} />
               </Field>
-              <Field label="SMTP Password">
-                <input type="password" value={settings.smtpPassword || ''} onChange={(e) => updateSetting('smtpPassword', e.target.value)} placeholder="Google App Password" className={INPUT_MONO} />
+              <Field label="SMTP Password" htmlFor="setting-smtpPassword">
+                <input type="password" id="setting-smtpPassword" name="smtpPassword" autoComplete="new-password" maxLength={LIMITS.smtpField} value={settings.smtpPassword || ''} onChange={(e) => updateSetting('smtpPassword', e.target.value)} placeholder="Google App Password" className={INPUT_MONO} />
               </Field>
-              <Field label="From Email">
-                <input type="email" maxLength={LIMITS.userEmail} value={settings.smtpFromEmail || ''} onChange={(e) => updateSetting('smtpFromEmail', e.target.value)} placeholder="Defaults to the SMTP username" className={INPUT_MONO} />
+              <Field label="From Email" htmlFor="setting-smtpFromEmail">
+                <input type="email" id="setting-smtpFromEmail" name="smtpFromEmail" inputMode="email" autoComplete="off" maxLength={LIMITS.userEmail}
+                  onBlur={(e) => { const v = e.target.value.trim().toLowerCase(); if (v !== e.target.value) updateSetting('smtpFromEmail', v); }} value={settings.smtpFromEmail || ''} onChange={(e) => updateSetting('smtpFromEmail', e.target.value)} placeholder="Defaults to the SMTP username" className={INPUT_MONO} />
               </Field>
             </>
           )}
@@ -221,18 +228,20 @@ export default function NotificationsPanel({
           <Field label="Quiet Hours (SMS)" hint="Non-urgent texts wait until the window ends. Overdue rent and urgent announcements are exempt.">
             <div className="flex items-center gap-3">
               <input
-                type="number" min="0" max="23"
+                type="number" inputMode="numeric" min="0" max="23" step="1" required
                 aria-label="Quiet hours start"
                 value={settings.notificationsQuietStart ?? 21}
-                onChange={(e) => updateSetting('notificationsQuietStart', Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
+                onKeyDown={blockNonIntegerKeys}
+                onChange={(e) => updateSetting('notificationsQuietStart', numberValue(e))}
                 className={`${INPUT_BASE} w-20 text-center`}
               />
               <span className="text-xs text-slate-500">to</span>
               <input
-                type="number" min="0" max="23"
+                type="number" inputMode="numeric" min="0" max="23" step="1" required
                 aria-label="Quiet hours end"
                 value={settings.notificationsQuietEnd ?? 7}
-                onChange={(e) => updateSetting('notificationsQuietEnd', Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))}
+                onKeyDown={blockNonIntegerKeys}
+                onChange={(e) => updateSetting('notificationsQuietEnd', numberValue(e))}
                 className={`${INPUT_BASE} w-20 text-center`}
               />
               <span className="text-xs text-slate-500">(24-hour)</span>
@@ -242,9 +251,11 @@ export default function NotificationsPanel({
           <Field label="Delivery Log Retention" hint="Delivery records hold tenant numbers and addresses, so older rows are deleted automatically.">
             <WithUnit suffix="days">
               <input
-                type="number" min="1" max="3650"
+                type="number" inputMode="numeric" min="1" max="3650" step="1" required
+                aria-label="Delivery log retention in days"
                 value={settings.notificationLogRetentionDays ?? 90}
-                onChange={(e) => updateSetting('notificationLogRetentionDays', parseInt(e.target.value) || 90)}
+                onKeyDown={blockNonIntegerKeys}
+                onChange={(e) => updateSetting('notificationLogRetentionDays', numberValue(e))}
                 className={`${INPUT_BASE} w-28`}
               />
             </WithUnit>
@@ -253,9 +264,11 @@ export default function NotificationsPanel({
           <Field label="Cost per SMS" hint="Used to estimate the cost of an announcement before it is sent.">
             <WithUnit prefix="₱">
               <input
-                type="number" step="0.01" min="0" max="100"
+                type="number" inputMode="decimal" step="0.01" min="0" max="100" required
+                aria-label="Cost per SMS"
                 value={settings.smsUnitCost ?? 0.5}
-                onChange={(e) => updateSetting('smsUnitCost', parseFloat(e.target.value) || 0)}
+                onKeyDown={blockNonNumericKeys}
+                onChange={(e) => updateSetting('smsUnitCost', numberValue(e))}
                 className={`${INPUT_BASE} w-28`}
               />
             </WithUnit>

@@ -6,11 +6,27 @@ import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
-import { LIMITS, checkEmail, checkPhMobile, firstError, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, checkEmail, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
+
+const INPUT_CLS = "focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm";
+const GENDERS = ['Male', 'Female', 'Other'];
+
+// Names match profile.php's body keys, so a server field error lands on the input.
+const VALIDATORS = {
+    firstName: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
+    lastName: (v) => checkPersonName(v, { label: 'Last name', max: LIMITS.lastName }),
+    suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
+    contactNo: (v) => checkPhMobile(v),
+    email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
+    gender: (v) => (GENDERS.includes(v) ? '' : 'Please select a gender.'),
+};
 
 // Stand-in photos for the camera fallback when no camera stream is available.
 const MOCK_PHOTOS = [
@@ -28,8 +44,11 @@ export default function ProfileSettings() {
     const [lastName, setLastName] = useState(loggedInUser.last_name || '');
     const [suffix, setSuffix] = useState(loggedInUser.suffix || '');
     const [phoneRawNumber, setPhoneRawNumber] = useState(toPhLocal10(loggedInUser.contact_no));
-    const [phoneError, setPhoneError] = useState('');
     const [email, setEmail] = useState(loggedInUser.email_address || '');
+    const [avatarError, setAvatarError] = useState('');
+    const [saveError, setSaveError] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useFieldErrors(VALIDATORS, { idPrefix: 'profile-' });
     const [gender, setGender] = useState(loggedInUser.gender || '');
     const [avatarUrl, setAvatarUrl] = useState(loggedInUser.avatar_url || '');
 
@@ -82,8 +101,8 @@ export default function ProfileSettings() {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const fileError = checkFile(file, FILE_RULES.image);
+            setAvatarError(fileError);
             if (fileError) {
-                alert(fileError);
                 e.target.value = '';
                 return;
             }
@@ -157,31 +176,48 @@ export default function ProfileSettings() {
         }
     };
 
+    const values = { firstName, lastName, suffix, contactNo: phoneRawNumber, email, gender };
+    const setters = { firstName: setFirstName, lastName: setLastName, suffix: setSuffix, email: setEmail, gender: setGender };
+
+    const change = (name) => (e) => {
+        setters[name](e.target.value);
+        form.clearError(name);
+    };
+    // Trim (and lowercase the email) on leaving a field, then check it.
+    const blur = (name) => () => {
+        const raw = values[name];
+        const v = name === 'email' ? normalizeEmail(raw) : String(raw).trim();
+        if (setters[name] && v !== raw) setters[name](v);
+        form.validateField(name, { ...values, [name]: v });
+    };
+
     const handlePhoneChange = (digits) => {
         setPhoneRawNumber(digits);
-        setPhoneError('');
+        form.clearError('contactNo');
     };
 
 
     // Update your handleFormSubmit function with this complete flow
     const handleFormSubmit = async (e) => {
         e.preventDefault();
+        if (isSaving) return;
+        setSaveError('');
 
-        // Validate phone number (same rule as profile.php: +639XXXXXXXXX)
-        const validationError = checkPhMobile(phoneRawNumber);
-        if (validationError) {
-            setPhoneError(validationError);
-            return;
-        }
-        const detailsError = firstError(
-            !firstName.trim() || !lastName.trim() ? 'First and last name are required.' : '',
-            checkEmail(email)
-        );
-        if (detailsError) {
-            alert(detailsError);
-            return;
-        }
+        const clean = {
+            ...values,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            suffix: suffix.trim(),
+            email: normalizeEmail(email),
+        };
+        setFirstName(clean.firstName);
+        setLastName(clean.lastName);
+        setSuffix(clean.suffix);
+        setEmail(clean.email);
+        // Phone uses profile.php's rule: +639XXXXXXXXX.
+        if (!form.validateAll(clean)) return;
 
+        setIsSaving(true);
         try {
             let currentAvatarUrl = avatarUrl;
 
@@ -199,7 +235,7 @@ export default function ProfileSettings() {
                     // Update our tracked tracking path variable
                     currentAvatarUrl = avatarRes.data.avatar_url;
                 } else {
-                    alert(avatarRes.data.message || "Failed to upload avatar image file.");
+                    setAvatarError(avatarRes.data.message || "Failed to upload avatar image file.");
                     return; // Halt if image upload explicitly failed
                 }
             }
@@ -208,11 +244,11 @@ export default function ProfileSettings() {
             const fullContactNumber = toPhE164(phoneRawNumber);
             const profileData = {
                 oldEmail: loggedInUser.email_address,
-                email: email.trim(),
-                firstName: firstName.trim(),
+                email: clean.email,
+                firstName: clean.firstName,
                 middleName: loggedInUser.middle_name || '',
-                lastName: lastName.trim(),
-                suffix: suffix.trim(),
+                lastName: clean.lastName,
+                suffix: clean.suffix,
                 contactNo: fullContactNumber,
                 gender: gender
             };
@@ -225,10 +261,10 @@ export default function ProfileSettings() {
                 // 3. Sync both text and new image paths to session storage
                 const updatedUser = {
                     ...loggedInUser,
-                    email_address: email.trim(),
-                    first_name: firstName.trim(),
-                    last_name: lastName.trim(),
-                    suffix: suffix.trim(),
+                    email_address: clean.email,
+                    first_name: clean.firstName,
+                    last_name: clean.lastName,
+                    suffix: clean.suffix,
                     contact_no: fullContactNumber,
                     gender: gender,
                     avatar_url: currentAvatarUrl
@@ -237,12 +273,16 @@ export default function ProfileSettings() {
                 sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
                 alert("Profile and avatar settings updated successfully.");
                 window.location.reload();
-            } else {
-                alert(res.data.message || "Failed to update profile text registry.");
+            } else if (!form.applyServerErrors(res)) {
+                setSaveError(res.data.message || "Failed to update your profile.");
             }
         } catch (error) {
             console.error("Error updating profile settings payload workflow:", error);
-            alert(apiErrorMessage(error, "An error occurred while saving your profile data layers."));
+            if (!form.applyServerErrors(error)) {
+                setSaveError(apiErrorMessage(error, "An error occurred while saving your profile."));
+            }
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -375,13 +415,17 @@ export default function ProfileSettings() {
                                 <div className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 relative cursor-pointer group transition-colors min-h-[110px]">
                                     <input
                                         type="file"
+                                        id="profile-avatar"
+                                        name="avatar"
                                         accept={acceptFor(FILE_RULES.image)}
                                         onChange={handleFileChange}
+                                        aria-invalid={avatarError ? true : undefined}
+                                        aria-describedby={avatarError ? 'profile-avatar-error' : undefined}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
                                     <FontAwesomeIcon icon={faUpload} className="text-slate-400 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
                                     <span className="text-xs font-bold text-slate-700">{t('profile.chooseFile')}</span>
-                                    <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG or GIF up to 2MB</span>
+                                    <span className="text-[10px] text-slate-400 mt-0.5">{FILE_RULES.image.label} up to {FILE_RULES.image.maxMB} MB</span>
                                 </div>
 
                                 {/* Simulated Camera button */}
@@ -396,13 +440,16 @@ export default function ProfileSettings() {
                                 </button>
                             </div>
                         )}
+                        <FieldError id="profile-avatar" error={avatarError} />
 
                         {tempAvatar && !isCameraActive && (
                             <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <img src={tempAvatar} alt="preview" className="w-12 h-12 rounded-full object-cover border border-indigo-200 shadow-sm" />
                                     <div>
-                                        <p className="text-xs font-bold text-indigo-900 m-0">Pre-uploaded avatar preview</p>
+                                        <p className="text-xs font-bold text-indigo-900 m-0">
+                                            {selectedFile ? `${selectedFile.name} (${formatFileSize(selectedFile.size)})` : 'Pre-uploaded avatar preview'}
+                                        </p>
                                         <p className="text-[10px] text-indigo-500 m-0">Click Save Profile below to commit updates</p>
                                     </div>
                                 </div>
@@ -416,79 +463,100 @@ export default function ProfileSettings() {
                         )}
                     </div>
 
-                    <form className="space-y-8" onSubmit={handleFormSubmit}>
+                    <form className="space-y-8" onSubmit={handleFormSubmit} noValidate>
                         <div className="space-y-4">
                             <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-2" style={{ color: '#3b4276' }}>{t('profile.personalDetails')}</h3>
                             <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">{t('profile.firstName')}</label>
+                                    <label htmlFor="profile-firstName" className="text-sm font-bold text-slate-700">{t('profile.firstName')}</label>
                                     <input
                                         type="text"
+                                        {...form.fieldA11y('firstName')}
+                                        autoComplete="given-name"
                                         value={firstName}
                                         maxLength={LIMITS.firstName}
-                                        onChange={(e) => setFirstName(e.target.value)}
-                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        onChange={change('firstName')}
+                                        onBlur={blur('firstName')}
+                                        className={INPUT_CLS + invalidCls(form.errors.firstName)}
                                         required
                                     />
+                                    <FieldError id="profile-firstName" error={form.errors.firstName} className="m-0" />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">{t('profile.lastName')}</label>
+                                    <label htmlFor="profile-lastName" className="text-sm font-bold text-slate-700">{t('profile.lastName')}</label>
                                     <input
                                         type="text"
+                                        {...form.fieldA11y('lastName')}
+                                        autoComplete="family-name"
                                         value={lastName}
                                         maxLength={LIMITS.lastName}
-                                        onChange={(e) => setLastName(e.target.value)}
-                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        onChange={change('lastName')}
+                                        onBlur={blur('lastName')}
+                                        className={INPUT_CLS + invalidCls(form.errors.lastName)}
                                         required
                                     />
+                                    <FieldError id="profile-lastName" error={form.errors.lastName} className="m-0" />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">{t('profile.suffix')}</label>
+                                    <label htmlFor="profile-suffix" className="text-sm font-bold text-slate-700">{t('profile.suffix')}</label>
                                     <input
                                         type="text"
+                                        {...form.fieldA11y('suffix')}
+                                        autoComplete="honorific-suffix"
                                         value={suffix}
                                         maxLength={LIMITS.suffix}
-                                        onChange={(e) => setSuffix(e.target.value)}
-                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        onChange={change('suffix')}
+                                        onBlur={blur('suffix')}
+                                        className={INPUT_CLS + invalidCls(form.errors.suffix)}
                                     />
+                                    <FieldError id="profile-suffix" error={form.errors.suffix} className="m-0" />
                                 </div>
                             </div>
 
                             <div className="profile-details-grid grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">{t('profile.contactNumber')}</label>
+                                    <label htmlFor="profile-contactNo" className="text-sm font-bold text-slate-700">{t('profile.contactNumber')}</label>
                                     <PhoneInput
+                                        id="profile-contactNo"
+                                        name="contactNo"
                                         value={phoneRawNumber}
                                         onChange={handlePhoneChange}
-                                        error={phoneError}
+                                        onBlur={() => form.validateField('contactNo', values)}
+                                        error={form.errors.contactNo}
                                         required
                                     />
                                 </div>
 
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">{t('profile.email')}</label>
+                                    <label htmlFor="profile-email" className="text-sm font-bold text-slate-700">{t('profile.email')}</label>
                                     <input
                                         type="email"
+                                        {...form.fieldA11y('email')}
+                                        inputMode="email"
+                                        autoComplete="email"
                                         value={email}
                                         maxLength={LIMITS.userEmail}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        onChange={change('email')}
+                                        onBlur={blur('email')}
+                                        className={INPUT_CLS + invalidCls(form.errors.email)}
                                         required
                                     />
+                                    <FieldError id="profile-email" error={form.errors.email} className="m-0" />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-sm font-bold text-slate-700">{t('profile.gender')}</label>
+                                    <label htmlFor="profile-gender" className="text-sm font-bold text-slate-700">{t('profile.gender')}</label>
                                     <select
+                                        {...form.fieldA11y('gender')}
                                         value={gender}
-                                        onChange={(e) => setGender(e.target.value)}
-                                        className="focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm"
+                                        onChange={change('gender')}
+                                        onBlur={() => form.validateField('gender', values)}
+                                        className={INPUT_CLS + invalidCls(form.errors.gender)}
                                         required
                                     >
                                         <option value="" disabled hidden>Select gender...</option>
-                                        <option value="Male">Male</option>
-                                        <option value="Female">Female</option>
-                                        <option value="Other">Other</option>
+                                        {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
                                     </select>
+                                    <FieldError id="profile-gender" error={form.errors.gender} className="m-0" />
                                 </div>
                             </div>
                         </div>
@@ -514,13 +582,20 @@ export default function ProfileSettings() {
                             </button>
                         </div>
 
+                        {saveError && (
+                            <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-semibold">
+                                {saveError}
+                            </div>
+                        )}
+
                         <div className="border-t border-slate-100 pt-6 flex justify-end">
                             <button
                                 type="submit"
-                                className="profile-save-btn btn-interactive w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2"
+                                disabled={isSaving}
+                                className="profile-save-btn btn-interactive w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 <FontAwesomeIcon icon={faSave} />
-                                <span>{t('profile.saveProfile')}</span>
+                                <span>{isSaving ? 'Saving…' : t('profile.saveProfile')}</span>
                             </button>
                         </div>
                     </form>

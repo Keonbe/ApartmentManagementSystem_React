@@ -4,9 +4,16 @@ import { faEnvelopeOpenText, faExclamationTriangle, faInfoCircle } from '@fortaw
 import { useNavigate, useLocation } from 'react-router-dom';
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
-import { LIMITS, checkDate, checkIntRange, checkPhMobile, localDateString, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, checkDate, checkEmail, checkIntRange, checkPersonName, checkPhMobile, checkText, localDateString, maxFutureDate, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 import PhoneInput from '../Components/PhoneInput';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import CharCount from '../Components/form/CharCount';
+import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
 import { useLang } from '../config/i18n';
+
+const MAX_OCCUPANTS = 20;
 import '../assets/styles/responsive/user/inquiry-form.responsive.css';
 
 // Reads the stored session so the form can prefill for a logged-in visitor.
@@ -62,51 +69,54 @@ export default function InquiryForm() {
         fetchRooms();
     }, []);
 
+    // Keys match submit_inquiry.php's body.
+    const form = useFieldErrors({
+        full_name: (v) => checkPersonName(v, { label: 'Full name', max: LIMITS.fullName }),
+        contact_no: (v) => checkPhMobile(v),
+        email: (v) => checkEmail(v, { max: LIMITS.email }),
+        room_name: (v) => (!v || rooms.some(r => String(r.id) === String(v)) ? '' : 'Please choose an available unit.'),
+        occupants: (v) => (v === '' || v == null ? '' : checkIntRange(v, 1, MAX_OCCUPANTS, 'Occupants')),
+        preferred_move_in: (v) => (v ? checkDate(v, { min: localDateString(), max: maxFutureDate(), label: 'Preferred move-in date' }) : ''),
+        message: (v) => checkText(v, { label: 'Message', max: LIMITS.message, required: false }),
+    }, { idPrefix: 'inquiry-' });
+    const values = { full_name: fullName, contact_no: contactNo, email, room_name: roomName, occupants, preferred_move_in: moveIn, message };
+    const setters = { full_name: setFullName, email: setEmail, room_name: setRoomName, occupants: setOccupants, preferred_move_in: setMoveIn, message: setMessage };
+
+    const change = (name) => (e) => { setters[name](e.target.value); form.clearError(name); };
+    const blur = (name) => () => {
+        const raw = values[name];
+        const v = name === 'email' ? normalizeEmail(raw) : (name === 'full_name' || name === 'message') ? String(raw).trim() : raw;
+        if (v !== raw) setters[name](v);
+        form.validateField(name, { ...values, [name]: v });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (submitting) return;
         setErrorMsg('');
 
-        if (!fullName.trim() || !email.trim() || !contactNo.trim()) {
-            setErrorMsg(t('inquiry.errorRequired'));
-            return;
-        }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-            setErrorMsg(t('inquiry.errorEmail'));
-            return;
-        }
-        if (checkPhMobile(contactNo)) {
-            setErrorMsg(t('inquiry.errorContact'));
-            return;
-        }
-
-        const optionalError = (occupants !== '' && occupants != null ? checkIntRange(occupants, 1, 20, 'Occupants') : '')
-            || (moveIn ? checkDate(moveIn, { min: localDateString(), label: 'Preferred move-in date' }) : '');
-        if (optionalError) {
-            setErrorMsg(optionalError);
-            return;
-        }
+        const clean = { ...values, full_name: fullName.trim(), email: normalizeEmail(email), message: message.trim() };
+        setFullName(clean.full_name);
+        setEmail(clean.email);
+        setMessage(clean.message);
+        if (!form.validateAll(clean)) return;
 
         setSubmitting(true);
         try {
             const res = await api.post('submit_inquiry.php', {
-                full_name: fullName.trim(),
-                email: email.trim(),
+                ...clean,
                 contact_no: toPhE164(contactNo),
-                room_name: roomName,
-                occupants: occupants,
-                preferred_move_in: moveIn,
-                message: message.trim(),
                 website: honeypot,
             });
 
             if (res.data.success) {
                 setIsModalOpen(true);
-            } else {
+            } else if (!form.applyServerErrors(res)) {
                 setErrorMsg(res.data.message || t('inquiry.errorNetwork'));
             }
         } catch (error) {
             console.error('Error submitting inquiry:', error);
-            setErrorMsg(error.response?.data?.message || t('inquiry.errorNetwork'));
+            if (!form.applyServerErrors(error)) setErrorMsg(apiErrorMessage(error, t('inquiry.errorNetwork')));
         } finally {
             setSubmitting(false);
         }
@@ -138,6 +148,7 @@ export default function InquiryForm() {
                 <form
                     className="inquiry-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
                     onSubmit={handleSubmit}
+                    noValidate
                 >
                     {/*Honeypot: hidden from people, tempting to bots*/}
                     <input
@@ -152,50 +163,64 @@ export default function InquiryForm() {
                     />
 
                     <div className="flex flex-col space-y-2">
-                        <label className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.fullName')}</label>
+                        <label htmlFor="inquiry-full_name" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.fullName')}</label>
                         <input
                             type="text"
+                            {...form.fieldA11y('full_name')}
+                            autoComplete="name"
                             required
-                            maxLength={150}
+                            maxLength={LIMITS.fullName}
                             value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
+                            onChange={change('full_name')}
+                            onBlur={blur('full_name')}
                             placeholder={t('inquiry.fullNamePlaceholder')}
-                            className={inputClass}
+                            className={inputClass + invalidCls(form.errors.full_name)}
                             style={{ color: '#1e293b' }}
                         />
+                        <FieldError id="inquiry-full_name" error={form.errors.full_name} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                        <label className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.contactNo')}</label>
+                        <label htmlFor="inquiry-contact_no" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.contactNo')}</label>
                         <PhoneInput
+                            id="inquiry-contact_no"
+                            name="contact_no"
                             required
                             value={contactNo}
-                            onChange={setContactNo}
+                            onChange={(digits) => { setContactNo(digits); form.clearError('contact_no'); }}
+                            onBlur={() => form.validateField('contact_no', values)}
+                            error={form.errors.contact_no}
                             placeholder={t('inquiry.contactNoPlaceholder')}
-                            inputClassName="inquiry-input focus-glow w-full px-4 py-3 rounded-r-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            inputClassName={`inquiry-input focus-glow w-full px-4 py-3 rounded-r-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]${invalidCls(form.errors.contact_no)}`}
                         />
                     </div>
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.email')}</label>
+                        <label htmlFor="inquiry-email" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.email')}</label>
                         <input
                             type="email"
+                            {...form.fieldA11y('email')}
+                            inputMode="email"
+                            autoComplete="email"
                             required
-                            maxLength={150}
+                            maxLength={LIMITS.email}
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={change('email')}
+                            onBlur={blur('email')}
                             placeholder={t('inquiry.emailPlaceholder')}
-                            className={inputClass}
+                            className={inputClass + invalidCls(form.errors.email)}
                             style={{ color: '#1e293b' }}
                         />
+                        <FieldError id="inquiry-email" error={form.errors.email} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                        <label className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.unit')}</label>
+                        <label htmlFor="inquiry-room_name" className={labelClass} style={{ color: '#3b4276' }}>{t('inquiry.unit')}</label>
                         <select
+                            {...form.fieldA11y('room_name')}
                             value={roomName}
-                            onChange={(e) => setRoomName(e.target.value)}
-                            className={inputClass}
+                            onChange={change('room_name')}
+                            className={inputClass + invalidCls(form.errors.room_name)}
                             style={{ color: '#1e293b' }}
                             disabled={loadingRooms}
                         >
@@ -206,51 +231,66 @@ export default function InquiryForm() {
                                 </option>
                             ))}
                         </select>
+                        <FieldError id="inquiry-room_name" error={form.errors.room_name} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2">
-                        <label className={labelClass} style={{ color: '#3b4276' }}>
+                        <label htmlFor="inquiry-occupants" className={labelClass} style={{ color: '#3b4276' }}>
                             {t('inquiry.occupants')} <span className="text-slate-400 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <input
                             type="number"
+                            {...form.fieldA11y('occupants')}
+                            inputMode="numeric"
                             min="1"
-                            max="20"
+                            max={MAX_OCCUPANTS}
+                            step="1"
                             value={occupants}
-                            onChange={(e) => setOccupants(e.target.value)}
+                            onKeyDown={blockNonIntegerKeys}
+                            onChange={change('occupants')}
+                            onBlur={blur('occupants')}
                             placeholder={t('inquiry.occupantsPlaceholder')}
-                            className={inputClass}
+                            className={inputClass + invalidCls(form.errors.occupants)}
                             style={{ color: '#1e293b' }}
                         />
+                        <FieldError id="inquiry-occupants" error={form.errors.occupants} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className={labelClass} style={{ color: '#3b4276' }}>
+                        <label htmlFor="inquiry-preferred_move_in" className={labelClass} style={{ color: '#3b4276' }}>
                             {t('inquiry.moveIn')} <span className="text-slate-400 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <input
                             type="date"
+                            {...form.fieldA11y('preferred_move_in')}
                             value={moveIn}
                             min={localDateString()}
-                            onChange={(e) => setMoveIn(e.target.value)}
-                            className={inputClass}
+                            max={maxFutureDate()}
+                            onChange={change('preferred_move_in')}
+                            onBlur={blur('preferred_move_in')}
+                            className={inputClass + invalidCls(form.errors.preferred_move_in)}
                             style={{ color: '#1e293b' }}
                         />
+                        <FieldError id="inquiry-preferred_move_in" error={form.errors.preferred_move_in} className="m-0" />
                     </div>
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className={labelClass} style={{ color: '#3b4276' }}>
+                        <label htmlFor="inquiry-message" className={labelClass} style={{ color: '#3b4276' }}>
                             {t('inquiry.message')} <span className="text-slate-400 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <textarea
                             rows="5"
+                            {...form.fieldA11y('message')}
                             value={message}
                             maxLength={LIMITS.message}
-                            onChange={(e) => setMessage(e.target.value)}
+                            onChange={change('message')}
+                            onBlur={blur('message')}
                             placeholder={t('inquiry.messagePlaceholder')}
-                            className={`${inputClass} resize-y`}
+                            className={`${inputClass} resize-y${invalidCls(form.errors.message)}`}
                             style={{ color: '#1e293b' }}
                         />
+                        <FieldError id="inquiry-message" error={form.errors.message} className="m-0" />
+                        <CharCount value={message} max={LIMITS.message} className="m-0" />
                     </div>
 
                     <div className="md:col-span-2 flex items-start gap-2.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl p-3.5">

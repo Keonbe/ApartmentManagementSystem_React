@@ -1,8 +1,14 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, TITLE_MIN, checkAmount, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import useFilePreview from '../hooks/useFilePreview';
+import FieldError from '../Components/form/FieldError';
+import CharCount from '../Components/form/CharCount';
+import { blockNonNumericKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -159,59 +165,84 @@ const RequestCard = React.memo(function RequestCard({ req, onOpen }) {
 // re-renders this small modal.
 function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
   const [newReq, setNewReq] = useState(emptyNewReq);
-  const [newPhoto, setNewPhoto] = useState(null);
-  const [validationErrors, setValidationErrors] = useState({});
+  const [newPhoto, setNewPhoto, photoUrl] = useFilePreview();
+
+  // Keys match create_maintenance_request.php's form fields.
+  const form = useFieldErrors({
+    title: (v) => checkText(v, { label: 'Title', min: TITLE_MIN, max: LIMITS.maintenanceTitle }),
+    unit: (v) => (rooms.some(r => r.id === v) ? '' : 'Select a unit.'),
+    issueType: (v) => (MAINTENANCE_CATEGORIES.some(c => c.value === v) ? '' : 'Choose a category.'),
+    priority: (v) => (MAINTENANCE_URGENCIES.some(u => u.value === v) ? '' : 'Choose a priority.'),
+    description: (v) => checkText(v, { label: 'Details', max: LIMITS.message, required: false }),
+    photo: (f) => (f ? checkFile(f, FILE_RULES.maintenance) : ''),
+  }, { idPrefix: 'newreq-' });
+  const values = { ...newReq, photo: newPhoto };
 
   const occupantOf = (unitId) => rooms.find(r => r.id === unitId)?.tenant || '';
+  const setField = (key, value) => {
+    setNewReq({ ...newReq, [key]: value });
+    form.clearError(key);
+  };
+  const blurText = (key) => {
+    const v = newReq[key].trim();
+    if (v !== newReq[key]) setNewReq({ ...newReq, [key]: v });
+    if (v) form.validateField(key, { ...values, [key]: v });
+  };
+  const fieldCls = (key, base) => base + invalidCls(form.errors[key]);
 
-  const handleSubmit = async () => {
-    const errors = {};
-    if (!newReq.title.trim()) errors.title = true;
-    if (!newReq.unit) errors.unit = true;
-    if (Object.keys(errors).length > 0) {
-      setValidationErrors(errors);
-      return;
-    }
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
+    if (isSubmitting) return;
+    const clean = { ...newReq, title: newReq.title.trim(), description: newReq.description.trim() };
+    setNewReq(clean);
+    if (!form.validateAll({ ...clean, photo: newPhoto })) return;
 
     const formData = new FormData();
-    formData.append('title', newReq.title.trim());
-    formData.append('unit', newReq.unit);
-    formData.append('issueType', newReq.issueType);
-    formData.append('priority', newReq.priority);
-    formData.append('description', newReq.description.trim());
+    formData.append('title', clean.title);
+    formData.append('unit', clean.unit);
+    formData.append('issueType', clean.issueType);
+    formData.append('priority', clean.priority);
+    formData.append('description', clean.description);
     if (newPhoto) formData.append('photo', newPhoto);
 
-    const ok = await onSubmit(formData);
+    const ok = await onSubmit(formData, form);
     if (ok) {
       setNewReq(emptyNewReq);
       setNewPhoto(null);
-      setValidationErrors({});
+      form.setErrors({});
     }
   };
+
+  const LABEL = 'block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1';
+  const FIELD = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={onClose}>
       {/* max-h + flex column keeps the modal within the viewport instead of
           growing to the height of its content; only the body scrolls. */}
-      <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+      <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={handleSubmit} noValidate>
         <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
           <h2 className="text-lg font-bold text-slate-800 m-0">Create New Request</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+          <button type="button" aria-label="Close" onClick={onClose} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
         </div>
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Title *</label>
-            <input type="text" maxLength={LIMITS.maintenanceTitle} value={newReq.title} onChange={e => setNewReq({ ...newReq, title: e.target.value })} className={`w-full px-3 py-2 text-sm border ${validationErrors.title ? 'border-red-500' : 'border-slate-200'} rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500`} placeholder="Brief description of the issue" />
+            <label htmlFor="newreq-title" className={LABEL}>Title *</label>
+            <input type="text" {...form.fieldA11y('title')} autoComplete="off" maxLength={LIMITS.maintenanceTitle} value={newReq.title}
+              onChange={e => setField('title', e.target.value)} onBlur={() => blurText('title')}
+              className={fieldCls('title', FIELD)} placeholder="Brief description of the issue" />
+            <FieldError id="newreq-title" error={form.errors.title} />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Unit *</label>
-            <select value={newReq.unit} onChange={e => setNewReq({ ...newReq, unit: e.target.value })} className={`w-full px-3 py-2 text-sm border ${validationErrors.unit ? 'border-red-500' : 'border-slate-200'} rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500`}>
-              <option value="">Select a unit…</option>
+            <label htmlFor="newreq-unit" className={LABEL}>Unit *</label>
+            <select {...form.fieldA11y('unit')} value={newReq.unit} onChange={e => setField('unit', e.target.value)} className={fieldCls('unit', FIELD)}>
+              <option value="" disabled>Select a unit…</option>
               {rooms.map(room => (
                 <option key={room.id} value={room.id}>Unit {room.id}{room.tenant ? ` — ${room.tenant}` : ' (vacant)'}</option>
               ))}
             </select>
+            <FieldError id="newreq-unit" error={form.errors.unit} />
             {newReq.unit && (
               <p className="text-[11px] text-slate-400 m-0 mt-1">
                 {occupantOf(newReq.unit) ? `Ticket will be linked to ${occupantOf(newReq.unit)}.` : 'Vacant unit — no tenant will be notified.'}
@@ -221,67 +252,77 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Category</label>
-              <select value={newReq.issueType} onChange={e => setNewReq({ ...newReq, issueType: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
+              <label htmlFor="newreq-issueType" className={LABEL}>Category</label>
+              <select {...form.fieldA11y('issueType')} value={newReq.issueType} onChange={e => setField('issueType', e.target.value)} className={fieldCls('issueType', FIELD)}>
                 {MAINTENANCE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value}</option>)}
               </select>
+              <FieldError id="newreq-issueType" error={form.errors.issueType} />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Priority</label>
-              <select value={newReq.priority} onChange={e => setNewReq({ ...newReq, priority: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
+              <label htmlFor="newreq-priority" className={LABEL}>Priority</label>
+              <select {...form.fieldA11y('priority')} value={newReq.priority} onChange={e => setField('priority', e.target.value)} className={fieldCls('priority', FIELD)}>
                 {MAINTENANCE_URGENCIES.map(u => <option key={u.value} value={u.value}>{u.value}</option>)}
               </select>
+              <FieldError id="newreq-priority" error={form.errors.priority} />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Details</label>
-            <textarea rows={3} maxLength={LIMITS.message} value={newReq.description} onChange={e => setNewReq({ ...newReq, description: e.target.value })} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" placeholder="Provide more details about the problem..."></textarea>
+            <label htmlFor="newreq-description" className={LABEL}>Details</label>
+            <textarea rows={3} {...form.fieldA11y('description')} maxLength={LIMITS.message} value={newReq.description}
+              onChange={e => setField('description', e.target.value)} onBlur={() => blurText('description')}
+              className={fieldCls('description', 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none')}
+              placeholder="Provide more details about the problem..."></textarea>
+            <FieldError id="newreq-description" error={form.errors.description} />
+            <CharCount value={newReq.description} max={LIMITS.message} />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference Photo or Video</label>
-            <div className="w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-center relative bg-slate-50 hover:bg-slate-100 hover:border-indigo-400 transition-colors">
+            <label htmlFor="newreq-photo" className={LABEL}>Reference Photo or Video</label>
+            <div className={`w-full border-2 border-dashed border-slate-300 rounded-lg p-4 text-center relative bg-slate-50 hover:bg-slate-100 hover:border-indigo-400 transition-colors${invalidCls(form.errors.photo)}`}>
               <input
                 type="file"
+                {...form.fieldA11y('photo')}
                 accept={acceptFor(FILE_RULES.maintenance)}
                 onChange={e => {
                   const file = e.target.files?.[0] || null;
                   const fileError = checkFile(file, FILE_RULES.maintenance);
-                  if (fileError) { alert(fileError); e.target.value = ''; setNewPhoto(null); return; }
+                  form.setFieldError('photo', fileError);
+                  if (fileError) { e.target.value = ''; setNewPhoto(null); return; }
                   setNewPhoto(file);
                 }}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
               <FontAwesomeIcon icon={faUpload} className="text-slate-400 mb-2 text-lg" />
               <p className="text-xs text-slate-600 m-0">Click or drag a file here to attach</p>
-              <p className="text-[10px] text-slate-400 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to 10MB</p>
+              <p className="text-[10px] text-slate-400 m-0 mt-0.5">JPG, PNG, WEBP, MP4, WEBM or MOV · up to {FILE_RULES.maintenance.maxMB}MB</p>
             </div>
+            <FieldError id="newreq-photo" error={form.errors.photo} />
             {newPhoto && (
               <div className="flex items-center gap-3 mt-3 p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
                 <div className="w-12 h-12 rounded bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0 overflow-hidden">
                   {newPhoto.type.startsWith('video/') ? (
                     <span className="text-[10px] font-bold text-indigo-700">VIDEO</span>
                   ) : (
-                    <img src={URL.createObjectURL(newPhoto)} alt="Thumbnail" className="w-full h-full object-cover" />
+                    <img src={photoUrl} alt="Thumbnail" className="w-full h-full object-cover" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-700 truncate m-0">{newPhoto.name}</p>
-                  <p className="text-[10px] text-emerald-600 font-semibold m-0">Ready for upload</p>
+                  <p className="text-[10px] text-emerald-600 font-semibold m-0">{formatFileSize(newPhoto.size)} · Ready for upload</p>
                 </div>
-                <button type="button" onClick={() => setNewPhoto(null)} className="text-xs text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1">Remove</button>
+                <button type="button" onClick={() => { setNewPhoto(null); form.clearError('photo'); }} className="text-xs text-red-500 hover:text-red-700 bg-transparent border-0 cursor-pointer font-bold px-2 py-1">Remove</button>
               </div>
             )}
           </div>
         </div>
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2 shrink-0">
-          <button onClick={onClose} disabled={isSubmitting} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors disabled:opacity-50">Cancel</button>
-          <button onClick={handleSubmit} disabled={isSubmitting} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50">
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={isSubmitting} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50">
             {isSubmitting ? 'Creating...' : 'Create Request'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }
@@ -297,11 +338,22 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
   const allowedNext = MAINTENANCE_TRANSITIONS[req.status] || [];
   const isClosed = req.status === 'Rejected' || req.status === 'Cancelled';
 
+  // These fields save on blur, so each is checked before it is sent.
+  const form = useFieldErrors({
+    assignedTo: (v) => checkText(v, { label: 'Assignee', max: LIMITS.assignedTo, required: false }),
+    estimatedCost: (v) => checkAmount(v, { label: 'Estimated cost', required: false }),
+    workNote: (v) => checkText(v, { label: 'Note', max: LIMITS.notes, required: false }),
+  }, { idPrefix: 'detail-' });
+
   const saveAssignee = () => {
-    if (assigneeDraft.trim() !== (req.assignedTo || '')) onSaveField({ assignedTo: assigneeDraft.trim() });
+    const v = assigneeDraft.trim();
+    setAssigneeDraft(v);
+    if (form.validateField('assignedTo', { assignedTo: v })) return;
+    if (v !== (req.assignedTo || '')) onSaveField({ assignedTo: v });
   };
 
   const saveEstimate = () => {
+    if (form.validateField('estimatedCost', { estimatedCost: estimateDraft })) return;
     if (String(estimateDraft) !== String(req.estimatedCost ?? '')) {
       onSaveField({ estimatedCost: estimateDraft === '' ? null : Number(estimateDraft) });
     }
@@ -309,6 +361,7 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
 
   const handleAddNote = () => {
     if (!newNote.trim()) return;
+    if (form.validateField('workNote', { workNote: newNote })) return;
     const entry = `[${noteStamp()}] ${newNote.trim()}`;
     const workNotes = req.workNotes ? `${req.workNotes}\n\n${entry}` : entry;
     onAddNote(workNotes);
@@ -486,31 +539,40 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assigned Personnel</label>
+                  <label htmlFor="detail-assignedTo" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assigned Personnel</label>
                   <input
                     type="text"
+                    {...form.fieldA11y('assignedTo')}
+                    autoComplete="off"
+                    maxLength={LIMITS.assignedTo}
                     value={assigneeDraft}
                     disabled={saving}
-                    onChange={e => setAssigneeDraft(e.target.value)}
+                    onChange={e => { setAssigneeDraft(e.target.value); form.clearError('assignedTo'); }}
                     onBlur={saveAssignee}
                     onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                     placeholder="Assign someone..."
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500"
+                    className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" + invalidCls(form.errors.assignedTo)}
                   />
+                  <FieldError id="detail-assignedTo" error={form.errors.assignedTo} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱)</label>
+                  <label htmlFor="detail-estimatedCost" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱)</label>
                   <input
                     type="number"
+                    {...form.fieldA11y('estimatedCost')}
+                    inputMode="decimal"
                     min="0"
+                    max={MAX_AMOUNT}
+                    step="0.01"
                     value={estimateDraft}
                     disabled={saving}
-                    onChange={e => setEstimateDraft(e.target.value)}
+                    onChange={e => { setEstimateDraft(e.target.value); form.clearError('estimatedCost'); }}
                     onBlur={saveEstimate}
-                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else blockNonNumericKeys(e); }}
                     placeholder="e.g. 1500"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500"
+                    className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" + invalidCls(form.errors.estimatedCost)}
                   />
+                  <FieldError id="detail-estimatedCost" error={form.errors.estimatedCost} />
                 </div>
               </div>
             )}
@@ -529,9 +591,11 @@ function DetailModal({ req, settings, saving, onClose, onMoveTo, onOpenAction, o
             </div>
 
             <div className="shrink-0 relative">
-              <textarea maxLength={LIMITS.notes} value={newNote} onChange={e => setNewNote(e.target.value)} rows={2} className="w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-none shadow-sm" placeholder="Add a note..."></textarea>
-              <button onClick={handleAddNote} disabled={!newNote.trim() || saving} className="absolute right-2 bottom-3 w-7 h-7 rounded bg-indigo-50 flex items-center justify-center text-indigo-600 border-0 cursor-pointer disabled:opacity-50 hover:bg-indigo-100 transition-colors"><FontAwesomeIcon icon={faPaperPlane} className="text-xs" /></button>
+              <textarea {...form.fieldA11y('workNote')} aria-label="Add a work note" maxLength={LIMITS.notes} value={newNote} onChange={e => { setNewNote(e.target.value); form.clearError('workNote'); }} rows={2} className={"w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-none shadow-sm" + invalidCls(form.errors.workNote)} placeholder="Add a note..."></textarea>
+              <button type="button" aria-label="Add note" onClick={handleAddNote} disabled={!newNote.trim() || saving} className="absolute right-2 bottom-3 w-7 h-7 rounded bg-indigo-50 flex items-center justify-center text-indigo-600 border-0 cursor-pointer disabled:opacity-50 hover:bg-indigo-100 transition-colors"><FontAwesomeIcon icon={faPaperPlane} className="text-xs" /></button>
             </div>
+            <FieldError id="detail-workNote" error={form.errors.workNote} />
+            <CharCount value={newNote} max={LIMITS.notes} />
           </div>
         </div>
 
@@ -548,17 +612,20 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
   const [actualCostDraft, setActualCostDraft] = useState(req.actualCost ?? req.estimatedCost ?? '');
   const [rejectReason, setRejectReason] = useState('');
 
-  const handleConfirm = () => {
-    const actionError = firstError(
-      type === 'start' ? checkLength(assigneeDraft, LIMITS.assignedTo, 'Assignee') : '',
-      type === 'start' && estimateDraft !== '' ? checkAmount(estimateDraft, { label: 'Estimated cost' }) : '',
-      type === 'complete' ? checkAmount(actualCostDraft, { label: 'Actual cost' }) : '',
-      type === 'reject' ? (rejectReason.trim() ? checkLength(rejectReason, LIMITS.reason, 'Reason') : 'Please give a reason for rejecting.') : ''
-    );
-    if (actionError) {
-      alert(actionError);
-      return;
-    }
+  // Each action checks only the fields it shows.
+  const FIELDS_BY_TYPE = { start: ['assignedTo', 'estimatedCost'], complete: ['actualCost'], reject: ['rejectionReason'] };
+  const form = useFieldErrors({
+    assignedTo: (v) => checkText(v, { label: 'Assignee', max: LIMITS.assignedTo, required: false }),
+    estimatedCost: (v) => checkAmount(v, { label: 'Estimated cost', required: false }),
+    actualCost: (v) => checkAmount(v, { label: 'Actual cost' }),
+    rejectionReason: (v) => checkText(v, { label: 'Reason', max: LIMITS.reason }),
+  }, { idPrefix: 'action-' });
+  const values = { assignedTo: assigneeDraft, estimatedCost: estimateDraft, actualCost: actualCostDraft, rejectionReason: rejectReason };
+
+  const handleConfirm = (e) => {
+    e?.preventDefault();
+    if (saving) return;
+    if (!form.validateAll(values, FIELDS_BY_TYPE[type] || [])) return;
     let payload;
     if (type === 'start') {
       payload = { status: 'In Progress' };
@@ -583,20 +650,34 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
         {type === 'start' && (
           <div className="space-y-3 mb-5">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assign To</label>
-              <input type="text" maxLength={LIMITS.assignedTo} value={assigneeDraft} onChange={e => setAssigneeDraft(e.target.value)} placeholder="Personnel or contractor" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+              <label htmlFor="action-assignedTo" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Assign To</label>
+              <input type="text" {...form.fieldA11y('assignedTo')} autoComplete="off" maxLength={LIMITS.assignedTo} value={assigneeDraft}
+                onChange={e => { setAssigneeDraft(e.target.value); form.clearError('assignedTo'); }}
+                onBlur={() => { const v = assigneeDraft.trim(); setAssigneeDraft(v); form.validateField('assignedTo', { ...values, assignedTo: v }); }}
+                placeholder="Personnel or contractor" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.assignedTo)} />
+              <FieldError id="action-assignedTo" error={form.errors.assignedTo} />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱)</label>
-              <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={estimateDraft} onChange={e => setEstimateDraft(e.target.value)} placeholder="Optional" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+              <label htmlFor="action-estimatedCost" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimated Cost (₱)</label>
+              <input type="number" {...form.fieldA11y('estimatedCost')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={estimateDraft}
+                onKeyDown={blockNonNumericKeys}
+                onChange={e => { setEstimateDraft(e.target.value); form.clearError('estimatedCost'); }}
+                onBlur={() => form.validateField('estimatedCost', values)}
+                placeholder="Optional" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.estimatedCost)} />
+              <FieldError id="action-estimatedCost" error={form.errors.estimatedCost} />
             </div>
           </div>
         )}
 
         {type === 'complete' && (
           <div className="mb-5">
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Actual Cost (₱) *</label>
-            <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={actualCostDraft} onChange={e => setActualCostDraft(e.target.value)} placeholder="Enter 0 if there was no cost" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" />
+            <label htmlFor="action-actualCost" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Actual Cost (₱) *</label>
+            <input type="number" {...form.fieldA11y('actualCost')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={actualCostDraft}
+              onKeyDown={blockNonNumericKeys}
+              onChange={e => { setActualCostDraft(e.target.value); form.clearError('actualCost'); }}
+              onBlur={() => form.validateField('actualCost', values)}
+              placeholder="Enter 0 if there was no cost" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500" + invalidCls(form.errors.actualCost)} />
+            <FieldError id="action-actualCost" error={form.errors.actualCost} />
             {req.estimatedCost !== null && req.estimatedCost !== undefined && (
               <p className="text-[11px] text-slate-400 m-0 mt-1">Estimate was {formatCurrency(req.estimatedCost)}.</p>
             )}
@@ -605,16 +686,22 @@ function ActionModal({ type, req, saving, onConfirm, onClose }) {
 
         {type === 'reject' && (
           <div className="mb-5">
-            <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason *</label>
-            <textarea rows={3} maxLength={LIMITS.reason} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Explain why this request is being rejected" className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" />
+            <label htmlFor="action-rejectionReason" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason *</label>
+            <textarea rows={3} {...form.fieldA11y('rejectionReason')} maxLength={LIMITS.reason} value={rejectReason}
+              onChange={e => { setRejectReason(e.target.value); form.clearError('rejectionReason'); }}
+              onBlur={() => { const v = rejectReason.trim(); setRejectReason(v); if (v) form.validateField('rejectionReason', { ...values, rejectionReason: v }); }}
+              placeholder="Explain why this request is being rejected" className={"w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-slate-50 focus:bg-white focus:border-indigo-500 resize-none" + invalidCls(form.errors.rejectionReason)} />
+            <FieldError id="action-rejectionReason" error={form.errors.rejectionReason} />
+            <CharCount value={rejectReason} max={LIMITS.reason} />
             <p className="text-[11px] text-slate-400 m-0 mt-1">The tenant will be notified with this reason.</p>
           </div>
         )}
 
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={handleConfirm}
-            disabled={saving || (type === 'complete' && actualCostDraft === '') || (type === 'reject' && !rejectReason.trim())}
+            disabled={saving}
             className={`flex-1 py-2 text-white rounded text-sm font-semibold border-0 cursor-pointer transition-colors disabled:opacity-40 ${type === 'reject' ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
           >
             {saving ? 'Saving…' : 'Confirm'}
@@ -755,7 +842,8 @@ const AdminMaintainance = () => {
     if (await update(selectedReq.dbId, payload)) setActionModal(null);
   };
 
-  const handleCreateRequest = async (formData) => {
+  // `fieldForm` is the modal's useFieldErrors(), so a server field error lands on its input.
+  const handleCreateRequest = async (formData, fieldForm) => {
     setIsSubmittingNew(true);
     try {
       const res = await api.post('create_maintenance_request_admin.php', formData, {
@@ -767,11 +855,11 @@ const AdminMaintainance = () => {
         setShowNewModal(false);
         return true;
       } else {
-        alert(res.data?.message || 'Failed to create maintenance request.');
+        if (!fieldForm?.applyServerErrors(res)) alert(res.data?.message || 'Failed to create maintenance request.');
         return false;
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create maintenance request.');
+      if (!fieldForm?.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to create maintenance request.'));
       return false;
     } finally {
       setIsSubmittingNew(false);
@@ -884,7 +972,7 @@ const AdminMaintainance = () => {
               <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-all shadow-sm max-w-xs w-full">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                  <input type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                  <input maxLength={LIMITS.search} type="text" placeholder="Search title, unit, tenant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
                 </div>
 
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2 py-2 shadow-sm">

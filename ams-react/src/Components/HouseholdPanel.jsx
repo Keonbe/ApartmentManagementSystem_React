@@ -3,7 +3,13 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPeopleRoof, faUserPlus, faUserMinus, faClock } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import PhoneInput from './PhoneInput';
-import { checkPhMobile, toPhE164 } from '../utils/validation';
+import { LIMITS, checkPersonName, checkPhMobile, toPhE164 } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from './form/FieldError';
+import { invalidCls } from './form/formHelpers';
+
+const EMPTY = { fullName: '', relationship: '', contactNo: '' };
 
 // Household roster on My Room (household_members.php). One shared lease: the
 // lease holder signs in; the people living with them are listed here. Adding or
@@ -11,9 +17,15 @@ import { checkPhMobile, toPhE164 } from '../utils/validation';
 // request the removal and the addition.
 export default function HouseholdPanel() {
   const [data, setData] = useState(null);
-  const [form, setForm] = useState({ fullName: '', relationship: '', contactNo: '' });
+  const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
+  // Keys match household_members.php's `add` body.
+  const fields = useFieldErrors({
+    fullName: (v) => checkPersonName(v, { label: 'Full name', max: LIMITS.fullName }),
+    relationship: (v) => ((data?.relationships || []).includes(v) ? '' : 'Please choose a relationship.'),
+    contactNo: (v) => (v ? checkPhMobile(v) : ''),
+  }, { idPrefix: 'household-' });
 
   const load = async () => {
     try {
@@ -35,29 +47,41 @@ export default function HouseholdPanel() {
   if (!data || !data.hasLease) return null;
 
   const send = async (body, after) => {
+    if (busy) return;
     setBusy(true);
     setNotice(null);
     try {
       const res = await api.post('household_members.php', body);
-      setNotice({ ok: res.data.success, text: res.data.message });
       if (res.data.success) {
+        setNotice({ ok: true, text: res.data.message });
         after?.();
         await load();
+      } else if (!fields.applyServerErrors(res)) {
+        setNotice({ ok: false, text: res.data.message });
       }
     } catch (err) {
-      setNotice({ ok: false, text: err.response?.data?.message || 'Request failed.' });
+      if (!fields.applyServerErrors(err)) setNotice({ ok: false, text: apiErrorMessage(err, 'Request failed.') });
     }
     setBusy(false);
   };
 
+  const change = (key, value) => {
+    setForm({ ...form, [key]: value });
+    fields.clearError(key);
+  };
+  const blur = (key) => {
+    const v = key === 'fullName' ? form.fullName.trim() : form[key];
+    if (v !== form[key]) setForm({ ...form, [key]: v });
+    fields.validateField(key, { ...form, [key]: v });
+  };
+
   const submitAdd = (e) => {
     e.preventDefault();
-    const phoneError = form.contactNo ? checkPhMobile(form.contactNo) : '';
-    if (phoneError) {
-      setNotice({ ok: false, text: phoneError });
-      return;
-    }
-    send({ action: 'add', ...form, contactNo: toPhE164(form.contactNo) }, () => setForm({ fullName: '', relationship: '', contactNo: '' }));
+    // ...form used to be sent untrimmed.
+    const clean = { ...form, fullName: form.fullName.trim() };
+    setForm(clean);
+    if (!fields.validateAll(clean)) return;
+    send({ action: 'add', ...clean, contactNo: toPhE164(clean.contactNo) }, () => setForm(EMPTY));
   };
 
   const requestRemove = (m) => {
@@ -136,26 +160,35 @@ export default function HouseholdPanel() {
         </p>
       )}
 
-      <form onSubmit={submitAdd} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end m-0">
+      <form onSubmit={submitAdd} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start m-0" noValidate>
         <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider sm:col-span-2">
           Full name
-          <input required minLength={2} maxLength={150} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} className={inputCls} disabled={full} />
+          <input {...fields.fieldA11y('fullName')} autoComplete="off" required maxLength={LIMITS.fullName} value={form.fullName}
+            onChange={(e) => change('fullName', e.target.value)} onBlur={() => form.fullName && blur('fullName')}
+            className={inputCls + invalidCls(fields.errors.fullName)} disabled={full} />
+          <FieldError id="household-fullName" error={fields.errors.fullName} className="m-0 normal-case tracking-normal font-normal" />
         </label>
         <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Relationship
-          <select required value={form.relationship} onChange={(e) => setForm({ ...form, relationship: e.target.value })} className={inputCls} disabled={full}>
-            <option value="">Select…</option>
+          <select {...fields.fieldA11y('relationship')} required value={form.relationship} onChange={(e) => change('relationship', e.target.value)}
+            className={inputCls + invalidCls(fields.errors.relationship)} disabled={full}>
+            <option value="" disabled>Select…</option>
             {(data.relationships || []).map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
+          <FieldError id="household-relationship" error={fields.errors.relationship} className="m-0 normal-case tracking-normal font-normal" />
         </label>
         <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Mobile (optional)
           <PhoneInput
+            id="household-contactNo"
+            name="contactNo"
             value={form.contactNo}
-            onChange={(digits) => setForm({ ...form, contactNo: digits })}
+            onChange={(digits) => change('contactNo', digits)}
+            onBlur={() => blur('contactNo')}
+            error={fields.errors.contactNo}
             disabled={full}
             prefixClassName="flex items-center gap-1 px-2.5 rounded-l-xl bg-slate-800 border border-white/10 border-r-0 text-slate-200 text-sm font-bold select-none pointer-events-none normal-case tracking-normal"
-            inputClassName="w-full px-3 py-2 rounded-r-xl bg-slate-950/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border normal-case tracking-normal font-normal disabled:opacity-60"
+            inputClassName={`w-full px-3 py-2 rounded-r-xl bg-slate-950/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border normal-case tracking-normal font-normal disabled:opacity-60${invalidCls(fields.errors.contactNo)}`}
           />
         </label>
         <div className="sm:col-span-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -170,13 +203,13 @@ export default function HouseholdPanel() {
             className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-xl text-xs border-0 cursor-pointer disabled:opacity-50 shrink-0"
           >
             <FontAwesomeIcon icon={faUserPlus} className="mr-1.5" />
-            Request to add
+            {busy ? 'Sending…' : 'Request to add'}
           </button>
         </div>
       </form>
 
       {notice && (
-        <p className={`text-xs font-semibold m-0 ${notice.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{notice.text}</p>
+        <p role={notice.ok ? 'status' : 'alert'} className={`text-xs font-semibold m-0 ${notice.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{notice.text}</p>
       )}
     </div>
   );

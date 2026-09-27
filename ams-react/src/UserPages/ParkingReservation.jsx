@@ -5,8 +5,15 @@ import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
-import { LIMITS } from '../utils/validation';
+import { LIMITS, checkIntRange, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
+
+const TRANSMISSIONS = ['Automatic', 'Manual'];
+const MAX_PARKING_MONTHS = 6;
 import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/parking-reservation.responsive.css';
 
@@ -15,7 +22,6 @@ export default function ParkingReservation() {
     const [vehicleType, setVehicleType] = useState('motorcycle');
     const [vehicleModel, setVehicleModel] = useState('');
     const [plateNumber, setPlateNumber] = useState('');
-    const [plateError, setPhonePlateError] = useState('');
     const [transmission, setTransmission] = useState('');
     const [durationMonths, setDurationMonths] = useState('');
     const [uploadedFile, setUploadedFile] = useState(null);
@@ -140,12 +146,23 @@ export default function ParkingReservation() {
         return "Invalid LTO format. Accepted: 123-ABC, NKI-3212, FA-8231, etc.";
     };
 
+    // Keys match parking_reservation.php's form fields.
+    const form = useFieldErrors({
+        vehicleType: (v) => (allowedVehicleTypes.includes(v) ? '' : 'This vehicle type is not currently accepted.'),
+        vehicleModel: (v) => checkText(v, { label: 'Vehicle model', min: 2, max: LIMITS.vehicleModel }),
+        plateNumber: (v) => validatePhilippinePlate(String(v ?? '')),
+        transmission: (v) => (TRANSMISSIONS.includes(v) ? '' : 'Please select the transmission type.'),
+        durationMonths: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_PARKING_MONTHS, 'Rental duration'),
+        uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.document) : 'Please upload your Vehicle Registration Form (OR/CR).'),
+    }, { idPrefix: 'parking-' });
+    const values = { vehicleType, vehicleModel, plateNumber, transmission, durationMonths, uploadedFile };
+
     //FreeTypingHandlerWithoutForcedHyphenation
     const handlePlateNumberChange = (e) => {
         let val = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
-        if (val.length > 15) val = val.substring(0, 15);
+        if (val.length > LIMITS.plate) val = val.substring(0, LIMITS.plate);
         setPlateNumber(val);
-        if (plateError) setPhonePlateError('');
+        form.clearError('plateNumber');
     };
 
     const handleDragOver = (e) => {
@@ -176,15 +193,13 @@ export default function ParkingReservation() {
     const validateFile = (file) => {
         if (!file) return false;
         const fileError = checkFile(file, FILE_RULES.document);
-        if (fileError) {
-            alert(fileError);
-            return false;
-        }
-        return true;
+        form.setFieldError('uploadedFile', fileError);
+        return !fileError;
     };
 
     //5.NumericInputHandlerCappedToMax6Months
     const handleNumberInput = (e) => {
+        form.clearError('durationMonths');
         const value = e.target.value;
         if (value === '') {
             setDurationMonths('');
@@ -192,7 +207,7 @@ export default function ParkingReservation() {
         }
         const num = parseInt(value, 10);
         if (!isNaN(num)) {
-            if (num > 6) setDurationMonths(6);
+            if (num > MAX_PARKING_MONTHS) setDurationMonths(MAX_PARKING_MONTHS);
             else if (num < 1) setDurationMonths(1);
             else setDurationMonths(num);
         }
@@ -209,22 +224,15 @@ export default function ParkingReservation() {
         if (submitting) return;
         setFormError('');
 
-        const plateValidationError = validatePhilippinePlate(plateNumber);
-        if (plateValidationError) {
-            setPhonePlateError(plateValidationError);
-            setFormError(plateValidationError);
-            return;
-        }
-
-        if (!uploadedFile) {
-            setFormError("Please upload your Vehicle Registration Form (OR/CR) before proceeding.");
-            return;
-        }
+        // Vehicle model, transmission and duration used to rely on `required` alone.
+        const cleanModel = vehicleModel.trim();
+        setVehicleModel(cleanModel);
+        if (!form.validateAll({ ...values, vehicleModel: cleanModel })) return;
 
         // The reservation is filed under the signed-in account on the server.
         const formData = new FormData();
         formData.append('vehicleType', vehicleType);
-        formData.append('vehicleModel', vehicleModel.trim());
+        formData.append('vehicleModel', cleanModel);
         formData.append('plateNumber', plateNumber.trim());
         formData.append('transmission', transmission);
         formData.append('durationMonths', durationMonths);
@@ -238,11 +246,11 @@ export default function ParkingReservation() {
 
             if (res.data.success) {
                 setIsModalOpen(true);
-            } else {
+            } else if (!form.applyServerErrors(res)) {
                 setFormError(res.data.message || 'Could not submit the reservation.');
             }
         } catch (error) {
-            setFormError(error.response?.data?.message || "A network error occurred.");
+            if (!form.applyServerErrors(error)) setFormError(apiErrorMessage(error, "A network error occurred."));
         } finally {
             setSubmitting(false);
         }
@@ -326,15 +334,16 @@ export default function ParkingReservation() {
                         )}
                     </div>
                 ) : (
-                <form className="parking-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start" onSubmit={handleFormSubmit}>
+                <form className="parking-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start" onSubmit={handleFormSubmit} noValidate>
 
                     {/*VehicleTypeSelectorRestrictedToMotorcycle*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleType')}</label>
+                        <label htmlFor="parking-vehicleType" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleType')}</label>
                         <select
+                            {...form.fieldA11y('vehicleType')}
                             value={vehicleType}
-                            onChange={(e) => setVehicleType(e.target.value)}
-                            className="parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            onChange={(e) => { setVehicleType(e.target.value); form.clearError('vehicleType'); }}
+                            className={"parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.vehicleType)}
                             style={{ color: '#1e293b' }}
                         >
                             {[
@@ -353,56 +362,60 @@ export default function ParkingReservation() {
                                 );
                             })}
                         </select>
+                        <FieldError id="parking-vehicleType" error={form.errors.vehicleType} className="m-0" />
                     </div>
 
                     {/*VehicleModelInput*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleModel')}</label>
+                        <label htmlFor="parking-vehicleModel" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.vehicleModel')}</label>
                         <input
                             type="text"
+                            {...form.fieldA11y('vehicleModel')}
+                            autoComplete="off"
                             placeholder="e.g. Yamaha Nmax / Honda Click"
                             value={vehicleModel}
                             maxLength={LIMITS.vehicleModel}
                             required
-                            onChange={(e) => setVehicleModel(e.target.value)}
-                            className="parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            onChange={(e) => { setVehicleModel(e.target.value); form.clearError('vehicleModel'); }}
+                            onBlur={() => { const v = vehicleModel.trim(); setVehicleModel(v); if (v) form.validateField('vehicleModel', { ...values, vehicleModel: v }); }}
+                            className={"parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.vehicleModel)}
                             style={{ color: '#1e293b' }}
                         />
+                        <FieldError id="parking-vehicleModel" error={form.errors.vehicleModel} className="m-0" />
                     </div>
 
                     {/*PlateNumberInputFieldWithAlignedLabelAndHelperText*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
+                        <label htmlFor="parking-plateNumber" className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
                             {t('parking.plateNo')}
                         </label>
                         <input
                             type="text"
+                            {...form.fieldA11y('plateNumber')}
+                            autoComplete="off"
                             placeholder={getPlatePlaceholder()}
                             value={plateNumber}
                             maxLength={LIMITS.plate}
                             onChange={handlePlateNumberChange}
-                            onBlur={() => setPhonePlateError(validatePhilippinePlate(plateNumber))}
+                            onBlur={() => plateNumber && form.validateField('plateNumber', values)}
                             required
-                            className={`parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px] ${plateError ? 'border-red-400 focus:ring-red-400' : 'border-slate-200'}`}
+                            className={`parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px]${invalidCls(form.errors.plateNumber)}`}
                             style={{ color: '#1e293b' }}
                         />
                         <span className="text-xs font-normal text-slate-400 leading-tight m-0">{getPlateHint()}</span>
-                        {plateError && (
-                            <span className="text-xs text-red-500 font-semibold mt-1 flex items-center gap-1">
-                                <FontAwesomeIcon icon={faExclamationTriangle} /> {plateError}
-                            </span>
-                        )}
+                        <FieldError id="parking-plateNumber" error={form.errors.plateNumber} className="m-0" />
                     </div>
 
                     {/*TransmissionTypeSelector*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
+                        <label htmlFor="parking-transmission" className="text-sm font-bold text-slate-700 block" style={{ color: '#3b4276' }}>
                             {t('parking.transmission')}
                         </label>
                         <select
+                            {...form.fieldA11y('transmission')}
                             value={transmission}
-                            onChange={(e) => setTransmission(e.target.value)}
-                            className="parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            onChange={(e) => { setTransmission(e.target.value); form.clearError('transmission'); }}
+                            className={"parking-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.transmission)}
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -410,31 +423,37 @@ export default function ParkingReservation() {
                             <option value="Automatic">{t('parking.automatic')}</option>
                             <option value="Manual">{t('parking.manual')}</option>
                         </select>
+                        <FieldError id="parking-transmission" error={form.errors.transmission} className="m-0" />
                     </div>
 
                     {/*RentalDurationInputCappedToMax6Months*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className="text-sm font-bold text-slate-700 flex items-center justify-between" style={{ color: '#3b4276' }}>
+                        <label htmlFor="parking-durationMonths" className="text-sm font-bold text-slate-700 flex items-center justify-between" style={{ color: '#3b4276' }}>
                             <span>{t('parking.duration')}</span>
                             <span className="text-xs font-normal text-slate-400">{t('parking.maxMonths')}</span>
                         </label>
                         <input
                             type="number"
+                            {...form.fieldA11y('durationMonths')}
                             inputMode="numeric"
                             min="1"
-                            max="6"
+                            max={MAX_PARKING_MONTHS}
+                            step="1"
                             placeholder="e.g. 6 (Max 6)"
                             value={durationMonths}
+                            onKeyDown={blockNonIntegerKeys}
                             onChange={handleNumberInput}
+                            onBlur={() => form.validateField('durationMonths', values)}
                             required
-                            className="parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            className={"parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.durationMonths)}
                             style={{ color: '#1e293b' }}
                         />
+                        <FieldError id="parking-durationMonths" error={form.errors.durationMonths} className="m-0" />
                     </div>
 
                     {/*EnhancedORCRFileUploadContainer*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Vehicle Registration Form (LTO OR/CR)</label>
+                        <label htmlFor="parking-uploadedFile" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Vehicle Registration Form (LTO OR/CR)</label>
                         <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
@@ -445,7 +464,7 @@ export default function ParkingReservation() {
                                 <>
                                     <input
                                         type="file"
-                                        id="file-upload-input"
+                                        {...form.fieldA11y('uploadedFile')}
                                         accept={acceptFor(FILE_RULES.document)}
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -476,10 +495,10 @@ export default function ParkingReservation() {
                                             </button>
                                         </div>
                                     )}
-                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[300px]">{uploadedFile.name}</p>
+                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[300px]">{uploadedFile.name} <span className="font-normal text-slate-400">({formatFileSize(uploadedFile.size)})</span></p>
                                     <button
                                         type="button"
-                                        onClick={() => setUploadedFile(null)}
+                                        onClick={() => { setUploadedFile(null); form.clearError('uploadedFile'); }}
                                         className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-1.5 rounded-xl border-0 cursor-pointer transition-colors shadow-sm"
                                     >
                                         Remove / Retake
@@ -487,6 +506,7 @@ export default function ParkingReservation() {
                                 </div>
                             )}
                         </div>
+                        <FieldError id="parking-uploadedFile" error={form.errors.uploadedFile} className="m-0" />
                     </div>
 
                     {/*PricingOverviewAndSubmitButton*/}

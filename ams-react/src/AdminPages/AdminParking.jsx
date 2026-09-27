@@ -8,6 +8,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
+import { LIMITS } from '../utils/validation';
+import CharCount from '../Components/form/CharCount';
 import { fileUrl } from '../api/fileUrl';
 
 const STATUS_BADGE = {
@@ -202,7 +204,7 @@ export default function AdminParking() {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="relative flex-1 w-full">
                   <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                  <input
+                  <input maxLength={LIMITS.search}
                     type="text"
                     placeholder="Search by tenant, unit, vehicle, plate number or #slot..."
                     value={searchQuery}
@@ -430,13 +432,17 @@ export default function AdminParking() {
                 <label htmlFor="parking-reason" className="text-xs font-bold uppercase tracking-wide text-slate-500">Reason (sent to the tenant)</label>
                 <textarea
                   id="parking-reason"
+                  name="reason"
                   rows={3}
-                  maxLength={255}
+                  required
+                  maxLength={LIMITS.reason}
                   value={dialog.reason}
                   onChange={(e) => setDialog(d => ({ ...d, reason: e.target.value }))}
+                  onBlur={() => setDialog(d => ({ ...d, reason: d.reason.trim() }))}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:bg-white resize-none"
                   placeholder={dialog.mode === 'reject' ? 'e.g. OR/CR is unreadable' : 'e.g. Tenant no longer needs parking'}
                 />
+                <CharCount value={dialog.reason} max={LIMITS.reason} className="m-0" />
               </div>
             )}
 

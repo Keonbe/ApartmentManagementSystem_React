@@ -2,80 +2,158 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import api from "../api/axiosConfig";
-import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkPassword, firstError } from '../utils/validation';
+import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkNewPassword, checkPasswordMatch, checkPersonName, normalizeEmail } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import { useLang } from '../config/i18n';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import PasswordChecklist from '../Components/form/PasswordChecklist';
+import { invalidCls } from '../Components/form/formHelpers';
 import ApartmentPic from "../assets/Apartment_Pic.png";
 import '../assets/styles/responsive/user/registration.responsive.css';
 
-export default function Registration({ onLoginRedirect, onHomeRedirect }) {
+const INPUT_CLS = "block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border";
+const LABEL_CLS = "absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text";
+
+const EMPTY = { firstname: '', middlename: '', lastname: '', suffix: '', email: '', password: '', conPassword: '' };
+
+const VALIDATORS = {
+    firstname: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
+    middlename: (v) => checkPersonName(v, { label: 'Middle name', max: LIMITS.middleName, required: false }),
+    lastname: (v) => checkPersonName(v, { label: 'Last name', max: LIMITS.lastName }),
+    suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
+    email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
+    password: (v) => checkNewPassword(v),
+    conPassword: (v, all) => checkPasswordMatch(all.password, v),
+};
+
+// A floating-label input with its error below. `trailing` is the show/hide
+// button, positioned against the input only (not the error line).
+function FloatingInput({ form, name, label, hint, required, error, trailing, onChange, onBlur, ...inputProps }) {
+    const a11y = form.fieldA11y(name);
+    return (
+        <div>
+            <div className="relative group">
+                <input
+                    {...a11y}
+                    {...inputProps}
+                    className={`${INPUT_CLS}${trailing ? ' pr-10' : ''}${invalidCls(error)}`}
+                    placeholder=" "
+                    required={required}
+                    onChange={onChange}
+                    onBlur={onBlur}
+                />
+                <label htmlFor={a11y.id} className={LABEL_CLS}>
+                    {label}{' '}
+                    {required
+                        ? <><span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- {hint}</span></>
+                        : <span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>}
+                </label>
+                {trailing}
+            </div>
+            <FieldError id={a11y.id} error={error} />
+        </div>
+    );
+}
+
+export default function Registration({ onLoginRedirect }) {
     const navigate = useNavigate();
-    const [firstname, setFirstName] = useState('');
-    const [middlename, setMiddleName] = useState('');
-    const [lastname, setLastName] = useState('');
-    const [suffix, setSuffix] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [conPassword, setConPassword] = useState('');
+    const [values, setValues] = useState(EMPTY);
     const [showPass, setShowPass] = useState(false);
     const [showConfirmPass, setShowConfirmPass] = useState(false);
     const [message, setMessage] = useState('');
+    const [hasSubmitted, setHasSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const { t } = useLang();
+    const form = useFieldErrors(VALIDATORS, { idPrefix: 'reg-' });
 
-    const handleBackHome = () => {
-        if (onHomeRedirect) {
-            onHomeRedirect();
-        } else {
-            navigate('/home');
+    const goToLogin = () => (onLoginRedirect ? onLoginRedirect() : navigate('/login'));
+
+    const handleChange = (name) => (e) => {
+        const next = { ...values, [name]: e.target.value };
+        setValues(next);
+        form.clearError(name);
+        // A changed password makes an earlier "does not match" stale.
+        if (name === 'password' && form.errors.conPassword && next.conPassword) {
+            form.validateField('conPassword', next);
         }
     };
 
-    const [hasSubmitted, setHasSubmitted] = useState(false);
+    // Trim text (and lowercase email) when leaving a field, then check it.
+    const handleBlur = (name) => () => {
+        let v = values[name];
+        if (name === 'email') v = normalizeEmail(v);
+        else if (name !== 'password' && name !== 'conPassword') v = v.trim();
+        const next = { ...values, [name]: v };
+        setValues(next);
+        // Leaving an untouched empty field shouldn't shout before a submit.
+        if (!hasSubmitted && v === '') return;
+        form.validateField(name, next);
+    };
 
     const handleRegister = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
         setHasSubmitted(true);
         setMessage('');
 
-        // Validations (names are capped by maxLength to the users columns)
-        const invalid = firstError(
-            !firstname.trim() || !lastname.trim() ? 'First and last name are required.' : '',
-            checkEmail(email),
-            checkPassword(password)
-        );
-        if (invalid) {
-            setMessage(invalid);
-            return;
-        }
-        if (password !== conPassword) {
-            setMessage("Passwords do not match.");
-            return;
-        }
+        const clean = {
+            ...values,
+            firstname: values.firstname.trim(),
+            middlename: values.middlename.trim(),
+            lastname: values.lastname.trim(),
+            suffix: values.suffix.trim(),
+            email: normalizeEmail(values.email),
+        };
+        setValues(clean);
+        if (!form.validateAll(clean)) return;
 
         const payload = {
-            first_name: firstname.trim(),
-            middle_name: middlename.trim(),
-            last_name: lastname.trim(),
-            suffix: suffix.trim(),
-            email_address: email.trim(),
-            password: password,
-            conPassword: conPassword
+            first_name: clean.firstname,
+            middle_name: clean.middlename,
+            last_name: clean.lastname,
+            suffix: clean.suffix,
+            email_address: clean.email,
+            password: clean.password,
+            conPassword: clean.conPassword
         };
 
+        setIsSubmitting(true);
         try {
             const res = await api.post("/registration.php", payload);
-            if(res.data.success){
-                onLoginRedirect();
-            }
-            else{
+            if (res.data.success) {
+                goToLogin();
+            } else if (!form.applyServerErrors(res)) {
                 setMessage(res.data.message);
             }
         }
-        catch (e) {
-            console.error("Error:", e);
-            setMessage(apiErrorMessage(e, "Unable to register account. Please try again."));
+        catch (err) {
+            console.error("Error:", err);
+            if (!form.applyServerErrors(err)) setMessage(apiErrorMessage(err, "Unable to register account. Please try again."));
+        } finally {
+            setIsSubmitting(false);
         }
     };
+
+    const eyeButton = (shown, toggle, label) => (
+        <button
+            type="button"
+            onClick={toggle}
+            aria-label={shown ? `Hide ${label}` : `Show ${label}`}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20"
+        >
+            {shown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+    );
+
+    const field = (name) => ({
+        form,
+        name,
+        value: values[name],
+        error: form.errors[name],
+        onChange: handleChange(name),
+        onBlur: handleBlur(name),
+    });
 
     return (
         <div className="registration-page-root min-h-screen w-full grid grid-cols-1 md:grid-cols-12 overflow-hidden bg-white text-left">
@@ -93,6 +171,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                 display: none !important;
             }
             form.has-submitted input:invalid ~ label .required-asterisk,
+            form.has-submitted input[aria-invalid="true"] ~ label .required-asterisk,
             .has-error input:invalid ~ label .required-asterisk {
                 display: inline !important;
             }
@@ -101,9 +180,9 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
 
             {/*LeftSplashPanelWithImageBackground*/}
             <div className="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
-                <img 
-                    src={ApartmentPic} 
-                    alt="Apartment Splash" 
+                <img
+                    src={ApartmentPic}
+                    alt="Apartment Splash"
                     className="absolute inset-0 w-full h-full object-cover object-center z-0"
                 />
                 <div className="absolute inset-0 bg-[#3b4276]/90 z-10"></div>
@@ -127,7 +206,7 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                     <div className="w-full flex justify-start mb-3">
                         <button
                             type="button"
-                            onClick={onLoginRedirect}
+                            onClick={goToLogin}
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
                             <ArrowLeft className="w-4 h-4" />
@@ -154,175 +233,65 @@ export default function Registration({ onLoginRedirect, onHomeRedirect }) {
                             <p className="text-xs text-slate-500 mt-1 m-0">{t('reg.subtitle')}</p>
                         </div>
 
-                        <form className={`space-y-4 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleRegister} onInvalid={() => setHasSubmitted(true)}>
+                        <form className={`space-y-4 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleRegister} noValidate>
                             {/*NameGroupFirstAndMiddle*/}
                             <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="relative group">
-                                    <input
-                                        value={firstname}
-                                        type="text"
-                                        id="reg-firstname"
-                                        maxLength={LIMITS.firstName}
-                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
-                                        placeholder=" "
-                                        required
-                                        onChange={(e) => setFirstName(e.target.value)}
-                                    />
-                                    <label
-                                        htmlFor="reg-firstname"
-                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
-                                    >
-                                        {t('reg.firstName')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter first name</span>
-                                    </label>
-                                </div>
-                                <div className="relative group">
-                                    <input
-                                        value={middlename}
-                                        type="text"
-                                        id="reg-middlename"
-                                        maxLength={LIMITS.middleName}
-                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
-                                        placeholder=" "
-                                        onChange={(e) => setMiddleName(e.target.value)}
-                                    />
-                                    <label
-                                        htmlFor="reg-middlename"
-                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
-                                    >
-                                        {t('reg.middleName')} <span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>
-                                    </label>
-                                </div>
+                                <FloatingInput {...field('firstname')} type="text" autoComplete="given-name" maxLength={LIMITS.firstName} required label={t('reg.firstName')} hint="Enter first name" />
+                                <FloatingInput {...field('middlename')} type="text" autoComplete="additional-name" maxLength={LIMITS.middleName} label={t('reg.middleName')} />
                             </div>
 
                             {/*NameGroupLastAndSuffix*/}
                             <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="relative group">
-                                    <input
-                                        value={lastname}
-                                        type="text"
-                                        id="reg-lastname"
-                                        maxLength={LIMITS.lastName}
-                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
-                                        placeholder=" "
-                                        required
-                                        onChange={(e) => setLastName(e.target.value)}
-                                    />
-                                    <label
-                                        htmlFor="reg-lastname"
-                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
-                                    >
-                                        {t('reg.lastName')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter last name</span>
-                                    </label>
-                                </div>
-                                <div className="relative group">
-                                    <input
-                                        value={suffix}
-                                        type="text"
-                                        id="reg-suffix"
-                                        maxLength={LIMITS.suffix}
-                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
-                                        placeholder=" "
-                                        onChange={(e) => setSuffix(e.target.value)}
-                                    />
-                                    <label
-                                        htmlFor="reg-suffix"
-                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
-                                    >
-                                        {t('reg.suffix')} <span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>
-                                    </label>
-                                </div>
+                                <FloatingInput {...field('lastname')} type="text" autoComplete="family-name" maxLength={LIMITS.lastName} required label={t('reg.lastName')} hint="Enter last name" />
+                                <FloatingInput {...field('suffix')} type="text" autoComplete="honorific-suffix" maxLength={LIMITS.suffix} label={t('reg.suffix')} />
                             </div>
 
                             {/*EmailAddressField*/}
-                            <div className="relative group">
-                                <input
-                                    value={email}
-                                    type="email"
-                                    id="reg-email"
-                                    maxLength={LIMITS.userEmail}
-                                    className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
-                                    placeholder=" "
-                                    required
-                                    onChange={(e) => setEmail(e.target.value)}
-                                />
-                                <label
-                                    htmlFor="reg-email"
-                                    className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
-                                >
-                                    {t('reg.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter email address</span>
-                                </label>
-                            </div>
+                            <FloatingInput {...field('email')} type="email" inputMode="email" autoComplete="email" maxLength={LIMITS.userEmail} required label={t('reg.email')} hint="Enter email address" />
 
                             {/*PasswordFields*/}
                             <div className="registration-password-grid grid grid-cols-1 gap-4">
-                                <div className="relative group">
-                                    <input
-                                        value={password}
+                                <div>
+                                    <FloatingInput
+                                        {...field('password')}
                                         type={showPass ? "text" : "password"}
-                                        id="reg-password"
+                                        autoComplete="new-password"
                                         maxLength={PASSWORD_MAX_BYTES}
-                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-10 box-border"
-                                        placeholder=" "
                                         required
-                                        onChange={(e) => setPassword(e.target.value)}
+                                        label={t('reg.password')}
+                                        hint="Create password"
+                                        trailing={eyeButton(showPass, () => setShowPass(!showPass), 'password')}
                                     />
-                                    <label
-                                        htmlFor="reg-password"
-                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
-                                    >
-                                        {t('reg.password')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Create password</span>
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPass(!showPass)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20"
-                                    >
-                                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
+                                    <PasswordChecklist password={values.password} />
                                 </div>
 
-                                <div className="relative group">
-                                    <input
-                                        value={conPassword}
-                                        type={showConfirmPass ? "text" : "password"}
-                                        id="reg-confirm"
-                                        maxLength={PASSWORD_MAX_BYTES}
-                                        className="block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-10 box-border"
-                                        placeholder=" "
-                                        required
-                                        onChange={(e) => setConPassword(e.target.value)}
-                                    />
-                                    <label
-                                        htmlFor="reg-confirm"
-                                        className="absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text"
-                                    >
-                                        {t('reg.confirmPassword')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Confirm password</span>
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPass(!showConfirmPass)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20"
-                                    >
-                                        {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
-                                </div>
+                                <FloatingInput
+                                    {...field('conPassword')}
+                                    type={showConfirmPass ? "text" : "password"}
+                                    autoComplete="new-password"
+                                    maxLength={PASSWORD_MAX_BYTES}
+                                    required
+                                    label={t('reg.confirmPassword')}
+                                    hint="Confirm password"
+                                    trailing={eyeButton(showConfirmPass, () => setShowConfirmPass(!showConfirmPass), 'confirm password')}
+                                />
                             </div>
 
                             {message && (
-                                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-center font-semibold text-center shadow-sm">
+                                <div role="alert" className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-center font-semibold text-center shadow-sm">
                                     <span>{message}</span>
                                 </div>
                             )}
 
-                            <button type="submit" className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2">
-                                {t('reg.submit')}
+                            <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2 disabled:opacity-70">
+                                {isSubmitting ? 'Creating account…' : t('reg.submit')}
                             </button>
                         </form>
 
                         <div className="text-center pt-2 border-t border-slate-100">
                             <p className="text-xs text-slate-500 m-0">
                                 {t('reg.hasAccount')}{' '}
-                                <button onClick={onLoginRedirect} className="text-indigo-600 font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer">
+                                <button type="button" onClick={goToLogin} className="text-indigo-600 font-bold hover:underline bg-transparent border-0 p-0 cursor-pointer">
                                     {t('reg.signIn')}
                                 </button>
                             </p>

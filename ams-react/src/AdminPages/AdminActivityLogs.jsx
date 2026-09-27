@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 import api from '../api/axiosConfig';
+import { LIMITS } from '../utils/validation';
 
 // Icon and colour per category. Keys match LOG_CATEGORIES in backend/config.php;
 // labels come from the server so the two can't drift apart.
@@ -193,7 +194,7 @@ export default function AdminActivityLogs() {
               <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center">
                 <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus-within:border-indigo-500 focus-within:bg-white transition-all flex-grow">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-400" />
-                  <input
+                  <input maxLength={LIMITS.search}
                     type="text"
                     placeholder="Search action, details, user name or email, or log ID…"
                     value={searchInput}

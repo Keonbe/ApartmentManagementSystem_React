@@ -7,10 +7,22 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import { LIMITS, checkDate, checkLength, checkPhMobile, firstError, localDateString, toPhE164 } from '../utils/validation';
+import { LIMITS, addDays, checkDate, checkPersonName, checkPhMobile, checkText, localDateString, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import FileChip from '../Components/form/FileChip';
+import { invalidCls } from '../Components/form/formHelpers';
+
+const PURPOSES = ['Personal Visit', 'Delivery / Courier', 'Maintenance / Contractor', 'Official / Business', 'Short Stay Guest'];
+const ID_TYPES = ['National ID', "Driver's License", 'Passport', 'UMID / SSS', 'Student / Work ID'];
+// Letters, digits, spaces and hyphens (e.g. ABC 1234, N02-1234).
+const PLATE_PATTERN = /^[A-Z0-9][A-Z0-9 -]*$/;
+
+// Allowed arrival dates: today to 30 days ahead, local time.
+const arrivalBounds = () => ({ min: localDateString(), max: addDays(30) });
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-visitors.responsive.css';
 
@@ -30,11 +42,8 @@ export default function UserVisitors() {
   const [expectedBounds, setExpectedBounds] = useState({ min: '', max: '' });
 
   const openRegisterModal = () => {
-    const now = Date.now();
-    setExpectedBounds({
-      min: localDateString(new Date(now)),
-      max: localDateString(new Date(now + 30 * 24 * 60 * 60 * 1000)),
-    });
+    setExpectedBounds(arrivalBounds());
+    visitorForm.setErrors({});
     setShowRegisterModal(true);
   };
   const emptyRegisterForm = {
@@ -49,6 +58,41 @@ export default function UserVisitors() {
   };
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm);
   const [submitting, setSubmitting] = useState(false);
+  const [photoInputKey, setPhotoInputKey] = useState(0);
+
+  // Keys match check_in_visitor.php (expectedDate/expectedTime make up expectedAt).
+  const visitorForm = useFieldErrors({
+    visitorName: (v) => checkPersonName(v, { label: 'Visitor name', max: LIMITS.fullName }),
+    contactNumber: (v) => checkPhMobile(v),
+    purpose: (v) => (PURPOSES.includes(v) ? '' : 'Choose the purpose of the visit.'),
+    expectedDate: (v) => checkDate(v, { ...expectedBounds, label: 'Arrival date' }),
+    // check_in_visitor.php accepts an arrival up to 1 hour in the past.
+    expectedTime: (v, all) => {
+      if (!v) return 'Arrival time is required.';
+      if (!all.expectedDate) return '';
+      return new Date(`${all.expectedDate}T${v}`).getTime() < Date.now() - 60 * 60 * 1000 ? 'Arrival time cannot be in the past.' : '';
+    },
+    idType: (v) => (ID_TYPES.includes(v) ? '' : 'Choose an ID type.'),
+    idNumber: (v) => checkText(v, { label: 'ID number', min: 3, max: LIMITS.idNumber }),
+    vehiclePlate: (v) => checkText(v, { label: 'Vehicle plate', max: LIMITS.visitorPlate, required: false })
+      || (v && !PLATE_PATTERN.test(String(v).trim()) ? 'Plate can only contain letters, numbers, spaces and hyphens.' : ''),
+    idPhoto: (f) => (f ? checkFile(f, FILE_RULES.visitorId) : ''),
+  }, { idPrefix: 'visitor-' });
+  const setVisitorField = (key, value) => {
+    setRegisterForm(f => ({ ...f, [key]: value }));
+    visitorForm.clearError(key);
+  };
+  const blurVisitorField = (key) => {
+    const raw = registerForm[key];
+    const v = typeof raw === 'string' && key !== 'contactNumber' ? raw.trim() : raw;
+    if (v !== raw) setRegisterForm(f => ({ ...f, [key]: v }));
+    if (v || key === 'contactNumber') visitorForm.validateField(key, { ...registerForm, [key]: v });
+  };
+  const clearPhoto = () => {
+    setRegisterForm(f => ({ ...f, idPhoto: null }));
+    setPhotoInputKey(k => k + 1);
+    visitorForm.clearError('idPhoto');
+  };
   const [cancellingId, setCancellingId] = useState(null);
 
   const loadTenantData = async () => {
@@ -90,35 +134,28 @@ export default function UserVisitors() {
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    if (!registerForm.visitorName || !registerForm.contactNumber || !registerForm.idNumber.trim()
-        || !registerForm.expectedDate || !registerForm.expectedTime) {
-      alert('Please fill in all required fields.');
-      return;
-    }
-    // check_in_visitor.php accepts an arrival up to 1 hour in the past.
-    const expectedAt = `${registerForm.expectedDate}T${registerForm.expectedTime}`;
-    const visitorError = firstError(
-      checkLength(registerForm.visitorName, LIMITS.fullName, 'Visitor name'),
-      checkPhMobile(registerForm.contactNumber),
-      checkLength(registerForm.idNumber, LIMITS.idNumber, 'ID number'),
-      checkDate(registerForm.expectedDate, { ...expectedBounds, label: 'Arrival date' }),
-      new Date(expectedAt).getTime() < Date.now() - 60 * 60 * 1000 ? 'Arrival time cannot be in the past.' : ''
-    );
-    if (visitorError) {
-      alert(visitorError);
-      return;
-    }
+    if (submitting) return;
+    // Name and plate used to be sent untrimmed.
+    const clean = {
+      ...registerForm,
+      visitorName: registerForm.visitorName.trim(),
+      idNumber: registerForm.idNumber.trim(),
+      vehiclePlate: registerForm.vehiclePlate.trim().toUpperCase(),
+    };
+    setRegisterForm(clean);
+    if (!visitorForm.validateAll(clean)) return;
+    const expectedAt = `${clean.expectedDate}T${clean.expectedTime}`;
     setSubmitting(true);
     try {
       // The unit and host are always the tenant's own current tenancy —
       // resolved server-side from the session, not from anything posted here.
       const fields = {
-        visitorName: registerForm.visitorName,
-        contactNumber: toPhE164(registerForm.contactNumber),
-        purpose: registerForm.purpose,
-        idType: registerForm.idType,
-        idNumber: registerForm.idNumber.trim(),
-        vehiclePlate: registerForm.vehiclePlate,
+        visitorName: clean.visitorName,
+        contactNumber: toPhE164(clean.contactNumber),
+        purpose: clean.purpose,
+        idType: clean.idType,
+        idNumber: clean.idNumber,
+        vehiclePlate: clean.vehiclePlate,
         expectedAt,
       };
       let payload = fields;
@@ -136,12 +173,12 @@ export default function UserVisitors() {
         setShowRegisterModal(false);
         setRegisterForm(emptyRegisterForm);
         fetchTenantData();
-      } else {
+      } else if (!visitorForm.applyServerErrors(res)) {
         alert(res.data.message || 'Failed to register visitor.');
       }
     } catch (err) {
       console.error('Registration failed:', err);
-      alert(err.response?.data?.message || 'Server error registering visitor.');
+      if (!visitorForm.applyServerErrors(err)) alert(apiErrorMessage(err, 'Server error registering visitor.'));
     } finally {
       setSubmitting(false);
     }
@@ -178,7 +215,7 @@ export default function UserVisitors() {
       }
     } catch (err) {
       console.error('Failed to cancel registration:', err);
-      alert(err.response?.data?.message || 'Failed to cancel registration.');
+      alert(apiErrorMessage(err, 'Failed to cancel registration.'));
     } finally {
       setCancellingId(null);
     }
@@ -434,34 +471,43 @@ export default function UserVisitors() {
               {tenantRoom && <> {t('visitors.modalUnitNote')} <span className="font-bold text-slate-700">Unit {tenantRoom}</span>.</>}
             </p>
 
-            <form onSubmit={handleRegisterSubmit} className="space-y-4">
+            <form onSubmit={handleRegisterSubmit} className="space-y-4" noValidate>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.visitorName')} *</label>
+                <label htmlFor="visitor-visitorName" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.visitorName')} *</label>
                 <input
                   type="text"
+                  {...visitorForm.fieldA11y('visitorName')}
+                  autoComplete="off"
                   required
                   placeholder="e.g. Juan Dela Cruz"
                   value={registerForm.visitorName}
                   maxLength={LIMITS.fullName}
-                  onChange={(e) => setRegisterForm({ ...registerForm, visitorName: e.target.value })}
-                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  onChange={(e) => setVisitorField('visitorName', e.target.value)}
+                  onBlur={() => blurVisitorField('visitorName')}
+                  className={"focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(visitorForm.errors.visitorName)}
                 />
+                <FieldError id="visitor-visitorName" error={visitorForm.errors.visitorName} />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.contactNumber')} *</label>
+                <label htmlFor="visitor-contactNumber" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.contactNumber')} *</label>
                 <PhoneInput
+                  id="visitor-contactNumber"
+                  name="contactNumber"
                   required
                   value={registerForm.contactNumber}
-                  onChange={(digits) => setRegisterForm({ ...registerForm, contactNumber: digits })}
+                  onChange={(digits) => setVisitorField('contactNumber', digits)}
+                  onBlur={() => blurVisitorField('contactNumber')}
+                  error={visitorForm.errors.contactNumber}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.purpose')} *</label>
+                <label htmlFor="visitor-purpose" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.purpose')} *</label>
                 <select
+                  {...visitorForm.fieldA11y('purpose')}
                   value={registerForm.purpose}
-                  onChange={(e) => setRegisterForm({ ...registerForm, purpose: e.target.value })}
+                  onChange={(e) => setVisitorField('purpose', e.target.value)}
                   className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
                 >
                   <option value="Personal Visit">Personal Visit / Friends / Family</option>
@@ -474,36 +520,43 @@ export default function UserVisitors() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedDate')} *</label>
+                  <label htmlFor="visitor-expectedDate" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedDate')} *</label>
                   <input
                     type="date"
+                    {...visitorForm.fieldA11y('expectedDate')}
                     required
                     min={expectedBounds.min}
                     max={expectedBounds.max}
                     value={registerForm.expectedDate}
-                    onChange={(e) => setRegisterForm({ ...registerForm, expectedDate: e.target.value })}
-                    className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    onChange={(e) => setVisitorField('expectedDate', e.target.value)}
+                    onBlur={() => blurVisitorField('expectedDate')}
+                    className={"focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(visitorForm.errors.expectedDate)}
                   />
+                  <FieldError id="visitor-expectedDate" error={visitorForm.errors.expectedDate} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedTime')} *</label>
+                  <label htmlFor="visitor-expectedTime" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedTime')} *</label>
                   <input
                     type="time"
+                    {...visitorForm.fieldA11y('expectedTime')}
                     required
                     value={registerForm.expectedTime}
-                    onChange={(e) => setRegisterForm({ ...registerForm, expectedTime: e.target.value })}
-                    className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    onChange={(e) => setVisitorField('expectedTime', e.target.value)}
+                    onBlur={() => blurVisitorField('expectedTime')}
+                    className={"focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(visitorForm.errors.expectedTime)}
                   />
+                  <FieldError id="visitor-expectedTime" error={visitorForm.errors.expectedTime} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idType')} *</label>
+                  <label htmlFor="visitor-idType" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idType')} *</label>
                   <select
+                    {...visitorForm.fieldA11y('idType')}
                     required
                     value={registerForm.idType}
-                    onChange={(e) => setRegisterForm({ ...registerForm, idType: e.target.value })}
+                    onChange={(e) => setVisitorField('idType', e.target.value)}
                     className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
                   >
                     <option value="National ID">National ID</option>
@@ -514,44 +567,57 @@ export default function UserVisitors() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idNumber')} *</label>
+                  <label htmlFor="visitor-idNumber" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idNumber')} *</label>
                   <input
                     type="text"
+                    {...visitorForm.fieldA11y('idNumber')}
+                    autoComplete="off"
                     required
                     placeholder="e.g. D01-19-12345"
                     value={registerForm.idNumber}
                     maxLength={LIMITS.idNumber}
-                    onChange={(e) => setRegisterForm({ ...registerForm, idNumber: e.target.value })}
-                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono"
+                    onChange={(e) => setVisitorField('idNumber', e.target.value)}
+                    onBlur={() => blurVisitorField('idNumber')}
+                    className={"focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 font-mono" + invalidCls(visitorForm.errors.idNumber)}
                   />
+                  <FieldError id="visitor-idNumber" error={visitorForm.errors.idNumber} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.vehiclePlate')}</label>
+                  <label htmlFor="visitor-vehiclePlate" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.vehiclePlate')}</label>
                   <input
                     type="text"
+                    {...visitorForm.fieldA11y('vehiclePlate')}
+                    autoComplete="off"
                     placeholder="e.g. N02-1234"
                     value={registerForm.vehiclePlate}
                     maxLength={LIMITS.visitorPlate}
-                    onChange={(e) => setRegisterForm({ ...registerForm, vehiclePlate: e.target.value })}
-                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono"
+                    onChange={(e) => setVisitorField('vehiclePlate', e.target.value.toUpperCase())}
+                    onBlur={() => blurVisitorField('vehiclePlate')}
+                    className={"focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 uppercase font-mono" + invalidCls(visitorForm.errors.vehiclePlate)}
                   />
+                  <FieldError id="visitor-vehiclePlate" error={visitorForm.errors.vehiclePlate} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idPhoto')}</label>
+                  <label htmlFor="visitor-idPhoto" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idPhoto')}</label>
                   <input
+                    key={photoInputKey}
                     type="file"
+                    {...visitorForm.fieldA11y('idPhoto')}
                     accept={acceptFor(FILE_RULES.visitorId)}
                     onChange={(e) => {
                       const file = e.target.files[0] || null;
                       const fileError = checkFile(file, FILE_RULES.visitorId);
-                      if (fileError) { alert(fileError); e.target.value = ''; setRegisterForm({ ...registerForm, idPhoto: null }); return; }
-                      setRegisterForm({ ...registerForm, idPhoto: file });
+                      visitorForm.setFieldError('idPhoto', fileError);
+                      if (fileError) { e.target.value = ''; setRegisterForm(f => ({ ...f, idPhoto: null })); return; }
+                      setRegisterForm(f => ({ ...f, idPhoto: file }));
                     }}
                     className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
                   />
+                  <FieldError id="visitor-idPhoto" error={visitorForm.errors.idPhoto} />
+                  <FileChip file={registerForm.idPhoto} onRemove={clearPhoto} />
                 </div>
               </div>
 

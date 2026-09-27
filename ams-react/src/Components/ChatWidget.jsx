@@ -14,6 +14,13 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faPaperclip } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { LIMITS } from '../utils/validation';
+import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
+import FieldError from './form/FieldError';
+import FileChip from './form/FileChip';
+
+const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 
 const ChatWidget = () => {
     const navigate = useNavigate();
@@ -34,6 +41,18 @@ const ChatWidget = () => {
 
     const [newMessage, setNewMessage] = useState('');
     const [attachment, setAttachment] = useState(null);
+    const [sendError, setSendError] = useState('');
+    const [isSending, setIsSending] = useState(false);
+
+    // All three pickers (file, camera, video) go through the same check as send_message.php.
+    const pickAttachment = (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        const fileError = checkChatFile(file);
+        setSendError(fileError);
+        if (!fileError) setAttachment(file);
+    };
     const [replyingTo, setReplyingTo] = useState(null);
     const [expandedTimestampId, setExpandedTimestampId] = useState(null);
     const [mediaPreview, setMediaPreview] = useState(null);
@@ -89,7 +108,10 @@ const ChatWidget = () => {
 
     const handleSendMessage = (e) => {
         e.preventDefault();
+        if (isSending) return;
         if ((newMessage.trim() || attachment) && activeChat) {
+            setSendError('');
+            setIsSending(true);
             sendMessage(activeChat.other_user_id, newMessage.trim(), attachment, replyingTo?.id)
                 .then(() => {
                     setNewMessage('');
@@ -99,9 +121,11 @@ const ChatWidget = () => {
                         handleTyping(activeChat.other_user_id, false);
                     }
                 })
-                .catch(() => {
-                    // Keep the input text so the user can retry.
-                });
+                .catch((err) => {
+                    // Keep the input text so the user can retry, and say why it failed.
+                    setSendError(apiErrorMessage(err, 'Message not sent. Please try again.'));
+                })
+                .finally(() => setIsSending(false));
         }
     };
 
@@ -339,27 +363,36 @@ const ChatWidget = () => {
                         <div className={`p-2 sm:p-3 bg-white shrink-0 ${replyingTo ? '' : 'border-t border-slate-200'}`}>
                             {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                             <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                                <label className="px-1 cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) { setAttachment(null); return; } const isVideo = file.type.startsWith('video/'); const maxSize = (isVideo ? 25 : 10) * 1024 * 1024; if (file.size > maxSize) { window.alert(`${isVideo ? 'Video' : 'Image'} must be ${isVideo ? 25 : 10} MB or smaller.`); event.target.value = ''; return; } setAttachment(file); }} /></label>
+                                <label className="px-1 cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
                                 <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-1 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
-                                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 10 * 1024 * 1024) { window.alert('Image must be 10 MB or smaller.'); return; } setAttachment(file); }} />
+                                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
                                 <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-1 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
-                                <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 25 * 1024 * 1024) { window.alert('Video must be 25 MB or smaller.'); return; } setAttachment(file); }} />
+                                <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
                                 <input
                                     type="text"
+                                    id="chat-message"
+                                    name="message"
+                                    autoComplete="off"
+                                    aria-label="Message"
+                                    aria-invalid={sendError ? true : undefined}
+                                    aria-describedby={sendError ? 'chat-message-error' : undefined}
+                                    maxLength={LIMITS.message}
                                     value={newMessage}
-                                    onChange={handleInputChange}
+                                    onChange={(e) => { handleInputChange(e); if (sendError) setSendError(''); }}
                                     placeholder={attachment?.name || 'Type a message...'}
                                     className="flex-1 min-w-0 bg-slate-100 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none border-0"
                                 />
-                                <button 
+                                <button
                                     type="submit"
-                                    disabled={!newMessage.trim() && !attachment}
+                                    disabled={isSending || (!newMessage.trim() && !attachment)}
                                     className="w-9 h-9 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-40 transition-all border-0 cursor-pointer shrink-0"
                                     aria-label="Send message"
                                 >
                                     <FontAwesomeIcon icon={faPaperPlane} className="text-xs" />
                                 </button>
                             </form>
+                            <FileChip file={attachment} onRemove={() => setAttachment(null)} className="mt-1" />
+                            <FieldError id="chat-message" error={sendError} className="px-2" />
                         </div>
                     )}
                 </div>

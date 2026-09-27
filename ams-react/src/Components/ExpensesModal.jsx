@@ -3,13 +3,29 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTimes, faPlus, faTrash, faPen, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { EXPENSE_CATEGORY_LABELS, expenseCategoryLabel } from '../config/expenseCategories';
+import { LIMITS, addYears, checkAmount, checkDate, checkText, localDateString } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from './form/FieldError';
+import CharCount from './form/CharCount';
+import { blockNonNumericKeys, invalidCls } from './form/formHelpers';
 
 // Building expenses entered by an admin (manage_expenses.php). The report adds
 // these to the maintenance costs it already derives, so repairs don't go here.
 // The parent renders this only while it is open, so every opening starts fresh.
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Local date: toISOString() gave the UTC day (yesterday before 08:00 in Manila).
+const today = () => localDateString();
+const EXPENSE_MAX = 10000000; // manage_expenses.php's cap
 const emptyForm = () => ({ id: null, category: 'supplies', amount: '', expenseDate: today(), description: '' });
+
+// Keys match manage_expenses.php's body.
+const VALIDATORS = {
+  category: (v) => (Object.hasOwn(EXPENSE_CATEGORY_LABELS, v) ? '' : 'Choose a category.'),
+  amount: (v) => checkAmount(v, { label: 'Amount', min: 0.01, max: EXPENSE_MAX, allowZero: false }),
+  expenseDate: (v) => checkDate(v, { label: 'Date', min: addYears(-10), max: today() }),
+  description: (v) => checkText(v, { label: 'Description', max: LIMITS.expenseDescription, required: false }),
+};
 const peso = (n) => `₱${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 export default function ExpensesModal({ onClose, onChanged, month }) {
@@ -18,6 +34,21 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const fields = useFieldErrors(VALIDATORS, { idPrefix: 'expense-' });
+
+  const setField = (key, value) => {
+    setForm({ ...form, [key]: value });
+    fields.clearError(key);
+  };
+  const blurField = (key) => {
+    const v = key === 'description' ? form.description.trim() : form[key];
+    if (v !== form[key]) setForm({ ...form, [key]: v });
+    fields.validateField(key, { ...form, [key]: v });
+  };
+  const resetForm = (next = emptyForm()) => {
+    setForm(next);
+    fields.setErrors({});
+  };
 
   const url = `manage_expenses.php${month ? `?month=${month}` : ''}`;
 
@@ -41,17 +72,24 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
 
   const save = async (e) => {
     e.preventDefault();
-    setSaving(true);
+    if (saving) return;
     setError('');
+    const clean = { ...form, description: form.description.trim() };
+    setForm(clean);
+    if (!fields.validateAll(clean)) return;
+    setSaving(true);
     try {
-      const payload = { ...form, action: form.id ? 'update' : 'create', amount: Number(form.amount) };
+      const payload = { ...clean, action: clean.id ? 'update' : 'create', amount: Number(clean.amount) };
       const res = await api.post('manage_expenses.php', payload);
-      if (!res.data.success) throw new Error(res.data.message);
-      setForm(emptyForm());
-      await load();
-      onChanged?.();
+      if (!res.data.success) {
+        if (!fields.applyServerErrors(res)) setError(res.data.message || 'Could not save the expense.');
+      } else {
+        resetForm();
+        await load();
+        onChanged?.();
+      }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Could not save the expense.');
+      if (!fields.applyServerErrors(err)) setError(apiErrorMessage(err, 'Could not save the expense.'));
     }
     setSaving(false);
   };
@@ -61,7 +99,7 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
     setError('');
     try {
       await api.post('manage_expenses.php', { action: 'delete', id: expense.id });
-      if (form.id === expense.id) setForm(emptyForm());
+      if (form.id === expense.id) resetForm();
       await load();
       onChanged?.();
     } catch (err) {
@@ -87,28 +125,43 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
           </button>
         </div>
 
-        <form onSubmit={save} className="p-5 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+        <form onSubmit={save} className="p-5 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-4 gap-3 items-start" noValidate>
           <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
             Category
-            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls}>
+            <select {...fields.fieldA11y('category')} value={form.category} onChange={(e) => setField('category', e.target.value)} className={inputCls + invalidCls(fields.errors.category)}>
               {Object.entries(EXPENSE_CATEGORY_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </select>
+            <FieldError id="expense-category" error={fields.errors.category} className="font-normal" />
           </label>
           <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
             Amount (₱)
-            <input type="number" min="0.01" step="0.01" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className={inputCls} />
+            <input type="number" {...fields.fieldA11y('amount')} inputMode="decimal" min="0.01" max={EXPENSE_MAX} step="0.01" required value={form.amount}
+              onKeyDown={blockNonNumericKeys}
+              onChange={(e) => setField('amount', e.target.value)}
+              onBlur={() => blurField('amount')}
+              className={inputCls + invalidCls(fields.errors.amount)} />
+            <FieldError id="expense-amount" error={fields.errors.amount} className="font-normal" />
           </label>
           <label className="flex flex-col gap-1 text-xs font-bold text-slate-600">
             Date
-            <input type="date" required max={today()} value={form.expenseDate} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} className={inputCls} />
+            <input type="date" {...fields.fieldA11y('expenseDate')} required min={addYears(-10)} max={today()} value={form.expenseDate}
+              onChange={(e) => setField('expenseDate', e.target.value)}
+              onBlur={() => blurField('expenseDate')}
+              className={inputCls + invalidCls(fields.errors.expenseDate)} />
+            <FieldError id="expense-expenseDate" error={fields.errors.expenseDate} className="font-normal" />
           </label>
           <label className="flex flex-col gap-1 text-xs font-bold text-slate-600 sm:col-span-4">
             Description
-            <input type="text" maxLength={255} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputCls} placeholder="e.g. Hallway light bulbs" />
+            <input type="text" {...fields.fieldA11y('description')} autoComplete="off" maxLength={LIMITS.expenseDescription} value={form.description}
+              onChange={(e) => setField('description', e.target.value)}
+              onBlur={() => blurField('description')}
+              className={inputCls + invalidCls(fields.errors.description)} placeholder="e.g. Hallway light bulbs" />
+            <FieldError id="expense-description" error={fields.errors.description} className="font-normal" />
+            <CharCount value={form.description} max={LIMITS.expenseDescription} className="font-normal" />
           </label>
           <div className="sm:col-span-4 flex justify-end gap-2">
             {form.id && (
-              <button type="button" onClick={() => setForm(emptyForm())} className="btn-interactive px-4 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border-0 cursor-pointer">
+              <button type="button" onClick={() => resetForm()} className="btn-interactive px-4 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border-0 cursor-pointer">
                 Cancel edit
               </button>
             )}
@@ -117,7 +170,7 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
               {form.id ? 'Save changes' : 'Add expense'}
             </button>
           </div>
-          {error && <p className="sm:col-span-4 text-xs text-red-600 font-semibold m-0">{error}</p>}
+          {error && <p role="alert" className="sm:col-span-4 text-xs text-red-600 font-semibold m-0">{error}</p>}
         </form>
 
         <div className="overflow-y-auto flex-grow">
@@ -144,7 +197,7 @@ export default function ExpensesModal({ onClose, onChanged, month }) {
                     <td className="p-3 text-slate-500">{x.description || '—'}</td>
                     <td className="p-3 text-right font-bold text-red-600">{peso(x.amount)}</td>
                     <td className="p-3 text-right whitespace-nowrap">
-                      <button type="button" title="Edit" onClick={() => setForm({ id: x.id, category: x.category, amount: String(x.amount), expenseDate: x.expenseDate, description: x.description || '' })} className="btn-interactive bg-transparent border-0 cursor-pointer text-slate-400 hover:text-indigo-600 px-1.5">
+                      <button type="button" title="Edit" onClick={() => resetForm({ id: x.id, category: x.category, amount: String(x.amount), expenseDate: x.expenseDate, description: x.description || '' })} className="btn-interactive bg-transparent border-0 cursor-pointer text-slate-400 hover:text-indigo-600 px-1.5">
                         <FontAwesomeIcon icon={faPen} />
                       </button>
                       <button type="button" title="Delete" onClick={() => remove(x)} className="btn-interactive bg-transparent border-0 cursor-pointer text-slate-400 hover:text-red-600 px-1.5">

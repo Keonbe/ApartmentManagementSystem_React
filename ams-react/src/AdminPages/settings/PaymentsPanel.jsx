@@ -3,6 +3,8 @@ import {
   faExclamationTriangle, faDollarSign, faShieldAlt, faInfoCircle, faCreditCard, faLock,
 } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, WithUnit, Switch, Callout, INPUT_MONO, INPUT_NUMBER, CHECKBOX } from './SettingsSection';
+import { LIMITS } from '../../utils/validation';
+import { blockNonIntegerKeys, numberValue } from '../../Components/form/formHelpers';
 
 const PAYMENT_MODES = [
   { value: 'manual', label: 'Manual only', hint: 'Proof upload / in person' },
@@ -31,12 +33,14 @@ export default function PaymentsPanel({ settings, updateSetting }) {
         description="When an unpaid tenant is treated as at risk, and whether they are flagged automatically."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Overdue Payment Threshold" icon={faDollarSign} hint="Tenants exceeding this threshold will be flagged for eviction review.">
+          <Field label="Overdue Payment Threshold" htmlFor="setting-overdueThresholdDays" icon={faDollarSign} hint="Tenants exceeding this threshold will be flagged for eviction review.">
             <WithUnit suffix="days overdue">
               <input
-                type="number" min="1" max="365"
+                id="setting-overdueThresholdDays" name="overdueThresholdDays"
+                type="number" inputMode="numeric" min="1" max="365" step="1" required
                 value={settings.overdueThresholdDays}
-                onChange={(e) => updateSetting('overdueThresholdDays', Number(e.target.value))}
+                onKeyDown={blockNonIntegerKeys}
+                onChange={(e) => updateSetting('overdueThresholdDays', numberValue(e))}
                 className={`${INPUT_NUMBER} w-24`}
               />
             </WithUnit>
@@ -156,27 +160,30 @@ export default function PaymentsPanel({ settings, updateSetting }) {
         </Field>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Sandbox Secret Key">
+          <Field label="Sandbox Secret Key" htmlFor="setting-paymongoSecretKey">
             <input
-              type="password"
+              id="setting-paymongoSecretKey" name="paymongoSecretKey"
+              type="password" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}
               value={settings.paymongoSecretKey || ''}
               onChange={(e) => updateSetting('paymongoSecretKey', e.target.value)}
               placeholder="sk_test_..."
               className={INPUT_MONO}
             />
           </Field>
-          <Field label="Sandbox Public Key">
+          <Field label="Sandbox Public Key" htmlFor="setting-paymongoPublicKey">
             <input
-              type="text"
+              id="setting-paymongoPublicKey" name="paymongoPublicKey"
+              type="text" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}
               value={settings.paymongoPublicKey || ''}
               onChange={(e) => updateSetting('paymongoPublicKey', e.target.value)}
               placeholder="pk_test_..."
               className={INPUT_MONO}
             />
           </Field>
-          <Field label="Webhook Secret Key" hint="Required for signature verification. Obtain this from the PayMongo Webhooks dashboard.">
+          <Field label="Webhook Secret Key" htmlFor="setting-paymongoWebhookSecret" hint="Required for signature verification. Obtain this from the PayMongo Webhooks dashboard.">
             <input
-              type="password"
+              id="setting-paymongoWebhookSecret" name="paymongoWebhookSecret"
+              type="password" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}
               value={settings.paymongoWebhookSecret || ''}
               onChange={(e) => updateSetting('paymongoWebhookSecret', e.target.value)}
               placeholder="whsk_..."

@@ -6,10 +6,15 @@ import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
-import { LIMITS, checkLength, checkPaymentReference, firstError } from '../utils/validation';
+import { LIMITS, checkPaymentReference, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
+
+const INPUT_CLS = "focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm";
 
 export default function PaymentUpload() {
     const location = useLocation();
@@ -25,6 +30,13 @@ export default function PaymentUpload() {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
     const [submitted, setSubmitted] = useState(false);
+    // Keys match upload_payment_proof.php's form fields.
+    const form = useFieldErrors({
+        // Account names can be joint or business names, so free text, not a person-name check.
+        sender_name: (v) => checkText(v, { label: 'Sender name', max: LIMITS.senderName }),
+        payment_reference: (v) => checkPaymentReference(v, paymentMethod),
+        proof: (f) => (f ? checkFile(f, FILE_RULES.receiptImage) : 'Please upload a photo of your receipt.'),
+    }, { idPrefix: 'upload-' });
 
     if (!invoiceId) {
         return (
@@ -44,15 +56,21 @@ export default function PaymentUpload() {
         const file = e.target.files[0];
         if (file) {
             const fileError = checkFile(file, FILE_RULES.receiptImage);
+            form.setFieldError('proof', fileError);
             if (fileError) {
-                setError(fileError);
                 e.target.value = '';
                 return;
             }
-            setError('');
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
             setProofImage(file);
             setPreviewUrl(URL.createObjectURL(file));
         }
+    };
+
+    const removeImage = () => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setProofImage(null);
+        setPreviewUrl('');
     };
 
     //{/*LimitsGCashCharactersDynamicallyTo13Digits*/}
@@ -64,23 +82,18 @@ export default function PaymentUpload() {
         } else {
             setReferenceNo(val);
         }
+        form.clearError('payment_reference');
     };
+
+    const values = { sender_name: senderName, payment_reference: referenceNo, proof: proofImage };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!senderName || !referenceNo || !proofImage) {
-            setError("Please fill out all fields and upload the payment proof.");
-            return;
-        }
-
-        const invalid = firstError(
-            checkLength(senderName, LIMITS.senderName, 'Sender name'),
-            checkPaymentReference(referenceNo, paymentMethod)
-        );
-        if (invalid) {
-            setError(invalid);
-            return;
-        }
+        if (uploading) return;
+        const clean = { ...values, sender_name: senderName.trim(), payment_reference: referenceNo.trim() };
+        setSenderName(clean.sender_name);
+        setReferenceNo(clean.payment_reference);
+        if (!form.validateAll(clean)) return;
 
         setUploading(true);
         setError('');
@@ -95,10 +108,10 @@ export default function PaymentUpload() {
         formData.append('invoice_id', invoiceId);
         formData.append('paymentMethod', paymentMethod);
         formData.append('payment_method', paymentMethod);
-        formData.append('senderName', senderName);
-        formData.append('sender_name', senderName);
-        formData.append('referenceNo', referenceNo);
-        formData.append('payment_reference', referenceNo);
+        formData.append('senderName', clean.sender_name);
+        formData.append('sender_name', clean.sender_name);
+        formData.append('referenceNo', clean.payment_reference);
+        formData.append('payment_reference', clean.payment_reference);
         formData.append('proofImage', proofImage);
         formData.append('proof', proofImage);
 
@@ -109,12 +122,12 @@ export default function PaymentUpload() {
 
             if (res.data.success) {
                 setSubmitted(true);
-            } else {
+            } else if (!form.applyServerErrors(res)) {
                 setError(res.data.message || "Failed to upload payment proof.");
             }
         } catch (err) {
             console.error("Upload error:", err);
-            setError(apiErrorMessage(err, "A network error occurred while uploading."));
+            if (!form.applyServerErrors(err)) setError(apiErrorMessage(err, "A network error occurred while uploading."));
         } finally {
             setUploading(false);
         }
@@ -140,7 +153,7 @@ export default function PaymentUpload() {
                 </div>
 
                 {error && (
-                    <div className="bg-rose-50 border border-rose-200 text-rose-600 md:bg-rose-500/10 md:border-rose-500/20 md:text-rose-400 p-4 rounded-xl flex items-center gap-3 text-sm font-semibold">
+                    <div role="alert" className="bg-rose-50 border border-rose-200 text-rose-600 md:bg-rose-500/10 md:border-rose-500/20 md:text-rose-400 p-4 rounded-xl flex items-center gap-3 text-sm font-semibold">
                         <FontAwesomeIcon icon={faTimesCircle} /> {error}
                     </div>
                 )}
@@ -159,32 +172,48 @@ export default function PaymentUpload() {
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6" noValidate>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.senderName')}</label>
-                            <input 
-                                type="text" 
+                            <label htmlFor="upload-sender_name" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.senderName')}</label>
+                            <input
+                                type="text"
+                                {...form.fieldA11y('sender_name')}
+                                autoComplete="name"
                                 value={senderName}
-                                onChange={e => setSenderName(e.target.value)}
+                                onChange={e => { setSenderName(e.target.value); form.clearError('sender_name'); }}
+                                onBlur={() => {
+                                    const v = senderName.trim();
+                                    setSenderName(v);
+                                    if (v) form.validateField('sender_name', { ...values, sender_name: v });
+                                }}
                                 maxLength={LIMITS.senderName}
                                 required
-                                className="focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
+                                className={INPUT_CLS + invalidCls(form.errors.sender_name)}
                                 placeholder="E.g. Juan Dela Cruz"
                             />
+                            <FieldError id="upload-sender_name" error={form.errors.sender_name} />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.refNo')}</label>
-                            <input 
-                                type="text" 
-                                value={referenceNo} 
-                                onChange={handleReferenceChange} 
+                            <label htmlFor="upload-payment_reference" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.refNo')}</label>
+                            <input
+                                type="text"
+                                {...form.fieldA11y('payment_reference')}
+                                autoComplete="off"
+                                value={referenceNo}
+                                onChange={handleReferenceChange}
+                                onBlur={() => {
+                                    const v = referenceNo.trim();
+                                    setReferenceNo(v);
+                                    if (v) form.validateField('payment_reference', { ...values, payment_reference: v });
+                                }}
                                 required
                                 inputMode={paymentMethod === 'GCash' ? "numeric" : "text"}
                                 maxLength={paymentMethod === 'GCash' ? 13 : paymentMethod === 'Bank Transfer' ? 55 : LIMITS.paymentReference}
-                                className="focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm"
+                                className={INPUT_CLS + invalidCls(form.errors.payment_reference)}
                                 placeholder={paymentMethod === 'GCash' ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
                             />
+                            <FieldError id="upload-payment_reference" error={form.errors.payment_reference} />
                             <p className="text-[10px] text-slate-400 m-0 leading-relaxed mt-1 font-medium">
                                 {paymentMethod === 'GCash' 
                                     ? "GCash reference numbers must be exactly 13 digits (numbers only)." 
@@ -195,12 +224,13 @@ export default function PaymentUpload() {
 
                     {/*AdjustedReceiptPreviewContainerArea*/}
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.uploadReceipt')}</label>
-                        
+                        <label htmlFor="upload-proof" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.uploadReceipt')}</label>
+
                         {!previewUrl ? (
-                            <div className="payment-dropzone card-interactive relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]">
+                            <div className={`payment-dropzone card-interactive relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]${invalidCls(form.errors.proof)}`}>
                                 <input
                                     type="file"
+                                    {...form.fieldA11y('proof')}
                                     accept={acceptFor(FILE_RULES.receiptImage)}
                                     onChange={handleImageChange}
                                     required
@@ -208,7 +238,7 @@ export default function PaymentUpload() {
                                 />
                                 <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 md:text-indigo-400 mb-3 group-hover:scale-110 transition-transform" />
                                 <p className="text-sm font-semibold text-slate-600 md:text-slate-300 m-0">Click to upload or drag & drop</p>
-                                <p className="text-xs text-slate-500 md:text-slate-400 mt-1 m-0 font-medium">JPG, JPEG, PNG (Max 5MB)</p>
+                                <p className="text-xs text-slate-500 md:text-slate-400 mt-1 m-0 font-medium">{FILE_RULES.receiptImage.label} (Max {FILE_RULES.receiptImage.maxMB} MB)</p>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center space-y-3 p-4 bg-slate-950/80 rounded-2xl border border-slate-200 md:border-white/10 shadow-inner">
@@ -219,6 +249,11 @@ export default function PaymentUpload() {
                                         className="max-h-full max-w-full object-contain rounded"
                                     />
                                 </div>
+                                {proofImage && (
+                                    <p className="text-xs text-slate-300 m-0 truncate w-full text-center">
+                                        {proofImage.name} ({formatFileSize(proofImage.size)})
+                                    </p>
+                                )}
                                 <div className="flex items-center gap-3 w-full pt-1">
                                     <label className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} />
@@ -232,10 +267,7 @@ export default function PaymentUpload() {
                                     </label>
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setProofImage(null);
-                                            setPreviewUrl('');
-                                        }}
+                                        onClick={removeImage}
                                         className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold px-4 py-2.5 rounded-xl border border-rose-500/30 cursor-pointer transition-colors flex items-center gap-1.5"
                                     >
                                         <FontAwesomeIcon icon={faUndo} />
@@ -244,6 +276,7 @@ export default function PaymentUpload() {
                                 </div>
                             </div>
                         )}
+                        <FieldError id="upload-proof" error={form.errors.proof} />
                     </div>
 
                     <div className="pt-2">

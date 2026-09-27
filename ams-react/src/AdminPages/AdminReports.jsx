@@ -13,7 +13,19 @@ import {
   faChartPie, faSave, faSpinner, faArrowLeft
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { MAX_AMOUNT, checkAmount, checkDate, firstError, localDateString } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkDate, checkText, localDateString, maxFutureDate } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import CharCount from '../Components/form/CharCount';
+import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+
+// Manual invoice lines; blank counts as 0 (create_invoice.php / adjust_invoice.php).
+const INVOICE_AMOUNT_LABELS = { rent: 'Base rent', water: 'Water', electric: 'Electric', parking: 'Parking', lateFee: 'Late fee' };
+
+// Display-only placeholder; create_invoice.php assigns the real number.
+const draftInvoiceId = (year, month) =>
+  `INV-${year}${String(month).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
 import ExpensesModal from '../Components/ExpensesModal';
 import { expenseCategoryLabel } from '../config/expenseCategories';
 
@@ -262,7 +274,7 @@ const AdminReports = () => {
     // The 15th of the report month, but never a date already past.
     const monthDue = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-15`;
     const defaultDue = monthDue < localDateString() ? localDateString() : monthDue;
-    const defaultInvId = `INV-${selectedYear}${String(selectedMonth).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const defaultInvId = draftInvoiceId(selectedYear, selectedMonth);
     
     const firstTenant = tenantInvoiceOptions[0];
     setInvoiceForm({
@@ -289,6 +301,7 @@ const AdminReports = () => {
     setSelectedAdjustInvoiceId('');
     setShowInvoicePreview(false);
     setInvoiceSuccessMsg('');
+    invoiceErrors.setErrors({});
     setShowInvoiceModal(true);
   };
 
@@ -318,29 +331,64 @@ const AdminReports = () => {
     }
   };
 
+  // No due date in the past (create_invoice.php / adjust_invoice.php enforce
+  // it too); an adjustment may keep the invoice's own, already lapsed date.
+  const originalDue = invoiceMode === 'adjust'
+    ? String(adjustableInvoices.find(i => i.id === selectedAdjustInvoiceId)?.due_date || '').slice(0, 10)
+    : '';
+  const creating = invoiceMode === 'create';
+  const invoiceErrors = useFieldErrors({
+    adjustInvoiceId: () => (!creating && !selectedAdjustInvoiceId ? 'Please select an invoice to adjust.' : ''),
+    tenant: (v) => (creating ? checkText(v, { label: 'Tenant name', max: LIMITS.fullName }) : ''),
+    unit: (v) => (creating ? checkText(v, { label: 'Room / unit', max: LIMITS.unitId }) : ''),
+    billingPeriod: (v) => (creating ? checkText(v, { label: 'Billing period', max: LIMITS.billingPeriod }) : ''),
+    dueDate: (v) => (!creating && v === originalDue ? '' : checkDate(v, { min: localDateString(), max: maxFutureDate(), label: 'Due date' })),
+    ...Object.fromEntries(Object.entries(INVOICE_AMOUNT_LABELS).map(([key, label]) => [key, (v) => checkAmount(v, { label, required: false })])),
+    notes: (v) => checkText(v, { label: 'Memo', max: LIMITS.notes, required: false }),
+  }, { idPrefix: 'inv-' });
+  const invoiceValues = { ...invoiceForm, adjustInvoiceId: selectedAdjustInvoiceId };
+  const setInvoiceField = (key, value) => {
+    setInvoiceForm(p => ({ ...p, [key]: value }));
+    invoiceErrors.clearError(key);
+  };
+  const blurInvoiceField = (key, { trim = false } = {}) => {
+    const v = trim ? String(invoiceForm[key] ?? '').trim() : invoiceForm[key];
+    if (trim && v !== invoiceForm[key]) setInvoiceForm(p => ({ ...p, [key]: v }));
+    invoiceErrors.validateField(key, { ...invoiceValues, [key]: v });
+  };
+  const amountProps = (key) => ({
+    type: 'number',
+    ...invoiceErrors.fieldA11y(key),
+    inputMode: 'decimal',
+    min: '0',
+    max: MAX_AMOUNT,
+    step: '0.01',
+    value: invoiceForm[key],
+    onKeyDown: blockNonNumericKeys,
+    onChange: e => setInvoiceField(key, e.target.value),
+    onBlur: () => blurInvoiceField(key),
+    className: `w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500${invalidCls(invoiceErrors.errors[key])}`,
+  });
+
+  const handlePreviewInvoice = () => {
+    const clean = {
+      ...invoiceValues,
+      tenant: String(invoiceForm.tenant ?? '').trim(),
+      unit: String(invoiceForm.unit ?? '').trim(),
+      billingPeriod: String(invoiceForm.billingPeriod ?? '').trim(),
+    };
+    setInvoiceForm(p => ({ ...p, tenant: clean.tenant, unit: clean.unit, billingPeriod: clean.billingPeriod }));
+    if (invoiceErrors.validateAll(clean)) setShowInvoicePreview(true);
+  };
+
   const handleSaveAndIssueInvoice = async () => {
-    // Blank lines count as 0; anything else must be a non-negative amount that
-    // fits the decimal(10,2) columns, and the due date a real calendar day.
-    const amountFields = [['rent', 'Base rent'], ['water', 'Water'], ['electric', 'Electric'], ['parking', 'Parking'], ['lateFee', 'Late fee']];
-    // No due date in the past (create_invoice.php / adjust_invoice.php enforce
-    // it too); an adjustment may keep the invoice's own, already lapsed date.
-    const originalDue = invoiceMode === 'adjust'
-      ? String(adjustableInvoices.find(i => i.id === selectedAdjustInvoiceId)?.due_date || '').slice(0, 10)
-      : '';
-    const dueUnchanged = invoiceMode === 'adjust' && invoiceForm.dueDate === originalDue;
-    const invoiceError = firstError(
-      ...amountFields.map(([key, label]) => checkAmount(invoiceForm[key] === '' ? 0 : invoiceForm[key], { label })),
-      invoiceForm.dueDate && !dueUnchanged ? checkDate(invoiceForm.dueDate, { min: localDateString(), label: 'Due date' }) : ''
-    );
-    if (invoiceError) {
-      alert(invoiceError);
+    if (issuingInvoice) return;
+    // Re-checked here too: the preview can be reached with values edited since.
+    if (!invoiceErrors.validateAll(invoiceValues)) {
+      setShowInvoicePreview(false);
       return;
     }
     if (invoiceMode === 'adjust') {
-      if (!selectedAdjustInvoiceId) {
-        alert('Please select an invoice to adjust.');
-        return;
-      }
       setIssuingInvoice(true);
       setInvoiceSuccessMsg('');
       try {
@@ -358,24 +406,20 @@ const AdminReports = () => {
           setInvoiceSuccessMsg(`Invoice ${response.data.invoice_id} adjusted — new total ₱${Number(response.data.total_amount).toLocaleString()}.`);
           loadAdjustableInvoices();
           fetchReportData();
-        } else {
+        } else if (!invoiceErrors.applyServerErrors(response)) {
           alert(response.data.message || 'Failed to adjust invoice.');
         }
       } catch (err) {
         // create_invoice/adjust_invoice return a 4xx body with a specific
         // reason (duplicate id, invalid amount, invoice no longer
         // adjustable, etc.) — surface it instead of a generic alert.
-        alert(err.response?.data?.message || 'Error adjusting invoice. Please verify connection and inputs.');
+        if (!invoiceErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Error adjusting invoice. Please verify connection and inputs.'));
       } finally {
         setIssuingInvoice(false);
       }
       return;
     }
 
-    if (!invoiceForm.tenant || !invoiceForm.unit) {
-      alert('Please select a tenant and specify the unit.');
-      return;
-    }
     setIssuingInvoice(true);
     setInvoiceSuccessMsg('');
     try {
@@ -395,11 +439,11 @@ const AdminReports = () => {
       if (response.data.success) {
         setInvoiceSuccessMsg(`Invoice ${response.data.invoice_id} successfully saved & issued to ${invoiceForm.tenant}!`);
         fetchReportData();
-      } else {
+      } else if (!invoiceErrors.applyServerErrors(response)) {
         alert(response.data.message || 'Failed to issue invoice.');
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Error issuing invoice. Please verify connection and inputs.');
+      if (!invoiceErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Error issuing invoice. Please verify connection and inputs.'));
     } finally {
       setIssuingInvoice(false);
     }
@@ -2269,14 +2313,14 @@ const AdminReports = () => {
                 <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
                   <button
                     type="button"
-                    onClick={() => setInvoiceMode('create')}
+                    onClick={() => { setInvoiceMode('create'); invoiceErrors.setErrors({}); }}
                     className={`flex-1 py-2 text-xs font-bold rounded-lg border-0 cursor-pointer transition-colors ${invoiceMode === 'create' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500'}`}
                   >
                     New Invoice
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setInvoiceMode('adjust'); if (adjustableInvoices.length === 0) loadAdjustableInvoices(); }}
+                    onClick={() => { setInvoiceMode('adjust'); invoiceErrors.setErrors({}); if (adjustableInvoices.length === 0) loadAdjustableInvoices(); }}
                     className={`flex-1 py-2 text-xs font-bold rounded-lg border-0 cursor-pointer transition-colors ${invoiceMode === 'adjust' ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500'}`}
                   >
                     Adjust Existing
@@ -2289,10 +2333,11 @@ const AdminReports = () => {
                       Select Invoice to Adjust <span className="text-indigo-600">*</span>
                     </label>
                     <select
+                      {...invoiceErrors.fieldA11y('adjustInvoiceId')}
                       value={selectedAdjustInvoiceId}
-                      onChange={handleAdjustInvoiceSelect}
+                      onChange={(e) => { handleAdjustInvoiceSelect(e); invoiceErrors.setErrors({}); }}
                       disabled={adjustInvoicesLoading}
-                      className="w-full px-3.5 py-2.5 text-xs font-medium border border-slate-300 rounded-xl outline-none text-slate-800 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                      className={`w-full px-3.5 py-2.5 text-xs font-medium border border-slate-300 rounded-xl outline-none text-slate-800 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all${invalidCls(invoiceErrors.errors.adjustInvoiceId)}`}
                     >
                       <option value="">{adjustInvoicesLoading ? 'Loading invoices…' : '-- Select Open Invoice --'}</option>
                       {adjustableInvoices.map(inv => (
@@ -2301,6 +2346,7 @@ const AdminReports = () => {
                         </option>
                       ))}
                     </select>
+                    <FieldError id="inv-adjustInvoiceId" error={invoiceErrors.errors.adjustInvoiceId} />
                     <p className="text-[10px] text-slate-400 mt-1 mb-0">Only invoices that are still open (not paid, cancelled, or mid-checkout) can be adjusted.</p>
                   </div>
                 ) : (
@@ -2311,8 +2357,9 @@ const AdminReports = () => {
                     Select Active Tenant <span className="text-indigo-600">*</span>
                   </label>
                   <select
+                    aria-label="Select active tenant"
                     value={invoiceForm.tenant}
-                    onChange={handleTenantSelect}
+                    onChange={(e) => { handleTenantSelect(e); invoiceErrors.clearError('tenant'); invoiceErrors.clearError('unit'); }}
                     className="w-full px-3.5 py-2.5 text-xs font-medium border border-slate-300 rounded-xl outline-none text-slate-800 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
                   >
                     <option value="">-- Select Registered Tenant --</option>
@@ -2327,24 +2374,34 @@ const AdminReports = () => {
                 {/* Tenant & Unit Info */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Tenant Name</label>
+                    <label htmlFor="inv-tenant" className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Tenant Name</label>
                     <input
                       type="text"
+                      {...invoiceErrors.fieldA11y('tenant')}
+                      autoComplete="off"
+                      maxLength={LIMITS.fullName}
                       value={invoiceForm.tenant}
-                      onChange={e => setInvoiceForm(p => ({ ...p, tenant: e.target.value }))}
+                      onChange={e => setInvoiceField('tenant', e.target.value)}
+                      onBlur={() => blurInvoiceField('tenant', { trim: true })}
                       placeholder="e.g. John Doe"
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                      className={`w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800${invalidCls(invoiceErrors.errors.tenant)}`}
                     />
+                    <FieldError id="inv-tenant" error={invoiceErrors.errors.tenant} />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Room / Unit</label>
+                    <label htmlFor="inv-unit" className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Room / Unit</label>
                     <input
                       type="text"
+                      {...invoiceErrors.fieldA11y('unit')}
+                      autoComplete="off"
+                      maxLength={LIMITS.unitId}
                       value={invoiceForm.unit}
-                      onChange={e => setInvoiceForm(p => ({ ...p, unit: e.target.value }))}
+                      onChange={e => setInvoiceField('unit', e.target.value)}
+                      onBlur={() => blurInvoiceField('unit', { trim: true })}
                       placeholder="e.g. 101 or A"
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                      className={`w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800${invalidCls(invoiceErrors.errors.unit)}`}
                     />
+                    <FieldError id="inv-unit" error={invoiceErrors.errors.unit} />
                   </div>
                 </div>
                 </>
@@ -2364,25 +2421,34 @@ const AdminReports = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Billing Period</label>
+                    <label htmlFor="inv-billingPeriod" className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Billing Period</label>
                     <input
                       type="text"
+                      {...invoiceErrors.fieldA11y('billingPeriod')}
+                      autoComplete="off"
+                      maxLength={LIMITS.billingPeriod}
                       value={invoiceForm.billingPeriod}
-                      onChange={e => setInvoiceForm(p => ({ ...p, billingPeriod: e.target.value }))}
+                      onChange={e => setInvoiceField('billingPeriod', e.target.value)}
+                      onBlur={() => invoiceMode === 'create' && blurInvoiceField('billingPeriod', { trim: true })}
                       readOnly={invoiceMode === 'adjust'}
                       placeholder="e.g. September 2026"
-                      className={`w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none text-slate-800 ${invoiceMode === 'adjust' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-indigo-500'}`}
+                      className={`w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none text-slate-800 ${invoiceMode === 'adjust' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-indigo-500'}${invalidCls(invoiceErrors.errors.billingPeriod)}`}
                     />
+                    <FieldError id="inv-billingPeriod" error={invoiceErrors.errors.billingPeriod} />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Due Date</label>
+                    <label htmlFor="inv-dueDate" className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Due Date</label>
                     <input
                       type="date"
+                      {...invoiceErrors.fieldA11y('dueDate')}
                       min={invoiceMode === 'create' ? localDateString() : undefined}
+                      max={maxFutureDate()}
                       value={invoiceForm.dueDate}
-                      onChange={e => setInvoiceForm(p => ({ ...p, dueDate: e.target.value }))}
-                      className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800"
+                      onChange={e => setInvoiceField('dueDate', e.target.value)}
+                      onBlur={() => blurInvoiceField('dueDate')}
+                      className={`w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-800${invalidCls(invoiceErrors.errors.dueDate)}`}
                     />
+                    <FieldError id="inv-dueDate" error={invoiceErrors.errors.dueDate} />
                   </div>
                 </div>
 
@@ -2394,70 +2460,35 @@ const AdminReports = () => {
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Base Rent (₱)</label>
-                      <input 
-                        type="number" 
-                        value={invoiceForm.rent} 
-                        min="0"
-                        max={MAX_AMOUNT}
-                        step="0.01"
-                        onChange={e => setInvoiceForm(p => ({ ...p, rent: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
-                      />
+                      <label htmlFor="inv-rent" className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Base Rent (₱)</label>
+                      <input {...amountProps('rent')} />
+                      <FieldError id="inv-rent" error={invoiceErrors.errors.rent} />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                      <label htmlFor="inv-water" className="text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
                         <FontAwesomeIcon icon={faTint} className="text-blue-500" /> Water (₱)
                       </label>
-                      <input 
-                        type="number" 
-                        value={invoiceForm.water} 
-                        min="0"
-                        max={MAX_AMOUNT}
-                        step="0.01"
-                        onChange={e => setInvoiceForm(p => ({ ...p, water: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
-                      />
+                      <input {...amountProps('water')} />
+                      <FieldError id="inv-water" error={invoiceErrors.errors.water} />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                      <label htmlFor="inv-electric" className="text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
                         <FontAwesomeIcon icon={faBolt} className="text-amber-500" /> Electric (₱)
                       </label>
-                      <input 
-                        type="number" 
-                        value={invoiceForm.electric} 
-                        min="0"
-                        max={MAX_AMOUNT}
-                        step="0.01"
-                        onChange={e => setInvoiceForm(p => ({ ...p, electric: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
-                      />
+                      <input {...amountProps('electric')} />
+                      <FieldError id="inv-electric" error={invoiceErrors.errors.electric} />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                      <label htmlFor="inv-parking" className="text-[10px] font-semibold text-slate-500 uppercase mb-1 flex items-center gap-1">
                         <FontAwesomeIcon icon={faSquareParking} className="text-pink-500" /> Parking (₱)
                       </label>
-                      <input 
-                        type="number" 
-                        value={invoiceForm.parking} 
-                        min="0"
-                        max={MAX_AMOUNT}
-                        step="0.01"
-                        onChange={e => setInvoiceForm(p => ({ ...p, parking: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
-                      />
+                      <input {...amountProps('parking')} />
+                      <FieldError id="inv-parking" error={invoiceErrors.errors.parking} />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Late / Arrears (₱)</label>
-                      <input 
-                        type="number" 
-                        value={invoiceForm.lateFee} 
-                        min="0"
-                        max={MAX_AMOUNT}
-                        step="0.01"
-                        onChange={e => setInvoiceForm(p => ({ ...p, lateFee: e.target.value }))}
-                        className="w-full px-2.5 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg outline-none bg-white text-slate-800 focus:border-indigo-500"
-                      />
+                      <label htmlFor="inv-lateFee" className="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Late / Arrears (₱)</label>
+                      <input {...amountProps('lateFee')} />
+                      <FieldError id="inv-lateFee" error={invoiceErrors.errors.lateFee} />
                     </div>
                     <div className="bg-indigo-50/70 border border-indigo-100 rounded-lg p-2 flex flex-col justify-center">
                       <span className="text-[10px] uppercase font-bold text-indigo-700">Calculated Total</span>
@@ -2482,13 +2513,18 @@ const AdminReports = () => {
 
                 {/* Memo */}
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Payment Instructions / Memo</label>
-                  <textarea 
+                  <label htmlFor="inv-notes" className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1">Payment Instructions / Memo</label>
+                  <textarea
                     rows="2"
-                    value={invoiceForm.notes} 
-                    onChange={e => setInvoiceForm(p => ({ ...p, notes: e.target.value }))}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-700 resize-none"
+                    {...invoiceErrors.fieldA11y('notes')}
+                    maxLength={LIMITS.notes}
+                    value={invoiceForm.notes}
+                    onChange={e => setInvoiceField('notes', e.target.value)}
+                    onBlur={() => blurInvoiceField('notes', { trim: true })}
+                    className={`w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none focus:border-indigo-500 text-slate-700 resize-none${invalidCls(invoiceErrors.errors.notes)}`}
                   ></textarea>
+                  <FieldError id="inv-notes" error={invoiceErrors.errors.notes} />
+                  <CharCount value={invoiceForm.notes} max={LIMITS.notes} />
                 </div>
 
                 {/* Action Buttons */}
@@ -2500,8 +2536,8 @@ const AdminReports = () => {
                     Cancel
                   </button>
                   <button
-                    onClick={() => setShowInvoicePreview(true)}
-                    disabled={invoiceMode === 'adjust' ? !selectedAdjustInvoiceId : (!invoiceForm.tenant || !invoiceForm.unit)}
+                    type="button"
+                    onClick={handlePreviewInvoice}
                     className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-md cursor-pointer border-0"
                   >
                     Preview Official Invoice <FontAwesomeIcon icon={faChevronRight} className="ml-1 text-[10px]" />

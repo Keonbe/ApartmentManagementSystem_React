@@ -4,6 +4,13 @@ import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.png";
 import '../assets/styles/responsive/user/login.responsive.css';
+import { LIMITS, checkEmail, normalizeEmail } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { invalidCls } from '../Components/form/formHelpers';
+
+const emailRule = (v) => checkEmail(v, { max: LIMITS.userEmail });
 
 export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedirect }) {
     const [email, setEmail] = useState('');
@@ -18,16 +25,34 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [forgotToken, setForgotToken] = useState('');
     const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
     const [hasSubmitted, setHasSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const { t } = useLang();
+    // Login only checks presence: older passwords may predate the new-password rules.
+    const login = useFieldErrors({
+        email: emailRule,
+        password: (v) => (v ? '' : 'Password is required.'),
+    }, { idPrefix: 'login-' });
+    const forgot = useFieldErrors({ email: emailRule }, { idPrefix: 'forgot-' });
+
+    const blurEmail = (form) => {
+        const clean = normalizeEmail(email);
+        setEmail(clean);
+        form.validateField('email', { email: clean });
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
         setHasSubmitted(true);
         setMessage('');
+        const clean = normalizeEmail(email);
+        setEmail(clean);
+        if (!login.validateAll({ email: clean, password })) return;
 
+        setIsSubmitting(true);
         try {
             const res = await api.post("/login.php", {
-                email_address: email.trim(),
+                email_address: clean,
                 password
             });
 
@@ -48,25 +73,31 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
             }
         } catch (error) {
             // 429 carries the lockout message; anything else is a generic failure.
-            setMessage(error?.response?.data?.message || t('login.error'));
+            if (!login.applyServerErrors(error)) setMessage(apiErrorMessage(error, t('login.error')));
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleForgotSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmittingForgot) return;
         setHasSubmitted(true);
         setForgotMessage('');
         setForgotToken('');
+        const clean = normalizeEmail(email);
+        setEmail(clean);
+        if (!forgot.validateAll({ email: clean })) return;
         setIsSubmittingForgot(true);
 
         try {
-            const res = await api.post("/forgot_password.php", { email: email.trim() });
+            const res = await api.post("/forgot_password.php", { email: clean });
             setForgotMessage(res.data.message);
             if (res.data.dev_token) {
                 setForgotToken(res.data.dev_token);
             }
         } catch (error) {
-            setForgotMessage(error.response?.data?.message || "Failed to send reset link.");
+            if (!forgot.applyServerErrors(error)) setForgotMessage(apiErrorMessage(error, "Failed to send reset link."));
         } finally {
             setIsSubmittingForgot(false);
         }
@@ -152,17 +183,21 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                         </div>
 
                         {!isForgotPassword ? (
-                        <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleSubmit} onInvalid={() => setHasSubmitted(true)}>
+                        <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleSubmit} onInvalid={() => setHasSubmitted(true)} noValidate>
                             {/*EmailAddressField*/}
                             <div className="relative group">
                                 <input
                                     type="email"
-                                    id="login-email"
-                                    className="block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                    {...login.fieldA11y('email')}
+                                    inputMode="email"
+                                    autoComplete="email"
+                                    maxLength={LIMITS.userEmail}
+                                    className={`block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border${invalidCls(login.errors.email)}`}
                                     placeholder=" "
                                     required
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => { setEmail(e.target.value); login.clearError('email'); }}
+                                    onBlur={() => blurEmail(login)}
                                 />
                                 <label
                                     htmlFor="login-email"
@@ -170,6 +205,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 >
                                     {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your registered email</span>
                                 </label>
+                                <FieldError id="login-email" error={login.errors.email} />
                             </div>
 
                             {/*PasswordField*/}
@@ -177,12 +213,15 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 <div className="relative group">
                                     <input
                                         type={showPassword ? "text" : "password"}
-                                        id="login-password"
-                                        className="block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-12 box-border"
+                                        {...login.fieldA11y('password')}
+                                        autoComplete="current-password"
+                                        maxLength={128}
+                                        className={`block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner pr-12 box-border${invalidCls(login.errors.password)}`}
                                         placeholder=" "
                                         required
                                         value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
+                                        onChange={(e) => { setPassword(e.target.value); login.clearError('password'); }}
+                                        onBlur={() => login.validateField('password', { password })}
                                     />
                                     <label
                                         htmlFor="login-password"
@@ -198,6 +237,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
                                 </div>
+                                <FieldError id="login-password" error={login.errors.password} />
                                 <div className="flex justify-end items-center mt-1">
                                     <button type="button" onClick={() => { setIsForgotPassword(true); setMessage(''); setForgotMessage(''); setHasSubmitted(false); }} className="text-xs text-indigo-600 hover:underline font-semibold bg-transparent border-0 p-0 cursor-pointer">{t('login.forgot')}</button>
                                 </div>
@@ -209,12 +249,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 </div>
                             )}
 
-                            <button type="submit" className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide">
-                                {t('login.submit')}
+                            <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70">
+                                {isSubmitting ? 'Signing in…' : t('login.submit')}
                             </button>
                         </form>
                         ) : (
-                        <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleForgotSubmit} onInvalid={() => setHasSubmitted(true)}>
+                        <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleForgotSubmit} onInvalid={() => setHasSubmitted(true)} noValidate>
                             {forgotMessage && (
                                 <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs rounded-xl flex items-center justify-between">
                                     <span>{forgotMessage}</span>
@@ -233,12 +273,16 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             <div className="relative group">
                                 <input
                                     type="email"
-                                    id="forgot-email"
-                                    className="block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border"
+                                    {...forgot.fieldA11y('email')}
+                                    inputMode="email"
+                                    autoComplete="email"
+                                    maxLength={LIMITS.userEmail}
+                                    className={`block px-4 pb-2.5 pt-6 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border${invalidCls(forgot.errors.email)}`}
                                     placeholder=" "
                                     required
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => { setEmail(e.target.value); forgot.clearError('email'); }}
+                                    onBlur={() => blurEmail(forgot)}
                                 />
                                 <label
                                     htmlFor="forgot-email"
@@ -246,6 +290,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 >
                                     {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your registered email</span>
                                 </label>
+                                <FieldError id="forgot-email" error={forgot.errors.email} />
                             </div>
 
                             <div className="pt-2 flex flex-col space-y-3">

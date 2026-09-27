@@ -8,11 +8,41 @@ import {
   faUsers, faFilter
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkPassword, checkPhMobile, firstError, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, checkEmail, checkNewPassword, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
 import PhoneInput from '../Components/PhoneInput';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import PasswordField from '../Components/form/PasswordField';
+import PasswordChecklist from '../Components/form/PasswordChecklist';
+import { invalidCls } from '../Components/form/formHelpers';
 
 const ROLES = ['all', 'user', 'admin'];
 const GENDERS = ['', 'Male', 'Female', 'Other', 'Prefer not to say'];
+
+const EDIT_FIELDS = [
+  { label: 'First Name *', key: 'first_name', max: LIMITS.firstName, autoComplete: 'given-name' },
+  { label: 'Middle Name', key: 'middle_name', max: LIMITS.middleName, autoComplete: 'additional-name' },
+  { label: 'Last Name *', key: 'last_name', max: LIMITS.lastName, autoComplete: 'family-name' },
+  { label: 'Suffix', key: 'suffix', max: LIMITS.suffix, autoComplete: 'honorific-suffix' },
+  { label: 'Contact No.', key: 'contact_no' },
+  { label: 'Email *', key: 'email', max: LIMITS.userEmail, autoComplete: 'email' },
+];
+
+// Keys match manage_users.php's `update` body.
+const EDIT_VALIDATORS = {
+  first_name: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
+  middle_name: (v) => checkPersonName(v, { label: 'Middle name', max: LIMITS.middleName, required: false }),
+  last_name: (v) => checkPersonName(v, { label: 'Last name', max: LIMITS.lastName }),
+  suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
+  contact_no: (v) => (String(v ?? '').trim() ? checkPhMobile(v) : ''),
+  email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
+  gender: (v) => (GENDERS.includes(v ?? '') ? '' : 'Please select a valid gender.'),
+};
+
+const RESET_VALIDATORS = { new_password: (v) => checkNewPassword(v) };
+
+const EDIT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white';
 
 const RoleBadge = ({ role }) => (
   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
@@ -37,6 +67,8 @@ const AdminUsers = () => {
   const [statusFilter, setStatusFilter] = useState('active'); // active / archived
   const [saving, setSaving]             = useState(false);
   const [toast, setToast]               = useState(null); // {msg, type}
+  const editErrors  = useFieldErrors(EDIT_VALIDATORS, { idPrefix: 'edituser-' });
+  const resetErrors = useFieldErrors(RESET_VALIDATORS, { idPrefix: 'resetpw-' });
 
   const loadUsers = async () => {
     try {
@@ -84,38 +116,69 @@ const AdminUsers = () => {
       last_name: u.last_name, suffix: u.suffix || '',
       contact_no: toPhLocal10(u.contact_no), gender: u.gender || '', email: u.email
     });
+    editErrors.setErrors({});
   };
 
-  const handleSaveEdit = async () => {
-    const invalid = firstError(
-      checkEmail(editForm.email),
-      String(editForm.contact_no ?? '').trim() ? checkPhMobile(editForm.contact_no) : ''
-    );
-    if (invalid) { showToast(invalid, 'error'); return; }
+  const closeReset = () => {
+    setShowResetModal(null);
+    setNewPassword('');
+    resetErrors.setErrors({});
+  };
+
+  const changeEdit = (key, value) => {
+    setEditForm({ ...editForm, [key]: value });
+    editErrors.clearError(key);
+  };
+
+  const blurEdit = (key) => {
+    const raw = editForm[key];
+    const v = key === 'email' ? normalizeEmail(raw) : key === 'contact_no' ? raw : String(raw ?? '').trim();
+    const next = { ...editForm, [key]: v };
+    if (v !== raw) setEditForm(next);
+    editErrors.validateField(key, next);
+  };
+
+  const handleSaveEdit = async (e) => {
+    e?.preventDefault();
+    if (saving) return;
+    const clean = {
+      ...editForm,
+      first_name: editForm.first_name.trim(),
+      middle_name: editForm.middle_name.trim(),
+      last_name: editForm.last_name.trim(),
+      suffix: editForm.suffix.trim(),
+      email: normalizeEmail(editForm.email),
+    };
+    setEditForm(clean);
+    if (!editErrors.validateAll(clean)) return;
     setSaving(true);
     try {
-      const res = await api.post('/manage_users.php', { action: 'update', user_id: editUser.id, ...editForm, contact_no: toPhE164(editForm.contact_no) });
+      const res = await api.post('/manage_users.php', { action: 'update', user_id: editUser.id, ...clean, contact_no: toPhE164(clean.contact_no) });
       if (res.data.success) {
         await fetchUsers();
         setEditUser(null);
         showToast('User updated successfully.');
-      } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast(err?.response?.data?.message || 'Failed to save changes.', 'error'); }
+      } else if (!editErrors.applyServerErrors(res)) { showToast(res.data.message, 'error'); }
+    } catch (err) {
+      if (!editErrors.applyServerErrors(err)) showToast(apiErrorMessage(err, 'Failed to save changes.'), 'error');
+    }
     finally { setSaving(false); }
   };
 
-  const handleResetPassword = async () => {
-    const passwordError = checkPassword(newPassword);
-    if (passwordError) { showToast(passwordError, 'error'); return; }
+  const handleResetPassword = async (e) => {
+    e?.preventDefault();
+    if (saving) return;
+    if (!resetErrors.validateAll({ new_password: newPassword })) return;
     setSaving(true);
     try {
       const res = await api.post('/manage_users.php', { action: 'reset_password', user_id: showResetModal, new_password: newPassword });
       if (res.data.success) {
-        setShowResetModal(null);
-        setNewPassword('');
+        closeReset();
         showToast('Password reset successfully.');
-      } else { showToast(res.data.message, 'error'); }
-    } catch (err) { showToast(err?.response?.data?.message || 'Failed to reset password.', 'error'); }
+      } else if (!resetErrors.applyServerErrors(res)) { showToast(res.data.message, 'error'); }
+    } catch (err) {
+      if (!resetErrors.applyServerErrors(err)) showToast(apiErrorMessage(err, 'Failed to reset password.'), 'error');
+    }
     finally { setSaving(false); }
   };
 
@@ -195,7 +258,7 @@ const AdminUsers = () => {
               <div className="flex items-center gap-3 flex-wrap flex-1">
                 <div className="flex items-center gap-2 min-w-[220px] max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
-                  <input
+                  <input maxLength={LIMITS.search}
                     type="text" value={search} onChange={e => setSearch(e.target.value)}
                     placeholder="Search by name or email..."
                     className="focus-glow flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none border-0 p-0"
@@ -329,84 +392,102 @@ const AdminUsers = () => {
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
+            <form onSubmit={handleSaveEdit} noValidate>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'First Name *', key: 'first_name', max: LIMITS.firstName },
-                  { label: 'Middle Name', key: 'middle_name', max: LIMITS.middleName },
-                  { label: 'Last Name *', key: 'last_name', max: LIMITS.lastName },
-                  { label: 'Suffix', key: 'suffix', max: LIMITS.suffix },
-                  { label: 'Contact No.', key: 'contact_no', max: 16 },
-                  { label: 'Email *', key: 'email', max: LIMITS.userEmail },
-                ].map(f => (
+                {EDIT_FIELDS.map(f => {
+                  const a11y = editErrors.fieldA11y(f.key);
+                  const error = editErrors.errors[f.key];
+                  return (
                   <div key={f.key}>
-                    <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{f.label}</label>
+                    <label htmlFor={a11y.id} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{f.label}</label>
                     {f.key === 'contact_no' ? (
                       <PhoneInput
+                        id={a11y.id}
+                        name={f.key}
                         value={editForm.contact_no}
-                        onChange={digits => setEditForm({ ...editForm, contact_no: digits })}
-                        inputClassName="w-full px-3 py-2 text-sm border border-slate-200 rounded-r-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
+                        onChange={digits => changeEdit('contact_no', digits)}
+                        onBlur={() => blurEdit('contact_no')}
+                        error={error}
+                        inputClassName={`w-full px-3 py-2 text-sm border border-slate-200 rounded-r-lg outline-none focus:border-indigo-400 text-slate-800 bg-white${invalidCls(error)}`}
                       />
                     ) : (
-                      <input
-                        type={f.key === 'email' ? 'email' : 'text'}
-                        maxLength={f.max}
-                        value={editForm[f.key]}
-                        onChange={e => setEditForm({ ...editForm, [f.key]: e.target.value })}
-                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
-                      />
+                      <>
+                        <input
+                          {...a11y}
+                          type={f.key === 'email' ? 'email' : 'text'}
+                          inputMode={f.key === 'email' ? 'email' : undefined}
+                          autoComplete="off"
+                          maxLength={f.max}
+                          value={editForm[f.key]}
+                          onChange={e => changeEdit(f.key, e.target.value)}
+                          onBlur={() => blurEdit(f.key)}
+                          className={EDIT_INPUT + invalidCls(error)}
+                        />
+                        <FieldError id={a11y.id} error={error} />
+                      </>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Gender</label>
-                <select value={editForm.gender} onChange={e => setEditForm({ ...editForm, gender: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white">
+                <label htmlFor="edituser-gender" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Gender</label>
+                <select {...editErrors.fieldA11y('gender')} value={editForm.gender} onChange={e => changeEdit('gender', e.target.value)}
+                  className={EDIT_INPUT + invalidCls(editErrors.errors.gender)}>
                   {GENDERS.map(g => <option key={g} value={g}>{g || '— Select —'}</option>)}
                 </select>
+                <FieldError id="edituser-gender" error={editErrors.errors.gender} />
               </div>
             </div>
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-              <button onClick={() => setEditUser(null)} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
-              <button onClick={handleSaveEdit} disabled={saving || !editForm.first_name || !editForm.last_name || !editForm.email}
+              <button type="button" onClick={() => setEditUser(null)} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
+              <button type="submit" disabled={saving}
                 className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer disabled:opacity-40">
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Reset Password Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowResetModal(null)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={closeReset}>
+          <form className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={handleResetPassword} noValidate>
             <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faKey} className="text-amber-500" /> Reset Password
               </h3>
-              <button onClick={() => setShowResetModal(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
+              <button type="button" onClick={closeReset} aria-label="Close" className="text-slate-400 hover:text-slate-600 p-1 rounded-lg border-0 bg-transparent cursor-pointer">
                 <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
             <div className="p-6 space-y-3">
               <p className="text-xs text-slate-500 m-0">Enter a new password for this account. The user will need to use this password on their next login.</p>
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Password (min 8 chars)</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} maxLength={PASSWORD_MAX_BYTES}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
-                  placeholder="Enter new password" />
-              </div>
+              <PasswordField
+                a11y={resetErrors.fieldA11y('new_password')}
+                label="New Password"
+                labelClassName="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide"
+                inputClassName="w-full px-3 py-2 pr-10 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-400 text-slate-800 bg-white"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={e => { setNewPassword(e.target.value); resetErrors.clearError('new_password'); }}
+                onBlur={() => newPassword && resetErrors.validateField('new_password', { new_password: newPassword })}
+                error={resetErrors.errors.new_password}
+              >
+                <PasswordChecklist password={newPassword} />
+              </PasswordField>
             </div>
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-              <button onClick={() => setShowResetModal(null)} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
-              <button onClick={handleResetPassword} disabled={saving || newPassword.length < 8}
+              <button type="button" onClick={closeReset} className="px-4 py-2 text-sm text-slate-600 font-medium border-0 bg-transparent hover:bg-slate-100 rounded-lg cursor-pointer">Cancel</button>
+              <button type="submit" disabled={saving}
                 className="px-5 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 border-0 cursor-pointer disabled:opacity-40">
                 {saving ? 'Saving...' : 'Reset Password'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 

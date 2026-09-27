@@ -8,9 +8,10 @@ import {
   faFileAlt, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, checkLength } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import ReasonModal from '../Components/form/ReasonModal';
 import { fileUrl } from '../api/fileUrl';
+import { LIMITS } from '../utils/validation';
 
 const AdminApplications = () => {
   const [applications, setApplications] = useState([]);
@@ -64,6 +65,23 @@ const AdminApplications = () => {
       console.error("Error updating status:", err);
       alert(apiErrorMessage(err, 'Failed to update the application.'));
     }
+  };
+
+  // Rejection reason from ReasonModal (was window.prompt()). Throws on failure
+  // so the modal keeps the reason and shows why.
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const confirmReject = async (reason) => {
+    let res;
+    try {
+      res = await api.post('/update_tenant_status.php', { id: rejectTarget.id, status: 'Rejected', rejection_reason: reason });
+    } catch (err) {
+      console.error("Error rejecting application:", err);
+      throw new Error(apiErrorMessage(err, 'Failed to update the application.'), { cause: err });
+    }
+    if (!res.data.success) throw new Error(apiErrorMessage(res, 'Failed to update the application.'));
+    setRejectTarget(null);
+    setShowProfileModal(false);
+    fetchApplications();
   };
 
   const openProfile = (app) => {
@@ -143,7 +161,7 @@ const AdminApplications = () => {
               </div>
               <div className="flex items-center gap-3 w-full max-w-sm bg-white border border-slate-200 rounded-lg px-3 py-2 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition-all shadow-sm">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
-                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="focus-glow flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
+                <input maxLength={LIMITS.search} type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applicants..." className="focus-glow flex-1 bg-transparent text-sm text-slate-700 outline-none p-0 border-0 placeholder-slate-400" />
               </div>
             </div>
 
@@ -340,14 +358,7 @@ const AdminApplications = () => {
                     <FontAwesomeIcon icon={faCheckCircle} className="text-lg" /> APPROVE APPLICATION
                   </button>
                   <button 
-                    onClick={() => { 
-                      const reason = prompt("Enter reason for rejecting this application:");
-                      if (reason === null) return; // User cancelled
-                      const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
-                      if (reasonError) { alert(reasonError); return; }
-                      updateStatus(selectedApp.id, 'Rejected', reason); 
-                      setShowProfileModal(false); 
-                    }} 
+                    onClick={() => setRejectTarget(selectedApp)}
                     className="flex-1 flex items-center justify-center gap-2 bg-white text-red-600 border-2 border-red-200 p-4 rounded-xl cursor-pointer text-sm font-bold hover:bg-red-50 hover:border-red-300 transition-all shadow-sm"
                   >
                     <FontAwesomeIcon icon={faTimes} className="text-lg" /> REJECT
@@ -357,6 +368,17 @@ const AdminApplications = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {rejectTarget && (
+        <ReasonModal
+          title="Reject Application"
+          description={`${rejectTarget.name || 'The applicant'} is notified with this reason.`}
+          label="Reason for rejecting this application"
+          confirmLabel="Reject Application"
+          onConfirm={confirmReject}
+          onClose={() => setRejectTarget(null)}
+        />
       )}
 
     </div>

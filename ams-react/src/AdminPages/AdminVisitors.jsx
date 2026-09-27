@@ -9,10 +9,23 @@ import {
   faDoorOpen, faEye
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, checkLength, checkPhMobile, firstError, localDateString, localTimeString, toPhE164 } from '../utils/validation';
+import { LIMITS, addDays, checkDate, checkIntRange, checkPersonName, checkPhMobile, checkText, localDateString, localTimeString, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import FileChip from '../Components/form/FileChip';
+import ReasonModal from '../Components/form/ReasonModal';
+import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
+
+const PURPOSES = ['Personal Visit', 'Delivery / Courier', 'Maintenance / Contractor', 'Official / Business', 'Short Stay Guest'];
+const ID_TYPES = ['National ID', "Driver's License", 'Passport', 'UMID / SSS', 'Company / Student ID'];
+const PLATE_PATTERN = /^[A-Z0-9][A-Z0-9 -]*$/;
+// update_system_settings.php: 1 to 168 hours.
+const MAX_OVERSTAY_HOURS = 168;
+// The desk may back-date a visit by up to a day.
+const visitBounds = () => ({ min: addDays(-1), max: localDateString() });
 import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 
@@ -71,12 +84,9 @@ export default function AdminVisitors() {
   const [visitDateBounds, setVisitDateBounds] = useState({ min: '', max: '' });
 
   const openCheckInModal = () => {
-    const now = Date.now();
     setCheckInForm(emptyCheckInForm());
-    setVisitDateBounds({
-      min: localDateString(new Date(now - 24 * 60 * 60 * 1000)),
-      max: localDateString(new Date(now)),
-    });
+    setVisitDateBounds(visitBounds());
+    checkIn.setErrors({});
     setShowCheckInModal(true);
   };
 
@@ -84,6 +94,50 @@ export default function AdminVisitors() {
   const [checkoutOther, setCheckoutOther] = useState('');
   const [thresholdHours, setThresholdHours] = useState(24);
   const [submitting, setSubmitting] = useState(false);
+  const [photoInputKey, setPhotoInputKey] = useState(0);
+  const [denyTarget, setDenyTarget] = useState(null); // visitor id while a decline reason is entered
+
+  // Keys match check_in_visitor.php (visitDate/visitTime make up visitAt).
+  const checkIn = useFieldErrors({
+    visitorName: (v) => checkPersonName(v, { label: 'Visitor name', max: LIMITS.fullName }),
+    contactNumber: (v) => checkPhMobile(v),
+    unit: (v) => (rooms.some(r => String(r.id) === String(v)) ? '' : 'Select the unit being visited.'),
+    visitDate: (v) => checkDate(v, { ...visitDateBounds, label: 'Visit date' }),
+    // check_in_visitor.php accepts a visit from 24 hours ago to 5 minutes ahead.
+    visitTime: (v, all) => {
+      if (!v) return 'Visit time is required.';
+      if (!all.visitDate) return '';
+      const visitMs = new Date(`${all.visitDate}T${v}`).getTime();
+      if (Number.isNaN(visitMs)) return 'Enter a valid visit time.';
+      if (visitMs > Date.now() + 5 * 60 * 1000) return 'Visit time cannot be in the future.';
+      if (visitMs < Date.now() - 24 * 60 * 60 * 1000) return 'Visit time can be back-dated by at most 24 hours.';
+      return '';
+    },
+    purpose: (v) => (PURPOSES.includes(v) ? '' : 'Choose the purpose of the visit.'),
+    idType: (v) => (ID_TYPES.includes(v) ? '' : 'Choose an ID type.'),
+    idNumber: (v) => checkText(v, { label: 'ID number', min: 3, max: LIMITS.idNumber }),
+    vehiclePlate: (v) => checkText(v, { label: 'Vehicle plate', max: LIMITS.visitorPlate, required: false })
+      || (v && !PLATE_PATTERN.test(String(v).trim()) ? 'Plate can only contain letters, numbers, spaces and hyphens.' : ''),
+    idPhoto: (f) => (f ? checkFile(f, FILE_RULES.visitorId) : ''),
+    checkoutOther: (v) => checkText(v, { label: 'Checkout note', max: LIMITS.notes }),
+    visitor_overstay_hours: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_OVERSTAY_HOURS, 'Overstay limit'),
+  }, { idPrefix: 'checkin-' });
+  const setCheckInField = (key, value) => {
+    setCheckInForm(f => ({ ...f, [key]: value }));
+    checkIn.clearError(key);
+  };
+  const blurCheckInField = (key) => {
+    const raw = checkInForm[key];
+    const v = typeof raw === 'string' && key !== 'contactNumber' ? raw.trim() : raw;
+    if (v !== raw) setCheckInForm(f => ({ ...f, [key]: v }));
+    if (v || key === 'contactNumber') checkIn.validateField(key, { ...checkInForm, [key]: v });
+  };
+  const clearIdPhoto = () => {
+    setCheckInForm(f => ({ ...f, idPhoto: null }));
+    setPhotoInputKey(k => k + 1);
+    checkIn.clearError('idPhoto');
+  };
+  const CHECK_IN_FIELDS = ['visitorName', 'contactNumber', 'unit', 'visitDate', 'visitTime', 'purpose', 'idType', 'idNumber', 'vehiclePlate', 'idPhoto'];
 
   // Loading and error are derived from the filters they belong to, so a filter change
   // shows the spinner without setting state inside the effect.
@@ -147,36 +201,26 @@ export default function AdminVisitors() {
   // Check In / New Visitor Action
   const handleCheckInSubmit = async (e) => {
     e.preventDefault();
-    if (!checkInForm.visitorName || !checkInForm.contactNumber || !checkInForm.unit
-        || !checkInForm.idNumber.trim() || !checkInForm.visitDate || !checkInForm.visitTime) {
-      alert('Please fill in all required fields.');
-      return;
-    }
-    // check_in_visitor.php accepts a visit from 24 hours ago to 5 minutes ahead.
-    const visitAt = `${checkInForm.visitDate}T${checkInForm.visitTime}`;
-    const visitMs = new Date(visitAt).getTime();
-    const visitorError = firstError(
-      checkLength(checkInForm.visitorName, LIMITS.fullName, 'Visitor name'),
-      checkPhMobile(checkInForm.contactNumber),
-      checkLength(checkInForm.idNumber, LIMITS.idNumber, 'ID number'),
-      Number.isNaN(visitMs) ? 'Enter a valid visit date and time.' : '',
-      visitMs > Date.now() + 5 * 60 * 1000 ? 'Visit time cannot be in the future.' : '',
-      visitMs < Date.now() - 24 * 60 * 60 * 1000 ? 'Visit time can be back-dated by at most 24 hours.' : ''
-    );
-    if (visitorError) {
-      alert(visitorError);
-      return;
-    }
+    if (submitting) return;
+    const clean = {
+      ...checkInForm,
+      visitorName: checkInForm.visitorName.trim(),
+      idNumber: checkInForm.idNumber.trim(),
+      vehiclePlate: checkInForm.vehiclePlate.trim().toUpperCase(),
+    };
+    setCheckInForm(clean);
+    if (!checkIn.validateAll(clean, CHECK_IN_FIELDS)) return;
+    const visitAt = `${clean.visitDate}T${clean.visitTime}`;
     setSubmitting(true);
     try {
       const fields = {
-        visitorName: checkInForm.visitorName,
-        contactNumber: toPhE164(checkInForm.contactNumber),
-        unit: checkInForm.unit,
-        purpose: checkInForm.purpose,
-        idType: checkInForm.idType,
-        idNumber: checkInForm.idNumber.trim(),
-        vehiclePlate: checkInForm.vehiclePlate,
+        visitorName: clean.visitorName,
+        contactNumber: toPhE164(clean.contactNumber),
+        unit: clean.unit,
+        purpose: clean.purpose,
+        idType: clean.idType,
+        idNumber: clean.idNumber,
+        vehiclePlate: clean.vehiclePlate,
         visitAt,
       };
       let payload = fields;
@@ -194,12 +238,12 @@ export default function AdminVisitors() {
         setShowCheckInModal(false);
         setCheckInForm(emptyCheckInForm());
         fetchVisitors();
-      } else {
+      } else if (!checkIn.applyServerErrors(res)) {
         alert(res.data.message || 'Failed to log visitor.');
       }
     } catch (err) {
       console.error('Failed to check in visitor:', err);
-      alert(apiErrorMessage(err, 'Server error occurred during visitor check-in.'));
+      if (!checkIn.applyServerErrors(err)) alert(apiErrorMessage(err, 'Server error occurred during visitor check-in.'));
     } finally {
       setSubmitting(false);
     }
@@ -207,39 +251,43 @@ export default function AdminVisitors() {
 
   // Approve / Deny Action
   const handleReviewAction = async (id, action) => {
-    const note = action === 'denied' ? prompt('Enter reason for declining entry (optional):') : '';
-    if (action === 'denied' && note === null) return; // User cancelled prompt
-    const noteError = checkLength(note, LIMITS.reason, 'Reason');
-    if (noteError) { alert(noteError); return; }
-
+    if (action === 'denied') {
+      setDenyTarget(id);
+      return;
+    }
     try {
-      const res = await api.post('update_visitor_status.php', {
-        id,
-        action,
-        adminNotes: note || ''
-      });
-      if (res.data.success) {
-        fetchVisitors();
-      } else {
-        alert(res.data.message || 'Action failed.');
-      }
+      await sendReview(id, action, '');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // Throws on failure so ReasonModal can show it.
+  const sendReview = async (id, action, note) => {
+    let res;
+    try {
+      res = await api.post('update_visitor_status.php', { id, action, adminNotes: note || '' });
     } catch (err) {
       console.error('Failed to update visitor status:', err);
-      alert(apiErrorMessage(err, 'Server error updating visitor status.'));
+      throw new Error(apiErrorMessage(err, 'Server error updating visitor status.'), { cause: err });
     }
+    if (!res.data.success) throw new Error(res.data.message || 'Action failed.');
+    fetchVisitors();
+  };
+
+  const confirmDeny = async (note) => {
+    await sendReview(denyTarget, 'denied', note);
+    setDenyTarget(null);
   };
 
   // Check Out Action
   const handleCheckoutSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedVisitorForCheckout) return;
-    const checkoutNotes = checkoutNote === CHECKOUT_NOTE_OTHER ? checkoutOther.trim() : checkoutNote;
-    if (!checkoutNotes) {
-      alert('Describe the checkout in a few words.');
-      return;
-    }
-    const notesError = checkLength(checkoutNotes, LIMITS.notes, 'Checkout note');
-    if (notesError) { alert(notesError); return; }
+    if (!selectedVisitorForCheckout || submitting) return;
+    const other = checkoutOther.trim();
+    setCheckoutOther(other);
+    if (checkoutNote === CHECKOUT_NOTE_OTHER && !checkIn.validateAll({ checkoutOther: other }, ['checkoutOther'])) return;
+    const checkoutNotes = checkoutNote === CHECKOUT_NOTE_OTHER ? other : checkoutNote;
     setSubmitting(true);
     try {
       const res = await api.post('update_visitor_status.php', {
@@ -253,7 +301,7 @@ export default function AdminVisitors() {
         setCheckoutNote(CHECKOUT_NOTE_OPTIONS[0]);
         setCheckoutOther('');
         fetchVisitors();
-      } else {
+      } else if (!checkIn.applyServerErrors(res)) {
         alert(res.data.message || 'Failed to checkout visitor.');
       }
     } catch (err) {
@@ -267,6 +315,8 @@ export default function AdminVisitors() {
   // Update Overstay Threshold
   const handleSaveThreshold = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    if (!checkIn.validateAll({ visitor_overstay_hours: thresholdHours }, ['visitor_overstay_hours'])) return;
     setSubmitting(true);
     try {
       const res = await api.post('update_system_settings.php', {
@@ -275,8 +325,8 @@ export default function AdminVisitors() {
       if (res.data.success) {
         setShowThresholdModal(false);
         fetchVisitors();
-      } else {
-        alert('Failed to save threshold setting.');
+      } else if (!checkIn.applyServerErrors(res)) {
+        alert(res.data.message || 'Failed to save threshold setting.');
       }
     } catch (err) {
       console.error('Failed to update overstay threshold:', err);
@@ -377,7 +427,7 @@ export default function AdminVisitors() {
                 <form onSubmit={handleSearchSubmit} className="flex-1 w-full flex items-center gap-2">
                   <div className="relative flex-1">
                     <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                    <input
+                    <input maxLength={LIMITS.search}
                       type="text"
                       placeholder="Search visitor name, phone, unit, plate number..."
                       value={searchQuery}
@@ -702,79 +752,98 @@ export default function AdminVisitors() {
               </button>
             </div>
 
-            <form onSubmit={handleCheckInSubmit} className="space-y-4">
+            <form onSubmit={handleCheckInSubmit} className="space-y-4" noValidate>
               
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Visitor Full Name *</label>
+                <label htmlFor="checkin-visitorName" className="block text-xs font-bold text-slate-700 mb-1">Visitor Full Name *</label>
                 <input
                   type="text"
+                  {...checkIn.fieldA11y('visitorName')}
+                    onChange={(e) => setCheckInField('visitorName', e.target.value)}
+                    onBlur={() => blurCheckInField('visitorName')}
+                  autoComplete="off"
                   required
                   placeholder="e.g. Maria Santos"
                   value={checkInForm.visitorName}
                   maxLength={LIMITS.fullName}
-                  onChange={(e) => setCheckInForm({ ...checkInForm, visitorName: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitorName)}
                 />
+                <FieldError id="checkin-visitorName" error={checkIn.errors.visitorName} />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Contact Number *</label>
+                  <label htmlFor="checkin-contactNumber" className="block text-xs font-bold text-slate-700 mb-1">Contact Number *</label>
                   <PhoneInput
+                    id="checkin-contactNumber"
+                    name="contactNumber"
                     required
                     value={checkInForm.contactNumber}
-                    onChange={(digits) => setCheckInForm({ ...checkInForm, contactNumber: digits })}
+                    onChange={(digits) => setCheckInField('contactNumber', digits)}
+                    onBlur={() => blurCheckInField('contactNumber')}
+                    error={checkIn.errors.contactNumber}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Target Unit *</label>
+                  <label htmlFor="checkin-unit" className="block text-xs font-bold text-slate-700 mb-1">Target Unit *</label>
                   <select
                     required
+                    {...checkIn.fieldA11y('unit')}
+                    onChange={(e) => setCheckInField('unit', e.target.value)}
+                    onBlur={() => blurCheckInField('unit')}
                     value={checkInForm.unit}
-                    onChange={(e) => setCheckInForm({ ...checkInForm, unit: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.unit)}
                   >
-                    <option value="">Select Target Unit</option>
+                    <option value="" disabled>Select Target Unit</option>
                     {rooms.map(r => (
                       <option key={r.id} value={r.id}>
                         Unit {r.id} {r.tenant_name ? `(${r.tenant_name})` : ''}
                       </option>
                     ))}
                   </select>
+                  <FieldError id="checkin-unit" error={checkIn.errors.unit} />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Visit Date *</label>
+                  <label htmlFor="checkin-visitDate" className="block text-xs font-bold text-slate-700 mb-1">Visit Date *</label>
                   <input
                     type="date"
                     required
+                    {...checkIn.fieldA11y('visitDate')}
+                    onChange={(e) => setCheckInField('visitDate', e.target.value)}
+                    onBlur={() => blurCheckInField('visitDate')}
                     min={visitDateBounds.min}
                     max={visitDateBounds.max}
                     value={checkInForm.visitDate}
-                    onChange={(e) => setCheckInForm({ ...checkInForm, visitDate: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitDate)}
                   />
+                  <FieldError id="checkin-visitDate" error={checkIn.errors.visitDate} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Visit Time *</label>
+                  <label htmlFor="checkin-visitTime" className="block text-xs font-bold text-slate-700 mb-1">Visit Time *</label>
                   <input
                     type="time"
                     required
+                    {...checkIn.fieldA11y('visitTime')}
+                    onChange={(e) => setCheckInField('visitTime', e.target.value)}
+                    onBlur={() => blurCheckInField('visitTime')}
                     value={checkInForm.visitTime}
-                    onChange={(e) => setCheckInForm({ ...checkInForm, visitTime: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitTime)}
                   />
+                  <FieldError id="checkin-visitTime" error={checkIn.errors.visitTime} />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Purpose of Visit *</label>
+                <label htmlFor="checkin-purpose" className="block text-xs font-bold text-slate-700 mb-1">Purpose of Visit *</label>
                 <select
+                  {...checkIn.fieldA11y('purpose')}
+                    onChange={(e) => setCheckInField('purpose', e.target.value)}
+                    onBlur={() => blurCheckInField('purpose')}
                   value={checkInForm.purpose}
-                  onChange={(e) => setCheckInForm({ ...checkInForm, purpose: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                  className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.purpose)}
                 >
                   <option value="Personal Visit">Personal Visit / Family</option>
                   <option value="Delivery / Courier">Delivery / Courier</option>
@@ -786,11 +855,13 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID Type *</label>
+                  <label htmlFor="checkin-idType" className="block text-xs font-bold text-slate-700 mb-1">Gov ID Type *</label>
                   <select
+                    {...checkIn.fieldA11y('idType')}
+                    onChange={(e) => setCheckInField('idType', e.target.value)}
+                    onBlur={() => blurCheckInField('idType')}
                     value={checkInForm.idType}
-                    onChange={(e) => setCheckInForm({ ...checkInForm, idType: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer" + invalidCls(checkIn.errors.idType)}
                   >
                     <option value="National ID">Philippine National ID</option>
                     <option value="Driver's License">Driver's License</option>
@@ -800,44 +871,57 @@ export default function AdminVisitors() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">ID Number *</label>
+                  <label htmlFor="checkin-idNumber" className="block text-xs font-bold text-slate-700 mb-1">ID Number *</label>
                   <input
                     type="text"
                     required
+                    {...checkIn.fieldA11y('idNumber')}
+                    onChange={(e) => setCheckInField('idNumber', e.target.value)}
+                    onBlur={() => blurCheckInField('idNumber')}
+                    autoComplete="off"
                     placeholder="e.g. N02-18-9382"
                     value={checkInForm.idNumber}
                     maxLength={LIMITS.idNumber}
-                    onChange={(e) => setCheckInForm({ ...checkInForm, idNumber: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.idNumber)}
                   />
+                  <FieldError id="checkin-idNumber" error={checkIn.errors.idNumber} />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
+                  <label htmlFor="checkin-vehiclePlate" className="block text-xs font-bold text-slate-700 mb-1">Vehicle Plate (Optional)</label>
                   <input
                     type="text"
+                    {...checkIn.fieldA11y('vehiclePlate')}
+                    onChange={(e) => setCheckInField('vehiclePlate', e.target.value.toUpperCase())}
+                    onBlur={() => blurCheckInField('vehiclePlate')}
+                    autoComplete="off"
                     placeholder="e.g. ABC 1234"
                     value={checkInForm.vehiclePlate}
                     maxLength={LIMITS.visitorPlate}
-                    onChange={(e) => setCheckInForm({ ...checkInForm, vehiclePlate: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase font-mono"
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase font-mono" + invalidCls(checkIn.errors.vehiclePlate)}
                   />
+                  <FieldError id="checkin-vehiclePlate" error={checkIn.errors.vehiclePlate} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
+                  <label htmlFor="checkin-idPhoto" className="block text-xs font-bold text-slate-700 mb-1">Gov ID / Pass Photo (Optional)</label>
                   <input
+                    key={photoInputKey}
                     type="file"
+                    {...checkIn.fieldA11y('idPhoto')}
                     accept={acceptFor(FILE_RULES.visitorId)}
                     onChange={(e) => {
                       const file = e.target.files[0] || null;
                       const fileError = checkFile(file, FILE_RULES.visitorId);
-                      if (fileError) { alert(fileError); e.target.value = ''; setCheckInForm({ ...checkInForm, idPhoto: null }); return; }
-                      setCheckInForm({ ...checkInForm, idPhoto: file });
+                      checkIn.setFieldError('idPhoto', fileError);
+                      if (fileError) { e.target.value = ''; setCheckInForm(f => ({ ...f, idPhoto: null })); return; }
+                      setCheckInForm(f => ({ ...f, idPhoto: file }));
                     }}
                     className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
                   />
+                  <FieldError id="checkin-idPhoto" error={checkIn.errors.idPhoto} />
+                  <FileChip file={checkInForm.idPhoto} onRemove={clearIdPhoto} />
                 </div>
               </div>
 
@@ -885,13 +969,15 @@ export default function AdminVisitors() {
               <p className="m-0"><strong className="text-slate-800">Elapsed Duration:</strong> <span className="font-bold text-indigo-600">{selectedVisitorForCheckout.duration}</span></p>
             </div>
 
-            <form onSubmit={handleCheckoutSubmit} className="space-y-4">
+            <form onSubmit={handleCheckoutSubmit} className="space-y-4" noValidate>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Checkout Note *</label>
+                <label htmlFor="checkout-note" className="block text-xs font-bold text-slate-700 mb-1">Checkout Note *</label>
                 <select
+                  id="checkout-note"
+                  name="checkoutNote"
                   required
                   value={checkoutNote}
-                  onChange={(e) => setCheckoutNote(e.target.value)}
+                  onChange={(e) => { setCheckoutNote(e.target.value); checkIn.clearError('checkoutOther'); }}
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
                 >
                   {CHECKOUT_NOTE_OPTIONS.map(option => (
@@ -902,16 +988,21 @@ export default function AdminVisitors() {
               </div>
               {checkoutNote === CHECKOUT_NOTE_OTHER && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Other Note *</label>
+                  <label htmlFor="checkin-checkoutOther" className="block text-xs font-bold text-slate-700 mb-1">Other Note *</label>
+                  {/* update_visitor_status.php allows 1000 characters; the input used to stop at 255. */}
                   <input
                     type="text"
+                    {...checkIn.fieldA11y('checkoutOther')}
+                    autoComplete="off"
                     required
                     placeholder="e.g. Picked up by a family member"
                     value={checkoutOther}
-                    maxLength={LIMITS.reason}
-                    onChange={(e) => setCheckoutOther(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    maxLength={LIMITS.notes}
+                    onChange={(e) => { setCheckoutOther(e.target.value); checkIn.clearError('checkoutOther'); }}
+                    onBlur={() => { const v = checkoutOther.trim(); setCheckoutOther(v); if (v) checkIn.validateField('checkoutOther', { checkoutOther: v }); }}
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkoutOther)}
                   />
+                  <FieldError id="checkin-checkoutOther" error={checkIn.errors.checkoutOther} />
                 </div>
               )}
 
@@ -958,7 +1049,7 @@ export default function AdminVisitors() {
               Configure after how many hours/days an active visitor is flagged with an <strong>Overstay Alert</strong>. Configurable from 1 hour up to 7 days (168 hours).
             </p>
 
-            <form onSubmit={handleSaveThreshold} className="space-y-4">
+            <form onSubmit={handleSaveThreshold} className="space-y-4" noValidate>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Overstay Limit Preset</label>
                 <div className="grid grid-cols-3 gap-2 mb-3">
@@ -973,7 +1064,7 @@ export default function AdminVisitors() {
                     <button
                       key={preset.h}
                       type="button"
-                      onClick={() => setThresholdHours(preset.h)}
+                      onClick={() => { setThresholdHours(preset.h); checkIn.clearError('visitor_overstay_hours'); }}
                       className={`rounded-xl py-2 px-1 text-xs font-bold transition-all border cursor-pointer ${
                         Number(thresholdHours) === preset.h
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
@@ -985,16 +1076,23 @@ export default function AdminVisitors() {
                   ))}
                 </div>
 
-                <label className="block text-xs font-bold text-slate-700 mb-1">Custom Hours (1 to 168 hours)</label>
+                <label htmlFor="checkin-visitor_overstay_hours" className="block text-xs font-bold text-slate-700 mb-1">Custom Hours (1 to 168 hours)</label>
+                {/* Kept as typed and validated; it used to snap to 1 while being cleared. */}
                 <input
                   type="number"
+                  {...checkIn.fieldA11y('visitor_overstay_hours')}
+                  inputMode="numeric"
                   min="1"
-                  max="168"
+                  max={MAX_OVERSTAY_HOURS}
+                  step="1"
                   required
                   value={thresholdHours}
-                  onChange={(e) => setThresholdHours(Math.min(168, Math.max(1, parseInt(e.target.value) || 1)))}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  onKeyDown={blockNonIntegerKeys}
+                  onChange={(e) => { setThresholdHours(e.target.value); checkIn.clearError('visitor_overstay_hours'); }}
+                  onBlur={() => checkIn.validateField('visitor_overstay_hours', { visitor_overstay_hours: thresholdHours })}
+                  className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitor_overstay_hours)}
                 />
+                <FieldError id="checkin-visitor_overstay_hours" error={checkIn.errors.visitor_overstay_hours} />
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -1016,6 +1114,17 @@ export default function AdminVisitors() {
             </form>
           </div>
         </div>
+      )}
+
+      {denyTarget && (
+        <ReasonModal
+          title="Decline Entry"
+          label="Reason for declining entry (optional)"
+          required={false}
+          confirmLabel="Decline Entry"
+          onConfirm={confirmDeny}
+          onClose={() => setDenyTarget(null)}
+        />
       )}
 
     </div>

@@ -6,6 +6,13 @@ import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
 import { getAvatarUrl } from '../utils/avatarUrl';
 import api from '../api/axiosConfig';
+import { LIMITS } from '../utils/validation';
+import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
+import FieldError from '../Components/form/FieldError';
+import FileChip from '../Components/form/FileChip';
+
+const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 
 const formatTime = (date) => {
   if (!date) return '';
@@ -117,10 +124,23 @@ const AdminMessages = () => {
     });
   };
 
+  const [sendError, setSendError] = useState('');
+
+  // All three pickers (file, camera, video) go through the same check as send_message.php.
+  const pickAttachment = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const fileError = checkChatFile(file);
+    setSendError(fileError);
+    if (!fileError) setAttachment(file);
+  };
+
   const handleSend = async (event) => {
     event.preventDefault();
     const message = draft.trim();
     if ((!message && !attachment) || !activeChat || sending) return;
+    setSendError('');
     setSending(true);
     try {
       await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
@@ -128,7 +148,9 @@ const AdminMessages = () => {
       setAttachment(null);
       setReplyingTo(null);
     } catch (error) {
+      // Failures used to go to the console only; the draft is kept for a retry.
       console.error('Failed to send admin message:', error);
+      setSendError(apiErrorMessage(error, 'Message not sent. Please try again.'));
     } finally {
       setSending(false);
     }
@@ -152,7 +174,7 @@ const AdminMessages = () => {
                 </div>
                 <label className="mt-4 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus-within:border-indigo-400">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tenants or messages" className="w-full bg-transparent outline-none border-0 text-sm text-slate-800" />
+                  <input maxLength={LIMITS.search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tenants or messages" className="w-full bg-transparent outline-none border-0 text-sm text-slate-800" />
                 </label>
               </div>
               <div className="flex-1 overflow-y-auto">
@@ -250,14 +272,22 @@ const AdminMessages = () => {
                   </div>
                   {replyingTo && <div className="mx-3 mt-3 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                   <form onSubmit={handleSend} className={`p-3 md:p-4 flex gap-2 shrink-0 ${replyingTo ? '' : 'border-t border-slate-100'}`}>
-                    <label className="px-1.5 flex items-center cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (!file) { setAttachment(null); return; } const isVideo = file.type.startsWith('video/'); const maxSize = (isVideo ? 25 : 10) * 1024 * 1024; if (file.size > maxSize) { window.alert(`${isVideo ? 'Video' : 'Image'} must be ${isVideo ? 25 : 10} MB or smaller.`); event.target.value = ''; return; } setAttachment(file); }} /></label>
+                    <label className="px-1.5 flex items-center cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
                     <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-1.5 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
-                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 10 * 1024 * 1024) { window.alert('Image must be 10 MB or smaller.'); return; } setAttachment(file); }} />
+                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
                     <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-1.5 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
-                    <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; if (file.size > 25 * 1024 * 1024) { window.alert('Video must be 25 MB or smaller.'); return; } setAttachment(file); }} />
-                    <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={attachment?.name || 'Write a reply...'} className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border border-transparent focus:border-indigo-300 focus:outline-none text-sm" />
-                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
+                    <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
+                    <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
+                      aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
+                      maxLength={LIMITS.message} value={draft}
+                      onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
+                      placeholder={attachment?.name || 'Write a reply...'} className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border border-transparent focus:border-indigo-300 focus:outline-none text-sm" />
+                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
                   </form>
+                  <div className="px-3 md:px-4 pb-2">
+                    <FileChip file={attachment} onRemove={() => setAttachment(null)} className="mt-0" />
+                    <FieldError id="admin-reply" error={sendError} />
+                  </div>
                 </>
               ) : <div className="flex-1 flex flex-col items-center justify-center text-center p-8"><div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center text-2xl mb-4"><FontAwesomeIcon icon={faComments} /></div><h3 className="text-lg font-bold text-slate-800 m-0">Select a conversation</h3><p className="text-sm text-slate-500 mt-2">Choose a tenant from the list to view and reply to messages.</p></div>}
             </section>

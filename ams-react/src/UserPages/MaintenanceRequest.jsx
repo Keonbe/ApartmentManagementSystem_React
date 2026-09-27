@@ -6,8 +6,17 @@ import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
 import { MAINTENANCE_CATEGORIES } from '../config/maintenanceOptions';
-import { LIMITS, checkDate, firstError } from '../utils/validation';
+import { LIMITS, checkDate, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import useFilePreview from '../hooks/useFilePreview';
+import FieldError from '../Components/form/FieldError';
+import CharCount from '../Components/form/CharCount';
+import { formatFileSize, invalidCls } from '../Components/form/formHelpers';
+
+const TIME_WINDOWS = ['morning', 'afternoon'];
+const DESCRIPTION_MIN = 10;
 import '../assets/styles/responsive/user/maintenance-request.responsive.css';
 
 export default function MaintenanceRequest() {
@@ -17,7 +26,7 @@ export default function MaintenanceRequest() {
     const [preferredTime, setPreferredTime] = useState('');
     const [description, setDescription] = useState('');
     const [permissionToEnter, setPermissionToEnter] = useState(false);//checkbox state
-    const [uploadedFile, setUploadedFile] = useState(null);
+    const [uploadedFile, setUploadedFile, previewUrl] = useFilePreview();
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,12 +63,27 @@ export default function MaintenanceRequest() {
         setIsDragging(false);
     };
 
+    // Keys match maintenance_request.php's form fields.
+    const form = useFieldErrors({
+        issueType: (v) => (MAINTENANCE_CATEGORIES.some(c => c.value === v) ? '' : 'Please choose the type of issue.'),
+        preferredDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
+        preferredTime: (v) => (TIME_WINDOWS.includes(v) ? '' : 'Please choose a time window.'),
+        description: (v) => checkText(v, { label: 'Description', min: DESCRIPTION_MIN, max: LIMITS.message }),
+        uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.maintenance) : ''),
+    }, { idPrefix: 'maint-' });
+    const values = { issueType, preferredDate, preferredTime, description, uploadedFile };
+    const setters = { issueType: setIssueType, preferredDate: setPreferredDate, preferredTime: setPreferredTime, description: setDescription };
+    const change = (name) => (e) => { setters[name](e.target.value); form.clearError(name); };
+    const blur = (name) => () => {
+        const v = name === 'description' ? description.trim() : values[name];
+        if (v !== values[name]) setters[name](v);
+        if (v) form.validateField(name, { ...values, [name]: v });
+    };
+
     const acceptFile = (file) => {
         const fileError = checkFile(file, FILE_RULES.maintenance);
-        if (fileError) {
-            alert(fileError);
-            return;
-        }
+        form.setFieldError('uploadedFile', fileError);
+        if (fileError) return;
         setUploadedFile(file);
     };
 
@@ -81,22 +105,15 @@ export default function MaintenanceRequest() {
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
-        const formError = firstError(
-            issueType ? '' : 'Please choose the type of issue.',
-            checkDate(preferredDate, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
-            preferredTime ? '' : 'Please choose a time window.',
-            description.trim() ? '' : 'Please describe the problem.'
-        );
-        if (formError) {
-            alert(formError);
-            return;
-        }
+        const cleanDescription = description.trim();
+        setDescription(cleanDescription);
+        if (!form.validateAll({ ...values, description: cleanDescription })) return;
 
         const formData = new FormData();
         formData.append('issueType', issueType);
         formData.append('preferredDate', preferredDate);
         formData.append('preferredTime', preferredTime);
-        formData.append('description', description.trim());
+        formData.append('description', cleanDescription);
         formData.append('permissionToEnter', permissionToEnter ? 1 : 0);
 
         if (uploadedFile) {
@@ -113,11 +130,11 @@ export default function MaintenanceRequest() {
 
             if (res.data.success) {
                 setIsModalOpen(true);
-            } else {
+            } else if (!form.applyServerErrors(res)) {
                 alert(res.data.message);
             }
         } catch (error) {
-            alert(error.response?.data?.message || 'Failed to submit your request. Please try again.');
+            if (!form.applyServerErrors(error)) alert(apiErrorMessage(error, 'Failed to submit your request. Please try again.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -143,15 +160,16 @@ export default function MaintenanceRequest() {
                 </div>
 
                 {/*Form Inputs Panel Layout*/}
-                <form className="maintenance-form-card animate-fade-in-up bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
+                <form className="maintenance-form-card animate-fade-in-up bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit} noValidate>
 
                     {/*Issue Category Selector*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.category')}</label>
+                        <label htmlFor="maint-issueType" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.category')}</label>
                         <select
+                            {...form.fieldA11y('issueType')}
                             value={issueType}
-                            onChange={(e) => setIssueType(e.target.value)}
-                            className="maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            onChange={change('issueType')}
+                            className={"maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.issueType)}
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -160,30 +178,35 @@ export default function MaintenanceRequest() {
                                 <option key={c.value} value={c.value}>{t(c.i18nKey)}</option>
                             ))}
                         </select>
+                        <FieldError id="maint-issueType" error={form.errors.issueType} className="m-0" />
                     </div>
 
                     {/*Preferred Date Field*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefDate')}</label>
+                        <label htmlFor="maint-preferredDate" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefDate')}</label>
                         <input
                             type="date"
+                            {...form.fieldA11y('preferredDate')}
                             min={minDateString}
                             max={maxDateString}
                             value={preferredDate}
-                            onChange={(e) => setPreferredDate(e.target.value)}
-                            className="maintenance-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            onChange={change('preferredDate')}
+                            onBlur={blur('preferredDate')}
+                            className={"maintenance-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.preferredDate)}
                             style={{ color: '#1e293b' }}
                             required
                         />
+                        <FieldError id="maint-preferredDate" error={form.errors.preferredDate} className="m-0" />
                     </div>
 
                     {/*Time Window Selector*/}
                     <div className="flex flex-col space-y-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefTime')}</label>
+                        <label htmlFor="maint-preferredTime" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.prefTime')}</label>
                         <select
+                            {...form.fieldA11y('preferredTime')}
                             value={preferredTime}
-                            onChange={(e) => setPreferredTime(e.target.value)}
-                            className="maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]"
+                            onChange={change('preferredTime')}
+                            className={"maintenance-select focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]" + invalidCls(form.errors.preferredTime)}
                             style={{ color: '#1e293b' }}
                             required
                         >
@@ -191,26 +214,31 @@ export default function MaintenanceRequest() {
                             <option value="morning">{t('maintenance.morning')}</option>
                             <option value="afternoon">{t('maintenance.afternoon')}</option>
                         </select>
+                        <FieldError id="maint-preferredTime" error={form.errors.preferredTime} className="m-0" />
                     </div>
 
                     {/*Problem Description Area*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.description')}</label>
+                        <label htmlFor="maint-description" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.description')}</label>
                         <textarea
                             rows={4}
+                            {...form.fieldA11y('description')}
                             placeholder={t('maintenance.descPlaceholder')}
                             value={description}
                             maxLength={LIMITS.message}
-                            onChange={(e) => setDescription(e.target.value)}
-                            className="maintenance-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
+                            onChange={change('description')}
+                            onBlur={blur('description')}
+                            className={"maintenance-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none" + invalidCls(form.errors.description)}
                             style={{ color: '#1e293b' }}
                             required
                         />
+                        <FieldError id="maint-description" error={form.errors.description} className="m-0" />
+                        <CharCount value={description} max={LIMITS.message} className="m-0" />
                     </div>
 
                     {/*File Upload Drag and Drop Area*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.attachments')}</label>
+                        <label htmlFor="maint-uploadedFile" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('maintenance.attachments')}</label>
                         <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
@@ -222,7 +250,7 @@ export default function MaintenanceRequest() {
                                 <>
                                     <input
                                         type="file"
-                                        id="file-upload-input"
+                                        {...form.fieldA11y('uploadedFile')}
                                         accept={acceptFor(FILE_RULES.maintenance)}
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -237,24 +265,24 @@ export default function MaintenanceRequest() {
                                 <div className="space-y-3 flex flex-col items-center w-full z-10">
                                     {isVideo ? (
                                         <video
-                                            src={URL.createObjectURL(uploadedFile)}
+                                            src={previewUrl}
                                             className="w-40 h-24 object-cover rounded border border-slate-200 bg-slate-900"
                                             muted
                                         />
                                     ) : (
                                         <img
-                                            src={URL.createObjectURL(uploadedFile)}
+                                            src={previewUrl}
                                             alt="Maintenance Issue Preview"
                                             className="w-32 h-20 object-cover rounded border border-slate-200"
                                         />
                                     )}
                                     <div className="text-center">
                                         <p className="text-sm font-bold text-slate-800 m-0 truncate max-w-[240px]">{uploadedFile.name}</p>
-                                        <p className="text-slate-400 text-xs m-0 mt-0.5">({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</p>
+                                        <p className="text-slate-400 text-xs m-0 mt-0.5">({formatFileSize(uploadedFile.size)})</p>
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => setUploadedFile(null)}
+                                        onClick={() => { setUploadedFile(null); form.clearError('uploadedFile'); }}
                                         className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer transition-colors shadow-sm flex items-center gap-1.5"
                                     >
                                         <FontAwesomeIcon icon={faUndo} /> {t('maintenance.removeRetake')}
@@ -262,6 +290,7 @@ export default function MaintenanceRequest() {
                                 </div>
                             )}
                         </div>
+                        <FieldError id="maint-uploadedFile" error={form.errors.uploadedFile} className="m-0" />
                     </div>
 
                     {/*Home Entry Checkbox Option Area*/}
@@ -288,7 +317,7 @@ export default function MaintenanceRequest() {
                             disabled={isSubmitting}
                             className="maintenance-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            {t('maintenance.submit')}
+                            {isSubmitting ? 'Submitting…' : t('maintenance.submit')}
                         </button>
                     </div>
 

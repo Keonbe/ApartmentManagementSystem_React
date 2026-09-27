@@ -2,6 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCar, faCheck } from '@fortawesome/free-solid-svg-icons';
 import { SettingsSection, Field, WithUnit, PillOption, INPUT_NUMBER } from './SettingsSection';
 import { MAX_AMOUNT } from '../../utils/validation';
+import { blockNonIntegerKeys, blockNonNumericKeys, numberValue } from '../../Components/form/formHelpers';
 
 const BILLING_MODES = [
   { value: 'manual', label: 'Manual' },
@@ -30,24 +31,29 @@ export default function ParkingPanel({ settings, updateSetting }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Field
           label="Max Parking Slots"
+          htmlFor="setting-maxParkingSlots"
           hint="Numbered slots #1 to #N. Only assigned slots count; new requests are refused once every slot is assigned. Can't go below the highest slot still assigned."
         >
           <WithUnit suffix="slots">
             <input
-              type="number" min="1" max="500"
+              id="setting-maxParkingSlots" name="maxParkingSlots"
+              type="number" inputMode="numeric" min="1" max="500" step="1" required
               value={settings.maxParkingSlots}
-              onChange={(e) => updateSetting('maxParkingSlots', Number(e.target.value))}
+              onKeyDown={blockNonIntegerKeys}
+              onChange={(e) => updateSetting('maxParkingSlots', numberValue(e))}
               className={`${INPUT_NUMBER} w-24`}
             />
           </WithUnit>
         </Field>
 
-        <Field label="Monthly Parking Fee" hint="Added to the tenant's invoice for each month of the permit term.">
+        <Field label="Monthly Parking Fee" htmlFor="setting-parkingMonthlyFee" hint="Added to the tenant's invoice for each month of the permit term.">
           <WithUnit prefix="₱" suffix="per slot / month">
             <input
-              type="number" min="1" max={MAX_AMOUNT} step="1"
+              id="setting-parkingMonthlyFee" name="parkingMonthlyFee"
+              type="number" inputMode="decimal" min="1" max={MAX_AMOUNT} step="0.01" required
               value={settings.parkingMonthlyFee}
-              onChange={(e) => updateSetting('parkingMonthlyFee', Number(e.target.value))}
+              onKeyDown={blockNonNumericKeys}
+              onChange={(e) => updateSetting('parkingMonthlyFee', numberValue(e))}
               className={`${INPUT_NUMBER} w-28`}
             />
           </WithUnit>

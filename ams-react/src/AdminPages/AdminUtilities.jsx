@@ -9,6 +9,14 @@ import {
   faTimes, faCalendarAlt, faChartLine, faTrash, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { LIMITS, MAX_AMOUNT, addDays, checkAmount, checkDate, checkText, localDateString } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+
+// sync_utility_to_invoice.php: a separate invoice's due date is today to +10 days.
+const SYNC_DUE_MAX_DAYS = 10;
 
 // Mirrors UTILITY_SPIKE_THRESHOLD_PCT in backend/config.php.
 const SPIKE_THRESHOLD_PCT = 30;
@@ -190,7 +198,7 @@ export default function AdminUtilities() {
       }
     } catch (err) {
       console.error("Sync error:", err);
-      alert(err?.response?.data?.message || "Failed to sync utility.");
+      alert(apiErrorMessage(err, "Failed to sync utility."));
     } finally {
       setSyncingId(null);
     }
@@ -349,7 +357,7 @@ export default function AdminUtilities() {
                 <div className="flex flex-1 items-center gap-3 flex-wrap">
                   <div className="relative min-w-[200px] flex-1 max-w-md">
                     <FontAwesomeIcon icon={faSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
-                    <input
+                    <input maxLength={LIMITS.search}
                       type="text"
                       placeholder="Search unit, notes, period..."
                       value={searchQuery}
@@ -742,6 +750,7 @@ export default function AdminUtilities() {
           readingId={syncTargetId}
           onClose={() => setSyncTargetId(null)}
           onSync={handleSync}
+          busy={syncingId === syncTargetId}
         />
       )}
 
@@ -750,26 +759,24 @@ export default function AdminUtilities() {
 }
 
 // Subcomponent: Sync Options Modal
-function SyncOptionsModal({ readingId, onClose, onSync }) {
+function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
   const [syncMode, setSyncMode] = useState('merge');
-  const [dueDate, setDueDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 10);
-    return d.toISOString().split('T')[0];
-  });
+  // Local dates: toISOString() gave the UTC day, which is yesterday before 08:00 in Manila.
+  const [dueDate, setDueDate] = useState(() => addDays(SYNC_DUE_MAX_DAYS));
+  const [minDateStr] = useState(() => localDateString());
+  const [maxDateStr] = useState(() => addDays(SYNC_DUE_MAX_DAYS));
+  const [dueError, setDueError] = useState('');
 
-  const maxDateStr = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 10);
-    return d.toISOString().split('T')[0];
-  }, []);
-  
-  const minDateStr = useMemo(() => {
-    return new Date().toISOString().split('T')[0];
-  }, []);
+  const validateDue = (v) => (syncMode === 'separate'
+    ? checkDate(v, { min: minDateStr, max: maxDateStr, label: 'Due date' })
+    : '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (busy) return;
+    const error = validateDue(dueDate);
+    setDueError(error);
+    if (error) return;
     onSync(readingId, syncMode, dueDate);
   };
 
@@ -782,7 +789,7 @@ function SyncOptionsModal({ readingId, onClose, onSync }) {
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4" noValidate>
           <div className="space-y-3">
             <label className="flex items-start gap-3 p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
               <input type="radio" name="syncMode" value="merge" checked={syncMode === 'merge'} onChange={() => setSyncMode('merge')} className="mt-1" />
@@ -809,23 +816,29 @@ function SyncOptionsModal({ readingId, onClose, onSync }) {
 
           {syncMode === 'separate' && (
             <div className="pt-2 border-t border-slate-100">
-              <label className="block text-xs font-bold text-slate-700 mb-1">Due Date</label>
-              <input 
-                type="date" 
-                value={dueDate} 
+              <label htmlFor="sync-due_date" className="block text-xs font-bold text-slate-700 mb-1">Due Date</label>
+              <input
+                type="date"
+                id="sync-due_date"
+                name="due_date"
+                value={dueDate}
                 min={minDateStr}
                 max={maxDateStr}
-                onChange={e => setDueDate(e.target.value)} 
-                required 
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                onChange={e => { setDueDate(e.target.value); setDueError(''); }}
+                onBlur={() => setDueError(validateDue(dueDate))}
+                required
+                aria-invalid={dueError ? true : undefined}
+                aria-describedby={dueError ? 'sync-due_date-error' : undefined}
+                className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500${invalidCls(dueError)}`}
               />
-              <p className="text-[10px] text-slate-500 mt-1">Due date cannot exceed 10 days from today.</p>
+              <FieldError id="sync-due_date" error={dueError} />
+              <p className="text-[10px] text-slate-500 mt-1">Due date cannot exceed {SYNC_DUE_MAX_DAYS} days from today.</p>
             </div>
           )}
 
           <div className="pt-4 flex justify-end gap-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg bg-transparent border-0 cursor-pointer">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm border-0 cursor-pointer">Confirm Sync</button>
+            <button type="submit" disabled={busy} className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{busy ? 'Syncing…' : 'Confirm Sync'}</button>
           </div>
         </form>
       </div>
@@ -896,10 +909,36 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
     };
   }, [formData, selectedRoomPrevReading]);
 
+  // save_utility_reading.php's rules: readings ≥ 0 and never below the last one,
+  // rates in (0, 1000], fees ≥ 0, reading date inside the period and not future.
+  const readingForm = useFieldErrors({
+    room_name: (v) => (rooms.some(r => String(r.id) === String(v)) ? '' : 'Please select a unit.'),
+    billing_period: (v) => (/^\d{4}-(0[1-9]|1[0-2])$/.test(String(v ?? '')) ? '' : 'Billing period is required.'),
+    reading_date: (v, all) => checkDate(v, { label: 'Reading date', max: localDateString(), min: all.billing_period ? `${all.billing_period}-01` : undefined }),
+    water_curr_reading: (v) => checkAmount(v, { label: 'Water reading', min: selectedRoomPrevReading.water })
+      .replace(`at least ${selectedRoomPrevReading.water}`, `at least the previous reading (${selectedRoomPrevReading.water})`),
+    electric_curr_reading: (v) => checkAmount(v, { label: 'Electricity reading', min: selectedRoomPrevReading.electric })
+      .replace(`at least ${selectedRoomPrevReading.electric}`, `at least the previous reading (${selectedRoomPrevReading.electric})`),
+    water_rate_per_unit: (v) => checkAmount(v, { label: 'Water rate', min: 0.01, max: 1000, allowZero: false }),
+    electric_rate_per_unit: (v) => checkAmount(v, { label: 'Electricity rate', min: 0.01, max: 1000, allowZero: false }),
+    water_other_fees: (v) => checkAmount(v, { label: 'Other water fees', required: false }),
+    electric_other_fees: (v) => checkAmount(v, { label: 'Other electricity fees', required: false }),
+    notes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
+  }, { idPrefix: 'reading-' });
+
   if (!show) return null;
+
+  const fieldCls = (name, base) => base + invalidCls(readingForm.errors[name]);
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    const v = name === 'notes' ? value.trim() : value;
+    if (v !== value) setFormData(prev => ({ ...prev, [name]: v }));
+    readingForm.validateField(name, { ...formData, [name]: v });
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    readingForm.clearError(name);
     setFormData(prev => {
       const next = { ...prev, [name]: value };
       // Carry the unit's last rates forward instead of resetting them to the defaults.
@@ -916,27 +955,23 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.room_name) {
-      alert("Please select a target room.");
-      return;
-    }
-    if ((parseFloat(formData.water_curr_reading) || 0) < selectedRoomPrevReading.water ||
-        (parseFloat(formData.electric_curr_reading) || 0) < selectedRoomPrevReading.electric) {
-      alert("A current reading is lower than the previous reading. Meters don't run backwards — please check the value.");
-      return;
-    }
+    if (submitting) return;
+    const clean = { ...formData, notes: String(formData.notes ?? '').trim() };
+    setFormData(clean);
+    // Meters don't run backwards: the reading checks use the previous reading as their minimum.
+    if (!readingForm.validateAll(clean)) return;
     setSubmitting(true);
     try {
-      const res = await api.post('/save_utility_reading.php', formData);
+      const res = await api.post('/save_utility_reading.php', clean);
       if (res?.data?.success) {
         alert([res.data.message || "Utility reading saved successfully!", res.data.warning].filter(Boolean).join('\n\n'));
         onSuccess();
-      } else {
+      } else if (!readingForm.applyServerErrors(res)) {
         alert(res?.data?.message || "Failed to save reading.");
       }
     } catch (err) {
       console.error("Save reading error:", err);
-      alert(err?.response?.data?.message || "Failed to save reading.");
+      if (!readingForm.applyServerErrors(err)) alert(apiErrorMessage(err, "Failed to save reading."));
     } finally {
       setSubmitting(false);
     }
@@ -971,18 +1006,19 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
         </div>
 
         {/* Modal Form */}
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden m-0">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden m-0" noValidate>
           <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 space-y-4 text-left">
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Target Unit / Room *</label>
+                <label htmlFor="reading-room_name" className="block text-xs font-bold text-slate-700 mb-1">Target Unit / Room *</label>
                 <select
-                  name="room_name"
+                  {...readingForm.fieldA11y('room_name')}
+                  onBlur={handleBlur}
                   value={formData.room_name}
                   onChange={handleInputChange}
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 cursor-pointer"
+                  className={fieldCls('room_name', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 cursor-pointer")}
                 >
                   <option value="">Select Room</option>
                   {rooms.map(room => (
@@ -991,31 +1027,38 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                     </option>
                   ))}
                 </select>
+                <FieldError id="reading-room_name" error={readingForm.errors.room_name} />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Billing Period (Month) *</label>
+                <label htmlFor="reading-billing_period" className="block text-xs font-bold text-slate-700 mb-1">Billing Period (Month) *</label>
                 <input
                   type="month"
-                  name="billing_period"
+                  {...readingForm.fieldA11y('billing_period')}
+                  onBlur={handleBlur}
                   value={formData.billing_period}
                   onChange={handleInputChange}
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500"
+                  className={fieldCls('billing_period', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
                 />
+                <FieldError id="reading-billing_period" error={readingForm.errors.billing_period} />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Reading Date *</label>
+              <label htmlFor="reading-reading_date" className="block text-xs font-bold text-slate-700 mb-1">Reading Date *</label>
               <input
                 type="date"
-                name="reading_date"
+                {...readingForm.fieldA11y('reading_date')}
+                onBlur={handleBlur}
+                max={localDateString()}
+                min={formData.billing_period ? `${formData.billing_period}-01` : undefined}
                 value={formData.reading_date}
                 onChange={handleInputChange}
                 required
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500"
+                className={fieldCls('reading_date', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
               />
+              <FieldError id="reading-reading_date" error={readingForm.errors.reading_date} />
             </div>
 
             {/* Water Section */}
@@ -1030,40 +1073,58 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (m³)</label>
+                  <label htmlFor="reading-water_curr_reading" className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (m³)</label>
                   <input
                     type="number"
                     step="0.01"
-                    name="water_curr_reading"
+                    {...readingForm.fieldA11y('water_curr_reading')}
+                    onBlur={handleBlur}
+                    inputMode="decimal"
+                    onKeyDown={blockNonNumericKeys}
+                    min={modalCalculations.waterPrev}
+                    max={MAX_AMOUNT}
                     value={formData.water_curr_reading}
                     onChange={handleInputChange}
                     placeholder={modalCalculations.waterPrev.toString()}
                     required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500"
+                    className={fieldCls('water_curr_reading', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
                   />
+                  <FieldError id="reading-water_curr_reading" error={readingForm.errors.water_curr_reading} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Rate per m³ (₱)</label>
+                  <label htmlFor="reading-water_rate_per_unit" className="block text-[11px] font-bold text-slate-600 mb-1">Rate per m³ (₱)</label>
                   <input
                     type="number"
                     step="0.01"
-                    name="water_rate_per_unit"
+                    {...readingForm.fieldA11y('water_rate_per_unit')}
+                    onBlur={handleBlur}
+                    inputMode="decimal"
+                    onKeyDown={blockNonNumericKeys}
+                    min="0.01"
+                    max="1000"
                     value={formData.water_rate_per_unit}
                     onChange={handleInputChange}
                     required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500"
+                    className={fieldCls('water_rate_per_unit', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
                   />
+                  <FieldError id="reading-water_rate_per_unit" error={readingForm.errors.water_rate_per_unit} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Other Water Fees (₱) <span className="text-slate-400 font-normal italic">- Optional fixed charges</span></label>
+                  <label htmlFor="reading-water_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Water Fees (₱) <span className="text-slate-400 font-normal italic">- Optional fixed charges</span></label>
                   <input
                     type="number"
                     step="0.01"
-                    name="water_other_fees"
+                    {...readingForm.fieldA11y('water_other_fees')}
+                    onBlur={handleBlur}
+                    inputMode="decimal"
+                    onKeyDown={blockNonNumericKeys}
+                    min="0"
+                    max={MAX_AMOUNT}
                     value={formData.water_other_fees}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500"
+                    className={fieldCls('water_other_fees', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500")}
                   />
+                  <FieldError id="reading-water_other_fees" error={readingForm.errors.water_other_fees} />
                 </div>
               </div>
               <div className="text-[11px] text-blue-800 font-semibold flex justify-between pt-1 border-t border-blue-100">
@@ -1084,40 +1145,58 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (kWh)</label>
+                  <label htmlFor="reading-electric_curr_reading" className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (kWh)</label>
                   <input
                     type="number"
                     step="0.01"
-                    name="electric_curr_reading"
+                    {...readingForm.fieldA11y('electric_curr_reading')}
+                    onBlur={handleBlur}
+                    inputMode="decimal"
+                    onKeyDown={blockNonNumericKeys}
+                    min={modalCalculations.elecPrev}
+                    max={MAX_AMOUNT}
                     value={formData.electric_curr_reading}
                     onChange={handleInputChange}
                     placeholder={modalCalculations.elecPrev.toString()}
                     required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
+                    className={fieldCls('electric_curr_reading', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
                   />
+                  <FieldError id="reading-electric_curr_reading" error={readingForm.errors.electric_curr_reading} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Rate per kWh (₱)</label>
+                  <label htmlFor="reading-electric_rate_per_unit" className="block text-[11px] font-bold text-slate-600 mb-1">Rate per kWh (₱)</label>
                   <input
                     type="number"
                     step="0.01"
-                    name="electric_rate_per_unit"
+                    {...readingForm.fieldA11y('electric_rate_per_unit')}
+                    onBlur={handleBlur}
+                    inputMode="decimal"
+                    onKeyDown={blockNonNumericKeys}
+                    min="0.01"
+                    max="1000"
                     value={formData.electric_rate_per_unit}
                     onChange={handleInputChange}
                     required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
+                    className={fieldCls('electric_rate_per_unit', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
                   />
+                  <FieldError id="reading-electric_rate_per_unit" error={readingForm.errors.electric_rate_per_unit} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Other Electricity Fees (₱) <span className="text-slate-400 font-normal italic">- Optional fixed charges</span></label>
+                  <label htmlFor="reading-electric_other_fees" className="block text-[11px] font-bold text-slate-600 mb-1">Other Electricity Fees (₱) <span className="text-slate-400 font-normal italic">- Optional fixed charges</span></label>
                   <input
                     type="number"
                     step="0.01"
-                    name="electric_other_fees"
+                    {...readingForm.fieldA11y('electric_other_fees')}
+                    onBlur={handleBlur}
+                    inputMode="decimal"
+                    onKeyDown={blockNonNumericKeys}
+                    min="0"
+                    max={MAX_AMOUNT}
                     value={formData.electric_other_fees}
                     onChange={handleInputChange}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500"
+                    className={fieldCls('electric_other_fees', "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-amber-500")}
                   />
+                  <FieldError id="reading-electric_other_fees" error={readingForm.errors.electric_other_fees} />
                 </div>
               </div>
               <div className="text-[11px] text-amber-800 font-semibold flex justify-between pt-1 border-t border-amber-100">
@@ -1134,15 +1213,19 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
 
             {/* Notes */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Notes (Optional)</label>
+              <label htmlFor="reading-notes" className="block text-xs font-bold text-slate-700 mb-1">Notes (Optional)</label>
               <input
                 type="text"
-                name="notes"
+                {...readingForm.fieldA11y('notes')}
+                onBlur={handleBlur}
+                maxLength={LIMITS.notes}
+                autoComplete="off"
                 value={formData.notes}
                 onChange={handleInputChange}
                 placeholder="e.g. Verified sub-meter serial, tenant present"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500"
+                className={fieldCls('notes', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
               />
+              <FieldError id="reading-notes" error={readingForm.errors.notes} />
             </div>
 
           </div>

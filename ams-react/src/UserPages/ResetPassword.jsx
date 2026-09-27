@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from "../assets/Apartment_Pic.png";
-import { PASSWORD_MAX_BYTES, checkPassword } from '../utils/validation';
+import { checkNewPassword, checkPasswordMatch } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import PasswordField from '../Components/form/PasswordField';
+import PasswordChecklist from '../Components/form/PasswordChecklist';
 import '../assets/styles/responsive/user/login.responsive.css';
+
+const LABEL_CLS = "text-xs font-bold text-slate-700 uppercase tracking-wider block";
+const INPUT_CLS = "focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border";
+
+const VALIDATORS = {
+    new_password: (v) => checkNewPassword(v),
+    confirm_password: (v, all) => checkPasswordMatch(all.new_password, v),
+};
 
 export default function ResetPassword() {
     const [searchParams] = useSearchParams();
@@ -15,25 +25,17 @@ export default function ResetPassword() {
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
     const [message, setMessage] = useState(() => (!email || !token ? "Invalid password reset link." : ''));
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const form = useFieldErrors(VALIDATORS, { idPrefix: 'reset-' });
+    const values = { new_password: password, confirm_password: confirmPassword };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
         setMessage('');
-
-        if (password !== confirmPassword) {
-            setMessage("Passwords do not match.");
-            return;
-        }
-
-        const passwordError = checkPassword(password);
-        if (passwordError) {
-            setMessage(passwordError);
-            return;
-        }
+        if (!form.validateAll(values)) return;
 
         setIsSubmitting(true);
         try {
@@ -46,11 +48,13 @@ export default function ResetPassword() {
             if (res.data.success) {
                 setIsSuccess(true);
                 setMessage(res.data.message);
-            } else {
+            } else if (!form.applyServerErrors(res)) {
                 setMessage(res.data.message);
             }
         } catch (error) {
-            setMessage(error.response?.data?.message || "Failed to reset password. The link might be expired.");
+            if (!form.applyServerErrors(error)) {
+                setMessage(apiErrorMessage(error, "Failed to reset password. The link might be expired."));
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -125,56 +129,39 @@ export default function ResetPassword() {
                                 </button>
                             </div>
                         ) : (
-                            <form className="space-y-5" onSubmit={handleSubmit}>
+                            <form className="space-y-5" onSubmit={handleSubmit} noValidate>
                                 {(!email || !token) ? (
                                     <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs rounded-xl text-center font-semibold">
                                         {message}
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="space-y-1.5">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">New Password</label>
-                                            </div>
-                                            <div className="relative">
-                                                <input
-                                                    type={showPassword ? "text" : "password"}
-                                                    placeholder="••••••••••••"
-                                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
-                                                    required
-                                                    value={password}
-                                                    onChange={(e) => setPassword(e.target.value)}
-                                                    minLength={8}
-                                                    maxLength={PASSWORD_MAX_BYTES}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowPassword(!showPassword)}
-                                                    className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600 transition-colors bg-transparent border-0 cursor-pointer"
-                                                >
-                                                    <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <PasswordField
+                                            a11y={form.fieldA11y('new_password')}
+                                            label="New Password"
+                                            labelClassName={LABEL_CLS}
+                                            inputClassName={INPUT_CLS}
+                                            value={password}
+                                            onChange={(e) => { setPassword(e.target.value); form.clearError('new_password'); }}
+                                            onBlur={() => password && form.validateField('new_password', values)}
+                                            error={form.errors.new_password}
+                                        >
+                                            <PasswordChecklist password={password} />
+                                        </PasswordField>
 
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Confirm Password</label>
-                                            <div className="relative">
-                                                <input
-                                                    type={showPassword ? "text" : "password"}
-                                                    placeholder="••••••••••••"
-                                                    className="focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border"
-                                                    required
-                                                    value={confirmPassword}
-                                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                                    minLength={8}
-                                                    maxLength={PASSWORD_MAX_BYTES}
-                                                />
-                                            </div>
-                                        </div>
+                                        <PasswordField
+                                            a11y={form.fieldA11y('confirm_password')}
+                                            label="Confirm Password"
+                                            labelClassName={LABEL_CLS}
+                                            inputClassName={INPUT_CLS}
+                                            value={confirmPassword}
+                                            onChange={(e) => { setConfirmPassword(e.target.value); form.clearError('confirm_password'); }}
+                                            onBlur={() => confirmPassword && form.validateField('confirm_password', values)}
+                                            error={form.errors.confirm_password}
+                                        />
 
                                         {message && (
-                                            <p className="text-center text-xs font-semibold text-rose-500 m-0 pt-1">
+                                            <p role="alert" className="text-center text-xs font-semibold text-rose-500 m-0 pt-1">
                                                 {message}
                                             </p>
                                         )}

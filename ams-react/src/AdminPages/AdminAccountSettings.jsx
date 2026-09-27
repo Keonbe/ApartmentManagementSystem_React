@@ -6,7 +6,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSave, faSpinner, faTimes, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getSystemSettings, saveSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
-import { checkEmail, checkPassword, checkPhMobile, firstError, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, checkEmail, checkNewPassword, checkPasswordMatch, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
 import { SETTINGS_TABS, SETTINGS_TAB_IDS } from './settings/tabs';
 import SettingsNav from './settings/SettingsNav';
 import AccountPanel from './settings/AccountPanel';
@@ -18,6 +20,20 @@ import MaintenancePanel from './settings/MaintenancePanel';
 
 const SETTINGS_FORM_ID = 'system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// Keys match profile.php / change_password.php bodies.
+const PROFILE_VALIDATORS = {
+  firstName: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
+  lastName: (v) => checkPersonName(v, { label: 'Last name', max: LIMITS.lastName }),
+  email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
+  contactNo: (v) => (String(v ?? '').trim() ? checkPhMobile(v) : ''),
+};
+const PASSWORD_VALIDATORS = {
+  current_password: (v) => (v ? '' : 'Current password is required.'),
+  new_password: (v, all) => checkNewPassword(v)
+    || (v && v === all.current_password ? 'New password must be different from the current password.' : ''),
+  confirm_password: (v, all) => checkPasswordMatch(all.new_password, v),
+};
 
 const AdminAccountSettings = () => {
   // Loaded from the signed-in admin's real account. These used to be hardcoded
@@ -34,6 +50,8 @@ const AdminAccountSettings = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const profileForm = useFieldErrors(PROFILE_VALIDATORS, { idPrefix: 'acct-' });
+  const passwordForm = useFieldErrors(PASSWORD_VALIDATORS, { idPrefix: 'acctpw-' });
 
   // System settings: the form's working copy, and the last copy the server
   // accepted. The difference between the two is "unsaved changes".
@@ -109,24 +127,28 @@ const AdminAccountSettings = () => {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    const invalid = firstError(checkEmail(email), phone.trim() ? checkPhMobile(phone) : '');
-    if (invalid) {
-      showToast('error', 'Check Your Details', invalid);
-      return;
-    }
+    if (savingProfile) return;
+    const clean = { firstName: firstName.trim(), lastName: lastName.trim(), email: normalizeEmail(email), contactNo: phone };
+    setFirstName(clean.firstName);
+    setLastName(clean.lastName);
+    setEmail(clean.email);
+    if (!profileForm.validateAll(clean)) return;
     setSavingProfile(true);
     try {
       const res = await api.post('profile.php', {
-        firstName, lastName, email, contactNo: toPhE164(phone),
+        ...clean, contactNo: toPhE164(phone),
         middleName: profileExtras.middle_name, suffix: profileExtras.suffix, gender: profileExtras.gender
       });
-      if (!res.data.success) throw new Error(res.data.message);
+      if (!res.data.success) {
+        if (!profileForm.applyServerErrors(res)) showToast('error', 'Profile Not Saved', res.data.message || 'Failed to save your profile.');
+        return;
+      }
       // Keep the header and guards showing the new name/email without a re-login.
       const store = sessionStorage.getItem('loggedInUser') ? sessionStorage : localStorage;
-      store.setItem('loggedInUser', JSON.stringify({ ...storedUser, first_name: firstName, last_name: lastName, email_address: email }));
+      store.setItem('loggedInUser', JSON.stringify({ ...storedUser, first_name: clean.firstName, last_name: clean.lastName, email_address: clean.email }));
       showToast('success', 'Profile Updated', 'Your administrator details have been saved.');
     } catch (err) {
-      showToast('error', 'Profile Not Saved', err?.response?.data?.message || err.message || 'Failed to save your profile.');
+      if (!profileForm.applyServerErrors(err)) showToast('error', 'Profile Not Saved', apiErrorMessage(err, 'Failed to save your profile.'));
     } finally {
       setSavingProfile(false);
     }
@@ -135,30 +157,23 @@ const AdminAccountSettings = () => {
   // Calls the real endpoint. This form used to show "Password Changed" without sending anything.
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      showToast('error', 'Password Mismatch', 'New passwords do not match. Please verify and try again.');
-      return;
-    }
-    const passwordError = checkPassword(newPassword);
-    if (passwordError) {
-      showToast('error', 'Password Not Accepted', passwordError);
-      return;
-    }
+    if (savingPassword) return;
+    const body = { current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword };
+    if (!passwordForm.validateAll(body)) return;
     setSavingPassword(true);
     try {
-      const res = await api.post('change_password.php', {
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_password: confirmPassword
-      });
-      if (!res.data.success) throw new Error(res.data.message);
+      const res = await api.post('change_password.php', body);
+      if (!res.data.success) {
+        if (!passwordForm.applyServerErrors(res)) showToast('error', 'Password Not Changed', res.data.message || 'Failed to change password.');
+        return;
+      }
       const ended = res.data.sessions_ended || 0;
       showToast('success', 'Password Changed', `Your password has been updated.${ended ? ` ${ended} other session(s) were signed out.` : ''}`);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      showToast('error', 'Password Not Changed', err?.response?.data?.message || err.message || 'Failed to change password.');
+      if (!passwordForm.applyServerErrors(err)) showToast('error', 'Password Not Changed', apiErrorMessage(err, 'Failed to change password.'));
     } finally {
       setSavingPassword(false);
     }
@@ -302,6 +317,7 @@ const AdminAccountSettings = () => {
                   newPassword={newPassword} setNewPassword={setNewPassword}
                   confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword}
                   savingPassword={savingPassword} onPasswordSubmit={handlePasswordSubmit}
+                  profileForm={profileForm} passwordForm={passwordForm}
                 />
               )}
 

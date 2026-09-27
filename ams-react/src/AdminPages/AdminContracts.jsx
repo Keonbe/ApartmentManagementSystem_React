@@ -11,9 +11,31 @@ import {
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkDate, checkLength, firstError } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkDate, checkDateRange, maxFutureDate } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import ReasonModal from '../Components/form/ReasonModal';
+import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+
+const MAX_LEASE_MONTHS = 24;
+const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500';
+
+// Lease end: a real date after the start, at most 24 months later.
+const checkLeaseEnd = (start, end) => {
+  const base = checkDate(end, { label: 'Lease end', max: maxFutureDate() })
+    || checkDateRange(start, end, { startLabel: 'Lease start', endLabel: 'Lease end' });
+  if (base || !start) return base;
+  if (end === start) return 'Lease end must be after the lease start.';
+  const maxEnd = new Date(`${start}T00:00:00`);
+  maxEnd.setMonth(maxEnd.getMonth() + MAX_LEASE_MONTHS);
+  return new Date(`${end}T00:00:00`) > maxEnd ? `The maximum lease period is ${MAX_LEASE_MONTHS} months.` : '';
+};
+const LEASE_VALIDATORS = {
+  leaseStart: (v) => checkDate(v, { label: 'Lease start', max: maxFutureDate() }),
+  leaseEnd: (v, all) => checkLeaseEnd(all.leaseStart, v),
+};
 
 const statusConfig = {
   active: { label: 'Active', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
@@ -159,18 +181,31 @@ const AdminContracts = () => {
     }
   };
 
+  // Keys match create_contract.php where they exist (depositAmount → deposit here).
+  const contractErrors = useFieldErrors({
+    tenantId: (v) => (tenantOptions.some(t => String(t.id) === String(v)) ? '' : 'Please select a tenant.'),
+    deposit: (v) => checkAmount(v, { label: 'Security deposit' }),
+    ...LEASE_VALIDATORS,
+  }, { idPrefix: 'contract-' });
+  const editErrors = useFieldErrors(LEASE_VALIDATORS, { idPrefix: 'contract-edit-' });
+  const [generating, setGenerating] = useState(false);
+  const [savingDates, setSavingDates] = useState(false);
+  const [terminateTarget, setTerminateTarget] = useState(null);
+
+  const setContractField = (key, value) => {
+    setForm(p => {
+      const next = { ...p, [key]: value };
+      // A lease end now before the start is cleared rather than kept invalid.
+      if (key === 'leaseStart' && next.leaseEnd && value && next.leaseEnd <= value) next.leaseEnd = '';
+      return next;
+    });
+    contractErrors.clearError(key);
+  };
+
   const handleGenerate = async () => {
-    const contractError = firstError(
-      form.tenantId ? '' : 'Please select a tenant.',
-      checkAmount(form.deposit, { label: 'Security deposit' }),
-      checkDate(form.leaseStart, { label: 'Lease start' }),
-      checkDate(form.leaseEnd, { label: 'Lease end' }),
-      form.leaseEnd <= form.leaseStart ? 'Lease end date must be after the lease start date.' : ''
-    );
-    if (contractError) {
-      alert(contractError);
-      return;
-    }
+    if (generating) return;
+    if (!contractErrors.validateAll(form)) return;
+    setGenerating(true);
     try {
       const payload = {
         rentApplicationId: form.tenantId,
@@ -184,12 +219,14 @@ const AdminContracts = () => {
         setShowCreateModal(false);
         setCreateStep(1);
         setForm({ tenantId: '', tenant: '', unit: '', type: '', rent: '', deposit: '', leaseStart: '', leaseEnd: '' });
-      } else {
+      } else if (!contractErrors.applyServerErrors(res)) {
         alert(apiErrorMessage(res, 'Failed to create contract.'));
       }
     } catch (err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to create contract.'));
+      if (!contractErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to create contract.'));
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -201,30 +238,11 @@ const AdminContracts = () => {
   };
 
   const handleSaveDates = async () => {
-    if (!editForm.leaseStart || !editForm.leaseEnd) {
-      alert("Please select both lease start and end dates.");
-      return;
-    }
-    const start = new Date(editForm.leaseStart);
-    const end = new Date(editForm.leaseEnd);
-    const dateError = firstError(checkDate(editForm.leaseStart, { label: 'Lease start' }), checkDate(editForm.leaseEnd, { label: 'Lease end' }));
-    if (dateError || isNaN(start.getTime()) || isNaN(end.getTime())) {
-      alert(dateError || "Invalid date format selected.");
-      return;
-    }
-    if (end <= start) {
-      alert("Lease end date must be after the lease start date.");
-      return;
-    }
-    
-    // Check if end date is greater than 24 months from start date
-    const maxEnd = new Date(start);
-    maxEnd.setMonth(maxEnd.getMonth() + 24);
-    if (end > maxEnd) {
-      alert("The maximum lease period is 24 months.");
-      return;
-    }
+    if (savingDates) return;
+    // End after start, at most 24 months later (checkLeaseEnd).
+    if (!editErrors.validateAll(editForm)) return;
 
+    setSavingDates(true);
     try {
       const res = await api.post('/update_contract_status.php', {
         contractId: selectedContract.id,
@@ -240,12 +258,14 @@ const AdminContracts = () => {
           leaseEnd: editForm.leaseEnd
         }));
         setIsEditingDates(false);
-      } else {
+      } else if (!editErrors.applyServerErrors(res)) {
         alert(apiErrorMessage(res, 'Failed to update lease dates.'));
       }
     } catch (err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to update lease dates.'));
+      if (!editErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to update lease dates.'));
+    } finally {
+      setSavingDates(false);
     }
   };
 
@@ -369,32 +389,24 @@ const AdminContracts = () => {
   // cancels pending invoices, releases parking and cancels the tenant's
   // pending visitor pre-registrations. Confirmed separately from the reason
   // prompt since it isn't reversible from this page.
-  const handleTerminateContract = async (contractId) => {
-    const reason = prompt('Reason for terminating this lease (this will also mark the tenant as moved out and vacate their unit):');
-    if (reason === null) return; // cancelled
-    if (!reason.trim()) {
-      alert('A reason is required to terminate a contract.');
-      return;
-    }
-    const reasonError = checkLength(reason, LIMITS.reason, 'Reason');
-    if (reasonError) {
-      alert(reasonError);
-      return;
-    }
+  // The reason comes from ReasonModal (it used to be window.prompt()); a
+  // failure is thrown so the modal shows it under the reason.
+  const handleTerminateContract = (contractId) => setTerminateTarget(contractId);
+  const confirmTerminate = async (reason) => {
+    const contractId = terminateTarget;
     if (!window.confirm('This will end the tenancy: the unit will be marked vacant, pending invoices cancelled, and parking/visitor requests released. Continue?')) {
       return;
     }
+    let res;
     try {
-      const res = await api.post('/update_contract_status.php', { contractId, action: 'terminate', reason: reason.trim() });
-      if (res.data.success) {
-        await refreshContract(contractId);
-      } else {
-        alert(res.data.message || 'Failed to terminate contract.');
-      }
-    } catch(err) {
+      res = await api.post('/update_contract_status.php', { contractId, action: 'terminate', reason });
+    } catch (err) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to terminate contract.');
+      throw new Error(apiErrorMessage(err, 'Failed to terminate contract.'), { cause: err });
     }
+    if (!res.data.success) throw new Error(res.data.message || 'Failed to terminate contract.');
+    setTerminateTarget(null);
+    await refreshContract(contractId);
   };
 
   // Lease completeness checker
@@ -487,13 +499,13 @@ const AdminContracts = () => {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm focus-within:border-indigo-500 transition-all max-w-xs w-full">
                   <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                  <input type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
+                  <input maxLength={LIMITS.search} type="text" placeholder="Search contracts..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="focus-glow flex-1 bg-transparent text-sm outline-none border-0 p-0 text-slate-800" />
                 </div>
                 <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="focus-glow px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none cursor-pointer shadow-sm">
                   <option value="all">All Status</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="eviction-pending">Eviction Pending</option>
                 </select>
               </div>
-              <button onClick={() => { setShowCreateModal(true); setCreateStep(1); }} className="btn-interactive flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
+              <button onClick={() => { setShowCreateModal(true); setCreateStep(1); contractErrors.setErrors({}); }} className="btn-interactive flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
                 <FontAwesomeIcon icon={faPlus} /> New Contract
               </button>
             </div>
@@ -568,11 +580,12 @@ const AdminContracts = () => {
               {createStep === 1 && (
                 <>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant *</label>
-                    <select value={form.tenantId} onChange={handleTenantSelect} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
-                      <option value="">Choose a tenant...</option>
+                    <label htmlFor="contract-tenantId" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Select Tenant *</label>
+                    <select {...contractErrors.fieldA11y('tenantId')} value={form.tenantId} onChange={(e) => { handleTenantSelect(e); contractErrors.clearError('tenantId'); }} className={DATE_INPUT + invalidCls(contractErrors.errors.tenantId)}>
+                      <option value="" disabled>Choose a tenant...</option>
                       {tenantOptions.map(t => <option key={t.id} value={t.id}>{t.name} — Unit {t.unit}</option>)}
                     </select>
+                    <FieldError id="contract-tenantId" error={contractErrors.errors.tenantId} />
                   </div>
                   {form.tenant && (
                     <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-800">
@@ -586,22 +599,35 @@ const AdminContracts = () => {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
-                      <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={form.rent} onChange={e => setForm(p => ({...p, rent: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
+                      <label htmlFor="contract-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
+                      <input type="number" id="contract-rent" name="rent" inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={form.rent} onKeyDown={blockNonNumericKeys} onChange={e => setForm(p => ({...p, rent: e.target.value}))} className={DATE_INPUT} />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Security Deposit *</label>
-                      <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={form.deposit} onChange={e => setForm(p => ({...p, deposit: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
+                      <label htmlFor="contract-deposit" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Security Deposit *</label>
+                      <input type="number" {...contractErrors.fieldA11y('deposit')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={form.deposit}
+                        onKeyDown={blockNonNumericKeys}
+                        onChange={e => setContractField('deposit', e.target.value)}
+                        onBlur={() => contractErrors.validateField('deposit', form)}
+                        className={DATE_INPUT + invalidCls(contractErrors.errors.deposit)} />
+                      <FieldError id="contract-deposit" error={contractErrors.errors.deposit} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start *</label>
-                      <input type="date" value={form.leaseStart} onChange={e => setForm(p => ({...p, leaseStart: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
+                      <label htmlFor="contract-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start *</label>
+                      <input type="date" {...contractErrors.fieldA11y('leaseStart')} max={maxFutureDate()} value={form.leaseStart}
+                        onChange={e => setContractField('leaseStart', e.target.value)}
+                        onBlur={() => form.leaseStart && contractErrors.validateField('leaseStart', form)}
+                        className={DATE_INPUT + invalidCls(contractErrors.errors.leaseStart)} />
+                      <FieldError id="contract-leaseStart" error={contractErrors.errors.leaseStart} />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
-                      <input type="date" value={form.leaseEnd} onChange={e => setForm(p => ({...p, leaseEnd: e.target.value}))} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" />
+                      <label htmlFor="contract-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                      <input type="date" {...contractErrors.fieldA11y('leaseEnd')} min={form.leaseStart || undefined} max={maxFutureDate()} value={form.leaseEnd}
+                        onChange={e => setContractField('leaseEnd', e.target.value)}
+                        onBlur={() => form.leaseEnd && contractErrors.validateField('leaseEnd', form)}
+                        className={DATE_INPUT + invalidCls(contractErrors.errors.leaseEnd)} />
+                      <FieldError id="contract-leaseEnd" error={contractErrors.errors.leaseEnd} />
                     </div>
                   </div>
                 </>
@@ -645,43 +671,35 @@ const AdminContracts = () => {
               {createStep < 3 ? (
                 <button 
                   onClick={() => {
-                    if (createStep === 2) {
-                      if (!form.leaseStart || !form.leaseEnd) {
-                        alert("Please select both lease start and end dates.");
-                        return;
-                      }
-                      const start = new Date(form.leaseStart);
-                      const end = new Date(form.leaseEnd);
-                      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-                        alert("Invalid date format selected.");
-                        return;
-                      }
-                      if (end <= start) {
-                        alert("Lease end date must be after the lease start date.");
-                        return;
-                      }
-                      const maxEnd = new Date(start);
-                      maxEnd.setMonth(maxEnd.getMonth() + 24);
-                      if (end > maxEnd) {
-                        alert("The maximum lease period is 24 months.");
-                        return;
-                      }
-                    }
+                    // Each step checks its own fields before moving on.
+                    if (createStep === 1 && !contractErrors.validateAll(form, ['tenantId'])) return;
+                    if (createStep === 2 && !contractErrors.validateAll(form, ['deposit', 'leaseStart', 'leaseEnd'])) return;
                     setCreateStep(s => s + 1);
                   }}
-                  disabled={createStep === 1 && !form.tenant} 
+                  type="button"
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50"
                 >
                   Next <FontAwesomeIcon icon={faArrowRight} />
                 </button>
               ) : (
-                <button onClick={handleGenerate} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 border-0 cursor-pointer transition-colors">
-                  <FontAwesomeIcon icon={faFileSignature} /> Generate Contract
+                <button type="button" onClick={handleGenerate} disabled={generating} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  <FontAwesomeIcon icon={faFileSignature} /> {generating ? 'Generating…' : 'Generate Contract'}
                 </button>
               )}
             </div>
           </div>
         </div>
+      )}
+
+      {terminateTarget && (
+        <ReasonModal
+          title="Terminate Lease"
+          description="This also marks the tenant as moved out and vacates their unit."
+          label="Reason for terminating this lease"
+          confirmLabel="Terminate Lease"
+          onConfirm={confirmTerminate}
+          onClose={() => setTerminateTarget(null)}
+        />
       )}
 
       {/* Preview Modal — Enhanced with Document Upload */}
@@ -752,27 +770,40 @@ const AdminContracts = () => {
                   <div className="space-y-3 text-sm text-slate-700 bg-slate-100/50 p-4 rounded-xl border border-slate-200">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start (Move-in) *</label>
-                        <input 
-                          type="date" 
-                          value={editForm.leaseStart} 
-                          onChange={e => setEditForm(p => ({...p, leaseStart: e.target.value}))} 
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" 
+                        <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start (Move-in) *</label>
+                        <input
+                          type="date"
+                          {...editErrors.fieldA11y('leaseStart')}
+                          max={maxFutureDate()}
+                          value={editForm.leaseStart}
+                          onChange={e => {
+                            const leaseStart = e.target.value;
+                            setEditForm(p => ({ ...p, leaseStart, leaseEnd: p.leaseEnd && leaseStart && p.leaseEnd <= leaseStart ? '' : p.leaseEnd }));
+                            editErrors.clearError('leaseStart');
+                          }}
+                          onBlur={() => editErrors.validateField('leaseStart', editForm)}
+                          className={DATE_INPUT + invalidCls(editErrors.errors.leaseStart)}
                         />
+                        <FieldError id="contract-edit-leaseStart" error={editErrors.errors.leaseStart} />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
-                        <input 
-                          type="date" 
-                          value={editForm.leaseEnd} 
-                          onChange={e => setEditForm(p => ({...p, leaseEnd: e.target.value}))} 
-                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500" 
+                        <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                        <input
+                          type="date"
+                          {...editErrors.fieldA11y('leaseEnd')}
+                          min={editForm.leaseStart || undefined}
+                          max={maxFutureDate()}
+                          value={editForm.leaseEnd}
+                          onChange={e => { setEditForm(p => ({...p, leaseEnd: e.target.value})); editErrors.clearError('leaseEnd'); }}
+                          onBlur={() => editErrors.validateField('leaseEnd', editForm)}
+                          className={DATE_INPUT + invalidCls(editErrors.errors.leaseEnd)}
                         />
+                        <FieldError id="contract-edit-leaseEnd" error={editErrors.errors.leaseEnd} />
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
-                      <button onClick={() => setIsEditingDates(false)} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer">Cancel</button>
-                      <button onClick={handleSaveDates} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 border-0 cursor-pointer">Save</button>
+                      <button type="button" onClick={() => { setIsEditingDates(false); editErrors.setErrors({}); }} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer">Cancel</button>
+                      <button type="button" onClick={handleSaveDates} disabled={savingDates} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 border-0 cursor-pointer disabled:opacity-50">{savingDates ? 'Saving…' : 'Save'}</button>
                     </div>
                   </div>
                 ) : (

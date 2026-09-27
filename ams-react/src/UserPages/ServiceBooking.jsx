@@ -5,8 +5,18 @@ import { faCloudUploadAlt, faUndo, faHourglassHalf, faBroom, faTshirt, faConcier
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
-import { LIMITS, checkAmount, checkDate, firstError } from '../utils/validation';
+import { LIMITS, checkAmount, checkDate, checkIntRange, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import useFilePreview from '../hooks/useFilePreview';
+import FieldError from '../Components/form/FieldError';
+import CharCount from '../Components/form/CharCount';
+import { blockNonIntegerKeys, blockNonNumericKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
+
+const TIME_SLOTS = ['morning', 'afternoon'];
+// A service with no maximum still gets a sane one.
+const QUANTITY_FALLBACK_MAX = 1000;
 import '../assets/styles/responsive/user/service-booking.responsive.css';
 
 //MapsTheCatalogIconColumnOntoRealFontAwesomeIcons
@@ -33,7 +43,7 @@ export default function ServiceBooking() {
     const [preferredDate, setPreferredDate] = useState('');
     const [preferredTimeSlot, setPreferredTimeSlot] = useState('');
     const [notes, setNotes] = useState('');
-    const [uploadedFile, setUploadedFile] = useState(null);
+    const [uploadedFile, setUploadedFile, previewUrl] = useFilePreview();
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -74,6 +84,7 @@ export default function ServiceBooking() {
         setServiceId(e.target.value);
         setQuantityInput('');
         setPreferredDate('');
+        form.setErrors({});
     };
 
     //Enforces Philippines Standard Time (PST - UTC+8) for today's boundary tracking
@@ -104,6 +115,25 @@ export default function ServiceBooking() {
 
     //SessionPricedServicesAreAlwaysASingleVisit-NoQuantityInput
     const isQuantified = selected && selected.pricingUnit !== 'session';
+    // Items are counted; kg and hours may be fractional (2 decimals).
+    const wholeQuantity = selected?.pricingUnit === 'item';
+    const quantityMin = Number(selected?.minQuantity ?? 1);
+    const quantityMax = selected?.maxQuantity != null ? Number(selected.maxQuantity) : QUANTITY_FALLBACK_MAX;
+
+    // Keys match service_request.php's form fields.
+    const form = useFieldErrors({
+        serviceId: () => (selected ? '' : t('serviceBooking.selectServiceFirst')),
+        quantity: (v) => {
+            if (!isQuantified) return '';
+            if (wholeQuantity) return checkIntRange(v === '' ? NaN : v, quantityMin, quantityMax, 'Quantity');
+            return checkAmount(v, { min: quantityMin, max: quantityMax, label: 'Quantity' });
+        },
+        preferredDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
+        preferredTimeSlot: (v) => (TIME_SLOTS.includes(v) ? '' : t('serviceBooking.selectTime')),
+        notes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
+        uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.service) : ''),
+    }, { idPrefix: 'service-' });
+    const values = { serviceId, quantity, preferredDate, preferredTimeSlot, notes, uploadedFile };
     const estimatedTotal = selected ? selected.price * (Number(quantity) || 0) : 0;
 
     const unitLabel = (unit) => {
@@ -122,11 +152,8 @@ export default function ServiceBooking() {
     // post_max_size would drop a bigger file silently, so hold it to 10 MB here.
     const acceptFile = (file) => {
         const fileError = checkFile(file, FILE_RULES.service);
-        if (fileError) {
-            setFormError(fileError);
-            return;
-        }
-        setFormError(null);
+        form.setFieldError('uploadedFile', fileError);
+        if (fileError) return;
         setUploadedFile(file);
     };
     const handleDrop = (e) => {
@@ -141,28 +168,19 @@ export default function ServiceBooking() {
 
     const handleFormSubmit = async (e) => {
         e.preventDefault();
+        if (submitting) return;
         setFormError(null);
 
-        if (!selected) {
-            setFormError(t('serviceBooking.selectServiceFirst'));
-            return;
-        }
-        const bookingError = firstError(
-            isQuantified ? checkAmount(quantity, { min: Number(selected.minQuantity ?? 0), max: selected.maxQuantity != null ? Number(selected.maxQuantity) : undefined, label: 'Quantity' }) : '',
-            checkDate(preferredDate, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
-            preferredTimeSlot ? '' : t('serviceBooking.selectTime')
-        );
-        if (bookingError) {
-            setFormError(bookingError);
-            return;
-        }
+        const cleanNotes = notes.trim();
+        setNotes(cleanNotes);
+        if (!form.validateAll({ ...values, notes: cleanNotes })) return;
 
         const formData = new FormData();
         formData.append('serviceId', selected.id);
         formData.append('quantity', isQuantified ? quantity : 1);
         formData.append('preferredDate', preferredDate);
         formData.append('preferredTimeSlot', preferredTimeSlot);
-        formData.append('notes', notes.trim());
+        formData.append('notes', cleanNotes);
 
         if (uploadedFile) formData.append('uploadedFile', uploadedFile);
 
@@ -174,11 +192,11 @@ export default function ServiceBooking() {
 
             if (res.data.success) {
                 setIsModalOpen(true);
-            } else {
+            } else if (!form.applyServerErrors(res)) {
                 setFormError(res.data.message);
             }
         } catch (error) {
-            setFormError(error.response?.data?.message || t('serviceBooking.submitError'));
+            if (!form.applyServerErrors(error)) setFormError(apiErrorMessage(error, t('serviceBooking.submitError')));
         } finally {
             setSubmitting(false);
         }
@@ -221,15 +239,16 @@ export default function ServiceBooking() {
                         <h3 className="text-lg font-bold text-slate-700 m-0">{t('serviceBooking.noServices')}</h3>
                     </div>
                 ) : (
-                    <form className="service-booking-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit}>
+                    <form className="service-booking-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleFormSubmit} noValidate>
 
                         {/*Service Selector*/}
                         <div className="flex flex-col space-y-2 md:col-span-2">
-                            <label className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.selectService')}</label>
+                            <label htmlFor="service-serviceId" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.selectService')}</label>
                             <select
+                                {...form.fieldA11y('serviceId')}
                                 value={serviceId}
                                 onChange={handleServiceChange}
-                                className={`service-booking-select ${inputClass}`}
+                                className={`service-booking-select ${inputClass}${invalidCls(form.errors.serviceId)}`}
                                 style={{ color: '#1e293b' }}
                                 required
                             >
@@ -240,6 +259,7 @@ export default function ServiceBooking() {
                                     </option>
                                 ))}
                             </select>
+                            <FieldError id="service-serviceId" error={form.errors.serviceId} className="m-0" />
                         </div>
 
                         {/*Selected Service Summary Card*/}
@@ -266,20 +286,25 @@ export default function ServiceBooking() {
                         {/*Quantity Field-OnlyForNonSessionPricing*/}
                         {isQuantified && (
                             <div className="flex flex-col space-y-2">
-                                <label className={labelClass} style={{ color: '#3b4276' }}>
+                                <label htmlFor="service-quantity" className={labelClass} style={{ color: '#3b4276' }}>
                                     {t('serviceBooking.quantity')} ({unitLabel(selected.pricingUnit)})
                                 </label>
                                 <input
                                     type="number"
-                                    step="any"
-                                    min={selected.minQuantity}
-                                    max={selected.maxQuantity ?? undefined}
+                                    {...form.fieldA11y('quantity')}
+                                    inputMode={wholeQuantity ? 'numeric' : 'decimal'}
+                                    step={wholeQuantity ? '1' : '0.01'}
+                                    min={quantityMin}
+                                    max={quantityMax}
                                     value={quantity}
-                                    onChange={(e) => setQuantityInput(e.target.value)}
-                                    className={`service-booking-input ${inputClass}`}
+                                    onKeyDown={wholeQuantity ? blockNonIntegerKeys : blockNonNumericKeys}
+                                    onChange={(e) => { setQuantityInput(e.target.value); form.clearError('quantity'); }}
+                                    onBlur={() => form.validateField('quantity', values)}
+                                    className={`service-booking-input ${inputClass}${invalidCls(form.errors.quantity)}`}
                                     style={{ color: '#1e293b' }}
                                     required
                                 />
+                                <FieldError id="service-quantity" error={form.errors.quantity} className="m-0" />
                                 <p className="text-xs text-slate-400 m-0">
                                     {t('serviceBooking.quantityRange')
                                         .replace('{min}', selected.minQuantity)
@@ -298,26 +323,30 @@ export default function ServiceBooking() {
 
                         {/*Preferred Date Field*/}
                         <div className="flex flex-col space-y-2">
-                            <label className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.preferredDate')}</label>
+                            <label htmlFor="service-preferredDate" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.preferredDate')}</label>
                             <input
                                 type="date"
+                                {...form.fieldA11y('preferredDate')}
                                 min={minDateString}
                                 max={maxDateString}
                                 value={preferredDate}
-                                onChange={(e) => setPreferredDate(e.target.value)}
-                                className={`service-booking-input ${inputClass}`}
+                                onChange={(e) => { setPreferredDate(e.target.value); form.clearError('preferredDate'); }}
+                                onBlur={() => preferredDate && form.validateField('preferredDate', values)}
+                                className={`service-booking-input ${inputClass}${invalidCls(form.errors.preferredDate)}`}
                                 style={{ color: '#1e293b' }}
                                 required
                             />
+                            <FieldError id="service-preferredDate" error={form.errors.preferredDate} className="m-0" />
                         </div>
 
                         {/*Time Window Selector*/}
                         <div className="flex flex-col space-y-2">
-                            <label className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.preferredTimeSlot')}</label>
+                            <label htmlFor="service-preferredTimeSlot" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.preferredTimeSlot')}</label>
                             <select
+                                {...form.fieldA11y('preferredTimeSlot')}
                                 value={preferredTimeSlot}
-                                onChange={(e) => setPreferredTimeSlot(e.target.value)}
-                                className={`service-booking-select ${inputClass}`}
+                                onChange={(e) => { setPreferredTimeSlot(e.target.value); form.clearError('preferredTimeSlot'); }}
+                                className={`service-booking-select ${inputClass}${invalidCls(form.errors.preferredTimeSlot)}`}
                                 style={{ color: '#1e293b' }}
                                 required
                             >
@@ -325,25 +354,30 @@ export default function ServiceBooking() {
                                 <option value="morning">{t('serviceBooking.morning')}</option>
                                 <option value="afternoon">{t('serviceBooking.afternoon')}</option>
                             </select>
+                            <FieldError id="service-preferredTimeSlot" error={form.errors.preferredTimeSlot} className="m-0" />
                         </div>
 
                         {/*Additional Notes Area*/}
                         <div className="flex flex-col space-y-2 md:col-span-2">
-                            <label className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.notes')}</label>
+                            <label htmlFor="service-notes" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.notes')}</label>
                             <textarea
                                 rows={4}
+                                {...form.fieldA11y('notes')}
                                 placeholder={t('serviceBooking.notesPlaceholder')}
                                 value={notes}
                                 maxLength={LIMITS.notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                className="service-booking-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none"
+                                onChange={(e) => { setNotes(e.target.value); form.clearError('notes'); }}
+                                onBlur={() => { const v = notes.trim(); setNotes(v); form.validateField('notes', { ...values, notes: v }); }}
+                                className={"service-booking-textarea focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base resize-none" + invalidCls(form.errors.notes)}
                                 style={{ color: '#1e293b' }}
                             />
+                            <FieldError id="service-notes" error={form.errors.notes} className="m-0" />
+                            <CharCount value={notes} max={LIMITS.notes} className="m-0" />
                         </div>
 
                         {/*File Upload Drag and Drop Area*/}
                         <div className="flex flex-col space-y-2 md:col-span-2">
-                            <label className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.attachment')}</label>
+                            <label htmlFor="service-uploadedFile" className={labelClass} style={{ color: '#3b4276' }}>{t('serviceBooking.attachment')}</label>
                             <div
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
@@ -354,6 +388,7 @@ export default function ServiceBooking() {
                                     <>
                                         <input
                                             type="file"
+                                            {...form.fieldA11y('uploadedFile')}
                                             accept={acceptFor(FILE_RULES.service)}
                                             onChange={handleFileChange}
                                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -368,7 +403,7 @@ export default function ServiceBooking() {
                                     <div className="space-y-3 flex flex-col items-center w-full z-10">
                                         {uploadedFile.type.startsWith('image/') ? (
                                             <img
-                                                src={URL.createObjectURL(uploadedFile)}
+                                                src={previewUrl}
                                                 alt="Service reference preview"
                                                 className="w-32 h-20 object-cover rounded border border-slate-200"
                                             />
@@ -379,11 +414,11 @@ export default function ServiceBooking() {
                                         )}
                                         <div className="text-center">
                                             <p className="text-sm font-bold text-slate-800 m-0 truncate max-w-[240px]">{uploadedFile.name}</p>
-                                            <p className="text-slate-400 text-xs m-0 mt-0.5">({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</p>
+                                            <p className="text-slate-400 text-xs m-0 mt-0.5">({formatFileSize(uploadedFile.size)})</p>
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => setUploadedFile(null)}
+                                            onClick={() => { setUploadedFile(null); form.clearError('uploadedFile'); }}
                                             className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer transition-colors shadow-sm flex items-center gap-1.5"
                                         >
                                             <FontAwesomeIcon icon={faUndo} /> {t('serviceBooking.removeFile')}
@@ -391,6 +426,7 @@ export default function ServiceBooking() {
                                     </div>
                                 )}
                             </div>
+                            <FieldError id="service-uploadedFile" error={form.errors.uploadedFile} className="m-0" />
                         </div>
 
                         {/*BillingNotice-ChargesLandOnTheInvoiceForTheMonthOfDelivery*/}
@@ -401,7 +437,7 @@ export default function ServiceBooking() {
 
                         {/*ErrorBanner*/}
                         {formError && (
-                            <div className="md:col-span-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                            <div role="alert" className="md:col-span-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
                                 <p className="text-sm font-medium text-red-700 m-0">{formError}</p>
                             </div>
                         )}

@@ -10,9 +10,17 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkLength, firstError, localDateString } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkPaymentReference, checkText, localDateString, maxFutureDate } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import ReasonModal from '../Components/form/ReasonModal';
+import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
+const currentPeriodLabel = () => new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+const METHODS = ['Cash', 'GCash', 'Bank Transfer'];
+const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white';
 
 const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : '');
 
@@ -35,7 +43,6 @@ const AdminPayments = () => {
     setTimeout(() => setFlash(null), 6000);
   };
   const [rejectModal, setRejectModal] = useState(null); // { invoiceId, tenant } while open
-  const [rejectReason, setRejectReason] = useState('');
   
   const handleSendReminder = async (invoiceId) => {
     if (!invoiceId) return;
@@ -208,7 +215,9 @@ const AdminPayments = () => {
     load();
   }, []);
   
-  const [billingPeriod, setBillingPeriod] = useState('July 2026');
+  // Used for the draft receipt only; it used to default to a fixed 'July 2026'.
+  const [billingPeriod, setBillingPeriod] = useState(currentPeriodLabel);
+  const [recording, setRecording] = useState(false);
   const [isExtendedRent, setIsExtendedRent] = useState(false);
   const [extendedAmount, setExtendedAmount] = useState(0);
   const [customAddOns, setCustomAddOns] = useState(0);
@@ -336,21 +345,32 @@ const AdminPayments = () => {
     setTenants(prev => prev.map(t => t.id === selectedTenantId ? { ...t, [field]: value } : t));
   };
 
+  // Keys match record_payment_admin.php's body where one exists.
+  const recordValues = { billingPeriod, extendedAmount, customAddOns, paymentMethod, amountPaid: amountTendered, paymentReference };
+  const recordForm = useFieldErrors({
+    billingPeriod: (v) => checkText(v, { label: 'Period', max: LIMITS.billingPeriod }),
+    extendedAmount: (v) => (isExtendedRent ? checkAmount(v, { label: 'Prorated rent', min: 0.01, allowZero: false }) : ''),
+    customAddOns: (v) => checkAmount(v, { label: 'Add-ons', required: false }),
+    paymentMethod: (v) => (METHODS.includes(v) ? '' : 'Choose a payment method.'),
+    amountPaid: (v, all) => {
+      const base = checkAmount(v, { label: 'Amount tendered', required: all.paymentMethod === 'Cash' });
+      if (base || String(v ?? '').trim() === '') return base;
+      return all.paymentMethod === 'Cash' && Number(v) < totalDue ? `Amount tendered must cover the total due (${formatCurrency(totalDue)}).` : '';
+    },
+    // Optional for GCash/bank (the tenant's own reference is kept when blank).
+    paymentReference: (v, all) => (all.paymentMethod !== 'Cash' && String(v ?? '').trim() ? checkPaymentReference(v, all.paymentMethod) : ''),
+  }, { idPrefix: 'record-' });
+  const blurRecord = (name) => recordForm.validateField(name, recordValues);
+
   const handleConfirmPayment = () => {
+    if (!recordForm.validateAll(recordValues)) return;
     setShowConfirmModal(true);
   };
 
 const handleMarkAsPaid = async () => {
-    if (!activeTenant || !activeTenant.pendingInvoiceId) return;
-    const recordError = firstError(
-      amountTendered !== '' ? checkAmount(amountTendered, { label: 'Amount tendered' }) : '',
-      checkLength(paymentReference, LIMITS.paymentReference, 'Reference number')
-    );
-    if (recordError) {
-      alert(recordError);
-      return;
-    }
-    
+    if (!activeTenant || !activeTenant.pendingInvoiceId || recording) return;
+
+    setRecording(true);
     try {
       const res = await api.post('/record_payment_admin.php', {
         invoiceId: activeTenant.pendingInvoiceId,
@@ -359,7 +379,7 @@ const handleMarkAsPaid = async () => {
         // form and then thrown away, so nothing about the payment itself was
         // recorded beyond the method.
         amountPaid: amountTendered !== '' ? Number(amountTendered) : undefined,
-        paymentReference: paymentReference || undefined
+        paymentReference: paymentReference.trim() || undefined
       });
       
       // Safely check if the response is successful
@@ -375,47 +395,40 @@ const handleMarkAsPaid = async () => {
       } else {
         // If it's a string (HTML error) or missing the message property, alert a safe fallback
         console.error("Server returned an error format:", res.data);
-        alert(res.data?.message || "Server Error. Check the browser console for details.");
+        setShowConfirmModal(false);
+        if (!recordForm.applyServerErrors(res)) alert(res.data?.message || "Server Error. Check the browser console for details.");
       }
     } catch(err) {
       console.error("Network or API Error:", err);
-      // Safely chain into the error response
-      alert(err.response?.data?.message || "A network or server error occurred.");
+      setShowConfirmModal(false);
+      if (!recordForm.applyServerErrors(err)) alert(apiErrorMessage(err, "A network or server error occurred."));
+    } finally {
+      setRecording(false);
     }
   };
 
   const handleRejectProof = () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId) return;
-    setRejectReason('');
     setRejectModal({ invoiceId: activeTenant.pendingInvoiceId, tenant: activeTenant.name });
   };
 
-  const submitRejectProof = async (e) => {
-    e.preventDefault();
+  // Throws on failure so ReasonModal shows the message under the reason.
+  const submitRejectProof = async (reason) => {
     if (!rejectModal) return;
-    const reason = rejectReason.trim();
-    const reasonError = reason ? checkLength(reason, LIMITS.reason, 'Reason') : 'Enter the reason the tenant will see.';
-    if (reasonError) {
-      alert(reasonError);
-      return;
-    }
-
+    let res;
     try {
-      const res = await api.post('/reject_payment_proof.php', {
+      res = await api.post('/reject_payment_proof.php', {
         invoiceId: rejectModal.invoiceId,
         reason
       });
-      if (res.data && res.data.success) {
-        fetchInvoices();
-        showFlash(`Payment proof returned to ${rejectModal.tenant}. The tenant has been notified with your reason.`);
-        setRejectModal(null);
-      } else {
-        alert(res.data?.message || "Failed to reject payment proof.");
-      }
     } catch (err) {
       console.error("Reject proof error:", err);
-      alert(err.response?.data?.message || "A network or server error occurred.");
+      throw new Error(apiErrorMessage(err, "A network or server error occurred."), { cause: err });
     }
+    if (!res.data?.success) throw new Error(res.data?.message || "Failed to reject payment proof.");
+    fetchInvoices();
+    showFlash(`Payment proof returned to ${rejectModal.tenant}. The tenant has been notified with your reason.`);
+    setRejectModal(null);
   };
 
   const handleGenerateReceipt = (record = null) => {
@@ -559,7 +572,7 @@ const handleMarkAsPaid = async () => {
                   <div className="flex flex-col sm:flex-row gap-2">
                     <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                      <input type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
+                      <input maxLength={LIMITS.search} type="text" placeholder="Search tenant..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0 text-slate-800 bg-white" />
                     </div>
                     <div className="flex gap-2">
                       <select 
@@ -685,12 +698,16 @@ const handleMarkAsPaid = async () => {
 
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Period</p>
-                      <input type="text" value={billingPeriod} onChange={e => setBillingPeriod(e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800" />
+                      <label htmlFor="record-billingPeriod" className="block text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Period</label>
+                      <input type="text" {...recordForm.fieldA11y('billingPeriod')} autoComplete="off" maxLength={LIMITS.billingPeriod} value={billingPeriod}
+                        onChange={e => { setBillingPeriod(e.target.value); recordForm.clearError('billingPeriod'); }}
+                        onBlur={() => { const v = billingPeriod.trim(); setBillingPeriod(v); recordForm.validateField('billingPeriod', { ...recordValues, billingPeriod: v }); }}
+                        className={`w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800${invalidCls(recordForm.errors.billingPeriod)}`} />
+                      <FieldError id="record-billingPeriod" error={recordForm.errors.billingPeriod} />
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Due Date</p>
-                      <input type="date" min={localDateString()} value={activeTenant.dueDate} onChange={e => handleUpdateTenantField('dueDate', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800" />
+                      <label htmlFor="record-dueDate" className="block text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Due Date</label>
+                      <input type="date" id="record-dueDate" name="dueDate" min={localDateString()} max={maxFutureDate()} value={activeTenant.dueDate} onChange={e => handleUpdateTenantField('dueDate', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800" />
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Term</p>
@@ -742,13 +759,23 @@ const handleMarkAsPaid = async () => {
                     <div className="w-1/3 space-y-3">
                       {isExtendedRent && (
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Prorated Base Rent</label>
-                          <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={extendedAmount} onChange={e => setExtendedAmount(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
+                          <label htmlFor="record-extendedAmount" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Prorated Base Rent</label>
+                          <input type="number" {...recordForm.fieldA11y('extendedAmount')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={extendedAmount}
+                            onKeyDown={blockNonNumericKeys}
+                            onChange={e => { setExtendedAmount(e.target.value); recordForm.clearError('extendedAmount'); }}
+                            onBlur={() => blurRecord('extendedAmount')}
+                            className={AMOUNT_INPUT + invalidCls(recordForm.errors.extendedAmount)} placeholder="0" />
+                          <FieldError id="record-extendedAmount" error={recordForm.errors.extendedAmount} />
                         </div>
                       )}
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Custom Add-ons</label>
-                        <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={customAddOns} onChange={e => setCustomAddOns(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
+                        <label htmlFor="record-customAddOns" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Custom Add-ons</label>
+                        <input type="number" {...recordForm.fieldA11y('customAddOns')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={customAddOns}
+                          onKeyDown={blockNonNumericKeys}
+                          onChange={e => { setCustomAddOns(e.target.value); recordForm.clearError('customAddOns'); }}
+                          onBlur={() => blurRecord('customAddOns')}
+                          className={AMOUNT_INPUT + invalidCls(recordForm.errors.customAddOns)} placeholder="0" />
+                        <FieldError id="record-customAddOns" error={recordForm.errors.customAddOns} />
                       </div>
                     </div>
                     <div className="text-right flex flex-col items-end">
@@ -774,16 +801,20 @@ const handleMarkAsPaid = async () => {
                       <h4 className="text-sm font-bold text-slate-800 mb-3 m-0">Record Payment</h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Method</label>
-                          <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500">
-                            <option value="Cash">Cash</option>
-                            <option value="GCash">GCash</option>
-                            <option value="Bank Transfer">Bank Transfer</option>
+                          <label htmlFor="record-paymentMethod" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Method</label>
+                          <select {...recordForm.fieldA11y('paymentMethod')} value={paymentMethod} onChange={e => { setPaymentMethod(e.target.value); recordForm.setErrors({}); }} className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500${invalidCls(recordForm.errors.paymentMethod)}`}>
+                            {METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                           </select>
+                          <FieldError id="record-paymentMethod" error={recordForm.errors.paymentMethod} />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Amount Tendered</label>
-                          <input type="number" min="0" max={MAX_AMOUNT} step="0.01" value={amountTendered} onChange={e => setAmountTendered(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white" placeholder="0" />
+                          <label htmlFor="record-amountPaid" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Amount Tendered</label>
+                          <input type="number" {...recordForm.fieldA11y('amountPaid')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={amountTendered}
+                            onKeyDown={blockNonNumericKeys}
+                            onChange={e => { setAmountTendered(e.target.value); recordForm.clearError('amountPaid'); }}
+                            onBlur={() => amountTendered !== '' && blurRecord('amountPaid')}
+                            className={AMOUNT_INPUT + invalidCls(recordForm.errors.amountPaid)} placeholder="0" />
+                          <FieldError id="record-amountPaid" error={recordForm.errors.amountPaid} />
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Change</label>
@@ -793,15 +824,20 @@ const handleMarkAsPaid = async () => {
 
                       {paymentMethod !== 'Cash' && (
                         <div className="mt-3">
-                          <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference No.</label>
+                          <label htmlFor="record-paymentReference" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference No.</label>
                           <input
                             type="text"
+                            {...recordForm.fieldA11y('paymentReference')}
+                            autoComplete="off"
+                            inputMode={paymentMethod === 'GCash' ? 'numeric' : 'text'}
                             value={paymentReference}
-                            maxLength={LIMITS.paymentReference}
-                            onChange={e => setPaymentReference(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white"
+                            maxLength={paymentMethod === 'GCash' ? 13 : paymentMethod === 'Bank Transfer' ? 55 : LIMITS.paymentReference}
+                            onChange={e => { setPaymentReference(e.target.value); recordForm.clearError('paymentReference'); }}
+                            onBlur={() => { const v = paymentReference.trim(); setPaymentReference(v); recordForm.validateField('paymentReference', { ...recordValues, paymentReference: v }); }}
+                            className={AMOUNT_INPUT + invalidCls(recordForm.errors.paymentReference)}
                             placeholder={activeTenant.paymentReference || 'Transfer / transaction reference'}
                           />
+                          <FieldError id="record-paymentReference" error={recordForm.errors.paymentReference} />
                         </div>
                       )}
                       
@@ -881,7 +917,7 @@ const handleMarkAsPaid = async () => {
                   <div className="flex gap-3">
                     <button 
                       onClick={handleConfirmPayment} 
-                      disabled={totalDue <= 0 || activeTenant.status === 'paid' || (paymentMethod === 'Cash' && (!amountTendered || Number(amountTendered) < totalDue))} 
+                      disabled={recording || totalDue <= 0 || activeTenant.status === 'paid'}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors border-0 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment
@@ -905,7 +941,7 @@ const handleMarkAsPaid = async () => {
                     </div>
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus-within:border-indigo-400 transition-colors">
                       <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
-                      <input type="text" placeholder="Filter period..." value={historySearchPeriod} onChange={e => {setHistorySearchPeriod(e.target.value); setHistoryPage(1);}} className="bg-transparent text-xs outline-none border-0 p-0 text-slate-700 w-24 bg-slate-50" />
+                      <input maxLength={LIMITS.search} type="text" placeholder="Filter period..." value={historySearchPeriod} onChange={e => {setHistorySearchPeriod(e.target.value); setHistoryPage(1);}} className="bg-transparent text-xs outline-none border-0 p-0 text-slate-700 w-24 bg-slate-50" />
                     </div>
                   </div>
                   
@@ -1202,7 +1238,7 @@ const handleMarkAsPaid = async () => {
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowConfirmModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => !recording && setShowConfirmModal(false)}>
           <div className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="p-6">
               <h3 className="text-lg font-bold text-slate-800 mb-2 mt-0">Confirm Payment</h3>
@@ -1214,8 +1250,8 @@ const handleMarkAsPaid = async () => {
                 <div className="flex justify-between"><span className="text-slate-500">Method</span><span className="font-semibold text-slate-800">{paymentMethod}</span></div>
               </div>
               <div className="flex gap-2">
-                <button onClick={handleMarkAsPaid} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">Confirm Approval</button>
-                <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
+                <button type="button" onClick={handleMarkAsPaid} disabled={recording} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{recording ? 'Processing…' : 'Confirm Approval'}</button>
+                <button type="button" disabled={recording} onClick={() => setShowConfirmModal(false)} className="flex-1 disabled:opacity-50 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
               </div>
             </div>
           </div>
@@ -1329,33 +1365,15 @@ const handleMarkAsPaid = async () => {
       )}
 
       {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setRejectModal(null)}>
-          <form onSubmit={submitRejectProof} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-bold text-slate-800 m-0">Reject Payment Proof</h3>
-              <button type="button" onClick={() => setRejectModal(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
-                <FontAwesomeIcon icon={faTimes} />
-              </button>
-            </div>
-            <p className="text-xs text-slate-500 m-0">
-              {rejectModal.tenant}'s invoice returns to unpaid and they are notified with this reason, so they can pay again.
-            </p>
-            <textarea
-              required
-              rows="3"
-              autoFocus
-              maxLength={LIMITS.reason}
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="e.g. The reference number does not match any GCash transaction."
-              className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 box-border"
-            />
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setRejectModal(null)} className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer">Cancel</button>
-              <button type="submit" className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 border-0 cursor-pointer">Reject &amp; Notify Tenant</button>
-            </div>
-          </form>
-        </div>
+        <ReasonModal
+          title="Reject Payment Proof"
+          description={`${rejectModal.tenant}'s invoice returns to unpaid and they are notified with this reason, so they can pay again.`}
+          label="Reason the tenant will see"
+          placeholder="e.g. The reference number does not match any GCash transaction."
+          confirmLabel="Reject & Notify Tenant"
+          onConfirm={submitRejectProof}
+          onClose={() => setRejectModal(null)}
+        />
       )}
 
       {flash && (

@@ -1,69 +1,86 @@
 import { useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { PASSWORD_MAX_BYTES, checkPassword } from '../utils/validation';
+import { checkNewPassword, checkPasswordMatch } from '../utils/validation';
+import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import PasswordField from './form/PasswordField';
+import PasswordChecklist from './form/PasswordChecklist';
+
+const EMPTY = { current_password: '', new_password: '', confirm_password: '' };
+
+// Field names match change_password.php's body keys, so a server field error
+// lands on the right input.
+const VALIDATORS = {
+    current_password: (v) => (v ? '' : 'Current password is required.'),
+    new_password: (v, all) => checkNewPassword(v)
+        || (v && v === all.current_password ? 'New password must be different from the current password.' : ''),
+    confirm_password: (v, all) => checkPasswordMatch(all.new_password, v),
+};
 
 export default function ChangePasswordModal({ isOpen, onClose }) {
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    
-    const [showCurrentPass, setShowCurrentPass] = useState(false);
-    const [showNewPass, setShowNewPass] = useState(false);
-    const [showConfirmPass, setShowConfirmPass] = useState(false);
-    
+    const [values, setValues] = useState(EMPTY);
     const [message, setMessage] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const form = useFieldErrors(VALIDATORS, { idPrefix: 'chpw-' });
 
     if (!isOpen) return null;
 
-    const handlePasswordSave = async (e) => {
-        e.preventDefault();
+    // Closing without saving shouldn't leave passwords or errors behind.
+    const close = () => {
+        if (isSaving) return;
+        setValues(EMPTY);
         setMessage('');
         setIsSuccess(false);
+        form.setErrors({});
+        onClose();
+    };
 
-        const passwordError = checkPassword(newPassword);
-        if (passwordError) {
-            setMessage(passwordError);
-            return;
-        }
+    const change = (name) => (e) => {
+        setValues({ ...values, [name]: e.target.value });
+        form.clearError(name);
+    };
+    const blur = (name) => () => {
+        if (values[name]) form.validateField(name, values);
+    };
 
-        if (newPassword !== confirmPassword) {
-            setMessage("Confirmed password does not match");
-            return;
-        }
+    const handlePasswordSave = async (e) => {
+        e.preventDefault();
+        if (isSaving) return;
+        setMessage('');
+        setIsSuccess(false);
+        if (!form.validateAll(values)) return;
 
+        setIsSaving(true);
         try {
             // The account is identified by the session token, not by an email in the body.
-            const res = await api.post("/change_password.php", {
-                current_password: currentPassword,
-                new_password: newPassword,
-                confirm_password: confirmPassword
-            });
+            const res = await api.post("/change_password.php", values);
 
             if (res.data.success) {
                 setIsSuccess(true);
                 setMessage(res.data.message);
-                setCurrentPassword('');
-                setNewPassword('');
-                setConfirmPassword('');
+                setValues(EMPTY);
                 setTimeout(() => {
                     setMessage('');
+                    setIsSuccess(false);
                     onClose();
                 }, 2000);
-            } else {
+            } else if (!form.applyServerErrors(res)) {
                 setMessage(res.data.message || "Failed to update password.");
             }
         } catch (error) {
             console.error("Error updating password:", error);
-            setMessage(error?.response?.data?.message || "Unable to save password change. Please try again.");
+            if (!form.applyServerErrors(error)) {
+                setMessage(apiErrorMessage(error, "Unable to save password change. Please try again."));
+            }
+        } finally {
+            setIsSaving(false);
         }
     };
 
     return (
-        <div 
-            onClick={onClose}
+        <div
+            onClick={close}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in modal-overlay-anim"
         >
             <div
@@ -72,85 +89,49 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
             >
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="text-lg font-bold m-0 text-slate-800">Change Password</h3>
-                    <button 
-                        onClick={onClose}
+                    <button
+                        type="button"
+                        onClick={close}
+                        aria-label="Close"
                         className="text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-base"
                     >✕</button>
                 </div>
 
-                <form onSubmit={handlePasswordSave} className="p-6 space-y-4 m-0">
-                    
-                    {/*Current Password Form Row Field Input Layout*/}
-                    <div className="flex flex-col space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">Current Password</label>
-                        <div className="relative">
-                            <input
-                                type={showCurrentPass ? "text" : "password"}
-                                placeholder="••••••••••••"
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm pr-12"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowCurrentPass(!showCurrentPass)}
-                                className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
-                            >
-                                <FontAwesomeIcon icon={showCurrentPass ? faEyeSlash : faEye} />
-                            </button>
-                        </div>
-                    </div>
+                <form onSubmit={handlePasswordSave} className="p-6 space-y-4 m-0" noValidate>
+                    <PasswordField
+                        a11y={form.fieldA11y('current_password')}
+                        label="Current Password"
+                        autoComplete="current-password"
+                        maxLength={128}
+                        value={values.current_password}
+                        onChange={change('current_password')}
+                        onBlur={blur('current_password')}
+                        error={form.errors.current_password}
+                    />
 
-                    {/*New Password Input Layout*/}
-                    <div className="flex flex-col space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">New Password</label>
-                        <div className="relative">
-                            <input
-                                type={showNewPass ? "text" : "password"}
-                                placeholder="••••••••••••"
-                                maxLength={PASSWORD_MAX_BYTES}
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm pr-12"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowNewPass(!showNewPass)}
-                                className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
-                            >
-                                <FontAwesomeIcon icon={showNewPass ? faEyeSlash : faEye} />
-                            </button>
-                        </div>
-                    </div>
+                    <PasswordField
+                        a11y={form.fieldA11y('new_password')}
+                        label="New Password"
+                        value={values.new_password}
+                        onChange={change('new_password')}
+                        onBlur={blur('new_password')}
+                        error={form.errors.new_password}
+                    >
+                        <PasswordChecklist password={values.new_password} />
+                    </PasswordField>
 
-                    {/*Confirm Password Input Layout*/}
-                    <div className="flex flex-col space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700">Confirm New Password</label>
-                        <div className="relative">
-                            <input
-                                type={showConfirmPass ? "text" : "password"}
-                                placeholder="••••••••••••"
-                                maxLength={PASSWORD_MAX_BYTES}
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm pr-12"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowConfirmPass(!showConfirmPass)}
-                                className="absolute right-4 top-3 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
-                            >
-                                <FontAwesomeIcon icon={showConfirmPass ? faEyeSlash : faEye} />
-                            </button>
-                        </div>
-                    </div>
+                    <PasswordField
+                        a11y={form.fieldA11y('confirm_password')}
+                        label="Confirm New Password"
+                        value={values.confirm_password}
+                        onChange={change('confirm_password')}
+                        onBlur={blur('confirm_password')}
+                        error={form.errors.confirm_password}
+                    />
 
                     {/*Feedback Message Status Alert Row Container*/}
                     {message && (
-                        <p className={`text-sm text-center font-medium m-0 pt-1 ${isSuccess ? 'text-emerald-500' : 'text-red-500'}`}>
+                        <p role={isSuccess ? 'status' : 'alert'} className={`text-sm text-center font-medium m-0 pt-1 ${isSuccess ? 'text-emerald-500' : 'text-red-500'}`}>
                             {message}
                         </p>
                     )}
@@ -158,9 +139,10 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                     <div className="pt-2 flex justify-end">
                         <button
                             type="submit"
-                            className="bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-6 py-2.5 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow-sm"
+                            disabled={isSaving || isSuccess}
+                            className="bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-6 py-2.5 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            Update Password
+                            {isSaving ? 'Updating…' : 'Update Password'}
                         </button>
                     </div>
                 </form>

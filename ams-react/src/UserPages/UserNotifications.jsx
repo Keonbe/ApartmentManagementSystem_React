@@ -11,6 +11,7 @@ import {
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import { TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, formatRelativeTime } from '../config/notificationLinks';
+import { LIMITS } from '../utils/validation';
 import '../assets/styles/responsive/user/user-notifications.responsive.css';
 
 // One entry per type the backend writes. Unlisted types used to all show as "Info".
@@ -234,7 +235,7 @@ export default function UserNotifications() {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
               <div className="user-notif-search-container flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm focus-within:border-indigo-500 transition-all flex-grow max-w-md">
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
-                <input
+                <input maxLength={LIMITS.search}
                   type="text"
                   placeholder={t('notifications.searchPlaceholder')}
                   value={searchQuery}

@@ -5,8 +5,17 @@ import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
-import { checkIntRange, localDateString } from '../utils/validation';
+import { addDays, checkDate, checkIntRange } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import useFieldErrors from '../hooks/useFieldErrors';
+import FieldError from '../Components/form/FieldError';
+import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
+
+const MAX_OCCUPANTS = 8;
+const MAX_EXTENSION_MONTHS = 12;
+// record_move_out.php: notice of at least 15 and at most 30 days.
+const MOVE_OUT_MIN_DAYS = 15;
+const MOVE_OUT_MAX_DAYS = 30;
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
@@ -100,12 +109,13 @@ export default function MyRoom() {
     }, [activeEmail]);
 
     const handleOccupantChange = (e) => {
+        fields.clearError('occupants');
         let val = parseInt(e.target.value);
         if (isNaN(val)) {
             setOccupants('');
             return;
         }
-        if (val > 8) val = 8;
+        if (val > MAX_OCCUPANTS) val = MAX_OCCUPANTS;
         if (val < 1) val = 1;
         setOccupants(val);
     };
@@ -134,17 +144,11 @@ export default function MyRoom() {
     }, [activeEmail]);
     const handleUpdateOccupants = async (e) => {
         if (e) e.preventDefault();
+        if (busy) return;
 
-        if (checkIntRange(occupants, 1, 8, 'Occupants')) {
-            alert("Please enter a valid number of occupants between 1 and 8.");
-            return;
-        }
+        if (fields.validateField('occupants', fieldValues)) return;
 
-        if (occupants === currentOccupants) {
-            alert(`Your room is already assigned to ${occupants} occupant(s).`);
-            return;
-        }
-
+        setBusy('occupants');
         try {
             const res = await api.post('/update_occupants.php', {
                 email: activeEmail,
@@ -158,11 +162,13 @@ export default function MyRoom() {
                 // Refresh the current route
                 window.location.reload();
             } else {
-                alert(`Error: ${res.data.message}`);
+                fields.setFieldError('occupants', res.data.message || 'Your request could not be sent.');
             }
         } catch (err) {
             console.error("Failed to update occupants:", err);
-            alert(apiErrorMessage(err, "A network error occurred while submitting your request."));
+            fields.setFieldError('occupants', apiErrorMessage(err, "A network error occurred while submitting your request."));
+        } finally {
+            setBusy('');
         }
     };
 
@@ -172,16 +178,26 @@ export default function MyRoom() {
     };
 
     const [additionalMonths, setAdditionalMonths] = useState(1);
+    const [busy, setBusy] = useState(''); // 'occupants' | 'extend' | 'moveout' while a request runs
+
+    const fields = useFieldErrors({
+        occupants: (v, all) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants')
+            || (Number(v) === all.currentOccupants ? `Your room is already assigned to ${v} occupant(s).` : ''),
+        additionalMonths: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_EXTENSION_MONTHS, 'Additional months'),
+        move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(MOVE_OUT_MIN_DAYS), max: addDays(MOVE_OUT_MAX_DAYS) })
+            .replace(/cannot be before .*/, `must be at least ${MOVE_OUT_MIN_DAYS} days from today.`)
+            .replace(/cannot be after .*/, `cannot be more than ${MOVE_OUT_MAX_DAYS} days from today.`),
+    }, { idPrefix: 'myroom-' });
+    const fieldValues = { occupants, currentOccupants, additionalMonths, move_out_date: moveOutDate };
 
     const handleExtendRent = async (e) => {
         if (e) e.preventDefault();
+        if (busy) return;
 
         const months = Number(additionalMonths);
-        if (checkIntRange(months, 1, 12, 'Extension')) {
-            alert("Please enter a valid extension period between 1 and 12 months.");
-            return;
-        }
+        if (fields.validateField('additionalMonths', fieldValues)) return;
 
+        setBusy('extend');
         try {
             const res = await api.post('/extend_lease.php', {
                 email: activeEmail,
@@ -195,45 +211,29 @@ export default function MyRoom() {
                 // Refresh the current route
                 window.location.reload();
             } else {
-                alert(`Error: ${res.data.message}`);
+                fields.setFieldError('additionalMonths', res.data.message || 'Your request could not be sent.');
             }
         } catch (err) {
             console.error("Failed to extend lease:", err);
-            alert(apiErrorMessage(err, "A network error occurred while submitting your request."));
+            fields.setFieldError('additionalMonths', apiErrorMessage(err, "A network error occurred while submitting your request."));
+        } finally {
+            setBusy('');
         }
     };
 
     const handleEndRent = () => {
-        const date = new Date();
-        date.setDate(date.getDate() + 15);
-        setMoveOutDate(localDateString(date));
+        setMoveOutDate(addDays(MOVE_OUT_MIN_DAYS));
+        fields.clearError('move_out_date');
         setShowMoveOutModal(true);
     };
 
     const handleConfirmMoveOut = async () => {
-        if (!moveOutDate) {
-            alert("Please select a move-out date.");
-            return;
-        }
+        if (busy) return;
+        // Notice must be 15–30 days ahead (record_move_out.php checks it too).
+        if (fields.validateField('move_out_date', fieldValues)) return;
 
+        setBusy('moveout');
         try {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const selected = new Date(moveOutDate);
-            selected.setHours(0, 0, 0, 0);
-
-            const diffTime = selected.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays < 15) {
-                alert("Prior notice of at least 15 days is required before your actual move-out.");
-                return;
-            }
-            if (diffDays > 30) {
-                alert("Move-out notice cannot exceed 30 days in advance.");
-                return;
-            }
-
             const res = await api.post('/record_move_out.php', {
                 email: activeEmail,
                 move_out_date: moveOutDate
@@ -244,11 +244,13 @@ export default function MyRoom() {
                 setShowMoveOutModal(false);
                 window.location.reload();
             } else {
-                alert(res.data.message);
+                fields.setFieldError('move_out_date', res.data.message || 'Failed to submit termination request.');
             }
         } catch (err) {
             console.error("Move-out error:", err);
-            alert(err.response?.data?.message || "Failed to submit termination request. Please try again.");
+            fields.setFieldError('move_out_date', apiErrorMessage(err, "Failed to submit termination request. Please try again."));
+        } finally {
+            setBusy('');
         }
     };
 
@@ -384,18 +386,25 @@ export default function MyRoom() {
                                 </div>
                                 <div className="flex flex-col space-y-1.5 text-left">
                                     <div className="flex justify-between items-center">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No. Occupants (Max 4)</label>
+                                        {/* The label used to say "Max 4" while the input allowed 8: 4 is the surcharge threshold. */}
+                                        <label htmlFor="myroom-occupants" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No. Occupants (Max {MAX_OCCUPANTS})</label>
                                         <span className="text-[9px] text-slate-400">Exceeding 4 adds ₱1,000/person surcharge</span>
                                     </div>
                                     <input
                                         type="number"
+                                        {...fields.fieldA11y('occupants')}
+                                        inputMode="numeric"
                                         min="1"
-                                        max="8"
+                                        max={MAX_OCCUPANTS}
+                                        step="1"
                                         value={occupants}
+                                        onKeyDown={blockNonIntegerKeys}
                                         onChange={handleOccupantChange}
-                                        className="w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold"
+                                        onBlur={() => occupants !== currentOccupants && fields.validateField('occupants', fieldValues)}
+                                        className={`w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold${invalidCls(fields.errors.occupants)}`}
                                         required
                                     />
+                                    <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
                                     {occupants > 4 && (
                                         <span className="text-[9px] text-amber-300 font-medium leading-normal mt-1">
                                             ⚠️ +₱{((occupants - 4) * 1000).toLocaleString()}/mo capacity surcharge (₱1,000 per person exceeding 4)
@@ -405,9 +414,10 @@ export default function MyRoom() {
                             </div>
                             <button
                                 type="submit"
-                                className="w-full bg-slate-800 hover:bg-slate-700 border border-white/10 text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
+                                disabled={!!busy}
+                                className="w-full bg-slate-800 hover:bg-slate-700 border border-white/10 text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {t('myRoom.updateOccupants')}
+                                {busy === 'occupants' ? 'Sending…' : t('myRoom.updateOccupants')}
                             </button>
                         </form>
                     </div>
@@ -485,47 +495,38 @@ export default function MyRoom() {
                             </div>
                             <div className="space-y-3 w-full box-border">
                                 <div className="flex flex-col space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Additional Months</label>
+                                    <label htmlFor="myroom-additionalMonths" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Additional Months</label>
                                     <input
                                         type="number"
+                                        {...fields.fieldA11y('additionalMonths')}
+                                        inputMode="numeric"
                                         min="1"
-                                        max="12"
-                                        maxLength="2"
+                                        max={MAX_EXTENSION_MONTHS}
+                                        step="1"
                                         value={additionalMonths}
+                                        onKeyDown={blockNonIntegerKeys}
                                         onChange={(e) => {
-                                            let val = e.target.value;
-
-                                            // Truncate to 2 characters maximum
-                                            if (val.length > 2) val = val.slice(0, 2);
-
-                                            let intVal = parseInt(val, 10);
-
-                                            // Handle empty or invalid typing
+                                            fields.clearError('additionalMonths');
+                                            const intVal = parseInt(e.target.value, 10);
+                                            // Empty while typing; blur/submit report it.
                                             if (isNaN(intVal) || intVal < 1) {
                                                 setAdditionalMonths('');
                                                 return;
                                             }
-
-                                            // Hard-cap at 12 months
-                                            if (intVal > 12) intVal = 12;
-
-                                            setAdditionalMonths(intVal);
+                                            setAdditionalMonths(Math.min(intVal, MAX_EXTENSION_MONTHS));
                                         }}
-                                        onBlur={() => {
-                                            // Fallback to 1 if left empty when clicking away
-                                            if (!additionalMonths || additionalMonths < 1) {
-                                                setAdditionalMonths(1);
-                                            }
-                                        }}
-                                        className="w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold"
+                                        onBlur={() => fields.validateField('additionalMonths', fieldValues)}
+                                        className={`w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold${invalidCls(fields.errors.additionalMonths)}`}
                                         required
                                     />
+                                    <FieldError id="myroom-additionalMonths" error={fields.errors.additionalMonths} className="m-0" />
                                 </div>
                                 <button
                                     type="submit"
-                                    className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
+                                    disabled={!!busy}
+                                    className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    Submit Extension
+                                    {busy === 'extend' ? 'Sending…' : 'Submit Extension'}
                                 </button>
                             </div>
                         </form>
@@ -599,39 +600,38 @@ export default function MyRoom() {
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actual Move-Out Date</label>
+                                <label htmlFor="myroom-move_out_date" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actual Move-Out Date</label>
                                 <input
                                     type="date"
+                                    {...fields.fieldA11y('move_out_date')}
                                     value={moveOutDate}
-                                    min={(() => {
-                                        const d = new Date();
-                                        d.setDate(d.getDate() + 15);
-                                        return localDateString(d);
-                                    })()}
-                                    max={(() => {
-                                        const d = new Date();
-                                        d.setDate(d.getDate() + 30);
-                                        return localDateString(d);
-                                    })()}
-                                    onChange={(e) => setMoveOutDate(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-sm box-border font-bold"
+                                    min={addDays(MOVE_OUT_MIN_DAYS)}
+                                    max={addDays(MOVE_OUT_MAX_DAYS)}
+                                    onChange={(e) => { setMoveOutDate(e.target.value); fields.clearError('move_out_date'); }}
+                                    onBlur={() => fields.validateField('move_out_date', fieldValues)}
+                                    className={`w-full px-4 py-2.5 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-sm box-border font-bold${invalidCls(fields.errors.move_out_date)}`}
                                     required
                                 />
+                                <FieldError id="myroom-move_out_date" error={fields.errors.move_out_date} className="m-0" />
                             </div>
                         </div>
 
                         <div className="my-room-modal-actions flex items-center justify-end gap-3 px-6 py-4 bg-slate-950/40 border-t border-white/10">
                             <button
+                                type="button"
                                 onClick={() => setShowMoveOutModal(false)}
+                                disabled={busy === 'moveout'}
                                 className="btn-interactive px-4 py-2 text-xs text-slate-400 font-bold hover:text-white rounded-xl border-0 bg-transparent cursor-pointer transition-all"
                             >
                                 Cancel
                             </button>
                             <button
+                                type="button"
                                 onClick={handleConfirmMoveOut}
-                                className="btn-interactive px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md border-0 cursor-pointer transition-all"
+                                disabled={!!busy}
+                                className="btn-interactive px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-md border-0 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Confirm Notice
+                                {busy === 'moveout' ? 'Submitting…' : 'Confirm Notice'}
                             </button>
                         </div>
                     </div>
