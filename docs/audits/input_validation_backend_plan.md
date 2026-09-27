@@ -35,7 +35,7 @@ Every helper sends a 422 `{"success":false,"message":...,"field":...}` and exits
 - `v_enum($in, $key, array $allowed)`.
 - `v_email($in, $key, $max = 150)`: `FILTER_VALIDATE_EMAIL` plus a length cap.
 - `v_ph_mobile($in, $key)`: reuses `normalize_ph_mobile()` (config.php:1534). **Done 2026-09-26 in place:** every contact-number save path (profile, manage_users, household_members, rent_application, submit_inquiry, check_in_visitor, create_reservation) now calls `normalize_ph_mobile()` directly and stores `+639XXXXXXXXX`; a helper would only fold those calls together.
-- `v_password($pw)`: `PASSWORD_MIN_LENGTH` (config.php:1287) plus a **72-byte max**, which bcrypt otherwise silently truncates.
+- `v_password($pw)`: `PASSWORD_MIN_LENGTH` (config.php:1287) plus a **72-byte max**, which bcrypt otherwise silently truncates. **Done 2026-09-26 in place:** `password_policy_error()` in config.php (length, 72-byte cap, upper/lower/digit/symbol) is called by registration, change_password, reset_password and manage_users; a helper would only wrap it in `validation_fail()`.
 - `validate_upload($file, array $ext_to_mime, $max_bytes)`: upload error code, size, extension and finfo checks. Code is lifted from `store_maintenance_attachment()` (config.php:1139); that helper and `store_room_image()` are refactored onto it.
 - `server_error($e_or_msg)`: `error_log`s the detail and returns a generic 500. Fixes L1 for the `$stmt->error` / `$e->getMessage()` leaks.
 
@@ -81,6 +81,8 @@ A mechanical pass over the rest, applying these rules:
 Keep a checklist of all 104 files in the audit doc and mark each as done. Read-only `get_*` endpoints only need the `$_GET` id/enum casts.
 
 ## Phase 4 — Frontend (`ams-react/src`)
+
+> **2026-09-26:** the frontend already reads field errors: `apiFieldErrors()` (`utils/apiError.js`) maps both an `errors{}` object and the `{message, field}` body that `validation_fail()` will send, and every data-entry form puts them on the matching input through `useFieldErrors().applyServerErrors()`. Form keys match the endpoints' body keys, so when an endpoint moves to 422 with `field` set, the message lands on the right input with no page change. Pages that branch on `res.data.success` also pass the response to `applyServerErrors`.
 - **422 handling:** for every page that calls an endpoint whose failure code changed from 200, make sure the `catch` shows `err.response?.data?.message`. Find them by grepping the page for the endpoint name. Known pages: PayBills, ServiceBooking, RentApplication, InquiryForm, AdminReports, admin catalog/inquiry/reservation pages, ResetPassword.
 - **Limits:** add `maxLength`/`min`/`max` that match the backend caps on the forms listed in the sweep (Registration, ProfileSettings, AdminAnnouncements, AdminTenants deductions `min=0`, reservation and inquiry fields). This closes consolidated_todo line 104.
 - **Other form fixes:**

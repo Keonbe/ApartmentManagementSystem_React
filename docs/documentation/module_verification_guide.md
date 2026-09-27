@@ -1918,8 +1918,8 @@ DELETE FROM sessions;
 |---|---|---|---|---|---|
 | `login.php` | POST | Public, throttled | `email_address`, `password` | `valid`, `sessionToken`, `user`, `role` | `429` locked out · `valid:false` wrong credentials or archived (archived only after a correct password) |
 | `logout.php` | POST | Bearer token | — | `success` | Never errors |
-| `change_password.php` | POST | `require_user`, throttled | `current_password`, `new_password`, `confirm_password` | `success`, `sessions_ended` | `401` · `422` wrong current password, short, mismatch, unchanged · `429` locked out |
-| `reset_password.php` | POST | Emailed token | `email`, `token`, `new_password` | `success` | Invalid/expired token · short password |
+| `change_password.php` | POST | `require_user`, throttled | `current_password`, `new_password`, `confirm_password` | `success`, `sessions_ended` | `401` · `422` wrong current password, fails the password policy, mismatch, unchanged · `429` locked out |
+| `reset_password.php` | POST | Emailed token | `email`, `token`, `new_password` | `success` | Invalid/expired token · fails the password policy |
 | `registration.php` | POST | Public | `first_name`, `last_name`, `email_address`, `password`, `conPassword` | `success` | Missing names, invalid email, short/mismatched password, email taken |
 | `profile.php` | GET/POST | `require_user` (own account) | `firstName`, `lastName`, `email`, `contactNo`, … | `success` | `409` email taken · `422` invalid email or mobile |
 | `manage_users.php` | GET/POST | `require_admin` | `action` = `update` / `reset_password` / `set_role` / `delete` / `unarchive`, `user_id` | `success`, `message` | `404` · `409` own account, already that role, archived promote, max 3 admins, last admin, archive an admin · `422` short password, bad email |
@@ -1948,7 +1948,7 @@ Identity is taken from the session in every one of these; the listed body/query 
 |---|---|
 | Roles | `admin`, `user` (tenant). Self-registration always creates `user` |
 | `MAX_ADMIN_ACCOUNTS` | 3 active admins; the last admin cannot be demoted; an admin cannot change their own account in User Management |
-| `PASSWORD_MIN_LENGTH` | 8 on every path |
+| New passwords | `password_policy_error()` on registration, change, reset and the admin reset: 8+ characters, at most 72 bytes, an uppercase and a lowercase letter, a number and a symbol (same list as `PASSWORD_RULES` in `ams-react/src/utils/validation.js`, shown as a live checklist). Login does not apply it, so older passwords such as the seed `tenant123` still sign in (added 2026-09-26) |
 | Lockout | `LOGIN_MAX_FAILURES_PER_ACCOUNT` 5, `LOGIN_MAX_FAILURES_PER_IP` 20, over `LOGIN_LOCKOUT_MINUTES` 15. A successful sign-in clears that account's failures only |
 | Sessions end on | Password change (other devices), password reset (all), role change (all), archive (all) |
 | Session lifetime | 7 days; role and archive state re-read on every request |
@@ -2084,19 +2084,22 @@ Fixtures: notification **#2** belongs to Jose (user 3); contract **LC-0004** bel
 | **M11-16** | Negative | Parking slot availability | Maria's token | `GET get_available_parking_slots.php` | `200` JSON with `occupied_count`, `max_slots`, `available_slots` | Previously a fatal error |
 | **M11-17** | Sec | Change a password without a session | — | `change_password.php` with `email_address` in the body | `401` | Previously changed that account's password |
 | **M11-18** | Negative | Wrong current password | Maria's token | `current_password: "wrong-pass"` | `422 "Incorrect current password."` | — |
-| **M11-19** | Sec | A password change signs other devices out | Two Maria tokens, T1 and T2 | Change the password with T1 | `sessions_ended: 1`; T2 → `401`; T1 → `200` | Change it back to `tenant123` with T1 |
+| **M11-19** | Sec | A password change signs other devices out | Two Maria tokens, T1 and T2 | Change the password with T1 | `sessions_ended: 1`; T2 → `401`; T1 → `200` | Restore the password from `zz_users` (see Restore): the API no longer accepts `tenant123` as a new password |
 | **M11-20** | Sec | Per-account lockout | Carlo; `login_attempts` empty | Five wrong passwords, then the right one | `429 "Too many failed attempts for this account…"` | `DELETE FROM login_attempts;` afterwards |
-| **M11-21** | Negative | Admin reset with a short password | Admin token | `manage_users.php {"action":"reset_password","user_id":13,"new_password":"short"}` | `422 "…at least 8 characters."` | — |
+| **M11-21** | Negative | Admin reset with a short password | Admin token | `manage_users.php {"action":"reset_password","user_id":13,"new_password":"short"}` | `422 "Password needs at least 8 characters, one uppercase letter, one number, one symbol."` | — |
 | **M11-22** | Negative | Admin changes their own account | Admin token | `set_role` on user 4 | `409 "You cannot change your own account here…"` | — |
 | **M11-23** | Sec | Promotion takes effect and signs the user out | Maria's token | Promote Maria; use the old token on an admin endpoint; sign in again and retry | `200`; old token `401`; new token `200` | `SELECT role FROM users WHERE id=2;` → `admin` |
 | **M11-24** | Sec | Demotion takes effect at once | Maria's admin token from M11-23 | Demote Maria; use that token | `200`; `401` | — |
 | **M11-25** | Sec | Archive ends sessions and hides status from guessers | Mark's token | Archive Mark; use his token; sign in with a wrong password; with the right one; restore | `200`; `401`; *"Invalid email or password"*; *"…archived…"*; `200` | — |
 | **M11-26** | Happy | Apostrophes are stored as typed | Admin token | `update` user 13 with `last_name` `O'Brien` | `200` | `SELECT last_name FROM users WHERE id=13;` → `O'Brien`, not `O\'Brien` |
 | **M11-27** | Happy | The browser signs out on a revoked session (UI) | Tenant signed in in one browser | In another browser, reset that tenant's password from `/admin-users`; in the first, navigate | Redirected to `/login?expired=1` showing *"Your session has ended…"*; storage cleared | Manual check |
-| **M11-28** | Negative | Reset to the current password | A fresh reset token for Maria | `reset_password.php` with `new_password: "tenant123"` | `422 "New password must be different from the current password."`; the token still works | `SELECT COUNT(*) FROM password_resets WHERE email='maria.santos@gmail.com';` → 1 |
-| **M11-29** | Negative | Admin reset to the current password | Admin token | `manage_users.php {"action":"reset_password","user_id":2,"new_password":"tenant123"}` | `422 "…different from the user's current password."` | — |
+| **M11-28** | Negative | Reset to a password that fails the policy | A fresh reset token for Maria | `reset_password.php` with `new_password: "tenant123"` | `{"success":false,"message":"Password needs one uppercase letter, one symbol."}`; the token still works. (The same-as-current check still applies to a password that passes the policy.) | `SELECT COUNT(*) FROM password_resets WHERE email='maria.santos@gmail.com';` → 1 |
+| **M11-29** | Negative | Admin reset to the current password | Admin token | `manage_users.php {"action":"reset_password","user_id":2,"new_password":"tenant123"}` | `422 "Password needs one uppercase letter, one symbol."` (the policy runs before the same-password check) | — |
 | **M11-30** | Sec | Reset requests are throttled | `password_reset_requests` empty | `forgot_password.php` four times for one email (registered or not) | 1–3 → `200` with the generic message; 4th → `429 "Too many password reset requests…"` | `DELETE FROM password_reset_requests;` afterwards |
-| **M11-31** | Happy | Reset link is valid right after it is issued | `password_resets` empty | `forgot_password.php` for Maria, then `reset_password.php` with the `dev_token` and a new password | `200 "Password successfully reset"` | Reset back to `tenant123` the same way |
+| **M11-31** | Happy | Reset link is valid right after it is issued | `password_resets` empty | `forgot_password.php` for Maria, then `reset_password.php` with the `dev_token` and a new password | `200 "Password successfully reset"` (use a new password that passes the policy, e.g. `Passw0rd!`) | Restore the password from `zz_users` (see Restore) |
+| **M11-32** | Negative | Registration rejects a weak password | — | `registration.php` with `password`/`conPassword` `"password123"` | `{"success":false,"message":"Password needs one uppercase letter, one symbol."}`; no user row | `SELECT COUNT(*) FROM users WHERE email_address='<test email>';` → 0 |
+| **M11-33** | Negative | Change password rejects a weak new password | Admin token | `change_password.php {"current_password":"admin123","new_password":"weakpass1","confirm_password":"weakpass1"}` | `422 "Password needs one uppercase letter, one symbol."`; password unchanged | — |
+| **M11-34** | Happy | An older password still signs in | Seed data | `login.php` as `admin@gmail.com` / `admin123` | `valid: true` — the policy applies only when a password is set | Delete the test session |
 
 **Restore:**
 
@@ -2956,7 +2959,7 @@ Then re-run the baseline check in [§1.6](#16-restore-discipline).
 | 8.4–8.6 — Reports & log | `maintenance_monthly_budget` (falls back to `maintenanceMonthlyBudget`, then ₱50,000) for the maintenance budget in reports |
 | 6 — Notifications & automation | `rent_due_reminders_enabled`, `rent_due_reminder_days`, `overdue_reminders_enabled`, `overdue_reminder_interval_days` (see below), `notification_sweep_last_run` (the daily-sweep claim) |
 | 10 — Parking | `max_parking_slots`, `parking_allowed_vehicle_types`, `parking_monthly_fee`, `parking_billing_mode` (`manual` / `auto`), `service_parking_active` |
-| 11 — Role-based access | None. Limits are constants in `config.php` / `manage_users.php`: `PASSWORD_MIN_LENGTH` 8, `LOGIN_MAX_FAILURES_PER_ACCOUNT` 5, `LOGIN_MAX_FAILURES_PER_IP` 20, `LOGIN_LOCKOUT_MINUTES` 15, `MAX_ADMIN_ACCOUNTS` 3 |
+| 11 — Role-based access | None. Limits are constants in `config.php` / `manage_users.php`: `PASSWORD_MIN_LENGTH` 8 plus the complexity rules in `password_policy_error()`, `LOGIN_MAX_FAILURES_PER_ACCOUNT` 5, `LOGIN_MAX_FAILURES_PER_IP` 20, `LOGIN_LOCKOUT_MINUTES` 15, `MAX_ADMIN_ACCOUNTS` 3 |
 | 9 — Contracts | `lease_end_reminder_days` (absent = 30, via `send_lease_end_reminders()`) |
 | 12 — Visitors | `visitor_overstay_hours` (absent = 24), `service_visitor_management_active` (absent = enabled) |
 
