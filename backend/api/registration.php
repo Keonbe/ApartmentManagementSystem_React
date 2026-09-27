@@ -29,7 +29,7 @@ $confirmPass = (string)($input["conPassword"] ?? '');
 if ($first_name === '' || $last_name === '' || $email_address === '') fail("First name, last name and email address are required.");
 if (!filter_var($email_address, FILTER_VALIDATE_EMAIL)) fail("Please enter a valid email address.");
 if (mb_strlen($first_name) > 100 || mb_strlen($last_name) > 100) fail("Names must be 100 characters or fewer.");
-if (strlen($password) < PASSWORD_MIN_LENGTH) fail("Password length must be at least " . PASSWORD_MIN_LENGTH . " characters");
+if ($pw_error = password_policy_error($password)) fail($pw_error);
 if ($password !== $confirmPass) fail("Confirmed password does not match");
 
 $checkStmt = $conn->prepare("SELECT 1 FROM users WHERE email_address = ?");

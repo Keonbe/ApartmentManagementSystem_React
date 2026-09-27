@@ -1509,6 +1509,24 @@ function get_contract_owner($conn, $contract_id) {
 // admin "reset password" action used to accept 6 characters while registration
 // and change-password required 8.
 const PASSWORD_MIN_LENGTH = 8;
+// bcrypt ignores everything past 72 bytes.
+const PASSWORD_MAX_BYTES = 72;
+
+// Rules for a NEW password (registration, reset, change, admin reset) — the
+// same list as PASSWORD_RULES in ams-react/src/utils/validation.js. Login does
+// not use it, so passwords set before the rule existed keep working.
+// Returns an error message, or '' when the password is acceptable.
+function password_policy_error($pw) {
+    $pw = (string)$pw;
+    if (strlen($pw) > PASSWORD_MAX_BYTES) return "Password must be " . PASSWORD_MAX_BYTES . " characters or fewer.";
+    $missing = [];
+    if (mb_strlen($pw) < PASSWORD_MIN_LENGTH) $missing[] = "at least " . PASSWORD_MIN_LENGTH . " characters";
+    if (!preg_match('/[A-Z]/', $pw)) $missing[] = "one uppercase letter";
+    if (!preg_match('/[a-z]/', $pw)) $missing[] = "one lowercase letter";
+    if (!preg_match('/\d/', $pw)) $missing[] = "one number";
+    if (!preg_match('/[^A-Za-z0-9\s]/', $pw)) $missing[] = "one symbol";
+    return $missing ? "Password needs " . implode(', ', $missing) . "." : '';
+}
 
 // Ends every session a user holds, optionally keeping the caller's own token.
 // Called whenever a password, role or archive state changes, so the old

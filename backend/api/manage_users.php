@@ -104,7 +104,7 @@ switch ($action) {
 
     case 'reset_password':
         $new_pass = (string)($data['new_password'] ?? '');
-        if (strlen($new_pass) < PASSWORD_MIN_LENGTH) fail(422, "Password must be at least " . PASSWORD_MIN_LENGTH . " characters.");
+        if ($pw_error = password_policy_error($new_pass)) fail(422, $pw_error);
         $stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();

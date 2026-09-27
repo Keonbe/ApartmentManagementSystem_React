@@ -27,8 +27,8 @@ if (empty($email) || empty($token) || empty($new_password)) {
     exit;
 }
 
-if (strlen($new_password) < PASSWORD_MIN_LENGTH) {
-    echo json_encode(["success" => false, "message" => "Password must be at least " . PASSWORD_MIN_LENGTH . " characters long"]);
+if ($pw_error = password_policy_error($new_password)) {
+    echo json_encode(["success" => false, "message" => $pw_error]);
     exit;
 }
 

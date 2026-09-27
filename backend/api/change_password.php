@@ -31,7 +31,7 @@ $newPassword = (string)($input["new_password"] ?? '');
 $confirmPassword = (string)($input["confirm_password"] ?? '');
 
 if ($currentPassword === '') fail(422, "Current password is required.");
-if (strlen($newPassword) < PASSWORD_MIN_LENGTH) fail(422, "New password must be at least " . PASSWORD_MIN_LENGTH . " characters.");
+if ($pw_error = password_policy_error($newPassword)) fail(422, $pw_error);
 if ($newPassword !== $confirmPassword) fail(422, "Confirmed password does not match.");
 if ($newPassword === $currentPassword) fail(422, "New password must be different from the current password.");
 
