@@ -913,8 +913,11 @@ function billing_open_status_sql() {
 // 'expired'/'eviction-pending' contracts are deliberately excluded from the
 // draft->active promotion.
 //
+// $notify_tenant = false skips the tenant's "Payment Received" notice, for
+// settle_payment_key(), which sends one notice for a whole advance payment.
+//
 // Returns ['ok' => bool, 'message' => string, 'invoice_id', 'user_id', 'activated' => bool].
-function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference = null, $amount_paid = null) {
+function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference = null, $amount_paid = null, $notify_tenant = true) {
     $conn->begin_transaction();
 
     try {
@@ -1020,7 +1023,7 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         // channel settled it.
         resolve_admin_queue($conn, 'payment_verification', $invoice_id);
         resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
-        if ($inv_res && !empty($inv_res['user_id'])) {
+        if ($notify_tenant && $inv_res && !empty($inv_res['user_id'])) {
             create_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Received',
                 "Your payment for invoice $invoice_id has been confirmed and recorded ($payment_method). Your receipt is ready in Payment History. Thank you!",
                 'Resolved', "invoice:$invoice_id");
@@ -1284,8 +1287,9 @@ function payment_key_invoices($conn, $key, $user_id = null, $statuses = null) {
 
 // Settles everything a payment key covers: one invoice, or each open month of
 // an advance payment through its own settle_invoice() call — so every month
-// ends up a separate paid invoice with its own receipt and "Payment Received"
-// notice. $amount_paid (desk only) must cover the combined total. Returns
+// ends up a separate paid invoice with its own receipt. The tenant gets one
+// "Payment Received" notice for the whole group, not one per month.
+// $amount_paid (desk only) must cover the combined total. Returns
 // settle_invoice()'s shape plus 'invoice_ids', the invoices settled.
 function settle_payment_key($conn, $key, $payment_method, $payment_reference = null, $amount_paid = null) {
     if (!is_payment_group_key($key)) {
@@ -1305,13 +1309,27 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
     }
 
     $settled = [];
+    $settled_rows = [];
+    // One notice for the months that were settled, even when a later month fails.
+    $notify = function () use ($conn, $key, $payment_method, &$settled_rows) {
+        if (!$settled_rows) return;
+        $periods = implode(', ', array_map(fn($row) => $row['billing_period'], $settled_rows));
+        $amount = array_sum(array_map(fn($row) => (float)$row['total_amount'], $settled_rows));
+        $months = count($settled_rows);
+        create_notification($conn, (int)$settled_rows[0]['user_id'], 'payment', 'Payment Received',
+            "Your advance payment $key for $months month(s) ($periods, ₱" . number_format($amount, 2) . ") has been confirmed and recorded ($payment_method). A receipt for each month is ready in Payment History. Thank you!",
+            'Resolved', "invoice:{$settled_rows[0]['id']}");
+    };
     foreach ($rows as $row) {
-        $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null);
+        $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false);
         if (!$result['ok']) {
+            $notify();
             return $fail("Settled " . count($settled) . " of " . count($rows) . " months; {$row['id']} failed: {$result['message']}", $settled);
         }
         $settled[] = $row['id'];
+        $settled_rows[] = $row;
     }
+    $notify();
 
     // The group's own queue rows (a proof or cash declaration made for the
     // whole advance payment); settle_invoice() resolves per-invoice ones.
