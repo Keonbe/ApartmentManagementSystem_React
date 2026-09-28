@@ -150,6 +150,7 @@ try {
             'status' => $display_status,
             'isOverstayed' => $is_overstayed,
             'expectedAt' => $row['expected_at'],
+            'expectedCheckOutAt' => $row['expected_check_out_at'] ?? null,
             'checkInAt' => $row['check_in_at'],
             'checkOutAt' => $row['check_out_at'],
             'checkoutNotes' => $row['checkout_notes'] ?? '',

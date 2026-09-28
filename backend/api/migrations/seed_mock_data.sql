@@ -292,11 +292,11 @@ INSERT IGNORE INTO `service_requests` (`user_id`, `service_id`, `room_name`, `se
 -- ============================================================
 -- 10. VISITOR LOGS
 -- ============================================================
-INSERT IGNORE INTO `visitor_logs` (`user_id`, `room_name`, `visitor_name`, `contact_number`, `id_type`, `id_number`, `purpose`, `vehicle_plate`, `status`, `check_in_at`, `check_out_at`, `created_by`, `created_at`) VALUES
-(2,  'A', 'Liza Santos',      '+63 9182345601', 'Driver\'s License', 'N01-23-456789', 'Family visit',      NULL,        'checked_out', '2026-06-14 14:00:00', '2026-06-14 18:30:00', @admin_id, '2026-06-14 13:55:00'),
-(5,  'C', 'Carmen Dela Cruz', '+63 9182345602', 'UMID',              'CRN-0011223344', 'Overnight guest',   NULL,        'checked_out', '2026-07-02 19:00:00', '2026-07-03 09:00:00', @admin_id, '2026-07-02 18:50:00'),
-(9,  'F', 'Ricky Abad',       '+63 9182345603', 'Driver\'s License', 'N02-34-567890',  'Delivery pickup',   'XYZ-7890',  'checked_in',  '2026-08-25 16:00:00', NULL,                   @admin_id, '2026-08-25 15:58:00'),
-(11, 'H', 'Unknown Visitor',  '+63 9182345604', NULL,                NULL,             'Claimed maintenance visit, no prior notice.', NULL, 'denied', '2026-08-27 20:00:00', NULL, @admin_id, '2026-08-27 19:58:00');
+INSERT IGNORE INTO `visitor_logs` (`user_id`, `room_name`, `visitor_name`, `contact_number`, `id_type`, `id_number`, `purpose`, `vehicle_plate`, `status`, `check_in_at`, `expected_check_out_at`, `check_out_at`, `created_by`, `created_at`) VALUES
+(2,  'A', 'Liza Santos',      '+63 9182345601', 'Driver\'s License', 'N01-23-456789', 'Family visit',      NULL,        'checked_out', '2026-06-14 14:00:00', '2026-06-14 19:00:00', '2026-06-14 18:30:00', @admin_id, '2026-06-14 13:55:00'),
+(5,  'C', 'Carmen Dela Cruz', '+63 9182345602', 'UMID',              'CRN-0011223344', 'Overnight guest',   NULL,        'checked_out', '2026-07-02 19:00:00', '2026-07-03 10:00:00', '2026-07-03 09:00:00', @admin_id, '2026-07-02 18:50:00'),
+(9,  'F', 'Ricky Abad',       '+63 9182345603', 'Driver\'s License', 'N02-34-567890',  'Delivery pickup',   'XYZ-7890',  'checked_in',  '2026-08-25 16:00:00', '2026-08-25 17:00:00', NULL,                   @admin_id, '2026-08-25 15:58:00'),
+(11, 'H', 'Unknown Visitor',  '+63 9182345604', NULL,                NULL,             'Claimed maintenance visit, no prior notice.', NULL, 'denied', '2026-08-27 20:00:00', NULL, NULL, @admin_id, '2026-08-27 19:58:00');
 
 -- ============================================================
 -- 11. INQUIRIES + UNIT RESERVATIONS

@@ -464,6 +464,9 @@ CREATE TABLE `visitor_logs` (
   -- Expected arrival for a tenant's pre-registration; check_in_at is only
   -- ever stamped once the visitor is actually approved/admitted.
   `expected_at` datetime DEFAULT NULL,
+  -- When the visitor is expected to leave (required on new rows by
+  -- check_in_visitor.php; informational — overstay uses visitor_overstay_hours).
+  `expected_check_out_at` datetime DEFAULT NULL,
   `check_in_at` datetime NOT NULL DEFAULT current_timestamp(),
   `check_out_at` datetime DEFAULT NULL,
   `checkout_notes` text DEFAULT NULL,

@@ -38,6 +38,11 @@ $vehicle_plate = strtoupper(trim($input['vehiclePlate'] ?? $input['vehicle_plate
 $expected_at_raw = trim($input['expectedAt'] ?? $input['expected_at'] ?? '');
 
 $visit_at_raw = trim($input['visitAt'] ?? $input['visit_at'] ?? '');
+$expected_out_raw = trim($input['expectedCheckOutAt'] ?? $input['expected_check_out_at'] ?? '');
+
+function parse_visit_datetime($raw) {
+    return DateTime::createFromFormat('Y-m-d\TH:i', $raw) ?: DateTime::createFromFormat('Y-m-d H:i:s', $raw);
+}
 
 if (mb_strlen($visitor_name) > 150) fail(422, "Visitor name must be 150 characters or fewer.");
 // Philippine mobile only, stored as +639XXXXXXXXX like every other contact
@@ -94,28 +99,43 @@ if ($visitor_name === '' || $contact_number === '' || $purpose === '') {
 // only ever stamped once the visitor is actually approved/admitted, so a
 // pending row needs its own idea of "when"), ignored for a walk-in.
 //
-// A walk-in's visit date/time is the admin's visitAt: defaults to now, may be
-// back-dated up to 24 hours (a visitor logged late), never in the future
-// beyond a 5-minute clock allowance. It becomes check_in_at.
+// A walk-in's check-in date/time is the admin's visitAt (required — the form
+// defaults it to now): may be back-dated up to 24 hours (a visitor logged
+// late), never in the future beyond a 5-minute clock allowance. It becomes
+// check_in_at.
 $expected_at = null;
 $check_in_at = date('Y-m-d H:i:s');
-if ($isAdmin && $visit_at_raw !== '') {
-    $visit_dt = DateTime::createFromFormat('Y-m-d\TH:i', $visit_at_raw) ?: DateTime::createFromFormat('Y-m-d H:i:s', $visit_at_raw);
-    if (!$visit_dt) fail(422, "Visit date/time must be a valid date/time.");
-    if ($visit_dt > new DateTime('+5 minutes')) fail(422, "Visit date/time cannot be in the future.");
-    if ($visit_dt < new DateTime('-24 hours')) fail(422, "Visit date/time can be back-dated by at most 24 hours.");
+if ($isAdmin) {
+    if ($visit_at_raw === '') fail(422, "Check-in date/time is required.");
+    $visit_dt = parse_visit_datetime($visit_at_raw);
+    if (!$visit_dt) fail(422, "Check-in date/time must be a valid date/time.");
+    if ($visit_dt > new DateTime('+5 minutes')) fail(422, "Check-in date/time cannot be in the future.");
+    if ($visit_dt < new DateTime('-24 hours')) fail(422, "Check-in date/time can be back-dated by at most 24 hours.");
     $check_in_at = $visit_dt->format('Y-m-d H:i:s');
+    $check_in_ref = $visit_dt;
 }
 if (!$isAdmin) {
-    if ($expected_at_raw === '') fail(422, "Expected arrival date/time is required.");
-    $expected_dt = DateTime::createFromFormat('Y-m-d\TH:i', $expected_at_raw) ?: DateTime::createFromFormat('Y-m-d H:i:s', $expected_at_raw);
+    if ($expected_at_raw === '') fail(422, "Expected check-in date/time is required.");
+    $expected_dt = parse_visit_datetime($expected_at_raw);
     if (!$expected_dt) fail(422, "Expected arrival must be a valid date/time.");
     $now = new DateTime();
     $max = (clone $now)->modify('+30 days');
     if ($expected_dt < $now->modify('-1 hour')) fail(422, "Expected arrival cannot be in the past.");
     if ($expected_dt > $max) fail(422, "Expected arrival must be within 30 days.");
     $expected_at = $expected_dt->format('Y-m-d H:i:s');
+    $check_in_ref = $expected_dt;
 }
+
+// Expected check-out: required for both roles, after the check-in and within
+// 30 days of it. Informational — overstay still uses visitor_overstay_hours.
+if ($expected_out_raw === '') fail(422, "Expected check-out date/time is required.");
+$expected_out_dt = parse_visit_datetime($expected_out_raw);
+if (!$expected_out_dt) fail(422, "Expected check-out must be a valid date/time.");
+if ($expected_out_dt <= $check_in_ref) fail(422, "Expected check-out must be after the check-in date/time.");
+if ($expected_out_dt > (clone $check_in_ref)->modify('+30 days')) fail(422, "Expected check-out must be within 30 days of check-in.");
+if ($isAdmin && $expected_out_dt < new DateTime('-5 minutes')) fail(422, "Expected check-out cannot be in the past.");
+$expected_check_out_at = $expected_out_dt->format('Y-m-d H:i:s');
+$expected_out_label = date('M j, Y g:i A', strtotime($expected_check_out_at));
 
 // Government ID photo: images only, 5MB, checked by extension and content (security audit B-7).
 $id_photo_path = null;
@@ -140,8 +160,8 @@ if (isset($_FILES['idPhoto']) && $_FILES['idPhoto']['error'] !== UPLOAD_ERR_NO_F
 
 $initial_status = $isAdmin ? 'checked_in' : 'pending_approval';
 
-$stmt = $conn->prepare("INSERT INTO visitor_logs (user_id, room_name, visitor_name, contact_number, id_type, id_number, id_photo_path, purpose, vehicle_plate, status, expected_at, created_by, check_in_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param("issssssssssis", $target_user_id, $room_name, $visitor_name, $contact_number, $id_type, $id_number, $id_photo_path, $purpose, $vehicle_plate, $initial_status, $expected_at, $auth['id'], $check_in_at);
+$stmt = $conn->prepare("INSERT INTO visitor_logs (user_id, room_name, visitor_name, contact_number, id_type, id_number, id_photo_path, purpose, vehicle_plate, status, expected_at, expected_check_out_at, created_by, check_in_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$stmt->bind_param("isssssssssssis", $target_user_id, $room_name, $visitor_name, $contact_number, $id_type, $id_number, $id_photo_path, $purpose, $vehicle_plate, $initial_status, $expected_at, $expected_check_out_at, $auth['id'], $check_in_at);
 if (!$stmt->execute()) fail(500, "Failed to record the visitor.");
 $new_id = $stmt->insert_id;
 $stmt->close();
@@ -149,7 +169,7 @@ $stmt->close();
 if ($isAdmin) {
     if ($target_user_id) {
         $n_title = "Visitor Arrival: $visitor_name";
-        $n_msg = "$visitor_name (Contact: $contact_number) has checked in to visit your unit ($room_name).";
+        $n_msg = "$visitor_name (Contact: $contact_number) has checked in to visit your unit ($room_name), expected to leave by $expected_out_label.";
         create_notification($conn, $target_user_id, 'visitor_log', $n_title, $n_msg);
     }
     log_activity($conn, $auth['id'], 'service', "Logged Visitor Check-In", "Visitor $visitor_name checked in for Unit $room_name");
@@ -157,7 +177,7 @@ if ($isAdmin) {
     // Reaches the admin bell now — a pre-registration used to sit in
     // 'pending_approval' with nothing telling an admin it was waiting.
     notify_admins_queue($conn, 'visitor_registration', $new_id, "Visitor Pre-Registration: $visitor_name",
-        "Tenant for Unit $room_name pre-registered $visitor_name ($purpose), expected " . date('M j, Y g:i A', strtotime($expected_at)) . ".");
+        "Tenant for Unit $room_name pre-registered $visitor_name ($purpose), expected " . date('M j, Y g:i A', strtotime($expected_at)) . " until $expected_out_label.");
     log_activity($conn, $auth['id'], 'service', "Registered Visitor for Review", "Tenant for Unit $room_name registered visitor $visitor_name ($purpose)");
 }
 

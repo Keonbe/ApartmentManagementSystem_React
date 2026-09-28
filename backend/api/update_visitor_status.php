@@ -67,6 +67,11 @@ if ($action === 'checked_in' || $action === 'approve') {
     if ($target_user_id && !get_active_tenancy($conn, (int)$target_user_id)) {
         fail(409, "This tenant no longer has an active lease — the registration can only be denied.");
     }
+    // Approving stamps check_in_at = NOW(); a visit whose expected check-out
+    // is already behind us would be checked in after it was meant to end.
+    if (!empty($visitor['expected_check_out_at']) && strtotime($visitor['expected_check_out_at']) < time()) {
+        fail(409, "This visit's expected check-out has already passed — deny it, or ask the tenant to register again.");
+    }
 
     if (!$guarded_update("UPDATE visitor_logs SET status = 'checked_in', admin_notes = ?, check_in_at = NOW()", "s", [$admin_notes], 'pending_approval')) {
         fail(409, "Only a visitor awaiting approval can be approved.");
