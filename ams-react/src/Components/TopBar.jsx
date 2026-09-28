@@ -7,7 +7,7 @@ import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
     faBell, faFileContract, faHistory,
-    faHome, faCompass, faConciergeBell, faBed, faUserPlus
+    faHome, faCompass, faConciergeBell, faBed, faUserPlus, faCheckCircle, faTimesCircle
 } from '@fortawesome/free-solid-svg-icons';
 import {
     TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, PAYMENT_WATCH_POLL_MS,
@@ -37,6 +37,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         navigate('/login');
     };
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    const [selectedNotification, setSelectedNotification] = useState(null);
     
     const dropdownRef = useRef(null);
     const notificationRef = useRef(null);
@@ -48,6 +49,33 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const [unreadCount, setUnreadCount] = useState(0);
     const [rawNotifications, setRawNotifications] = useState([]);
     const [highlightIds, setHighlightIds] = useState(NO_HIGHLIGHT); // new payment notices, shown in the open dropdown
+
+    const [appStatusModal, setAppStatusModal] = useState(null);
+
+    useEffect(() => {
+        if (!notifications || !notifications.length) return;
+        const unreadAppUpdate = notifications.find(n => 
+            n.type === 'application_update' && 
+            !n.read && 
+            (n.title?.toLowerCase().includes('approved') || n.title?.toLowerCase().includes('rejected') || n.title?.toLowerCase().includes('declined') || n.title?.toLowerCase().includes('action required'))
+        );
+        if (unreadAppUpdate && !sessionStorage.getItem(`app_status_shown_${unreadAppUpdate.id}`)) {
+            setAppStatusModal(unreadAppUpdate);
+            sessionStorage.setItem(`app_status_shown_${unreadAppUpdate.id}`, 'true');
+        }
+    }, [notifications]);
+
+    const closeAppStatusModal = async () => {
+        if (!appStatusModal) return;
+        try {
+            await api.post('/mark_notification_read.php', { id: appStatusModal.id });
+            window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
+        } catch (e) {
+            console.error(e);
+        }
+        setAppStatusModal(null);
+    };
+
 
     // 1. Fetch live profile records to ensure avatar path accuracy across tabs
     useEffect(() => {
@@ -99,7 +127,9 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     type: n.type,
                     metadata: n.metadata_value,
                     createdAt: n.created_at,
-                    read: Number(n.is_read) === 1
+                    read: Number(n.is_read) === 1,
+                    attachment_path: n.attachment_path,
+                    isArchived: Number(n.is_archived) === 1
                 })));
                 setUnreadCount(response.data.unread_count ?? response.data.notifications.filter(n => !Number(n.is_read)).length);
             }
@@ -195,7 +225,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                 console.error(e);
             }
         }
-        navigate(...notificationTarget(n));
+        if (n.type === 'payment') {
+            navigate(...notificationTarget(n));
+        } else {
+            setSelectedNotification(n);
+        }
     };
 
     const getInitials = () => {
@@ -271,8 +305,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         <button onClick={() => { setIsNotificationOpen(false); navigate('/notifications'); }} className="text-xs text-indigo-600 hover:underline font-bold bg-transparent border-0 cursor-pointer p-0">View All</button>
                                     </div>
                                     <div className="max-h-64 overflow-y-auto px-2 py-1 space-y-1">
-                                        {notifications.length > 0 ? (
-                                            notifications.slice(0, 5).map(n => {
+                                        {notifications.filter(n => !n.isArchived).length > 0 ? (
+                                            notifications.filter(n => !n.isArchived).slice(0, 5).map(n => {
                                                 // A payment update that just arrived: tinted by outcome, marked New.
                                                 const isNew = highlightIds.has(n.id);
                                                 const success = TENANT_PAYMENT_ALERT_TITLES[n.title] === 'success';
@@ -560,6 +594,86 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     </div>
                 </div>
             )}
+
+            {selectedNotification && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in" onClick={() => setSelectedNotification(null)}>
+                    <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="text-lg font-bold text-slate-800 m-0">{selectedNotification.title}</h3>
+                            <button onClick={() => setSelectedNotification(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-2">
+                                <FontAwesomeIcon icon={faTimes} />
+                            </button>
+                        </div>
+                        <div className="p-5 overflow-y-auto">
+                            <p className="text-sm text-slate-600 whitespace-pre-wrap m-0">{selectedNotification.message}</p>
+                            {selectedNotification.attachment_path && (
+                                <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
+                                    {selectedNotification.attachment_path.toLowerCase().endsWith('.pdf') ? (
+                                        <iframe src={fileUrl(selectedNotification.attachment_path)} className="w-full h-64 border-0" title="Attachment"></iframe>
+                                    ) : (
+                                        <img src={fileUrl(selectedNotification.attachment_path)} alt="Attachment" className="w-full max-h-64 object-contain bg-slate-50" />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                            {TENANT_NOTIFICATION_LINKS[selectedNotification.type] && (
+                                <button
+                                    onClick={() => {
+                                        const path = TENANT_NOTIFICATION_LINKS[selectedNotification.type].path;
+                                        setSelectedNotification(null);
+                                        navigate(path);
+                                    }}
+                                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer border-0"
+                                >
+                                    Go to Page
+                                </button>
+                            )}
+                            <button onClick={() => setSelectedNotification(null)} className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer border-0">Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        
+            {/* App Status One-Time Modal */}
+            {appStatusModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in" onClick={closeAppStatusModal}>
+                    <div onClick={e => e.stopPropagation()} className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-scale-in border border-slate-100">
+                        {appStatusModal.title?.toLowerCase().includes('approved') ? (
+                            <div className="bg-emerald-50 p-8 flex flex-col items-center border-b border-emerald-100 text-center">
+                                <div className="w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center shadow-inner mb-4 border-4 border-white">
+                                    <FontAwesomeIcon icon={faCheckCircle} className="text-4xl" />
+                                </div>
+                                <h2 className="text-2xl font-black text-emerald-800 m-0 tracking-tight">Congratulations!</h2>
+                                <p className="text-emerald-600 font-bold mt-1 mb-0 uppercase tracking-widest text-xs">Application Approved</p>
+                            </div>
+                        ) : appStatusModal.title?.toLowerCase().includes('action required') ? (
+                            <div className="bg-amber-50 p-8 flex flex-col items-center border-b border-amber-100 text-center">
+                                <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center shadow-inner mb-4 border-4 border-white">
+                                    <FontAwesomeIcon icon={faInfoCircle} className="text-4xl" />
+                                </div>
+                                <h2 className="text-2xl font-black text-amber-800 m-0 tracking-tight">Action Required</h2>
+                                <p className="text-amber-600 font-bold mt-1 mb-0 uppercase tracking-widest text-xs">Update Needed</p>
+                            </div>
+                        ) : (
+                            <div className="bg-red-50 p-8 flex flex-col items-center border-b border-red-100 text-center">
+                                <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center shadow-inner mb-4 border-4 border-white">
+                                    <FontAwesomeIcon icon={faTimesCircle} className="text-4xl" />
+                                </div>
+                                <h2 className="text-2xl font-black text-red-800 m-0 tracking-tight">Application Update</h2>
+                                <p className="text-red-600 font-bold mt-1 mb-0 uppercase tracking-widest text-xs">Application Rejected</p>
+                            </div>
+                        )}
+                        <div className="p-8 flex flex-col items-center text-center">
+                            <p className="text-slate-600 font-medium leading-relaxed m-0">{appStatusModal.message}</p>
+                            <button onClick={closeAppStatusModal} className="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl border-0 cursor-pointer shadow-md shadow-indigo-200 transition-all active:scale-[0.98]">
+                                Okay, got it!
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </nav>
     );
 }

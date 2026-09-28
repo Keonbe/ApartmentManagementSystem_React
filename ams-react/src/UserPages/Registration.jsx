@@ -38,7 +38,7 @@ function FloatingInput({ form, name, label, hint, required, error, trailing, onC
                     {...a11y}
                     {...inputProps}
                     className={`${INPUT_CLS}${trailing ? ' pr-10' : ''}${invalidCls(error)}`}
-                    placeholder=" "
+                    placeholder={inputProps.placeholder || " "}
                     required={required}
                     onChange={onChange}
                     onBlur={onBlur}
@@ -47,7 +47,7 @@ function FloatingInput({ form, name, label, hint, required, error, trailing, onC
                     {label}{' '}
                     {required
                         ? <><span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- {hint}</span></>
-                        : <span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>}
+                        : <><span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>{hint && <span className="floating-hint hidden sm:inline font-normal opacity-70 ml-1">- {hint}</span>}</>}
                 </label>
                 {trailing}
             </div>
@@ -243,7 +243,7 @@ export default function Registration({ onLoginRedirect }) {
                             {/*NameGroupLastAndSuffix*/}
                             <div className="registration-name-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <FloatingInput {...field('lastname')} type="text" autoComplete="family-name" maxLength={LIMITS.lastName} required label={t('reg.lastName')} hint="Enter last name" />
-                                <FloatingInput {...field('suffix')} type="text" autoComplete="honorific-suffix" maxLength={LIMITS.suffix} label={t('reg.suffix')} />
+                                <FloatingInput {...field('suffix')} type="text" autoComplete="honorific-suffix" maxLength={LIMITS.suffix} label={t('reg.suffix')} hint="e.g. Jr, Sr, III" />
                             </div>
 
                             {/*EmailAddressField*/}

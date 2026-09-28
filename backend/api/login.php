@@ -37,7 +37,7 @@ if ($throttled) {
     exit;
 }
 
-$stmt = $conn->prepare("SELECT id, email_address, first_name, middle_name, last_name, suffix, password, role, is_archived FROM users WHERE email_address = ?");
+$stmt = $conn->prepare("SELECT id, email_address, first_name, middle_name, last_name, suffix, contact_no, gender, password, role, is_archived FROM users WHERE email_address = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
@@ -72,6 +72,8 @@ $userData = [
     "middle_name" => $user["middle_name"],
     "last_name" => $user["last_name"],
     "suffix" => $user["suffix"],
+    "contact_no" => $user["contact_no"],
+    "gender" => $user["gender"],
     "email_address" => $user["email_address"],
     "role" => $user["role"]
 ];

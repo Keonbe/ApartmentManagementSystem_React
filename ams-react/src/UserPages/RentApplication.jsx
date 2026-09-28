@@ -43,7 +43,7 @@ function DocumentCard({ form, fieldKey, label, dropText, file, previewUrl, keeps
     const isImage = file && (file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name));
     return (
         <div className="flex flex-col space-y-2">
-            <label htmlFor={`rent-${fieldKey}`} className={LABEL_CLS}>{label} <span className="text-rose-500">*</span></label>
+            <label htmlFor={`rent-${fieldKey}`} className={LABEL_CLS}>{label} {form.errors[fieldKey] && <span className="text-rose-500">*</span>}</label>
             <div
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
@@ -111,6 +111,8 @@ export default function RentApplication() {
     const defaultLastName = loggedInUser.last_name || '';
     const defaultSuffix = loggedInUser.suffix || '';
     const defaultEmail = loggedInUser.email_address || '';
+    const defaultContactNo = loggedInUser.contact_no || '';
+    const defaultGender = loggedInUser.gender || '';
 
     const editApp = location.state?.editApplication;
     const isEditing = !!editApp;
@@ -125,25 +127,53 @@ export default function RentApplication() {
     const [lastName, setLastName] = useState(editApp?.last_name || defaultLastName);
     const [suffix, setSuffix] = useState(editApp?.suffix || defaultSuffix);
 
+    const [phoneRawNumber, setPhoneRawNumber] = useState(
+        editApp?.contact_no
+            ? toPhLocal10(editApp.contact_no)
+            : (draft.phoneRawNumber || toPhLocal10(defaultContactNo) || '')
+    );
+    const [email] = useState(editApp?.email || defaultEmail);
+    const [gender, setGender] = useState(
+        editApp?.gender || draft.gender || defaultGender || ''
+    );
+    const [occupants, setOccupants] = useState(draft.occupants || '');
+    const [monthsOfRent, setMonthsOfRent] = useState(draft.monthsOfRent || '');
+    const [prefMoveInDate, setPrefMoveInDate] = useState(draft.prefMoveInDate || '');
+    const [isASAP, setIsASAP] = useState(false);
+
     useEffect(() => {
         const fetchUserProfile = async () => {
-            if (!defaultEmail || editApp) return;
+            if (!defaultEmail) return;
             try {
                 const res = await api.get(`/profile.php?email=${encodeURIComponent(defaultEmail)}`);
                 if (res.data.success && res.data.data) {
                     const data = res.data.data;
-                    setFirstName(data.first_name || '');
-                    setMiddleName(data.middle_name || '');
-                    setLastName(data.last_name || '');
-                    setSuffix(data.suffix || '');
+                    setFirstName(prev => prev || data.first_name || '');
+                    setMiddleName(prev => prev || data.middle_name || '');
+                    setLastName(prev => prev || data.last_name || '');
+                    setSuffix(prev => prev || data.suffix || '');
+                    if (data.contact_no) {
+                        setPhoneRawNumber(prev => prev || toPhLocal10(data.contact_no));
+                    }
+                    if (data.gender) {
+                        setGender(prev => prev || data.gender);
+                    }
                 }
 
                 // Fetch existing rent application status
                 if (loggedInUser.id) {
                     const roomRes = await api.get(`/my_room.php?userId=${encodeURIComponent(loggedInUser.id)}`);
                     if (roomRes.data.success && roomRes.data.data) {
-                        const status = roomRes.data.data.status;
+                        const appData = roomRes.data.data;
+                        const status = appData.status;
                         setApplicationStatus(status ? status.toLowerCase() : 'none');
+                        // When applying again after rejection, only pre-populate phone and gender
+                        if (appData.contact_no) {
+                            setPhoneRawNumber(prev => prev || toPhLocal10(appData.contact_no));
+                        }
+                        if (appData.gender) {
+                            setGender(prev => prev || appData.gender);
+                        }
                     }
                 }
             } catch (err) {
@@ -152,12 +182,6 @@ export default function RentApplication() {
         };
         fetchUserProfile();
     }, [defaultEmail, loggedInUser.id]);
-
-    const [phoneRawNumber, setPhoneRawNumber] = useState(editApp ? toPhLocal10(editApp.contact_no) : (draft.phoneRawNumber || ''));
-    const [email] = useState(editApp?.email || defaultEmail);
-    const [gender, setGender] = useState(editApp?.gender || draft.gender || '');
-    const [occupants, setOccupants] = useState(editApp?.occupants || draft.occupants || '');
-    const [monthsOfRent, setMonthsOfRent] = useState(editApp?.months_of_rent || draft.monthsOfRent || '');
 
     // Room picker: an applicant may switch to any vacant unit before submitting.
     const [selectedRoomId, setSelectedRoomId] = useState(isEditing ? passedRoomId : (location.state?.selectedRoomId || draft.selectedRoomId || passedRoomId));
@@ -207,19 +231,19 @@ export default function RentApplication() {
     useEffect(() => {
         if (isEditing || !['none', 'rejected'].includes(applicationStatus)) return;
         try {
-            sessionStorage.setItem(draftKey(loggedInUser.id), JSON.stringify({ phoneRawNumber, gender, occupants, monthsOfRent, selectedRoomId }));
+            sessionStorage.setItem(draftKey(loggedInUser.id), JSON.stringify({ phoneRawNumber, gender, occupants, monthsOfRent, selectedRoomId, prefMoveInDate }));
         } catch { /* storage full or blocked: the form still works */ }
-    }, [phoneRawNumber, gender, occupants, monthsOfRent, selectedRoomId, isEditing, applicationStatus, loggedInUser.id]);
+    }, [phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, selectedRoomId, isEditing, applicationStatus, loggedInUser.id]);
 
-    // Keys match rent_application.php's form fields. Documents are required on
-    // a new application; an edit keeps the stored ones unless replaced.
-    const requireDoc = (label) => (f) => (f ? checkFile(f, FILE_RULES.document) : (isEditing ? '' : `Please upload your ${label}.`));
+    // Documents are required on every application submission.
+    const requireDoc = (label) => (f) => (f ? checkFile(f, FILE_RULES.document) : `Please upload your ${label}.`);
     const form = useFieldErrors({
         suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
         contactNo: (v) => checkPhMobile(v),
         gender: (v) => (GENDERS.includes(v) ? '' : 'Please select your gender.'),
         occupants: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants'),
         monthsOfRent: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_MONTHS, 'Months of rent'),
+        prefMoveInDate: (v) => (isASAP || v ? '' : 'Please select when you need to move in by.'),
         // Only a vacant unit can be applied for (checked once the list has loaded).
         roomName: (v) => (!isEditing && rooms.length && !availableRooms.some(r => r.id === v) ? `Room ${v} is not available. Choose another room.` : ''),
         validIdFrontFile: requireDoc('Valid ID (front)'),
@@ -228,15 +252,20 @@ export default function RentApplication() {
         agreeTerms: (v) => (v ? '' : 'Please read and agree to the terms and privacy policy.'),
     }, { idPrefix: 'rent-' });
     const values = {
-        suffix, contactNo: phoneRawNumber, gender, occupants, monthsOfRent, roomName: selectedRoomId,
+        suffix, contactNo: phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, roomName: selectedRoomId,
         validIdFrontFile, validIdBackFile, nbiFile, agreeTerms: agreePrivacy,
     };
 
-    // Accepts the file when it passes the upload rules; otherwise the error shows under its card.
+    // Accepts the file when it passes the upload rules; otherwise the error pops up as a modal alert.
     const pickFile = (key, setFile) => (file) => {
         const fileError = checkFile(file, FILE_RULES.document);
-        form.setFieldError(key, fileError);
-        if (!fileError) setFile(file);
+        if (fileError) {
+            setNotice(fileError);
+            form.setFieldError(key, fileError);
+        } else {
+            form.clearError(key);
+            setFile(file);
+        }
     };
     const removeFile = (key, setFile) => () => { setFile(null); form.clearError(key); };
 
@@ -316,6 +345,8 @@ export default function RentApplication() {
         formData.append('gender', gender);
         formData.append('occupants', occupants);
         formData.append('monthsOfRent', monthsOfRent);
+        formData.append('preferredMoveInDate', isASAP ? '' : prefMoveInDate);
+        formData.append('isAsap', isASAP ? '1' : '0');
         formData.append('roomName', selectedRoomId);
         formData.append('monthlyRent', finalMonthlyRent);
         formData.append('agreeTerms', agreePrivacy);
@@ -330,7 +361,17 @@ export default function RentApplication() {
             });
 
             if (res.data.success) {
-                try { sessionStorage.removeItem(draftKey(loggedInUser.id)); } catch { /* ignore */ }
+                try {
+                    sessionStorage.removeItem(draftKey(loggedInUser.id));
+                    const updatedUser = {
+                        ...loggedInUser,
+                        middle_name: middleName,
+                        suffix: cleanSuffix,
+                        contact_no: toPhE164(phoneRawNumber),
+                        gender: gender
+                    };
+                    sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
+                } catch { /* ignore */ }
                 setShowSuccessModal(true);
             } else if (!form.applyServerErrors(res)) {
                 setNotice(res.data.message || 'Your application could not be submitted.');
@@ -422,7 +463,7 @@ export default function RentApplication() {
                             </div>
                             <div className="rent-app-status-actions flex flex-col sm:flex-row gap-3 justify-center pt-4">
                                 <button type="button" onClick={() => navigate('/track-application')} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl text-sm border-0 cursor-pointer transition-all shadow-md shadow-indigo-600/20">{t('rent.trackApp')}</button>
-                                <button type="button" onClick={() => navigate('/services')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-8 rounded-xl text-sm border-0 cursor-pointer transition-colors">{t('rent.backServices')}</button>
+                                <button type="button" onClick={() => navigate('/home')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-8 rounded-xl text-sm border-0 cursor-pointer transition-colors">{t('rent.goHome')}</button>
                             </div>
                         </div>
                     )
@@ -467,7 +508,7 @@ export default function RentApplication() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-contactNo" className={LABEL_CLS}>
-                                        {t('rent.contactNo')} <span className="text-rose-500 ml-0.5">*</span>
+                                        {t('rent.contactNo')} {form.errors.contactNo && <span className="text-rose-500 ml-0.5">*</span>}
                                     </label>
                                     <PhoneInput
                                         id="rent-contactNo"
@@ -487,7 +528,7 @@ export default function RentApplication() {
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-gender" className={LABEL_CLS}>
-                                        {t('rent.gender')} <span className="text-rose-500 ml-0.5">*</span>
+                                        {t('rent.gender')} {form.errors.gender && <span className="text-rose-500 ml-0.5">*</span>}
                                     </label>
                                     <select
                                         {...form.fieldA11y('gender')}
@@ -507,12 +548,13 @@ export default function RentApplication() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="rent-occupants" className={`${LABEL_CLS} flex justify-between items-center`}>
-                                        <span>{t('rent.occupants')} <span className="text-rose-500 ml-0.5">*</span></span>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                <div className="flex flex-col">
+                                    <label htmlFor="rent-occupants" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
+                                        <span>{t('rent.occupants')} {form.errors.occupants && <span className="text-rose-500 ml-0.5">*</span>}</span>
                                         <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{t('rent.occupantsSurcharge')}</span>
                                     </label>
+                                    <div className="flex flex-col">
                                     <input
                                         type="number"
                                         {...form.fieldA11y('occupants')}
@@ -529,13 +571,15 @@ export default function RentApplication() {
                                         className={INPUT_CLS + invalidCls(form.errors.occupants)}
                                         required
                                     />
-                                    <FieldError id="rent-occupants" error={form.errors.occupants} className="m-0" />
+                                    <FieldError id="rent-occupants" error={form.errors.occupants} className="mt-1 m-0" />
+                                    </div>
                                 </div>
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="rent-monthsOfRent" className={`${LABEL_CLS} flex justify-between items-center`}>
-                                        <span>{t('rent.monthsOfRent')} <span className="text-rose-500 ml-0.5">*</span></span>
+                                <div className="flex flex-col">
+                                    <label htmlFor="rent-monthsOfRent" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
+                                        <span>{t('rent.monthsOfRent')} {form.errors.monthsOfRent && <span className="text-rose-500 ml-0.5">*</span>}</span>
                                         <span className="text-xs font-semibold text-slate-400">{t('rent.monthsMax')}</span>
                                     </label>
+                                    <div className="flex flex-col">
                                     <input
                                         type="number"
                                         {...form.fieldA11y('monthsOfRent')}
@@ -552,7 +596,52 @@ export default function RentApplication() {
                                         className={INPUT_CLS + invalidCls(form.errors.monthsOfRent)}
                                         required
                                     />
-                                    <FieldError id="rent-monthsOfRent" error={form.errors.monthsOfRent} className="m-0" />
+                                    <FieldError id="rent-monthsOfRent" error={form.errors.monthsOfRent} className="mt-1 m-0" />
+                                    </div>
+                                </div>
+                                <div className="flex flex-col">
+                                    <label htmlFor="rent-prefMoveInDate" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
+                                        <span>Move In By {form.errors.prefMoveInDate && <span className="text-rose-500 ml-0.5">*</span>}</span>
+                                        {!isReadOnly && (
+                                            <label className="flex items-center gap-1.5 cursor-pointer ml-2 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100 hover:bg-indigo-100 transition-colors">
+                                                <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isASAP ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-slate-300'}`}>
+                                                    {isASAP && <svg className="w-2.5 h-2.5 text-white pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                                                </div>
+                                                <input type="checkbox" checked={isASAP} onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setIsASAP(checked);
+                                                    setPrefMoveInDate('');
+                                                    if (checked) {
+                                                        form.clearError('prefMoveInDate');
+                                                    }
+                                                }} className="hidden" />
+                                                <span className="text-[10px] font-bold text-indigo-600 uppercase select-none">Any time</span>
+                                            </label>
+                                        )}
+                                    </label>
+                                    <div className="flex flex-col">
+                                    {isASAP ? (
+                                        <input
+                                            type="text"
+                                            value="Any time"
+                                            disabled
+                                            className={INPUT_CLS + " text-slate-500 font-bold"}
+                                        />
+                                    ) : (
+                                        <input
+                                            type="date"
+                                            {...form.fieldA11y('prefMoveInDate')}
+                                            min={new Date().toISOString().split('T')[0]}
+                                            value={prefMoveInDate}
+                                            disabled={isReadOnly}
+                                            onChange={(e) => { setPrefMoveInDate(e.target.value); form.clearError('prefMoveInDate'); }}
+                                            onBlur={() => form.validateField('prefMoveInDate', values)}
+                                            className={INPUT_CLS + invalidCls(form.errors.prefMoveInDate)}
+                                            required
+                                        />
+                                    )}
+                                    <FieldError id="rent-prefMoveInDate" error={form.errors.prefMoveInDate} className="mt-1 m-0" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -612,12 +701,12 @@ export default function RentApplication() {
                             ) : (
                                 <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {docCard('validIdFrontFile', t('rent.validIdFront'), t('rent.dropFront'), validIdFrontFile, setValidIdFrontFile, validIdFrontUrl, editApp?.valid_id_front_path, isDraggingIdFront, setIsDraggingIdFront)}
-                                        {docCard('validIdBackFile', t('rent.validIdBack'), t('rent.dropBack'), validIdBackFile, setValidIdBackFile, validIdBackUrl, editApp?.valid_id_back_path, isDraggingIdBack, setIsDraggingIdBack)}
+                                        {docCard('validIdFrontFile', t('rent.validIdFront'), t('rent.dropFront'), validIdFrontFile, setValidIdFrontFile, validIdFrontUrl, null, isDraggingIdFront, setIsDraggingIdFront)}
+                                        {docCard('validIdBackFile', t('rent.validIdBack'), t('rent.dropBack'), validIdBackFile, setValidIdBackFile, validIdBackUrl, null, isDraggingIdBack, setIsDraggingIdBack)}
                                     </div>
                                     <div className="flex justify-center pt-2">
                                         <div className="w-full md:w-1/2">
-                                            {docCard('nbiFile', t('rent.nbiClearance'), t('rent.dropNbi'), nbiFile, setNbiFile, nbiUrl, editApp?.nbi_clearance_path, isDraggingNbi, setIsDraggingNbi)}
+                                            {docCard('nbiFile', t('rent.nbiClearance'), t('rent.dropNbi'), nbiFile, setNbiFile, nbiUrl, null, isDraggingNbi, setIsDraggingNbi)}
                                         </div>
                                     </div>
                                 </div>

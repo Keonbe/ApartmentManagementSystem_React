@@ -76,6 +76,9 @@ if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM parking_reservations WHERE document_path IN (?,?) LIMIT 1", $two);
 }
 if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM notifications WHERE attachment_path IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
     // Visitor ID photos belong to a third party, not the hosting tenant —
     // only an admin may view them, regardless of whose unit they visited.
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM visitor_logs WHERE id_photo_path IN (?,?) LIMIT 1", $two);

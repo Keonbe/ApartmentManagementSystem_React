@@ -4,7 +4,7 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faBell, faSearch, faTimes, faCheckDouble, faTrashAlt, faClock, faMoneyBillWave,
+  faBell, faSearch, faTimes, faCheckDouble, faArchive, faClock, faMoneyBillWave,
   faWrench, faExclamationTriangle, faToggleOn, faToggleOff, faCog, faCheck,
   faUsers, faCalendarPlus, faCheckCircle, faTimesCircle, faFileContract, faCar, faVideo,
   faArrowRight, faConciergeBell, faInfoCircle, faPlay
@@ -17,6 +17,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
+import fileUrl from '../api/fileUrl';
 
 // update_system_settings.php: 0–30 days before due; every 1–30 days when overdue.
 const REMINDER_VALIDATORS = {
@@ -233,8 +234,8 @@ const AdminNotifications = () => {
                     <button onClick={handleMarkAllRead} disabled={unreadCount === 0} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors disabled:opacity-50">
                       <FontAwesomeIcon icon={faCheckDouble} /> Mark All Read
                     </button>
-                    <button onClick={handleClearAll} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-white border border-slate-200 rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
-                      <FontAwesomeIcon icon={faTrashAlt} /> Clear Processed
+                    <button onClick={handleArchiveAll} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-white border border-slate-200 rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
+                      <FontAwesomeIcon icon={faArchive} /> Clear Processed
                     </button>
                     <button onClick={() => setShowSettings(!showSettings)} className={`lg:hidden flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg cursor-pointer transition-colors border ${showSettings ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}>
                       <FontAwesomeIcon icon={faCog} /> Settings
@@ -327,12 +328,12 @@ const AdminNotifications = () => {
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                           {!n.read && (
-                            <button onClick={() => handleMarkRead(n.id)} title="Mark read" aria-label="Mark read" className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors">
+                            <button onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }} title="Mark read" aria-label="Mark read" className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faCheck} className="text-xs" />
                             </button>
                           )}
                           {!isPending && (
-                            <button onClick={() => handleDelete(n.id)} title="Delete" aria-label="Delete" className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-0 cursor-pointer transition-colors">
+                            <button onClick={(e) => { e.stopPropagation(); handleArchive(n.id); }} title="Archive" aria-label="Archive" className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-0 cursor-pointer transition-colors">
                               <FontAwesomeIcon icon={faTimes} className="text-xs" />
                             </button>
                           )}
@@ -412,8 +413,54 @@ const AdminNotifications = () => {
           </div>
         </div>
       </main>
+
+      {selectedNotification && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in" onClick={() => setSelectedNotification(null)}>
+          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-slate-800 m-0">{selectedNotification.title}</h3>
+              <button onClick={() => setSelectedNotification(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-2">
+                <FontAwesomeIcon icon={faTimes} />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              <p className="text-sm text-slate-600 whitespace-pre-wrap m-0">{selectedNotification.message}</p>
+              {selectedNotification.attachment_path && (
+                <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
+                  {selectedNotification.attachment_path.toLowerCase().endsWith('.pdf') ? (
+                    <iframe src={fileUrl(selectedNotification.attachment_path)} className="w-full h-64 border-0" title="Attachment"></iframe>
+                  ) : (
+                    <img src={fileUrl(selectedNotification.attachment_path)} alt="Attachment" className="w-full max-h-64 object-contain bg-slate-50" />
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+              <button onClick={() => setSelectedNotification(null)} className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer border-0">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in" onClick={() => setConfirmAction(null)}>
+          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-sm shadow-xl flex flex-col overflow-hidden animate-scale-in">
+            <div className="p-5 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800 m-0">{confirmAction.title}</h3>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-slate-600 m-0">{confirmAction.message}</p>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+              <button onClick={() => setConfirmAction(null)} className="px-5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+              <button onClick={confirmAction.onConfirm} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl border-0 cursor-pointer shadow-sm">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 
 export default AdminNotifications;

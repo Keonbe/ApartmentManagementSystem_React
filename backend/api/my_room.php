@@ -37,7 +37,7 @@ if ($is_admin) {
     }
 }
 
-$stmt = $conn->prepare("SELECT ra.id, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -59,6 +59,7 @@ if ($result->num_rows > 0) {
     $room_data['pending_base_rent'] = null;
     $room_data['pending_security_deposit'] = null;
     $room_data['pending_total_amount'] = null;
+    $room_data['initial_payment_paid'] = false;
     
     if ($inv_res->num_rows > 0) {
         $inv_row = $inv_res->fetch_assoc();
@@ -71,6 +72,11 @@ if ($result->num_rows > 0) {
         $room_data['pending_total_amount'] = $inv_row['total_amount'];
     }
     $inv_stmt->close();
+    $paid_stmt = $conn->prepare("SELECT 1 FROM invoices WHERE rent_application_id = ? AND security_deposit > 0 AND status = 'paid' LIMIT 1");
+    $paid_stmt->bind_param("i", $app_id);
+    $paid_stmt->execute();
+    $room_data['initial_payment_paid'] = (bool)$paid_stmt->get_result()->fetch_assoc();
+    $paid_stmt->close();
     
     echo json_encode(["success" => true, "data" => $room_data]);
 } else {
