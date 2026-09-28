@@ -50,6 +50,26 @@ export const ADMIN_NOTIFICATIONS_EVENT = 'admin_notifications_updated';
 
 export const NOTIFICATION_POLL_MS = 60000;
 
+// Payment alerts (the bell dropdown opens on every page). Polled faster while
+// one side is waiting on the other: the tenant after submitting, the admin always.
+export const PAYMENT_WATCH_POLL_MS = 20000;
+
+// Titles of the tenant's 'payment' notifications, as the backend writes them
+// (settle_invoice / settle_payment_key, reject_payment_proof, paymongo_webhook,
+// upload_payment_proof, pay_bill, schedule_payment).
+export const TENANT_PAYMENT_ALERT_TITLES = {
+  'Payment Received': 'success',
+  'Payment Proof Rejected': 'error',
+  'Payment Failed': 'error',
+};
+export const TENANT_PAYMENT_AWAITING_TITLES = ['Payment Submitted', 'Cash Payment Declared', 'Payment Scheduled', 'Payment Being Verified'];
+
+// Admin queue types that mean "a tenant paid; verify it".
+export const ADMIN_PAYMENT_ALERT_TYPES = ['payment_verification', 'cash_payment_declared'];
+
+// Fired when the admin header sees a new payment to verify, so AdminPayments reloads.
+export const ADMIN_PAYMENTS_EVENT = 'admin_payments_updated';
+
 export const formatRelativeTime = (dateStr) => {
   if (!dateStr) return '';
   const d = new Date(String(dateStr).replace(' ', 'T'));

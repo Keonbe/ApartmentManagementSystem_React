@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
+import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
 import { addDays, checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -324,7 +325,8 @@ export default function PayBills() {
                     scheduled_time_slot: scheduledTimeSlot
                 });
                 if (res.data.success) {
-                    await refresh();
+                    // Bell and invoice watch both refetch; the bell starts polling faster.
+                    window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
                     setNotice({
                         message: payingGroup ? 'Advance payment scheduled' : 'Payment scheduled',
                         subtext: `Please pay at the admin office on ${scheduledDate} (${scheduledTimeSlot}). You will be notified once management records your payment.`,
@@ -402,7 +404,7 @@ export default function PayBills() {
             if (res.data.success) {
                 setPaymentReference('');
                 clearProof();
-                await refresh();
+                window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
                 setNotice({
                     message: payingGroup ? 'Advance payment submitted' : 'Payment submitted',
                     subtext: `Your ${currentMethodObj.label} payment for ${payLabel} is awaiting verification by management. This page updates by itself, and you will be notified once it is confirmed.`,

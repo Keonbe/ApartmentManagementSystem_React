@@ -16,6 +16,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import ReasonModal from '../Components/form/ReasonModal';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
+import { ADMIN_PAYMENTS_EVENT } from '../config/notificationLinks';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 const currentPeriodLabel = () => new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
@@ -213,6 +214,10 @@ const AdminPayments = () => {
     // in config.php); this page no longer triggers them on every visit.
     const load = async () => { await Promise.all([loadInvoices(), fetchContracts()]); };
     load();
+    // A tenant just paid (the header saw a new payment to verify): reload the
+    // list in place, without the loading state, so open modals stay as they are.
+    window.addEventListener(ADMIN_PAYMENTS_EVENT, loadInvoices);
+    return () => window.removeEventListener(ADMIN_PAYMENTS_EVENT, loadInvoices);
   }, []);
   
   // Used for the draft receipt only; it used to default to a fixed 'July 2026'.

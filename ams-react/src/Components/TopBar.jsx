@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import api from '../api/axiosConfig';
@@ -9,8 +9,15 @@ import {
     faBell, faFileContract, faHistory,
     faHome, faCompass, faConciergeBell, faBed, faUserPlus
 } from '@fortawesome/free-solid-svg-icons';
-import { TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, formatRelativeTime } from '../config/notificationLinks';
+import {
+    TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, PAYMENT_WATCH_POLL_MS,
+    TENANT_PAYMENT_ALERT_TITLES, TENANT_PAYMENT_AWAITING_TITLES, formatRelativeTime,
+} from '../config/notificationLinks';
+import usePaymentAlerts from '../hooks/usePaymentAlerts';
 import '../assets/styles/responsive/components/navbar.responsive.css';
+
+// Stable empty set: no notice highlighted in the bell dropdown.
+const NO_HIGHLIGHT = new Set();
 
 export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginClick }) {
     const navigate = useNavigate();
@@ -39,6 +46,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const [dbAvatarUrl, setDbAvatarUrl] = useState(loggedInUser.avatar_url || ''); // Real-time avatar tracker
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [rawNotifications, setRawNotifications] = useState([]);
+    const [highlightIds, setHighlightIds] = useState(NO_HIGHLIGHT); // new payment notices, shown in the open dropdown
 
     // 1. Fetch live profile records to ensure avatar path accuracy across tabs
     useEffect(() => {
@@ -71,6 +80,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         setIsMobileMenuOpen(false);
         setIsDropdownOpen(false);
         setIsNotificationOpen(false);
+        setHighlightIds(NO_HIGHLIGHT);
     }
 
     const getFullAvatarUrl = (url) => (url ? fileUrl(url.replace(/^\//, '')) : null);
@@ -81,11 +91,13 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         try {
             const response = await api.get('get_notifications.php');
             if (response.data.success) {
+                setRawNotifications(response.data.notifications);
                 setNotifications(response.data.notifications.map(n => ({
                     id: n.id,
                     title: n.title,
                     message: n.message,
                     type: n.type,
+                    metadata: n.metadata_value,
                     createdAt: n.created_at,
                     read: Number(n.is_read) === 1
                 })));
@@ -96,6 +108,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         }
     };
 
+    // Waiting on management: the newest payment notice is the tenant's own
+    // submission, so the admin's answer is due. Poll faster until it arrives.
+    const latestPayment = rawNotifications.find(n => n.type === 'payment');
+    const paymentAwaiting = !!latestPayment && TENANT_PAYMENT_AWAITING_TITLES.includes(latestPayment.title);
+
     // Fetched once, then polled while the tab is visible, and whenever another
     // component changes notifications. The bell used to fetch only on mount, so new
     // notices never appeared until a full reload.
@@ -103,20 +120,51 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         if (!isLoggedIn) return;
         const load = async () => { await fetchNotifications(); };
         load();
+        window.addEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
+        return () => window.removeEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
+    }, [isLoggedIn, loggedInUser.id]);
+
+    useEffect(() => {
+        if (!isLoggedIn) return;
         const timer = setInterval(() => {
             if (document.visibilityState === 'visible') fetchNotifications();
-        }, NOTIFICATION_POLL_MS);
-        window.addEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
-        return () => {
-            clearInterval(timer);
-            window.removeEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
-        };
-    }, [isLoggedIn, loggedInUser.id]);
+        }, paymentAwaiting ? PAYMENT_WATCH_POLL_MS : NOTIFICATION_POLL_MS);
+        return () => clearInterval(timer);
+    }, [isLoggedIn, loggedInUser.id, paymentAwaiting]);
+
+    // An admin's answer to a payment (confirmed, rejected, failed) opens the bell
+    // dropdown on any page, the new notice highlighted. PayBills shows its own
+    // "Payment confirmed" modal, so a confirmation alone doesn't open it there;
+    // a rejection does, because the bill's banner doesn't cover advance payments.
+    const onPayBills = location.pathname === '/pay-bills';
+    const isPaymentAlert = useCallback((n) => n.type === 'payment' && !!TENANT_PAYMENT_ALERT_TITLES[n.title], []);
+    const showPaymentAlerts = useCallback((list) => {
+        setHighlightIds(new Set(list.map(n => n.id)));
+        if (!onPayBills || list.some(n => TENANT_PAYMENT_ALERT_TITLES[n.title] !== 'success')) {
+            setIsDropdownOpen(false);
+            setIsNotificationOpen(true);
+        }
+        // Pages showing invoices (PayBills, Payment History) refetch on this event.
+        window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
+    }, [onPayBills]);
+    usePaymentAlerts(rawNotifications, {
+        storageKey: loggedInUser.id ? `ams_payment_alert_mark_${loggedInUser.id}` : null,
+        match: isPaymentAlert,
+        onNew: showPaymentAlerts,
+    });
+
+    const closeNotifications = () => {
+        setIsNotificationOpen(false);
+        setHighlightIds(NO_HIGHLIGHT);
+    };
 
     useEffect(() => {
         function handleClickOutside(event) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false);
-            if (notificationRef.current && !notificationRef.current.contains(event.target)) setIsNotificationOpen(false);
+            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+                setIsNotificationOpen(false);
+                setHighlightIds(NO_HIGHLIGHT);
+            }
             if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target) && !event.target.closest('.mobile-menu-toggle')) {
                 setIsMobileMenuOpen(false);
             }
@@ -125,9 +173,20 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Where a notice leads. A confirmed payment opens its receipt; a rejected or
+    // failed one goes back to the bill.
+    const notificationTarget = (n) => {
+        const tone = n.type === 'payment' ? TENANT_PAYMENT_ALERT_TITLES[n.title] : null;
+        if (tone === 'success' && String(n.metadata || '').startsWith('invoice:')) {
+            return ['/payment-history', { state: { receiptId: String(n.metadata).slice(8) } }];
+        }
+        if (tone === 'error') return ['/pay-bills'];
+        return [TENANT_NOTIFICATION_LINKS[n.type]?.path || '/notifications'];
+    };
+
     // Clicking a notice marks it read and opens the page it is about.
     const openNotification = async (n) => {
-        setIsNotificationOpen(false);
+        closeNotifications();
         if (!n.read) {
             try {
                 await api.post('mark_notification_read.php', { id: n.id });
@@ -136,7 +195,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                 console.error(e);
             }
         }
-        navigate(TENANT_NOTIFICATION_LINKS[n.type]?.path || '/notifications');
+        navigate(...notificationTarget(n));
     };
 
     const getInitials = () => {
@@ -194,7 +253,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     {isLoggedIn && (
                         <div className="relative" ref={notificationRef}>
                             <button
-                                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                                onClick={() => (isNotificationOpen ? closeNotifications() : setIsNotificationOpen(true))}
                                 className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all duration-200 border-0 cursor-pointer relative"
                             >
                                 <FontAwesomeIcon icon={faBell} className="text-sm" />
@@ -213,19 +272,38 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     </div>
                                     <div className="max-h-64 overflow-y-auto px-2 py-1 space-y-1">
                                         {notifications.length > 0 ? (
-                                            notifications.slice(0, 5).map(n => (
-                                                <div
-                                                    key={n.id}
-                                                    onClick={() => openNotification(n)}
-                                                    className={`p-2.5 rounded-xl cursor-pointer transition-colors ${n.read ? 'hover:bg-slate-50 opacity-60' : 'bg-indigo-50/50 hover:bg-indigo-50'}`}
-                                                >
-                                                    <div className="flex justify-between gap-2">
-                                                        <p className="text-xs font-bold text-slate-800 m-0">{n.title}</p>
-                                                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatRelativeTime(n.createdAt)}</span>
+                                            notifications.slice(0, 5).map(n => {
+                                                // A payment update that just arrived: tinted by outcome, marked New.
+                                                const isNew = highlightIds.has(n.id);
+                                                const success = TENANT_PAYMENT_ALERT_TITLES[n.title] === 'success';
+                                                const tone = !isNew ? (n.read ? 'hover:bg-slate-50 opacity-60' : 'bg-indigo-50/50 hover:bg-indigo-50')
+                                                    : success ? 'bg-emerald-50 hover:bg-emerald-100/70 border-l-4 border-emerald-500'
+                                                    : 'bg-rose-50 hover:bg-rose-100/70 border-l-4 border-rose-500';
+                                                return (
+                                                    <div
+                                                        key={n.id}
+                                                        data-new={isNew || undefined}
+                                                        onClick={() => openNotification(n)}
+                                                        className={`p-2.5 rounded-xl cursor-pointer transition-colors ${tone}`}
+                                                    >
+                                                        <div className="flex justify-between gap-2">
+                                                            <p className="text-xs font-bold text-slate-800 m-0">
+                                                                {n.title}
+                                                                {isNew && (
+                                                                    <span className={`ml-1.5 align-middle text-[9px] font-black uppercase tracking-wider text-white px-1.5 py-0.5 rounded-full ${success ? 'bg-emerald-500' : 'bg-rose-500'}`}>New</span>
+                                                                )}
+                                                            </p>
+                                                            <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatRelativeTime(n.createdAt)}</span>
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-500 m-0 mt-0.5">{n.message}</p>
+                                                        {isNew && (
+                                                            <p className={`text-[11px] font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                                {success ? 'View receipt →' : 'Open Pay Bills →'}
+                                                            </p>
+                                                        )}
                                                     </div>
-                                                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">{n.message}</p>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         ) : (
                                             <p className="text-xs text-slate-400 text-center py-4 m-0">No notifications</p>
                                         )}

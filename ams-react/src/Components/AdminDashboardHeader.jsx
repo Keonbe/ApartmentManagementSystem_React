@@ -3,8 +3,15 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import { ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, formatRelativeTime } from '../config/notificationLinks';
+import {
+  ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, ADMIN_PAYMENT_ALERT_TYPES, ADMIN_PAYMENTS_EVENT,
+  PAYMENT_WATCH_POLL_MS, formatRelativeTime,
+} from '../config/notificationLinks';
+import usePaymentAlerts from '../hooks/usePaymentAlerts';
 import '../assets/styles/responsive/admin/admin-header.responsive.css';
+
+// Stable empty set: no notice highlighted in the bell dropdown.
+const NO_HIGHLIGHT = new Set();
 
 const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -24,20 +31,44 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     }
   }, []);
 
-  // Polled while the tab is visible. The bell used to load once per page, and
+  // Polled while the tab is visible, every 20 s so a tenant's payment reaches the
+  // admin quickly. The bell used to load once per page, and
   // rendered a "time" field the API never returns.
   useEffect(() => {
     const load = async () => { await fetchNotifications(); };
     load();
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') fetchNotifications();
-    }, NOTIFICATION_POLL_MS);
+    }, PAYMENT_WATCH_POLL_MS);
     window.addEventListener(ADMIN_NOTIFICATIONS_EVENT, fetchNotifications);
     return () => {
       clearInterval(timer);
       window.removeEventListener(ADMIN_NOTIFICATIONS_EVENT, fetchNotifications);
     };
   }, [fetchNotifications]);
+
+  // A tenant's proof upload or cash declaration opens the bell dropdown on any
+  // admin page, the new notice highlighted, and AdminPayments reloads its list
+  // (ADMIN_PAYMENTS_EVENT).
+  const [highlightIds, setHighlightIds] = useState(NO_HIGHLIGHT);
+  const isPaymentAlert = useCallback((n) => n.status === 'Pending' && ADMIN_PAYMENT_ALERT_TYPES.includes(n.type), []);
+  const showPaymentAlerts = useCallback((list) => {
+    setHighlightIds(new Set(list.map(n => n.id)));
+    setIsProfileOpen(false);
+    setIsNotifOpen(true);
+    window.dispatchEvent(new CustomEvent(ADMIN_PAYMENTS_EVENT));
+  }, []);
+  const adminId = JSON.parse(sessionStorage.getItem('loggedInUser') || '{}').id;
+  usePaymentAlerts(notifications, {
+    storageKey: adminId ? `ams_admin_payment_alert_mark_${adminId}` : null,
+    match: isPaymentAlert,
+    onNew: showPaymentAlerts,
+  });
+
+  const closeNotifications = () => {
+    setIsNotifOpen(false);
+    setHighlightIds(NO_HIGHLIGHT);
+  };
 
   const handleToggle = () => {
     if (onToggleSidebar) {
@@ -70,7 +101,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   };
 
   const openNotification = async (notif) => {
-    setIsNotifOpen(false);
+    closeNotifications();
     if (!Number(notif.is_read)) {
       try {
         await api.post('mark_notification_read.php', { id: notif.id });
@@ -109,7 +140,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
         {/* Notifications */}
         <div className="relative">
           <button
-            onClick={() => { setIsNotifOpen(!isNotifOpen); setIsProfileOpen(false); }}
+            onClick={() => { if (isNotifOpen) closeNotifications(); else setIsNotifOpen(true); setIsProfileOpen(false); }}
             className="admin-header-notif-btn btn-interactive text-gray-500 hover:text-gray-700 transition-colors relative bg-transparent border-0 cursor-pointer p-2 outline-none"
             aria-label="Notifications"
           >
@@ -131,20 +162,33 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
               </div>
               <div className="stagger-children max-h-80 overflow-y-auto">
                 {notifications.length > 0 ? (
-                  notifications.map(notif => (
-                    <div
-                      key={notif.id}
-                      onClick={() => openNotification(notif)}
-                      className={`px-4 py-3.5 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 ${!Number(notif.is_read) ? 'bg-indigo-50/20' : ''}`}
-                    >
-                      {!Number(notif.is_read) && (
-                        <span className="absolute left-1.5 top-[18px] w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
-                      )}
-                      <p className={`text-xs font-bold m-0 leading-snug ${!Number(notif.is_read) ? 'text-slate-800' : 'text-slate-600'}`}>{notif.title}</p>
-                      <p className="text-[11px] text-slate-500 m-0 leading-normal">{notif.message}</p>
-                      <p className="text-[9px] text-slate-400 font-medium m-0 mt-1">{formatRelativeTime(notif.created_at)}</p>
-                    </div>
-                  ))
+                  notifications.map(notif => {
+                    // A payment that just came in: tinted, marked New, links to AdminPayments.
+                    const isNew = highlightIds.has(notif.id);
+                    return (
+                      <div
+                        key={notif.id}
+                        data-new={isNew || undefined}
+                        onClick={() => openNotification(notif)}
+                        className={`px-4 py-3.5 border-b border-gray-50 cursor-pointer transition-colors relative flex flex-col gap-0.5 ${isNew ? 'bg-indigo-50 hover:bg-indigo-100/70 border-l-4 border-l-indigo-500' : `hover:bg-gray-50 ${!Number(notif.is_read) ? 'bg-indigo-50/20' : ''}`}`}
+                      >
+                        {!Number(notif.is_read) && !isNew && (
+                          <span className="absolute left-1.5 top-[18px] w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
+                        )}
+                        <p className={`text-xs font-bold m-0 leading-snug ${!Number(notif.is_read) ? 'text-slate-800' : 'text-slate-600'}`}>
+                          {notif.title}
+                          {isNew && (
+                            <span className="ml-1.5 align-middle text-[9px] font-black uppercase tracking-wider text-white bg-indigo-500 px-1.5 py-0.5 rounded-full">New</span>
+                          )}
+                        </p>
+                        <p className="text-[11px] text-slate-500 m-0 leading-normal">{notif.message}</p>
+                        <p className="text-[9px] text-slate-400 font-medium m-0 mt-1">{formatRelativeTime(notif.created_at)}</p>
+                        {isNew && (
+                          <p className="text-[11px] font-bold text-indigo-700 m-0 mt-1">Review payment →</p>
+                        )}
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="py-12 text-center text-slate-400 text-xs italic">
                     Nothing needs your attention
