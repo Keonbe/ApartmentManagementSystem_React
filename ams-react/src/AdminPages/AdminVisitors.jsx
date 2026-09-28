@@ -24,8 +24,20 @@ const ID_TYPES = ['National ID', "Driver's License", 'Passport', 'UMID / SSS', '
 const PLATE_PATTERN = /^[A-Z0-9][A-Z0-9 -]*$/;
 // update_system_settings.php: 1 to 168 hours.
 const MAX_OVERSTAY_HOURS = 168;
-// The desk may back-date a visit by up to a day.
-const visitBounds = () => ({ min: addDays(-1), max: localDateString() });
+// The desk may back-date a visit by up to a day; the expected check-out may be
+// up to 30 days out (check_in_visitor.php).
+const visitBounds = () => ({ min: addDays(-1), max: localDateString(), outMax: addDays(30) });
+const DAY_MS = 24 * 60 * 60 * 1000;
+const fmtShort = (d) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+// Preset reasons for declining a pre-registered visitor (ReasonModal adds "Other…").
+const DENY_REASON_OPTIONS = [
+  'No valid ID presented',
+  'Host tenant unavailable / not home',
+  'Visitor not expected by tenant',
+  'Details do not match registration',
+  'Security concern',
+];
 import { fileUrl } from '../api/fileUrl';
 import '../assets/styles/responsive/admin/admin-visitors.responsive.css';
 
@@ -78,10 +90,12 @@ export default function AdminVisitors() {
     vehiclePlate: '',
     visitDate: localDateString(),
     visitTime: localTimeString(),
+    checkOutDate: localDateString(),
+    checkOutTime: '',
     idPhoto: null
   });
   const [checkInForm, setCheckInForm] = useState(emptyCheckInForm);
-  const [visitDateBounds, setVisitDateBounds] = useState({ min: '', max: '' });
+  const [visitDateBounds, setVisitDateBounds] = useState({ min: '', max: '', outMax: '' });
 
   const openCheckInModal = () => {
     setCheckInForm(emptyCheckInForm());
@@ -97,20 +111,36 @@ export default function AdminVisitors() {
   const [photoInputKey, setPhotoInputKey] = useState(0);
   const [denyTarget, setDenyTarget] = useState(null); // visitor id while a decline reason is entered
 
-  // Keys match check_in_visitor.php (visitDate/visitTime make up visitAt).
+  // Keys match check_in_visitor.php (visitDate/visitTime make up visitAt,
+  // checkOutDate/checkOutTime make up expectedCheckOutAt).
   const checkIn = useFieldErrors({
     visitorName: (v) => checkPersonName(v, { label: 'Visitor name', max: LIMITS.fullName }),
     contactNumber: (v) => checkPhMobile(v),
     unit: (v) => (rooms.some(r => String(r.id) === String(v)) ? '' : 'Select the unit being visited.'),
-    visitDate: (v) => checkDate(v, { ...visitDateBounds, label: 'Visit date' }),
+    visitDate: (v) => checkDate(v, { min: visitDateBounds.min, max: visitDateBounds.max, label: 'Check-in date' }),
     // check_in_visitor.php accepts a visit from 24 hours ago to 5 minutes ahead.
     visitTime: (v, all) => {
-      if (!v) return 'Visit time is required.';
+      if (!v) return 'Check-in time is required.';
       if (!all.visitDate) return '';
       const visitMs = new Date(`${all.visitDate}T${v}`).getTime();
-      if (Number.isNaN(visitMs)) return 'Enter a valid visit time.';
-      if (visitMs > Date.now() + 5 * 60 * 1000) return 'Visit time cannot be in the future.';
-      if (visitMs < Date.now() - 24 * 60 * 60 * 1000) return 'Visit time can be back-dated by at most 24 hours.';
+      if (Number.isNaN(visitMs)) return 'Enter a valid check-in time.';
+      if (visitMs > Date.now() + 5 * 60 * 1000) return 'Check-in time cannot be in the future.';
+      if (visitMs < Date.now() - DAY_MS) return 'Check-in time can be back-dated by at most 24 hours.';
+      return '';
+    },
+    checkOutDate: (v) => checkDate(v, { min: visitDateBounds.min, max: visitDateBounds.outMax, label: 'Expected check-out date' }),
+    // After the check-in, within 30 days of it, and not already past.
+    checkOutTime: (v, all) => {
+      if (!v) return 'Expected check-out time is required.';
+      if (!all.checkOutDate) return '';
+      const outMs = new Date(`${all.checkOutDate}T${v}`).getTime();
+      if (Number.isNaN(outMs)) return 'Enter a valid check-out time.';
+      const visitMs = new Date(`${all.visitDate}T${all.visitTime}`).getTime();
+      if (!Number.isNaN(visitMs)) {
+        if (outMs <= visitMs) return 'Expected check-out must be after the check-in.';
+        if (outMs > visitMs + 30 * DAY_MS) return 'Expected check-out must be within 30 days of check-in.';
+      }
+      if (outMs < Date.now() - 5 * 60 * 1000) return 'Expected check-out cannot be in the past.';
       return '';
     },
     purpose: (v) => (PURPOSES.includes(v) ? '' : 'Choose the purpose of the visit.'),
@@ -137,7 +167,7 @@ export default function AdminVisitors() {
     setPhotoInputKey(k => k + 1);
     checkIn.clearError('idPhoto');
   };
-  const CHECK_IN_FIELDS = ['visitorName', 'contactNumber', 'unit', 'visitDate', 'visitTime', 'purpose', 'idType', 'idNumber', 'vehiclePlate', 'idPhoto'];
+  const CHECK_IN_FIELDS = ['visitorName', 'contactNumber', 'unit', 'visitDate', 'visitTime', 'checkOutDate', 'checkOutTime', 'purpose', 'idType', 'idNumber', 'vehiclePlate', 'idPhoto'];
 
   // Loading and error are derived from the filters they belong to, so a filter change
   // shows the spinner without setting state inside the effect.
@@ -222,6 +252,7 @@ export default function AdminVisitors() {
         idNumber: clean.idNumber,
         vehiclePlate: clean.vehiclePlate,
         visitAt,
+        expectedCheckOutAt: `${clean.checkOutDate}T${clean.checkOutTime}`,
       };
       let payload = fields;
       let headers = {};
@@ -620,6 +651,9 @@ export default function AdminVisitors() {
                               <p className="text-[11px] text-slate-400 m-0 mt-0.5">
                                 {new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
+                              {v.expectedCheckOutAt && (
+                                <p className="text-[10px] text-slate-400 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>
+                              )}
                             </td>
 
                             {/* Duration */}
@@ -807,7 +841,7 @@ export default function AdminVisitors() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="checkin-visitDate" className="block text-xs font-bold text-slate-700 mb-1">Visit Date *</label>
+                  <label htmlFor="checkin-visitDate" className="block text-xs font-bold text-slate-700 mb-1">Check-in Date *</label>
                   <input
                     type="date"
                     required
@@ -822,7 +856,7 @@ export default function AdminVisitors() {
                   <FieldError id="checkin-visitDate" error={checkIn.errors.visitDate} />
                 </div>
                 <div>
-                  <label htmlFor="checkin-visitTime" className="block text-xs font-bold text-slate-700 mb-1">Visit Time *</label>
+                  <label htmlFor="checkin-visitTime" className="block text-xs font-bold text-slate-700 mb-1">Check-in Time *</label>
                   <input
                     type="time"
                     required
@@ -833,6 +867,37 @@ export default function AdminVisitors() {
                     className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.visitTime)}
                   />
                   <FieldError id="checkin-visitTime" error={checkIn.errors.visitTime} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="checkin-checkOutDate" className="block text-xs font-bold text-slate-700 mb-1">Expected Check-out Date *</label>
+                  <input
+                    type="date"
+                    required
+                    {...checkIn.fieldA11y('checkOutDate')}
+                    onChange={(e) => setCheckInField('checkOutDate', e.target.value)}
+                    onBlur={() => blurCheckInField('checkOutDate')}
+                    min={visitDateBounds.min}
+                    max={visitDateBounds.outMax}
+                    value={checkInForm.checkOutDate}
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkOutDate)}
+                  />
+                  <FieldError id="checkin-checkOutDate" error={checkIn.errors.checkOutDate} />
+                </div>
+                <div>
+                  <label htmlFor="checkin-checkOutTime" className="block text-xs font-bold text-slate-700 mb-1">Expected Check-out Time *</label>
+                  <input
+                    type="time"
+                    required
+                    {...checkIn.fieldA11y('checkOutTime')}
+                    onChange={(e) => setCheckInField('checkOutTime', e.target.value)}
+                    onBlur={() => blurCheckInField('checkOutTime')}
+                    value={checkInForm.checkOutTime}
+                    className={"w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(checkIn.errors.checkOutTime)}
+                  />
+                  <FieldError id="checkin-checkOutTime" error={checkIn.errors.checkOutTime} />
                 </div>
               </div>
 
@@ -966,6 +1031,9 @@ export default function AdminVisitors() {
               <p className="m-0"><strong className="text-slate-800">Visitor:</strong> {selectedVisitorForCheckout.visitorName}</p>
               <p className="m-0"><strong className="text-slate-800">Visiting Unit:</strong> Unit {selectedVisitorForCheckout.unit} ({selectedVisitorForCheckout.hostName})</p>
               <p className="m-0"><strong className="text-slate-800">Checked In At:</strong> {new Date(selectedVisitorForCheckout.checkInAt).toLocaleString()}</p>
+              {selectedVisitorForCheckout.expectedCheckOutAt && (
+                <p className="m-0"><strong className="text-slate-800">Expected Check-out:</strong> {new Date(selectedVisitorForCheckout.expectedCheckOutAt).toLocaleString()}</p>
+              )}
               <p className="m-0"><strong className="text-slate-800">Elapsed Duration:</strong> <span className="font-bold text-indigo-600">{selectedVisitorForCheckout.duration}</span></p>
             </div>
 
@@ -1119,8 +1187,8 @@ export default function AdminVisitors() {
       {denyTarget && (
         <ReasonModal
           title="Decline Entry"
-          label="Reason for declining entry (optional)"
-          required={false}
+          label="Reason for declining entry"
+          options={DENY_REASON_OPTIONS}
           confirmLabel="Decline Entry"
           onConfirm={confirmDeny}
           onClose={() => setDenyTarget(null)}

@@ -15,14 +15,26 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import FileChip from '../Components/form/FileChip';
 import { invalidCls } from '../Components/form/formHelpers';
+import ReasonModal from '../Components/form/ReasonModal';
 
 const PURPOSES = ['Personal Visit', 'Delivery / Courier', 'Maintenance / Contractor', 'Official / Business', 'Short Stay Guest'];
 const ID_TYPES = ['National ID', "Driver's License", 'Passport', 'UMID / SSS', 'Student / Work ID'];
 // Letters, digits, spaces and hyphens (e.g. ABC 1234, N02-1234).
 const PLATE_PATTERN = /^[A-Z0-9][A-Z0-9 -]*$/;
 
-// Allowed arrival dates: today to 30 days ahead, local time.
-const arrivalBounds = () => ({ min: localDateString(), max: addDays(30) });
+// Allowed arrival dates: today to 30 days ahead, local time. The expected
+// check-out is within 30 days of the arrival, so its picker goes to 60.
+const arrivalBounds = () => ({ min: localDateString(), max: addDays(30), outMax: addDays(60) });
+const DAY_MS = 24 * 60 * 60 * 1000;
+const fmtShort = (d) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+// Preset departure notes for "Mark departed" (ReasonModal adds "Other…").
+const DEPARTURE_NOTE_OPTIONS = [
+  'Left normally',
+  'Left together with me',
+  'Picked up / fetched by someone',
+  'Stayed shorter than planned',
+];
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-visitors.responsive.css';
 
@@ -39,7 +51,7 @@ export default function UserVisitors() {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   // The allowed arrival dates (today to 30 days ahead, local time) are fixed
   // when the form opens.
-  const [expectedBounds, setExpectedBounds] = useState({ min: '', max: '' });
+  const [expectedBounds, setExpectedBounds] = useState({ min: '', max: '', outMax: '' });
 
   const openRegisterModal = () => {
     setExpectedBounds(arrivalBounds());
@@ -54,23 +66,39 @@ export default function UserVisitors() {
     idNumber: '',
     vehiclePlate: '',
     expectedDate: '',
-    expectedTime: ''
+    expectedTime: '',
+    expectedOutDate: '',
+    expectedOutTime: ''
   };
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm);
   const [submitting, setSubmitting] = useState(false);
   const [photoInputKey, setPhotoInputKey] = useState(0);
 
-  // Keys match check_in_visitor.php (expectedDate/expectedTime make up expectedAt).
+  // Keys match check_in_visitor.php (expectedDate/expectedTime make up
+  // expectedAt, expectedOutDate/expectedOutTime make up expectedCheckOutAt).
   const visitorForm = useFieldErrors({
     visitorName: (v) => checkPersonName(v, { label: 'Visitor name', max: LIMITS.fullName }),
     contactNumber: (v) => checkPhMobile(v),
     purpose: (v) => (PURPOSES.includes(v) ? '' : 'Choose the purpose of the visit.'),
-    expectedDate: (v) => checkDate(v, { ...expectedBounds, label: 'Arrival date' }),
+    expectedDate: (v) => checkDate(v, { min: expectedBounds.min, max: expectedBounds.max, label: 'Check-in date' }),
     // check_in_visitor.php accepts an arrival up to 1 hour in the past.
     expectedTime: (v, all) => {
-      if (!v) return 'Arrival time is required.';
+      if (!v) return 'Check-in time is required.';
       if (!all.expectedDate) return '';
-      return new Date(`${all.expectedDate}T${v}`).getTime() < Date.now() - 60 * 60 * 1000 ? 'Arrival time cannot be in the past.' : '';
+      return new Date(`${all.expectedDate}T${v}`).getTime() < Date.now() - 60 * 60 * 1000 ? 'Check-in time cannot be in the past.' : '';
+    },
+    expectedOutDate: (v) => checkDate(v, { min: expectedBounds.min, max: expectedBounds.outMax, label: 'Expected check-out date' }),
+    // After the check-in and within 30 days of it.
+    expectedOutTime: (v, all) => {
+      if (!v) return 'Expected check-out time is required.';
+      if (!all.expectedOutDate) return '';
+      const outMs = new Date(`${all.expectedOutDate}T${v}`).getTime();
+      if (Number.isNaN(outMs)) return 'Enter a valid check-out time.';
+      const inMs = new Date(`${all.expectedDate}T${all.expectedTime}`).getTime();
+      if (Number.isNaN(inMs)) return '';
+      if (outMs <= inMs) return 'Expected check-out must be after the check-in.';
+      if (outMs > inMs + 30 * DAY_MS) return 'Expected check-out must be within 30 days of check-in.';
+      return '';
     },
     idType: (v) => (ID_TYPES.includes(v) ? '' : 'Choose an ID type.'),
     idNumber: (v) => checkText(v, { label: 'ID number', min: 3, max: LIMITS.idNumber }),
@@ -157,6 +185,7 @@ export default function UserVisitors() {
         idNumber: clean.idNumber,
         vehiclePlate: clean.vehiclePlate,
         expectedAt,
+        expectedCheckOutAt: `${clean.expectedOutDate}T${clean.expectedOutTime}`,
       };
       let payload = fields;
       let headers = {};
@@ -184,23 +213,23 @@ export default function UserVisitors() {
     }
   };
 
-  const handleCheckoutSelf = async (id) => {
-    if (!window.confirm('Mark this visitor as departed from your unit?')) return;
+  // The departure note is picked in ReasonModal; throws so the modal shows it.
+  const [departTarget, setDepartTarget] = useState(null); // visitor id
+  const confirmDeparture = async (note) => {
+    let res;
     try {
-      const res = await api.post('update_visitor_status.php', {
-        id,
+      res = await api.post('update_visitor_status.php', {
+        id: departTarget,
         action: 'checked_out',
-        checkoutNotes: 'Tenant reported departure.'
+        checkoutNotes: `Tenant reported departure: ${note}`
       });
-      if (res.data.success) {
-        fetchTenantData();
-      } else {
-        alert(res.data.message || 'Failed to update status.');
-      }
     } catch (err) {
       console.error('Failed to mark visitor departure:', err);
-      alert(apiErrorMessage(err, 'Failed to update status.'));
+      throw new Error(apiErrorMessage(err, 'Failed to update status.'), { cause: err });
     }
+    if (!res.data.success) throw new Error(res.data.message || 'Failed to update status.');
+    setDepartTarget(null);
+    fetchTenantData();
   };
 
   const handleCancelRegistration = async (id) => {
@@ -294,10 +323,13 @@ export default function UserVisitors() {
                     <p className="text-[11px] text-slate-400 m-0">
                       {new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {t('visitors.colDuration')}: <span className="font-bold text-emerald-600">{v.duration}</span>
                     </p>
+                    {v.expectedCheckOutAt && (
+                      <p className="text-[11px] text-slate-400 m-0">{t('visitors.expectedOut')}: {fmtShort(v.expectedCheckOutAt)}</p>
+                    )}
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleCheckoutSelf(v.id)}
+                    onClick={() => setDepartTarget(v.id)}
                     className="btn-interactive rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
                   >
                     {t('visitors.markDeparted')}
@@ -329,7 +361,8 @@ export default function UserVisitors() {
                   <p className="text-xs text-slate-500 m-0 mt-1">Contact: {v.contactNumber} • Purpose: {v.purpose}</p>
                   {v.expectedAt && (
                     <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                      Expected {new Date(v.expectedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      Expected {fmtShort(v.expectedAt)}
+                      {v.expectedCheckOutAt && ` – ${fmtShort(v.expectedCheckOutAt)}`}
                     </p>
                   )}
                   {v.vehiclePlate && (
@@ -551,6 +584,37 @@ export default function UserVisitors() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label htmlFor="visitor-expectedOutDate" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedOutDate')} *</label>
+                  <input
+                    type="date"
+                    {...visitorForm.fieldA11y('expectedOutDate')}
+                    required
+                    min={registerForm.expectedDate || expectedBounds.min}
+                    max={expectedBounds.outMax}
+                    value={registerForm.expectedOutDate}
+                    onChange={(e) => setVisitorField('expectedOutDate', e.target.value)}
+                    onBlur={() => blurVisitorField('expectedOutDate')}
+                    className={"focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(visitorForm.errors.expectedOutDate)}
+                  />
+                  <FieldError id="visitor-expectedOutDate" error={visitorForm.errors.expectedOutDate} />
+                </div>
+                <div>
+                  <label htmlFor="visitor-expectedOutTime" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.expectedOutTime')} *</label>
+                  <input
+                    type="time"
+                    {...visitorForm.fieldA11y('expectedOutTime')}
+                    required
+                    value={registerForm.expectedOutTime}
+                    onChange={(e) => setVisitorField('expectedOutTime', e.target.value)}
+                    onBlur={() => blurVisitorField('expectedOutTime')}
+                    className={"focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" + invalidCls(visitorForm.errors.expectedOutTime)}
+                  />
+                  <FieldError id="visitor-expectedOutTime" error={visitorForm.errors.expectedOutTime} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label htmlFor="visitor-idType" className="block text-xs font-bold text-slate-700 mb-1">{t('visitors.idType')} *</label>
                   <select
                     {...visitorForm.fieldA11y('idType')}
@@ -640,6 +704,19 @@ export default function UserVisitors() {
             </form>
           </div>
         </div>
+      )}
+
+      {departTarget && (
+        <ReasonModal
+          title={t('visitors.departTitle')}
+          description={t('visitors.departDesc')}
+          label={t('visitors.departLabel')}
+          options={DEPARTURE_NOTE_OPTIONS}
+          confirmLabel={t('visitors.markDeparted')}
+          tone="indigo"
+          onConfirm={confirmDeparture}
+          onClose={() => setDepartTarget(null)}
+        />
       )}
 
     </div>
