@@ -264,6 +264,8 @@ erDiagram
         varchar purpose
         varchar vehicle_plate
         enum status "pending_approval | checked_in | checked_out | overstayed | denied"
+        datetime expected_at "tenant pre-registration's expected check-in"
+        datetime expected_check_out_at "added Sept 2026; required on new rows"
         datetime check_in_at
         datetime check_out_at
         text checkout_notes
@@ -531,7 +533,7 @@ erDiagram
 ### Communication, Access & Audit
 | Table | Purpose |
 |---|---|
-| `visitor_logs` | Front-desk check-in/out log. `status` is a real `ENUM`: `pending_approval` (tenant pre-registration) → `checked_in` → `checked_out`, or `denied`/`cancelled`; `overstayed` is a **derived display value** computed at read time, not a stored status. `expected_at` (a pre-registration's expected arrival) and `overstay_alerted_at` (the once-per-visit claim for `alert_overstayed_visitors()`) were added September 2026. `id_photo_path` (the uploaded government ID) was missing from the schema until September 2026, which made every check-in fail. A tenant's own list is scoped strictly to `user_id` — matching by current room as well used to leak a previous occupant's visitors to the next tenant of the same unit. |
+| `visitor_logs` | Front-desk check-in/out log. `status` is a real `ENUM`: `pending_approval` (tenant pre-registration) → `checked_in` → `checked_out`, or `denied`/`cancelled`; `overstayed` is a **derived display value** computed at read time, not a stored status. `expected_at` (a pre-registration's expected arrival) and `overstay_alerted_at` (the once-per-visit claim for `alert_overstayed_visitors()`) were added September 2026. `expected_check_out_at` (when the visitor is expected to leave) was added late September 2026: nullable for older rows, but `check_in_visitor.php` requires it on every new visit; it is informational only, since overstay still uses `visitor_overstay_hours`. `id_photo_path` (the uploaded government ID) was missing from the schema until September 2026, which made every check-in fail. A tenant's own list is scoped strictly to `user_id` — matching by current room as well used to leak a previous occupant's visitors to the next tenant of the same unit. |
 | `inquiries` | Public/walk-in "tell me about a unit" leads. `room_name` is intentionally **not** FK-enforced — an inquiry doesn't have to name a specific unit. |
 | `unit_reservations` | A short hold on a room after a promising inquiry. "One active hold per room" is enforced at the application layer (`SELECT ... FOR UPDATE` inside a transaction) rather than a DB constraint, because MySQL has no native partial/conditional unique index. |
 | `unit_waitlist` | Basic first-come waitlist for a unit that isn't vacant, added from an inquiry (`manage_waitlist.php`). When the unit is vacated or a hold is released, `notify_unit_waitlist()` marks the first `Waiting` row `Notified`, notifies a tenant account in-app and queues an admin item (`unit_waitlist`). No hold is placed automatically. Converting or closing the inquiry removes its entries. `room_name` is a soft reference, like `inquiries`. |
@@ -590,6 +592,7 @@ Each is idempotent and only needed for a database created before it; a fresh `Se
 | File | What it does |
 |---|---|
 | `2026_09_contracts_visitors.sql` | `lease_contracts` transition columns and unique key; `visitor_logs` `expected_at` / `overstay_alerted_at` |
+| `2026_09_visitor_expected_checkout.sql` | `visitor_logs.expected_check_out_at` |
 | `2026_09_notifications_parking.sql` | Creates `notification_preferences` and `parking_charges`; alters `activity_logs`, `notifications`, `parking_reservations` (numbered slots, billing) |
 | `2026_09_end_tenancy.sql` | `invoices.cancel_reason` (invoices cancelled by the end-of-tenancy helper) |
 | `2026_09_payment_proof_rejection.sql` | `invoices.proof_rejection_reason` |
