@@ -10,7 +10,8 @@ import { LIMITS } from '../utils/validation';
 import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import FieldError from '../Components/form/FieldError';
-import FileChip from '../Components/form/FileChip';
+import ChatAttachmentPreview from '../Components/form/ChatAttachmentPreview';
+import useFilePreview from '../hooks/useFilePreview';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 
@@ -79,7 +80,7 @@ const AdminMessages = () => {
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  const [attachment, setAttachment] = useState(null);
+  const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
   const [replyingTo, setReplyingTo] = useState(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
@@ -143,7 +144,12 @@ const AdminMessages = () => {
     setSendError('');
     setSending(true);
     try {
-      await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
+      if (message && attachment) {
+        await sendMessage(activeChat.other_user_id, message, null, replyingTo?.id);
+        await sendMessage(activeChat.other_user_id, '', attachment);
+      } else {
+        await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
+      }
       setDraft('');
       setAttachment(null);
       setReplyingTo(null);
@@ -271,21 +277,23 @@ const AdminMessages = () => {
                     })}
                   </div>
                   {replyingTo && <div className="mx-3 mt-3 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
-                  <form onSubmit={handleSend} className={`p-3 md:p-4 flex gap-2 shrink-0 ${replyingTo ? '' : 'border-t border-slate-100'}`}>
-                    <label className="px-1.5 flex items-center cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
-                    <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-1.5 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
+                  <form onSubmit={handleSend} className={`p-3 md:p-4 flex items-center gap-2 shrink-0 ${replyingTo ? '' : 'border-t border-slate-100'}`}>
+                    <label className="flex h-10 w-8 shrink-0 items-center justify-center cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
+                    <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-10 w-8 shrink-0 items-center justify-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
                     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                    <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-1.5 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
+                    <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-10 w-8 shrink-0 items-center justify-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
                     <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                    <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
-                      aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
-                      maxLength={LIMITS.message} value={draft}
-                      onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
-                      placeholder={attachment?.name || 'Write a reply...'} className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border border-transparent focus:border-indigo-300 focus:outline-none text-sm" />
-                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
+                    <div className="flex min-w-0 flex-1 flex-col rounded-2xl bg-slate-100 px-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500">
+                      <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
+                      <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
+                        aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
+                        maxLength={LIMITS.message} value={draft}
+                        onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
+                        placeholder="Write a reply..." className="w-full min-w-0 px-2 py-3 bg-transparent border-0 focus:outline-none text-sm" />
+                    </div>
+                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
                   </form>
                   <div className="px-3 md:px-4 pb-2">
-                    <FileChip file={attachment} onRemove={() => setAttachment(null)} className="mt-0" />
                     <FieldError id="admin-reply" error={sendError} />
                   </div>
                 </>

@@ -18,7 +18,8 @@ import { LIMITS } from '../utils/validation';
 import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import FieldError from './form/FieldError';
-import FileChip from './form/FileChip';
+import ChatAttachmentPreview from './form/ChatAttachmentPreview';
+import useFilePreview from '../hooks/useFilePreview';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 
@@ -40,7 +41,7 @@ const ChatWidget = () => {
     } = useChat();
 
     const [newMessage, setNewMessage] = useState('');
-    const [attachment, setAttachment] = useState(null);
+    const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
     const [sendError, setSendError] = useState('');
     const [isSending, setIsSending] = useState(false);
 
@@ -112,7 +113,16 @@ const ChatWidget = () => {
         if ((newMessage.trim() || attachment) && activeChat) {
             setSendError('');
             setIsSending(true);
-            sendMessage(activeChat.other_user_id, newMessage.trim(), attachment, replyingTo?.id)
+            const message = newMessage.trim();
+            const sendPendingMessages = async () => {
+                if (message && attachment) {
+                    await sendMessage(activeChat.other_user_id, message, null, replyingTo?.id);
+                    await sendMessage(activeChat.other_user_id, '', attachment);
+                    return;
+                }
+                await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
+            };
+            sendPendingMessages()
                 .then(() => {
                     setNewMessage('');
                     setAttachment(null);
@@ -363,11 +373,14 @@ const ChatWidget = () => {
                         <div className={`p-2 sm:p-3 bg-white shrink-0 ${replyingTo ? '' : 'border-t border-slate-200'}`}>
                             {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                             <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                                <label className="px-1 cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
-                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-1 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
+                                <label className="flex h-10 w-8 shrink-0 items-center justify-center cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
+                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-10 w-8 shrink-0 items-center justify-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
                                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-1 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
+                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-10 w-8 shrink-0 items-center justify-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
                                 <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
+                                <div className="flex min-w-0 flex-1 flex-col rounded-2xl bg-slate-100 px-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500">
+                                    <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
+                                    <div className="flex min-w-0 items-center gap-2">
                                 <input
                                     type="text"
                                     id="chat-message"
@@ -379,9 +392,11 @@ const ChatWidget = () => {
                                     maxLength={LIMITS.message}
                                     value={newMessage}
                                     onChange={(e) => { handleInputChange(e); if (sendError) setSendError(''); }}
-                                    placeholder={attachment?.name || 'Type a message...'}
-                                    className="flex-1 min-w-0 bg-slate-100 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none border-0"
+                                    placeholder="Type a message..."
+                                    className="flex-1 min-w-0 bg-transparent px-2 py-2 text-sm outline-none border-0"
                                 />
+                                    </div>
+                                </div>
                                 <button
                                     type="submit"
                                     disabled={isSending || (!newMessage.trim() && !attachment)}
@@ -391,7 +406,6 @@ const ChatWidget = () => {
                                     <FontAwesomeIcon icon={faPaperPlane} className="text-xs" />
                                 </button>
                             </form>
-                            <FileChip file={attachment} onRemove={() => setAttachment(null)} className="mt-1" />
                             <FieldError id="chat-message" error={sendError} className="px-2" />
                         </div>
                     )}
