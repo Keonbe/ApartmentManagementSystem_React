@@ -665,7 +665,16 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             </div>
                         )}
                         <div className="p-8 flex flex-col items-center text-center">
-                            <p className="text-slate-600 font-medium leading-relaxed m-0">{appStatusModal.message}</p>
+                            <p className="text-slate-600 font-medium leading-relaxed m-0 whitespace-pre-wrap">{appStatusModal.message}</p>
+                            {appStatusModal.attachment_path && (
+                                <div className="mt-4 w-full border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                    {appStatusModal.attachment_path.toLowerCase().endsWith('.pdf') ? (
+                                        <iframe src={fileUrl(appStatusModal.attachment_path)} className="w-full h-64 border-0" title="Attachment"></iframe>
+                                    ) : (
+                                        <img src={fileUrl(appStatusModal.attachment_path)} alt="Attachment" className="w-full max-h-64 object-contain bg-slate-50" />
+                                    )}
+                                </div>
+                            )}
                             <button onClick={closeAppStatusModal} className="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl border-0 cursor-pointer shadow-md shadow-indigo-200 transition-all active:scale-[0.98]">
                                 Okay, got it!
                             </button>
