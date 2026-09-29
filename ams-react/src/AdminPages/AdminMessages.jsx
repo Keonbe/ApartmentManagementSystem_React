@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
@@ -61,6 +61,15 @@ const formatExactMessageDateTime = (date) => {
     });
 };
 
+const renderMessageSearchText = (text, query, active) => {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = String(text).split(new RegExp(`(${escaped})`, 'ig'));
+  return parts.map((part, index) => part.toLowerCase() === query.toLowerCase()
+    ? <mark key={`${index}-${part}`} className={`rounded px-0.5 ${active ? 'bg-amber-300 text-amber-950' : 'bg-amber-100 text-inherit'}`}>{part}</mark>
+    : part);
+};
+
 const TenantAvatar = ({ conversation, sizeClass = 'w-11 h-11' }) => {
   const [imageFailed, setImageFailed] = useState(false);
   const avatarUrl = getAvatarUrl(conversation.other_user_avatar);
@@ -79,6 +88,11 @@ const AdminMessages = () => {
     fetchChatHistory, userId, fetchConversations,
   } = useChat();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [pendingMatch, setPendingMatch] = useState(null);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
@@ -89,6 +103,24 @@ const AdminMessages = () => {
   const videoInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const selectedConversationIdRef = useRef(null);
+  const highlightTimerRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 275);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!debouncedSearch) {
+      setSearchResults([]);
+      return () => { cancelled = true; };
+    }
+    Promise.resolve(fetchConversations?.(debouncedSearch)).then((results) => {
+      if (!cancelled) setSearchResults(results || []);
+    });
+    return () => { cancelled = true; };
+  }, [debouncedSearch, fetchConversations]);
 
   useEffect(() => {
     fetchConversations?.();
@@ -105,25 +137,76 @@ const AdminMessages = () => {
 
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
+    if (query) return searchResults;
     return [...conversations]
-      .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0))
-      .filter((conversation) => !query || `${conversation.other_user_name || ''} ${conversation.last_message || ''}`.toLowerCase().includes(query));
-  }, [conversations, search]);
+      .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0));
+  }, [conversations, search, searchResults]);
+
+  const activeMessageMatches = useMemo(() => {
+    const query = debouncedSearch.toLowerCase();
+    if (!query || !activeChat) return [];
+    return messages
+      .filter((message) => String(message.message || '').toLowerCase().includes(query))
+      .map((message) => message.id)
+      .filter((id) => id != null);
+  }, [activeChat?.other_user_id, debouncedSearch, messages]);
+
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [debouncedSearch, activeChat?.other_user_id]);
+
+  const navigateMatch = (nextIndex) => {
+    if (!activeMessageMatches.length) return;
+    const wrappedIndex = (nextIndex + activeMessageMatches.length) % activeMessageMatches.length;
+    setActiveMatchIndex(wrappedIndex);
+    const messageId = activeMessageMatches[wrappedIndex];
+    document.getElementById(`chat-message-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  useEffect(() => {
+    if (!debouncedSearch || !activeChat || !activeMessageMatches.length) return undefined;
+    const handleSearchKeyDown = (event) => {
+      if (event.key !== 'Enter' || event.isComposing || event.target instanceof HTMLTextAreaElement) return;
+      event.preventDefault();
+      navigateMatch(activeMatchIndex + (event.shiftKey ? -1 : 1));
+    };
+    window.addEventListener('keydown', handleSearchKeyDown);
+    return () => window.removeEventListener('keydown', handleSearchKeyDown);
+  }, [activeChat?.other_user_id, activeMatchIndex, activeMessageMatches, debouncedSearch]);
+
+  useEffect(() => () => window.clearTimeout(highlightTimerRef.current), []);
+
+  useEffect(() => {
+    if (!pendingMatch || String(activeChat?.other_user_id) !== String(pendingMatch.conversationId)) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const element = document.getElementById(`chat-message-${pendingMatch.messageId}`);
+      if (!element) return;
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMessageId(String(pendingMatch.messageId));
+      window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = window.setTimeout(() => setHighlightedMessageId(null), 2500);
+      setPendingMatch(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeChat?.other_user_id, messages, pendingMatch]);
 
   const selectConversation = async (conversation) => {
     selectedConversationIdRef.current = String(conversation.other_user_id);
+    setPendingMatch(conversation.matched_message_id
+      ? { conversationId: conversation.other_user_id, messageId: conversation.matched_message_id }
+      : null);
     setActiveChat(conversation);
     await fetchChatHistory?.(conversation.other_user_id);
 
     if (selectedConversationIdRef.current !== String(conversation.other_user_id)) return;
-    requestAnimationFrame(() => {
+    if (!conversation.matched_message_id) {
       requestAnimationFrame(() => {
         const container = messagesContainerRef.current;
         if (selectedConversationIdRef.current === String(conversation.other_user_id) && container) {
           container.scrollTop = container.scrollHeight;
         }
       });
-    });
+    }
   };
 
   const [sendError, setSendError] = useState('');
@@ -199,7 +282,7 @@ const AdminMessages = () => {
                           <span className="text-[10px] text-slate-400 shrink-0">{formatTime(conversation.last_message_time)}</span>
                         </div>
                         <div className="mt-1 flex justify-between gap-2 items-center">
-                          <span className="text-xs text-slate-500 truncate">{getConversationPreview(conversation, userId)}</span>
+                    <span className="text-xs text-slate-500 truncate">{conversation.matched_message || getConversationPreview(conversation, userId)}</span>
                           {unread > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
                         </div>
                       </div>
@@ -216,6 +299,13 @@ const AdminMessages = () => {
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
                     <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
                     <div className="min-w-0"><h3 className="m-0 text-sm font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
+                    {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" aria-live="polite">
+                      {activeMessageMatches.length ? <>
+                        <span>Match {activeMatchIndex + 1} of {activeMessageMatches.length}</span>
+                        <button type="button" onClick={() => navigateMatch(activeMatchIndex - 1)} aria-label="Previous message match" title="Previous match (Shift+Enter)" className="flex h-7 w-7 items-center justify-center rounded-md border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronUp} /></button>
+                        <button type="button" onClick={() => navigateMatch(activeMatchIndex + 1)} aria-label="Next message match" title="Next match (Enter)" className="flex h-7 w-7 items-center justify-center rounded-md border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronDown} /></button>
+                      </> : <span>No matches in this chat</span>}
+                    </div>}
                   </header>
                   <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
                     {messages.length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">No messages in this conversation yet.</p> : messages.map((message, index) => {
@@ -231,8 +321,11 @@ const AdminMessages = () => {
                       const isLatestSentMessage = isAdmin && !messages.slice(index + 1).some(
                         (laterMessage) => String(laterMessage.sender_id) === String(userId)
                       );
+                      const matchIndex = activeMessageMatches.findIndex((id) => String(id) === String(message.id));
+                      const isSearchMatch = matchIndex >= 0;
+                      const isFocusedMatch = isSearchMatch && matchIndex === activeMatchIndex;
                       return (
-                        <div id={`chat-message-${message.id}`} key={messageKey} className={`message-enter ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
+                        <div id={`chat-message-${message.id}`} key={messageKey} className={`message-enter rounded-xl transition-colors duration-500 ${isFocusedMatch ? 'bg-amber-100 ring-2 ring-amber-400' : isSearchMatch ? 'bg-amber-50 ring-1 ring-amber-100' : String(highlightedMessageId) === String(message.id) ? 'bg-amber-100 ring-2 ring-amber-300 animate-pulse' : ''} ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                           {showDateSeparator && (
                             <div className="flex justify-center my-5">
                               <span className="text-slate-500 text-[11px] font-medium">
@@ -260,7 +353,7 @@ const AdminMessages = () => {
                                 ? `rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? (expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-md' : 'bg-indigo-600 text-white rounded-br-md') : (expandedTimestampId === messageKey ? 'bg-slate-100 text-slate-800 border border-slate-300 rounded-bl-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md')}`
                                 : ''} cursor-pointer`}>
                                 {message.reply_to_id && !message.reply_attachment_path && <p className="m-0 mb-1 truncate text-xs opacity-80">{message.reply_message || 'Message'}</p>}
-                                {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p>}
+                                {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{renderMessageSearchText(message.message, debouncedSearch, isFocusedMatch)}</p>}
                                 {message.attachment_path && (() => {
                                   const mediaUrl = message.attachment_path.startsWith('blob:') ? message.attachment_path : new URL(`../${message.attachment_path}`, api.defaults.baseURL).href;
                                   const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(message.attachment_path);
