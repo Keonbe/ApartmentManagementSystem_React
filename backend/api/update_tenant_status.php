@@ -129,7 +129,7 @@ if ($id > 0 && !empty($status)) {
                 $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
                 $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
             } else {
-                $stmt->bind_param("sssis", $status, $requested_move_out_date, $id, $current_status);
+                $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
             }
         } else {
             $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL, rejection_attachment_path = NULL WHERE id = ? AND status = ?");

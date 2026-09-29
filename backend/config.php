@@ -294,7 +294,7 @@ const APPLICATION_TRANSITIONS = [
     // 'moved-out' from Approved/active covers for-cause contract termination
     // (update_contract_status.php's 'terminate' action), which ends a tenancy
     // immediately rather than through the ordinary move-out notice period.
-    'Approved'         => ['active', 'Cancelled', 'Rejected', 'Declined'],
+    'Approved'         => ['active', 'pending-move-out', 'Cancelled', 'Rejected', 'Declined'],
     'active'           => ['pending-move-out', 'moved-out'],
     'pending-move-out' => ['moved-out', 'active'],
 ];
