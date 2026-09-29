@@ -15,9 +15,41 @@ $admin_id = require_admin($conn);
 
 $input = $_POST;
 if (empty($input)) $input = json_decode(file_get_contents("php://input"), true) ?: [];
-$id = $input['id'] ?? 0;
+$id = (int)($input['id'] ?? 0);
 $status = $input['status'] ?? '';
 $rejection_reason = $input['rejection_reason'] ?? null;
+
+$attachment_path = null;
+if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+    $file = $_FILES['attachment'];
+    if ($file['size'] > 10 * 1024 * 1024) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Attachment must be 10MB or less.']);
+        exit;
+    }
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+    $allowed_mimes = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'application/pdf' => 'pdf'
+    ];
+    if (!isset($allowed_mimes[$mime])) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Invalid file type. Only JPG, PNG, WEBP, and PDF files are allowed.']);
+        exit;
+    }
+    $dir = __DIR__ . '/../uploads/applications/';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $filename = 'reject_' . bin2hex(random_bytes(16)) . '.' . $allowed_mimes[$mime];
+    if (!move_uploaded_file($file['tmp_name'], $dir . $filename)) {
+        throw new Exception('Could not save rejection attachment.');
+    }
+    $attachment_path = 'uploads/applications/' . $filename;
+}
 
 // Every status this endpoint actually knows how to handle below. Anything
 // else used to be written to rent_applications.status verbatim with no
@@ -56,8 +88,13 @@ if ($id > 0 && !empty($status)) {
         }
 
         if ($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?");
-            $stmt->bind_param("ssis", $status, $rejection_reason, $id, $current_status);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ?, rejection_attachment_path = ? WHERE id = ? AND status = ?");
+            if (!$stmt) {
+                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?");
+                $stmt->bind_param("ssis", $status, $rejection_reason, $id, $current_status);
+            } else {
+                $stmt->bind_param("sssss", $status, $rejection_reason, $attachment_path, $id, $current_status);
+            }
         } else if ($status === 'pending-move-out') {
             $requested_move_out_date = $input['requested_move_out_date'] ?? null;
             if (empty($requested_move_out_date)) {
@@ -75,11 +112,21 @@ if ($id > 0 && !empty($status)) {
                 throw new Exception("Move-out notice cannot exceed 30 days in advance.");
             }
 
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
-            $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL, rejection_attachment_path = NULL WHERE id = ? AND status = ?");
+            if (!$stmt) {
+                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
+                $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
+            } else {
+                $stmt->bind_param("sssis", $status, $requested_move_out_date, $id, $current_status);
+            }
         } else {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
-            $stmt->bind_param("sis", $status, $id, $current_status);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL, rejection_attachment_path = NULL WHERE id = ? AND status = ?");
+            if (!$stmt) {
+                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
+                $stmt->bind_param("sis", $status, $id, $current_status);
+            } else {
+                $stmt->bind_param("sis", $status, $id, $current_status);
+            }
         }
         $stmt->execute();
         if ($stmt->affected_rows === 0) {
@@ -384,7 +431,15 @@ if ($id > 0 && !empty($status)) {
                     $notif_msg .= " Reason: $rejection_reason";
                 }
                 
-                create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
+                $notif_id = create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
+                if ($notif_id && $attachment_path) {
+                    $upd_notif = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
+                    if ($upd_notif) {
+                        $upd_notif->bind_param("si", $attachment_path, $notif_id);
+                        $upd_notif->execute();
+                        $upd_notif->close();
+                    }
+                }
             }
             resolve_admin_queue($conn, 'rent_application', $id);
         }

@@ -4,7 +4,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faHourglassHalf, faCheckCircle, faTimesCircle, faArrowRight, faFileInvoiceDollar, 
     faHome, faCalendarAlt, faUsers, faInfoCircle, faArrowLeft,
-    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faLock, faEye
+    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faLock, faEye,
+    faPaperclip, faFilePdf
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
@@ -489,15 +490,54 @@ export default function TrackApplication() {
                             </div>
                         )}
 
-                        {statusNormalized === 'rejected' && application.rejection_reason && (
-                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-3">
+                        {statusNormalized === 'rejected' && (application.rejection_reason || application.rejection_attachment_path) && (
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
                                 <h3 className="text-lg font-bold text-rose-400 m-0 flex items-center gap-2">
                                     <FontAwesomeIcon icon={faTimesCircle} className="text-rose-400" />
                                     Reason for Rejection
                                 </h3>
-                                <p className="text-slate-300 text-sm m-0 leading-relaxed bg-rose-950/20 p-4 rounded-xl border border-rose-500/10 font-medium">
-                                    {application.rejection_reason}
-                                </p>
+                                {application.rejection_reason && (
+                                    <p className="text-slate-300 text-sm m-0 leading-relaxed bg-rose-950/20 p-4 rounded-xl border border-rose-500/10 font-medium whitespace-pre-wrap">
+                                        {application.rejection_reason}
+                                    </p>
+                                )}
+                                {application.rejection_attachment_path && (
+                                    <div className="pt-3 border-t border-rose-500/20">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-rose-300 block mb-2 flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faPaperclip} className="text-rose-400" />
+                                            Attached Supporting Document / Image:
+                                        </span>
+                                        {application.rejection_attachment_path.toLowerCase().endsWith('.pdf') ? (
+                                            <a
+                                                href={fileUrl(application.rejection_attachment_path)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/30 text-rose-200 rounded-xl text-xs font-bold transition-all no-underline shadow-sm"
+                                            >
+                                                <FontAwesomeIcon icon={faFilePdf} className="text-rose-400 text-base" />
+                                                <span>View Attached PDF Document</span>
+                                            </a>
+                                        ) : (
+                                            <div className="relative inline-block">
+                                                <a
+                                                    href={fileUrl(application.rejection_attachment_path)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="block group"
+                                                >
+                                                    <img
+                                                        src={fileUrl(application.rejection_attachment_path)}
+                                                        alt="Rejection Attachment"
+                                                        className="max-h-56 max-w-full rounded-2xl border border-rose-500/30 object-cover shadow-lg group-hover:opacity-90 transition-all bg-slate-900"
+                                                    />
+                                                    <span className="inline-block mt-2 text-xs font-semibold text-rose-300 underline group-hover:text-rose-200">
+                                                        Click to view full image
+                                                    </span>
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 

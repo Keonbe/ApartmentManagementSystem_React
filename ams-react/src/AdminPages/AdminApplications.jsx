@@ -6,7 +6,8 @@ import {
   faSearch, faTimes, faCalendarAlt, faPhone, faEnvelope,
   faCheckCircle, faClock, faUsers, faVenusMars,
   faFileAlt, faExclamationTriangle, faHome,
-  faList, faColumns, faEye, faFilter, faChevronDown
+  faList, faColumns, faEye, faFilter, faChevronDown,
+  faFilePdf, faPaperclip
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
@@ -202,10 +203,19 @@ const AdminApplications = () => {
     setPreview({ url: fileUrl(path), title, isImage });
   };
 
-  const confirmReject = async (reason) => {
+  const confirmReject = async (reason, file) => {
     let res;
     try {
-      res = await api.post('/update_tenant_status.php', { id: rejectTarget.id, status: 'Rejected', rejection_reason: reason });
+      const formData = new FormData();
+      formData.append('id', rejectTarget.id);
+      formData.append('status', 'Rejected');
+      formData.append('rejection_reason', reason);
+      if (file) {
+        formData.append('attachment', file);
+      }
+      res = await api.post('/update_tenant_status.php', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
     } catch (err) {
       console.error("Error rejecting application:", err);
       throw new Error(apiErrorMessage(err, 'Failed to update the application.'), { cause: err });
@@ -822,9 +832,38 @@ const AdminApplications = () => {
               {['Rejected', 'Declined', 'Cancelled'].includes(selectedApp.status) && selectedApp.rejection_reason && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-2.5 text-red-800">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5 shrink-0" />
-                  <div>
+                  <div className="flex-1">
                     <span className="font-bold text-xs uppercase tracking-wider block">{selectedApp.status === 'Cancelled' ? 'Cancellation Reason' : 'Rejection Reason'}</span>
                     <p className="text-sm m-0 mt-1 font-medium">{selectedApp.rejection_reason}</p>
+                    {selectedApp.rejection_attachment_path && (
+                      <div className="mt-3 pt-3 border-t border-red-200/60">
+                        <span className="text-[11px] font-bold uppercase tracking-wider block text-red-700 mb-1.5 flex items-center gap-1.5">
+                          <FontAwesomeIcon icon={faPaperclip} className="text-xs" /> Attached Supporting Document / Image:
+                        </span>
+                        {selectedApp.rejection_attachment_path.toLowerCase().endsWith('.pdf') ? (
+                          <button
+                            type="button"
+                            onClick={(e) => openPreview(e, selectedApp.rejection_attachment_path, 'Rejection Document')}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-red-200 text-red-700 hover:bg-red-100/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-xs"
+                          >
+                            <FontAwesomeIcon icon={faFilePdf} className="text-red-500" />
+                            <span>View Attached PDF</span>
+                          </button>
+                        ) : (
+                          <div 
+                            onClick={(e) => openPreview(e, selectedApp.rejection_attachment_path, 'Rejection Attachment')}
+                            className="relative inline-block cursor-pointer group"
+                          >
+                            <img 
+                              src={fileUrl(selectedApp.rejection_attachment_path)} 
+                              alt="Rejection Attachment" 
+                              className="max-h-36 max-w-full rounded-lg border border-red-200 object-cover shadow-xs group-hover:opacity-90 transition-opacity bg-white" 
+                            />
+                            <span className="absolute bottom-1 right-1 bg-slate-900/70 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">Click to enlarge</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -934,11 +973,13 @@ const AdminApplications = () => {
 
       {rejectTarget && (
         <ReasonModal
-          title="Reject Application"
+          title={rejectTarget.status === 'Approved' ? "Revoke Approval & Reject Application" : "Reject Application"}
           description={`${rejectTarget.name || 'The applicant'} is notified with this reason.`}
           label="Reason for rejecting this application"
-          confirmLabel="Reject Application"
+          confirmLabel={rejectTarget.status === 'Approved' ? "Revoke & Reject" : "Reject Application"}
           suggestions={['Incomplete or unverifiable documents', 'Unit is no longer available', 'Does not meet tenancy requirements', 'Change of mind', 'Other']}
+          allowAttachment={true}
+          attachmentLabel="Attach Supporting Document / Image (optional)"
           onConfirm={confirmReject}
           onClose={() => setRejectTarget(null)}
         />

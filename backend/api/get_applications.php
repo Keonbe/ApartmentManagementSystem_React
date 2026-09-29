@@ -59,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 // Appending avatar_url out to the wire payload for your React app pipeline!
                 'avatar_url' => $row['avatar_url'] ?? null, 
                 'rejection_reason' => $row['rejection_reason'] ?? null,
+                'rejection_attachment_path' => $row['rejection_attachment_path'] ?? null,
             ];
         }
         echo json_encode(["success" => true, "data" => $applications]);
