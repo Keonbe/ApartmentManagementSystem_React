@@ -56,15 +56,16 @@ try {
             $event = $overdue ? 'overdue' : 'rent_due';
             create_notification($conn, $inv['user_id'], $event, $title, $message);
 
-            $d = dispatch_admin_action_notification(
-                $conn, $inv['user_id'], $event, $title,
-                sms_payment_template($inv['total_amount'], $inv['room_name'], $inv['due_date'], $event, $custom_message, $today),
-                email_payment_template(
-                    notify_recipient_name($conn, $inv['user_id']),
-                    $inv['total_amount'], $inv['room_name'] ?: 'no unit',
-                    $inv['billing_period'], $event, $inv['id']
-                )
-            );
+            try {
+                $d = dispatch_admin_action_notification(
+                    $conn, $inv['user_id'], $event, $title,
+                    sms_payment_template($inv['total_amount'], $inv['room_name'], $inv['due_date'], $event, $custom_message, $today),
+                    email_payment_reminder_template(notify_recipient_name($conn, $inv['user_id']), $inv, $overdue)
+                );
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch manual payment reminder: ' . $notification_error->getMessage());
+                $d = ['sms' => 'failed', 'email' => 'failed', 'dry_run' => false, 'rendered' => null];
+            }
             if ($d['sms'] === 'sent' || $d['sms'] === 'queued') $dispatch_totals['sms']++;
             if ($d['email'] === 'sent' || $d['email'] === 'queued') $dispatch_totals['email']++;
             $dispatch_totals['recipients']++;
@@ -134,14 +135,16 @@ try {
     $tenantName = trim(($inv['first_name'] ?? '') . ' ' . ($inv['last_name'] ?? '')) ?: 'Tenant';
     $unit = $inv['room_name'] ?: 'no unit';
 
-    $notification_dispatch = dispatch_admin_action_notification(
-        $conn, $inv['user_id'], $event, $title,
-        sms_payment_template($inv['total_amount'], $unit, $inv['due_date'], $event, $custom_message, $today),
-        email_payment_template(
-            $inv['first_name'] ?: 'Tenant',
-            $inv['total_amount'], $unit, $inv['billing_period'], $event, $inv['id']
-        )
-    );
+    try {
+        $notification_dispatch = dispatch_admin_action_notification(
+            $conn, $inv['user_id'], $event, $title,
+            sms_payment_template($inv['total_amount'], $unit, $inv['due_date'], $event, $custom_message, $today),
+            email_payment_reminder_template($inv['first_name'] ?: 'Tenant', $inv, $overdue)
+        );
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch manual payment reminder: ' . $notification_error->getMessage());
+        $notification_dispatch = ['sms' => 'failed', 'email' => 'failed', 'dry_run' => false, 'rendered' => null];
+    }
 
     log_activity($conn, $admin_id, 'billing', 'Sent Payment Reminder', "Sent payment reminder to {$tenantName} (Unit {$unit}) for invoice {$invoice_id}.");
 

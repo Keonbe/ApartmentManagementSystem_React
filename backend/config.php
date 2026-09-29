@@ -245,11 +245,11 @@ function send_lease_end_reminders($conn) {
             // and never allowed to stop the rest of the sweep.
             try {
                 require_once __DIR__ . '/api/services/send_notification.php';
-                dispatch_external_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
+                dispatch_system_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
                     sms_lease_reminder_template($row['room_name'], $row['lease_end'], $row['days_left']),
                     email_lease_reminder_template(notify_recipient_name($conn, $row['user_id']),
                         $row['room_name'] ?: '-', $end, (int)$row['days_left']),
-                    _admin_action_mode($conn));
+                    null);
             } catch (Throwable $e) {
                 error_log('Lease-end reminder dispatch failed: ' . $e->getMessage());
             }
@@ -937,7 +937,7 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         }
         $stmt->close();
 
-        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit FROM invoices WHERE id = ?");
+        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, id, billing_period, total_amount, payment_reference FROM invoices WHERE id = ?");
         $inv_q->bind_param("s", $invoice_id);
         $inv_q->execute();
         $inv_res = $inv_q->get_result()->fetch_assoc();
@@ -956,6 +956,13 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             create_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Received',
                 "Your payment for invoice $invoice_id has been confirmed and recorded ($payment_method). Your receipt is ready in Payment History. Thank you!",
                 'Resolved', "invoice:$invoice_id");
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                dispatch_admin_action_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Confirmed — Official Receipt', null,
+                    email_payment_confirmation_template(notify_recipient_name($conn, (int)$inv_res['user_id']), [$inv_res], $payment_method, $inv_res['payment_reference'] ?? ''));
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch payment confirmation email: ' . $notification_error->getMessage());
+            }
         }
 
         return [
@@ -1165,6 +1172,20 @@ function generate_due_rent_invoices($conn) {
             create_notification($conn, $user_id, 'billing', "Rent Invoice: $label",
                 "Your rent for $label (₱" . number_format($rent, 2) . ") is due on $due. You can pay it on the Pay Bills page.",
                 'Resolved', "invoice:$invoice_id");
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                $invoice_q = $conn->prepare("SELECT i.id, i.base_rent, i.water, i.electricity, i.parking, i.services, i.maintenance, i.late_fee, i.total_amount, i.billing_period, i.due_date FROM invoices i WHERE i.id = ?");
+                $invoice_q->bind_param('s', $invoice_id);
+                $invoice_q->execute();
+                $invoice_row = $invoice_q->get_result()->fetch_assoc();
+                $invoice_q->close();
+                if ($invoice_row) {
+                    dispatch_system_notification($conn, $user_id, 'billing', "New Monthly Bill — $label", null,
+                        email_invoice_template(notify_recipient_name($conn, $user_id), $invoice_row));
+                }
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch generated rent invoice email: ' . $notification_error->getMessage());
+            }
         }
     }
     return $created;
@@ -1248,6 +1269,23 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
         create_notification($conn, (int)$settled_rows[0]['user_id'], 'payment', 'Payment Received',
             "Your advance payment $key for $months month(s) ($periods, ₱" . number_format($amount, 2) . ") has been confirmed and recorded ($payment_method). A receipt for each month is ready in Payment History. Thank you!",
             'Resolved', "invoice:{$settled_rows[0]['id']}");
+        try {
+            require_once __DIR__ . '/api/services/send_notification.php';
+            $receipt_rows = [];
+            $ids = array_column($settled_rows, 'id');
+            foreach ($ids as $settled_id) {
+                $q = $conn->prepare("SELECT id, billing_period, total_amount FROM invoices WHERE id = ?");
+                $q->bind_param('s', $settled_id);
+                $q->execute();
+                if ($row = $q->get_result()->fetch_assoc()) $receipt_rows[] = $row;
+                $q->close();
+            }
+            $uid = (int)$settled_rows[0]['user_id'];
+            dispatch_admin_action_notification($conn, $uid, 'payment', 'Payment Confirmed — Official Receipt', null,
+                email_payment_confirmation_template(notify_recipient_name($conn, $uid), $receipt_rows, $payment_method));
+        } catch (Throwable $notification_error) {
+            error_log('Could not dispatch advance payment confirmation email: ' . $notification_error->getMessage());
+        }
     };
     foreach ($rows as $row) {
         $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false);
@@ -2050,6 +2088,13 @@ function run_notification_sweep($conn, $force = false) {
             if (!claim_invoice_reminder($conn, $inv['id'])) continue;
             [$title, $message] = reminder_text($inv, $today, false);
             create_notification($conn, $inv['user_id'], 'rent_due', $title, $message);
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                dispatch_system_notification($conn, (int)$inv['user_id'], 'rent_due', $title, null,
+                    email_payment_reminder_template(notify_recipient_name($conn, $inv['user_id']), $inv, false));
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch due payment reminder email: ' . $notification_error->getMessage());
+            }
             $result['upcoming_reminders_sent']++;
         }
     }
@@ -2069,6 +2114,13 @@ function run_notification_sweep($conn, $force = false) {
             if (!claim_invoice_reminder($conn, $inv['id'], $overdue_interval)) continue;
             [$title, $message] = reminder_text($inv, $today, true);
             create_notification($conn, $inv['user_id'], 'overdue', $title, $message);
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                dispatch_system_notification($conn, (int)$inv['user_id'], 'overdue', $title, null,
+                    email_payment_reminder_template(notify_recipient_name($conn, $inv['user_id']), $inv, true));
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch overdue payment email: ' . $notification_error->getMessage());
+            }
             $result['overdue_reminders_sent']++;
         }
     }

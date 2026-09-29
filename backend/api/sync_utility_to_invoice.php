@@ -66,7 +66,7 @@ try {
         $exists ? fail(409, "This reading has already been synced to an invoice.") : fail(404, "Utility reading not found.");
     }
 
-    $stmt = $conn->prepare("SELECT room_name, user_id, billing_period, water_amount, water_other_fees, electric_amount, electric_other_fees FROM utility_readings WHERE id = ? FOR UPDATE");
+    $stmt = $conn->prepare("SELECT room_name, user_id, billing_period, water_amount, water_other_fees, water_consumption, electric_amount, electric_other_fees, electric_consumption FROM utility_readings WHERE id = ? FOR UPDATE");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $reading = $stmt->get_result()->fetch_assoc();
@@ -174,6 +174,12 @@ try {
     $stmt->execute();
     $stmt->close();
 
+    $invoice_q = $conn->prepare("SELECT id, base_rent, water, electricity, parking, services, maintenance, late_fee, total_amount, billing_period, due_date FROM invoices WHERE id = ?");
+    $invoice_q->bind_param('s', $target_inv_id);
+    $invoice_q->execute();
+    $utility_invoice = $invoice_q->get_result()->fetch_assoc();
+    $invoice_q->close();
+
     $amount_text = "₱" . number_format($charge, 2);
     if ($sync_mode === 'paid') {
         $notif_title = "Utility Payment Recorded: {$label}";
@@ -201,6 +207,15 @@ if ($merged) {
 }
 
 log_activity($conn, $admin_id, 'utilities', 'Synced Utility Charges', "Synced utility reading #{$id} ({$sync_mode}) to invoice {$target_inv_id} — {$amount_text}");
+if ($sync_mode !== 'paid' && $utility_invoice) {
+    try {
+        require_once __DIR__ . '/services/send_notification.php';
+        dispatch_admin_action_notification($conn, $user_id, 'billing', "Utility Charges Billed — {$label}", null,
+            email_utility_invoice_template(notify_recipient_name($conn, $user_id), $utility_invoice, $reading));
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch utility billing email: ' . $notification_error->getMessage());
+    }
+}
 echo json_encode(["success" => true, "message" => $message, "invoice_id" => $target_inv_id, "merged" => $merged]);
 $conn->close();
 ?>

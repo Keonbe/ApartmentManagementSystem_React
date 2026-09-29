@@ -19,7 +19,24 @@ try {
     $contract = $conn->prepare("DELETE FROM lease_contracts WHERE rent_application_id = ? AND status = 'draft'"); $contract->bind_param('i', $id); $contract->execute(); $contract->close();
     resolve_admin_queue($conn, 'rent_application', $id);
     notify_admins_queue($conn, 'rent_application', $id, 'Application Cancelled', "Applicant cancelled Unit {$app['room_name']}. Reason: $reason");
-    $conn->commit(); echo json_encode(['success' => true]);
+    $conn->commit();
+    try {
+        require_once __DIR__ . '/services/send_notification.php';
+        dispatch_admin_action_notification($conn, (int)$auth['id'], 'application_update', 'Rental Application Cancelled', null,
+            email_application_decision_template(notify_recipient_name($conn, (int)$auth['id']), $app['room_name'], 'Cancelled', $reason));
+        $voided = $conn->prepare("SELECT id, user_id FROM invoices WHERE rent_application_id = ? AND status = 'cancelled' AND cancel_reason = 'Applicant cancelled before move-in'");
+        $voided->bind_param('i', $id);
+        $voided->execute();
+        $voided_rows = $voided->get_result()->fetch_all(MYSQLI_ASSOC);
+        $voided->close();
+        foreach ($voided_rows as $voided_row) {
+            dispatch_admin_action_notification($conn, (int)$voided_row['user_id'], 'billing', 'Move-In Invoice Voided', null,
+                email_bill_voided_template(notify_recipient_name($conn, (int)$voided_row['user_id']), $voided_row['id'], $reason));
+        }
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch application cancellation email: ' . $notification_error->getMessage());
+    }
+    echo json_encode(['success' => true]);
 } catch (Throwable $e) { $conn->rollback(); server_error_response($e, 'Could not cancel application.'); }
 $conn->close();
 ?>

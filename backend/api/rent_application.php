@@ -258,6 +258,16 @@ try {
     $conn->commit();
     log_activity($conn, $user_id, 'tenant', $is_update ? "Resubmitted Rental Application" : "Submitted Rental Application",
         "Application ID: $queue_app_id, Unit: $room_name");
+    try {
+        require_once __DIR__ . '/services/send_notification.php';
+        $subject = $is_update ? 'Updated Rental Application Received' : 'Rental Application Received';
+        $html = email_application_submitted_template(
+            trim($first_name . ' ' . $last_name), 'APP-' . $queue_app_id, $room_name
+        );
+        dispatch_admin_action_notification($conn, $user_id, 'application_update', $subject, null, $html);
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch application submission email: ' . $notification_error->getMessage());
+    }
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
 } catch (Exception $e) {
     $conn->rollback();

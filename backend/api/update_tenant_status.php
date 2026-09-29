@@ -19,6 +19,18 @@ $id = (int)($input['id'] ?? 0);
 $status = $input['status'] ?? '';
 $rejection_reason = $input['rejection_reason'] ?? null;
 
+if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection_reason) === '') {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "A rejection reason is required."]);
+    exit;
+}
+
+if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection_reason) === '') {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "A rejection reason is required."]);
+    exit;
+}
+
 $attachment_path = null;
 if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
     $file = $_FILES['attachment'];
@@ -447,27 +459,23 @@ if ($id > 0 && !empty($status)) {
         $conn->commit();
         // Queue the approval email only after the transaction commits. Notification
         // failures must never roll back a completed application approval.
-        if ($status === 'Approved' && !empty($tenant_id)) {
+        if (in_array($status, ['Approved', 'Rejected', 'Declined', 'Cancelled'], true) && !empty($tenant_id)) {
             try {
                 require_once __DIR__ . '/services/send_notification.php';
-                $due_date = date('Y-m-d', strtotime('+7 days'));
-                $email_html = email_application_approved_template(
-                    notify_recipient_name($conn, $tenant_id),
-                    $room ?? '',
-                    $monthly_rent ?? 0,
-                    $due_date
-                );
-                dispatch_external_notification(
+                $tenant_name = notify_recipient_name($conn, $tenant_id);
+                $email_html = $status === 'Approved'
+                    ? email_application_decision_template($tenant_name, $room ?? '', 'Approved')
+                    : email_application_decision_template($tenant_name, $room ?? '', $status === 'Declined' ? 'Rejected' : $status, (string)$rejection_reason);
+                dispatch_admin_action_notification(
                     $conn,
                     $tenant_id,
                     'application_update',
-                    'Your Rental Application Is Approved',
+                    'Rental Application ' . ($status === 'Declined' ? 'Rejected' : $status),
                     null,
-                    $email_html,
-                    'sync'
+                    $email_html
                 );
             } catch (Throwable $notification_error) {
-                error_log('Could not dispatch application approval email: ' . $notification_error->getMessage());
+                error_log('Could not dispatch application decision email: ' . $notification_error->getMessage());
             }
         }
         $response = ["success" => true];

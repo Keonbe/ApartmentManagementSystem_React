@@ -255,15 +255,20 @@ try {
 
     // After commit: a notification problem must not roll back an approval that
     // has already changed the tenant's occupancy and billing.
-    $notification_dispatch = dispatch_admin_action_notification(
-        $conn, $target_user_id, $type, $title,
-        sms_status_update_template('', $label, $statusText,
-            $extension_billed_monthly ? 'Each added month is billed a week before it starts.' : ''),
-        email_status_update_template(
-            notify_recipient_name($conn, $target_user_id),
-            str_replace('_', ' ', $type), $label, $statusText, $msg
-        )
-    );
+    try {
+        $notification_dispatch = dispatch_admin_action_notification(
+            $conn, $target_user_id, $type, $title,
+            sms_status_update_template('', $label, $statusText,
+                $extension_billed_monthly ? 'Each added month is billed a week before it starts.' : ''),
+            email_status_update_template(
+                notify_recipient_name($conn, $target_user_id),
+                str_replace('_', ' ', $type), $label, $statusText, $msg
+            )
+        );
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch tenant request decision: ' . $notification_error->getMessage());
+        $notification_dispatch = ['sms' => 'failed', 'email' => 'failed'];
+    }
 
     $response_message = "Request $statusText successfully.";
     if ($extension_billed_monthly) {

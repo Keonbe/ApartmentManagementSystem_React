@@ -18,15 +18,37 @@
 require_once __DIR__ . '/send_sms.php'; // write_mock_outbox()
 
 function send_email($conn, $to_email, $subject, $html_body, $event_type = 'general', $user_id = null) {
+    try {
+        return _send_email_impl($conn, $to_email, $subject, $html_body, $event_type, $user_id);
+    } catch (Throwable $e) {
+        error_log('Email dispatch failed [' . $event_type . ']: ' . $e->getMessage());
+        _email_try_log($conn, $user_id, $event_type, $to_email, $subject, $e->getMessage(), 'failed');
+        return false;
+    }
+}
+
+function _email_try_log($conn, $user_id, $event_type, $recipient, $subject, $error, $status = 'sent') {
+    try {
+        if ($status === 'failed' && !function_exists('log_notification_delivery')) {
+            error_log('Email delivery failed [' . $event_type . ']: ' . $error);
+            return;
+        }
+        log_notification_delivery($conn, $user_id, 'email', $event_type, $recipient, $subject, null, $status, $error);
+    } catch (Throwable $log_error) {
+        error_log('Email delivery failure could not be logged: ' . $log_error->getMessage());
+    }
+}
+
+function _send_email_impl($conn, $to_email, $subject, $html_body, $event_type, $user_id) {
     // Building-wide switch. Ships off.
     $enabled = get_setting($conn, 'notifications_email_enabled', '0');
     if ($enabled !== '1' && $enabled !== 'true') {
-        log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'skipped', 'Email globally disabled');
+        _email_try_log($conn, $user_id, $event_type, $to_email, $subject, 'Email globally disabled', 'skipped');
         return false;
     }
 
     if (trim((string)$to_email) === '' || !filter_var($to_email, FILTER_VALIDATE_EMAIL)) {
-        log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'failed', 'Invalid email address');
+        _email_try_log($conn, $user_id, $event_type, $to_email, $subject, 'Invalid email address', 'failed');
         return false;
     }
 
@@ -37,11 +59,11 @@ function send_email($conn, $to_email, $subject, $html_body, $event_type = 'gener
         : _email_via_log($conn, $to_email, $subject, $html_body, $event_type, $user_id);
 
     if ($result['ok']) {
-        log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'sent');
+        _email_try_log($conn, $user_id, $event_type, $to_email, $subject, null, 'sent');
         return true;
     }
 
-    log_notification_delivery($conn, $user_id, 'email', $event_type, $to_email, $subject, null, 'failed', $result['error']);
+    _email_try_log($conn, $user_id, $event_type, $to_email, $subject, $result['error'], 'failed');
     return false;
 }
 
@@ -118,7 +140,7 @@ function _email_via_smtp($conn, $to_email, $subject, $html_body) {
 
         $mail->send();
         return ['ok' => true];
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         return ['ok' => false, 'error' => $mail->ErrorInfo ?: $e->getMessage()];
     }
 }
