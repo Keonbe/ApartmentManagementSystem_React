@@ -6,6 +6,7 @@ import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
 import { getAvatarUrl } from '../utils/avatarUrl';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { LIMITS } from '../utils/validation';
 import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -231,7 +232,7 @@ const AdminMessages = () => {
                         (laterMessage) => String(laterMessage.sender_id) === String(userId)
                       );
                       return (
-                        <div key={messageKey} className={`message-enter ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
+                        <div id={`chat-message-${message.id}`} key={messageKey} className={`message-enter ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                           {showDateSeparator && (
                             <div className="flex justify-center my-5">
                               <span className="text-slate-500 text-[11px] font-medium">
@@ -240,11 +241,25 @@ const AdminMessages = () => {
                             </div>
                           )}
                           <div className={`group flex items-center gap-1 sm:gap-2 ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                            <div className="relative min-w-0 max-w-[calc(100%-2rem)] sm:max-w-[70%]">
+                            <div className={`relative flex min-w-0 max-w-[calc(100%-2rem)] flex-col sm:max-w-[70%] ${isAdmin ? 'items-end' : 'items-start'}`}>
+                              {message.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-[11px] text-slate-500">
+                                <FontAwesomeIcon icon={faReply} className="text-[10px]" />
+                                <span>{isAdmin ? 'You' : (activeChat.other_user_name || 'Tenant')} replied to {String(message.reply_sender_id) === String(message.sender_id) ? 'themselves' : (isAdmin ? (activeChat.other_user_name || 'Tenant') : 'you')}</span>
+                              </div>}
+                              {message.reply_to_id && message.reply_attachment_path && (() => {
+                                const replyIsVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(message.reply_attachment_path);
+                                const replyMediaUrl = fileUrl(message.reply_attachment_path);
+                                const scrollToOriginal = () => document.getElementById(`chat-message-${message.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
+                                  {replyIsVideo
+                                    ? <video src={replyMediaUrl} preload="metadata" muted playsInline className="block h-24 w-36 object-cover" aria-label="Replied video preview" />
+                                    : <img src={replyMediaUrl} alt="Replied image preview" className="block h-24 w-36 object-cover" />}
+                                </button>;
+                              })()}
                               <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(message.created_at)}`} className={`transition-colors ${hasText
                                 ? `rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? (expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-md' : 'bg-indigo-600 text-white rounded-br-md') : (expandedTimestampId === messageKey ? 'bg-slate-100 text-slate-800 border border-slate-300 rounded-bl-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md')}`
                                 : ''} cursor-pointer`}>
-                                {message.reply_to_id && <div className={`mb-2 border-l-2 pl-2 text-xs opacity-80 ${isAdmin ? 'border-indigo-200' : 'border-slate-400'}`}><span className="font-semibold">{Number(message.reply_sender_id) === Number(userId) ? 'You' : activeChat.other_user_name}</span><p className="m-0 truncate">{message.reply_message || (message.reply_attachment_path ? 'Attachment' : 'Message')}</p></div>}
+                                {message.reply_to_id && !message.reply_attachment_path && <p className="m-0 mb-1 truncate text-xs opacity-80">{message.reply_message || 'Message'}</p>}
                                 {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p>}
                                 {message.attachment_path && (() => {
                                   const mediaUrl = message.attachment_path.startsWith('blob:') ? message.attachment_path : new URL(`../${message.attachment_path}`, api.defaults.baseURL).href;

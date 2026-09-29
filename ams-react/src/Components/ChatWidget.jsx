@@ -14,6 +14,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faPaperclip } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { LIMITS } from '../utils/validation';
 import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -318,7 +319,7 @@ const ChatWidget = () => {
                                     );
                                     const isMediaOnlyMessage = Boolean(msg.attachment_path) && !msg.message;
                                     return (
-                                        <div key={messageKey} className={`message-enter mb-3 ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
+                                        <div id={`chat-message-${msg.id}`} key={messageKey} className={`message-enter mb-3 ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                                             {showDateSeparator && (
                                                 <div className="flex justify-center my-5">
                                                     <span className="text-slate-500 text-[11px] font-medium">
@@ -328,12 +329,26 @@ const ChatWidget = () => {
                                             )}
                                     <div className={`group flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                                         {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
-                                                <div className="relative max-w-[80%]">
+                                                <div className={`relative flex max-w-[80%] flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                                    {msg.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-[11px] text-slate-500">
+                                                        <FontAwesomeIcon icon={faReply} className="text-[10px]" />
+                                                        <span>{isMe ? 'You' : activeChat.other_user_name} replied to {String(msg.reply_sender_id) === String(msg.sender_id) ? 'themselves' : (isMe ? activeChat.other_user_name : 'you')}</span>
+                                                    </div>}
+                                                    {msg.reply_to_id && msg.reply_attachment_path && (() => {
+                                                        const replyIsVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(msg.reply_attachment_path);
+                                                        const replyMediaUrl = fileUrl(msg.reply_attachment_path);
+                                                        const scrollToOriginal = () => document.getElementById(`chat-message-${msg.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                        return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
+                                                            {replyIsVideo
+                                                                ? <video src={replyMediaUrl} preload="metadata" muted playsInline className="block h-24 w-36 object-cover" aria-label="Replied video preview" />
+                                                                : <img src={replyMediaUrl} alt="Replied image preview" className="block h-24 w-36 object-cover" />}
+                                                        </button>;
+                                                    })()}
                                                     <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(msg.created_at)}`} className={`cursor-pointer transition-colors ${isMediaOnlyMessage ? '' : `px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe
                                                         ? expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-none' : 'bg-indigo-600 text-white rounded-br-none'
                                                         : expandedTimestampId === messageKey ? 'bg-slate-100 border border-slate-300 text-slate-800 rounded-bl-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
                                                     }`}`}>
-                                                        {msg.reply_to_id && <div className={`mb-2 border-l-2 pl-2 text-xs opacity-80 ${isMe ? 'border-indigo-200' : 'border-slate-400'}`}><strong>{Number(msg.reply_sender_id) === Number(userId) ? 'You' : activeChat.other_user_name}</strong><p className="m-0 truncate">{msg.reply_message || (msg.reply_attachment_path ? 'Attachment' : 'Message')}</p></div>}
+                                                        {msg.reply_to_id && !msg.reply_attachment_path && <p className="m-0 mb-1 truncate text-xs opacity-80">{msg.reply_message || 'Message'}</p>}
                                                         {msg.message && <p className="m-0 break-words">{msg.message}</p>}
                                                         {msg.attachment_path && (() => {
                                                             const mediaUrl = msg.attachment_path.startsWith('blob:') ? msg.attachment_path : new URL(`../${msg.attachment_path}`, api.defaults.baseURL).href;
