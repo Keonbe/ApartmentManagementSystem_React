@@ -126,7 +126,8 @@ erDiagram
         varchar billing_period "e.g. 'January 2026'"
         date rent_period_start "tenancy month a rent invoice bills"
         date rent_period_key "generated: rent_period_start unless cancelled"
-        varchar payment_group "ADV-… advance payment"
+        varchar payment_group "ADV-… legacy advance | BND-… combined payment"
+        tinyint advance_months "months an advance-rent invoice covers"
         varchar status "pending | paid | overdue | pending-verification"
         timestamp paid_at
         date due_date
@@ -134,6 +135,20 @@ erDiagram
         varchar scheduled_time_slot
         varchar checkout_session_id
         varchar payment_gateway
+        timestamp created_at
+    }
+
+    ADVANCE_CREDITS {
+        int id PK
+        varchar advance_invoice_id FK "ON DELETE CASCADE"
+        int user_id FK "ON DELETE CASCADE"
+        int rent_application_id
+        date period_start "tenancy month the credit pays"
+        decimal amount
+        enum status "reserved | available | applied | cancelled | refund-due"
+        date credit_key "generated: period_start unless cancelled"
+        varchar applied_invoice_id "the month's rent invoice"
+        timestamp applied_at
         timestamp created_at
     }
 
@@ -482,6 +497,7 @@ erDiagram
     USERS ||--o{ UNIT_RESERVATIONS : "holds (optional)"
     ROOMS ||--o{ RENT_APPLICATIONS : "for (FK enforced)"
     RENT_APPLICATIONS ||--o{ INVOICES : generates
+    INVOICES ||--o{ ADVANCE_CREDITS : "advance-rent invoice credits"
     RENT_APPLICATIONS ||--o{ LEASE_CONTRACTS : "produces (1 in practice)"
     LEASE_CONTRACTS ||--o{ LEASE_RENEWALS : "extended by"
     INQUIRIES ||--o{ UNIT_RESERVATIONS : "converts to hold"
@@ -516,7 +532,8 @@ erDiagram
 ### Billing
 | Table | Purpose |
 |---|---|
-| `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. `base_rent`/`water`/`electricity`/`parking`/`services`/`maintenance`/`late_fee` are itemized and summed into `total_amount`; `services` and `maintenance` accumulate (each can hold more than one completed charge's cost in the same month) — `maintenance` is kept separate from `services` so a tenant-caused repair recharge (audit H10) doesn't blend into voluntary add-on bookings. `water`/`electricity` are set once from a single utility reading — `sync_utility_to_invoice.php` refuses to merge into an invoice that already carries them, and adds to `total_amount` rather than recomputing it. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. Creation is insert-only (`create_invoice.php`, audit H8) — re-issuing an existing id is refused; `adjust_invoice.php` edits only the manual lines (`base_rent`/`water`/`electricity`/`parking`/`late_fee`/`due_date`) and always recomputes `total_amount` from every column, so `services`/`maintenance`/`security_deposit` can never be dropped. **Rent periods (2026-09-26):** a rent invoice's `rent_period_start` is the first day of the tenancy month it bills — the contract's lease-start day in that month, clamped to month end — and its due date. The daily sweep (`generate_due_rent_invoices()`) issues each month 7 days before it starts and never back-bills a month that has already started. `UNIQUE (user_id, rent_period_key)`, where the STORED generated `rent_period_key` is `rent_period_start` except on a cancelled row, stops any writer billing a month twice. Older rent invoices have no `rent_period_start` and are matched by their `billing_period` label. `payment_group` (`ADV-…`) ties the months of one advance payment, which are paid together but settled and receipted one invoice at a time. |
+| `invoices` | PK is a formatted string (`INV-YYYYMM-<user_id>`), not an int. One row per tenant per billing month. `base_rent`/`water`/`electricity`/`parking`/`services`/`maintenance`/`late_fee` are itemized and summed into `total_amount`; `services` and `maintenance` accumulate (each can hold more than one completed charge's cost in the same month) — `maintenance` is kept separate from `services` so a tenant-caused repair recharge (audit H10) doesn't blend into voluntary add-on bookings. `water`/`electricity` are set once from a single utility reading — `sync_utility_to_invoice.php` refuses to merge into an invoice that already carries them, and adds to `total_amount` rather than recomputing it. A move-in invoice bundles `base_rent + security_deposit` in `total_amount`. Creation is insert-only (`create_invoice.php`, audit H8) — re-issuing an existing id is refused; `adjust_invoice.php` edits only the manual lines (`base_rent`/`water`/`electricity`/`parking`/`late_fee`/`due_date`) and always recomputes `total_amount` from every column, so `services`/`maintenance`/`security_deposit` can never be dropped. **Rent periods (2026-09-26):** a rent invoice's `rent_period_start` is the first day of the tenancy month it bills — the contract's lease-start day in that month, clamped to month end — and its due date. The daily sweep (`generate_due_rent_invoices()`) issues each month 7 days before it starts and never back-bills a month that has already started. `UNIQUE (user_id, rent_period_key)`, where the STORED generated `rent_period_key` is `rent_period_start` except on a cancelled row, stops any writer billing a month twice. Older rent invoices have no `rent_period_start` and are matched by their `billing_period` label. `payment_group` (`ADV-…`) ties the months of a legacy advance payment (before 2026-09-28), or, as `BND-…`, the overdue bills a tenant pays together (combined payment, 2026-09-30; `bundle_payment.php`). A group is paid together but settled and receipted one invoice at a time. **Advance credits (2026-09-28):** an advance payment is now one advance-rent invoice with `advance_months = N`; it is left out of revenue, receivables and arrears and never gets a late fee. |
+| `advance_credits` | One row per month an advance-rent invoice covers. `reserved` until that invoice is paid (`settle_invoice()`), then `available`; the daily sweep bills the month on its usual date at the credited amount, settles it (`payment_method = 'Advance credit'`) and marks the credit `applied` with `applied_invoice_id`. An advance still unpaid when its first month comes due is cancelled with its credits (`expire_unpaid_advances()`); at move-out `end_tenancy()` turns `available` credits into `refund-due`. `UNIQUE (user_id, credit_key)`, where the STORED `credit_key` is `period_start` except on a cancelled row, stops a month being credited twice. |
 | `expenses` | Building expenses an admin enters by hand (`manage_expenses.php`): utilities, supplies, salaries, common-area upkeep, taxes and fees, insurance, other. `get_report_data.php` adds them to the maintenance costs it derives from `maintenance_requests` — repairs are never entered here, so nothing is counted twice. |
 | `utility_readings` | One row per unit per billing month (`UNIQUE (room_name, billing_period)`). `billing_period` is `YYYY-MM`, while invoices label the same month `"September 2026"` — always convert with `utility_period_label()` before matching. Previous/current readings form a chain per unit, so readings are recorded oldest-first and only the latest un-invoiced one may be deleted. `is_invoiced` is claimed atomically before the charge is posted, and `invoice_id` records the invoice it landed on. |
 
@@ -592,6 +609,7 @@ Each is idempotent and only needed for a database created before it; a fresh `Se
 | File | What it does |
 |---|---|
 | `2026_09_contracts_visitors.sql` | `lease_contracts` transition columns and unique key; `visitor_logs` `expected_at` / `overstay_alerted_at` |
+| `2026_09_advance_credits.sql` | `invoices.advance_months`; creates `advance_credits` (advance payments as monthly credits) |
 | `2026_09_visitor_expected_checkout.sql` | `visitor_logs.expected_check_out_at` |
 | `2026_09_notifications_parking.sql` | Creates `notification_preferences` and `parking_charges`; alters `activity_logs`, `notifications`, `parking_reservations` (numbered slots, billing) |
 | `2026_09_end_tenancy.sql` | `invoices.cancel_reason` (invoices cancelled by the end-of-tenancy helper) |

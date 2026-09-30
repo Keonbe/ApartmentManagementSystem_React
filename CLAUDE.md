@@ -40,9 +40,11 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 
 ## Workflow rules
 
-- Git: all work, including big implementations, is committed straight to `main`, with no feature branches. Split a large change into one commit per area or phase. No required-PR branch protection.
+- Git: all work, including big implementations, goes straight to `main`, with no feature branches. No required-PR branch protection.
+- **Never commit on your own, even when a plan lists per-phase commits.** The user verifies and tests first. Leave changes uncommitted, draft the commit message(s), and commit only when the user says so. For a large change, draft one message per area or phase.
 
 - Work directly by default. Use a subagent only for broad read-only sweeps whose raw output the main thread doesn't need (e.g. "which endpoints lack `log_activity`"); prefer `repo-sweep` (Sonnet). Don't spawn subagents for single-area fixes, edits, or verification.
+- Plans (plan mode) open with a short **TL;DR**: a few one-line bullets on what changes and why, before the detailed sections.
 - Prefer Edit over full-file Write unless most of the file changes.
 - Verify proportionately: `php -l` on changed PHP, `npm run build` for JSX, curl only the rows that prove the fix.
 - Before stopping or when a workstream ends: update `TASK.md`; draft a commit message (don't commit unless asked), grouped Backend / Frontend / Docs.
