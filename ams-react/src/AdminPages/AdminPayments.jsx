@@ -17,6 +17,7 @@ import FieldError from '../Components/form/FieldError';
 import ReasonModal from '../Components/form/ReasonModal';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import { ADMIN_PAYMENTS_EVENT } from '../config/notificationLinks';
+import { daysPastDue, formatCoveredPeriod, isBundleKey, isPastDue } from '../utils/billingPeriod';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 const currentPeriodLabel = () => new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
@@ -117,6 +118,16 @@ const AdminPayments = () => {
             t.outstandingBalance += parseFloat(inv.total_amount || 0);
             (t.openInvoices = t.openInvoices || []).push(inv);
           } else if (inv.status === 'paid') {
+            // Advance credit left: paid advance months minus the months
+            // already billed and settled from them.
+            const credit = (t.advanceCredit = t.advanceCredit || { months: 0, amount: 0 });
+            if (inv.advance_months) {
+              credit.months += inv.advance_months;
+              credit.amount += parseFloat(inv.total_amount || 0);
+            } else if (inv.paid_from_advance) {
+              credit.months -= 1;
+              credit.amount -= parseFloat(inv.total_amount || 0);
+            }
             const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
             t.history.push({
               id: inv.id, 
@@ -159,6 +170,10 @@ const AdminPayments = () => {
 
           t.status = sel.status;
           t.dueDate = sel.due_date;
+          t.pastDue = isPastDue(sel);
+          t.daysPastDue = daysPastDue(sel);
+          t.coveredPeriod = formatCoveredPeriod(sel);
+          t.advanceInvoice = sel.advance_months ? { id: sel.id, months: sel.advance_months, label: sel.billing_period } : null;
           t.scheduledDate = sel.scheduled_date;
           t.scheduledTimeSlot = sel.scheduled_time_slot;
           t.billingPeriod = sel.payment_group ? months.map(i => i.billing_period).join(', ') : sel.billing_period;
@@ -625,7 +640,7 @@ const handleMarkAsPaid = async () => {
                             {t.status === 'processing' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-500 animate-pulse" />}
                             {isDueSoon && t.status !== 'pending-verification' && t.status !== 'scheduled' && t.status !== 'processing' && t.status !== 'payment-failed' && <FontAwesomeIcon icon={faCircle} className="text-[8px] text-amber-500" />}
                           </p>
-                          <p className="text-[11px] text-slate-500 m-0 mt-0.5">Unit {t.unit} · Due {t.dueDate}</p>
+                          <p className="text-[11px] text-slate-500 m-0 mt-0.5">Unit {t.unit} · {t.pastDue ? `Overdue ${t.daysPastDue} day${t.daysPastDue === 1 ? "" : "s"} · covers ${t.coveredPeriod}` : `Due ${t.dueDate}`}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-xs font-bold text-slate-700 m-0 mb-1">{t.status !== 'paid' ? formatCurrency(tenantTotalDue) : '₱0'}</p>
@@ -664,7 +679,7 @@ const handleMarkAsPaid = async () => {
                       : activeTenant.status === 'payment-failed'
                         ? "The online payment attempt failed or was cancelled."
                         : activeTenant.status === 'overdue'
-                        ? `This account is overdue. Due date was ${activeTenant.dueDate}.` 
+                        ? `This account is ${activeTenant.daysPastDue} day${activeTenant.daysPastDue === 1 ? "" : "s"} overdue for the period ${activeTenant.coveredPeriod}.`
                         : `Payment is due in ${activeDaysDue} days (${activeTenant.dueDate}).`}
                   </div>
                 )}
@@ -710,10 +725,18 @@ const handleMarkAsPaid = async () => {
                         className={`w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800${invalidCls(recordForm.errors.billingPeriod)}`} />
                       <FieldError id="record-billingPeriod" error={recordForm.errors.billingPeriod} />
                     </div>
+                    {/* A past-due bill shows the period it covers (from move-in), not its lapsed due date. */}
+                    {activeTenant.pastDue ? (
+                      <div className="bg-rose-50 p-3 rounded-lg border border-rose-100">
+                        <p className="text-[10px] uppercase text-rose-400 font-semibold mb-1 m-0">Covers (overdue)</p>
+                        <p className="text-sm font-medium text-rose-800 m-0">{activeTenant.coveredPeriod}</p>
+                      </div>
+                    ) : (
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <label htmlFor="record-dueDate" className="block text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Due Date</label>
                       <input type="date" id="record-dueDate" name="dueDate" min={localDateString()} max={maxFutureDate()} value={activeTenant.dueDate} onChange={e => handleUpdateTenantField('dueDate', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800" />
                     </div>
+                    )}
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Term</p>
                       <select value={activeTenant.termOfPayment} onChange={e => handleUpdateTenantField('termOfPayment', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800 cursor-pointer">
@@ -731,17 +754,34 @@ const handleMarkAsPaid = async () => {
                     </div>
                   </div>
 
+                  {activeTenant.advanceInvoice && (
+                    <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                      <p className="m-0 text-xs font-bold text-indigo-800">
+                        Advance payment · {activeTenant.advanceInvoice.months} month{activeTenant.advanceInvoice.months === 1 ? '' : 's'} · <span className="font-mono">{activeTenant.advanceInvoice.id}</span>
+                      </p>
+                      <p className="m-0 mt-1 text-[11px] text-indigo-700">
+                        {activeTenant.advanceInvoice.label}. Confirming it credits each month; the monthly rent invoices are still issued on their usual dates and paid from the credit, each with its own receipt.
+                      </p>
+                    </div>
+                  )}
+
+                  {activeTenant.advanceCredit?.months > 0 && (
+                    <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                      <strong>Advance credit:</strong> {activeTenant.advanceCredit.months} prepaid month{activeTenant.advanceCredit.months === 1 ? '' : 's'} left ({formatCurrency(activeTenant.advanceCredit.amount)}), applied automatically as each month is billed.
+                    </div>
+                  )}
+
                   {activeTenant.advanceGroup && (
                     <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                       <p className="m-0 text-xs font-bold text-indigo-800">
-                        Advance payment · {activeTenant.advanceGroup.months.length} month{activeTenant.advanceGroup.months.length === 1 ? '' : 's'} · <span className="font-mono">{activeTenant.advanceGroup.key}</span>
+                        {isBundleKey(activeTenant.advanceGroup.key) ? 'Combined payment' : 'Advance payment'} · {activeTenant.advanceGroup.months.length} {isBundleKey(activeTenant.advanceGroup.key) ? 'bill' : 'month'}{activeTenant.advanceGroup.months.length === 1 ? '' : 's'} · <span className="font-mono">{activeTenant.advanceGroup.key}</span>
                       </p>
                       <p className="m-0 mt-1 text-[11px] text-indigo-700">
-                        Paid with one payment; confirming it settles each month as its own invoice, with its own receipt.
+                        Paid with one payment; confirming it settles each billing period as its own invoice, with its own receipt{isBundleKey(activeTenant.advanceGroup.key) ? ', plus one combined receipt for the tenant' : ''}.
                       </p>
                       <ul className="m-0 mt-2 pl-4 text-[11px] text-indigo-900 space-y-0.5">
                         {activeTenant.advanceGroup.months.map(m => (
-                          <li key={m.id}>{m.billing_period} — due {m.due_date} — {formatCurrency(m.total_amount)} <span className="text-indigo-500">({m.id})</span></li>
+                          <li key={m.id}>{m.billing_period} — {isPastDue(m) ? `covers ${formatCoveredPeriod(m)}` : `due ${m.due_date}`} — {formatCurrency(m.total_amount)} <span className="text-indigo-500">({m.id})</span></li>
                         ))}
                       </ul>
                     </div>

@@ -6,6 +6,7 @@ import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
+import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
 // Badge per invoice status. Anything awaiting management or the gateway is
@@ -54,7 +55,9 @@ export default function UserPaymentHistory() {
     const loading = !loaded;
 
     const buildReceipt = (inv) => {
-        let breakdown = `Rent: ${formatCurrency(inv.base_rent)}`;
+        let breakdown = inv.advance_months
+            ? `Advance rent (${inv.advance_months} month${inv.advance_months === 1 ? '' : 's'}): ${formatCurrency(inv.base_rent)}`
+            : `Rent: ${formatCurrency(inv.base_rent)}`;
         if (parseFloat(inv.security_deposit) > 0) {
             breakdown += `\nSecurity Deposit: ${formatCurrency(inv.security_deposit)}`;
         }
@@ -83,8 +86,13 @@ export default function UserPaymentHistory() {
             tenant: `${loggedInUser.first_name || ''} ${loggedInUser.last_name || ''}`.trim() || 'Tenant',
             unit: inv.room_name || 'N/A',
             period: inv.billing_period,
+            coveredPeriod: formatPeriodRange(inv.period_start, inv.period_end),
             dueDate: inv.due_date ? formatDate(`${inv.due_date}T00:00:00`) : null,
             paidInAdvance,
+            // Month settled from a credit: payment_reference is the advance invoice.
+            paidFromAdvance: inv.paid_from_advance ? inv.payment_reference : null,
+            advanceMonths: inv.advance_months || 0,
+            bundleKey: isBundleKey(inv.payment_group) ? inv.payment_group : null,
             amount: parseFloat(inv.total_amount),
             breakdown: breakdown,
             status: inv.status.toUpperCase(),
@@ -94,8 +102,42 @@ export default function UserPaymentHistory() {
         };
     };
 
+    // Combined payments ('BND-…'): the bills paid together, keyed by group.
+    const combinedPayments = Object.values(invoices.reduce((acc, inv) => {
+        if (inv.status === 'paid' && isBundleKey(inv.payment_group)) {
+            (acc[inv.payment_group] = acc[inv.payment_group] || { key: inv.payment_group, bills: [] }).bills.push(inv);
+        }
+        return acc;
+    }, {})).map(c => ({ ...c, bills: [...c.bills].sort((a, b) => String(a.due_date).localeCompare(String(b.due_date))) }));
+
+    // One receipt for a whole combined payment: every billing period it
+    // settled, with the payment details they share.
+    const buildCombinedReceipt = ({ key, bills }) => {
+        const first = bills[0];
+        return {
+            ...buildReceipt(first),
+            rctId: `RCT-${key}`,
+            period: `Combined payment — ${bills.length} billing period${bills.length === 1 ? '' : 's'}`,
+            coveredPeriod: '',
+            dueDate: null,
+            paidInAdvance: false,
+            paidFromAdvance: null,
+            advanceMonths: 0,
+            bundleKey: null,
+            combinedBills: bills.length,
+            amount: bills.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
+            breakdown: bills.map(i => {
+                const range = formatPeriodRange(i.period_start, i.period_end);
+                const fee = parseFloat(i.late_fee) > 0 ? ` (incl. late fee ${formatCurrency(i.late_fee)})` : '';
+                return `${i.billing_period}${range ? ` · ${range}` : ''} · ${i.id}: ${formatCurrency(i.total_amount)}${fee}`;
+            }).join('\n'),
+        };
+    };
+
+    const combinedForReceipt = isBundleKey(receiptInvoiceId) ? combinedPayments.find(c => c.key === receiptInvoiceId) : null;
     const receiptInvoice = invoices.find(i => i.id === receiptInvoiceId && i.status === 'paid');
-    const receiptData = receiptInvoice ? buildReceipt(receiptInvoice) : null;
+    const receiptData = combinedForReceipt ? buildCombinedReceipt(combinedForReceipt)
+        : receiptInvoice ? buildReceipt(receiptInvoice) : null;
     const showReceipt = !!receiptData;
 
     return (
@@ -123,6 +165,36 @@ export default function UserPaymentHistory() {
                         </div>
                     ) : (
                         <div className="stagger-children divide-y divide-slate-100">
+                            {combinedPayments.map(c => (
+                                <div key={c.key} className="payment-history-item card-interactive p-4 sm:p-6 bg-emerald-50/40 hover:bg-emerald-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+                                    <div className="flex items-start gap-3 sm:gap-4">
+                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg sm:text-xl shrink-0 bg-emerald-100 text-emerald-600">
+                                            <FontAwesomeIcon icon={faCheckCircle} />
+                                        </div>
+                                        <div>
+                                            <span className="text-xs font-bold tracking-wider text-slate-400">Combined payment {c.key}</span>
+                                            <h3 className="text-base sm:text-lg font-bold text-slate-800 m-0 mt-1">
+                                                {formatCurrency(c.bills.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0))}
+                                            </h3>
+                                            <p className="text-xs text-slate-500 m-0 mt-1">
+                                                {c.bills.length} billing periods: {c.bills.map(i => i.billing_period).join(', ')}
+                                            </p>
+                                            {c.bills[0].paid_at && (
+                                                <p className="text-xs text-emerald-600 font-medium m-0 mt-2">{t('paymentHistory.paidOn')} {new Date(c.bills[0].paid_at).toLocaleDateString()}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="payment-history-actions flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
+                                        <span className="px-3 py-1 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">{t('paymentHistory.paid')}</span>
+                                        <button
+                                            onClick={() => setReceiptInvoiceId(c.key)}
+                                            className="payment-history-view-btn flex items-center gap-1.5 px-4 py-2.5 sm:py-2 text-sm font-bold text-indigo-600 bg-indigo-50 border-0 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer min-h-[44px]"
+                                        >
+                                            <FontAwesomeIcon icon={faDownload} /> Combined receipt
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                             {invoices.map((inv) => {
                                 const isPaid = inv.status?.toLowerCase() === 'paid';
                                 const badge = STATUS_BADGES[inv.status] || UNPAID_BADGE;
@@ -143,8 +215,24 @@ export default function UserPaymentHistory() {
                                                 <div className="mt-2 space-y-1 text-xs text-slate-500">
                                                     <div className="flex gap-2">
                                                         <span className="font-semibold">{t('paymentHistory.period')}</span>
-                                                        <span>{inv.billing_period}</span>
+                                                        <span>
+                                                            {inv.billing_period}
+                                                            {inv.period_start && inv.period_end && (
+                                                                <span className="text-slate-400"> ({formatPeriodRange(inv.period_start, inv.period_end)})</span>
+                                                            )}
+                                                        </span>
                                                     </div>
+                                                    {isPastDue(inv) && (
+                                                        <div className="text-rose-600 font-semibold">
+                                                            Overdue by {daysPastDue(inv)} day{daysPastDue(inv) === 1 ? '' : 's'}
+                                                        </div>
+                                                    )}
+                                                    {inv.paid_from_advance && (
+                                                        <div className="text-emerald-600 font-semibold">Paid from advance payment {inv.payment_reference}</div>
+                                                    )}
+                                                    {isBundleKey(inv.payment_group) && (
+                                                        <div className="text-emerald-600 font-semibold">Part of combined payment {inv.payment_group}</div>
+                                                    )}
                                                     <div className="flex gap-2 sm:gap-3 flex-wrap text-[11px] text-slate-400">
                                                         <span>{t('paymentHistory.rent')} {formatCurrency(inv.base_rent)}</span>
                                                         {parseFloat(inv.security_deposit) > 0 && (
@@ -238,9 +326,24 @@ export default function UserPaymentHistory() {
                             <div className="border-b border-slate-200 pb-3">
                                 <p className="text-slate-500 text-[10px] uppercase m-0">Billing period</p>
                                 <p className="font-semibold text-slate-800 m-0 mt-0.5">
-                                    {receiptData.period}{receiptData.dueDate ? `, due ${receiptData.dueDate}` : ''}
+                                    {receiptData.period}{receiptData.coveredPeriod ? ` (${receiptData.coveredPeriod})` : ''}{receiptData.dueDate && !receiptData.advanceMonths ? `, due ${receiptData.dueDate}` : ''}
                                 </p>
-                                {receiptData.paidInAdvance && (
+                                {receiptData.bundleKey && (
+                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">
+                                        Paid as part of combined payment {receiptData.bundleKey}.{' '}
+                                        <button type="button" onClick={() => setReceiptInvoiceId(receiptData.bundleKey)} className="print-hide bg-transparent border-0 p-0 text-indigo-600 font-bold underline cursor-pointer text-[10px]">
+                                            View combined receipt
+                                        </button>
+                                    </p>
+                                )}
+                                {receiptData.combinedBills > 0 && (
+                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Each billing period below also has its own receipt.</p>
+                                )}
+                                {receiptData.paidFromAdvance ? (
+                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Paid from advance payment {receiptData.paidFromAdvance}</p>
+                                ) : receiptData.advanceMonths > 0 ? (
+                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Advance payment for {receiptData.advanceMonths} month{receiptData.advanceMonths === 1 ? '' : 's'}. Each month's rent invoice is issued on its usual date and paid from it, with its own receipt.</p>
+                                ) : receiptData.paidInAdvance && (
                                     <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Paid in advance on {receiptData.date}</p>
                                 )}
                             </div>

@@ -11,6 +11,7 @@ import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
 import { addDays, checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import { daysPastDue, formatCoveredPeriod, formatDay, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import FileChip from '../Components/form/FileChip';
@@ -70,16 +71,22 @@ export default function PayBills() {
             });
         }
         // A rejection or a declined checkout shows as a banner on the bill itself.
+        // A settled advance turns into prepaid-month credits on the advance card.
+        if (events.some(e => e.invoice?.advance_months)) loadAdvance();
     };
 
     const { invoices, loaded, refresh } = useInvoiceWatch({ onTransition: handleTransitions });
 
     // The bill on screen: the earliest-due invoice the tenant still has to pay;
     // failing that, the earliest one awaiting confirmation (shown read-only).
+    // A grouped payment (advance-rent invoice, legacy advance group, or a
+    // combined payment of overdue bills) is paid as a whole, never shown as the
+    // bill on screen.
     const byDueDate = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
-    const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !i.payment_group).sort(byDueDate);
+    const isGrouped = (i) => !!(i.payment_group || i.advance_months);
+    const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !isGrouped(i)).sort(byDueDate);
     const awaitingInvoices = invoices.filter(i => AWAITING_STATUSES.includes(i.status)).sort(byDueDate);
-    // One "awaiting" banner per payment: an advance payment's months together.
+    // One "awaiting" banner per payment: a group's bills together.
     const awaitingEntries = Object.values(awaitingInvoices.reduce((acc, inv) => {
         const key = inv.payment_group || inv.id;
         if (!acc[key]) {
@@ -89,8 +96,10 @@ export default function PayBills() {
             acc[key].months.push(inv.billing_period);
         }
         return acc;
-    }, {})).map(e => (e.payment_group ? { ...e, billing_period: `Advance: ${e.months.join(', ')}` } : e));
-    const activeInv = payableInvoices[0] || awaitingInvoices[0] || null;
+    }, {})).map(e => (e.payment_group
+        ? { ...e, billing_period: `${isBundleKey(e.payment_group) ? 'Combined' : 'Advance'}: ${e.months.join(', ')}` }
+        : e));
+    const activeInv = payableInvoices[0] || awaitingInvoices.find(i => !isGrouped(i)) || null;
 
     {/*Billing breakdown parameters mirroring system metrics*/}
     const billDetails = {
@@ -105,6 +114,7 @@ export default function PayBills() {
         invoiceId: activeInv?.id || null,
         dueDate: activeInv?.due_date || '',
         billingPeriod: activeInv?.billing_period || '',
+        coveredPeriod: formatCoveredPeriod(activeInv),
         status: activeInv?.status || 'pending',
         rejectionReason: activeInv?.proof_rejection_reason || '',
         scheduledDate: activeInv?.scheduled_date || '',
@@ -114,10 +124,11 @@ export default function PayBills() {
     const fmtMoney = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
     // ── Advance payment (advance_payment.php) ──
-    // The tenant bills N upcoming months as one group (payment_group 'ADV-…')
-    // and pays them with one payment; each month stays its own invoice and
-    // receipt. The pay endpoints take the group id in place of an invoice id.
-    const [advance, setAdvance] = useState(null); // preview: { available, months[], monthly_rent, lease_end }
+    // The tenant pays one advance-rent invoice for N upcoming months. Each
+    // month is credited; its rent invoice is still issued on the usual date
+    // and paid from the credit, with its own receipt. Older advances were a
+    // payment_group 'ADV-…' of invoices billed at once; those still show here.
+    const [advance, setAdvance] = useState(null); // preview: { available, months[], monthly_rent, lease_end, pending, credits[] }
     const [advanceCount, setAdvanceCount] = useState(1);
     const [advanceBusy, setAdvanceBusy] = useState(false);
     const [payingAdvance, setPayingAdvance] = useState(false);
@@ -131,19 +142,112 @@ export default function PayBills() {
         }
     };
 
-    // The open advance payment, from the watched invoices so its status stays live.
-    const groupInvoices = invoices.filter(i => i.payment_group && OPEN_STATUSES.includes(i.status)).sort(byDueDate);
-    const groupKey = groupInvoices[0]?.payment_group || null;
-    const groupMonths = groupInvoices.filter(i => i.payment_group === groupKey);
-    const groupTotal = groupMonths.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0);
-    const groupPayable = groupMonths.length > 0 && groupMonths.every(i => PAYABLE_STATUSES.includes(i.status));
-    const payingGroup = payingAdvance && groupKey && groupPayable;
+    // The open advance payment, from the watched invoices so its status stays
+    // live: { key, months: [{ key, label, sub, amount }], total, payable, cancelBody }.
+    const openAdvance = (() => {
+        const inv = invoices.filter(i => i.advance_months && OPEN_STATUSES.includes(i.status)).sort(byDueDate)[0];
+        if (inv) {
+            const pending = advance?.pending?.id === inv.id ? advance.pending.months : [];
+            return {
+                key: inv.id,
+                months: pending.map(m => ({ key: m.period_start, label: m.billing_period, sub: `Starts ${formatDay(m.period_start)} · paid from this advance when billed`, amount: m.amount })),
+                total: parseFloat(inv.total_amount) || 0,
+                payable: PAYABLE_STATUSES.includes(inv.status),
+                cancelBody: { action: 'cancel', invoice: inv.id },
+            };
+        }
+        const group = invoices.filter(i => i.payment_group && !isBundleKey(i.payment_group) && OPEN_STATUSES.includes(i.status)).sort(byDueDate);
+        const key = group[0]?.payment_group;
+        if (!key) return null;
+        const rows = group.filter(i => i.payment_group === key);
+        return {
+            key,
+            months: rows.map(i => ({ key: i.id, label: i.billing_period, sub: `Due ${i.due_date} · ${i.id}`, amount: i.total_amount })),
+            total: rows.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
+            payable: rows.every(i => PAYABLE_STATUSES.includes(i.status)),
+            cancelBody: { action: 'cancel', group: key },
+        };
+    })();
+    const advanceMonthsText = openAdvance ? openAdvance.months.map(m => m.label).join(', ') : '';
 
-    // What the payment panel pays: the open advance payment when the tenant
-    // chose it, otherwise the bill on screen.
-    const payKey = payingGroup ? groupKey : billDetails.invoiceId;
+    // ── Combined payment of overdue bills (bundle_payment.php) ──
+    // With two or more unpaid bills, at least one overdue, the tenant pays them
+    // all together, overdue and current (one 'BND-…' key; each bill still gets
+    // its own receipt, plus one combined receipt), or one at a time, earliest first.
+    // "Oct 4 – Nov 3, 2026 · 8 days overdue" for a past-due bill, "Due Oct 15, 2026" otherwise.
+    const billStatusText = (i) => (isPastDue(i)
+        ? `${formatCoveredPeriod(i)} · ${daysPastDue(i)} day${daysPastDue(i) === 1 ? '' : 's'} overdue`
+        : `Due ${formatDay(i.due_date)}`);
+    const [bundleBusy, setBundleBusy] = useState(false);
+    const [bundleView, setBundleView] = useState(true);   // show an open bundle in the ledger
+    const [bundleChoiceHidden, setBundleChoiceHidden] = useState(false);
+    const openBundle = (() => {
+        const rows = invoices.filter(i => isBundleKey(i.payment_group) && OPEN_STATUSES.includes(i.status)).sort(byDueDate);
+        const key = rows[0]?.payment_group;
+        if (!key) return null;
+        const mine = rows.filter(i => i.payment_group === key);
+        return {
+            key,
+            months: mine.map(i => ({ key: i.id, label: i.billing_period, sub: `${billStatusText(i)} · ${i.id}`, amount: i.total_amount })),
+            total: mine.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
+            payable: mine.every(i => PAYABLE_STATUSES.includes(i.status)),
+        };
+    })();
+    // Bills that can be combined: unpaid with nothing submitted yet (matches
+    // bundle_candidates() in config.php).
+    const unpaidSingles = payableInvoices.filter(i => ['pending', 'unpaid', 'overdue', 'payment-failed'].includes(i.status));
+    const overdueCount = unpaidSingles.filter(isPastDue).length;
+    const canBundle = !openBundle && unpaidSingles.length >= 2 && overdueCount > 0;
+
+    const handleCreateBundle = async () => {
+        setBundleBusy(true);
+        try {
+            const res = await api.post('/bundle_payment.php', { action: 'create' });
+            if (res.data.success) {
+                await refresh();
+                setBundleView(true);
+                setPayingAdvance(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                alert(res.data.message || 'Could not combine the overdue bills.');
+            }
+        } catch (err) {
+            alert(apiErrorMessage(err, 'Could not combine the overdue bills.'));
+        } finally {
+            setBundleBusy(false);
+        }
+    };
+
+    const handleReleaseBundle = async () => {
+        if (!openBundle) return;
+        setBundleBusy(true);
+        try {
+            const res = await api.post('/bundle_payment.php', { action: 'release', key: openBundle.key });
+            if (res.data.success) {
+                setBundleChoiceHidden(true);
+                await refresh();
+            } else {
+                alert(res.data.message || 'Could not split the combined payment.');
+            }
+        } catch (err) {
+            alert(apiErrorMessage(err, 'Could not split the combined payment.'));
+        } finally {
+            setBundleBusy(false);
+        }
+    };
+
+    // The group the payment panel pays, if any: the combined payment (shown by
+    // default while open), or the advance payment when the tenant chose it.
+    const activeGroup = (payingAdvance && openAdvance?.payable)
+        ? { ...openAdvance, kind: 'advance' }
+        : (bundleView && openBundle?.payable) ? { ...openBundle, kind: 'bundle' } : null;
+    const payingGroup = !!activeGroup;
+    const groupWord = activeGroup?.kind === 'bundle' ? 'Combined payment' : 'Advance payment';
+
+    // What the payment panel pays: the chosen group, otherwise the bill on screen.
+    const payKey = payingGroup ? activeGroup.key : billDetails.invoiceId;
     const payLabel = payingGroup
-        ? `advance payment (${groupMonths.map(i => i.billing_period).join(', ')})`
+        ? `${groupWord.toLowerCase()} (${activeGroup.months.map(m => m.label).join(', ')})`
         : (billDetails.billingPeriod || 'this bill');
 
     const handleCreateAdvance = async () => {
@@ -165,10 +269,10 @@ export default function PayBills() {
     };
 
     const handleCancelAdvance = async () => {
-        if (!groupKey || !window.confirm('Cancel this advance payment? Months that have not started yet are removed from your bills.')) return;
+        if (!openAdvance || !window.confirm('Cancel this advance payment? Its months will be billed as usual instead.')) return;
         setAdvanceBusy(true);
         try {
-            const res = await api.post('/advance_payment.php', { action: 'cancel', group: groupKey });
+            const res = await api.post('/advance_payment.php', openAdvance.cancelBody);
             if (res.data.success) {
                 setPayingAdvance(false);
                 await Promise.all([refresh(), loadAdvance()]);
@@ -328,7 +432,7 @@ export default function PayBills() {
                     // Bell and invoice watch both refetch; the bell starts polling faster.
                     window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
                     setNotice({
-                        message: payingGroup ? 'Advance payment scheduled' : 'Payment scheduled',
+                        message: payingGroup ? `${groupWord} scheduled` : 'Payment scheduled',
                         subtext: `Please pay at the admin office on ${scheduledDate} (${scheduledTimeSlot}). You will be notified once management records your payment.`,
                     });
                 } else if (!payForm.applyServerErrors(res)) {
@@ -406,7 +510,7 @@ export default function PayBills() {
                 clearProof();
                 window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
                 setNotice({
-                    message: payingGroup ? 'Advance payment submitted' : 'Payment submitted',
+                    message: payingGroup ? `${groupWord} submitted` : 'Payment submitted',
                     subtext: `Your ${currentMethodObj.label} payment for ${payLabel} is awaiting verification by management. This page updates by itself, and you will be notified once it is confirmed.`,
                 });
             } else {
@@ -489,7 +593,7 @@ export default function PayBills() {
                     </div>
                 )}
 
-                {loaded && !activeInv && (
+                {loaded && !activeInv && !openBundle && (
                     <div className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
                         <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-lg">
                             <FontAwesomeIcon icon={faCheckCircle} />
@@ -504,7 +608,7 @@ export default function PayBills() {
                 )}
 
                 {/* Due Date & Overdue Reminder Banner (not while a payment awaits confirmation) */}
-                {dueStatus && !isAwaiting && (
+                {dueStatus && !isAwaiting && !payingGroup && (
                     <>
                         {dueStatus.isOverdue ? (
                             <div className="w-full bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
@@ -519,7 +623,7 @@ export default function PayBills() {
                                         </span>
                                     </div>
                                     <p className="text-xs sm:text-sm text-rose-700 m-0 mt-1 leading-relaxed">
-                                        Your payment of <strong>₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> for {billDetails.billingPeriod} was due on <strong>{dueStatus.formattedDate}</strong>. Please settle your bill immediately to avoid late fees and service interruptions.
+                                        Your payment of <strong>₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> for the period <strong>{billDetails.coveredPeriod}</strong> is still unpaid. Please settle your bill immediately to avoid late fees and service interruptions.
                                     </p>
                                 </div>
                             </div>
@@ -561,41 +665,113 @@ export default function PayBills() {
                     </>
                 )}
 
+                {/* Overdue plus other unpaid bills: pay them all together, or one at a time. */}
+                {canBundle && !bundleChoiceHidden && !payingGroup && (
+                    <div className="w-full bg-white border-2 border-rose-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                        <div>
+                            <h4 className="text-sm sm:text-base font-extrabold text-rose-900 m-0">
+                                You have {unpaidSingles.length} unpaid bills ({overdueCount} overdue) — {fmtMoney(unpaidSingles.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0))}
+                            </h4>
+                            <p className="text-xs sm:text-sm text-slate-600 m-0 mt-1">
+                                Pay them all in one payment, or pay each billing period separately. Every billing period keeps its own invoice and receipt either way.
+                            </p>
+                        </div>
+                        <ul className="m-0 pl-0 list-none space-y-1">
+                            {unpaidSingles.map(i => (
+                                <li key={i.id} className="flex justify-between gap-3 text-xs sm:text-sm text-slate-600">
+                                    <span>{i.billing_period} <span className={isPastDue(i) ? 'text-rose-500' : 'text-slate-400'}>({billStatusText(i)})</span></span>
+                                    <span className="font-bold text-slate-800 shrink-0">{fmtMoney(i.total_amount)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <button
+                                type="button"
+                                onClick={handleCreateBundle}
+                                disabled={bundleBusy}
+                                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50"
+                            >
+                                {bundleBusy ? 'Preparing…' : 'Pay all together'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setBundleChoiceHidden(true)}
+                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50"
+                            >
+                                Pay one at a time
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* An open combined payment the tenant stepped away from. */}
+                {openBundle?.payable && !payingGroup && (
+                    <div className="w-full bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <p className="text-sm text-rose-900 m-0">
+                            Combined payment ready: <strong>{openBundle.months.map(m => m.label).join(', ')}</strong> — <strong>{fmtMoney(openBundle.total)}</strong>
+                        </p>
+                        <div className="flex gap-2 shrink-0">
+                            <button type="button" onClick={() => { setPayingAdvance(false); setBundleView(true); }} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold border-0 cursor-pointer">
+                                Pay all
+                            </button>
+                            <button type="button" onClick={handleReleaseBundle} disabled={bundleBusy} className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50">
+                                Pay separately
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/*Main Workspace Content Segment Panel*/}
                 <div className="stagger-children grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
 
                     {/*Left Grid Parameter Block: Billing Items Statement Breakdown Ledger*/}
                     {payingGroup ? (
-                    <div className="pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border-2 border-indigo-200 shadow-md p-5 sm:p-8 space-y-5">
+                    <div className={`pay-bills-card card-interactive md:col-span-7 bg-white rounded-3xl border-2 ${activeGroup.kind === 'bundle' ? 'border-rose-200' : 'border-indigo-200'} shadow-md p-5 sm:p-8 space-y-5`}>
                         <div className="flex justify-between items-start border-b border-slate-100 pb-3 gap-3">
                             <div>
-                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Advance payment</h3>
+                                <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{groupWord}</h3>
                                 <p className="text-xs text-slate-500 m-0 mt-0.5">
-                                    One payment for {groupMonths.length} month{groupMonths.length === 1 ? '' : 's'}. Each month keeps its own invoice and receipt.
+                                    {activeGroup.kind === 'bundle'
+                                        ? `One payment for ${activeGroup.months.length} bills. You get one combined receipt, and each billing period keeps its own invoice and receipt.`
+                                        : `One payment for ${activeGroup.months.length} month${activeGroup.months.length === 1 ? '' : 's'}. Each month's rent invoice is still issued on its usual date and paid from this advance, with its own receipt.`}
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setPayingAdvance(false)}
-                                className="text-xs font-bold text-indigo-600 hover:underline bg-transparent border-0 cursor-pointer p-1 shrink-0"
-                            >
-                                Back to current bill
-                            </button>
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                {activeGroup.kind === 'bundle' && (
+                                    <button
+                                        type="button"
+                                        onClick={handleReleaseBundle}
+                                        disabled={bundleBusy}
+                                        className="text-xs font-bold text-rose-600 hover:underline bg-transparent border-0 cursor-pointer p-1 disabled:opacity-50"
+                                    >
+                                        Pay separately instead
+                                    </button>
+                                )}
+                                {(activeGroup.kind === 'advance' || activeInv) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => (activeGroup.kind === 'advance' ? setPayingAdvance(false) : setBundleView(false))}
+                                        className="text-xs font-bold text-indigo-600 hover:underline bg-transparent border-0 cursor-pointer p-1"
+                                    >
+                                        Back to current bill
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <div className="space-y-3">
-                            {groupMonths.map(i => (
-                                <div key={i.id} className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                            {activeGroup.months.map(m => (
+                                <div key={m.key} className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
                                     <span>
-                                        Rent — {i.billing_period}
-                                        <span className="block text-[11px] text-slate-400">Due {i.due_date} · {i.id}</span>
+                                        {activeGroup.kind === 'bundle' ? m.label : `Rent — ${m.label}`}
+                                        <span className="block text-[11px] text-slate-400">{m.sub}</span>
                                     </span>
-                                    <span className="font-bold text-slate-900">{fmtMoney(i.total_amount)}</span>
+                                    <span className="font-bold text-slate-900">{fmtMoney(m.amount)}</span>
                                 </div>
                             ))}
                         </div>
                         <div className="border-t-2 border-slate-900 pt-4 flex justify-between items-center">
                             <span className="text-base font-extrabold text-slate-800">Total</span>
-                            <span className="pay-bills-total-due text-2xl font-black text-indigo-600">{fmtMoney(groupTotal)}</span>
+                            <span className="pay-bills-total-due text-2xl font-black text-indigo-600">{fmtMoney(activeGroup.total)}</span>
                         </div>
                     </div>
                     ) : (
@@ -603,7 +779,12 @@ export default function PayBills() {
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                             <div>
                                 <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
-                                {billDetails.dueDate && (
+                                {/* Past due: the period the bill covers, not a due date already gone. */}
+                                {dueStatus?.isOverdue ? (
+                                    <p className="text-xs text-slate-400 m-0 mt-0.5">
+                                        Covers: <strong className="text-slate-600">{billDetails.coveredPeriod}</strong>
+                                    </p>
+                                ) : billDetails.dueDate && (
                                     <p className="text-xs text-slate-400 m-0 mt-0.5">
                                         Due Date: <strong className="text-slate-600">{dueStatus?.formattedDate || billDetails.dueDate}</strong>
                                     </p>
@@ -856,7 +1037,7 @@ export default function PayBills() {
                                 className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed disabled:hover:scale-100"
                             >
                                 {isPaying ? 'Processing…' : payingGroup
-                                    ? `Pay advance (${fmtMoney(groupTotal)})`
+                                    ? `${activeGroup.kind === 'bundle' ? 'Pay all' : 'Pay advance'} (${fmtMoney(activeGroup.total)})`
                                     : isAwaiting ? 'Awaiting confirmation' : t('payBills.proceedToPay')}
                             </button>
                         </div>
@@ -864,8 +1045,9 @@ export default function PayBills() {
                     </div>
                 </div>
 
-                {/* Pay in advance: bill N upcoming months as one payment */}
-                {advance?.available && (
+                {/* Pay in advance: one payment credits N upcoming months; each
+                    month is still billed on its usual date and paid from it. */}
+                {(advance?.available || advance?.credits?.length > 0) && (
                     <div className="pay-bills-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-4">
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
                             <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 text-lg">
@@ -874,19 +1056,19 @@ export default function PayBills() {
                             <div>
                                 <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>Pay in advance</h3>
                                 <p className="text-xs text-slate-500 m-0 mt-0.5">
-                                    Prepay upcoming months in one payment. Each month still gets its own invoice and receipt, due on your usual rent day.
+                                    Prepay upcoming months in one payment. Each month's rent invoice is still issued on your usual rent day and paid from your advance, with its own receipt.
                                 </p>
                             </div>
                         </div>
 
-                        {groupKey ? (
-                            groupPayable ? (
+                        {openAdvance ? (
+                            openAdvance.payable ? (
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                     <p className="text-sm text-slate-700 m-0">
-                                        Advance payment ready: <strong>{groupMonths.map(i => i.billing_period).join(', ')}</strong> — <strong>{fmtMoney(groupTotal)}</strong>
+                                        Advance payment ready: <strong>{advanceMonthsText}</strong> — <strong>{fmtMoney(openAdvance.total)}</strong>
                                     </p>
                                     <div className="flex gap-2 shrink-0">
-                                        {!payingGroup && (
+                                        {activeGroup?.kind !== 'advance' && (
                                             <button
                                                 type="button"
                                                 onClick={() => { setPayingAdvance(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
@@ -907,10 +1089,10 @@ export default function PayBills() {
                                 </div>
                             ) : (
                                 <p className="text-sm text-slate-600 m-0">
-                                    Your advance payment for {groupMonths.map(i => i.billing_period).join(', ')} is awaiting confirmation (see above).
+                                    Your advance payment for {advanceMonthsText} is awaiting confirmation (see above).
                                 </p>
                             )
-                        ) : advance.months?.length > 0 ? (
+                        ) : advance?.available && advance.months?.length > 0 ? (
                             <div className="space-y-4">
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                     <label htmlFor="advance-months" className="text-sm font-bold text-slate-700">Months to prepay</label>
@@ -928,7 +1110,7 @@ export default function PayBills() {
                                 <div className="space-y-2">
                                     {advance.months.slice(0, Math.min(advanceCount, advance.months.length)).map(m => (
                                         <div key={m.period_start} className="flex justify-between text-sm text-slate-600">
-                                            <span>Rent — {m.billing_period} <span className="text-[11px] text-slate-400">(due {m.due_date})</span></span>
+                                            <span>Rent — {m.billing_period} <span className="text-[11px] text-slate-400">({formatPeriodRange(m.period_start, m.period_end)})</span></span>
                                             <span className="font-bold text-slate-900">{fmtMoney(m.amount)}</span>
                                         </div>
                                     ))}
@@ -948,10 +1130,30 @@ export default function PayBills() {
                                     {advanceBusy ? 'Preparing…' : 'Continue to payment'}
                                 </button>
                             </div>
-                        ) : (
+                        ) : advance?.available ? (
                             <p className="text-sm text-slate-600 m-0">
                                 There are no upcoming months left to prepay before your lease ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
                             </p>
+                        ) : null}
+
+                        {/* Months already paid in advance: waiting for their month, or billed and settled. */}
+                        {advance?.credits?.length > 0 && (
+                            <div className="border-t border-slate-100 pt-3 space-y-2">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400 m-0">Prepaid months</p>
+                                {advance.credits.map(c => (
+                                    <div key={`${c.advance_invoice_id}-${c.period_start}`} className="flex justify-between gap-3 text-sm text-slate-600">
+                                        <span>
+                                            Rent — {c.billing_period}
+                                            <span className="block text-[11px] text-slate-400">
+                                                {c.status === 'applied'
+                                                    ? `Paid from advance · invoice ${c.applied_invoice_id}`
+                                                    : `Credited · the month from ${formatDay(c.period_start)} is paid automatically when billed`}
+                                            </span>
+                                        </span>
+                                        <span className={`font-bold shrink-0 ${c.status === 'applied' ? 'text-emerald-600' : 'text-indigo-600'}`}>{fmtMoney(c.amount)}</span>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 )}
