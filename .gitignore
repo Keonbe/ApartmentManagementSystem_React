@@ -22,3 +22,6 @@ docs/AMS_Development_Timeline.xlsx
 .agents/skills/impeccable
 .agents/skills/MemSkill
 
+backend/cron/run_queue_hidden.vbs
+backend/cron/run_queue.bat
+
