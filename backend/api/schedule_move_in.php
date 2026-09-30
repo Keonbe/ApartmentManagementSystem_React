@@ -43,6 +43,11 @@ try {
     $notification_id = create_notification($conn, (int)$row['user_id'], 'application_update', 'Your Move-In Date', $body);
     if ($notification_id && $attachment) { $n = $conn->prepare('UPDATE notifications SET attachment_path = ? WHERE id = ?'); $n->bind_param('si', $attachment, $notification_id); $n->execute(); $n->close(); }
     log_activity($conn, $admin_id, 'tenant', 'Scheduled Move-In', "Application ID: $id, Date: $move_in_date");
+    // The next admin step is confirming occupancy on the day
+    // (update_tenant_status.php → active resolves this).
+    resolve_admin_queue($conn, 'rent_application', $id);
+    notify_admins_queue($conn, 'rent_application', $id, 'Move-In Scheduled',
+        "Unit {$row['room_name']} move-in is set for " . date('F j, Y', strtotime($move_in_date)) . ". Confirm the move-in once the tenant has moved in.");
     $conn->commit();
     try {
         require_once __DIR__ . '/services/send_notification.php';

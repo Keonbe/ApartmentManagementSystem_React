@@ -201,11 +201,9 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             }
 
             // Shared with the front desk (audit M12) — settle_invoice() carries
-            // the move-in cascade, the admin-queue resolution and the tenant
-            // notification, so an online move-in payment now activates the
-            // room/application/contract exactly like a desk payment does.
-            // Before this, the webhook only flipped the invoice to 'paid' and
-            // left the application 'Approved' and the contract a draft.
+            // the admin-queue updates (a paid move-in invoice asks the admin to
+            // schedule the move-in) and the tenant notification, exactly like a
+            // desk payment. Payment never activates the tenancy by itself.
             // An advance payment settles each of its months (settle_payment_key()).
             $result = settle_payment_key($conn, $invoice_id, $pm_label ?: 'PayMongo (Sandbox)', null, null);
 
@@ -219,6 +217,8 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
                 error_log("PayMongo webhook settle_invoice failed for invoice $invoice_id: " . $result['message']);
                 log_activity($conn, $actor, 'billing', 'Online Payment Needs Review',
                     "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a') . " — " . $result['message'], $actor ?? 0);
+                notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Online Payment Needs Review',
+                    "An online payment for $invoice_id was received but could not be recorded: " . $result['message']);
                 http_response_code(200);
                 echo json_encode(["success" => true, "message" => "Payment recorded but needs manual review: " . $result['message']]);
                 $conn->close();
@@ -226,6 +226,8 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             }
 
             log_activity($conn, $actor, 'billing', 'Online Payment Received', "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a'), $actor ?? 0);
+            notify_admins_info($conn, 'payment', 'Online Payment Received',
+                "Invoice $invoice_id was paid online (" . ($pm_label ?: 'PayMongo') . ") and recorded automatically.", "invoice:$invoice_id");
         } else {
             $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE ? IN (id, payment_group) AND status IN " . billing_open_status_sql());
             $stmt->bind_param("ss", $status, $invoice_id);

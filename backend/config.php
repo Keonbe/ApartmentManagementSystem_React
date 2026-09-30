@@ -985,6 +985,23 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         // channel settled it.
         resolve_admin_queue($conn, 'payment_verification', $invoice_id);
         resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
+
+        // A paid move-in invoice is the admin's cue to schedule the move-in
+        // (schedule_move_in.php), whichever channel settled it.
+        if ($inv_res && !empty($inv_res['rent_application_id']) && (float)($inv_res['security_deposit'] ?? 0) > 0) {
+            $app_id = (int)$inv_res['rent_application_id'];
+            $app_q = $conn->prepare("SELECT first_name, last_name, room_name FROM rent_applications WHERE id = ? AND status = 'Approved'");
+            $app_q->bind_param("i", $app_id);
+            $app_q->execute();
+            $app_row = $app_q->get_result()->fetch_assoc();
+            $app_q->close();
+            if ($app_row) {
+                resolve_admin_queue($conn, 'rent_application', $app_id);
+                notify_admins_queue($conn, 'rent_application', $app_id, 'Move-In Payment Received',
+                    "{$app_row['first_name']} {$app_row['last_name']} paid the move-in invoice $invoice_id for Unit {$app_row['room_name']} ($payment_method). Schedule their move-in date.");
+            }
+        }
+
         if ($notify_tenant && $inv_res && !empty($inv_res['user_id'])) {
             create_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Received',
                 $advance_months > 0
@@ -2162,6 +2179,16 @@ function notify_admins_queue($conn, $type, $entity_id, $title, $message) {
     $row = $admin ? $admin->fetch_assoc() : null;
     if (!$row) return 0;
     return create_notification($conn, (int)$row['id'], $type, $title, $message, 'Pending', "$type:$entity_id");
+}
+
+// An FYI for the admin bell that needs no action (e.g. an online payment that
+// settled on its own). $type must not be a queue type: the admin feed shows
+// non-queue rows addressed to the admin, and queue rows only while Pending.
+function notify_admins_info($conn, $type, $title, $message, $metadata = null) {
+    $admin = $conn->query("SELECT id FROM users WHERE role = 'admin' AND is_archived = 0 ORDER BY id LIMIT 1");
+    $row = $admin ? $admin->fetch_assoc() : null;
+    if (!$row) return 0;
+    return create_notification($conn, (int)$row['id'], $type, $title, $message, 'Resolved', $metadata);
 }
 
 // Clears a decided request from the admin bell. Before this existed only service

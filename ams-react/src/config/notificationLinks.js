@@ -35,6 +35,7 @@ export const ADMIN_NOTIFICATION_LINKS = {
   inquiry: '/admin-inquiries',
   payment_verification: '/admin-payments',
   cash_payment_declared: '/admin-payments',
+  move_out_request: '/admin-tenants',
   occupancy_request: '/admin-notifications',
   household_request: '/admin-notifications',
   unit_waitlist: '/admin-inquiries',

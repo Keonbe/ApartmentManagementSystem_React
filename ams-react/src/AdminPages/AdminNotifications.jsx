@@ -40,6 +40,9 @@ const typeConfig = {
   inquiry: { label: 'Inquiry', icon: faInfoCircle, color: 'bg-sky-100 text-sky-600', badge: 'bg-sky-100 text-sky-700' },
   unit_waitlist: { label: 'Waitlist', icon: faClock, color: 'bg-sky-100 text-sky-600', badge: 'bg-sky-100 text-sky-700' },
   payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  cash_payment_declared: { label: 'Cash Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  payment: { label: 'Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  move_out_request: { label: 'Move-Out Notice', icon: faCalendarPlus, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
 };
 
 const FILTERS = [
@@ -48,7 +51,7 @@ const FILTERS = [
   { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'inquiry', 'unit_waitlist'] },
   { key: 'maintenance', label: 'Maintenance', types: ['maintenance_request'] },
   { key: 'services', label: 'Services, CCTV & Parking', types: ['service_request', 'cctv_request', 'parking_reservation'] },
-  { key: 'payments', label: 'Payments', types: ['payment_verification'] },
+  { key: 'payments', label: 'Payments', types: ['payment_verification', 'cash_payment_declared', 'payment'] },
 ];
 
 const DECIDED_HERE = ['occupancy_request', 'household_request', 'lease_extension_request'];

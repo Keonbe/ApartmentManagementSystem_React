@@ -28,6 +28,11 @@ $stmt->bind_param("sii", $new_date, $app_id, $user_id);
 $stmt->execute();
 
 if ($stmt->affected_rows > 0) {
+    $shown_date = date('F j, Y', strtotime($new_date));
+    log_activity($conn, $user_id, 'tenant', 'Resubmitted Move-In Date', "Application ID: $app_id, Date: $new_date");
+    resolve_admin_queue($conn, 'rent_application', $app_id);
+    notify_admins_queue($conn, 'rent_application', $app_id, 'Application Resubmitted',
+        "Application #$app_id is back for review with a new preferred move-in date of $shown_date.");
     echo json_encode(['success' => true]);
 } else {
     http_response_code(400);
