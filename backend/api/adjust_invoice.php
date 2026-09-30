@@ -36,7 +36,7 @@ if (empty($invoice_id)) {
     exit;
 }
 
-$current = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, services, maintenance, security_deposit, total_amount, due_date, status FROM invoices WHERE id = ?");
+$current = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, services, maintenance, security_deposit, total_amount, due_date, status, advance_months FROM invoices WHERE id = ?");
 $current->bind_param("s", $invoice_id);
 $current->execute();
 $row = $current->get_result()->fetch_assoc();
@@ -45,6 +45,14 @@ $current->close();
 if (!$row) {
     http_response_code(404);
     echo json_encode(["success" => false, "message" => "Invoice not found."]);
+    exit;
+}
+
+// An advance-rent invoice's total is the sum of its month credits; changing it
+// here would leave the credits out of step.
+if (!empty($row['advance_months'])) {
+    http_response_code(409);
+    echo json_encode(["success" => false, "message" => "Invoice {$invoice_id} is an advance payment. The tenant can cancel it and prepay again instead."]);
     exit;
 }
 

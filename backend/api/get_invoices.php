@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         i.*, 
                         u.first_name, 
                         u.last_name, 
-                        ra.room_name 
+                        ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
                       FROM invoices i
                       LEFT JOIN users u ON i.user_id = u.id
                       LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         i.*, 
                         u.first_name, 
                         u.last_name, 
-                        ra.room_name 
+                        ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
                       FROM invoices i
                       LEFT JOIN users u ON i.user_id = u.id
                       LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
@@ -74,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         $invoices = [];
         while ($row = $result->fetch_assoc()) {
+            // The dates the bill covers, from the move-in day — shown instead
+            // of the due date once a bill is past due.
+            $covered = invoice_covered_period($row, $row['lease_start'] ?? null);
             $invoices[] = [
                 'id' => $row['id'],
                 // FIX FOR DUPLICATE PREFIX: Pass raw ID/Number or strip duplicate prefix
@@ -105,6 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'proof_rejection_reason' => $row['proof_rejection_reason'] ?? null,
                 'rent_period_start' => $row['rent_period_start'] ?? null,
                 'payment_group' => $row['payment_group'] ?? null,
+                'period_start' => $covered[0] ?? null,
+                'period_end' => $covered[1] ?? null,
+                'advance_months' => isset($row['advance_months']) ? (int)$row['advance_months'] : null,
+                'paid_from_advance' => ($row['payment_method'] ?? '') === 'Advance credit',
                 'billing_period' => $row['billing_period'] ?? null,
                 'scheduled_date' => $row['scheduled_date'] ?? null,
                 'scheduled_time_slot' => $row['scheduled_time_slot'] ?? null,

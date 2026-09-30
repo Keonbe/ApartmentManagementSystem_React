@@ -116,6 +116,8 @@ CREATE TABLE `invoices` (
   `rent_period_start` date DEFAULT NULL,
   `rent_period_key` date GENERATED ALWAYS AS (IF(`status` = 'cancelled', NULL, `rent_period_start`)) STORED,
   `payment_group` varchar(40) DEFAULT NULL,
+  -- Months an advance-rent invoice covers (2026_09_advance_credits.sql).
+  `advance_months` tinyint(4) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',
   `cancel_reason` varchar(50) DEFAULT NULL,
   `paid_at` timestamp NULL DEFAULT NULL,
@@ -983,6 +985,28 @@ CREATE TABLE IF NOT EXISTS `password_reset_requests` (
   PRIMARY KEY (`id`),
   KEY `email_time` (`email`,`requested_at`),
   KEY `ip_time` (`ip_address`,`requested_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Advance payments as monthly credits (2026_09_advance_credits.sql): one row
+-- per month an advance-rent invoice covers. The daily sweep bills each month
+-- on its usual date and settles it from the credit.
+CREATE TABLE IF NOT EXISTS `advance_credits` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `advance_invoice_id` varchar(50) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `rent_application_id` int(11) DEFAULT NULL,
+  `period_start` date NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `status` enum('reserved','available','applied','cancelled','refund-due') NOT NULL DEFAULT 'reserved',
+  `credit_key` date GENERATED ALWAYS AS (IF(`status` = 'cancelled', NULL, `period_start`)) STORED,
+  `applied_invoice_id` varchar(50) DEFAULT NULL,
+  `applied_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_advance_credit_period` (`user_id`, `credit_key`),
+  KEY `idx_advance_credit_invoice` (`advance_invoice_id`),
+  CONSTRAINT `fk_advance_credit_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_advance_credit_invoice` FOREIGN KEY (`advance_invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- 3. Default System Settings

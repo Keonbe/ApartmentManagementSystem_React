@@ -323,7 +323,8 @@ function application_transition_allowed($current_status, $new_status) {
 // by someone other than this application's tenant (H5's last line of
 // defense — APPLICATION_TRANSITIONS already stops most such calls before
 // they reach here). Otherwise returns ['room_name' => ?string,
-// 'user_id' => ?int, 'invoices_cancelled' => int, 'parking_released' => int,
+// 'user_id' => ?int, 'invoices_cancelled' => int, 'advance_refund_due' => float,
+// 'parking_released' => int,
 // 'visitors_cancelled' => int].
 function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
     $stmt = $conn->prepare("SELECT first_name, last_name, room_name, user_id FROM rent_applications WHERE id = ?");
@@ -362,6 +363,27 @@ function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
     $invoices_cancelled = $cancel_inv->affected_rows;
     $cancel_inv->close();
 
+    // Advance credits: months of an advance that was never paid go with it;
+    // months paid for but not reached are owed back to the tenant.
+    $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE rent_application_id = " . (int)$app_id . " AND status = 'reserved'");
+    $refund_q = $conn->prepare("SELECT COUNT(*) AS months, COALESCE(SUM(amount), 0) AS total FROM advance_credits WHERE rent_application_id = ? AND status = 'available'");
+    $refund_q->bind_param("i", $app_id);
+    $refund_q->execute();
+    $refund = $refund_q->get_result()->fetch_assoc();
+    $refund_q->close();
+    $advance_refund_due = round((float)$refund['total'], 2);
+    if ($advance_refund_due > 0) {
+        $conn->query("UPDATE advance_credits SET status = 'refund-due' WHERE rent_application_id = " . (int)$app_id . " AND status = 'available'");
+        $months = (int)$refund['months'];
+        $admin = $conn->query("SELECT id FROM users WHERE role = 'admin' AND is_archived = 0 ORDER BY id LIMIT 1");
+        $admin_row = $admin ? $admin->fetch_assoc() : null;
+        if ($admin_row) {
+            create_notification($conn, (int)$admin_row['id'], 'billing', 'Advance Rent Refund Due',
+                "$full_name moved out ($reason) with $months prepaid month(s) not yet reached. ₱" . number_format($advance_refund_due, 2) . " of advance rent is due back to the tenant.");
+        }
+        log_activity($conn, null, 'billing', 'Advance Refund Due', "Application $app_id: $months month(s), ₱" . number_format($advance_refund_due, 2), 0);
+    }
+
     $parking_released = 0;
     $visitors_cancelled = 0;
     if ($user_id) {
@@ -380,6 +402,7 @@ function end_tenancy($conn, $app_id, $reason, $room_condition = 'Good') {
         'room_name' => $room_name,
         'user_id' => $user_id,
         'invoices_cancelled' => $invoices_cancelled,
+        'advance_refund_due' => $advance_refund_due,
         'parking_released' => $parking_released,
         'visitors_cancelled' => $visitors_cancelled,
     ];
@@ -940,13 +963,23 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         }
         $stmt->close();
 
-        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit FROM invoices WHERE id = ?");
+        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months FROM invoices WHERE id = ?");
         $inv_q->bind_param("s", $invoice_id);
         $inv_q->execute();
         $inv_res = $inv_q->get_result()->fetch_assoc();
         $inv_q->close();
 
         $activated = false;
+
+        // An advance-rent invoice: its months become credits the sweep bills
+        // and settles one by one on their usual dates.
+        $advance_months = (int)($inv_res['advance_months'] ?? 0);
+        if ($advance_months > 0) {
+            $credit_upd = $conn->prepare("UPDATE advance_credits SET status = 'available' WHERE advance_invoice_id = ? AND status = 'reserved'");
+            $credit_upd->bind_param("s", $invoice_id);
+            $credit_upd->execute();
+            $credit_upd->close();
+        }
 
         if ($inv_res && !empty($inv_res['rent_application_id']) && (float)($inv_res['security_deposit'] ?? 0) > 0) {
             $app_id = (int)$inv_res['rent_application_id'];
@@ -1025,8 +1058,15 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
         if ($notify_tenant && $inv_res && !empty($inv_res['user_id'])) {
             create_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Received',
-                "Your payment for invoice $invoice_id has been confirmed and recorded ($payment_method). Your receipt is ready in Payment History. Thank you!",
+                $advance_months > 0
+                    ? "Your advance payment $invoice_id for $advance_months month(s) has been confirmed and recorded ($payment_method). Each month's rent invoice will still be issued on its usual date and paid from this advance, with its own receipt. Thank you!"
+                    : "Your payment for invoice $invoice_id has been confirmed and recorded ($payment_method). Your receipt is ready in Payment History. Thank you!",
                 'Resolved', "invoice:$invoice_id");
+        }
+        // A credited month already inside the billing window (held back while
+        // this advance awaited confirmation) is billed and settled now.
+        if ($advance_months > 0 && !empty($inv_res['user_id'])) {
+            generate_due_rent_invoices($conn, (int)$inv_res['user_id']);
         }
 
         return [
@@ -1152,6 +1192,57 @@ function rent_period_start($lease_start, $k) {
     return $month->format('Y-m-d');
 }
 
+// [first day, last day] of the $months tenancy months starting $period_start:
+// the last day is the one before the lease-start day comes round again
+// (a lease from Sep 15 covers Sep 15 – Oct 14).
+function rent_period_bounds($lease_start, $period_start, $months = 1) {
+    $day = (int)(new DateTime($lease_start))->format('j');
+    $next = new DateTime((new DateTime($period_start))->format('Y-m-01'));
+    $next->modify('+' . max(1, (int)$months) . ' month');
+    $next->setDate((int)$next->format('Y'), (int)$next->format('n'), min($day, (int)$next->format('t')));
+    $next->modify('-1 day');
+    return [$period_start, $next->format('Y-m-d')];
+}
+
+// The dates a bill covers, counted from the tenant's move-in day (panel
+// feedback 2026-09-28: a past-due bill shows its period, not its due date).
+// A rent invoice uses its rent_period_start; an advance-rent invoice the first
+// month it credits ($inv['advance_first']); any other bill the move-in day
+// inside its "Month YYYY" label. Returns [start, end], or null when the
+// tenancy has no start yet or the label is not a month.
+function invoice_covered_period(array $inv, $lease_start) {
+    if (empty($lease_start)) return null;
+    $months = max(1, (int)($inv['advance_months'] ?? 1));
+    if (!empty($inv['advance_months'])) {
+        $start = $inv['advance_first'] ?? null;
+    } elseif (!empty($inv['rent_period_start'])) {
+        $start = $inv['rent_period_start'];
+    } else {
+        $month = DateTime::createFromFormat('!F Y', trim((string)($inv['billing_period'] ?? '')));
+        if (!$month) return null;
+        $day = (int)(new DateTime($lease_start))->format('j');
+        $month->setDate((int)$month->format('Y'), (int)$month->format('n'), min($day, (int)$month->format('t')));
+        $start = $month->format('Y-m-d');
+    }
+    return $start ? rent_period_bounds($lease_start, $start, $months) : null;
+}
+
+// Extra invoice columns invoice_covered_period() reads, for a query on
+// `invoices i`: the rent month, advance months and first credited month, and
+// the tenancy's move-in day.
+const INVOICE_PERIOD_COLUMNS = "i.rent_period_start, i.advance_months,
+    (SELECT MIN(ac.period_start) FROM advance_credits ac WHERE ac.advance_invoice_id = i.id) AS advance_first,
+    (SELECT lcp.lease_start FROM lease_contracts lcp WHERE lcp.rent_application_id = i.rent_application_id ORDER BY lcp.id DESC LIMIT 1) AS lease_start";
+
+// "Sep 15 – Oct 14, 2026" for a covered period (the year once when both match).
+function covered_period_text(array $bounds) {
+    $a = new DateTime($bounds[0]);
+    $b = new DateTime($bounds[1]);
+    return $a->format('Y') === $b->format('Y')
+        ? $a->format('M j') . ' – ' . $b->format('M j, Y')
+        : $a->format('M j, Y') . ' – ' . $b->format('M j, Y');
+}
+
 // The tenancy's current monthly rent. rent_applications.monthly_rent is kept
 // live (occupant changes rewrite it — apply_occupant_count()); the room rate
 // is only a fallback for a row that never had one.
@@ -1199,17 +1290,58 @@ function create_rent_invoice($conn, $user_id, $app_id, $period_start, $rent, $pa
     return $created ? $invoice_id : null;
 }
 
+// Issues one tenancy month's rent invoice and tells the tenant. With an
+// 'available' advance credit (advance_credits row) the month is billed at the
+// credited amount and settled from it at once, so it still gets its own
+// invoice and receipt. Returns the invoice id, or null when already billed.
+function issue_rent_invoice($conn, $user_id, $app_id, $start, $rent, $credit = null) {
+    $amount = $credit ? (float)$credit['amount'] : (float)$rent;
+    $invoice_id = create_rent_invoice($conn, $user_id, $app_id, $start, $amount);
+    if (!$invoice_id) return null;
+
+    $label = billing_period_label(new DateTime($start));
+    $money = '₱' . number_format($amount, 2);
+    if ($credit) {
+        $settled = settle_invoice($conn, $invoice_id, 'Advance credit', $credit['advance_invoice_id'], null, false);
+        if ($settled['ok']) {
+            $stmt = $conn->prepare("UPDATE advance_credits SET status = 'applied', applied_invoice_id = ?, applied_at = NOW() WHERE id = ? AND status = 'available'");
+            $credit_id = (int)$credit['id'];
+            $stmt->bind_param("si", $invoice_id, $credit_id);
+            $stmt->execute();
+            $stmt->close();
+            create_notification($conn, $user_id, 'payment', "Rent Paid from Advance: $label",
+                "Your rent for $label ($money, invoice $invoice_id) was paid from your advance payment {$credit['advance_invoice_id']}. The receipt is in Payment History.",
+                'Resolved', "invoice:$invoice_id");
+            return $invoice_id;
+        }
+        // Could not settle: the month stays an ordinary bill and the credit
+        // stays available (move-out turns it into a refund).
+    }
+    $due = (new DateTime($start))->format('M j, Y');
+    create_notification($conn, $user_id, 'billing', "Rent Invoice: $label",
+        "Your rent for $label ($money) is due on $due. You can pay it on the Pay Bills page.",
+        'Resolved', "invoice:$invoice_id");
+    return $invoice_id;
+}
+
 // Daily-sweep step: for every running tenancy, issue the rent invoice of each
 // tenancy month that starts within RENT_INVOICE_LEAD_DAYS (and before the
 // lease ends). Months whose start has already passed are skipped, not
-// back-billed. Returns the number of invoices created.
-function generate_due_rent_invoices($conn) {
-    $rows = $conn->query("SELECT ra.id AS app_id, ra.user_id, lc.lease_start, lc.lease_end
-                          FROM lease_contracts lc
-                          JOIN rent_applications ra ON ra.id = lc.rent_application_id
-                          WHERE lc.status IN ('active', 'eviction-pending')
-                            AND ra.status IN ('Approved', 'active', 'pending-move-out')
-                            AND ra.user_id IS NOT NULL AND lc.lease_start IS NOT NULL AND lc.lease_end IS NOT NULL");
+// back-billed — except a month covered by an advance credit that became
+// available late (its advance was still awaiting confirmation). A month whose
+// advance is still awaiting confirmation is held back until it settles.
+// $only_user_id limits the run to one tenant. Returns the number created.
+function generate_due_rent_invoices($conn, $only_user_id = null) {
+    expire_unpaid_advances($conn, $only_user_id);
+
+    $sql = "SELECT ra.id AS app_id, ra.user_id, lc.lease_start, lc.lease_end
+            FROM lease_contracts lc
+            JOIN rent_applications ra ON ra.id = lc.rent_application_id
+            WHERE lc.status IN ('active', 'eviction-pending')
+              AND ra.status IN ('Approved', 'active', 'pending-move-out')
+              AND ra.user_id IS NOT NULL AND lc.lease_start IS NOT NULL AND lc.lease_end IS NOT NULL";
+    if ($only_user_id !== null) $sql .= " AND ra.user_id = " . (int)$only_user_id;
+    $rows = $conn->query($sql);
     if (!$rows) return 0;
 
     $today = date('Y-m-d');
@@ -1220,25 +1352,97 @@ function generate_due_rent_invoices($conn) {
         $user_id = (int)$t['user_id'];
         $app_id = (int)$t['app_id'];
         $rent = null;
+        $credits = advance_credits_by_month($conn, $user_id);
 
-        // First tenancy month (after the move-in month) that has not started yet.
-        $k = 1;
-        while (($start = rent_period_start($t['lease_start'], $k)) < $today && $k < 600) $k++;
-
-        for (; $start <= $horizon && $start < $t['lease_end']; $start = rent_period_start($t['lease_start'], ++$k)) {
-            $rent = $rent ?? tenancy_monthly_rent($conn, $app_id);
-            if ($rent <= 0) break;
-            $invoice_id = create_rent_invoice($conn, $user_id, $app_id, $start, $rent);
-            if (!$invoice_id) continue;
-            $created++;
-            $label = billing_period_label(new DateTime($start));
-            $due = (new DateTime($start))->format('M j, Y');
-            create_notification($conn, $user_id, 'billing', "Rent Invoice: $label",
-                "Your rent for $label (₱" . number_format($rent, 2) . ") is due on $due. You can pay it on the Pay Bills page.",
-                'Resolved', "invoice:$invoice_id");
+        for ($k = 1; $k < 600; $k++) {
+            $start = rent_period_start($t['lease_start'], $k);
+            if ($start > $horizon || $start >= $t['lease_end']) break;
+            $credit = $credits[$start] ?? null;
+            if ($credit && $credit['status'] === 'reserved') continue;
+            if ($start < $today && !$credit) continue;
+            if (!$credit) {
+                $rent = $rent ?? tenancy_monthly_rent($conn, $app_id);
+                if ($rent <= 0) continue;
+            }
+            if (issue_rent_invoice($conn, $user_id, $app_id, $start, $rent, $credit)) $created++;
         }
     }
     return $created;
+}
+
+// ── Advance payments as monthly credits (panel feedback 2026-09-28) ──
+// An advance payment is one advance-rent invoice (invoices.advance_months = N)
+// the tenant pays through any channel. Each month it covers is an
+// advance_credits row: 'reserved' until the invoice is paid, then
+// 'available'; the sweep bills the month on its usual date and settles it
+// from the credit ('applied'). Rent is counted in the month it covers, so
+// reports leave advance-rent invoices out of revenue.
+
+// The tenant's reserved and available credits, keyed by period_start.
+function advance_credits_by_month($conn, $user_id) {
+    $stmt = $conn->prepare("SELECT id, advance_invoice_id, period_start, amount, status FROM advance_credits
+                            WHERE user_id = ? AND status IN ('reserved', 'available')");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $out = [];
+    foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) $out[$row['period_start']] = $row;
+    $stmt->close();
+    return $out;
+}
+
+// Advance statuses that mean nothing has been paid or submitted yet.
+const ADVANCE_UNPAID_STATUSES = ['pending', 'unpaid', 'overdue', 'payment-failed'];
+
+// Cancels each advance-rent invoice still unpaid once its first month is due
+// to be billed, and its credits, so the months are billed normally. A month
+// that already started while the advance awaited confirmation (and was then
+// rejected) is billed here, since the generator does not back-bill.
+// Returns the number of advances cancelled.
+function expire_unpaid_advances($conn, $only_user_id = null) {
+    $horizon = date('Y-m-d', strtotime('+' . RENT_INVOICE_LEAD_DAYS . ' days'));
+    $today = date('Y-m-d');
+    $unpaid = "('" . implode("','", ADVANCE_UNPAID_STATUSES) . "')";
+    $sql = "SELECT i.id, i.user_id, MIN(c.period_start) AS first_start
+            FROM invoices i JOIN advance_credits c ON c.advance_invoice_id = i.id AND c.status = 'reserved'
+            WHERE i.advance_months IS NOT NULL AND i.status IN $unpaid";
+    if ($only_user_id !== null) $sql .= " AND i.user_id = " . (int)$only_user_id;
+    $sql .= " GROUP BY i.id, i.user_id HAVING first_start <= '$horizon'";
+    $res = $conn->query($sql);
+    if (!$res) return 0;
+
+    $expired = 0;
+    foreach ($res->fetch_all(MYSQLI_ASSOC) as $adv) {
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Advance payment expired' WHERE id = ? AND status IN $unpaid");
+        $stmt->bind_param("s", $adv['id']);
+        $stmt->execute();
+        $done = $stmt->affected_rows > 0;
+        $stmt->close();
+        if (!$done) continue;
+
+        $months = $conn->prepare("SELECT user_id, rent_application_id, period_start FROM advance_credits WHERE advance_invoice_id = ? AND status = 'reserved'");
+        $months->bind_param("s", $adv['id']);
+        $months->execute();
+        $late = $months->get_result()->fetch_all(MYSQLI_ASSOC);
+        $months->close();
+
+        $cancel = $conn->prepare("UPDATE advance_credits SET status = 'cancelled' WHERE advance_invoice_id = ? AND status = 'reserved'");
+        $cancel->bind_param("s", $adv['id']);
+        $cancel->execute();
+        $cancel->close();
+        $expired++;
+
+        create_notification($conn, (int)$adv['user_id'], 'billing', 'Advance Payment Expired',
+            "Your advance payment {$adv['id']} was not paid before its first month, so it was cancelled. Those months are billed as usual on Pay Bills.",
+            'Resolved', "invoice:{$adv['id']}");
+        log_activity($conn, null, 'billing', 'Expired Advance Payment', "Advance {$adv['id']} unpaid when its first month came due; cancelled", 0);
+
+        foreach ($late as $m) {
+            if ($m['period_start'] >= $today || empty($m['rent_application_id'])) continue;
+            $rent = tenancy_monthly_rent($conn, (int)$m['rent_application_id']);
+            if ($rent > 0) issue_rent_invoice($conn, (int)$m['user_id'], (int)$m['rent_application_id'], $m['period_start'], $rent);
+        }
+    }
+    return $expired;
 }
 
 // ── Advance payments (panel feedback 2026-09-26) ──
@@ -1252,12 +1456,19 @@ function generate_due_rent_invoices($conn) {
 // Most months a tenant can prepay in one advance payment.
 const ADVANCE_PAYMENT_MAX_MONTHS = 6;
 
+// A group key: a legacy advance payment ('ADV-…') or a combined payment of
+// overdue bills ('BND-…', bundle_overdue_invoices()).
 function is_payment_group_key($key) {
-    return is_string($key) && strncmp($key, 'ADV-', 4) === 0;
+    return is_string($key) && (strncmp($key, 'ADV-', 4) === 0 || strncmp($key, 'BND-', 4) === 0);
 }
 
-// "invoice INV-…" or "advance payment ADV-…", for messages and logs.
+function is_bundle_key($key) {
+    return is_string($key) && strncmp($key, 'BND-', 4) === 0;
+}
+
+// "invoice INV-…", "advance payment ADV-…" or "combined payment BND-…", for messages and logs.
 function payment_key_label($key) {
+    if (is_bundle_key($key)) return 'combined payment ' . $key;
     return (is_payment_group_key($key) ? 'advance payment ' : 'invoice ') . $key;
 }
 
@@ -1301,24 +1512,29 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
     $fail = fn($message, $settled = []) => ['ok' => false, 'message' => $message, 'invoice_id' => $key,
                                             'user_id' => null, 'activated' => false, 'invoice_ids' => $settled];
     $rows = payment_key_invoices($conn, $key, null, BILLING_OPEN_STATUSES);
-    if (!$rows) return $fail("Advance payment not found or already settled.");
+    $bundle = is_bundle_key($key);
+    $what = $bundle ? 'combined payment' : 'advance payment';
+    if (!$rows) return $fail(ucfirst($what) . " not found or already settled.");
 
     $total = array_sum(array_map(fn($row) => (float)$row['total_amount'], $rows));
     if ($amount_paid !== null && $amount_paid + 0.009 < $total) {
-        return $fail("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the advance payment total (₱" . number_format($total, 2) . "). Partial payments are not supported.");
+        return $fail("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the $what total (₱" . number_format($total, 2) . "). Partial payments are not supported.");
     }
 
     $settled = [];
     $settled_rows = [];
-    // One notice for the months that were settled, even when a later month fails.
-    $notify = function () use ($conn, $key, $payment_method, &$settled_rows) {
+    // One notice for the months that were settled, even when a later month
+    // fails. A combined payment's notice opens its combined receipt (invoice:BND-…).
+    $notify = function () use ($conn, $key, $payment_method, $bundle, &$settled_rows) {
         if (!$settled_rows) return;
         $periods = implode(', ', array_map(fn($row) => $row['billing_period'], $settled_rows));
         $amount = array_sum(array_map(fn($row) => (float)$row['total_amount'], $settled_rows));
         $months = count($settled_rows);
         create_notification($conn, (int)$settled_rows[0]['user_id'], 'payment', 'Payment Received',
-            "Your advance payment $key for $months month(s) ($periods, ₱" . number_format($amount, 2) . ") has been confirmed and recorded ($payment_method). A receipt for each month is ready in Payment History. Thank you!",
-            'Resolved', "invoice:{$settled_rows[0]['id']}");
+            $bundle
+                ? "Your combined payment $key for $months bill(s) ($periods, ₱" . number_format($amount, 2) . ") has been confirmed and recorded ($payment_method). A combined receipt and a receipt for each billing period are ready in Payment History. Thank you!"
+                : "Your advance payment $key for $months month(s) ($periods, ₱" . number_format($amount, 2) . ") has been confirmed and recorded ($payment_method). A receipt for each month is ready in Payment History. Thank you!",
+            'Resolved', $bundle ? "invoice:$key" : "invoice:{$settled_rows[0]['id']}");
     };
     foreach ($rows as $row) {
         $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false);
@@ -1332,12 +1548,91 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
     $notify();
 
     // The group's own queue rows (a proof or cash declaration made for the
-    // whole advance payment); settle_invoice() resolves per-invoice ones.
+    // whole group); settle_invoice() resolves per-invoice ones.
     resolve_admin_queue($conn, 'payment_verification', $key);
     resolve_admin_queue($conn, 'cash_payment_declared', $key);
 
-    return ['ok' => true, 'message' => count($settled) . " month(s) of the advance payment settled.", 'invoice_id' => $key,
+    return ['ok' => true, 'message' => count($settled) . ($bundle ? " bill(s) of the combined payment settled." : " month(s) of the advance payment settled."), 'invoice_id' => $key,
             'user_id' => (int)$rows[0]['user_id'], 'activated' => false, 'invoice_ids' => $settled];
+}
+
+// ── Combined payment of overdue bills (panel feedback 2026-09-30) ──
+// A tenant with two or more unpaid bills, at least one of them overdue, may
+// pay them together (overdue plus current bills) or one at a time. Paying
+// together stamps them with one payment_group 'BND-…', which every pay
+// endpoint already accepts as a payment key (? IN (id, payment_group));
+// settle_payment_key() then settles and receipts each bill on its own, and
+// Payment History adds one combined receipt for the group.
+
+// The tenant's bills that can be combined: unpaid with nothing submitted yet,
+// overdue or current, not an advance and not already in a group.
+function bundle_candidates($conn, $user_id) {
+    $unpaid = "('" . implode("','", ADVANCE_UNPAID_STATUSES) . "')";
+    $stmt = $conn->prepare("SELECT id, total_amount, billing_period, due_date FROM invoices
+                            WHERE user_id = ? AND status IN $unpaid
+                              AND payment_group IS NULL AND advance_months IS NULL
+                            ORDER BY due_date ASC, id ASC");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+
+// The tenant's combined payment still open, or null.
+function open_bundle_key($conn, $user_id) {
+    $stmt = $conn->prepare("SELECT payment_group FROM invoices WHERE user_id = ? AND payment_group LIKE 'BND-%'
+                            AND status IN " . billing_open_status_sql() . " LIMIT 1");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row['payment_group'] ?? null;
+}
+
+// Groups the tenant's unpaid bills into one combined payment and returns its
+// key. A new one needs at least two bills, one of them past due; an unpaid
+// bundle that already exists takes in any newly issued bills. Returns null
+// when there is nothing to combine or the open bundle already has a payment
+// in progress.
+function bundle_overdue_invoices($conn, $user_id) {
+    $key = open_bundle_key($conn, $user_id);
+    $candidates = bundle_candidates($conn, $user_id);
+    $today = date('Y-m-d');
+    $has_overdue = (bool)array_filter($candidates, fn($c) => !empty($c['due_date']) && $c['due_date'] < $today);
+    if ($key) {
+        foreach (payment_key_invoices($conn, $key, $user_id, BILLING_OPEN_STATUSES) as $r) {
+            if (!in_array($r['status'], ADVANCE_UNPAID_STATUSES, true)) return null;
+        }
+    } elseif (count($candidates) < 2 || !$has_overdue) {
+        return null;
+    } else {
+        $key = 'BND-' . strtoupper(bin2hex(random_bytes(6)));
+    }
+    $unpaid = "('" . implode("','", ADVANCE_UNPAID_STATUSES) . "')";
+    $stmt = $conn->prepare("UPDATE invoices SET payment_group = ? WHERE id = ? AND user_id = ? AND payment_group IS NULL AND status IN $unpaid");
+    foreach ($candidates as $c) {
+        $stmt->bind_param("ssi", $key, $c['id'], $user_id);
+        $stmt->execute();
+    }
+    $stmt->close();
+    return $key;
+}
+
+// Ungroups a combined payment so its bills are paid one at a time again, only
+// while nothing has been submitted for it. Returns the number of bills
+// released, or false when a payment for it is in progress or recorded.
+function release_bundle($conn, $user_id, $key) {
+    if (!is_bundle_key($key)) return false;
+    foreach (payment_key_invoices($conn, $key, $user_id, BILLING_OPEN_STATUSES) as $r) {
+        if (!in_array($r['status'], ADVANCE_UNPAID_STATUSES, true)) return false;
+    }
+    $stmt = $conn->prepare("UPDATE invoices SET payment_group = NULL WHERE payment_group = ? AND user_id = ? AND status IN " . billing_open_status_sql());
+    $stmt->bind_param("si", $key, $user_id);
+    $stmt->execute();
+    $n = $stmt->affected_rows;
+    $stmt->close();
+    return $n;
 }
 
 // Utility readings (checklist 8.7) are keyed by a 'YYYY-MM' billing period — the
@@ -1481,14 +1776,14 @@ function promote_overdue_invoices($conn) {
             UPDATE invoices
             SET late_fee = ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2),
                 total_amount = total_amount + ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2)
-            WHERE status = 'overdue' AND late_fee = 0
+            WHERE status = 'overdue' AND late_fee = 0 AND advance_months IS NULL
         ");
         $stmt->bind_param("dd", $value, $value);
     } else {
         $stmt = $conn->prepare("
             UPDATE invoices
             SET late_fee = ?, total_amount = total_amount + ?
-            WHERE status = 'overdue' AND late_fee = 0
+            WHERE status = 'overdue' AND late_fee = 0 AND advance_months IS NULL
         ");
         $stmt->bind_param("dd", $value, $value);
     }
@@ -2106,7 +2401,7 @@ function run_notification_sweep($conn, $force = false) {
 
     if ($reminders_enabled) {
         $statuses = "('" . implode("','", REMINDER_UPCOMING_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name
+        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
                                 FROM invoices i
                                 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
                                 WHERE i.status IN $statuses AND i.due_date IS NOT NULL
@@ -2126,7 +2421,7 @@ function run_notification_sweep($conn, $force = false) {
     }
 
     if ($overdue_enabled) {
-        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name
+        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
                                 FROM invoices i
                                 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
                                 WHERE i.status = 'overdue' AND i.due_date IS NOT NULL AND i.due_date < CURDATE()
@@ -2172,6 +2467,8 @@ function run_notification_sweep($conn, $force = false) {
 
 // Title and message for a rent-due or overdue reminder. Shared by the sweep and
 // the admin's manual "Send reminder" action so the wording never drifts.
+// An overdue alert names the period the bill covers (from the move-in day)
+// instead of the due date that has passed; $inv may carry INVOICE_PERIOD_COLUMNS.
 function reminder_text(array $inv, DateTime $today, $overdue, $custom_message = '') {
     $due = new DateTime($inv['due_date']);
     $unit = !empty($inv['room_name']) ? $inv['room_name'] : 'your unit';
@@ -2182,9 +2479,11 @@ function reminder_text(array $inv, DateTime $today, $overdue, $custom_message = 
     if ($overdue) {
         $days = (int)$due->diff($today)->format('%a');
         $days_text = $days === 1 ? '1 day' : "$days days";
+        $bounds = invoice_covered_period($inv, $inv['lease_start'] ?? null);
+        $covers = $bounds ? covered_period_text($bounds) : $period;
         return ["Overdue Rent Alert: $period",
             $custom_message !== '' ? $custom_message
-                : "Your payment of ₱$amount for Unit $unit was due on $due_text ($days_text overdue). Please settle your outstanding balance immediately to avoid further penalties."];
+                : "Your payment of ₱$amount for Unit $unit, covering $covers, is $days_text overdue. Please settle your outstanding balance immediately to avoid further penalties."];
     }
 
     $days = (int)$today->diff($due)->format('%r%a');

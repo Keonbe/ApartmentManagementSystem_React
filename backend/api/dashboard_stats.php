@@ -46,7 +46,7 @@ try {
             SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(CURRENT_DATE()) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(CURRENT_DATE()) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as current_revenue,
             SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as last_revenue
         FROM invoices 
-        WHERE LOWER(status) = 'paid'
+        WHERE LOWER(status) = 'paid' AND advance_months IS NULL
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -71,7 +71,7 @@ try {
             SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as overdue_total,
             SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cnt
         FROM invoices 
-        WHERE LOWER(status) IN " . billing_open_status_sql() . "
+        WHERE LOWER(status) IN " . billing_open_status_sql() . " AND advance_months IS NULL
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -143,7 +143,7 @@ try {
             SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as total
         FROM invoices 
         WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())
-          AND LOWER(status) <> 'cancelled'
+          AND LOWER(status) <> 'cancelled' AND advance_months IS NULL
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -183,7 +183,7 @@ try {
             COUNT(*) as total_cnt
         FROM invoices 
         WHERE created_at >= DATE_SUB(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 5 MONTH)
-          AND LOWER(status) <> 'cancelled'
+          AND LOWER(status) <> 'cancelled' AND advance_months IS NULL
         GROUP BY m_key
         ORDER BY m_key ASC
     ");

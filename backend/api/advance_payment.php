@@ -10,16 +10,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Tenant advance payment (panel feedback 2026-09-26). The tenant picks how
-// many upcoming months to prepay; each month becomes its own rent invoice
-// (so each gets its own receipt), all sharing one payment_group 'ADV-…' that
-// the pay endpoints accept in place of an invoice id.
+// Tenant advance payment (panel feedback 2026-09-26, reworked 2026-09-28).
+// The tenant picks how many upcoming months to prepay and pays one
+// advance-rent invoice (invoices.advance_months = N) through any channel.
+// Each month it covers is an advance_credits row; the daily sweep still
+// issues that month's rent invoice on its usual date and settles it from the
+// credit, so every month keeps its own invoice and receipt.
 //
-//   GET                         preview: the months that can be prepaid, and
-//                               any advance payment still awaiting payment
-//   POST {action:'create', months}   bill the next N months as one group
-//   POST {action:'cancel', group}    cancel an unpaid group (its months can
-//                                    then be billed again)
+//   GET                              preview: the months that can be prepaid,
+//                                    the advance awaiting payment, and credits
+//   POST {action:'create', months}   create the advance-rent invoice
+//   POST {action:'cancel', invoice}  cancel an unpaid advance (its months can
+//                                    then be prepaid or billed again)
+//   POST {action:'cancel', group}    cancel a legacy 'ADV-…' payment group
 $auth = require_user($conn);
 if ($auth['role'] === 'admin') {
     http_response_code(403);
@@ -49,56 +52,92 @@ function advance_tenancy($conn, $user_id) {
     return $row ?: null;
 }
 
-// Up to ADVANCE_PAYMENT_MAX_MONTHS upcoming tenancy months that are not billed
-// yet: starting today or later (a month already under way is ordinary rent,
-// not an advance) and before the lease ends.
+// Up to ADVANCE_PAYMENT_MAX_MONTHS upcoming tenancy months that are neither
+// billed nor credited yet, starting after the billing window (a month inside
+// it is billed by the sweep any day now) and before the lease ends.
 function advance_months($conn, $user_id, $tenancy, $rent) {
-    $today = date('Y-m-d');
+    $after = date('Y-m-d', strtotime('+' . RENT_INVOICE_LEAD_DAYS . ' days'));
+    $credited = advance_credits_by_month($conn, $user_id);
     $months = [];
     for ($k = 1; $k < 600 && count($months) < ADVANCE_PAYMENT_MAX_MONTHS; $k++) {
         $start = rent_period_start($tenancy['lease_start'], $k);
         if ($start >= $tenancy['lease_end']) break;
-        if ($start < $today || rent_period_billed($conn, $user_id, $start)) continue;
+        if ($start <= $after || isset($credited[$start]) || rent_period_billed($conn, $user_id, $start)) continue;
+        [, $end] = rent_period_bounds($tenancy['lease_start'], $start);
         $months[] = [
             'period_start' => $start,
+            'period_end' => $end,
             'billing_period' => billing_period_label(new DateTime($start)),
-            'due_date' => $start,
             'amount' => round($rent, 2),
         ];
     }
     return $months;
 }
 
-// The caller's advance payment that is still open (at most one at a time).
-function open_advance_group($conn, $user_id) {
+// The caller's advance-rent invoice still awaiting payment, with its months.
+function open_advance_invoice($conn, $user_id) {
+    $stmt = $conn->prepare("SELECT id, status, total_amount, due_date, advance_months FROM invoices
+                            WHERE user_id = ? AND advance_months IS NOT NULL AND status IN " . billing_open_status_sql() . "
+                            ORDER BY created_at DESC LIMIT 1");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $inv = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$inv) return null;
+    $inv['total_amount'] = (float)$inv['total_amount'];
+    $inv['months'] = advance_invoice_months($conn, $inv['id']);
+    return $inv;
+}
+
+function advance_invoice_months($conn, $invoice_id) {
+    $stmt = $conn->prepare("SELECT period_start, amount, status, applied_invoice_id FROM advance_credits
+                            WHERE advance_invoice_id = ? ORDER BY period_start");
+    $stmt->bind_param("s", $invoice_id);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return array_map(fn($r) => [
+        'period_start' => $r['period_start'],
+        'billing_period' => billing_period_label(new DateTime($r['period_start'])),
+        'amount' => (float)$r['amount'],
+        'status' => $r['status'],
+        'applied_invoice_id' => $r['applied_invoice_id'],
+    ], $rows);
+}
+
+// Paid advance months: waiting for their month ('available') or already
+// billed and settled ('applied'), for the tenant's "Prepaid months" list.
+function advance_credits_list($conn, $user_id) {
+    $stmt = $conn->prepare("SELECT c.advance_invoice_id, c.period_start, c.amount, c.status, c.applied_invoice_id, c.applied_at
+                            FROM advance_credits c
+                            WHERE c.user_id = ? AND c.status IN ('available', 'applied')
+                            ORDER BY c.period_start DESC LIMIT 24");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return array_map(fn($r) => $r + ['billing_period' => billing_period_label(new DateTime($r['period_start']))], $rows);
+}
+
+// A legacy advance payment (payment_group 'ADV-…', every month billed at
+// once) that is still open. New advances no longer create these.
+function open_legacy_group($conn, $user_id) {
     $stmt = $conn->prepare("SELECT payment_group FROM invoices
-                            WHERE user_id = ? AND payment_group IS NOT NULL AND status IN " . billing_open_status_sql() . "
-                            ORDER BY due_date ASC LIMIT 1");
+                            WHERE user_id = ? AND payment_group LIKE 'ADV-%' AND status IN " . billing_open_status_sql() . " LIMIT 1");
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    if (!$row) return null;
-
-    $rows = payment_key_invoices($conn, $row['payment_group'], $user_id, BILLING_OPEN_STATUSES);
-    return [
-        'group' => $row['payment_group'],
-        'invoices' => array_map(fn($r) => [
-            'id' => $r['id'],
-            'billing_period' => $r['billing_period'],
-            'due_date' => $r['due_date'],
-            'status' => $r['status'],
-            'amount' => (float)$r['total_amount'],
-        ], $rows),
-        'total' => round(array_sum(array_map(fn($r) => (float)$r['total_amount'], $rows)), 2),
-    ];
+    return $row['payment_group'] ?? null;
 }
 
 $tenancy = advance_tenancy($conn, $user_id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $pending = open_advance_invoice($conn, $user_id);
+    $credits = advance_credits_list($conn, $user_id);
     if (!$tenancy) {
-        echo json_encode(["success" => true, "available" => false, "months" => [], "pending" => open_advance_group($conn, $user_id),
+        echo json_encode(["success" => true, "available" => false, "months" => [], "pending" => $pending, "credits" => $credits,
                           "message" => "Advance payment is available once your lease is active."]);
         exit;
     }
@@ -109,7 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         "monthly_rent" => round($rent, 2),
         "lease_end" => $tenancy['lease_end'],
         "months" => $rent > 0 ? advance_months($conn, $user_id, $tenancy, $rent) : [],
-        "pending" => open_advance_group($conn, $user_id),
+        "pending" => $pending,
+        "credits" => $credits,
     ]);
     exit;
 }
@@ -119,7 +159,7 @@ $action = $input['action'] ?? '';
 
 if ($action === 'create') {
     if (!$tenancy) fail(403, "Advance payment is available once your lease is active.");
-    if (open_advance_group($conn, $user_id)) {
+    if (open_advance_invoice($conn, $user_id) || open_legacy_group($conn, $user_id)) {
         fail(409, "You already have an advance payment waiting. Pay or cancel it first.");
     }
     $count = filter_var($input['months'] ?? null, FILTER_VALIDATE_INT);
@@ -127,7 +167,8 @@ if ($action === 'create') {
         fail(422, "Choose between 1 and " . ADVANCE_PAYMENT_MAX_MONTHS . " months.");
     }
 
-    $rent = tenancy_monthly_rent($conn, (int)$tenancy['app_id']);
+    $app_id = (int)$tenancy['app_id'];
+    $rent = tenancy_monthly_rent($conn, $app_id);
     if ($rent <= 0) fail(422, "Your monthly rent is not set. Please contact management.");
     $months = advance_months($conn, $user_id, $tenancy, $rent);
     if ($count > count($months)) {
@@ -135,44 +176,98 @@ if ($action === 'create') {
             ? "There are no upcoming months left to prepay before your lease ends."
             : "Only " . count($months) . " upcoming month(s) can be prepaid before your lease ends.");
     }
+    $months = array_slice($months, 0, $count);
+    $first = $months[0];
+    $last = $months[count($months) - 1];
 
-    $group = 'ADV-' . strtoupper(bin2hex(random_bytes(6)));
-    $created = [];
+    // Due within 3 days, and always before the first month's rent invoice is
+    // issued — an advance still unpaid by then expires (expire_unpaid_advances()).
+    $due = min(date('Y-m-d', strtotime('+3 days')),
+               date('Y-m-d', strtotime($first['period_start'] . ' -' . (RENT_INVOICE_LEAD_DAYS + 1) . ' days')));
+    $total = round($rent * $count, 2);
+    $label = 'Advance rent: ' . (new DateTime($first['period_start']))->format('M Y')
+           . ($count > 1 ? ' – ' . (new DateTime($last['period_start']))->format('M Y') : '');
+    $invoice_id = 'INV-' . date('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
+
     $conn->begin_transaction();
-    foreach (array_slice($months, 0, $count) as $m) {
-        $invoice_id = create_rent_invoice($conn, $user_id, (int)$tenancy['app_id'], $m['period_start'], $rent, $group);
-        if (!$invoice_id) {
-            // Billed by someone else (the daily sweep) between preview and now.
-            $conn->rollback();
-            fail(409, "{$m['billing_period']} was just billed. Please review the months and try again.");
-        }
-        $created[] = ['id' => $invoice_id] + $m;
+    $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date, advance_months)
+                            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)");
+    $stmt->bind_param("siiddssi", $invoice_id, $user_id, $app_id, $total, $total, $label, $due, $count);
+    $ok = $stmt->execute();
+    $stmt->close();
+    if (!$ok) {
+        $conn->rollback();
+        fail(500, "Could not prepare the advance payment.");
     }
+    $credit = $conn->prepare("INSERT INTO advance_credits (advance_invoice_id, user_id, rent_application_id, period_start, amount, status)
+                              VALUES (?, ?, ?, ?, ?, 'reserved')");
+    foreach ($months as $m) {
+        $credit->bind_param("siisd", $invoice_id, $user_id, $app_id, $m['period_start'], $m['amount']);
+        if (!$credit->execute()) {
+            // Credited by a concurrent request between preview and now.
+            $credit->close();
+            $conn->rollback();
+            fail(409, "{$m['billing_period']} was just prepaid or billed. Please review the months and try again.");
+        }
+    }
+    $credit->close();
     $conn->commit();
 
-    $total = round($rent * $count, 2);
-    $periods = implode(', ', array_column($created, 'billing_period'));
+    $periods = implode(', ', array_column($months, 'billing_period'));
     log_activity($conn, $user_id, 'billing', 'Created Advance Payment',
-        "Group $group: $count month(s) ($periods), ₱" . number_format($total, 2));
+        "Invoice $invoice_id: $count month(s) ($periods), ₱" . number_format($total, 2));
 
     echo json_encode([
         "success" => true,
-        "message" => "$count month(s) billed for advance payment.",
-        "group" => $group,
-        "invoices" => $created,
+        "message" => "Advance payment for $count month(s) is ready to pay.",
+        "invoice_id" => $invoice_id,
+        "months" => $months,
         "total" => $total,
+        "due_date" => $due,
     ]);
     exit;
 }
 
+if ($action === 'cancel' && isset($input['invoice'])) {
+    $invoice_id = (string)$input['invoice'];
+    $stmt = $conn->prepare("SELECT status FROM invoices WHERE id = ? AND user_id = ? AND advance_months IS NOT NULL");
+    $stmt->bind_param("si", $invoice_id, $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) fail(404, "Advance payment not found.");
+    if (!in_array($row['status'], ADVANCE_UNPAID_STATUSES, true)) {
+        fail(409, "This advance payment can no longer be cancelled — a payment for it is already awaiting confirmation or recorded.");
+    }
+
+    $conn->begin_transaction();
+    $unpaid = "('" . implode("','", ADVANCE_UNPAID_STATUSES) . "')";
+    $stmt = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Advance payment cancelled' WHERE id = ? AND status IN $unpaid");
+    $stmt->bind_param("s", $invoice_id);
+    $stmt->execute();
+    $cancelled = $stmt->affected_rows;
+    $stmt->close();
+    $credits = $conn->prepare("UPDATE advance_credits SET status = 'cancelled' WHERE advance_invoice_id = ? AND status = 'reserved'");
+    $credits->bind_param("s", $invoice_id);
+    $credits->execute();
+    $credits->close();
+    $conn->commit();
+    if (!$cancelled) fail(409, "This advance payment can no longer be cancelled.");
+
+    log_activity($conn, $user_id, 'billing', 'Cancelled Advance Payment', "Invoice $invoice_id cancelled");
+    echo json_encode(["success" => true, "message" => "Advance payment cancelled."]);
+    exit;
+}
+
 if ($action === 'cancel') {
+    // Legacy 'ADV-…' group: every month was billed up front.
     $group = (string)($input['group'] ?? '');
-    if (!is_payment_group_key($group)) fail(422, "Invalid advance payment.");
+    if (!is_payment_group_key($group) || is_bundle_key($group)) fail(422, "Invalid advance payment.");
 
     $rows = payment_key_invoices($conn, $group, $user_id);
     if (!$rows) fail(404, "Advance payment not found.");
     foreach ($rows as $r) {
-        if (!in_array($r['status'], ['pending', 'unpaid', 'overdue', 'payment-failed'], true)) {
+        if (!in_array($r['status'], ADVANCE_UNPAID_STATUSES, true)) {
             fail(409, "This advance payment can no longer be cancelled — a payment for it is already awaiting confirmation or recorded.");
         }
     }
@@ -188,8 +283,7 @@ if ($action === 'cancel') {
     $keep->close();
 
     // The months not started yet are cancelled. Cancelled rows drop out of the
-    // rent-period unique key, so these months can be billed again (by the
-    // sweep or a new advance payment).
+    // rent-period unique key, so these months can be billed again.
     $stmt = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Advance payment cancelled'
                             WHERE payment_group = ? AND user_id = ? AND status IN ('pending', 'unpaid', 'overdue', 'payment-failed')");
     $stmt->bind_param("si", $group, $user_id);

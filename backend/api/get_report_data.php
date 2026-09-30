@@ -147,7 +147,7 @@ $stmt = $conn->prepare("SELECT
     SUM(late_fee) as late_fee,
     SUM(total_amount) as total
 FROM invoices
-WHERE status = 'paid' AND $paidDateCondition");
+WHERE status = 'paid' AND advance_months IS NULL AND $paidDateCondition");
 $stmt->execute();
 $res = $stmt->get_result();
 $grossRevenue = 0.0;
@@ -186,7 +186,7 @@ $stmt = $conn->prepare("SELECT
     SUM(late_fee) as late_fee,
     SUM(total_amount) as total
 FROM invoices
-WHERE status = 'paid' AND $prevPaidCondition");
+WHERE status = 'paid' AND advance_months IS NULL AND $prevPaidCondition");
 if ($stmt) {
     $stmt->execute();
     $res = $stmt->get_result();
@@ -272,7 +272,7 @@ $netMarginPct = $grossRevenue > 0 ? round(($netIncome / $grossRevenue) * 100, 1)
 // into 'overdue' — so arrears read ₱0 and collection efficiency 100% while
 // tenants were in fact behind.
 $totalOutstanding = 0.0;
-$stmt = $conn->prepare("SELECT SUM(total_amount) as overdue FROM invoices WHERE status IN " . billing_open_status_sql() . " AND due_date < CURDATE()");
+$stmt = $conn->prepare("SELECT SUM(total_amount) as overdue FROM invoices WHERE status IN " . billing_open_status_sql() . " AND due_date < CURDATE() AND advance_months IS NULL");
 if ($stmt) {
     $stmt->execute();
     if ($row = $stmt->get_result()->fetch_assoc()) {
@@ -437,7 +437,7 @@ $stmt = $conn->prepare("SELECT
 FROM invoices i
 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
 LEFT JOIN rooms r ON ra.room_name = r.id
-WHERE i.status = 'paid' AND $invoiceDateCondition
+WHERE i.status = 'paid' AND i.advance_months IS NULL AND $invoiceDateCondition
 GROUP BY unit, r.type, r.floor
 ORDER BY total_collected DESC");
 if ($stmt) {
@@ -536,7 +536,7 @@ for ($i = 5; $i >= 0; $i--) {
         SUM(late_fee) as late_fee,
         SUM(total_amount) as total
     FROM invoices
-    WHERE status = 'paid' AND YEAR(COALESCE(paid_at, created_at)) = ? AND MONTH(COALESCE(paid_at, created_at)) = ?");
+    WHERE status = 'paid' AND advance_months IS NULL AND YEAR(COALESCE(paid_at, created_at)) = ? AND MONTH(COALESCE(paid_at, created_at)) = ?");
     $rev_stmt->bind_param("ii", $target_year, $target_month);
     $rev_stmt->execute();
     $rev_res = $rev_stmt->get_result()->fetch_assoc();
@@ -757,7 +757,7 @@ if (empty($data['tenantList'])) {
 // 2. methodsBreakdown & payment records
 $data['methodsBreakdown'] = ['Cash' => 0, 'GCash' => 0, 'Bank Transfer' => 0];
 $data['paymentRecords'] = [];
-$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity, i.parking, i.services, i.late_fee, i.security_deposit FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
+$stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity, i.parking, i.services, i.late_fee, i.security_deposit FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND i.advance_months IS NULL AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
@@ -783,7 +783,7 @@ $stmt->close();
 
 // 3. outstandingBalances
 $data['outstandingBalances'] = [];
-$stmt = $conn->prepare("SELECT i.id, i.status, u.first_name, u.last_name, COALESCE(r.id, ra.room_name) as unit, i.total_amount, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status IN " . billing_open_status_sql() . " AND i.due_date < CURDATE() ORDER BY i.due_date ASC");
+$stmt = $conn->prepare("SELECT i.id, i.status, u.first_name, u.last_name, COALESCE(r.id, ra.room_name) as unit, i.total_amount, DATEDIFF(CURDATE(), i.due_date) as days_overdue FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status IN " . billing_open_status_sql() . " AND i.due_date < CURDATE() AND i.advance_months IS NULL ORDER BY i.due_date ASC");
 $stmt->execute();
 $res = $stmt->get_result();
 while ($row = $res->fetch_assoc()) {
