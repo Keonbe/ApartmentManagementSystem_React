@@ -25,7 +25,7 @@ const statusConfig = {
 const tagStyleMap = { Urgent: 'bg-red-100 text-red-800', Reminder: 'bg-blue-100 text-blue-800', General: 'bg-slate-100 text-slate-600' };
 // Tenancies create_announcement.php counts as current.
 const CURRENT_STATUSES = ['active', 'Approved', 'pending-move-out'];
-const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'] };
+const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'], attachment: null };
 
 const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
 const LABEL = 'block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1';
@@ -45,6 +45,7 @@ const AdminAnnouncements = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [fileKey, setFileKey] = useState(Date.now());
   const [sending, setSending] = useState(null); // 'send' | 'draft' | null
   const [notice, setNotice] = useState(null);   // { ok, text }
   // Keys match create_announcement.php's body (tag/body are the form's type/body).
@@ -171,6 +172,7 @@ const AdminAnnouncements = () => {
       setNotice({ ok: !!response.data.success, text: response.data.message || (response.data.success ? 'Done.' : 'Failed.') });
       if (response.data.success) {
         setForm(EMPTY_FORM);
+        setFileKey(Date.now());
         fetchAnnouncements();
       }
     } catch (err) {
@@ -287,6 +289,17 @@ const AdminAnnouncements = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Attachment Input */}
+              <div className="mb-4">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Attachment (Optional)</label>
+                <input 
+                  key={fileKey} type="file" 
+                  accept=".jpg,.jpeg,.png,.pdf" 
+                  onChange={e => setForm(f => ({ ...f, attachment: e.target.files[0] }))}
+                  className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                />
               </div>
 
               {/* Delivery Channels */}

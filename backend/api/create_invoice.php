@@ -165,6 +165,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Log admin activity audit trail
         log_activity($conn, $admin_id, 'billing', 'Created Invoice',"Generated & issued invoice {$invoice_id} for {$tenant_name} (Unit {$unit}) — Total: ₱" . number_format($total_amount, 2));
 
+        try {
+            require_once __DIR__ . '/services/send_notification.php';
+            $mail_row = ['id' => $invoice_id, 'billing_period' => $billing_period, 'due_date' => $due_date,
+                'base_rent' => $base_rent, 'water' => $water, 'electricity' => $electricity,
+                'parking' => $parking, 'services' => 0, 'maintenance' => 0, 'late_fee' => $late_fee,
+                'total_amount' => $total_amount];
+            dispatch_admin_action_notification($conn, $user_id, 'billing', "New Monthly Bill — {$billing_period}", null,
+                email_invoice_template(notify_recipient_name($conn, $user_id), $mail_row));
+        } catch (Throwable $notification_error) {
+            error_log('Could not dispatch new invoice email: ' . $notification_error->getMessage());
+        }
+
         echo json_encode([
             "success" => true,
             "message" => "Invoice {$invoice_id} created and issued successfully.",

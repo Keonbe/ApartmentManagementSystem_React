@@ -13,16 +13,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true);
-$id = $input['id'] ?? 0;
+$input = $_POST;
+if (empty($input)) $input = json_decode(file_get_contents("php://input"), true) ?: [];
+$id = (int)($input['id'] ?? 0);
 $status = $input['status'] ?? '';
 $rejection_reason = $input['rejection_reason'] ?? null;
+
+if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection_reason) === '') {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "A rejection reason is required."]);
+    exit;
+}
+
+if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection_reason) === '') {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "A rejection reason is required."]);
+    exit;
+}
+
+$attachment_path = null;
+if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+    $file = $_FILES['attachment'];
+    if ($file['size'] > 10 * 1024 * 1024) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Attachment must be 10MB or less.']);
+        exit;
+    }
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+    $allowed_mimes = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'application/pdf' => 'pdf'
+    ];
+    if (!isset($allowed_mimes[$mime])) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Invalid file type. Only JPG, PNG, WEBP, and PDF files are allowed.']);
+        exit;
+    }
+    $dir = __DIR__ . '/../uploads/applications/';
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $filename = 'reject_' . bin2hex(random_bytes(16)) . '.' . $allowed_mimes[$mime];
+    if (!move_uploaded_file($file['tmp_name'], $dir . $filename)) {
+        throw new Exception('Could not save rejection attachment.');
+    }
+    $attachment_path = 'uploads/applications/' . $filename;
+}
 
 // Every status this endpoint actually knows how to handle below. Anything
 // else used to be written to rent_applications.status verbatim with no
 // validation, which could silently park a tenant in a value no filter
 // anywhere in the app matches.
-$allowed_statuses = ['Approved', 'Rejected', 'Declined', 'pending-move-out', 'moved-out'];
+$allowed_statuses = ['Approved', 'Rejected', 'Declined', 'Cancelled', 'active', 'pending-move-out', 'moved-out', 'Action Required'];
 if (!empty($status) && !in_array($status, $allowed_statuses, true)) {
     http_response_code(422);
     echo json_encode(["success" => false, "message" => "Invalid status: $status"]);
@@ -54,9 +99,14 @@ if ($id > 0 && !empty($status)) {
             exit;
         }
 
-        if ($status === 'Rejected' || $status === 'Declined') {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?");
-            $stmt->bind_param("ssis", $status, $rejection_reason, $id, $current_status);
+        if ($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') {
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ?, rejection_attachment_path = ? WHERE id = ? AND status = ?");
+            if (!$stmt) {
+                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ? WHERE id = ? AND status = ?");
+                $stmt->bind_param("ssis", $status, $rejection_reason, $id, $current_status);
+            } else {
+                $stmt->bind_param("sssss", $status, $rejection_reason, $attachment_path, $id, $current_status);
+            }
         } else if ($status === 'pending-move-out') {
             $requested_move_out_date = $input['requested_move_out_date'] ?? null;
             if (empty($requested_move_out_date)) {
@@ -74,11 +124,21 @@ if ($id > 0 && !empty($status)) {
                 throw new Exception("Move-out notice cannot exceed 30 days in advance.");
             }
 
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
-            $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL, rejection_attachment_path = NULL WHERE id = ? AND status = ?");
+            if (!$stmt) {
+                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, requested_move_out_date = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
+                $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
+            } else {
+                $stmt->bind_param("ssis", $status, $requested_move_out_date, $id, $current_status);
+            }
         } else {
-            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
-            $stmt->bind_param("sis", $status, $id, $current_status);
+            $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL, rejection_attachment_path = NULL WHERE id = ? AND status = ?");
+            if (!$stmt) {
+                $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = NULL WHERE id = ? AND status = ?");
+                $stmt->bind_param("sis", $status, $id, $current_status);
+            } else {
+                $stmt->bind_param("sis", $status, $id, $current_status);
+            }
         }
         $stmt->execute();
         if ($stmt->affected_rows === 0) {
@@ -86,6 +146,42 @@ if ($id > 0 && !empty($status)) {
             throw new Exception("This application was changed by someone else. Refresh and try again.");
         }
         $stmt->close();
+
+        if (($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') && $current_status === 'Approved') {
+            // Admin changed mind: undo the side-effects of 'Approved'
+            // 1. Cancel pending move-in invoices
+            $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
+            $cancel_inv->bind_param("i", $id);
+            $cancel_inv->execute();
+            $cancel_inv->close();
+
+            // 2. Delete draft lease contract
+            $del_ctr = $conn->prepare("DELETE FROM lease_contracts WHERE rent_application_id = ? AND status = 'draft'");
+            $del_ctr->bind_param("i", $id);
+            $del_ctr->execute();
+            $del_ctr->close();
+
+            // 3. Free the room
+            $app_q = $conn->prepare("SELECT room_name FROM rent_applications WHERE id = ?");
+            $app_q->bind_param("i", $id);
+            $app_q->execute();
+            $room_row = $app_q->get_result()->fetch_assoc();
+            $app_q->close();
+            if ($room_row) {
+                $room_name = $room_row['room_name'];
+                
+                $room_id_clean = trim(str_replace('Room', '', $room_name));
+                $free_room = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
+                $free_room->bind_param("s", $room_id_clean);
+                $free_room->execute();
+                $free_room->close();
+                
+                $free_room2 = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
+                $free_room2->bind_param("s", $room_name);
+                $free_room2->execute();
+                $free_room2->close();
+            }
+        }
 
         if ($status === 'Approved') {
             // Get application details to update the room and generate invoice
@@ -136,7 +232,9 @@ if ($id > 0 && !empty($status)) {
                 
                 $lease_start = date('Y-m-d');
                 $lease_end = date('Y-m-d', strtotime("+$months months"));
-                $room_status = 'occupied';
+                // Approval holds the unit but does not make the applicant a
+                // tenant. Occupancy begins only after the move-in is confirmed.
+                $room_status = 'reserved';
                 
                 // Guard against a race between two pending applications for the same
                 // room: only claim it if it's still vacant/reserved. If a concurrent
@@ -177,8 +275,8 @@ if ($id > 0 && !empty($status)) {
                     $due_date = date('Y-m-d', strtotime('+7 days'));
                     $total_amount = $monthly_rent * 2; // 1st month + 1 month deposit
 
-                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, rent_period_start, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
-                    $inv_stmt->bind_param("siidddsss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $lease_start, $due_date);
+                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
+                    $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
                     if (!$inv_stmt->execute()) {
                         throw new Exception("Failed to create move-in invoice: " . $inv_stmt->error);
                     }
@@ -205,6 +303,46 @@ if ($id > 0 && !empty($status)) {
                 $check_ctr->close();
             }
             $app_stmt->close();
+        }
+
+        if ($status === 'active') {
+            $move_in_q = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, occupants, move_in_date FROM rent_applications WHERE id = ? AND status = 'active'");
+            $move_in_q->bind_param("i", $id);
+            $move_in_q->execute();
+            $move_in_app = $move_in_q->get_result()->fetch_assoc();
+            $move_in_q->close();
+            if (!$move_in_app || empty($move_in_app['move_in_date'])) {
+                throw new Exception("Set and notify a move-in date before confirming move-in.");
+            }
+            $paid_q = $conn->prepare("SELECT 1 FROM invoices WHERE rent_application_id = ? AND security_deposit > 0 AND status = 'paid' LIMIT 1");
+            $paid_q->bind_param("i", $id);
+            $paid_q->execute();
+            $is_paid = (bool)$paid_q->get_result()->fetch_assoc();
+            $paid_q->close();
+            if (!$is_paid) throw new Exception("Initial payment must be confirmed before move-in.");
+
+            $lease_start = $move_in_app['move_in_date'];
+            $lease_end = date('Y-m-d', strtotime("+" . (int)$move_in_app['months_of_rent'] . " months", strtotime($lease_start)));
+            $tenant_name = $move_in_app['first_name'] . ' ' . $move_in_app['last_name'];
+            $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ? WHERE id = ? AND (status IN ('reserved', 'vacant') OR tenant_name = ?)");
+            $room_stmt->bind_param("sssiss", $tenant_name, $lease_start, $lease_end, $move_in_app['occupants'], $move_in_app['room_name'], $tenant_name);
+            $room_stmt->execute();
+            if ($room_stmt->affected_rows === 0) {
+                $room_stmt->close();
+                throw new Exception("Unit {$move_in_app['room_name']} is no longer available for move-in.");
+            }
+            $room_stmt->close();
+            $contract_stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active', lease_start = ?, lease_end = ? WHERE rent_application_id = ? AND status = 'draft'");
+            $contract_stmt->bind_param("ssi", $lease_start, $lease_end, $id);
+            $contract_stmt->execute();
+            $contract_stmt->close();
+            // The advance payment belongs to the tenancy month that actually
+            // begins on the confirmed move-in date, not to its payment date.
+            $period_label = billing_period_label(new DateTime($lease_start));
+            $invoice_stmt = $conn->prepare("UPDATE IGNORE invoices SET rent_period_start = ?, billing_period = ? WHERE rent_application_id = ? AND security_deposit > 0 AND status = 'paid'");
+            $invoice_stmt->bind_param("ssi", $lease_start, $period_label, $id);
+            $invoice_stmt->execute();
+            $invoice_stmt->close();
         }
 
         if ($status === 'moved-out') {
@@ -288,7 +426,7 @@ if ($id > 0 && !empty($status)) {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");
         }
 
-        if (in_array($status, ['Approved', 'Rejected', 'Declined'])) {
+        if (in_array($status, ['Approved', 'Rejected', 'Declined', 'Cancelled', 'Action Required', 'active'])) {
             $u_stmt = $conn->prepare("SELECT user_id, room_name FROM rent_applications WHERE id = ?");
             $u_stmt->bind_param("i", $id);
             $u_stmt->execute();
@@ -299,13 +437,21 @@ if ($id > 0 && !empty($status)) {
                 $tenant_id = $u_res['user_id'];
                 $room = $u_res['room_name'];
                 
-                $notif_title = "Application " . ($status === 'Declined' ? 'Rejected' : $status);
+                $notif_title = $status === 'active' ? 'Move-In Confirmed' : "Application " . ($status === 'Declined' ? 'Rejected' : $status);
                 $notif_msg = "Your rent application for Unit $room has been " . strtolower($notif_title) . ".";
                 if (!empty($rejection_reason)) {
                     $notif_msg .= " Reason: $rejection_reason";
                 }
                 
-                create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
+                $notif_id = create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
+                if ($notif_id && $attachment_path) {
+                    $upd_notif = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
+                    if ($upd_notif) {
+                        $upd_notif->bind_param("si", $attachment_path, $notif_id);
+                        $upd_notif->execute();
+                        $upd_notif->close();
+                    }
+                }
             }
             resolve_admin_queue($conn, 'rent_application', $id);
         }
@@ -313,27 +459,23 @@ if ($id > 0 && !empty($status)) {
         $conn->commit();
         // Queue the approval email only after the transaction commits. Notification
         // failures must never roll back a completed application approval.
-        if ($status === 'Approved' && !empty($tenant_id)) {
+        if (in_array($status, ['Approved', 'Rejected', 'Declined', 'Cancelled'], true) && !empty($tenant_id)) {
             try {
                 require_once __DIR__ . '/services/send_notification.php';
-                $due_date = date('Y-m-d', strtotime('+7 days'));
-                $email_html = email_application_approved_template(
-                    notify_recipient_name($conn, $tenant_id),
-                    $room ?? '',
-                    $monthly_rent ?? 0,
-                    $due_date
-                );
-                dispatch_external_notification(
+                $tenant_name = notify_recipient_name($conn, $tenant_id);
+                $email_html = $status === 'Approved'
+                    ? email_application_decision_template($tenant_name, $room ?? '', 'Approved')
+                    : email_application_decision_template($tenant_name, $room ?? '', $status === 'Declined' ? 'Rejected' : $status, (string)$rejection_reason);
+                dispatch_admin_action_notification(
                     $conn,
                     $tenant_id,
                     'application_update',
-                    'Your Rental Application Is Approved',
+                    'Rental Application ' . ($status === 'Declined' ? 'Rejected' : $status),
                     null,
-                    $email_html,
-                    'sync'
+                    $email_html
                 );
             } catch (Throwable $notification_error) {
-                error_log('Could not dispatch application approval email: ' . $notification_error->getMessage());
+                error_log('Could not dispatch application decision email: ' . $notification_error->getMessage());
             }
         }
         $response = ["success" => true];

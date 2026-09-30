@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.png";
@@ -13,6 +14,7 @@ import { invalidCls } from '../Components/form/formHelpers';
 const emailRule = (v) => checkEmail(v, { max: LIMITS.userEmail });
 
 export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedirect }) {
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -66,6 +68,18 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 if (res.data.role === 'admin') {
                     onAdminRedirect();
                 } else {
+                    try {
+                        const roomRes = await api.get(`/my_room.php?email=${encodeURIComponent(res.data.user.email_address || '')}`);
+                        if (roomRes.data.success && roomRes.data.data) {
+                            const status = roomRes.data.data.status?.toLowerCase();
+                            if (['pending', 'pending review'].includes(status)) {
+                                navigate('/track-application', { replace: true });
+                                return;
+                            }
+                        }
+                    } catch (err) {
+                        console.error("Failed to check pending status", err);
+                    }
                     onHomeRedirect();
                 }
             } else {

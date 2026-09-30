@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faPaperPlane, faComments, faArrowLeft, faPaperclip, faCamera, faVideo, faReply, faTimes, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { useChat } from '../context/ChatContext';
 import { getAvatarUrl } from '../utils/avatarUrl';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { LIMITS } from '../utils/validation';
 import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import FieldError from '../Components/form/FieldError';
-import FileChip from '../Components/form/FileChip';
+import ChatAttachmentPreview from '../Components/form/ChatAttachmentPreview';
+import useFilePreview from '../hooks/useFilePreview';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 
@@ -59,6 +61,15 @@ const formatExactMessageDateTime = (date) => {
     });
 };
 
+const renderMessageSearchText = (text, query, active) => {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = String(text).split(new RegExp(`(${escaped})`, 'ig'));
+  return parts.map((part, index) => part.toLowerCase() === query.toLowerCase()
+    ? <mark key={`${index}-${part}`} className={`rounded px-0.5 ${active ? 'bg-amber-300 text-amber-950' : 'bg-amber-100 text-inherit'}`}>{part}</mark>
+    : part);
+};
+
 const TenantAvatar = ({ conversation, sizeClass = 'w-11 h-11' }) => {
   const [imageFailed, setImageFailed] = useState(false);
   const avatarUrl = getAvatarUrl(conversation.other_user_avatar);
@@ -77,9 +88,14 @@ const AdminMessages = () => {
     fetchChatHistory, userId, fetchConversations,
   } = useChat();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [pendingMatch, setPendingMatch] = useState(null);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  const [attachment, setAttachment] = useState(null);
+  const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
   const [replyingTo, setReplyingTo] = useState(null);
   const [expandedTimestampId, setExpandedTimestampId] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
@@ -87,6 +103,24 @@ const AdminMessages = () => {
   const videoInputRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const selectedConversationIdRef = useRef(null);
+  const highlightTimerRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 275);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!debouncedSearch) {
+      setSearchResults([]);
+      return () => { cancelled = true; };
+    }
+    Promise.resolve(fetchConversations?.(debouncedSearch)).then((results) => {
+      if (!cancelled) setSearchResults(results || []);
+    });
+    return () => { cancelled = true; };
+  }, [debouncedSearch, fetchConversations]);
 
   useEffect(() => {
     fetchConversations?.();
@@ -103,25 +137,76 @@ const AdminMessages = () => {
 
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
+    if (query) return searchResults;
     return [...conversations]
-      .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0))
-      .filter((conversation) => !query || `${conversation.other_user_name || ''} ${conversation.last_message || ''}`.toLowerCase().includes(query));
-  }, [conversations, search]);
+      .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0));
+  }, [conversations, search, searchResults]);
+
+  const activeMessageMatches = useMemo(() => {
+    const query = debouncedSearch.toLowerCase();
+    if (!query || !activeChat) return [];
+    return messages
+      .filter((message) => String(message.message || '').toLowerCase().includes(query))
+      .map((message) => message.id)
+      .filter((id) => id != null);
+  }, [activeChat?.other_user_id, debouncedSearch, messages]);
+
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [debouncedSearch, activeChat?.other_user_id]);
+
+  const navigateMatch = (nextIndex) => {
+    if (!activeMessageMatches.length) return;
+    const wrappedIndex = (nextIndex + activeMessageMatches.length) % activeMessageMatches.length;
+    setActiveMatchIndex(wrappedIndex);
+    const messageId = activeMessageMatches[wrappedIndex];
+    document.getElementById(`chat-message-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  useEffect(() => {
+    if (!debouncedSearch || !activeChat || !activeMessageMatches.length) return undefined;
+    const handleSearchKeyDown = (event) => {
+      if (event.key !== 'Enter' || event.isComposing || event.target instanceof HTMLTextAreaElement) return;
+      event.preventDefault();
+      navigateMatch(activeMatchIndex + (event.shiftKey ? -1 : 1));
+    };
+    window.addEventListener('keydown', handleSearchKeyDown);
+    return () => window.removeEventListener('keydown', handleSearchKeyDown);
+  }, [activeChat?.other_user_id, activeMatchIndex, activeMessageMatches, debouncedSearch]);
+
+  useEffect(() => () => window.clearTimeout(highlightTimerRef.current), []);
+
+  useEffect(() => {
+    if (!pendingMatch || String(activeChat?.other_user_id) !== String(pendingMatch.conversationId)) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const element = document.getElementById(`chat-message-${pendingMatch.messageId}`);
+      if (!element) return;
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMessageId(String(pendingMatch.messageId));
+      window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = window.setTimeout(() => setHighlightedMessageId(null), 2500);
+      setPendingMatch(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeChat?.other_user_id, messages, pendingMatch]);
 
   const selectConversation = async (conversation) => {
     selectedConversationIdRef.current = String(conversation.other_user_id);
+    setPendingMatch(conversation.matched_message_id
+      ? { conversationId: conversation.other_user_id, messageId: conversation.matched_message_id }
+      : null);
     setActiveChat(conversation);
     await fetchChatHistory?.(conversation.other_user_id);
 
     if (selectedConversationIdRef.current !== String(conversation.other_user_id)) return;
-    requestAnimationFrame(() => {
+    if (!conversation.matched_message_id) {
       requestAnimationFrame(() => {
         const container = messagesContainerRef.current;
         if (selectedConversationIdRef.current === String(conversation.other_user_id) && container) {
           container.scrollTop = container.scrollHeight;
         }
       });
-    });
+    }
   };
 
   const [sendError, setSendError] = useState('');
@@ -143,7 +228,12 @@ const AdminMessages = () => {
     setSendError('');
     setSending(true);
     try {
-      await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
+      if (message && attachment) {
+        await sendMessage(activeChat.other_user_id, message, null, replyingTo?.id);
+        await sendMessage(activeChat.other_user_id, '', attachment);
+      } else {
+        await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
+      }
       setDraft('');
       setAttachment(null);
       setReplyingTo(null);
@@ -192,7 +282,7 @@ const AdminMessages = () => {
                           <span className="text-[10px] text-slate-400 shrink-0">{formatTime(conversation.last_message_time)}</span>
                         </div>
                         <div className="mt-1 flex justify-between gap-2 items-center">
-                          <span className="text-xs text-slate-500 truncate">{getConversationPreview(conversation, userId)}</span>
+                    <span className="text-xs text-slate-500 truncate">{conversation.matched_message || getConversationPreview(conversation, userId)}</span>
                           {unread > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">{unread > 9 ? '9+' : unread}</span>}
                         </div>
                       </div>
@@ -209,6 +299,13 @@ const AdminMessages = () => {
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
                     <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
                     <div className="min-w-0"><h3 className="m-0 text-sm font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
+                    {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" aria-live="polite">
+                      {activeMessageMatches.length ? <>
+                        <span>Match {activeMatchIndex + 1} of {activeMessageMatches.length}</span>
+                        <button type="button" onClick={() => navigateMatch(activeMatchIndex - 1)} aria-label="Previous message match" title="Previous match (Shift+Enter)" className="flex h-7 w-7 items-center justify-center rounded-md border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronUp} /></button>
+                        <button type="button" onClick={() => navigateMatch(activeMatchIndex + 1)} aria-label="Next message match" title="Next match (Enter)" className="flex h-7 w-7 items-center justify-center rounded-md border-0 bg-slate-50 text-slate-600 hover:bg-amber-100"><FontAwesomeIcon icon={faChevronDown} /></button>
+                      </> : <span>No matches in this chat</span>}
+                    </div>}
                   </header>
                   <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 bg-slate-50">
                     {messages.length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">No messages in this conversation yet.</p> : messages.map((message, index) => {
@@ -224,8 +321,11 @@ const AdminMessages = () => {
                       const isLatestSentMessage = isAdmin && !messages.slice(index + 1).some(
                         (laterMessage) => String(laterMessage.sender_id) === String(userId)
                       );
+                      const matchIndex = activeMessageMatches.findIndex((id) => String(id) === String(message.id));
+                      const isSearchMatch = matchIndex >= 0;
+                      const isFocusedMatch = isSearchMatch && matchIndex === activeMatchIndex;
                       return (
-                        <div key={messageKey} className={`message-enter ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
+                        <div id={`chat-message-${message.id}`} key={messageKey} className={`message-enter rounded-xl transition-colors duration-500 ${isFocusedMatch ? 'bg-amber-100 ring-2 ring-amber-400' : isSearchMatch ? 'bg-amber-50 ring-1 ring-amber-100' : String(highlightedMessageId) === String(message.id) ? 'bg-amber-100 ring-2 ring-amber-300 animate-pulse' : ''} ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                           {showDateSeparator && (
                             <div className="flex justify-center my-5">
                               <span className="text-slate-500 text-[11px] font-medium">
@@ -234,12 +334,26 @@ const AdminMessages = () => {
                             </div>
                           )}
                           <div className={`group flex items-center gap-1 sm:gap-2 ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                            <div className="relative min-w-0 max-w-[calc(100%-2rem)] sm:max-w-[70%]">
+                            <div className={`relative flex min-w-0 max-w-[calc(100%-2rem)] flex-col sm:max-w-[70%] ${isAdmin ? 'items-end' : 'items-start'}`}>
+                              {message.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-[11px] text-slate-500">
+                                <FontAwesomeIcon icon={faReply} className="text-[10px]" />
+                                <span>{isAdmin ? 'You' : (activeChat.other_user_name || 'Tenant')} replied to {String(message.reply_sender_id) === String(message.sender_id) ? 'themselves' : (isAdmin ? (activeChat.other_user_name || 'Tenant') : 'you')}</span>
+                              </div>}
+                              {message.reply_to_id && message.reply_attachment_path && (() => {
+                                const replyIsVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(message.reply_attachment_path);
+                                const replyMediaUrl = fileUrl(message.reply_attachment_path);
+                                const scrollToOriginal = () => document.getElementById(`chat-message-${message.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
+                                  {replyIsVideo
+                                    ? <video src={replyMediaUrl} preload="metadata" muted playsInline className="block h-24 w-36 object-cover" aria-label="Replied video preview" />
+                                    : <img src={replyMediaUrl} alt="Replied image preview" className="block h-24 w-36 object-cover" />}
+                                </button>;
+                              })()}
                               <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(message.created_at)}`} className={`transition-colors ${hasText
                                 ? `rounded-2xl px-4 py-2.5 shadow-sm ${isAdmin ? (expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-md' : 'bg-indigo-600 text-white rounded-br-md') : (expandedTimestampId === messageKey ? 'bg-slate-100 text-slate-800 border border-slate-300 rounded-bl-md' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-md')}`
                                 : ''} cursor-pointer`}>
-                                {message.reply_to_id && <div className={`mb-2 border-l-2 pl-2 text-xs opacity-80 ${isAdmin ? 'border-indigo-200' : 'border-slate-400'}`}><span className="font-semibold">{Number(message.reply_sender_id) === Number(userId) ? 'You' : activeChat.other_user_name}</span><p className="m-0 truncate">{message.reply_message || (message.reply_attachment_path ? 'Attachment' : 'Message')}</p></div>}
-                                {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{message.message}</p>}
+                                {message.reply_to_id && !message.reply_attachment_path && <p className="m-0 mb-1 truncate text-xs opacity-80">{message.reply_message || 'Message'}</p>}
+                                {message.message && <p className="m-0 text-sm whitespace-pre-wrap break-words">{renderMessageSearchText(message.message, debouncedSearch, isFocusedMatch)}</p>}
                                 {message.attachment_path && (() => {
                                   const mediaUrl = message.attachment_path.startsWith('blob:') ? message.attachment_path : new URL(`../${message.attachment_path}`, api.defaults.baseURL).href;
                                   const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(message.attachment_path);
@@ -271,21 +385,27 @@ const AdminMessages = () => {
                     })}
                   </div>
                   {replyingTo && <div className="mx-3 mt-3 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
-                  <form onSubmit={handleSend} className={`p-3 md:p-4 flex gap-2 shrink-0 ${replyingTo ? '' : 'border-t border-slate-100'}`}>
-                    <label className="px-1.5 flex items-center cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
-                    <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-1.5 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
+                  {attachment && <div className="flex items-center justify-start p-2">
+                    <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
+                  </div>}
+                  <form onSubmit={handleSend} className={`p-3 md:p-4 flex items-center gap-1 shrink-0 ${replyingTo || attachment ? '' : 'border-t border-slate-100'}`}>
+                    <div className="flex shrink-0 items-center gap-1">
+                    <label className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
+                    <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} /></button>
+                    </div>
                     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                    <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-1.5 flex items-center cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
+                    <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} /></button>
                     <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                    <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
-                      aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
-                      maxLength={LIMITS.message} value={draft}
-                      onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
-                      placeholder={attachment?.name || 'Write a reply...'} className="flex-1 min-w-0 px-4 py-3 rounded-xl bg-slate-100 border border-transparent focus:border-indigo-300 focus:outline-none text-sm" />
-                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
+                    <div className="flex h-10 min-w-0 flex-1 items-center rounded-2xl bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
+                      <input id="admin-reply" name="message" autoComplete="off" aria-label="Reply"
+                        aria-invalid={sendError ? true : undefined} aria-describedby={sendError ? 'admin-reply-error' : undefined}
+                        maxLength={LIMITS.message} value={draft}
+                        onChange={(event) => { setDraft(event.target.value); if (sendError) setSendError(''); }}
+                        placeholder="Write a reply..." className="h-full w-full min-w-0 px-2 bg-transparent border-0 focus:outline-none text-sm" />
+                    </div>
+                    <button disabled={(!draft.trim() && !attachment) || sending} type="submit" aria-label="Send reply" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white border-0 cursor-pointer"><FontAwesomeIcon icon={faPaperPlane} /></button>
                   </form>
                   <div className="px-3 md:px-4 pb-2">
-                    <FileChip file={attachment} onRemove={() => setAttachment(null)} className="mt-0" />
                     <FieldError id="admin-reply" error={sendError} />
                   </div>
                 </>

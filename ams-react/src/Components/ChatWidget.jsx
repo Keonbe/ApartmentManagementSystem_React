@@ -14,11 +14,13 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faPaperclip } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { LIMITS } from '../utils/validation';
 import { acceptFor, checkChatFile, FILE_RULES } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import FieldError from './form/FieldError';
-import FileChip from './form/FileChip';
+import ChatAttachmentPreview from './form/ChatAttachmentPreview';
+import useFilePreview from '../hooks/useFilePreview';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 
@@ -40,7 +42,7 @@ const ChatWidget = () => {
     } = useChat();
 
     const [newMessage, setNewMessage] = useState('');
-    const [attachment, setAttachment] = useState(null);
+    const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
     const [sendError, setSendError] = useState('');
     const [isSending, setIsSending] = useState(false);
 
@@ -112,7 +114,16 @@ const ChatWidget = () => {
         if ((newMessage.trim() || attachment) && activeChat) {
             setSendError('');
             setIsSending(true);
-            sendMessage(activeChat.other_user_id, newMessage.trim(), attachment, replyingTo?.id)
+            const message = newMessage.trim();
+            const sendPendingMessages = async () => {
+                if (message && attachment) {
+                    await sendMessage(activeChat.other_user_id, message, null, replyingTo?.id);
+                    await sendMessage(activeChat.other_user_id, '', attachment);
+                    return;
+                }
+                await sendMessage(activeChat.other_user_id, message, attachment, replyingTo?.id);
+            };
+            sendPendingMessages()
                 .then(() => {
                     setNewMessage('');
                     setAttachment(null);
@@ -308,7 +319,7 @@ const ChatWidget = () => {
                                     );
                                     const isMediaOnlyMessage = Boolean(msg.attachment_path) && !msg.message;
                                     return (
-                                        <div key={messageKey} className={`message-enter mb-3 ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
+                                        <div id={`chat-message-${msg.id}`} key={messageKey} className={`message-enter mb-3 ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                                             {showDateSeparator && (
                                                 <div className="flex justify-center my-5">
                                                     <span className="text-slate-500 text-[11px] font-medium">
@@ -318,12 +329,26 @@ const ChatWidget = () => {
                                             )}
                                     <div className={`group flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                                         {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
-                                                <div className="relative max-w-[80%]">
+                                                <div className={`relative flex max-w-[80%] flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                                    {msg.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-[11px] text-slate-500">
+                                                        <FontAwesomeIcon icon={faReply} className="text-[10px]" />
+                                                        <span>{isMe ? 'You' : activeChat.other_user_name} replied to {String(msg.reply_sender_id) === String(msg.sender_id) ? 'themselves' : (isMe ? activeChat.other_user_name : 'you')}</span>
+                                                    </div>}
+                                                    {msg.reply_to_id && msg.reply_attachment_path && (() => {
+                                                        const replyIsVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(msg.reply_attachment_path);
+                                                        const replyMediaUrl = fileUrl(msg.reply_attachment_path);
+                                                        const scrollToOriginal = () => document.getElementById(`chat-message-${msg.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                        return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
+                                                            {replyIsVideo
+                                                                ? <video src={replyMediaUrl} preload="metadata" muted playsInline className="block h-24 w-36 object-cover" aria-label="Replied video preview" />
+                                                                : <img src={replyMediaUrl} alt="Replied image preview" className="block h-24 w-36 object-cover" />}
+                                                        </button>;
+                                                    })()}
                                                     <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(msg.created_at)}`} className={`cursor-pointer transition-colors ${isMediaOnlyMessage ? '' : `px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe
                                                         ? expandedTimestampId === messageKey ? 'bg-indigo-700 text-white rounded-br-none' : 'bg-indigo-600 text-white rounded-br-none'
                                                         : expandedTimestampId === messageKey ? 'bg-slate-100 border border-slate-300 text-slate-800 rounded-bl-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
                                                     }`}`}>
-                                                        {msg.reply_to_id && <div className={`mb-2 border-l-2 pl-2 text-xs opacity-80 ${isMe ? 'border-indigo-200' : 'border-slate-400'}`}><strong>{Number(msg.reply_sender_id) === Number(userId) ? 'You' : activeChat.other_user_name}</strong><p className="m-0 truncate">{msg.reply_message || (msg.reply_attachment_path ? 'Attachment' : 'Message')}</p></div>}
+                                                        {msg.reply_to_id && !msg.reply_attachment_path && <p className="m-0 mb-1 truncate text-xs opacity-80">{msg.reply_message || 'Message'}</p>}
                                                         {msg.message && <p className="m-0 break-words">{msg.message}</p>}
                                                         {msg.attachment_path && (() => {
                                                             const mediaUrl = msg.attachment_path.startsWith('blob:') ? msg.attachment_path : new URL(`../${msg.attachment_path}`, api.defaults.baseURL).href;
@@ -362,12 +387,18 @@ const ChatWidget = () => {
                     {activeChat && (
                         <div className={`p-2 sm:p-3 bg-white shrink-0 ${replyingTo ? '' : 'border-t border-slate-200'}`}>
                             {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
-                            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                                <label className="px-1 cursor-pointer text-slate-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
-                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="px-1 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faCamera} /></button>
+                            {attachment && <div className="flex items-center justify-start p-2">
+                                <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
+                            </div>}
+                            <form onSubmit={handleSendMessage} className="flex items-center gap-1">
+                                <div className="flex shrink-0 items-center gap-1">
+                                <label className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
+                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} /></button>
+                                </div>
                                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="px-1 cursor-pointer text-slate-500 bg-transparent border-0"><FontAwesomeIcon icon={faVideo} /></button>
+                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} /></button>
                                 <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
+                                <div className="flex h-10 min-w-0 flex-1 items-center rounded-2xl bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
                                 <input
                                     type="text"
                                     id="chat-message"
@@ -379,9 +410,10 @@ const ChatWidget = () => {
                                     maxLength={LIMITS.message}
                                     value={newMessage}
                                     onChange={(e) => { handleInputChange(e); if (sendError) setSendError(''); }}
-                                    placeholder={attachment?.name || 'Type a message...'}
-                                    className="flex-1 min-w-0 bg-slate-100 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none border-0"
+                                    placeholder="Type a message..."
+                                    className="h-full flex-1 min-w-0 bg-transparent px-2 text-sm outline-none border-0"
                                 />
+                                </div>
                                 <button
                                     type="submit"
                                     disabled={isSending || (!newMessage.trim() && !attachment)}
@@ -391,7 +423,6 @@ const ChatWidget = () => {
                                     <FontAwesomeIcon icon={faPaperPlane} className="text-xs" />
                                 </button>
                             </form>
-                            <FileChip file={attachment} onRemove={() => setAttachment(null)} className="mt-1" />
                             <FieldError id="chat-message" error={sendError} className="px-2" />
                         </div>
                     )}

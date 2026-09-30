@@ -72,6 +72,18 @@ try {
         create_notification($conn, (int)$invoice['user_id'], 'payment', 'Payment Proof Rejected',
             "Your payment proof for " . payment_key_label($invoice_id) . " was not accepted: $reason. Please submit a new payment.",
             'Resolved', "invoice:$invoice_id");
+        try {
+            require_once __DIR__ . '/services/send_notification.php';
+            $breakdown_q = $conn->prepare("SELECT id, billing_period, total_amount FROM invoices WHERE ? IN (id, payment_group) ORDER BY due_date");
+            $breakdown_q->bind_param('s', $invoice_id);
+            $breakdown_q->execute();
+            $invoice_rows = $breakdown_q->get_result()->fetch_all(MYSQLI_ASSOC);
+            $breakdown_q->close();
+            $email_html = email_payment_proof_template(notify_recipient_name($conn, (int)$invoice['user_id']), $invoice_id, 'Rejected', $reason, $invoice_rows);
+            dispatch_admin_action_notification($conn, (int)$invoice['user_id'], 'payment', 'Payment Proof Rejected', null, $email_html);
+        } catch (Throwable $notification_error) {
+            error_log('Could not dispatch payment proof rejection email: ' . $notification_error->getMessage());
+        }
     }
 
     echo json_encode(["success" => true, "message" => "Payment proof rejected; invoice returned to $new_status."]);

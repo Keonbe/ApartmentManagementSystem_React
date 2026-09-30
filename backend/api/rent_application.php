@@ -24,6 +24,10 @@ $email = $_POST['email'] ?? '';
 $gender = $_POST['gender'] ?? '';
 $occupants = $_POST['occupants'] ?? '';
 $months_of_rent = $_POST['monthsOfRent'] ?? '';
+$is_asap = !empty($_POST['isAsap']) && $_POST['isAsap'] === '1';
+$preferred_move_in_date = (!$is_asap && !empty($_POST['preferredMoveInDate']) && $_POST['preferredMoveInDate'] !== 'Any time')
+    ? $_POST['preferredMoveInDate']
+    : null;
 $room_name = $_POST['roomName'] ?? '';
 $monthly_rent = $_POST['monthlyRent'] ?? '';
 // The applicant is the session user. This read X-User-Id directly, so a caller
@@ -126,10 +130,6 @@ $max_size = 10 * 1024 * 1024; // 10MB
 
 foreach ($required_files as $fileKey) {
     if (!isset($_FILES[$fileKey]) || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
-        if (!empty($app_id)) {
-            // Re-submitting: files are optional if already uploaded
-            continue;
-        }
         echo json_encode(["success" => false, "message" => "Missing or failed upload for required file: " . $fileKey]);
         exit;
     }
@@ -189,10 +189,9 @@ function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
 // Prepare the name string
 $user_name_prefix = $first_name . "_" . $last_name;
 
-// Update these lines to pass the new argument
-$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir, $user_name_prefix) ?: $existing_front;
-$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir, $user_name_prefix) ?: $existing_back;
-$nbi_clearance_path = uploadFile('nbiFile', $upload_dir, $user_name_prefix) ?: $existing_nbi;
+$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir, $user_name_prefix);
+$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir, $user_name_prefix);
+$nbi_clearance_path = uploadFile('nbiFile', $upload_dir, $user_name_prefix);
 
 if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
     echo json_encode(["success" => false, "message" => "Valid ID (Front & Back) and NBI Clearance documents are all required."]);
@@ -216,8 +215,8 @@ try {
         // Update existing application and set status to 'Pending Review' and clear
         // rejection_reason. Restricted to Rejected/Declined applications above and
         // again here so a concurrent status change can't slip through (H4).
-        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
-        $stmt->bind_param("sssssssiisssssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path, $app_id, $user_id);
+        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
+        $stmt->bind_param("sssssssiissssssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path, $app_id, $user_id);
         $stmt->execute();
         if ($stmt->affected_rows === 0) {
             $stmt->close();
@@ -230,8 +229,8 @@ try {
         $stmt->close();
     } else {
         // Insert new application
-        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("isssssssiisssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
+        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, preferred_move_in_date, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("isssssssiissssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
         $stmt->execute();
         $new_app_id = $stmt->insert_id;
         $stmt->close();
@@ -259,6 +258,16 @@ try {
     $conn->commit();
     log_activity($conn, $user_id, 'tenant', $is_update ? "Resubmitted Rental Application" : "Submitted Rental Application",
         "Application ID: $queue_app_id, Unit: $room_name");
+    try {
+        require_once __DIR__ . '/services/send_notification.php';
+        $subject = $is_update ? 'Updated Rental Application Received' : 'Rental Application Received';
+        $html = email_application_submitted_template(
+            trim($first_name . ' ' . $last_name), 'APP-' . $queue_app_id, $room_name
+        );
+        dispatch_admin_action_notification($conn, $user_id, 'application_update', $subject, null, $html);
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch application submission email: ' . $notification_error->getMessage());
+    }
     echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
 } catch (Exception $e) {
     $conn->rollback();

@@ -25,6 +25,12 @@ function find_owner($conn, $sql, $params) {
     return $row ? (int)$row['owner_id'] : null;
 }
 
+function table_has_column($conn, $table, $column) {
+    // Table/column names below are hard-coded by this endpoint, not user input.
+    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE '" . $conn->real_escape_string($column) . "'");
+    return $result && $result->num_rows > 0;
+}
+
 $path = $_GET['path'] ?? '';
 if (!is_string($path) || $path === '') download_fail(400, "Missing file path.");
 
@@ -53,9 +59,10 @@ $six = [$candidates[0], $candidates[1], $candidates[0], $candidates[1], $candida
 
 $owner = null;
 $access = 'owner';
+$chat_participants = null;
 
 if ($owner === null) {
-    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM rent_applications WHERE valid_id_front_path IN (?,?) OR valid_id_back_path IN (?,?) OR nbi_clearance_path IN (?,?) LIMIT 1", $six);
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM rent_applications WHERE valid_id_front_path IN (?,?) OR valid_id_back_path IN (?,?) OR nbi_clearance_path IN (?,?) OR rejection_attachment_path IN (?,?) LIMIT 1", array_merge($six, $two));
 }
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE proof_of_payment_path IN (?,?) LIMIT 1", $two);
@@ -75,6 +82,18 @@ if ($owner === null) {
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM parking_reservations WHERE document_path IN (?,?) LIMIT 1", $two);
 }
+if ($owner === null && table_has_column($conn, 'notifications', 'attachment_path') && table_has_column($conn, 'notifications', 'user_id')) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM notifications WHERE attachment_path IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
+    // Chat media is visible only to participants in the conversation or an admin.
+    // Resolve participant ids first; do not treat either participant as the sole owner.
+    $stmt = $conn->prepare("SELECT sender_id, receiver_id FROM messages WHERE attachment_path IN (?,?) LIMIT 1");
+    $stmt->bind_param('ss', $candidates[0], $candidates[1]);
+    $stmt->execute();
+    $chat_participants = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+}
 if ($owner === null) {
     // Visitor ID photos belong to a third party, not the hosting tenant —
     // only an admin may view them, regardless of whose unit they visited.
@@ -82,9 +101,14 @@ if ($owner === null) {
     if ($owner !== null) $access = 'admin_only';
 }
 
-if ($owner === null) download_fail(404, "File not found.");
+if ($owner === null && $chat_participants === null) download_fail(404, "File not found.");
 
-if ($access === 'admin_only') {
+if ($chat_participants !== null) {
+    $auth = get_authenticated_user($conn);
+    if (!$auth || ($auth['role'] !== 'admin' && (int)$auth['id'] !== (int)$chat_participants['sender_id'] && (int)$auth['id'] !== (int)$chat_participants['receiver_id'])) {
+        download_fail($auth ? 403 : 401, $auth ? "Forbidden." : "Unauthorized.");
+    }
+} elseif ($access === 'admin_only') {
     require_admin($conn);
 } else {
     require_owner_or_admin($conn, $owner);

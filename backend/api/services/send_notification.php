@@ -14,8 +14,8 @@
  * notifications_dispatch_mode = 'sync' restores the blocking path, and exists so
  * a live demo can show a message arriving while the panel watches.
  *
- * Nothing here throws: failing to notify must not fail the action that caused
- * the notification. Every attempt lands in notification_log either way.
+ * Callers dispatch after their business transaction commits. The sender logs
+ * provider attempts in notification_log; queue jobs retain retry/error state.
  */
 
 require_once __DIR__ . '/send_sms.php';
@@ -127,6 +127,13 @@ function dispatch_admin_action_notification($conn, $user_id, $event_type, $subje
     $out = dispatch_external_notification($conn, $user_id, $event_type, $subject,
                                           $sms_text, $email_html, _admin_action_mode($conn));
     return $out + _admin_action_rendered($conn, $subject, $sms_text, $email_html);
+}
+
+// Per-recipient wrapper for non-admin/cron workflows. It preserves the same
+// immediate mock preview while real-provider configurations continue to queue.
+function dispatch_system_notification($conn, $user_id, $event_type, $subject, $sms_text, $email_html) {
+    return dispatch_external_notification($conn, $user_id, $event_type, $subject,
+                                          $sms_text, $email_html, _admin_action_mode($conn));
 }
 
 function dispatch_admin_action_broadcast($conn, $user_ids, $event_type, $subject, $sms_text, $email_html) {

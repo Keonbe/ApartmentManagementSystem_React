@@ -245,11 +245,11 @@ function send_lease_end_reminders($conn) {
             // and never allowed to stop the rest of the sweep.
             try {
                 require_once __DIR__ . '/api/services/send_notification.php';
-                dispatch_external_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
+                dispatch_system_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
                     sms_lease_reminder_template($row['room_name'], $row['lease_end'], $row['days_left']),
                     email_lease_reminder_template(notify_recipient_name($conn, $row['user_id']),
                         $row['room_name'] ?: '-', $end, (int)$row['days_left']),
-                    _admin_action_mode($conn));
+                    null);
             } catch (Throwable $e) {
                 error_log('Lease-end reminder dispatch failed: ' . $e->getMessage());
             }
@@ -280,19 +280,21 @@ function contract_action_allowed($current_status, $action) {
 
 // ── Rent applications / tenant lifecycle (H5) ──
 // Keyed by current rent_applications.status; each entry lists the statuses
-// update_tenant_status.php may set it to. 'active' is reached only through
-// record_payment_admin.php (move-in payment confirmed), not this map's own
-// endpoint, but is listed as a destination so that write stays consistent
+// update_tenant_status.php may set it to. Payment confirmation deliberately
+// leaves an application Approved: payment and physical occupancy are distinct
+// events. An administrator confirms `active` only after communicating the
+// scheduled move-in date.
 // with the same rules. Resubmission out of Rejected/Declined is handled
 // separately by rent_application.php (H4); restore_tenant.php has its own
 // dedicated path back out of moved-out. Anything not listed here — including
 // every status not itself a key — has no allowed transitions.
 const APPLICATION_TRANSITIONS = [
-    'Pending Review'   => ['Approved', 'Rejected', 'Declined'],
+    'Pending Review'   => ['Approved', 'Rejected', 'Declined', 'Action Required', 'Cancelled'],
+    'Action Required'  => ['Pending Review'],
     // 'moved-out' from Approved/active covers for-cause contract termination
     // (update_contract_status.php's 'terminate' action), which ends a tenancy
     // immediately rather than through the ordinary move-out notice period.
-    'Approved'         => ['active', 'pending-move-out', 'moved-out', 'Rejected', 'Declined'],
+    'Approved'         => ['active', 'pending-move-out', 'Cancelled', 'Rejected', 'Declined'],
     'active'           => ['pending-move-out', 'moved-out'],
     'pending-move-out' => ['moved-out', 'active'],
 ];
@@ -927,14 +929,9 @@ function billing_open_status_sql() {
 // amount against total_amount itself before calling this (audit H9b), so it
 // always passes null here.
 //
-// The move-in cascade below is copied from the pre-Phase-4 record_payment_admin.php
-// verbatim, including every existing guard: security_deposit > 0 marks the
-// move-in invoice specifically (every other invoice type also carries
-// rent_application_id and must never re-run this cascade — audit C1); only a
-// still-Approved application is awaiting its move-in payment; the room update
-// only lands on a room that's actually free for this tenant or already theirs;
-// 'expired'/'eviction-pending' contracts are deliberately excluded from the
-// draft->active promotion.
+// A first-payment settlement records payment only. The admin separately sends
+// the move-in date and confirms actual occupancy, preventing an applicant who
+// paid early from being treated as already moved in.
 //
 // $notify_tenant = false skips the tenant's "Payment Received" notice, for
 // settle_payment_key(), which sends one notice for a whole advance payment.
@@ -963,7 +960,7 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         }
         $stmt->close();
 
-        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months FROM invoices WHERE id = ?");
+        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months, id, billing_period, total_amount, payment_reference FROM invoices WHERE id = ?");
         $inv_q->bind_param("s", $invoice_id);
         $inv_q->execute();
         $inv_res = $inv_q->get_result()->fetch_assoc();
@@ -981,74 +978,6 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             $credit_upd->close();
         }
 
-        if ($inv_res && !empty($inv_res['rent_application_id']) && (float)($inv_res['security_deposit'] ?? 0) > 0) {
-            $app_id = (int)$inv_res['rent_application_id'];
-            $app_q = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, monthly_rent, occupants FROM rent_applications WHERE id = ? AND status = 'Approved'");
-            $app_q->bind_param("i", $app_id);
-            $app_q->execute();
-            $app_data = $app_q->get_result()->fetch_assoc();
-            $app_q->close();
-
-            if ($app_data) {
-                $tenant_name = $app_data['first_name'] . ' ' . $app_data['last_name'];
-                $room_name = $app_data['room_name'];
-                $months = (int)$app_data['months_of_rent'];
-                $monthly_rent = (double)$app_data['monthly_rent'];
-                $occupants = (int)$app_data['occupants'];
-                $lease_start = date('Y-m-d');
-                $lease_end = date('Y-m-d', strtotime("+$months months"));
-
-                $room_stmt = $conn->prepare("UPDATE rooms SET status = 'occupied', tenant_name = ?, lease_start = ?, lease_end = ?, occupants = ?
-                                              WHERE id = ? AND (status IN ('vacant', 'reserved') OR tenant_name = ?)");
-                $room_stmt->bind_param("sssiss", $tenant_name, $lease_start, $lease_end, $occupants, $room_name, $tenant_name);
-                $room_stmt->execute();
-                if ($room_stmt->affected_rows === 0) {
-                    $room_stmt->close();
-                    throw new Exception("Unit $room_name is occupied by another tenant; cannot activate move-in.");
-                }
-                $room_stmt->close();
-
-                $app_activate = $conn->prepare("UPDATE rent_applications SET status = 'active' WHERE id = ? AND status = 'Approved'");
-                $app_activate->bind_param("i", $app_id);
-                $app_activate->execute();
-                $app_activate->close();
-
-                $ctr_check = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ?");
-                $ctr_check->bind_param("i", $app_id);
-                $ctr_check->execute();
-                $ctr_res = $ctr_check->get_result();
-                if ($ctr_res->num_rows === 0) {
-                    $contract_id = 'CTR-' . uniqid();
-                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'active')");
-                    $ctr_stmt->bind_param("sidss", $contract_id, $app_id, $monthly_rent, $lease_start, $lease_end);
-                    $ctr_stmt->execute();
-                    $ctr_stmt->close();
-                } else {
-                    // Only promote a contract that's still a draft awaiting this
-                    // very move-in payment (audit C1) — an expired contract goes
-                    // through the lease-renewal/restore flow instead, and
-                    // 'eviction-pending' stays untouched.
-                    // The tenancy starts on this payment, so the contract takes
-                    // the same dates as the room (it used to keep the approval
-                    // date, and the two disagreed) — rent months are billed
-                    // from the contract's lease_start.
-                    $ctr_upd = $conn->prepare("UPDATE lease_contracts SET status = 'active', lease_start = ?, lease_end = ? WHERE rent_application_id = ? AND status = 'draft'");
-                    $ctr_upd->bind_param("ssi", $lease_start, $lease_end, $app_id);
-                    $ctr_upd->execute();
-                    $ctr_upd->close();
-                }
-                $ctr_check->close();
-
-                // The move-in invoice's advance rent is tenancy month 0.
-                $period_label = billing_period_label(new DateTime($lease_start));
-                $inv_period = $conn->prepare("UPDATE IGNORE invoices SET rent_period_start = ?, billing_period = ? WHERE id = ?");
-                $inv_period->bind_param("sss", $lease_start, $period_label, $invoice_id);
-                $inv_period->execute();
-                $inv_period->close();
-                $activated = true;
-            }
-        }
-
         $conn->commit();
 
         // The tenant is told the payment landed, and a proof/cash declaration
@@ -1062,6 +991,13 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
                     ? "Your advance payment $invoice_id for $advance_months month(s) has been confirmed and recorded ($payment_method). Each month's rent invoice will still be issued on its usual date and paid from this advance, with its own receipt. Thank you!"
                     : "Your payment for invoice $invoice_id has been confirmed and recorded ($payment_method). Your receipt is ready in Payment History. Thank you!",
                 'Resolved', "invoice:$invoice_id");
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                dispatch_admin_action_notification($conn, (int)$inv_res['user_id'], 'payment', 'Payment Confirmed — Official Receipt', null,
+                    email_payment_confirmation_template(notify_recipient_name($conn, (int)$inv_res['user_id']), [$inv_res], $payment_method, $inv_res['payment_reference'] ?? ''));
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch payment confirmation email: ' . $notification_error->getMessage());
+            }
         }
         // A credited month already inside the billing window (held back while
         // this advance awaited confirmation) is billed and settled now.
@@ -1321,6 +1257,20 @@ function issue_rent_invoice($conn, $user_id, $app_id, $start, $rent, $credit = n
     create_notification($conn, $user_id, 'billing', "Rent Invoice: $label",
         "Your rent for $label ($money) is due on $due. You can pay it on the Pay Bills page.",
         'Resolved', "invoice:$invoice_id");
+    try {
+        require_once __DIR__ . '/api/services/send_notification.php';
+        $invoice_q = $conn->prepare("SELECT i.id, i.base_rent, i.water, i.electricity, i.parking, i.services, i.maintenance, i.late_fee, i.total_amount, i.billing_period, i.due_date FROM invoices i WHERE i.id = ?");
+        $invoice_q->bind_param('s', $invoice_id);
+        $invoice_q->execute();
+        $invoice_row = $invoice_q->get_result()->fetch_assoc();
+        $invoice_q->close();
+        if ($invoice_row) {
+            dispatch_system_notification($conn, $user_id, 'billing', "New Monthly Bill — $label", null,
+                email_invoice_template(notify_recipient_name($conn, $user_id), $invoice_row));
+        }
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch generated rent invoice email: ' . $notification_error->getMessage());
+    }
     return $invoice_id;
 }
 
@@ -1535,6 +1485,23 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
                 ? "Your combined payment $key for $months bill(s) ($periods, ₱" . number_format($amount, 2) . ") has been confirmed and recorded ($payment_method). A combined receipt and a receipt for each billing period are ready in Payment History. Thank you!"
                 : "Your advance payment $key for $months month(s) ($periods, ₱" . number_format($amount, 2) . ") has been confirmed and recorded ($payment_method). A receipt for each month is ready in Payment History. Thank you!",
             'Resolved', $bundle ? "invoice:$key" : "invoice:{$settled_rows[0]['id']}");
+        try {
+            require_once __DIR__ . '/api/services/send_notification.php';
+            $receipt_rows = [];
+            $ids = array_column($settled_rows, 'id');
+            foreach ($ids as $settled_id) {
+                $q = $conn->prepare("SELECT id, billing_period, total_amount FROM invoices WHERE id = ?");
+                $q->bind_param('s', $settled_id);
+                $q->execute();
+                if ($row = $q->get_result()->fetch_assoc()) $receipt_rows[] = $row;
+                $q->close();
+            }
+            $uid = (int)$settled_rows[0]['user_id'];
+            dispatch_admin_action_notification($conn, $uid, 'payment', 'Payment Confirmed — Official Receipt', null,
+                email_payment_confirmation_template(notify_recipient_name($conn, $uid), $receipt_rows, $payment_method, $key));
+        } catch (Throwable $notification_error) {
+            error_log('Could not dispatch advance payment confirmation email: ' . $notification_error->getMessage());
+        }
     };
     foreach ($rows as $row) {
         $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false);
@@ -2416,6 +2383,13 @@ function run_notification_sweep($conn, $force = false) {
             if (!claim_invoice_reminder($conn, $inv['id'])) continue;
             [$title, $message] = reminder_text($inv, $today, false);
             create_notification($conn, $inv['user_id'], 'rent_due', $title, $message);
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                dispatch_system_notification($conn, (int)$inv['user_id'], 'rent_due', $title, null,
+                    email_payment_reminder_template(notify_recipient_name($conn, $inv['user_id']), $inv, false));
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch due payment reminder email: ' . $notification_error->getMessage());
+            }
             $result['upcoming_reminders_sent']++;
         }
     }
@@ -2435,6 +2409,13 @@ function run_notification_sweep($conn, $force = false) {
             if (!claim_invoice_reminder($conn, $inv['id'], $overdue_interval)) continue;
             [$title, $message] = reminder_text($inv, $today, true);
             create_notification($conn, $inv['user_id'], 'overdue', $title, $message);
+            try {
+                require_once __DIR__ . '/api/services/send_notification.php';
+                dispatch_system_notification($conn, (int)$inv['user_id'], 'overdue', $title, null,
+                    email_payment_reminder_template(notify_recipient_name($conn, $inv['user_id']), $inv, true));
+            } catch (Throwable $notification_error) {
+                error_log('Could not dispatch overdue payment email: ' . $notification_error->getMessage());
+            }
             $result['overdue_reminders_sent']++;
         }
     }

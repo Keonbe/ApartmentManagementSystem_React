@@ -22,7 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Perform a LEFT JOIN with the users table to pull the live avatar_url record column
     $query = "SELECT 
                 ra.*, 
-                u.avatar_url 
+                u.avatar_url,
+                EXISTS(SELECT 1 FROM invoices i WHERE i.rent_application_id = ra.id AND i.security_deposit > 0 AND i.status = 'paid') AS initial_payment_paid
               FROM rent_applications ra
               LEFT JOIN users u ON ra.user_id = u.id 
               ORDER BY ra.id DESC";
@@ -44,6 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'gender' => $row['gender'] ?? 'Not Specified',
                 'occupants' => $row['occupants'] ?? '1',
                 'months_of_rent' => $row['months_of_rent'] ?? '1',
+                'preferred_move_in_date' => $row['preferred_move_in_date'] ?? null,
+                'move_in_date' => $row['move_in_date'] ?? null,
+                'move_in_notified_at' => $row['move_in_notified_at'] ?? null,
+                'initial_payment_paid' => (bool)($row['initial_payment_paid'] ?? false),
                 'unit' => $row['room_name'],
                 'rent' => '₱' . number_format($row['monthly_rent']),
                 'status' => $row['status'] ?? 'Pending Review',
@@ -54,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 // Appending avatar_url out to the wire payload for your React app pipeline!
                 'avatar_url' => $row['avatar_url'] ?? null, 
                 'rejection_reason' => $row['rejection_reason'] ?? null,
+                'rejection_attachment_path' => $row['rejection_attachment_path'] ?? null,
             ];
         }
         echo json_encode(["success" => true, "data" => $applications]);

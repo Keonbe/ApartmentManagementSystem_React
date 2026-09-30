@@ -159,16 +159,21 @@ export const ChatProvider = ({ children }) => {
         };
     }, []);
 
-    const fetchConversations = useCallback(async () => {
+    const fetchConversations = useCallback(async (search = '') => {
         if (!userId) return;
         try {
-            const response = await api.get('get_conversations.php');
+            const response = await api.get('get_conversations.php', {
+                params: search.trim() ? { search: search.trim() } : {},
+            });
             if (response.data?.success) {
-                setConversations(response.data.conversations || []);
+                const fetched = response.data.conversations || [];
+                if (!search.trim()) setConversations(fetched);
+                return fetched;
             }
         } catch (error) {
             console.error('Error fetching conversations:', error);
         }
+        return [];
     }, [userId]);
 
     const fetchChatHistory = useCallback(async (otherUserId, markAsRead = false) => {
@@ -193,10 +198,12 @@ export const ChatProvider = ({ children }) => {
 
                     return hasSameMessages ? currentMessages : refreshedMessages;
                 });
+                return refreshedMessages;
             }
         } catch (error) {
             console.error('Error fetching chat history:', error);
         }
+        return [];
     }, [userId]);
 
     const fetchAdminUser = useCallback(async () => {

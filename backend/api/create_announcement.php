@@ -14,7 +14,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $admin_id = require_admin($conn);
 
-$input = json_decode(file_get_contents("php://input"), true) ?? [];
+$input = $_POST;
+if (empty($input)) {
+    $input = json_decode(file_get_contents("php://input"), true) ?? [];
+}
+
 
 $tag = trim((string)($input['tag'] ?? 'General'));
 $title = trim((string)($input['title'] ?? ''));
@@ -35,6 +39,21 @@ $want_email = in_array('email', $requested, true);
 $channels = json_encode($is_draft
     ? array_values(array_merge(['in-app'], $want_sms ? ['sms'] : [], $want_email ? ['email'] : []))
     : ['in-app']);
+
+
+$attachment_path = null;
+if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+    $file = $_FILES['attachment'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'])) {
+        $upload_dir = __DIR__ . '/uploads/notifications/';
+        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+        $filename = uniqid('ann_') . '.' . $ext;
+        if (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
+            $attachment_path = 'uploads/notifications/' . $filename;
+        }
+    }
+}
 
 if ($title === '' || $body === '') {
     http_response_code(422);
@@ -121,9 +140,24 @@ try {
 
     // Announcements respect each tenant's "Building announcements" preference.
     $delivered = 0;
+    $notif_ids = [];
     foreach ($recipients as $uid) {
-        if (create_notification($conn, $uid, $notif_type, $title, $body)) $delivered++;
+        $nid = create_notification($conn, $uid, $notif_type, $title, $body);
+        if ($nid) {
+            $delivered++;
+            $notif_ids[] = $nid;
+        }
     }
+    
+    if ($attachment_path && !empty($notif_ids)) {
+        $upd = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
+        foreach ($notif_ids as $nid) {
+            $upd->bind_param("si", $attachment_path, $nid);
+            $upd->execute();
+        }
+        $upd->close();
+    }
+
 
     $conn->commit();
 

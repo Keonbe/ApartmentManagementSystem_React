@@ -144,6 +144,18 @@ if ($stmt->execute()) {
         create_notification($conn, $user_id, 'payment', 'Payment Submitted',
             "Your $payment_method payment for " . payment_key_label($invoice_id) . " was submitted and is awaiting verification by management. You will be notified once it is confirmed.",
             'Resolved', "invoice:$invoice_id");
+        try {
+            require_once __DIR__ . '/services/send_notification.php';
+            $breakdown_q = $conn->prepare("SELECT id, billing_period, total_amount FROM invoices WHERE ? IN (id, payment_group) ORDER BY due_date");
+            $breakdown_q->bind_param('s', $invoice_id);
+            $breakdown_q->execute();
+            $invoice_rows = $breakdown_q->get_result()->fetch_all(MYSQLI_ASSOC);
+            $breakdown_q->close();
+            $proof_mail = email_payment_proof_template(notify_recipient_name($conn, $user_id), $invoice_id, 'Received', '', $invoice_rows);
+            dispatch_admin_action_notification($conn, $user_id, 'payment', 'Payment Proof Received', null, $proof_mail);
+        } catch (Throwable $notification_error) {
+            error_log('Could not dispatch payment proof received email: ' . $notification_error->getMessage());
+        }
     }
 
     echo json_encode([

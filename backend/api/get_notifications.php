@@ -41,7 +41,7 @@ try {
                                 LIMIT 100");
         $stmt->bind_param("i", $auth['id']);
     } else {
-        $stmt = $conn->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 50");
+        $stmt = $conn->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 100");
         $stmt->bind_param("i", $auth['id']);
     }
 
@@ -51,7 +51,7 @@ try {
 
     $unread = 0;
     foreach ($notifications as $n) {
-        if (!(int)$n['is_read']) $unread++;
+        if (!(int)$n['is_read'] && !(int)$n['is_archived']) $unread++;
     }
 
     echo json_encode(["success" => true, "notifications" => $notifications, "unread_count" => $unread]);

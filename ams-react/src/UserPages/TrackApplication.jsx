@@ -1,19 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faHourglassHalf, faCheckCircle, faTimesCircle, faArrowRight, faFileInvoiceDollar, 
     faHome, faCalendarAlt, faUsers, faInfoCircle, faArrowLeft,
-    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faLock
+    faWallet, faUniversity, faMoneyBillWave, faCheck, faFileContract, faUpload, faLock, faEye,
+    faPaperclip, faFilePdf
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
+import fileUrl from '../api/fileUrl';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import FieldError from '../Components/form/FieldError';
 import FileChip from '../Components/form/FileChip';
+import ReasonModal from '../Components/form/ReasonModal';
 import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 
@@ -38,6 +41,25 @@ export default function TrackApplication() {
 
     const [contractError, setContractError] = useState('');
     const [contractInputKey, setContractInputKey] = useState(0);
+    const [cancelApplication, setCancelApplication] = useState(false);
+    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
+    const activeEmail = loggedInUser.email_address || '';
+
+    const fetchApplication = useCallback(async () => {
+        try {
+            const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
+            setApplication(res.data.success ? res.data.data : null);
+        } catch {
+            setError('Unable to refresh your application. Please try again later.');
+        }
+    }, [activeEmail]);
+
+    const confirmCancellation = async (reason) => {
+        const res = await api.post('/cancel_application.php', { id: application.id, reason });
+        if (!res.data.success) throw new Error(apiErrorMessage(res, 'Could not cancel the application.'));
+        setCancelApplication(false);
+        await fetchApplication();
+    };
 
     const clearContractFile = () => {
         setContractFile(null);
@@ -77,7 +99,10 @@ export default function TrackApplication() {
             });
 
             if (res.data.success) {
-                alert("Signed lease contract uploaded successfully! You may now proceed to initial payment.");
+                setNotice({
+                    message: 'Rent Contract Uploaded',
+                    subtext: 'Signed rent contract uploaded successfully! You may now proceed to initial payment.'
+                });
                 setApplication(prev => ({
                     ...prev,
                     signed_lease_path: res.data.filePath,
@@ -167,8 +192,28 @@ export default function TrackApplication() {
         }
     };
 
-    const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
-    const activeEmail = loggedInUser.email_address || '';
+    const [newDate, setNewDate] = useState('');
+    const [submittingDate, setSubmittingDate] = useState(false);
+
+    const handleResubmitDate = async () => {
+        if (!newDate) {
+            setNotice('Please select a new date.');
+            return;
+        }
+        setSubmittingDate(true);
+        try {
+            const res = await api.post('/resubmit_date.php', { id: application.id, preferred_move_in_date: newDate });
+            if (res.data.success) {
+                setNotice('New date submitted successfully!');
+                fetchApplication();
+            } else {
+                setNotice(apiErrorMessage(res, 'Failed to submit new date.'));
+            }
+        } catch (err) {
+            setNotice(apiErrorMessage(err, 'Failed to submit new date.'));
+        }
+        setSubmittingDate(false);
+    };
 
     useEffect(() => {
         const fetchApplicationStatus = async () => {
@@ -178,14 +223,7 @@ export default function TrackApplication() {
                 return;
             }
             try {
-                // Call my_room.php which returns the user's latest rent application status
-                const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
-                if (res.data.success && res.data.data) {
-                    setApplication(res.data.data);
-                } else {
-                    // success false indicates no application exists
-                    setApplication(null);
-                }
+                await fetchApplication();
             } catch (err) {
                 console.error("Failed to fetch application status:", err);
                 setError("Unable to connect to the server. Please try again later.");
@@ -234,7 +272,7 @@ export default function TrackApplication() {
                 }, 500);
             }
         }
-    }, [activeEmail, navigate]);
+    }, [activeEmail, fetchApplication, navigate]);
 
     if (loading) {
         return (
@@ -257,10 +295,14 @@ export default function TrackApplication() {
         statusNormalized = 'pending';
         statusLabel = 'Pending Review';
         statusColorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-    } else if (rawStatus.toLowerCase() === 'approved' || rawStatus.toLowerCase() === 'active') {
+    } else if (rawStatus.toLowerCase() === 'approved') {
         statusNormalized = 'approved';
         statusLabel = 'Approved';
         statusColorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    } else if (rawStatus.toLowerCase() === 'active') {
+        statusNormalized = 'active';
+        statusLabel = 'Moved In';
+        statusColorClass = 'text-teal-300 bg-teal-500/10 border-teal-500/20';
     } else if (rawStatus.toLowerCase() === 'pending-move-out') {
         statusNormalized = 'pending-move-out';
         statusLabel = 'Move-Out Pending';
@@ -273,6 +315,14 @@ export default function TrackApplication() {
         statusNormalized = 'rejected';
         statusLabel = 'Rejected';
         statusColorClass = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+    } else if (rawStatus.toLowerCase() === 'cancelled') {
+        statusNormalized = 'cancelled';
+        statusLabel = 'Cancelled';
+        statusColorClass = 'text-slate-300 bg-slate-500/10 border-slate-500/20';
+    } else if (rawStatus.toLowerCase() === 'action required') {
+        statusNormalized = 'action required';
+        statusLabel = 'Action Required';
+        statusColorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
     }
 
     return (
@@ -355,21 +405,34 @@ export default function TrackApplication() {
                                             </span>
                                         </div>
                                     </div>
-                                ) : (
-                                    <button
-                                        onClick={() => navigate('/my-room')}
-                                        className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
-                                    >
-                                        <span>{t('trackApp.proceedRoom')}</span>
-                                        <FontAwesomeIcon icon={faArrowRight} />
-                                    </button>
-                                )
+                                ) : application.initial_payment_paid ? (
+                                    <div className="text-emerald-200 text-xs bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 rounded-xl max-w-xs">
+                                        {application.move_in_date ? `Move-in scheduled for ${new Date(application.move_in_date).toLocaleDateString()}.` : 'Payment confirmed. Management will notify you of your move-in date.'}
+                                    </div>
+                                ) : null
+                            )}
+
+                            {statusNormalized === 'approved' && (
+                                <button onClick={() => setCancelApplication(true)} className="bg-transparent hover:bg-rose-500/10 text-rose-300 hover:text-rose-200 border border-rose-500/30 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer">
+                                    Cancel application
+                                </button>
+                            )}
+
+                            {statusNormalized === 'active' && (
+                                <button onClick={() => navigate('/my-room')} className="bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2">
+                                    <span>{t('trackApp.proceedRoom')}</span><FontAwesomeIcon icon={faArrowRight} />
+                                </button>
                             )}
 
                             {statusNormalized === 'pending' && (
-                                <div className="flex items-center space-x-2 text-slate-400 text-xs bg-white/5 px-4 py-2.5 rounded-xl border border-white/10">
-                                    <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400 animate-pulse" />
-                                    <span>Locked during review</span>
+                                <div className="track-app-status-actions flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                    <div className="flex items-center space-x-2 text-slate-400 text-xs bg-white/5 px-4 py-2.5 rounded-xl border border-white/10">
+                                        <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400 animate-pulse" />
+                                        <span>Locked during review</span>
+                                    </div>
+                                    <button onClick={() => setCancelApplication(true)} className="bg-transparent hover:bg-rose-500/10 text-rose-300 hover:text-rose-200 border border-rose-500/30 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer">
+                                        Cancel application
+                                    </button>
                                 </div>
                             )}
 
@@ -396,15 +459,85 @@ export default function TrackApplication() {
                             )}
                         </div>
 
-                        {statusNormalized === 'rejected' && application.rejection_reason && (
-                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-3">
+                        {statusNormalized === 'action required' && (
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
+                                <h3 className="text-lg font-bold text-amber-400 m-0 flex items-center gap-2">
+                                    <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400" />
+                                    Action Required: Pick a New Move-in Date
+                                </h3>
+                                <p className="text-amber-200/80 text-sm leading-relaxed m-0 border-l-2 border-amber-500/30 pl-4 py-1 italic">
+                                    "{application.rejection_reason}"
+                                </p>
+                                <div className="mt-4 pt-4 border-t border-amber-500/20">
+                                    <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">Select New Date</label>
+                                    <div className="flex gap-3 items-center">
+                                        <input 
+                                            type="date" 
+                                            value={newDate} 
+                                            onChange={e => setNewDate(e.target.value)}
+                                            min={new Date().toISOString().split('T')[0]}
+                                            className="px-4 py-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                                        />
+                                        <button 
+                                            onClick={handleResubmitDate} 
+                                            disabled={submittingDate}
+                                            className="bg-amber-500 hover:bg-amber-400 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all shadow-md disabled:opacity-50"
+                                        >
+                                            {submittingDate ? 'Submitting...' : 'Submit New Date'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {statusNormalized === 'rejected' && (application.rejection_reason || application.rejection_attachment_path) && (
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
                                 <h3 className="text-lg font-bold text-rose-400 m-0 flex items-center gap-2">
                                     <FontAwesomeIcon icon={faTimesCircle} className="text-rose-400" />
                                     Reason for Rejection
                                 </h3>
-                                <p className="text-slate-300 text-sm m-0 leading-relaxed bg-rose-950/20 p-4 rounded-xl border border-rose-500/10 font-medium">
-                                    {application.rejection_reason}
-                                </p>
+                                {application.rejection_reason && (
+                                    <p className="text-slate-300 text-sm m-0 leading-relaxed bg-rose-950/20 p-4 rounded-xl border border-rose-500/10 font-medium whitespace-pre-wrap">
+                                        {application.rejection_reason}
+                                    </p>
+                                )}
+                                {application.rejection_attachment_path && (
+                                    <div className="pt-3 border-t border-rose-500/20">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-rose-300 block mb-2 flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faPaperclip} className="text-rose-400" />
+                                            Attached Supporting Document / Image:
+                                        </span>
+                                        {application.rejection_attachment_path.toLowerCase().endsWith('.pdf') ? (
+                                            <a
+                                                href={fileUrl(application.rejection_attachment_path)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/30 text-rose-200 rounded-xl text-xs font-bold transition-all no-underline shadow-sm"
+                                            >
+                                                <FontAwesomeIcon icon={faFilePdf} className="text-rose-400 text-base" />
+                                                <span>View Attached PDF Document</span>
+                                            </a>
+                                        ) : (
+                                            <div className="relative inline-block">
+                                                <a
+                                                    href={fileUrl(application.rejection_attachment_path)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="block group"
+                                                >
+                                                    <img
+                                                        src={fileUrl(application.rejection_attachment_path)}
+                                                        alt="Rejection Attachment"
+                                                        className="max-h-56 max-w-full rounded-2xl border border-rose-500/30 object-cover shadow-lg group-hover:opacity-90 transition-all bg-slate-900"
+                                                    />
+                                                    <span className="inline-block mt-2 text-xs font-semibold text-rose-300 underline group-hover:text-rose-200">
+                                                        Click to view full image
+                                                    </span>
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -440,7 +573,7 @@ export default function TrackApplication() {
                                                 {t('trackApp.step1')}
                                             </h3>
                                             <p className="text-slate-300 text-xs m-0 mt-1">
-                                                Review your lease agreement, sign it, and upload the signed document below to unlock payment.
+                                                Review your rent agreement, sign it, and upload the signed document below to unlock payment.
                                             </p>
                                         </div>
                                         <button
@@ -458,24 +591,35 @@ export default function TrackApplication() {
                                                 <div className="flex items-center space-x-3 text-emerald-400 font-bold">
                                                     <FontAwesomeIcon icon={faCheckCircle} className="text-lg" />
                                                     <div>
-                                                        <p className="m-0 text-white font-bold">Signed Lease Contract Uploaded</p>
-                                                        <p className="m-0 text-xs font-normal text-emerald-300">Your signed contract has been attached. You may now proceed to initial payment below.</p>
+                                                        <p className="m-0 text-white font-bold">Signed Rent Contract Uploaded</p>
+                                                        <p className="m-0 text-xs font-normal text-emerald-300">Your signed rent contract has been attached. You may now proceed to initial payment below.</p>
                                                     </div>
                                                 </div>
-                                                <label className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition-all border border-white/10 shrink-0">
-                                                    <span>{t('trackApp.reupload')}</span>
-                                                    <input
-                                                        key={contractInputKey}
-                                                        type="file"
-                                                        id="contract-file"
-                                                        name="file"
-                                                        accept={acceptFor(FILE_RULES.pdf)}
-                                                        aria-invalid={contractError ? true : undefined}
-                                                        aria-describedby={contractError ? 'contract-file-error' : undefined}
-                                                        className="hidden"
-                                                        onChange={validateAndSetContractFile}
-                                                    />
-                                                </label>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <a
+                                                        href={fileUrl(application.signed_lease_path)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 bg-indigo-600/40 hover:bg-indigo-600/60 text-white border border-indigo-500/40 text-xs font-bold px-3 py-2 rounded-xl transition-all cursor-pointer no-underline shadow-sm"
+                                                    >
+                                                        <FontAwesomeIcon icon={faEye} />
+                                                        <span>View submitted file</span>
+                                                    </a>
+                                                    <label className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition-all border border-white/10 shrink-0">
+                                                        <span>{t('trackApp.reupload')}</span>
+                                                        <input
+                                                            key={contractInputKey}
+                                                            type="file"
+                                                            id="contract-file"
+                                                            name="file"
+                                                            accept={acceptFor(FILE_RULES.pdf)}
+                                                            aria-invalid={contractError ? true : undefined}
+                                                            aria-describedby={contractError ? 'contract-file-error' : undefined}
+                                                            className="hidden"
+                                                            onChange={validateAndSetContractFile}
+                                                        />
+                                                    </label>
+                                                </div>
                                             </div>
                                             {/* A re-picked file used to be kept but never sent: this branch had no upload button. */}
                                             {contractFile && (
@@ -497,10 +641,10 @@ export default function TrackApplication() {
                                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-3">
                                             <div className="flex items-center space-x-2.5 text-amber-400 font-bold text-sm">
                                                 <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
-                                                <span>Signed Contract Upload Required (Max 5MB PDF)</span>
+                                                <span>Signed Rent Contract Upload Required (Max 5MB PDF)</span>
                                             </div>
                                             <p className="text-slate-300 text-xs m-0">
-                                                You must upload your signed contract first (PDF format only; max 5MB) before initial payment options are enabled.
+                                                You must upload your signed rent contract first (PDF format only; max 5MB) before initial payment options are enabled.
                                             </p>
                                             <form onSubmit={handleContractUpload} className="track-app-upload-form flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1" noValidate>
                                                 <input
@@ -538,7 +682,7 @@ export default function TrackApplication() {
                                     )}
                                 </div>
 
-                                {/* Step 2: Complete Initial Lease Payment */}
+                                {/* Step 2: Complete Initial Rent Payment */}
                                 <div className="track-app-payment-box bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
                                     <div className="border-b border-white/10 pb-4">
                                         <h3 className="text-lg font-bold text-white m-0 flex items-center gap-2">
@@ -546,14 +690,14 @@ export default function TrackApplication() {
                                             {t('trackApp.step2')}
                                         </h3>
                                         <p className="text-slate-300 text-xs sm:text-sm m-0 mt-1.5 leading-relaxed">
-                                            Your lease application is approved! Settle your initial 1-month advance rent and 1-month security deposit below:
+                                            Your rent application is approved! Settle your initial 1-month advance rent and 1-month security deposit below:
                                         </p>
                                     </div>
 
                                     {!application.signed_lease_path && (
                                         <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 p-4 sm:p-5 rounded-2xl text-xs font-semibold flex items-center space-x-3 my-2">
                                             <FontAwesomeIcon icon={faLock} className="text-rose-400 text-base shrink-0" />
-                                            <span className="leading-relaxed">Payment is locked. Please upload your signed lease contract in Step 1 above to enable initial payment.</span>
+                                            <span className="leading-relaxed">Payment is locked. Please upload your signed rent contract in Step 1 above to enable initial payment.</span>
                                         </div>
                                     )}
 
@@ -708,7 +852,7 @@ export default function TrackApplication() {
                                     <div 
                                         className="absolute top-[20px] left-0 h-0.5 bg-indigo-500 hidden md:block z-0 transition-all duration-500"
                                         style={{
-                                            width: statusNormalized === 'approved' ? '100%' : statusNormalized === 'rejected' ? '100%' : '50%'
+                                            width: ['approved', 'active', 'rejected', 'cancelled'].includes(statusNormalized) ? '100%' : '50%'
                                         }}
                                     ></div>
 
@@ -726,9 +870,9 @@ export default function TrackApplication() {
                                     {/* Step 2: Under Review */}
                                     <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
-                                            statusNormalized === 'pending' ? 'bg-amber-500 text-white animate-pulse' : 'bg-indigo-500 text-white'
+                                            ['pending', 'action required'].includes(statusNormalized) ? 'bg-amber-500 text-white animate-pulse' : 'bg-indigo-500 text-white'
                                         }`}>
-                                            <FontAwesomeIcon icon={statusNormalized === 'pending' ? faHourglassHalf : faCheckCircle} className={statusNormalized === 'pending' ? 'animate-spin' : ''} />
+                                            <FontAwesomeIcon icon={['pending', 'action required'].includes(statusNormalized) ? faHourglassHalf : faCheckCircle} className={statusNormalized === 'pending' ? 'animate-spin' : ''} />
                                         </div>
                                         <div className="flex flex-col md:items-center">
                                             <span className="text-sm font-bold text-white">Under Review</span>
@@ -739,21 +883,21 @@ export default function TrackApplication() {
                                     {/* Step 3: Final Decision */}
                                     <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
-                                            statusNormalized === 'approved' ? 'bg-emerald-500 text-white' : 
-                                            statusNormalized === 'rejected' ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-500'
+                                            ['approved', 'active'].includes(statusNormalized) ? 'bg-emerald-500 text-white' : 
+                                            ['rejected', 'cancelled'].includes(statusNormalized) ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-500'
                                         }`}>
                                             <FontAwesomeIcon icon={
-                                                statusNormalized === 'approved' ? faCheckCircle : 
-                                                statusNormalized === 'rejected' ? faTimesCircle : faCheckCircle
+                                                ['approved', 'active'].includes(statusNormalized) ? faCheckCircle : 
+                                                ['rejected', 'cancelled'].includes(statusNormalized) ? faTimesCircle : faCheckCircle
                                             } />
                                         </div>
                                         <div className="flex flex-col md:items-center">
                                             <span className="text-sm font-bold text-white">
-                                                {statusNormalized === 'rejected' ? 'Application Rejected' : 'Final Decision'}
+                                                {statusNormalized === 'rejected' ? 'Application Rejected' : statusNormalized === 'cancelled' ? 'Application Cancelled' : statusNormalized === 'active' ? 'Moved In' : 'Final Decision'}
                                             </span>
                                             <span className="text-xs text-slate-400 mt-0.5">
-                                                {statusNormalized === 'approved' ? (
-                                                    application.has_pending_first_payment ? 'Pending Initial Payment' : 'Ready to move in'
+                                                {['approved', 'active'].includes(statusNormalized) ? (
+                                                    statusNormalized === 'active' ? 'Occupancy confirmed' : application.has_pending_first_payment ? 'Pending Initial Payment' : 'Ready to move in'
                                                 ) : 
                                                  statusNormalized === 'rejected' ? 'Review feedback or re-apply' : 'Pending decisions'}
                                             </span>
@@ -847,6 +991,17 @@ export default function TrackApplication() {
                 message={notice?.message}
                 subtext={notice?.subtext}
             />
+            {cancelApplication && (
+                <ReasonModal
+                    title="Cancel application"
+                    description="You can cancel only before you move in. If payment was made, management will contact you about any refund."
+                    label="Reason for cancelling"
+                    confirmLabel="Cancel application"
+                    suggestions={['Change of mind', 'Found another place', 'Financial reasons', 'Other']}
+                    onConfirm={confirmCancellation}
+                    onClose={() => setCancelApplication(false)}
+                />
+            )}
         </div>
     );
 }

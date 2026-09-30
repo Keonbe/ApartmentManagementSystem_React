@@ -1340,7 +1340,7 @@ flowchart TB
     Admin["Administrator"]
     Sched["Scheduler"]
 
-    P31("3.1<br/>Activate tenancy<br/>on move-in payment")
+    P31("3.1<br/>Schedule & confirm<br/>move-in (after payment)")
     P32("3.2<br/>Request extension /<br/>occupancy / household change")
     P33("3.3<br/>Decide tenant<br/>request")
     P34("3.4<br/>Give move-out<br/>notice")
@@ -1358,6 +1358,7 @@ flowchart TB
     D16[("D16 Notifications")]
     F1[("F1 Uploads")]
 
+    Admin -->|"move-in date, confirm occupancy"| P31
     D8 -->|"move-in invoice paid (from 4.0)"| P31
     P31 -->|"Approved → active"| D5
     P31 -->|"draft → active, lease dates"| D7

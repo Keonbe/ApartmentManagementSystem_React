@@ -83,5 +83,13 @@ notify_admins_queue($conn, 'maintenance_request', $request_id, "New Maintenance 
 
 log_activity($conn, $user_id, 'maintenance', "Submitted Maintenance Request #$request_id", "Issue: $category ($urgency), Unit: $room_name");
 
+try {
+    require_once __DIR__ . '/services/send_notification.php';
+    dispatch_admin_action_notification($conn, $user_id, 'maintenance_update', 'Maintenance Request Received', null,
+        email_maintenance_received_template(notify_recipient_name($conn, $user_id), $request_id, $category, $preferred_date));
+} catch (Throwable $notification_error) {
+    error_log('Could not dispatch maintenance receipt email: ' . $notification_error->getMessage());
+}
+
 echo json_encode(["success" => true, "message" => "Maintenance request submitted successfully", "id" => $request_id]);
 $conn->close();

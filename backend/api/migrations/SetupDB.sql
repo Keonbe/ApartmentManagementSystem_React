@@ -308,6 +308,9 @@ CREATE TABLE `rent_applications` (
   `gender` varchar(20) NOT NULL,
   `occupants` int(11) NOT NULL,
   `months_of_rent` int(11) NOT NULL,
+  `preferred_move_in_date` date DEFAULT NULL,
+  `move_in_date` date DEFAULT NULL,
+  `move_in_notified_at` datetime DEFAULT NULL,
   `room_name` varchar(50) NOT NULL,
   `monthly_rent` decimal(10,2) NOT NULL,
   `valid_id_front_path` varchar(255) NOT NULL,
@@ -315,6 +318,8 @@ CREATE TABLE `rent_applications` (
   `nbi_clearance_path` varchar(255) NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'Pending Review',
   `rejection_reason` varchar(255) DEFAULT NULL,
+  `rejection_attachment_path` varchar(255) DEFAULT NULL,
+  `cancelled_at` datetime DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `archive_date` date DEFAULT NULL,
   `archive_reason` varchar(255) DEFAULT NULL,
@@ -625,6 +630,9 @@ CREATE TABLE IF NOT EXISTS `unit_waitlist` (
 
 ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `status` varchar(20) DEFAULT 'Pending';
 ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `metadata_value` varchar(255) DEFAULT NULL;
+-- 2026_09_application_rejection_attachment.sql / 2026_09_notification_archive.sql
+ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `attachment_path` varchar(255) DEFAULT NULL AFTER `metadata_value`;
+ALTER TABLE `notifications` ADD COLUMN IF NOT EXISTS `is_archived` tinyint(1) NOT NULL DEFAULT 0;
 ALTER TABLE `notifications` ADD INDEX IF NOT EXISTS `idx_type_status` (`type`, `status`);
 ALTER TABLE `notifications` ADD INDEX IF NOT EXISTS `idx_user_read` (`user_id`, `is_read`);
 
