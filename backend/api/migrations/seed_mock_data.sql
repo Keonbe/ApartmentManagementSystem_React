@@ -61,18 +61,18 @@ INSERT IGNORE INTO `users` (`id`, `first_name`, `middle_name`, `last_name`, `con
 -- ============================================================
 INSERT IGNORE INTO `rent_applications`
   (`id`, `user_id`, `first_name`, `middle_name`, `last_name`, `contact_no`, `email`, `gender`, `occupants`, `months_of_rent`, `room_name`, `monthly_rent`, `valid_id_front_path`, `valid_id_back_path`, `nbi_clearance_path`, `status`, `rejection_reason`, `created_at`) VALUES
-(1,  2,  'Maria',  'L.', 'Santos',     '+63 9171234501', 'maria.santos@gmail.com',     'Female', 1, 12, 'A', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-10-27 08:30:00'),
-(2,  3,  'Jose',   'M.', 'Reyes',      '+63 9171234502', 'jose.reyes@gmail.com',       'Male',   2, 12, 'B', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-09-25 09:00:00'),
-(3,  5,  'Rosa',   'D.', 'Dela Cruz',  '+63 9171234504', 'rosa.delacruz@gmail.com',    'Female', 1,  6, 'C', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-08-27 11:00:00'),
-(4,  6,  'Ben',    'C.', 'Flores',     '+63 9171234505', 'ben.flores@gmail.com',       'Male',   2, 12, 'D', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-10-27 08:00:00'),
-(5,  7,  'Lita',   'R.', 'Ramos',      '+63 9171234506', 'lita.ramos@gmail.com',       'Female', 1, 12, 'E', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2026-07-29 09:30:00'),
+(1,  2,  'Maria',  'L.', 'Santos',     '+63 9171234501', 'maria.santos@gmail.com',     'Female', 1, 12, 'A', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-27 08:30:00'),
+(2,  3,  'Jose',   'M.', 'Reyes',      '+63 9171234502', 'jose.reyes@gmail.com',       'Male',   2, 12, 'B', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-09-25 09:00:00'),
+(3,  5,  'Rosa',   'D.', 'Dela Cruz',  '+63 9171234504', 'rosa.delacruz@gmail.com',    'Female', 1,  6, 'C', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-08-27 11:00:00'),
+(4,  6,  'Ben',    'C.', 'Flores',     '+63 9171234505', 'ben.flores@gmail.com',       'Male',   2, 12, 'D', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-27 08:00:00'),
+(5,  7,  'Lita',   'R.', 'Ramos',      '+63 9171234506', 'lita.ramos@gmail.com',       'Female', 1, 12, 'E', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2026-07-29 09:30:00'),
 (6,  8,  'Gloria', 'T.', 'Tan',        '+63 9171234508', 'gloria.tan@gmail.com',       'Female', 1,  6, 'N', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'Pending Review', NULL, '2026-08-20 09:00:00'),
-(7,  9,  'Dante',  'A.', 'Abad',       '+63 9171234507', 'dante.abad@gmail.com',       'Male',   1, 12, 'F', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-10-10 07:45:00'),
-(8,  10, 'Pedro',  'B.', 'Cruz',       '+63 9171234503', 'pedro.cruz@gmail.com',       'Male',   1, 12, 'G', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-09-26 10:15:00'),
-(9,  11, 'Carlo',  'P.', 'Villanueva', '+63 9171234509', 'carlo.villanueva@gmail.com', 'Male',   1, 12, 'H', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-11-25 09:00:00'),
-(10, 12, 'Ana',    'S.', 'Bautista',   '+63 9171234510', 'ana.bautista@gmail.com',     'Female', 1, 12, 'K', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-10-10 10:00:00'),
-(11, 13, 'Mark',   'D.', 'Santiago',   '+63 9171234511', 'mark.santiago@gmail.com',    'Male',   1, 12, 'L', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-09-15 08:30:00'),
-(12, 14, 'Grace',  'M.', 'Mendoza',    '+63 9171234512', 'grace.mendoza@gmail.com',    'Female', 1, 12, 'M', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2025-12-28 09:00:00');
+(7,  9,  'Dante',  'A.', 'Abad',       '+63 9171234507', 'dante.abad@gmail.com',       'Male',   1, 12, 'F', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-10 07:45:00'),
+(8,  10, 'Pedro',  'B.', 'Cruz',       '+63 9171234503', 'pedro.cruz@gmail.com',       'Male',   1, 12, 'G', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-09-26 10:15:00'),
+(9,  11, 'Carlo',  'P.', 'Villanueva', '+63 9171234509', 'carlo.villanueva@gmail.com', 'Male',   1, 12, 'H', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-11-25 09:00:00'),
+(10, 12, 'Ana',    'S.', 'Bautista',   '+63 9171234510', 'ana.bautista@gmail.com',     'Female', 1, 12, 'K', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-10 10:00:00'),
+(11, 13, 'Mark',   'D.', 'Santiago',   '+63 9171234511', 'mark.santiago@gmail.com',    'Male',   1, 12, 'L', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-09-15 08:30:00'),
+(12, 14, 'Grace',  'M.', 'Mendoza',    '+63 9171234512', 'grace.mendoza@gmail.com',    'Female', 1, 12, 'M', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-12-28 09:00:00');
 
 -- Rosa's lease was renewed mid-year: +9 months on top of the original 6 (see
 -- lease_renewals below), so her application reflects the final total.

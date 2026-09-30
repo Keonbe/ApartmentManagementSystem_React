@@ -166,7 +166,10 @@ function AppContent() {
       
       try {
         const res = await api.get(`/my_room.php?email=${encodeURIComponent(loggedInUser.email_address || '')}`);
-        if (res.data.success && res.data.data && ['approved', 'active', 'pending-move-out'].includes(res.data.data.status?.toLowerCase()) && !res.data.data.has_pending_first_payment) {
+        // Only a confirmed move-in makes the user a tenant. An Approved applicant —
+        // even one whose first payment is confirmed — stays on Track Application
+        // until the admin confirms occupancy (status 'active').
+        if (res.data.success && res.data.data && ['active', 'pending-move-out'].includes(res.data.data.status?.toLowerCase())) {
           setHasRentedRoom(true);
         } else {
           setHasRentedRoom(false);

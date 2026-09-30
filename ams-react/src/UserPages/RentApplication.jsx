@@ -225,7 +225,7 @@ export default function RentApplication() {
     const isPendingReview = ['pending', 'pending review'].includes(applicationStatus?.toLowerCase());
     const isReadOnly = isPendingReview || applicationStatus === 'accepted';
     const hasActiveApplication = ['pending', 'pending review', 'approved', 'active'].includes(applicationStatus?.toLowerCase()) && !editApp;
-    const isTenant = ['approved', 'active'].includes(applicationStatus?.toLowerCase());
+    const isTenant = ['active', 'pending-move-out'].includes(applicationStatus?.toLowerCase());
 
     // Save the unsent form as the applicant types.
     useEffect(() => {
