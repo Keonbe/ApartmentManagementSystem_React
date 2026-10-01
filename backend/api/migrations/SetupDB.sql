@@ -163,7 +163,7 @@ CREATE TABLE `lease_contracts` (
   -- Claim column for the once-per-contract lease-end reminder
   -- (run_notification_sweep() -> send_lease_end_reminders()).
   `renewal_reminder_sent_at` datetime DEFAULT NULL,
-  `deposit_status` varchar(50) DEFAULT 'Held',
+  `deposit_status` varchar(50) DEFAULT 'Pending',
   `damage_deduction` decimal(10,2) DEFAULT 0.00,
   `utility_deduction` decimal(10,2) DEFAULT 0.00,
   `refund_amount` decimal(10,2) DEFAULT 0.00,

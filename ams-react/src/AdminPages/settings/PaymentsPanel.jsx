@@ -113,7 +113,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
             </div>
             <div className="space-y-1">
               <ChannelRow label="GCash (Receipt Upload)" checked={settings.paymentChGcashManual} onChange={(v) => updateSetting('paymentChGcashManual', v)} />
-              <ChannelRow label="Bank Transfer (Receipt Upload)" checked={settings.paymentChBankManual} onChange={(v) => updateSetting('paymentChBankManual', v)} />
+              <ChannelRow label="BDO / BPI Bank Transfer (Receipt Upload)" checked={settings.paymentChBankManual} onChange={(v) => updateSetting('paymentChBankManual', v)} />
               <ChannelRow label="In-Person Payment" sublabel="Scheduled management office visit" checked={settings.paymentChInPerson} onChange={(v) => updateSetting('paymentChInPerson', v)} />
             </div>
           </div>

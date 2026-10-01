@@ -24,6 +24,22 @@ if (!$invoice_id) {
     exit;
 }
 
+// A tenant releases only their own checkout. An admin may release any
+// tenant's (payments audit follow-up 2026-10-01): the desk cannot record a
+// payment while a checkout is open, so a stale one would otherwise strand a
+// walk-in payment until the due date passes. Clearing checkout_session_id
+// means a late webhook for it can no longer settle the bill.
+$is_admin = $auth['role'] === 'admin';
+$owner_id = $user_id;
+if ($is_admin) {
+    $owner_q = $conn->prepare("SELECT user_id FROM invoices WHERE ? IN (id, payment_group) AND status = 'processing' LIMIT 1");
+    $owner_q->bind_param("s", $invoice_id);
+    $owner_q->execute();
+    $owner_row = $owner_q->get_result()->fetch_assoc();
+    $owner_q->close();
+    $owner_id = $owner_row ? (int)$owner_row['user_id'] : 0;
+}
+
 // Return it to 'overdue' if the due date has already passed, otherwise
 // 'pending', so releasing never hides a debt that is already late.
 $stmt = $conn->prepare("
@@ -32,7 +48,7 @@ $stmt = $conn->prepare("
         checkout_session_id = NULL
     WHERE ? IN (id, payment_group) AND user_id = ? AND status = 'processing'
 ");
-$stmt->bind_param("si", $invoice_id, $user_id);
+$stmt->bind_param("si", $invoice_id, $owner_id);
 
 if (!$stmt->execute()) {
     http_response_code(500);
@@ -45,7 +61,12 @@ if (!$stmt->execute()) {
 $released = $stmt->affected_rows > 0;
 $stmt->close();
 
-if ($released) {
+if ($released && $is_admin) {
+    log_activity($conn, $user_id, 'billing', 'Released Online Checkout', ucfirst(payment_key_label($invoice_id)) . " (tenant $owner_id)");
+    create_notification($conn, $owner_id, 'payment', 'Online Checkout Cancelled',
+        "The office cancelled your unfinished online checkout for " . payment_key_label($invoice_id) . ". You can pay again from Pay Bills.",
+        'Resolved', "invoice:$invoice_id");
+} elseif ($released) {
     log_activity($conn, $user_id, 'payment', 'Online checkout released', payment_key_label($invoice_id));
 }
 

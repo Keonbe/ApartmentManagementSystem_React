@@ -978,6 +978,15 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             $credit_upd->close();
         }
 
+        // A paid move-in invoice is the moment the deposit is actually held.
+        if (!empty($inv_res['rent_application_id']) && (float)($inv_res['security_deposit'] ?? 0) > 0) {
+            $dep_app_id = (int)$inv_res['rent_application_id'];
+            $dep_upd = $conn->prepare("UPDATE lease_contracts SET deposit_status = 'Held' WHERE rent_application_id = ? AND deposit_status = 'Pending'");
+            $dep_upd->bind_param("i", $dep_app_id);
+            $dep_upd->execute();
+            $dep_upd->close();
+        }
+
         $conn->commit();
 
         // The tenant is told the payment landed, and a proof/cash declaration
@@ -1118,6 +1127,68 @@ function get_active_tenancy($conn, $user_id) {
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return $row ?: null;
+}
+
+// ── Move-in billing (payments audit 2026-09-30) ──
+// Every tenancy starts with one move-in invoice — 1 month advance rent
+// (tenancy month 0) + a 1-month security deposit — and a draft contract
+// whose deposit is 'Pending'. Only a paid move-in invoice lets the move-in be
+// scheduled, the contract be activated, or the move-in be confirmed.
+
+// Issues the move-in invoice and draft contract for an application that has
+// neither yet (each is skipped if it already exists). Throws on a failed
+// insert, so callers run it inside their transaction.
+function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_start, $lease_end) {
+    $app_id = (int)$app_id;
+    $monthly_rent = round((float)$monthly_rent, 2);
+
+    $check_inv = $conn->prepare("SELECT id FROM invoices WHERE rent_application_id = ?");
+    $check_inv->bind_param("i", $app_id);
+    $check_inv->execute();
+    $has_invoice = (bool)$check_inv->get_result()->fetch_assoc();
+    $check_inv->close();
+    if (!$has_invoice) {
+        $invoice_id = 'INV-' . uniqid();
+        // The same "Month YYYY" label every other writer uses. The advance
+        // rent is tenancy month 0; confirming the move-in relabels it to the
+        // month the tenancy actually starts.
+        $billing_period = billing_period_label(new DateTime($lease_start));
+        $due_date = date('Y-m-d', strtotime('+7 days'));
+        $total_amount = $monthly_rent * 2; // 1st month + 1 month deposit
+        $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
+        $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $app_id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
+        if (!$inv_stmt->execute()) {
+            throw new Exception("Failed to create move-in invoice: " . $inv_stmt->error);
+        }
+        $inv_stmt->close();
+    }
+
+    $check_ctr = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ?");
+    $check_ctr->bind_param("i", $app_id);
+    $check_ctr->execute();
+    $has_contract = (bool)$check_ctr->get_result()->fetch_assoc();
+    $check_ctr->close();
+    if (!$has_contract) {
+        $contract_id = 'CTR-' . uniqid();
+        // Security deposit is one month's rent — matches invoices.security_deposit above.
+        $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status, deposit_status) VALUES (?, ?, ?, ?, ?, 'draft', 'Pending')");
+        $ctr_stmt->bind_param("sidss", $contract_id, $app_id, $monthly_rent, $lease_start, $lease_end);
+        if (!$ctr_stmt->execute()) {
+            throw new Exception("Failed to create lease contract: " . $ctr_stmt->error);
+        }
+        $ctr_stmt->close();
+    }
+}
+
+// Whether the application's move-in invoice (advance rent + deposit) is paid.
+function move_in_paid($conn, $app_id) {
+    $app_id = (int)$app_id;
+    $stmt = $conn->prepare("SELECT 1 FROM invoices WHERE rent_application_id = ? AND security_deposit > 0 AND status = 'paid' LIMIT 1");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $paid = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $paid;
 }
 
 // ── Rent periods (panel feedback 2026-09-26) ──
@@ -1412,6 +1483,26 @@ function expire_unpaid_advances($conn, $only_user_id = null) {
     return $expired;
 }
 
+// ── Desk payment methods (payments audit follow-up 2026-10-01) ──
+// What the admin desk records: cash, GCash, or a bank transfer to BDO or BPI
+// (each bank its own method). Tenant channels are stored under their own
+// labels ('GCash (Manual)', 'BDO (Manual)', 'Cash on Hand', …);
+// desk_methods_for_label() gives the desk methods a label can be recorded
+// as — one, or both banks for an older generic 'Bank Transfer (Manual)'
+// proof — and [] when it implies none (e.g. an online Maya/card checkout).
+const DESK_PAYMENT_METHODS = ['Cash', 'GCash', 'BDO', 'BPI'];
+
+function desk_methods_for_label($label) {
+    $l = strtolower(trim((string)$label));
+    if ($l === '') return [];
+    if (strpos($l, 'gcash') !== false) return ['GCash'];
+    if (strpos($l, 'bdo') !== false) return ['BDO'];
+    if (strpos($l, 'bpi') !== false) return ['BPI'];
+    if (strpos($l, 'bank') !== false) return ['BDO', 'BPI'];
+    if (strpos($l, 'cash') !== false || strpos($l, 'in-person') !== false || strpos($l, 'in person') !== false) return ['Cash'];
+    return [];
+}
+
 // ── Advance payments (panel feedback 2026-09-26) ──
 // A tenant can prepay several future months at once. Each month is its own
 // rent invoice (so each gets its own receipt); the months share a
@@ -1442,7 +1533,7 @@ function payment_key_label($key) {
 // The invoices a payment key covers, oldest month first. $user_id limits them
 // to one owner (null = any, for admins); $statuses to those states (null = all).
 function payment_key_invoices($conn, $key, $user_id = null, $statuses = null) {
-    $sql = "SELECT id, user_id, status, total_amount, billing_period, due_date, checkout_session_id, payment_group
+    $sql = "SELECT id, user_id, status, total_amount, billing_period, due_date, checkout_session_id, payment_group, payment_method
             FROM invoices WHERE ? IN (id, payment_group)";
     $types = "s";
     $params = [$key];

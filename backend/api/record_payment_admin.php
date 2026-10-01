@@ -21,11 +21,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // were previously discarded, so every admin-recorded payment was
     // assumed to settle the full total with no reference kept.
     $payment_reference = trim($input['paymentReference'] ?? '') ?: null;
-    $amount_paid = isset($input['amountPaid']) && $input['amountPaid'] !== '' ? (float)$input['amountPaid'] : null;
+    $amount_paid = isset($input['amountPaid']) && $input['amountPaid'] !== '' ? $input['amountPaid'] : null;
 
     if (empty($invoice_id)) {
         echo json_encode(["success" => false, "message" => "Invalid target invoice parameter."]);
         exit;
+    }
+
+    // Payments audit 2026-09-30: the amount is required for every method. An
+    // omitted amount used to skip the short-payment check below, so a GCash or
+    // bank record for less than the bill still settled it in full.
+    if ($amount_paid === null || !is_numeric($amount_paid) || (float)$amount_paid <= 0) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Enter the amount received.", "errors" => ["amountPaid" => "Enter the amount received."]]);
+        exit;
+    }
+    $amount_paid = (float)$amount_paid;
+
+    // The recorded method is one of the desk methods, and must agree with how
+    // the tenant actually paid (payments audit follow-up 2026-10-01).
+    if (!in_array($payment_method, DESK_PAYMENT_METHODS, true)) {
+        http_response_code(422);
+        $msg = "Choose a payment method: " . implode(', ', DESK_PAYMENT_METHODS) . ".";
+        echo json_encode(["success" => false, "message" => $msg, "errors" => ["paymentMethod" => $msg]]);
+        exit;
+    }
+    $open_rows = payment_key_invoices($conn, $invoice_id, null, BILLING_OPEN_STATUSES);
+    foreach ($open_rows as $open_row) {
+        // A gateway checkout may still complete; recording it here as well
+        // could charge the tenant twice. The admin cancels it first
+        // (release_checkout_session.php) after checking PayMongo.
+        if ($open_row['status'] === 'processing') {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "An online checkout is in progress for this bill. Check PayMongo: if it wasn't paid there, cancel the checkout first, then record the payment."]);
+            exit;
+        }
+        // A proof under review is evidence of one channel: confirm it as that
+        // channel, or reject the proof — never relabel it.
+        $declared = $open_row['status'] === 'pending-verification' ? desk_methods_for_label($open_row['payment_method']) : [];
+        if ($declared && !in_array($payment_method, $declared, true)) {
+            http_response_code(422);
+            $as = implode(' or ', $declared);
+            $msg = "The tenant submitted this as {$open_row['payment_method']} with a proof. Confirm it as $as, or reject the proof.";
+            echo json_encode(["success" => false, "message" => $msg, "errors" => ["paymentMethod" => $msg]]);
+            exit;
+        }
     }
 
     // Shared with the PayMongo webhook (audit M12) — settle_invoice() is the

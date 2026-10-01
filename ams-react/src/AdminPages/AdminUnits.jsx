@@ -247,6 +247,7 @@ const AdminUnits = () => {
         fetchRooms();
         setShowAssignModal(false);
         setAssignForm(emptyAssignForm);
+        alert(response.data.message);
       } else if (!assignErrors.applyServerErrors(response)) {
         setLeaseError(apiErrorMessage(response, 'Failed to assign tenant.'));
       }
@@ -551,6 +552,9 @@ const AdminUnits = () => {
                   Duration: <strong>{monthsBetween(assignForm.moveIn, assignForm.leaseEnd)} months</strong> · Min required: <strong>{minLeaseDuration} months</strong>
                 </div>
               )}
+              <p className="m-0 text-xs text-slate-500 bg-indigo-50 border border-indigo-100 rounded-lg p-2">
+                The unit is reserved and a move-in invoice (1 month advance rent + 1 month security deposit) is issued. It becomes occupied when the move-in is confirmed after that invoice is paid.
+              </p>
               {leaseError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />

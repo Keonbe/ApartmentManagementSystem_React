@@ -139,6 +139,21 @@ if ($action === 'edit') {
         exit;
     }
 
+    // An active contract starts the monthly rent sweep, so it needs the move-in
+    // invoice (advance rent + deposit) paid first. And while the tenant has not
+    // moved in, confirming the move-in is what activates the contract — with
+    // the real start date the rent months are anchored on.
+    if (empty($contract['rent_application_id']) || !move_in_paid($conn, $contract['rent_application_id'])) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "The move-in invoice (advance rent and security deposit) must be paid before this contract can be activated."]);
+        exit;
+    }
+    if (!in_array($contract['app_status'], ['active', 'pending-move-out'], true)) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This tenant has not moved in yet. Confirm the move-in instead; that activates the contract from the move-in date."]);
+        exit;
+    }
+
     $stmt = $conn->prepare("UPDATE lease_contracts SET status = 'active' WHERE id = ? AND status = ?");
     $stmt->bind_param("ss", $contract_id, $current_status);
 
@@ -271,6 +286,24 @@ if ($action === 'edit') {
             throw new Exception("This tenant has already moved out.");
         }
 
+        // The deposit's disposition, as at an ordinary move-out (non-refundable,
+        // checklist 3.9): a held deposit is applied against whatever is still
+        // owed, else to rent; one never paid is recorded as not collected. Read
+        // before end_tenancy() cancels any invoice.
+        $open_stmt = $conn->prepare("SELECT COALESCE(SUM(total_amount), 0) AS open_total FROM invoices WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
+        $open_stmt->bind_param("i", $app_id);
+        $open_stmt->execute();
+        $open_total = (float)$open_stmt->get_result()->fetch_assoc()['open_total'];
+        $open_stmt->close();
+        $deposit_status = $open_total > 0 ? 'Applied to Bills/Damages' : 'Applied to Rent';
+        $dep_stmt = $conn->prepare("UPDATE lease_contracts
+            SET deposit_status = CASE WHEN deposit_status = 'Held' THEN ? ELSE 'Not Collected' END,
+                refund_amount = 0.00, refund_date = CURDATE()
+            WHERE id = ? AND deposit_status IN ('Held', 'Pending')");
+        $dep_stmt->bind_param("ss", $deposit_status, $contract_id);
+        $dep_stmt->execute();
+        $dep_stmt->close();
+
         $vacated = end_tenancy($conn, $app_id, 'Contract Terminated');
         if ($vacated === null) {
             throw new Exception("The application behind this contract no longer exists.");
@@ -283,6 +316,7 @@ if ($action === 'edit') {
                 "Your lease ($contract_id) has been terminated: $reason. Your unit has been marked vacant.");
         }
         $details = "Contract: $contract_id, Reason: $reason"
+            . ($open_total > 0 ? "; ₱" . number_format($open_total, 2) . " still open at termination" : "")
             . ($vacated['parking_released'] ? "; parking released" : "")
             . ($vacated['visitors_cancelled'] ? "; visitor pre-registrations cancelled" : "");
         log_activity($conn, $admin_id, 'contract', "Terminated Contract & Ended Tenancy", $details);

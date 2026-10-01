@@ -136,6 +136,9 @@ if ($row = $stmt->get_result()->fetch_assoc()) {
 $stmt->close();
 
 // 3. Financials (Current Period from Invoices)
+// Gross revenue leaves out security deposits (payments audit 2026-09-30): a
+// deposit is money held for the tenant — a liability — not income.
+// depositCollected is reported on its own as deposits received and held.
 $stmt = $conn->prepare("SELECT 
     SUM(base_rent) as rent, 
     SUM(water) as water, 
@@ -145,7 +148,7 @@ $stmt = $conn->prepare("SELECT
     SUM(COALESCE(maintenance, 0)) as maintenance,
     SUM(COALESCE(security_deposit, 0)) as deposit,
     SUM(late_fee) as late_fee,
-    SUM(total_amount) as total
+    SUM(total_amount - COALESCE(security_deposit, 0)) as total
 FROM invoices
 WHERE status = 'paid' AND advance_months IS NULL AND $paidDateCondition");
 $stmt->execute();
@@ -184,7 +187,7 @@ $stmt = $conn->prepare("SELECT
     SUM(COALESCE(maintenance, 0)) as maintenance,
     SUM(COALESCE(security_deposit, 0)) as deposit,
     SUM(late_fee) as late_fee,
-    SUM(total_amount) as total
+    SUM(total_amount - COALESCE(security_deposit, 0)) as total
 FROM invoices
 WHERE status = 'paid' AND advance_months IS NULL AND $prevPaidCondition");
 if ($stmt) {
@@ -373,16 +376,8 @@ $streams = [
         'color' => '#14b8a6',
         'icon' => 'faScrewdriverWrench'
     ],
-    [
-        'id' => 'deposit',
-        'category' => 'Security Deposits & Fees',
-        'amount' => $data['depositCollected'],
-        'pct' => $grossRevenue > 0 ? round(($data['depositCollected'] / $grossRevenue) * 100, 1) : 0,
-        'prevAmount' => $prevDeposit,
-        'growthPct' => $prevDeposit > 0 ? round((($data['depositCollected'] - $prevDeposit) / $prevDeposit) * 100, 1) : 0,
-        'color' => '#10b981',
-        'icon' => 'faShieldAlt'
-    ],
+    // No security deposit stream: a deposit is held for the tenant, not
+    // earned (see the gross revenue query above).
     // Late fees are part of every paid invoice's total_amount; without this stream
     // the categories did not add up to gross revenue.
     [
@@ -413,7 +408,7 @@ $stmt->close();
 $data['diversification'] = [
     'coreRentPct' => $grossRevenue > 0 ? round(($data['rentCollected'] / $grossRevenue) * 100, 1) : 0,
     'utilitiesPct' => $grossRevenue > 0 ? round((($data['waterCollected'] + $data['electricCollected']) / $grossRevenue) * 100, 1) : 0,
-    'ancillaryPct' => $grossRevenue > 0 ? round((($data['parkingCollected'] + $data['servicesCollected'] + $data['depositCollected'] + $data['lateFeesCollected']) / $grossRevenue) * 100, 1) : 0,
+    'ancillaryPct' => $grossRevenue > 0 ? round((($data['parkingCollected'] + $data['servicesCollected'] + $data['lateFeesCollected']) / $grossRevenue) * 100, 1) : 0,
     // Was hardcoded to 100 whenever any utility money came in.
     'utilityRecoveryRatio' => $utilityBilled > 0 ? round(($utilityPaid / $utilityBilled) * 100, 1) : 0
 ];
@@ -432,7 +427,7 @@ $stmt = $conn->prepare("SELECT
     SUM(COALESCE(i.maintenance, 0)) as maintenance_total,
     SUM(COALESCE(i.security_deposit, 0)) as deposit_total,
     SUM(i.late_fee) as late_fee_total,
-    SUM(i.total_amount) as total_collected,
+    SUM(i.total_amount - COALESCE(i.security_deposit, 0)) as total_collected,
     COUNT(i.id) as invoice_count
 FROM invoices i
 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
@@ -534,7 +529,7 @@ for ($i = 5; $i >= 0; $i--) {
         SUM(COALESCE(services, 0)) as services,
         SUM(COALESCE(security_deposit, 0)) as deposit,
         SUM(late_fee) as late_fee,
-        SUM(total_amount) as total
+        SUM(total_amount - COALESCE(security_deposit, 0)) as total
     FROM invoices
     WHERE status = 'paid' AND advance_months IS NULL AND YEAR(COALESCE(paid_at, created_at)) = ? AND MONTH(COALESCE(paid_at, created_at)) = ?");
     $rev_stmt->bind_param("ii", $target_year, $target_month);
@@ -549,8 +544,8 @@ for ($i = 5; $i >= 0; $i--) {
     $monthDeposit = (float)($rev_res['deposit'] ?? 0);
     $monthLateFee = (float)($rev_res['late_fee'] ?? 0);
     $monthRevenue = (float)($rev_res['total'] ?? 0);
-    if ($monthRevenue == 0 && ($monthRent > 0 || $monthElectric > 0 || $monthWater > 0 || $monthParking > 0 || $monthServices > 0 || $monthDeposit > 0 || $monthLateFee > 0)) {
-        $monthRevenue = $monthRent + $monthElectric + $monthWater + $monthParking + $monthServices + $monthDeposit + $monthLateFee;
+    if ($monthRevenue == 0 && ($monthRent > 0 || $monthElectric > 0 || $monthWater > 0 || $monthParking > 0 || $monthServices > 0 || $monthLateFee > 0)) {
+        $monthRevenue = $monthRent + $monthElectric + $monthWater + $monthParking + $monthServices + $monthLateFee;
     }
     $rev_stmt->close();
     
@@ -755,7 +750,7 @@ if (empty($data['tenantList'])) {
 }
 
 // 2. methodsBreakdown & payment records
-$data['methodsBreakdown'] = ['Cash' => 0, 'GCash' => 0, 'Bank Transfer' => 0];
+$data['methodsBreakdown'] = ['Cash' => 0, 'GCash' => 0, 'BDO' => 0, 'BPI' => 0];
 $data['paymentRecords'] = [];
 $stmt = $conn->prepare("SELECT i.id, u.first_name, u.last_name, r.id as unit, i.billing_period, i.total_amount, i.payment_method, i.paid_at, i.base_rent, i.water, i.electricity, i.parking, i.services, i.late_fee, i.security_deposit FROM invoices i LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id LEFT JOIN rooms r ON ra.room_name = r.id LEFT JOIN users u ON i.user_id = u.id WHERE i.status = 'paid' AND i.advance_months IS NULL AND $invoiceDateCondition ORDER BY i.paid_at DESC LIMIT 50");
 $stmt->execute();

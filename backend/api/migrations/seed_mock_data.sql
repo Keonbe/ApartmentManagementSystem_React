@@ -100,18 +100,18 @@ UPDATE `rooms` SET `status` = 'occupied', `tenant_name` = 'Grace Mendoza',     `
 -- 4. LEASE CONTRACTS (one per Approved application; Gloria's Pending
 --    application has none yet)
 -- ============================================================
-INSERT IGNORE INTO `lease_contracts` (`id`, `rent_application_id`, `deposit_amount`, `lease_start`, `lease_end`, `status`, `eviction_status`, `signed_lease_path`, `notarized_lease_path`, `generated_at`) VALUES
-('LC-0001', 1,  4000.00, '2025-11-01', '2026-11-01', 'active',           NULL,      'placeholder', 'placeholder', '2025-10-27 09:00:00'),
-('LC-0002', 2,  4000.00, '2025-10-01', '2026-10-01', 'active',           NULL,      'placeholder', 'placeholder', '2025-09-25 10:00:00'),
-('LC-0003', 3,  4000.00, '2025-09-01', '2026-12-01', 'active',           NULL,      'placeholder', 'placeholder', '2025-08-27 12:00:00'),
-('LC-0004', 4,  4000.00, '2025-11-01', '2026-11-01', 'eviction-pending', 'flagged', 'placeholder', 'placeholder', '2025-10-27 09:00:00'),
-('LC-0005', 5,  4000.00, '2026-08-01', '2027-08-01', 'draft',            NULL,      NULL,          NULL,          '2026-07-29 10:00:00'),
-('LC-0006', 7,  4000.00, '2025-10-15', '2026-10-15', 'active',           NULL,      'placeholder', 'placeholder', '2025-10-10 08:30:00'),
-('LC-0007', 8,  4000.00, '2025-10-01', '2026-10-01', 'active',           NULL,      'placeholder', 'placeholder', '2025-09-26 11:00:00'),
-('LC-0008', 9,  4000.00, '2025-12-01', '2026-12-01', 'active',           NULL,      'placeholder', 'placeholder', '2025-11-25 10:00:00'),
-('LC-0009', 10, 3500.00, '2025-10-15', '2026-10-15', 'active',           NULL,      'placeholder', 'placeholder', '2025-10-10 11:00:00'),
-('LC-0010', 11, 3500.00, '2025-09-20', '2026-09-20', 'active',           NULL,      'placeholder', 'placeholder', '2025-09-15 09:30:00'),
-('LC-0011', 12, 3500.00, '2026-01-05', '2027-01-05', 'active',           NULL,      'placeholder', 'placeholder', '2025-12-28 10:00:00');
+INSERT IGNORE INTO `lease_contracts` (`id`, `rent_application_id`, `deposit_amount`, `lease_start`, `lease_end`, `status`, `eviction_status`, `signed_lease_path`, `notarized_lease_path`, `deposit_status`, `generated_at`) VALUES
+('LC-0001', 1,  4000.00, '2025-11-01', '2026-11-01', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-10-27 09:00:00'),
+('LC-0002', 2,  4000.00, '2025-10-01', '2026-10-01', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-09-25 10:00:00'),
+('LC-0003', 3,  4000.00, '2025-09-01', '2026-12-01', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-08-27 12:00:00'),
+('LC-0004', 4,  4000.00, '2025-11-01', '2026-11-01', 'eviction-pending', 'flagged', 'placeholder', 'placeholder', 'Held', '2025-10-27 09:00:00'),
+('LC-0005', 5,  4000.00, '2026-08-01', '2027-08-01', 'draft',            NULL,      NULL,          NULL,          'Held', '2026-07-29 10:00:00'),
+('LC-0006', 7,  4000.00, '2025-10-15', '2026-10-15', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-10-10 08:30:00'),
+('LC-0007', 8,  4000.00, '2025-10-01', '2026-10-01', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-09-26 11:00:00'),
+('LC-0008', 9,  4000.00, '2025-12-01', '2026-12-01', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-11-25 10:00:00'),
+('LC-0009', 10, 3500.00, '2025-10-15', '2026-10-15', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-10-10 11:00:00'),
+('LC-0010', 11, 3500.00, '2025-09-20', '2026-09-20', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-09-15 09:30:00'),
+('LC-0011', 12, 3500.00, '2026-01-05', '2027-01-05', 'active',           NULL,      'placeholder', 'placeholder', 'Held', '2025-12-28 10:00:00');
 
 -- Rosa's mid-year renewal: original 6-month term (lease_end 2026-03-01)
 -- extended by 9 months to 2026-12-01. lease_contracts.lease_end above

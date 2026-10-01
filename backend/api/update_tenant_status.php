@@ -259,48 +259,8 @@ if ($id > 0 && !empty($status)) {
                     $res_stmt->close();
                 }
 
-                // Check if invoice already exists for this application
-                $check_inv = $conn->prepare("SELECT id FROM invoices WHERE rent_application_id = ?");
-                $check_inv->bind_param("i", $id);
-                $check_inv->execute();
-                $check_res = $check_inv->get_result();
-                if ($check_res->num_rows === 0) {
-                    $invoice_id = 'INV-' . uniqid();
-                    // The same "Month YYYY" label every other writer uses (this
-                    // used to be 'YYYY-MM', which the duplicate-rent check never
-                    // matched). The advance rent is tenancy month 0;
-                    // settle_invoice() moves it to the payment date, when the
-                    // tenancy actually starts.
-                    $billing_period = billing_period_label(new DateTime($lease_start));
-                    $due_date = date('Y-m-d', strtotime('+7 days'));
-                    $total_amount = $monthly_rent * 2; // 1st month + 1 month deposit
-
-                    $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
-                    $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
-                    if (!$inv_stmt->execute()) {
-                        throw new Exception("Failed to create move-in invoice: " . $inv_stmt->error);
-                    }
-                    $inv_stmt->close();
-                }
-                $check_inv->close();
-
-                // Check if contract already exists for this application
-                $check_ctr = $conn->prepare("SELECT id FROM lease_contracts WHERE rent_application_id = ?");
-                $check_ctr->bind_param("i", $id);
-                $check_ctr->execute();
-                $ctr_res = $check_ctr->get_result();
-                if ($ctr_res->num_rows === 0) {
-                    $contract_id = 'CTR-' . uniqid();
-                    // Security deposit is one month's rent — matches invoices.security_deposit above.
-                    $security_deposit = $monthly_rent;
-                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'draft')");
-                    $ctr_stmt->bind_param("sidss", $contract_id, $id, $security_deposit, $lease_start, $lease_end);
-                    if (!$ctr_stmt->execute()) {
-                        throw new Exception("Failed to create lease contract: " . $ctr_stmt->error);
-                    }
-                    $ctr_stmt->close();
-                }
-                $check_ctr->close();
+                // Move-in invoice (advance + deposit) and draft contract.
+                issue_move_in_billing($conn, $id, $user_id, $monthly_rent, $lease_start, $lease_end);
             }
             $app_stmt->close();
         }
@@ -314,12 +274,7 @@ if ($id > 0 && !empty($status)) {
             if (!$move_in_app || empty($move_in_app['move_in_date'])) {
                 throw new Exception("Set and notify a move-in date before confirming move-in.");
             }
-            $paid_q = $conn->prepare("SELECT 1 FROM invoices WHERE rent_application_id = ? AND security_deposit > 0 AND status = 'paid' LIMIT 1");
-            $paid_q->bind_param("i", $id);
-            $paid_q->execute();
-            $is_paid = (bool)$paid_q->get_result()->fetch_assoc();
-            $paid_q->close();
-            if (!$is_paid) throw new Exception("Initial payment must be confirmed before move-in.");
+            if (!move_in_paid($conn, $id)) throw new Exception("Initial payment must be confirmed before move-in.");
 
             $lease_start = $move_in_app['move_in_date'];
             $lease_end = date('Y-m-d', strtotime("+" . (int)$move_in_app['months_of_rent'] . " months", strtotime($lease_start)));

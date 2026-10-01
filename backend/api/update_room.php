@@ -41,6 +41,27 @@ try {
         exit();
     }
 
+    // Manual tenant assignment (payments audit 2026-09-30): a unit only becomes
+    // 'occupied' when a move-in is confirmed, after the move-in invoice
+    // (advance rent + deposit) is paid. Assigning a tenant here holds the unit
+    // as 'reserved' and bills the move-in below, exactly like an approved
+    // application; a bare 'occupied' with no tenant is refused.
+    $assign_user_id = $data['user_id'] ?? $data['userId'] ?? null;
+    $assigning = ($data['status'] ?? null) === 'occupied';
+    if ($assigning) {
+        if (empty($assign_user_id)) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Choose the tenant to assign. A unit becomes occupied only when a tenant\'s move-in is confirmed.']);
+            exit();
+        }
+        if (!in_array($currentRoom['status'], ['vacant', 'reserved'], true)) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => "Room $id is {$currentRoom['status']} and cannot be assigned."]);
+            exit();
+        }
+        $data['status'] = 'reserved';
+    }
+
     // Build update query dynamically based on provided fields
     $updateFields = [];
     $params = [];
@@ -86,9 +107,8 @@ try {
         }
         $stmt->close();
 
-        $user_id = $data['user_id'] ?? $data['userId'] ?? null;
-        $status = $data['status'] ?? null;
-        if ($status === 'occupied' && !empty($user_id)) {
+        $user_id = $assign_user_id;
+        if ($assigning) {
             // Fetch user info
             $u_stmt = $conn->prepare("SELECT first_name, last_name, email_address, contact_no, gender FROM users WHERE id = ?");
             $u_stmt->bind_param("i", $user_id);
@@ -130,8 +150,9 @@ try {
                 $app_check = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND room_name = ? AND status IN ('Approved', 'active', 'pending-move-out') LIMIT 1");
                 $app_check->bind_param("is", $user_id, $id);
                 $app_check->execute();
-                $check_res = $app_check->get_result();
-                if ($check_res->num_rows === 0) {
+                $existing_app = $app_check->get_result()->fetch_assoc();
+                $assigned_app_id = $existing_app ? (int)$existing_app['id'] : null;
+                if (!$existing_app) {
                     // Insert an admin-attested approved application so the user can access
                     // the room. Documents stay 'placeholder' (none were uploaded through
                     // this in-person flow) but terms_agreed_at is stamped now, recording
@@ -141,9 +162,16 @@ try {
                     if (!$ins_app->execute()) {
                         throw new Exception("Failed to create application record for the assigned tenant: " . $ins_app->error);
                     }
+                    $assigned_app_id = (int)$conn->insert_id;
                     $ins_app->close();
                 }
                 $app_check->close();
+
+                // The same move-in invoice and draft contract an approved
+                // application gets — no tenancy starts without them.
+                issue_move_in_billing($conn, $assigned_app_id, (int)$user_id, $monthly_rent, $lease_start, $lease_end);
+            } else {
+                throw new Exception("Cannot assign tenant: user $user_id was not found.");
             }
             $u_stmt->close();
         }
@@ -169,9 +197,17 @@ try {
         }
     }
 
+    if ($assigning) {
+        $actionDesc .= " Reserved for user $user_id; move-in invoice (advance rent + deposit) issued.";
+        create_notification($conn, (int)$user_id, 'billing', 'Unit Reserved — Move-In Payment Due',
+            "Unit $id has been reserved for you. Pay the move-in invoice (1 month advance rent + 1 month security deposit) on the Pay Bills page; your move-in date is set once it is paid.");
+    }
+
     log_activity($conn, $adminId, 'unit', 'Updated Unit', $actionDesc);
 
-    echo json_encode(['success' => true, 'message' => 'Room updated successfully']);
+    echo json_encode(['success' => true, 'message' => $assigning
+        ? "Room $id reserved. The move-in invoice (advance rent + deposit) was issued; the unit becomes occupied when the move-in is confirmed after payment."
+        : 'Room updated successfully']);
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
