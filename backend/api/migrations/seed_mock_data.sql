@@ -352,7 +352,7 @@ INSERT IGNORE INTO `activity_logs` (`category`, `action`, `details`, `performed_
 ('tenant',      'Approved Application', 'Approved rent application for Rosa Dela Cruz - Room C.',      @admin_id, '2025-08-27 12:00:00'),
 ('tenant',      'Approved Application', 'Approved rent application for Ben Flores - Room D.',          @admin_id, '2025-10-27 09:00:00'),
 ('tenant',      'Approved Application', 'Approved rent application for Lita Ramos - Room E.',          @admin_id, '2026-07-29 10:00:00'),
-('contract',    'Approved Lease Extension', 'User ID: 5 - Contract LC-0003 extended by 9 month(s): 2026-03-01 to 2026-12-01', @admin_id, '2026-07-05 10:30:00'),
+('contract',    'Approved Rent Extension', 'User ID: 5 - Contract LC-0003 extended by 9 month(s): 2026-03-01 to 2026-12-01', @admin_id, '2026-07-05 10:30:00'),
 ('tenant',      'Updated Contract Eviction Status', 'Contract: LC-0004, Action: flag', @admin_id, '2026-08-16 11:00:00'),
 ('maintenance', 'Resolved Maintenance', 'Plumbing issue in Room G resolved. Cost: PHP1,500.',   @admin_id, '2026-02-10 14:00:00'),
 ('maintenance', 'Resolved Maintenance', 'Electrical repair in Room B completed. Cost: PHP2,200.', @admin_id, '2026-04-12 13:00:00'),

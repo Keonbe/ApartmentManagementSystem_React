@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 // Writes are the lease holder's own requests.
 if ($auth['role'] === 'admin') fail(403, "Household changes are requested by the tenant and approved in Notifications.");
-if (!$app) fail(403, "No active lease found for this account.");
+if (!$app) fail(403, "No active rental found for this account.");
 $app_id = (int)$app['id'];
 $holder = trim($app['first_name'] . ' ' . $app['last_name']);
 $room = $app['room_name'];

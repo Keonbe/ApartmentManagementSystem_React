@@ -207,8 +207,8 @@ function email_status_update_template($tenant_name, $request_type, $request_labe
 
 function email_lease_reminder_template($tenant_name, $room, $lease_end, $days_left) {
     $content = "<p style=\"color:#334155;line-height:1.6;\">Hello <strong>" . esc($tenant_name) . "</strong>,</p>"
-             . "<p style=\"color:#334155;line-height:1.6;\">Your lease for <strong>Unit " . esc($room) . "</strong> expires on <strong>" . esc($lease_end) . "</strong> "
+             . "<p style=\"color:#334155;line-height:1.6;\">Your rent for <strong>Unit " . esc($room) . "</strong> expires on <strong>" . esc($lease_end) . "</strong> "
              . "(<strong>" . (int)$days_left . " days remaining</strong>).</p>"
              . "<p style=\"color:#334155;line-height:1.6;\">Please contact the admin office to discuss renewal options.</p>";
-    return email_base_template("Lease Expiring Soon - Unit " . $room, $content);
+    return email_base_template("Rent Contract Expiring Soon - Unit " . $room, $content);
 }

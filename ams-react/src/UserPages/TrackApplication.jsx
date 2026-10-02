@@ -123,7 +123,7 @@ export default function TrackApplication() {
     const handleInitialPayment = async (e) => {
         e.preventDefault();
         if (!application?.signed_lease_path) {
-            alert("Please upload your signed lease contract before proceeding to payment.");
+            alert("Please upload your signed rent contract before proceeding to payment.");
             return;
         }
         if (!application?.pending_invoice_id) {
@@ -378,7 +378,7 @@ export default function TrackApplication() {
                                 <h2 className="text-2xl font-bold text-white m-0">
                                     {statusNormalized === 'moved-out' 
                                         ? "Previous Tenancy Concluded" 
-                                        : `Lease Application for ${application.room_name ? `Room ${application.room_name}` : "Studio Unit"}`}
+                                        : `Rent Application for ${application.room_name ? `Room ${application.room_name}` : "Studio Unit"}`}
                                 </h2>
                                 <p className="text-slate-400 text-xs m-0 font-medium pt-1">
                                     {statusNormalized === 'moved-out'
@@ -819,7 +819,7 @@ export default function TrackApplication() {
                                         </div>
                                         <div className="flex flex-col md:items-center">
                                             <span className="text-sm font-bold text-white">Tenancy Concluded</span>
-                                            <span className="text-xs text-slate-400 mt-0.5">Lease period ended</span>
+                                            <span className="text-xs text-slate-400 mt-0.5">Rent period ended</span>
                                         </div>
                                     </div>
 
@@ -841,7 +841,7 @@ export default function TrackApplication() {
                                         </div>
                                         <div className="flex flex-col md:items-center">
                                             <span className="text-sm font-bold text-white">Unit Vacated</span>
-                                            <span className="text-xs text-slate-400 mt-0.5">Room released vacant for lease</span>
+                                            <span className="text-xs text-slate-400 mt-0.5">Room released vacant for rent</span>
                                         </div>
                                     </div>
                                 </div>
@@ -909,7 +909,7 @@ export default function TrackApplication() {
 
                         {/* Lease Details Grid */}
                         <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
-                            <h3 className="text-lg font-bold text-white m-0">Lease Details</h3>
+                            <h3 className="text-lg font-bold text-white m-0">Rent Details</h3>
                             
                             <div className="track-app-details-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                                 <div className="flex items-center space-x-3.5">
@@ -939,7 +939,7 @@ export default function TrackApplication() {
                                         <FontAwesomeIcon icon={faCalendarAlt} className="text-lg" />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lease Term</span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rent Term</span>
                                         <span className="text-sm font-extrabold text-white mt-0.5">{application.months_of_rent} Months</span>
                                     </div>
                                 </div>
@@ -966,7 +966,7 @@ export default function TrackApplication() {
                         <div className="space-y-2">
                             <h2 className="text-2xl font-bold text-white m-0">No Active Application</h2>
                             <p className="text-slate-300 text-sm leading-relaxed max-w-md mx-auto m-0 font-medium">
-                                You haven't submitted any lease application yet. Browse our available studio room configurations to start your boarding process.
+                                You haven't submitted any rent application yet. Browse our available studio room configurations to start your boarding process.
                             </p>
                         </div>
 

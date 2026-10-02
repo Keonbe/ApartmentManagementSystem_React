@@ -874,7 +874,7 @@ const AdminApplications = () => {
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.occupants} Person(s)</p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Lease Term</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faCalendarAlt} className="mr-1"/> Rent Term</p>
                   <p className="text-sm font-semibold text-slate-800 m-0">{selectedApp.months_of_rent} Months</p>
                 </div>
                 <div className="card-interactive bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col justify-between">

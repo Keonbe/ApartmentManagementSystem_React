@@ -37,7 +37,7 @@ const typeConfig = {
   move_out_update: { label: 'Move-Out', icon: faHome, color: 'bg-violet-50 text-violet-600 border-violet-100', badge: 'bg-violet-100 text-violet-700' },
   household_request: { label: 'Household Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
   occupancy_request: { label: 'Occupancy Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
-  lease_extension_request: { label: 'Lease Extension', icon: faFileContract, color: 'bg-emerald-50 text-emerald-600 border-emerald-100', badge: 'bg-emerald-100 text-emerald-700' },
+  lease_extension_request: { label: 'Rent Extension', icon: faFileContract, color: 'bg-emerald-50 text-emerald-600 border-emerald-100', badge: 'bg-emerald-100 text-emerald-700' },
 };
 
 const TAB_TYPES = {
@@ -190,7 +190,7 @@ export default function UserNotifications() {
     { key: 'unread', label: t('notifications.tabUnread') },
     { key: 'billing', label: 'Rent & Billing' },
     { key: 'requests', label: 'Requests' },
-    { key: 'lease', label: 'Lease & Application' },
+    { key: 'lease', label: 'Rent & Application' },
     { key: 'announcements', label: 'Announcements' },
     { key: 'archived', label: 'Archived' },
   ];

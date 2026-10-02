@@ -1028,7 +1028,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('overdueThresholdDays', '15'),
 ('autoFlagEviction', 'true'),
 ('maintenanceMonthlyBudget', '50000'),
-('tenantResponsibilityClause', '"Per the Terms & Conditions of this lease agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the leased unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation."'),
+('tenantResponsibilityClause', '"Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation."'),
 ('payment_mode', 'manual'),
 ('payment_sandbox_enabled', '0'),
 ('payment_ch_gcash_sandbox', '1'),

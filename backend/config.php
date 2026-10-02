@@ -201,8 +201,8 @@ function expire_lapsed_contracts($conn) {
         if ($upd->affected_rows === 0) continue; // already expired by a concurrent call
         $count++;
         if (!empty($row['user_id'])) {
-            create_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Contract Expired',
-                "Your lease contract ({$row['id']}) has expired. Contact management about renewal or move-out.");
+            create_notification($conn, (int)$row['user_id'], 'contract_update', 'Rent Contract Expired',
+                "Your rent contract ({$row['id']}) has expired. Contact management about renewal or move-out.");
         }
     }
     $upd->close();
@@ -238,20 +238,20 @@ function send_lease_end_reminders($conn) {
         if (!empty($row['user_id'])) {
             $unit = !empty($row['room_name']) ? "Unit {$row['room_name']}" : 'your unit';
             $end = date('M j, Y', strtotime($row['lease_end']));
-            create_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
-                "Your lease for $unit ends on $end. Visit My Room to request an extension if you'd like to stay.");
+            create_notification($conn, (int)$row['user_id'], 'contract_update', 'Rent Approaching End',
+                "Your rent for $unit ends on $end. Visit My Room to request an extension if you'd like to stay.");
 
             // SMS and email too. After the claim, so a re-run never texts twice,
             // and never allowed to stop the rest of the sweep.
             try {
                 require_once __DIR__ . '/api/services/send_notification.php';
-                dispatch_system_notification($conn, (int)$row['user_id'], 'contract_update', 'Lease Approaching End',
+                dispatch_system_notification($conn, (int)$row['user_id'], 'contract_update', 'Rent Approaching End',
                     sms_lease_reminder_template($row['room_name'], $row['lease_end'], $row['days_left']),
                     email_lease_reminder_template(notify_recipient_name($conn, $row['user_id']),
                         $row['room_name'] ?: '-', $end, (int)$row['days_left']),
                     null);
             } catch (Throwable $e) {
-                error_log('Lease-end reminder dispatch failed: ' . $e->getMessage());
+                error_log('Rent-end reminder dispatch failed: ' . $e->getMessage());
             }
         }
     }
@@ -479,7 +479,7 @@ function post_service_charge($conn, $service_request_id) {
             if (!$lease) {
                 //RollbackUnclaimsTheRowSoTheChargeCanBePostedLater
                 $conn->rollback();
-                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved lease — cannot post service charge.'];
+                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved rental — cannot post service charge.'];
             }
 
             $invoice_id = 'INV-' . $now->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
@@ -644,7 +644,7 @@ function post_maintenance_charge($conn, $maintenance_request_id) {
 
             if (!$lease) {
                 $conn->rollback();
-                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved lease — cannot post maintenance charge.'];
+                return ['ok' => false, 'invoice_id' => null, 'message' => 'No active approved rental — cannot post maintenance charge.'];
             }
 
             $invoice_id = 'INV-' . $now->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
@@ -1174,7 +1174,7 @@ function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_s
         $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status, deposit_status) VALUES (?, ?, ?, ?, ?, 'draft', 'Pending')");
         $ctr_stmt->bind_param("sidss", $contract_id, $app_id, $monthly_rent, $lease_start, $lease_end);
         if (!$ctr_stmt->execute()) {
-            throw new Exception("Failed to create lease contract: " . $ctr_stmt->error);
+            throw new Exception("Failed to create rent contract: " . $ctr_stmt->error);
         }
         $ctr_stmt->close();
     }
@@ -2557,7 +2557,7 @@ function run_notification_sweep($conn, $force = false) {
          + $result['contracts_expired'] + $result['lease_end_reminders_sent'];
     if ($did > 0) {
         log_activity($conn, null, 'system', 'Daily Notification Sweep',
-            "Marked overdue: {$result['marked_overdue']}; rent invoices created: {$result['rent_invoices_created']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}; contracts expired: {$result['contracts_expired']}; lease-end reminders sent: {$result['lease_end_reminders_sent']}",
+            "Marked overdue: {$result['marked_overdue']}; rent invoices created: {$result['rent_invoices_created']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}; contracts expired: {$result['contracts_expired']}; rent-end reminders sent: {$result['lease_end_reminders_sent']}",
             0);
     }
 
@@ -2702,7 +2702,7 @@ function post_parking_charge($conn, $reservation_id, DateTime $month) {
             $lease = get_active_tenancy($conn, $user_id);
             if (!$lease) {
                 $conn->rollback();
-                return ['ok' => false, 'invoice_id' => null, 'message' => 'The tenant has no active lease, so parking cannot be billed.', 'already' => false];
+                return ['ok' => false, 'invoice_id' => null, 'message' => 'The tenant has no active rental, so parking cannot be billed.', 'already' => false];
             }
             // Parking-only invoice. Rent is never billed from here.
             $invoice_id = 'INV-' . $month->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));

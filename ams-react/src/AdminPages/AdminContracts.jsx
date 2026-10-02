@@ -24,16 +24,16 @@ const DATE_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg 
 
 // Lease end: a real date after the start, at most 24 months later.
 const checkLeaseEnd = (start, end) => {
-  const base = checkDate(end, { label: 'Lease end', max: maxFutureDate() })
-    || checkDateRange(start, end, { startLabel: 'Lease start', endLabel: 'Lease end' });
+  const base = checkDate(end, { label: 'Rent end', max: maxFutureDate() })
+    || checkDateRange(start, end, { startLabel: 'Rent start', endLabel: 'Rent end' });
   if (base || !start) return base;
-  if (end === start) return 'Lease end must be after the lease start.';
+  if (end === start) return 'Rent end must be after the rent start.';
   const maxEnd = new Date(`${start}T00:00:00`);
   maxEnd.setMonth(maxEnd.getMonth() + MAX_LEASE_MONTHS);
-  return new Date(`${end}T00:00:00`) > maxEnd ? `The maximum lease period is ${MAX_LEASE_MONTHS} months.` : '';
+  return new Date(`${end}T00:00:00`) > maxEnd ? `The maximum rent period is ${MAX_LEASE_MONTHS} months.` : '';
 };
 const LEASE_VALIDATORS = {
-  leaseStart: (v) => checkDate(v, { label: 'Lease start', max: maxFutureDate() }),
+  leaseStart: (v) => checkDate(v, { label: 'Rent start', max: maxFutureDate() }),
   leaseEnd: (v, all) => checkLeaseEnd(all.leaseStart, v),
 };
 
@@ -259,11 +259,11 @@ const AdminContracts = () => {
         }));
         setIsEditingDates(false);
       } else if (!editErrors.applyServerErrors(res)) {
-        alert(apiErrorMessage(res, 'Failed to update lease dates.'));
+        alert(apiErrorMessage(res, 'Failed to update rent dates.'));
       }
     } catch (err) {
       console.error(err);
-      if (!editErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to update lease dates.'));
+      if (!editErrors.applyServerErrors(err)) alert(apiErrorMessage(err, 'Failed to update rent dates.'));
     } finally {
       setSavingDates(false);
     }
@@ -491,7 +491,7 @@ const AdminContracts = () => {
             {/* Doc completeness notice */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
               <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
-              <span>All contracts require <strong>signed lease agreement</strong> and <strong>notarized copy</strong> to be uploaded. Eviction threshold: <strong>{overdueThresholdDays} days</strong> overdue.</span>
+              <span>All contracts require <strong>signed rent agreement</strong> and <strong>notarized copy</strong> to be uploaded. Eviction threshold: <strong>{overdueThresholdDays} days</strong> overdue.</span>
             </div>
 
             {/* Toolbar */}
@@ -515,7 +515,7 @@ const AdminContracts = () => {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                    <th className="py-3 px-4">Contract ID</th><th className="py-3 px-4">Tenant</th><th className="py-3 px-4">Unit</th><th className="py-3 px-4">Lease Period</th><th className="py-3 px-4">Rent</th><th className="py-3 px-4">Documents</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4">Contract ID</th><th className="py-3 px-4">Tenant</th><th className="py-3 px-4">Unit</th><th className="py-3 px-4">Rent Period</th><th className="py-3 px-4">Rent</th><th className="py-3 px-4">Documents</th><th className="py-3 px-4">Status</th><th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="stagger-children">
@@ -614,7 +614,7 @@ const AdminContracts = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="contract-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start *</label>
+                      <label htmlFor="contract-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent Start *</label>
                       <input type="date" {...contractErrors.fieldA11y('leaseStart')} max={maxFutureDate()} value={form.leaseStart}
                         onChange={e => setContractField('leaseStart', e.target.value)}
                         onBlur={() => form.leaseStart && contractErrors.validateField('leaseStart', form)}
@@ -622,7 +622,7 @@ const AdminContracts = () => {
                       <FieldError id="contract-leaseStart" error={contractErrors.errors.leaseStart} />
                     </div>
                     <div>
-                      <label htmlFor="contract-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                      <label htmlFor="contract-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent End *</label>
                       <input type="date" {...contractErrors.fieldA11y('leaseEnd')} min={form.leaseStart || undefined} max={maxFutureDate()} value={form.leaseEnd}
                         onChange={e => setContractField('leaseEnd', e.target.value)}
                         onBlur={() => form.leaseEnd && contractErrors.validateField('leaseEnd', form)}
@@ -637,26 +637,26 @@ const AdminContracts = () => {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
                   <div className="text-center border-b border-slate-200 pb-4">
                     <h3 className="text-lg font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
-                    <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Lease Agreement</p>
+                    <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Rent Agreement</p>
                   </div>
                   <div className="space-y-2 text-xs text-slate-700">
                     <div className="flex justify-between"><span className="text-slate-400">Tenant:</span><span className="font-semibold">{form.tenant}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Unit:</span><span className="font-semibold">{form.unit} ({form.type})</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Monthly Rent:</span><span className="font-semibold">{formatCurrency(form.rent)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-400">Security Deposit:</span><span className="font-semibold">{formatCurrency(form.deposit)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-400">Lease Period:</span><span className="font-semibold">{form.leaseStart} → {form.leaseEnd}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-400">Rent Period:</span><span className="font-semibold">{form.leaseStart} → {form.leaseEnd}</span></div>
                   </div>
                   <div className="border-t border-slate-200 pt-3">
                     <p className="text-[10px] text-slate-400 leading-relaxed m-0">
-                      This Lease Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
+                      This Rent Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                       The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
                       will be charged for payments made after the due date. The security deposit shall be refunded upon 
-                      lease termination, subject to property inspection. Both parties agree to the terms herein.
+                      the end of the rent term, subject to property inspection. Both parties agree to the terms herein.
                     </p>
                   </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
                     <FontAwesomeIcon icon={faInfoCircle} className="mr-1.5" />
-                    <strong>Note:</strong> After generating the contract, upload signed and notarized lease documents via the contract details page.
+                    <strong>Note:</strong> After generating the contract, upload signed and notarized rent documents via the contract details page.
                   </div>
                 </div>
               )}
@@ -693,10 +693,10 @@ const AdminContracts = () => {
 
       {terminateTarget && (
         <ReasonModal
-          title="Terminate Lease"
+          title="Terminate Rent Contract"
           description="This also marks the tenant as moved out and vacates their unit."
-          label="Reason for terminating this lease"
-          confirmLabel="Terminate Lease"
+          label="Reason for terminating this rent contract"
+          confirmLabel="Terminate Rent Contract"
           onConfirm={confirmTerminate}
           onClose={() => setTerminateTarget(null)}
         />
@@ -723,7 +723,7 @@ const AdminContracts = () => {
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-bold text-amber-900 m-0">This contract is still a draft.</p>
-                    <p className="text-[11px] text-amber-700 m-0 mt-0.5">Review the lease details below, then activate it to make it binding.</p>
+                    <p className="text-[11px] text-amber-700 m-0 mt-0.5">Review the rent contract details below, then activate it to make it binding.</p>
                   </div>
                   <button
                     type="button"
@@ -737,7 +737,7 @@ const AdminContracts = () => {
 
               {selectedContract.status === 'terminated' && (
                 <div className="bg-slate-100 border border-slate-300 rounded-xl p-4">
-                  <p className="text-sm font-bold text-slate-700 m-0">This lease was terminated.</p>
+                  <p className="text-sm font-bold text-slate-700 m-0">This rent contract was terminated.</p>
                   {selectedContract.terminationReason && (
                     <p className="text-[11px] text-slate-500 m-0 mt-0.5">Reason: {selectedContract.terminationReason}</p>
                   )}
@@ -754,7 +754,7 @@ const AdminContracts = () => {
                     onClick={() => handleTerminateContract(selectedContract.id)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
                   >
-                    <FontAwesomeIcon icon={faGavel} /> Terminate Lease
+                    <FontAwesomeIcon icon={faGavel} /> Terminate Rent Contract
                   </button>
                 </div>
               )}
@@ -763,14 +763,14 @@ const AdminContracts = () => {
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
                 <div className="text-center border-b border-slate-200 pb-4">
                   <h3 className="text-xl font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
-                  <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Lease Agreement</p>
+                  <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Rent Agreement</p>
                   <p className="text-[10px] text-slate-400 m-0 mt-1">Generated: {selectedContract.generatedDate}</p>
                 </div>
                 {isEditingDates ? (
                   <div className="space-y-3 text-sm text-slate-700 bg-slate-100/50 p-4 rounded-xl border border-slate-200">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start (Move-in) *</label>
+                        <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent Start (Move-in) *</label>
                         <input
                           type="date"
                           {...editErrors.fieldA11y('leaseStart')}
@@ -787,7 +787,7 @@ const AdminContracts = () => {
                         <FieldError id="contract-edit-leaseStart" error={editErrors.errors.leaseStart} />
                       </div>
                       <div>
-                        <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                        <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent End *</label>
                         <input
                           type="date"
                           {...editErrors.fieldA11y('leaseEnd')}
@@ -813,7 +813,7 @@ const AdminContracts = () => {
                     <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Monthly Rent</span><span className="font-semibold">{formatCurrency(selectedContract.rent)}</span></div>
                     <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Security Deposit</span><span className="font-semibold">{formatCurrency(selectedContract.deposit)}</span></div>
                     <div className="flex justify-between items-center py-1">
-                      <span className="text-slate-400">Lease Period</span>
+                      <span className="text-slate-400">Rent Period</span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{selectedContract.leaseStart} → {selectedContract.leaseEnd}</span>
                         <button onClick={() => setIsEditingDates(true)} className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold border-0 cursor-pointer transition-colors">
@@ -827,10 +827,10 @@ const AdminContracts = () => {
                 <div className="border-t border-slate-200 pt-4 mt-4">
                   <h4 className="text-xs font-bold text-slate-600 mb-2 m-0">Terms & Conditions</h4>
                   <p className="text-[10px] text-slate-400 leading-relaxed m-0">
-                    This Lease Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
+                    This Rent Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
                     The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
                     will be charged for payments made after the due date. The security deposit shall be refunded upon 
-                    lease termination, subject to property inspection. Both parties agree to the terms herein.
+                    the end of the rent term, subject to property inspection. Both parties agree to the terms herein.
                   </p>
                 </div>
                 <div className="flex justify-between items-end pt-6 border-t border-slate-200 mt-4">
@@ -843,7 +843,7 @@ const AdminContracts = () => {
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                 <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
                   <FontAwesomeIcon icon={faFileUpload} className="text-indigo-500" />
-                  <h4 className="text-sm font-bold text-slate-800 m-0">Lease Document Upload</h4>
+                  <h4 className="text-sm font-bold text-slate-800 m-0">Rent Document Upload</h4>
                 </div>
                 <div className="p-5 space-y-4">
                   {/* Signed Lease */}
@@ -855,7 +855,7 @@ const AdminContracts = () => {
                           <FontAwesomeIcon icon={selectedContract.signedLease?.uploaded ? faCheckCircle : faFileSignature} />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-800 m-0">Signed Lease Agreement</p>
+                          <p className="text-sm font-semibold text-slate-800 m-0">Signed Rent Agreement</p>
                           {selectedContract.signedLease?.uploaded ? (
                             <div className="flex items-center gap-2 mt-1">
                               <p className="text-[11px] text-slate-500 m-0 font-sans">
@@ -896,7 +896,7 @@ const AdminContracts = () => {
                           <FontAwesomeIcon icon={selectedContract.notarizedLease?.uploaded ? faCheckCircle : faShieldAlt} />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-800 m-0">Notarized Lease Copy</p>
+                          <p className="text-sm font-semibold text-slate-800 m-0">Notarized Rent Agreement Copy</p>
                           {selectedContract.notarizedLease?.uploaded ? (
                             <div className="flex items-center gap-2 mt-1">
                               <p className="text-[11px] text-slate-500 m-0 font-sans">
@@ -989,7 +989,7 @@ const AdminContracts = () => {
                 }}
                 className="flex-grow flex items-center justify-center gap-2 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"
               >
-                <FontAwesomeIcon icon={faPrint} /> View / Print System Lease Agreement
+                <FontAwesomeIcon icon={faPrint} /> View / Print System Rent Agreement
               </button>
             </div>
           </div>

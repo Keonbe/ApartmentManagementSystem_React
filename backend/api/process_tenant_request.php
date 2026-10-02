@@ -44,7 +44,7 @@ try {
     if (!$notif) {
         $conn->rollback();
         http_response_code(404);
-        echo json_encode(["success" => false, "message" => "Occupancy, household or lease extension request not found."]);
+        echo json_encode(["success" => false, "message" => "Occupancy, household or rent extension request not found."]);
         exit;
     }
 
@@ -163,13 +163,13 @@ try {
                 $renewalStmt->execute();
                 $renewalStmt->close();
 
-                log_activity($conn, $admin_id, 'contract', "Approved Lease Extension", "User ID: $target_user_id — Contract $contract_id extended by $add_months month(s): $previous_lease_end → $new_lease_end");
+                log_activity($conn, $admin_id, 'contract', "Approved Rent Extension", "User ID: $target_user_id — Contract $contract_id extended by $add_months month(s): $previous_lease_end → $new_lease_end");
             } else {
                 // No contract, or one with no lease_end to extend yet (e.g.
                 // still a Draft awaiting activation). The application/room
                 // dates above are still advanced; note the gap rather than
                 // silently doing nothing to the contract.
-                log_activity($conn, $admin_id, 'contract', "Approved Lease Extension", "User ID: $target_user_id extended by $add_months month(s); no active contract lease_end to extend");
+                log_activity($conn, $admin_id, 'contract', "Approved Rent Extension", "User ID: $target_user_id extended by $add_months month(s); no active contract lease_end to extend");
             }
             // The added months are billed like every other tenancy month:
             // generate_due_rent_invoices() issues each one RENT_INVOICE_LEAD_DAYS
@@ -243,7 +243,7 @@ try {
     // 3. (Notification already marked decided by the claim step above.)
 
     // 4. Notify the tenant of the decision (never Pending, so it can't be re-decided).
-    $label = $household_label ?? ($type === 'occupancy_request' ? 'occupancy change request' : 'lease extension request');
+    $label = $household_label ?? ($type === 'occupancy_request' ? 'occupancy change request' : 'rent extension request');
     $title = ($action === 'approve') ? "Request Approved" : "Request Declined";
     $msg = "Your $label has been " . strtolower($statusText) . " by management.";
     if ($extension_billed_monthly) {

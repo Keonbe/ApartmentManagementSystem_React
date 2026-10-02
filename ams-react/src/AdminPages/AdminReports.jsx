@@ -479,7 +479,7 @@ const AdminReports = () => {
         csvContent += `"${s.category}",${s.amount},"${s.pct}%",${s.prevAmount},"${s.growthPct}%"\r\n`;
       });
     } else if (moduleType === 'occupancy' || activeModule === 'occupancy') {
-      csvContent += "Unit,Tenant Name,Email,Phone,Rent,Move-In Date,Lease End,Status\r\n";
+      csvContent += "Unit,Tenant Name,Email,Phone,Rent,Move-In Date,Rent End,Status\r\n";
       (data?.occupancy?.tenantList || []).forEach(t => {
         csvContent += `"${t.unit}","${t.name}","${t.email}","${t.phone}",${t.rent},"${t.moveIn}","${t.leaseEnd}","${t.status}"\r\n`;
       });
@@ -832,7 +832,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Core Base Rent Share</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.diversification.coreRentPct}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.rentCollected)} from unit leases</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.rentCollected)} from unit rentals</span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
@@ -871,7 +871,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Vacant Units</p>
                     <p className="text-xl font-bold text-slate-600 m-0 mt-1">{data.occupancy.vacantUnits}</p>
-                    <span className="text-[9px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Available to Lease</span>
+                    <span className="text-[9px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Available for Rent</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Move-Ins / Move-Outs</p>
@@ -879,7 +879,7 @@ const AdminReports = () => {
                     <span className="text-[9px] text-slate-500 mt-2 block">Contract modifications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Average Lease Term</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Average Rent Term</p>
                     <p className="text-xl font-bold text-emerald-600 m-0 mt-1">{data.occupancy.avgStayDuration} Mos</p>
                     <span className="text-[9px] text-slate-500 mt-2 block">Contracted months across all tenancies</span>
                   </div>
@@ -951,7 +951,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Room Rent Applications</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.reservations.roomApps}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Total lease applications</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Total rent applications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Room App Statuses</p>
@@ -1263,7 +1263,7 @@ const AdminReports = () => {
 
                     <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-slate-100 text-center">
                       <div className="p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Core Leases</span>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Core Rentals</span>
                         <span className="text-xs font-bold text-indigo-700">{data.diversification.coreRentPct}%</span>
                       </div>
                       <div className="p-2 bg-amber-50/50 rounded-lg border border-amber-100">
@@ -1566,7 +1566,7 @@ const AdminReports = () => {
 
                   <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-500 border-t border-slate-50 pt-3">
                     <span className="w-3.5 h-1 bg-emerald-600 inline-block rounded-full"></span> 
-                    Active Lease Occupancy Percentage Trend Line
+                    Active Rent Occupancy Percentage Trend Line
                   </div>
                 </div>
               )}
@@ -1793,7 +1793,7 @@ const AdminReports = () => {
                 <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white print:border-slate-200">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
                     <FontAwesomeIcon icon={faBuilding} className="text-indigo-600" />
-                    Active Lease & Unit Registry Ledger
+                    Active Rent & Unit Registry Ledger
                   </h3>
                   <span className="text-xs text-slate-500 print:hidden">Showing active/pending move-outs</span>
                 </div>
@@ -1991,7 +1991,7 @@ const AdminReports = () => {
                   <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white">
                     <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2 m-0">
                       <FontAwesomeIcon icon={faBuilding} className="text-indigo-600" />
-                      Rent Lease Booking Requests
+                      Rent Booking Requests
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
@@ -2557,7 +2557,7 @@ const AdminReports = () => {
                         </div>
                         <div>
                           <h1 className="text-lg font-extrabold text-slate-900 tracking-tight uppercase m-0">APARTMENT MANAGEMENT SYSTEM</h1>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold m-0">Property Leasing & Financial Administration</p>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold m-0">Property Rental & Financial Administration</p>
                         </div>
                       </div>
                       <p className="text-xs text-slate-600 mt-2 m-0">Unit 101 Management Office, Metro Manila • Tel: +63 912 345 6789</p>
@@ -2682,7 +2682,7 @@ const AdminReports = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-xs">
                     <div className="space-y-1 text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
                       <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wide m-0 mb-1">Payment Instructions</p>
-                      <p className="m-0">• <strong>GCash:</strong> 0912-345-6789 (AMS Leasing)</p>
+                      <p className="m-0">• <strong>GCash:</strong> 0912-345-6789 (AMS Rentals)</p>
                       <p className="m-0">• <strong>BDO Bank:</strong> 1234-5678-9012 (Apartment AMS)</p>
                       <p className="m-0">• <strong>Office Cashier:</strong> 8:00 AM – 5:00 PM Mon–Sat</p>
                       <p className="m-0 text-[10px] text-slate-500 pt-1 italic">Please reference <strong>{invoiceForm.invoiceNumber}</strong> upon payment.</p>

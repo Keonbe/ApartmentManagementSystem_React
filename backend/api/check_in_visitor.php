@@ -86,7 +86,7 @@ if ($isAdmin) {
     if ($u_res) $target_user_id = (int)$u_res['user_id'];
 } else {
     $tenancy = get_active_tenancy($conn, $auth['id']);
-    if (!$tenancy) fail(403, "Only tenants with an active lease can register visitors.");
+    if (!$tenancy) fail(403, "Only tenants with an active rental can register visitors.");
     $room_name = $tenancy['room_name'];
     $target_user_id = $auth['id'];
 }

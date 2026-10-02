@@ -53,7 +53,7 @@ if (!in_array($preferred_time, ['morning', 'afternoon'], true)) {
 $tenancy = get_active_tenancy($conn, $user_id);
 if (!$tenancy) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Only tenants with an active lease can submit maintenance requests."]);
+    echo json_encode(["success" => false, "message" => "Only tenants with an active rental can submit maintenance requests."]);
     exit;
 }
 

@@ -900,7 +900,7 @@ const handleMarkAsPaid = async () => {
                   <div className="flex items-end justify-between gap-4 border-t border-slate-100 pt-4 mb-6">
                     <div className="max-w-xs flex items-start gap-2 text-[11px] text-slate-500">
                       <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 text-indigo-400" />
-                      <p className="m-0">The bill is settled in full at its total. To change a charge or the due date, or to add a one-off charge, adjust the invoice first; a lease extension is billed from the tenant's extension request.</p>
+                      <p className="m-0">The bill is settled in full at its total. To change a charge or the due date, or to add a one-off charge, adjust the invoice first; a rent extension is billed from the tenant's extension request.</p>
                     </div>
                     <div className="text-right flex flex-col items-end">
                       <div className="mb-3 text-xs text-slate-500 space-y-1">
@@ -1307,7 +1307,7 @@ const handleMarkAsPaid = async () => {
                       <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-50">
                         <th className="py-3 px-4">Tenant Name</th>
                         <th className="py-3 px-4 text-center">Unit</th>
-                        <th className="py-3 px-4">Lease Term</th>
+                        <th className="py-3 px-4">Rent Term</th>
                         <th className="py-3 px-4">Original Deposit</th>
                         <th className="py-3 px-4">Status</th>
                         <th className="py-3 px-4">Fixture Damages</th>

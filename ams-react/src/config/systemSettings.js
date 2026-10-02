@@ -14,7 +14,7 @@ const DEFAULTS = {
   autoFlagEviction: true,          // auto-flag when threshold exceeded
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
-    'Per the Terms & Conditions of this lease agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the leased unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
+    'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
   paymentMode: 'manual',
   paymentSandboxEnabled: true,
   paymentChGcashSandbox: true,
@@ -30,12 +30,12 @@ const DEFAULTS = {
   parkingAllowedVehicleTypes: ['motorcycle'],  // vehicle types eligible for parking reservations
   parkingMonthlyFee: 300,                      // PHP per assigned slot per month
   parkingBillingMode: 'manual',                // 'manual' = admin bills each month, 'auto' = daily sweep bills it
-  landlordName: 'Elizabeth Angcanan',          // shown as the Owner/Lessor on the lease contract
+  landlordName: 'Elizabeth Angcanan',          // shown as the Owner/Landlord on the rent contract
   landlordAddress: 'Tamak, Maguyam, Silang, Cavite',
   landlordContact: '*********** (Smart)',
   propertyAddress: 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite',
   roomPreviewMode: 'images',            // public room preview: 'images' or 'floor_plan'
-  maxOccupantsPerUnit: 8,                    // lease holder + household members
+  maxOccupantsPerUnit: 8,                    // main tenant + household members
 
   // Notification channels. Both switches ship off: email needs SMTP credentials
   // and SMS costs money and needs a carrier-registered sender ID. The 'log'

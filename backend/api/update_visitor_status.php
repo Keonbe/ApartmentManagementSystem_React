@@ -65,7 +65,7 @@ if ($action === 'checked_in' || $action === 'approve') {
     // approving would otherwise check someone in against a unit that's no
     // longer theirs.
     if ($target_user_id && !get_active_tenancy($conn, (int)$target_user_id)) {
-        fail(409, "This tenant no longer has an active lease — the registration can only be denied.");
+        fail(409, "This tenant no longer has an active rental — the registration can only be denied.");
     }
     // Approving stamps check_in_at = NOW(); a visit whose expected check-out
     // is already behind us would be checked in after it was meant to end.

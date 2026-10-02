@@ -158,7 +158,7 @@ switch ($action) {
         $open_app->execute();
         $has_open_tenancy = $open_app->get_result()->num_rows > 0;
         $open_app->close();
-        if ($has_open_tenancy) fail(409, "This tenant has an active lease. Archive them from Tenant Management first.");
+        if ($has_open_tenancy) fail(409, "This tenant has an active rental. Archive them from Tenant Management first.");
         $stmt = $conn->prepare("UPDATE users SET is_archived=1 WHERE id=?");
         $stmt->bind_param("i", $user_id);
         $stmt->execute();

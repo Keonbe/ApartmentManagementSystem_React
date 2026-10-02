@@ -109,7 +109,7 @@ export default function HouseholdPanel() {
             <p className="text-[11px] text-slate-400 m-0">
               {isSoloOccupant
                 ? "You're currently the only registered occupant of this unit. Add household members below if others live with you."
-                : 'You are the lease holder and the only account for this unit. List everyone who lives with you.'}
+                : 'You are the main tenant and the only account for this unit. List everyone who lives with you.'}
             </p>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function HouseholdPanel() {
       <ul className="list-none m-0 p-0 divide-y divide-white/5 border border-white/10 rounded-2xl overflow-hidden">
         <li className="flex items-center justify-between px-4 py-3 bg-slate-950/30">
           <span className="text-sm font-bold text-white">{data.leaseHolder}</span>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Lease holder</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Main tenant</span>
         </li>
         {data.members.map((m) => (
           <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3">

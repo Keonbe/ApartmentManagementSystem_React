@@ -44,12 +44,12 @@ try {
         $checkStmt->close();
 
         if ($hasRecent) {
-            echo json_encode(["success" => false, "message" => "You already have a pending lease extension request. Please wait for admin decision."]);
+            echo json_encode(["success" => false, "message" => "You already have a pending rent extension request. Please wait for admin decision."]);
             exit;
         }
 
-        $title = "Lease Extension Request";
-        $msg = "$tenantName (Unit $roomName) requested a $additionalMonths month(s) lease extension.";
+        $title = "Rent Extension Request";
+        $msg = "$tenantName (Unit $roomName) requested a $additionalMonths month(s) rent extension.";
 
         $stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, metadata_value, status, is_read) VALUES (?, 'lease_extension_request', ?, ?, ?, 'Pending', 0)");
         if (!$stmt) {
@@ -59,8 +59,8 @@ try {
         $stmt->bind_param("isss", $userId, $title, $msg, $additionalMonths);
 
         if ($stmt->execute()) {
-            log_activity($conn, $userId, 'tenant', "Requested Lease Extension", "Unit $roomName: $additionalMonths month(s)");
-            echo json_encode(["success" => true, "message" => "Lease extension request submitted for admin verification."]);
+            log_activity($conn, $userId, 'tenant', "Requested Rent Extension", "Unit $roomName: $additionalMonths month(s)");
+            echo json_encode(["success" => true, "message" => "Rent extension request submitted for admin verification."]);
         } else {
             throw new Exception("Failed to save extension request.");
         }

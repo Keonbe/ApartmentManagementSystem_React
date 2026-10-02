@@ -61,7 +61,7 @@ if ($action === 'edit') {
     $lease_end = $input['leaseEnd'] ?? null;
     if (empty($lease_start) || empty($lease_end)) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Lease Start and Lease End are required."]);
+        echo json_encode(["success" => false, "message" => "Rent Start and Rent End are required."]);
         exit;
     }
 
@@ -74,13 +74,13 @@ if ($action === 'edit') {
     }
     if ($end_dt <= $start_dt) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Lease end must be after lease start."]);
+        echo json_encode(["success" => false, "message" => "Rent end must be after rent start."]);
         exit;
     }
     $max_end = (clone $start_dt)->modify('+24 months');
     if ($end_dt > $max_end) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "The maximum lease period is 24 months."]);
+        echo json_encode(["success" => false, "message" => "The maximum rent period is 24 months."]);
         exit;
     }
 
@@ -122,8 +122,8 @@ if ($action === 'edit') {
 
             log_activity($conn, $admin_id, 'contract', "Updated Contract Dates", "Contract: $contract_id, Start: $lease_start, End: $lease_end" . ($new_status !== $current_status ? ", Status: $current_status -> $new_status" : ""));
             if ($tenant_id) {
-                create_notification($conn, $tenant_id, 'contract_update', 'Lease Dates Updated',
-                    "Your lease contract dates were updated: " . date('M j, Y', strtotime($lease_start)) . " to " . date('M j, Y', strtotime($lease_end)) . ".");
+                create_notification($conn, $tenant_id, 'contract_update', 'Rent Dates Updated',
+                    "Your rent contract dates were updated: " . date('M j, Y', strtotime($lease_start)) . " to " . date('M j, Y', strtotime($lease_end)) . ".");
             }
             echo json_encode(["success" => true, "message" => "Contract dates updated successfully"]);
         }
@@ -164,8 +164,8 @@ if ($action === 'edit') {
         } else {
             log_activity($conn, $admin_id, 'contract', "Activated Contract", "Contract: $contract_id");
             if ($tenant_id) {
-                create_notification($conn, $tenant_id, 'contract_update', 'Lease Contract Active',
-                    "Your lease contract ($contract_id) is now active. You can view it any time from View Contract.");
+                create_notification($conn, $tenant_id, 'contract_update', 'Rent Contract Active',
+                    "Your rent contract ($contract_id) is now active. You can view it any time from View Contract.");
             }
             echo json_encode(["success" => true, "message" => "Contract activated successfully"]);
         }
@@ -211,11 +211,11 @@ if ($action === 'edit') {
             log_activity($conn, $admin_id, 'contract', $action === 'flag' ? "Flagged Eviction" : "Cleared Eviction Flag", "Contract: $contract_id");
             if ($tenant_id) {
                 if ($action === 'flag') {
-                    create_notification($conn, $tenant_id, 'contract_update', 'Lease Under Eviction Review',
-                        "Your lease has been flagged for eviction review because of overdue payments. Please settle your balance or contact management.");
+                    create_notification($conn, $tenant_id, 'contract_update', 'Rent Contract Under Eviction Review',
+                        "Your rent contract has been flagged for eviction review because of overdue payments. Please settle your balance or contact management.");
                 } else {
                     create_notification($conn, $tenant_id, 'contract_update', 'Eviction Review Cleared',
-                        "The eviction review on your lease has been cleared.");
+                        "The eviction review on your rent contract has been cleared.");
                 }
             }
             echo json_encode(["success" => true, "message" => "Eviction status updated successfully"]);
@@ -312,8 +312,8 @@ if ($action === 'edit') {
         $conn->commit();
 
         if ($vacated['user_id']) {
-            create_notification($conn, $vacated['user_id'], 'contract_update', 'Lease Terminated',
-                "Your lease ($contract_id) has been terminated: $reason. Your unit has been marked vacant.");
+            create_notification($conn, $vacated['user_id'], 'contract_update', 'Rent Contract Terminated',
+                "Your rent contract ($contract_id) has been terminated: $reason. Your unit has been marked vacant.");
         }
         $details = "Contract: $contract_id, Reason: $reason"
             . ($open_total > 0 ? "; ₱" . number_format($open_total, 2) . " still open at termination" : "")

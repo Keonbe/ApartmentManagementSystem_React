@@ -552,7 +552,7 @@ export default function ViewContract() {
                             <div>
                                 {/* Page Header */}
                                 <div className="text-center mb-6">
-                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT LEASE AGREEMENT</h2>
+                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT RENTAL AGREEMENT</h2>
                                     <p className="text-rose-600 font-semibold italic text-[11px] m-0 mt-0.5">(Tenant Copy)</p>
                                 </div>
 
@@ -572,7 +572,7 @@ export default function ViewContract() {
                                     <hr className="my-4 border-t border-slate-300" />
 
                                     <div>
-                                        <h3 className="font-bold text-slate-900 uppercase text-sm m-0 mb-1">SUBJECT: APARTMENT LEASE</h3>
+                                        <h3 className="font-bold text-slate-900 uppercase text-sm m-0 mb-1">SUBJECT: APARTMENT RENTAL</h3>
                                         <p className="m-0">Under the following conditions, the Owner and the Tenant have agreed on the following rental terms for the apartment:</p>
                                     </div>
 
@@ -613,7 +613,7 @@ export default function ViewContract() {
                             <div>
                                 {/* Page Header */}
                                 <div className="text-center mb-6">
-                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT LEASE AGREEMENT</h2>
+                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT RENTAL AGREEMENT</h2>
                                     <p className="text-rose-600 font-semibold italic text-[11px] m-0 mt-0.5">(Tenant Copy)</p>
                                 </div>
 
@@ -635,7 +635,7 @@ export default function ViewContract() {
 
                                         <p className="m-0 mt-2"><strong>4. Security Deposit:</strong><br />In addition to the advance rent, the Tenant shall pay a security deposit amounting to <strong className="underline">{contractData.depositAmount || '____________'}</strong>, equivalent to one month's rent. The deposit shall serve as a guarantee against possible damages or unpaid expenses.</p>
 
-                                        <p className="m-0"><strong>Use of the Security Deposit:</strong><br />The security deposit is <strong>not refunded in cash</strong>. It is instead <strong>applied against unpaid rent, unpaid electricity and water bills, or damage</strong> to the unit and its fixtures. If no deductions remain at the end of the lease, it may be applied to the last month's rent.</p>
+                                        <p className="m-0"><strong>Use of the Security Deposit:</strong><br />The security deposit is <strong>not refunded in cash</strong>. It is instead <strong>applied against unpaid rent, unpaid electricity and water bills, or damage</strong> to the unit and its fixtures. If no deductions remain at the end of the rent term, it may be applied to the last month's rent.</p>
 
                                         <p className="m-0 mt-2"><strong>5. Due Date Reminder:</strong><br />Rent payment must be given on or before the due date each month. The monthly due date for rent payment is the <span className="underline font-semibold">{contractData.dueDateDay || '__'}</span> of the month.<br />
                                         <strong>Note:</strong> Should the Tenant be unable to pay before the set due date, the Tenant is encouraged to immediately contact the Owner to discuss the possibility of an extension or alternative payment arrangement.</p>
@@ -662,7 +662,7 @@ export default function ViewContract() {
                             <div>
                                 {/* Page Header */}
                                 <div className="text-center mb-6">
-                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT LEASE AGREEMENT</h2>
+                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT RENTAL AGREEMENT</h2>
                                     <p className="text-rose-600 font-semibold italic text-[11px] m-0 mt-0.5">(Tenant Copy)</p>
                                 </div>
 
@@ -675,7 +675,7 @@ export default function ViewContract() {
                                         <h3 className="font-bold text-slate-900 m-0 text-sm uppercase">III. RESPONSIBILITIES OF THE OWNER</h3>
                                         <div className="pl-4 space-y-2">
                                             <p className="m-0"><strong>1. Care and Maintenance:</strong><br />The Owner is responsible for repairing major damages and maintaining the apartment. Major damages pertain to the apartment's water, electrical, and structural systems.</p>
-                                            <p className="m-0"><strong>2. Providing Proper Housing:</strong><br />The Owner ensures that the apartment is clean, well-maintained, and safe to use before the lease proceeds.</p>
+                                            <p className="m-0"><strong>2. Providing Proper Housing:</strong><br />The Owner ensures that the apartment is clean, well-maintained, and safe to use before the rent term begins.</p>
                                         </div>
                                     </div>
 
@@ -711,7 +711,7 @@ export default function ViewContract() {
                             <div>
                                 {/* Page Header */}
                                 <div className="text-center mb-6">
-                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT LEASE AGREEMENT</h2>
+                                    <h2 className="text-sm font-bold text-slate-800 tracking-wide uppercase m-0">APARTMENT RENTAL AGREEMENT</h2>
                                     <p className="text-rose-600 font-semibold italic text-[11px] m-0 mt-0.5">(Tenant Copy)</p>
                                 </div>
 

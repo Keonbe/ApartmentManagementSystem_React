@@ -35,11 +35,11 @@ export default function LeasingPanel({ settings, updateSetting }) {
       <SettingsSection
         icon={faFileContract}
         tone="indigo"
-        title="Lease Policy"
-        description="Lease length, reservation holds, occupancy and the public room preview."
+        title="Rent Policy"
+        description="Rent length, reservation holds, occupancy and the public room preview."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Minimum Lease Duration" htmlFor="setting-minLeaseDuration" icon={faCalendarAlt} hint="Tenants cannot sign leases shorter than this duration.">
+          <Field label="Minimum Rent Duration" htmlFor="setting-minLeaseDuration" icon={faCalendarAlt} hint="Rent terms cannot be shorter than this duration.">
             <WithUnit suffix="months">
               <input {...intInput(settings, updateSetting, 'minLeaseDuration', 1, 24)} className={`${INPUT_NUMBER} w-24`} />
             </WithUnit>
@@ -51,7 +51,7 @@ export default function LeasingPanel({ settings, updateSetting }) {
             </WithUnit>
           </Field>
 
-          <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Lease holder plus household members. Applications and occupant requests above this are refused.">
+          <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Main tenant plus household members. Applications and occupant requests above this are refused.">
             <WithUnit suffix="people">
               <input {...intInput(settings, updateSetting, 'maxOccupantsPerUnit', 1, 20)} className={`${INPUT_NUMBER} w-24`} />
             </WithUnit>
@@ -73,8 +73,8 @@ export default function LeasingPanel({ settings, updateSetting }) {
       <SettingsSection
         icon={faBuilding}
         tone="violet"
-        title="Lease Contract Details"
-        description="Shown as the Owner / Lessor on every generated lease contract."
+        title="Rent Contract Details"
+        description="Shown as the Owner / Landlord on every generated rent contract."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <Field label="Owner / Landlord Name" htmlFor="setting-landlordName" icon={faUserShield}>

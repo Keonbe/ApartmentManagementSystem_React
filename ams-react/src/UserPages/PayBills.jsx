@@ -1126,7 +1126,7 @@ export default function PayBills() {
                             </div>
                         ) : advance?.available ? (
                             <p className="text-sm text-slate-600 m-0">
-                                There are no upcoming months left to prepay before your lease ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
+                                There are no upcoming months left to prepay before your rent ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
                             </p>
                         ) : null}
 

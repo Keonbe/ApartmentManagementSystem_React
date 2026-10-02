@@ -77,7 +77,7 @@ try {
         }
         if (!get_active_tenancy($conn, (int)$current['user_id'])) {
             $conn->rollback();
-            parking_status_fail(409, "This tenant no longer has an active lease.");
+            parking_status_fail(409, "This tenant no longer has an active rental.");
         }
 
         $upd = $conn->prepare("UPDATE parking_reservations SET status = 'Assigned', slot_number = ?, assigned_at = NOW() WHERE id = ? AND status = 'Pending'");

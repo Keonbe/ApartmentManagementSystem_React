@@ -28,7 +28,7 @@ import AdminHouseholdList from '../Components/AdminHouseholdList';
 // ==========================================
 const initialArchivedTenants = [];
 
-const archiveReasons = ['End of Lease', 'Personal Reasons', 'Relocated', 'Financial Hardship', 'Evicted', 'Other'];
+const archiveReasons = ['End of Rent Term', 'Personal Reasons', 'Relocated', 'Financial Hardship', 'Evicted', 'Other'];
 
 const daysRemaining = (leaseEnd) => {
   const diff = Math.ceil((new Date(leaseEnd) - new Date()) / (1000 * 60 * 60 * 24));
@@ -52,7 +52,7 @@ const AdminTenants = () => {
   // Archive workflow states
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState(null);
-  const [archiveReason, setArchiveReason] = useState('End of Lease');
+  const [archiveReason, setArchiveReason] = useState('End of Rent Term');
   const [archiveNotes, setArchiveNotes] = useState('');
 
   // Move out scheduling states
@@ -249,7 +249,7 @@ const AdminTenants = () => {
       fetchTenants();
       setShowArchiveModal(false);
       setArchiveTarget(null);
-      setArchiveReason('End of Lease');
+      setArchiveReason('End of Rent Term');
       setArchiveNotes('');
     } catch (err) {
       console.error("Error archiving tenant:", err);
@@ -276,7 +276,7 @@ const AdminTenants = () => {
 
   const openArchiveModal = (tenant) => {
     setArchiveTarget(tenant);
-    setArchiveReason('End of Lease');
+    setArchiveReason('End of Rent Term');
     setArchiveNotes('');
     tenantForms.setErrors({});
     setShowArchiveModal(true);
@@ -354,7 +354,7 @@ const AdminTenants = () => {
   if (selectedTenant) {
     if (selectedTenant.moveIn) {
       timeline.push({
-        event: 'Lease Started',
+        event: 'Rent Started',
         date: selectedTenant.moveIn.split(' ')[0],
         detail: `Tenant moved into Unit ${selectedTenant.unit} with rent of ${selectedTenant.rent}`
       });
@@ -364,28 +364,28 @@ const AdminTenants = () => {
       timeline.push({
         event: 'Contract Generated',
         date: myContract.generated_at ? myContract.generated_at.split(' ')[0] : (selectedTenant.moveIn ? selectedTenant.moveIn.split(' ')[0] : ''),
-        detail: `Lease contract generated. Status: ${myContract.status}`
+        detail: `Rent contract generated. Status: ${myContract.status}`
       });
       if (myContract.signed_lease_path) {
         timeline.push({
           event: 'Signed Contract Uploaded',
           date: myContract.generated_at ? myContract.generated_at.split(' ')[0] : (selectedTenant.moveIn ? selectedTenant.moveIn.split(' ')[0] : ''),
-          detail: 'Signed lease agreement uploaded and registered.'
+          detail: 'Signed rent agreement uploaded and registered.'
         });
       }
     }
     if (selectedTenant.leaseEnd) {
       timeline.push({
-        event: 'Lease Scheduled End',
+        event: 'Rent Scheduled End',
         date: selectedTenant.leaseEnd,
-        detail: `Lease is scheduled to end on ${selectedTenant.leaseEnd}`
+        detail: `Rent is scheduled to end on ${selectedTenant.leaseEnd}`
       });
     }
     if (selectedTenant.status === 'moved-out' || selectedTenant.status === 'archived') {
       timeline.push({
         event: 'Tenant Moved Out',
         date: selectedTenant.archiveDate || selectedTenant.movedOutDate || new Date().toISOString().split(' ')[0],
-        detail: `Tenant officially moved out. Reason: ${selectedTenant.archiveReason || 'End of Lease'}`
+        detail: `Tenant officially moved out. Reason: ${selectedTenant.archiveReason || 'End of Rent Term'}`
       });
     }
   }
@@ -550,7 +550,7 @@ const AdminTenants = () => {
                           <span className="text-sky-600 font-semibold">Pending move-in payment</span>
                         ) : t.leaseEnd ? (
                           <div>
-                            <div>Lease ends: {t.leaseEnd}</div>
+                            <div>Rent ends: {t.leaseEnd}</div>
                             {daysRemaining(t.leaseEnd) > 0 && (
                               <div className={`text-[10px] font-semibold ${daysRemaining(t.leaseEnd) <= 30 ? 'text-red-500' : 'text-slate-400'}`}>
                                 {daysRemaining(t.leaseEnd)} days remaining
@@ -661,7 +661,7 @@ const AdminTenants = () => {
             <div className="flex border-b border-slate-200 px-6 shrink-0 bg-white">
               {[
                 { key: 'overview', label: 'Overview', icon: faUser },
-                { key: 'lease', label: 'Lease Timeline', icon: faCalendarAlt },
+                { key: 'lease', label: 'Rent Timeline', icon: faCalendarAlt },
                 { key: 'payments', label: 'Payment History', icon: faDollarSign },
                 { key: 'maintenance', label: 'Maintenance', icon: faWrench },
               ].map(tab => (
@@ -808,10 +808,10 @@ const AdminTenants = () => {
                   ) : (
                     <div className="text-center py-12">
                       <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                      <p className="text-sm text-slate-400 m-0">No lease timeline data available for this tenant.</p>
+                      <p className="text-sm text-slate-400 m-0">No rent timeline data available for this tenant.</p>
                       {selectedTenant.moveIn && (
                         <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100 text-xs text-slate-500 inline-block">
-                          Lease started: {selectedTenant.moveIn} {selectedTenant.leaseEnd ? `→ Ends: ${selectedTenant.leaseEnd}` : ''}
+                          Rent started: {selectedTenant.moveIn} {selectedTenant.leaseEnd ? `→ Ends: ${selectedTenant.leaseEnd}` : ''}
                         </div>
                       )}
                     </div>
@@ -862,7 +862,7 @@ const AdminTenants = () => {
                                 </span>
                               </div>
                               <p className="text-[10px] text-slate-400 m-0 mt-0.5">
-                                {entry.billing_period || 'Initial Lease Payment'} · Due: {entry.due_date}
+                                {entry.billing_period || 'Initial Rent Payment'} · Due: {entry.due_date}
                               </p>
                             </div>
                           </div>
@@ -980,7 +980,7 @@ const AdminTenants = () => {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                 <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-500 mt-0.5 text-xs" />
                 <p className="text-[11px] text-amber-700 m-0">
-                  This will archive the tenant's record. Their lease history, payment records, and maintenance requests will be preserved for reference. This action cannot be undone.
+                  This will archive the tenant's record. Their rent history, payment records, and maintenance requests will be preserved for reference. This action cannot be undone.
                 </p>
               </div>
             </div>
