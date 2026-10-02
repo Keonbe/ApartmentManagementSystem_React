@@ -30,10 +30,8 @@ const DEFAULTS = {
   parkingAllowedVehicleTypes: ['motorcycle'],  // vehicle types eligible for parking reservations
   parkingMonthlyFee: 300,                      // PHP per assigned slot per month
   parkingBillingMode: 'manual',                // 'manual' = admin bills each month, 'auto' = daily sweep bills it
-  landlordName: 'Elizabeth Angcanan',          // shown as the Owner/Lessor on the lease contract
-  landlordAddress: 'Tamak, Maguyam, Silang, Cavite',
-  landlordContact: '*********** (Smart)',
-  propertyAddress: 'Sitio Engkanto, Brgy. Maguyam, Silang, Cavite',
+  // Landlord details and payment accounts moved to the contract template
+  // (Admin → Edit Contract, backend/contract_template.php).
   roomPreviewMode: 'images',            // public room preview: 'images' or 'floor_plan'
   maxOccupantsPerUnit: 8,                    // lease holder + household members
 
@@ -104,10 +102,6 @@ export const getSystemSettings = async () => {
         })(),
         parkingMonthlyFee: parseFloat(dbSettings.parking_monthly_fee || DEFAULTS.parkingMonthlyFee),
         parkingBillingMode: dbSettings.parking_billing_mode === 'auto' ? 'auto' : 'manual',
-        landlordName: dbSettings.landlord_name || DEFAULTS.landlordName,
-        landlordAddress: dbSettings.landlord_address || DEFAULTS.landlordAddress,
-        landlordContact: dbSettings.landlord_contact || DEFAULTS.landlordContact,
-        propertyAddress: dbSettings.property_address || DEFAULTS.propertyAddress,
         roomPreviewMode: dbSettings.room_preview_mode === 'floor_plan' ? 'floor_plan' : 'images',
         maxOccupantsPerUnit: parseInt(dbSettings.max_occupants_per_unit || DEFAULTS.maxOccupantsPerUnit),
 
@@ -165,10 +159,6 @@ export const saveSystemSettings = async (settings) => {
       parking_allowed_vehicle_types: JSON.stringify(settings.parkingAllowedVehicleTypes || []),
       parking_monthly_fee: String(settings.parkingMonthlyFee ?? DEFAULTS.parkingMonthlyFee),
       parking_billing_mode: settings.parkingBillingMode === 'auto' ? 'auto' : 'manual',
-      landlord_name: settings.landlordName || '',
-      landlord_address: settings.landlordAddress || '',
-      landlord_contact: settings.landlordContact || '',
-      property_address: settings.propertyAddress || '',
       room_preview_mode: settings.roomPreviewMode === 'floor_plan' ? 'floor_plan' : 'images',
       max_occupants_per_unit: String(settings.maxOccupantsPerUnit ?? DEFAULTS.maxOccupantsPerUnit),
 

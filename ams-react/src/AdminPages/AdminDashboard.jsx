@@ -739,21 +739,34 @@ const AdminDashboard = () => {
                       <div className="stagger-children grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {(roomsSummary || []).map(room => {
                           const isOccupied = room.status === 'occupied';
+                          const isReserved = room.status === 'reserved';
                           return (
                             <div
                               key={room.id}
                               onClick={() => navigate('/admin-units')}
-                              className={`card-interactive p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${isOccupied ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' : 'bg-slate-50 border-slate-200 hover:border-indigo-400'}`}
+                              className={`card-interactive p-3 rounded-xl border transition-all cursor-pointer hover:shadow-md ${
+                                isOccupied 
+                                  ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400' 
+                                  : isReserved
+                                  ? 'bg-amber-50/40 border-amber-200 hover:border-amber-400'
+                                  : 'bg-slate-50 border-slate-200 hover:border-indigo-400'
+                              }`}
                             >
                               <div className="flex justify-between items-start">
                                 <span className="font-extrabold text-sm text-slate-800">{room.id}</span>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${isOccupied ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
-                                  {isOccupied ? 'Occupied' : 'Vacant'}
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  isOccupied 
+                                    ? 'bg-emerald-100 text-emerald-800' 
+                                    : isReserved
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                  {isOccupied ? 'Occupied' : isReserved ? 'Reserved' : 'Vacant'}
                                 </span>
                               </div>
                               <p className="text-[10px] text-slate-400 m-0 mt-1">{room.floor} • {room.type}</p>
                               <p className="text-xs font-semibold m-0 mt-2 truncate text-slate-700">
-                                {isOccupied ? room.tenant || 'Active Tenant' : formatCurrency(room.rent)}
+                                {isOccupied || isReserved ? room.tenant || (isReserved ? 'Reserved' : 'Active Tenant') : formatCurrency(room.rent)}
                               </p>
                             </div>
                           );

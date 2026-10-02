@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
+require_once __DIR__ . '/../contract_template.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -293,8 +294,10 @@ if ($id > 0 && !empty($status)) {
                     $contract_id = 'CTR-' . uniqid();
                     // Security deposit is one month's rent — matches invoices.security_deposit above.
                     $security_deposit = $monthly_rent;
-                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'draft')");
-                    $ctr_stmt->bind_param("sidss", $contract_id, $id, $security_deposit, $lease_start, $lease_end);
+                    // Pin the clauses in force today; later template edits don't rewrite this lease.
+                    $template_version_id = contract_template_pin_version_id($conn);
+                    $ctr_stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status, template_version_id) VALUES (?, ?, ?, ?, ?, 'draft', ?)");
+                    $ctr_stmt->bind_param("sidssi", $contract_id, $id, $security_deposit, $lease_start, $lease_end, $template_version_id);
                     if (!$ctr_stmt->execute()) {
                         throw new Exception("Failed to create lease contract: " . $ctr_stmt->error);
                     }

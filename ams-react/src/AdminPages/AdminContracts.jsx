@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -6,8 +7,12 @@ import {
   faPlus, faSearch, faTimes, faEye, faDownload,
   faCheckCircle, faClock, faExclamationTriangle, faFileSignature,
   faArrowRight, faArrowLeft, faPrint, faEdit, faUpload, faShieldAlt,
-  faGavel, faFileUpload, faFile, faTimesCircle, faInfoCircle
+  faGavel, faFileUpload, faFile, faTimesCircle, faInfoCircle, faPenFancy,
+  faFileContract, faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
+import ContractDocument from '../Components/contract/ContractDocument';
+import AdminContractEditor from './AdminContractEditor';
+import { fetchContractTemplate } from '../Components/contract/contractTemplate';
 import { getSystemSettings } from '../config/systemSettings';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
@@ -51,7 +56,11 @@ const statusOf = (s) => statusConfig[String(s || '').toLowerCase()] || UNKNOWN_S
 
 const formatCurrency = (n) => (Number.isFinite(Number(n)) ? `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—');
 
-const AdminContracts = () => {
+const AdminContracts = ({ defaultTab = 'contracts' }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || defaultTab;
+  const setActiveTab = (tab) => setSearchParams({ tab });
+
   const [contracts, setContracts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -59,6 +68,10 @@ const AdminContracts = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
+  const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [previewLang, setPreviewLang] = useState('en');
+  const [modalSubTab, setModalSubTab] = useState('contract'); // 'contract' | 'files'
+
   const [createStep, setCreateStep] = useState(1);
   const [isEditingDates, setIsEditingDates] = useState(false);
   const [editForm, setEditForm] = useState({ leaseStart: '', leaseEnd: '' });
@@ -73,6 +86,7 @@ const AdminContracts = () => {
           id: c.id,
           rentApplicationId: c.rent_application_id,
           tenant: `${c.first_name} ${c.last_name}`,
+          tenantPhone: c.contact_no || '',
           tenantEmail: c.email,
           unit: c.room_name,
           type: c.type || 'Unit',
@@ -81,9 +95,12 @@ const AdminContracts = () => {
           leaseStart: c.lease_start,
           leaseEnd: c.lease_end,
           status: c.status,
+          templateVersionId: c.template_version_id,
           generatedDate: c.generated_at ? c.generated_at.split(' ')[0] : '',
           signedLease: { uploaded: !!c.signed_lease_path, fileName: c.signed_lease_path ? c.signed_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.signed_lease_path },
           notarizedLease: { uploaded: !!c.notarized_lease_path, fileName: c.notarized_lease_path ? c.notarized_lease_path.split('/').pop() : null, uploadDate: null, filePath: c.notarized_lease_path },
+          tenantSignature: { uploaded: !!c.tenant_signature_path, filePath: c.tenant_signature_path },
+          ownerSignature: { uploaded: !!c.owner_signature_path, filePath: c.owner_signature_path },
           evictionStatus: c.eviction_status,
           terminationReason: c.termination_reason,
           overdueInfo: c.overdueInfo ? {
@@ -230,11 +247,67 @@ const AdminContracts = () => {
     }
   };
 
-  const openPreview = (contract) => {
+  const openPreview = async (contract) => {
     setSelectedContract(contract);
     setEditForm({ leaseStart: contract.leaseStart || '', leaseEnd: contract.leaseEnd || '' });
     setIsEditingDates(false);
+    setModalSubTab('contract');
     setShowPreviewModal(true);
+    try {
+      const res = await fetchContractTemplate(contract.templateVersionId);
+      setPreviewTemplate(res.template);
+    } catch (e) {
+      console.error('Failed to load contract template for preview:', e);
+    }
+  };
+
+  const handleSignatureUpload = async (contractId, docType, file) => {
+    const formData = new FormData();
+    formData.append('contractId', contractId);
+    formData.append('docType', docType);
+    formData.append('action', 'upload');
+    formData.append('file', file);
+    try {
+      const res = await api.post('/upload_lease_document.php', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (res.data.success) {
+        await fetchContracts();
+        if (selectedContract && selectedContract.id === contractId) {
+          setSelectedContract(prev => ({
+            ...prev,
+            [docType]: { uploaded: true, filePath: res.data.filePath }
+          }));
+        }
+      } else {
+        alert(apiErrorMessage(res, 'Failed to upload signature.'));
+      }
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Failed to upload signature.'));
+    }
+  };
+
+  const handleSignatureRemove = async (contractId, docType) => {
+    const formData = new FormData();
+    formData.append('contractId', contractId);
+    formData.append('docType', docType);
+    formData.append('action', 'remove');
+    try {
+      const res = await api.post('/upload_lease_document.php', formData);
+      if (res.data.success) {
+        await fetchContracts();
+        if (selectedContract && selectedContract.id === contractId) {
+          setSelectedContract(prev => ({
+            ...prev,
+            [docType]: { uploaded: false, filePath: null }
+          }));
+        }
+      } else {
+        alert(apiErrorMessage(res, 'Failed to remove signature.'));
+      }
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Failed to remove signature.'));
+    }
   };
 
   const handleSaveDates = async () => {
@@ -419,15 +492,54 @@ const AdminContracts = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
-      <Sidebar />
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 print:h-auto print:block print:bg-white print:overflow-visible">
+      <div className="print:hidden">
+        <Sidebar />
+      </div>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
-        <Header title="Contracts" />
+      <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50 print:h-auto print:block print:bg-white print:overflow-visible print:p-0">
+        <div className="print:hidden">
+          <Header title="Contracts" />
+        </div>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
-          <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 print:p-0 print:overflow-visible print:block">
+          <div className="max-w-6xl mx-auto space-y-6 print:space-y-0 print:max-w-none print:m-0 print:p-0">
 
+            {/* Top Navigation Tabs: Contracts Management vs Contract Template Editor */}
+            <div className="print:hidden flex gap-2 bg-slate-200/70 p-1.5 rounded-2xl border border-slate-300/80 max-w-fit shadow-inner">
+              <button
+                type="button"
+                onClick={() => setActiveTab('contracts')}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold border-0 cursor-pointer transition-all ${
+                  activeTab !== 'editor'
+                    ? 'bg-white text-indigo-700 shadow-sm'
+                    : 'bg-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FontAwesomeIcon icon={faFileContract} />
+                <span>Contracts Management</span>
+                <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab !== 'editor' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-300/80 text-slate-600'}`}>
+                  {contracts.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('editor')}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold border-0 cursor-pointer transition-all ${
+                  activeTab === 'editor'
+                    ? 'bg-white text-indigo-700 shadow-sm'
+                    : 'bg-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FontAwesomeIcon icon={faFileSignature} />
+                <span>Contract Template Editor</span>
+              </button>
+            </div>
+
+            {activeTab === 'editor' ? (
+              <AdminContractEditor embedded={true} />
+            ) : (
+              <>
             {/* ─── EVICTION MONITORING BANNER ─── */}
             {evictionAlertContracts.length > 0 && (
               <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 space-y-3">
@@ -505,9 +617,19 @@ const AdminContracts = () => {
                   <option value="all">All Status</option><option value="active">Active</option><option value="expired">Expired</option><option value="draft">Draft</option><option value="eviction-pending">Eviction Pending</option>
                 </select>
               </div>
-              <button onClick={() => { setShowCreateModal(true); setCreateStep(1); contractErrors.setErrors({}); }} className="btn-interactive flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
-                <FontAwesomeIcon icon={faPlus} /> New Contract
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('editor')}
+                  className="btn-interactive flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-50 shadow-sm cursor-pointer transition-colors"
+                >
+                  <FontAwesomeIcon icon={faEdit} className="text-indigo-600" />
+                  <span>Edit Template</span>
+                </button>
+                <button onClick={() => { setShowCreateModal(true); setCreateStep(1); contractErrors.setErrors({}); }} className="btn-interactive flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm border-0 cursor-pointer transition-colors">
+                  <FontAwesomeIcon icon={faPlus} /> New Contract
+                </button>
+              </div>
             </div>
 
             {/* Contract Table */}
@@ -552,6 +674,8 @@ const AdminContracts = () => {
                 </tbody>
               </table>
             </div>
+          </>
+        )}
 
           </div>
         </div>
@@ -702,28 +826,88 @@ const AdminContracts = () => {
         />
       )}
 
-      {/* Preview Modal — Enhanced with Document Upload */}
+      {/* Preview Modal — Enhanced with Official Contract Document & File Tracking */}
       {showPreviewModal && selectedContract && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowPreviewModal(false)}>
-          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
+          <div className="modal-card-anim bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-hidden max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-3 shrink-0">
+              <div className="flex items-center gap-2.5">
                 <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{selectedContract.id}</span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${statusOf(selectedContract.status).color}`}>{statusOf(selectedContract.status).label}</span>
                 {selectedContract.evictionStatus === 'flagged' && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-200 text-red-900 border border-red-300">🚨 Eviction Flagged</span>
                 )}
+                <span className="text-xs font-semibold text-slate-700 hidden sm:inline ml-1">
+                  {selectedContract.tenant} · Unit {selectedContract.unit}
+                </span>
               </div>
-              <button onClick={() => setShowPreviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"><FontAwesomeIcon icon={faTimes} className="text-lg" /></button>
+
+              <div className="flex items-center gap-2">
+                {/* Modal Sub-Tabs */}
+                <div className="flex bg-slate-200/80 p-0.5 rounded-lg text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setModalSubTab('contract')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border-0 cursor-pointer transition-colors ${
+                      modalSubTab === 'contract' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={faFileContract} />
+                    <span>Official Agreement</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalSubTab('files')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border-0 cursor-pointer transition-colors ${
+                      modalSubTab === 'files' ? 'bg-white text-indigo-700 shadow-sm font-bold' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={faFileUpload} />
+                    <span>Files & Eviction</span>
+                  </button>
+                </div>
+
+                {/* Bi-lingual Switcher (Active on Agreement tab) */}
+                {modalSubTab === 'contract' && (
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 text-xs shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewLang('en')}
+                      className={`px-2 py-1 rounded font-bold border-0 cursor-pointer transition-colors ${
+                        previewLang === 'en' ? 'bg-indigo-600 text-white' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="English"
+                    >
+                      EN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewLang('tl')}
+                      className={`px-2 py-1 rounded font-bold border-0 cursor-pointer transition-colors ${
+                        previewLang === 'tl' ? 'bg-indigo-600 text-white' : 'bg-transparent text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Tagalog"
+                    >
+                      TL
+                    </button>
+                  </div>
+                )}
+
+                <button onClick={() => setShowPreviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1">
+                  <FontAwesomeIcon icon={faTimes} className="text-lg" />
+                </button>
+              </div>
             </div>
 
+            {/* Modal Body */}
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
-              {/* Draft contracts must be reviewed and activated by an admin */}
+              {/* Draft contracts banner */}
               {String(selectedContract.status).toLowerCase() === 'draft' && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-bold text-amber-900 m-0">This contract is still a draft.</p>
-                    <p className="text-[11px] text-amber-700 m-0 mt-0.5">Review the lease details below, then activate it to make it binding.</p>
+                    <p className="text-sm font-bold text-amber-900 m-0">This contract is currently a draft.</p>
+                    <p className="text-[11px] text-amber-700 m-0 mt-0.5">Review the lease terms and signatures below, then activate it to make it binding.</p>
                   </div>
                   <button
                     type="button"
@@ -735,6 +919,7 @@ const AdminContracts = () => {
                 </div>
               )}
 
+              {/* Terminated contract banner */}
               {selectedContract.status === 'terminated' && (
                 <div className="bg-slate-100 border border-slate-300 rounded-xl p-4">
                   <p className="text-sm font-bold text-slate-700 m-0">This lease was terminated.</p>
@@ -744,253 +929,327 @@ const AdminContracts = () => {
                 </div>
               )}
 
-              {/* Early termination — ends the tenancy (vacates the unit,
-                  cancels pending invoices, releases parking/visitor requests).
-                  Only offered where the backend actually allows it. */}
-              {['active', 'expired', 'eviction-pending'].includes(selectedContract.status) && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => handleTerminateContract(selectedContract.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
-                  >
-                    <FontAwesomeIcon icon={faGavel} /> Terminate Lease
-                  </button>
+              {/* SUB-TAB 1: OFFICIAL LEASE AGREEMENT */}
+              {modalSubTab === 'contract' && (
+                <div className="space-y-4">
+                  {/* Quick Dates & Management Bar */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    {isEditingDates ? (
+                      <div className="w-full space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start *</label>
+                            <input
+                              type="date"
+                              {...editErrors.fieldA11y('leaseStart')}
+                              max={maxFutureDate()}
+                              value={editForm.leaseStart}
+                              onChange={e => {
+                                const leaseStart = e.target.value;
+                                setEditForm(p => ({ ...p, leaseStart, leaseEnd: p.leaseEnd && leaseStart && p.leaseEnd <= leaseStart ? '' : p.leaseEnd }));
+                                editErrors.clearError('leaseStart');
+                              }}
+                              onBlur={() => editErrors.validateField('leaseStart', editForm)}
+                              className={DATE_INPUT + invalidCls(editErrors.errors.leaseStart)}
+                            />
+                            <FieldError id="contract-edit-leaseStart" error={editErrors.errors.leaseStart} />
+                          </div>
+                          <div>
+                            <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                            <input
+                              type="date"
+                              {...editErrors.fieldA11y('leaseEnd')}
+                              min={editForm.leaseStart || undefined}
+                              max={maxFutureDate()}
+                              value={editForm.leaseEnd}
+                              onChange={e => { setEditForm(p => ({...p, leaseEnd: e.target.value})); editErrors.clearError('leaseEnd'); }}
+                              onBlur={() => editErrors.validateField('leaseEnd', editForm)}
+                              className={DATE_INPUT + invalidCls(editErrors.errors.leaseEnd)}
+                            />
+                            <FieldError id="contract-edit-leaseEnd" error={editErrors.errors.leaseEnd} />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button type="button" onClick={() => { setIsEditingDates(false); editErrors.setErrors({}); }} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer">Cancel</button>
+                          <button type="button" onClick={handleSaveDates} disabled={savingDates} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 border-0 cursor-pointer disabled:opacity-50">{savingDates ? 'Saving…' : 'Save Dates'}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                          <div>
+                            <span className="text-slate-400">Tenant:</span> <strong className="text-slate-800">{selectedContract.tenant}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Unit:</span> <strong className="text-slate-800">{selectedContract.unit} ({selectedContract.type})</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Rent:</span> <strong className="text-slate-800">{formatCurrency(selectedContract.rent)}/mo</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Period:</span> <strong className="text-slate-800">{selectedContract.leaseStart} → {selectedContract.leaseEnd}</strong>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingDates(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-50 cursor-pointer transition-colors shadow-sm"
+                          >
+                            <FontAwesomeIcon icon={faEdit} className="text-[10px]" />
+                            <span>Edit Dates</span>
+                          </button>
+                          {['active', 'expired', 'eviction-pending'].includes(selectedContract.status) && (
+                            <button
+                              type="button"
+                              onClick={() => handleTerminateContract(selectedContract.id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                            >
+                              <FontAwesomeIcon icon={faGavel} /> Terminate Lease
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Document Render with Uploadable E-Signatures */}
+                  <div className="rounded-2xl border border-slate-200 bg-slate-100/50 p-2 sm:p-4">
+                    <ContractDocument
+                      template={previewTemplate || {}}
+                      lang={previewLang}
+                      data={{
+                        tenantName: selectedContract.tenant,
+                        tenantPhone: selectedContract.tenantPhone,
+                        tenantEmail: selectedContract.tenantEmail,
+                        roomName: selectedContract.unit,
+                        unitType: selectedContract.type,
+                        monthlyRent: formatCurrency(selectedContract.rent),
+                        securityDeposit: formatCurrency(selectedContract.deposit),
+                        advanceRent: formatCurrency(selectedContract.rent),
+                        leaseStartDate: selectedContract.leaseStart,
+                        leaseEndDate: selectedContract.leaseEnd,
+                        entryDate: selectedContract.leaseStart,
+                        tenantSignature: selectedContract.tenantSignature,
+                        ownerSignature: selectedContract.ownerSignature,
+                      }}
+                      allowUploadSignature={true}
+                      onUploadSignature={(docType, file) => handleSignatureUpload(selectedContract.id, docType, file)}
+                      onRemoveSignature={(docType) => handleSignatureRemove(selectedContract.id, docType)}
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* Contract Details */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
-                <div className="text-center border-b border-slate-200 pb-4">
-                  <h3 className="text-xl font-bold text-slate-800 italic font-serif m-0">APARTMENT AMS</h3>
-                  <p className="text-[10px] text-slate-400 m-0 mt-1 uppercase tracking-widest">Lease Agreement</p>
-                  <p className="text-[10px] text-slate-400 m-0 mt-1">Generated: {selectedContract.generatedDate}</p>
-                </div>
-                {isEditingDates ? (
-                  <div className="space-y-3 text-sm text-slate-700 bg-slate-100/50 p-4 rounded-xl border border-slate-200">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start (Move-in) *</label>
-                        <input
-                          type="date"
-                          {...editErrors.fieldA11y('leaseStart')}
-                          max={maxFutureDate()}
-                          value={editForm.leaseStart}
-                          onChange={e => {
-                            const leaseStart = e.target.value;
-                            setEditForm(p => ({ ...p, leaseStart, leaseEnd: p.leaseEnd && leaseStart && p.leaseEnd <= leaseStart ? '' : p.leaseEnd }));
-                            editErrors.clearError('leaseStart');
-                          }}
-                          onBlur={() => editErrors.validateField('leaseStart', editForm)}
-                          className={DATE_INPUT + invalidCls(editErrors.errors.leaseStart)}
-                        />
-                        <FieldError id="contract-edit-leaseStart" error={editErrors.errors.leaseStart} />
-                      </div>
-                      <div>
-                        <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
-                        <input
-                          type="date"
-                          {...editErrors.fieldA11y('leaseEnd')}
-                          min={editForm.leaseStart || undefined}
-                          max={maxFutureDate()}
-                          value={editForm.leaseEnd}
-                          onChange={e => { setEditForm(p => ({...p, leaseEnd: e.target.value})); editErrors.clearError('leaseEnd'); }}
-                          onBlur={() => editErrors.validateField('leaseEnd', editForm)}
-                          className={DATE_INPUT + invalidCls(editErrors.errors.leaseEnd)}
-                        />
-                        <FieldError id="contract-edit-leaseEnd" error={editErrors.errors.leaseEnd} />
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
-                      <button type="button" onClick={() => { setIsEditingDates(false); editErrors.setErrors({}); }} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 cursor-pointer">Cancel</button>
-                      <button type="button" onClick={handleSaveDates} disabled={savingDates} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 border-0 cursor-pointer disabled:opacity-50">{savingDates ? 'Saving…' : 'Save'}</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3 text-sm text-slate-700">
-                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Tenant</span><span className="font-semibold">{selectedContract.tenant}</span></div>
-                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Unit</span><span className="font-semibold">{selectedContract.unit} ({selectedContract.type})</span></div>
-                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Monthly Rent</span><span className="font-semibold">{formatCurrency(selectedContract.rent)}</span></div>
-                    <div className="flex justify-between py-1 border-b border-dotted border-slate-200"><span className="text-slate-400">Security Deposit</span><span className="font-semibold">{formatCurrency(selectedContract.deposit)}</span></div>
-                    <div className="flex justify-between items-center py-1">
-                      <span className="text-slate-400">Lease Period</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{selectedContract.leaseStart} → {selectedContract.leaseEnd}</span>
-                        <button onClick={() => setIsEditingDates(true)} className="flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-bold border-0 cursor-pointer transition-colors">
-                          <FontAwesomeIcon icon={faEdit} className="text-[10px]" />
-                          <span>Edit Dates</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div className="border-t border-slate-200 pt-4 mt-4">
-                  <h4 className="text-xs font-bold text-slate-600 mb-2 m-0">Terms & Conditions</h4>
-                  <p className="text-[10px] text-slate-400 leading-relaxed m-0">
-                    This Lease Agreement is entered into between Apartment AMS ("Landlord") and the Tenant named above. 
-                    The Tenant agrees to pay the monthly rent on or before the 5th of each month. A late fee of ₱500 
-                    will be charged for payments made after the due date. The security deposit shall be refunded upon 
-                    lease termination, subject to property inspection. Both parties agree to the terms herein.
-                  </p>
-                </div>
-                <div className="flex justify-between items-end pt-6 border-t border-slate-200 mt-4">
-                  <div className="text-center"><div className="w-32 border-t border-slate-300 pt-1"><span className="text-[10px] text-slate-400">Landlord Signature</span></div></div>
-                  <div className="text-center"><div className="w-32 border-t border-slate-300 pt-1"><span className="text-[10px] text-slate-400">Tenant Signature</span></div></div>
-                </div>
-              </div>
-
-              {/* ─── DOCUMENT UPLOAD TRACKING ─── */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                  <FontAwesomeIcon icon={faFileUpload} className="text-indigo-500" />
-                  <h4 className="text-sm font-bold text-slate-800 m-0">Lease Document Upload</h4>
-                </div>
-                <div className="p-5 space-y-4">
-                  {/* Signed Lease */}
-                  {/* Signed Lease */}
-                  <div className={`rounded-lg border p-4 ${selectedContract.signedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${selectedContract.signedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
-                          <FontAwesomeIcon icon={selectedContract.signedLease?.uploaded ? faCheckCircle : faFileSignature} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800 m-0">Signed Lease Agreement</p>
-                          {selectedContract.signedLease?.uploaded ? (
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-[11px] text-slate-500 m-0 font-sans">
-                                <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
-                                {selectedContract.signedLease.fileName}
-                              </p>
-                              <a 
-                                href={fileUrl(selectedContract.signedLease.filePath) || '#'}
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
-                              >
-                                View / Download File
-                              </a>
-                            </div>
-                          ) : (
-                            <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
-                          )}
-                        </div>
-                      </div>
-                      {selectedContract.signedLease?.uploaded ? (
-                        <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
-                          <FontAwesomeIcon icon={faTimesCircle} /> Remove
-                        </button>
-                      ) : (
-                        <button onClick={() => handleUploadFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
-                          <FontAwesomeIcon icon={faUpload} /> Upload File
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Notarized Lease */}
-                  <div className={`rounded-lg border p-4 ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
-                          <FontAwesomeIcon icon={selectedContract.notarizedLease?.uploaded ? faCheckCircle : faShieldAlt} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800 m-0">Notarized Lease Copy</p>
-                          {selectedContract.notarizedLease?.uploaded ? (
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-[11px] text-slate-500 m-0 font-sans">
-                                <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
-                                {selectedContract.notarizedLease.fileName}
-                              </p>
-                              <a 
-                                href={fileUrl(selectedContract.notarizedLease.filePath) || '#'}
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
-                              >
-                                View / Download File
-                              </a>
-                            </div>
-                          ) : (
-                            <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
-                          )}
-                        </div>
-                      </div>
-                      {selectedContract.notarizedLease?.uploaded ? (
-                        <button onClick={() => handleRemoveFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
-                          <FontAwesomeIcon icon={faTimesCircle} /> Remove
-                        </button>
-                      ) : (
-                        <button onClick={() => handleUploadFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
-                          <FontAwesomeIcon icon={faUpload} /> Upload File
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Document status summary */}
-                  {(() => {
-                    const ds = getDocumentStatus(selectedContract);
-                    return (
-                      <div className={`flex items-center gap-2 text-xs font-semibold ${ds.color} bg-slate-50 border border-slate-100 rounded-lg p-2.5`}>
-                        <FontAwesomeIcon icon={ds.icon} />
-                        Document Status: {ds.label}
-                        {ds.label !== 'Complete' && <span className="text-slate-400 font-normal ml-1">— Please upload all required documents.</span>}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* ─── EVICTION ACTION PANEL ─── */}
-              {selectedContract.overdueInfo && (
-                <div className={`rounded-xl border-2 p-5 space-y-3 ${selectedContract.status === 'eviction-pending' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
-                  <div className="flex items-center gap-3">
-                    <FontAwesomeIcon icon={faGavel} className={`text-xl ${selectedContract.status === 'eviction-pending' ? 'text-red-600' : 'text-amber-600'}`} />
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-800 m-0">
-                        {selectedContract.status === 'eviction-pending' ? '🚨 Eviction Flagged' : '⚠ Overdue Payment Detected'}
-                      </h4>
-                      <p className="text-[11px] text-slate-500 m-0 mt-0.5">
-                        {selectedContract.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(selectedContract.overdueInfo.outstandingAmount)} · Last payment: {selectedContract.overdueInfo.lastPaymentDate}
-                      </p>
-                    </div>
-                  </div>
-                  {selectedContract.overdueInfo.daysOverdue >= overdueThresholdDays && (
-                    <div className="bg-white border border-red-200 rounded-lg p-3 text-xs text-red-700">
-                      <FontAwesomeIcon icon={faExclamationTriangle} className="mr-1.5" />
-                      This tenant has exceeded the <strong>{overdueThresholdDays}-day</strong> overdue payment threshold configured in System Settings.
+              {/* SUB-TAB 2: DOCUMENT FILES & EVICTION TRACKING */}
+              {modalSubTab === 'files' && (
+                <div className="space-y-6">
+                  {/* Early termination button */}
+                  {['active', 'expired', 'eviction-pending'].includes(selectedContract.status) && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleTerminateContract(selectedContract.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faGavel} /> Terminate Lease
+                      </button>
                     </div>
                   )}
-                  <div className="flex gap-2">
-                    {selectedContract.status !== 'eviction-pending' ? (
-                      <button onClick={() => handleFlagEviction(selectedContract.id)} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 border-0 cursor-pointer transition-colors">
-                        <FontAwesomeIcon icon={faGavel} /> Flag for Eviction
-                      </button>
-                    ) : (
-                      <button onClick={() => handleClearEviction(selectedContract.id)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 border-0 cursor-pointer transition-colors">
-                        <FontAwesomeIcon icon={faCheckCircle} /> Clear Eviction Flag
-                      </button>
-                    )}
+
+                  {/* Document Upload Tracking */}
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                      <FontAwesomeIcon icon={faFileUpload} className="text-indigo-500" />
+                      <h4 className="text-sm font-bold text-slate-800 m-0">Uploaded Physical / Notarized Documents</h4>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      {/* Signed Lease */}
+                      <div className={`rounded-lg border p-4 ${selectedContract.signedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${selectedContract.signedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
+                              <FontAwesomeIcon icon={selectedContract.signedLease?.uploaded ? faCheckCircle : faFileSignature} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800 m-0">Signed Lease Agreement (Physical Scan / PDF)</p>
+                              {selectedContract.signedLease?.uploaded ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-[11px] text-slate-500 m-0 font-sans">
+                                    <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
+                                    {selectedContract.signedLease.fileName}
+                                  </p>
+                                  <a 
+                                    href={fileUrl(selectedContract.signedLease.filePath) || '#'}
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
+                                  >
+                                    View / Download File
+                                  </a>
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
+                              )}
+                            </div>
+                          </div>
+                          {selectedContract.signedLease?.uploaded ? (
+                            <button onClick={() => handleRemoveFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
+                              <FontAwesomeIcon icon={faTimesCircle} /> Remove
+                            </button>
+                          ) : (
+                            <button onClick={() => handleUploadFile(selectedContract.id, 'signedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
+                              <FontAwesomeIcon icon={faUpload} /> Upload File
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Notarized Lease */}
+                      <div className={`rounded-lg border p-4 ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${selectedContract.notarizedLease?.uploaded ? 'bg-emerald-200 text-emerald-700' : 'bg-amber-200 text-amber-700'}`}>
+                              <FontAwesomeIcon icon={selectedContract.notarizedLease?.uploaded ? faCheckCircle : faShieldAlt} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800 m-0">Notarized Lease Copy</p>
+                              {selectedContract.notarizedLease?.uploaded ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-[11px] text-slate-500 m-0 font-sans">
+                                    <FontAwesomeIcon icon={faFile} className="mr-1 text-slate-400" />
+                                    {selectedContract.notarizedLease.fileName}
+                                  </p>
+                                  <a 
+                                    href={fileUrl(selectedContract.notarizedLease.filePath) || '#'}
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold no-underline"
+                                  >
+                                    View / Download File
+                                  </a>
+                                </div>
+                              ) : (
+                                <p className="text-[11px] text-amber-600 m-0 mt-0.5">Not yet uploaded</p>
+                              )}
+                            </div>
+                          </div>
+                          {selectedContract.notarizedLease?.uploaded ? (
+                            <button onClick={() => handleRemoveFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-red-500 text-xs font-semibold rounded-lg hover:bg-red-50 cursor-pointer transition-colors">
+                              <FontAwesomeIcon icon={faTimesCircle} /> Remove
+                            </button>
+                          ) : (
+                            <button onClick={() => handleUploadFile(selectedContract.id, 'notarizedLease')} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
+                              <FontAwesomeIcon icon={faUpload} /> Upload File
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Document status summary */}
+                      {(() => {
+                        const ds = getDocumentStatus(selectedContract);
+                        return (
+                          <div className={`flex items-center gap-2 text-xs font-semibold ${ds.color} bg-slate-50 border border-slate-100 rounded-lg p-2.5`}>
+                            <FontAwesomeIcon icon={ds.icon} />
+                            Document Status: {ds.label}
+                            {ds.label !== 'Complete' && <span className="text-slate-400 font-normal ml-1">— Please upload all required physical/notarized documents.</span>}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
+
+                  {/* Eviction Action Panel */}
+                  {selectedContract.overdueInfo && (
+                    <div className={`rounded-xl border-2 p-5 space-y-3 ${selectedContract.status === 'eviction-pending' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'}`}>
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon icon={faGavel} className={`text-xl ${selectedContract.status === 'eviction-pending' ? 'text-red-600' : 'text-amber-600'}`} />
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-800 m-0">
+                            {selectedContract.status === 'eviction-pending' ? '🚨 Eviction Flagged' : '⚠ Overdue Payment Detected'}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                            {selectedContract.overdueInfo.daysOverdue} days overdue · Outstanding: {formatCurrency(selectedContract.overdueInfo.outstandingAmount)} · Last payment: {selectedContract.overdueInfo.lastPaymentDate}
+                          </p>
+                        </div>
+                      </div>
+                      {selectedContract.overdueInfo.daysOverdue >= overdueThresholdDays && (
+                        <div className="bg-white border border-red-200 rounded-lg p-3 text-xs text-red-700">
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="mr-1.5" />
+                          This tenant has exceeded the <strong>{overdueThresholdDays}-day</strong> overdue payment threshold configured in System Settings.
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {selectedContract.status !== 'eviction-pending' ? (
+                          <button onClick={() => handleFlagEviction(selectedContract.id)} className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-xs font-semibold rounded-lg hover:bg-red-700 border-0 cursor-pointer transition-colors">
+                            <FontAwesomeIcon icon={faGavel} /> Flag for Eviction
+                          </button>
+                        ) : (
+                          <button onClick={() => handleClearEviction(selectedContract.id)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 border-0 cursor-pointer transition-colors">
+                            <FontAwesomeIcon icon={faCheckCircle} /> Clear Eviction Flag
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2 shrink-0">
-              <button 
-                onClick={() => {
-                  if (selectedContract.tenantEmail) {
-                    window.open('/view-contract?email=' + encodeURIComponent(selectedContract.tenantEmail), '_blank');
-                  } else {
-                    alert('No tenant email associated with this contract to preview.');
-                  }
-                }}
-                className="flex-grow flex items-center justify-center gap-2 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"
-              >
-                <FontAwesomeIcon icon={faPrint} /> View / Print System Lease Agreement
-              </button>
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.scrollTo(0, 0);
+                    document.querySelectorAll('*').forEach((el) => {
+                      if (el.scrollTop) el.scrollTop = 0;
+                    });
+                    const prevTitle = document.title;
+                    document.title = '';
+                    setTimeout(() => {
+                      window.print();
+                      setTimeout(() => {
+                        document.title = prevTitle;
+                      }, 500);
+                    }, 50);
+                  }}
+                  className="btn-interactive inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 shadow-sm cursor-pointer transition-colors"
+                >
+                  <FontAwesomeIcon icon={faPrint} /> Print Agreement
+                </button>
+                {selectedContract.tenantEmail && (
+                  <button
+                    type="button"
+                    onClick={() => window.open('/view-contract?email=' + encodeURIComponent(selectedContract.tenantEmail), '_blank')}
+                    className="btn-interactive inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 cursor-pointer transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faExternalLinkAlt} /> Open Tenant View
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPreviewModal(false);
+                    setActiveTab('editor');
+                  }}
+                  className="btn-interactive inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-200 cursor-pointer transition-colors"
+                >
+                  <FontAwesomeIcon icon={faEdit} /> Edit Master Template
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  className="btn-interactive px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-900 border-0 cursor-pointer transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

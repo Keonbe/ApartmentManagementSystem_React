@@ -45,6 +45,7 @@ import AdminAnnouncements from './AdminPages/AdminAnnouncements';
 import AdminReports from './AdminPages/AdminReports';
 import AdminNotifications from './AdminPages/AdminNotifications';
 import AdminContracts from './AdminPages/AdminContracts';
+import AdminContractEditor from './AdminPages/AdminContractEditor';
 import AdminServicePage from './AdminPages/AdminServicePage';
 import AdminAccountSettings from './AdminPages/AdminAccountSettings';
 import AdminActivityLogs from './AdminPages/AdminActivityLogs';
@@ -250,6 +251,7 @@ function AppContent() {
         <Route path="/admin-reports" element={<AdminProtectedRoute><AdminReports /></AdminProtectedRoute>} />
         <Route path="/admin-notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
         <Route path="/admin-contracts" element={<AdminProtectedRoute><AdminContracts /></AdminProtectedRoute>} />
+        <Route path="/admin-contract-editor" element={<AdminProtectedRoute><AdminContractEditor /></AdminProtectedRoute>} />
         <Route path="/admin-services" element={<AdminProtectedRoute><AdminServicePage /></AdminProtectedRoute>} />
         <Route path="/admin-settings" element={<AdminProtectedRoute><AdminAccountSettings /></AdminProtectedRoute>} />
         <Route path="/admin-activity-logs" element={<AdminProtectedRoute><AdminActivityLogs /></AdminProtectedRoute>} />

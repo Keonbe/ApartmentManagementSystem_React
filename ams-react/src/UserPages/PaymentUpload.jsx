@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo } from '@fortawesome/free-solid-svg-icons';
@@ -12,6 +12,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
+import { fetchContractTemplate, accountsForMethod } from '../Components/contract/contractTemplate';
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
 
 const INPUT_CLS = "focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm";
@@ -28,6 +29,8 @@ export default function PaymentUpload() {
     const [proofImage, setProofImage] = useState(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [uploading, setUploading] = useState(false);
+    // Landlord's GCash/bank accounts, edited in Admin → Edit Contract.
+    const [accounts, setAccounts] = useState([]);
     const [error, setError] = useState('');
     const [submitted, setSubmitted] = useState(false);
     // Keys match upload_payment_proof.php's form fields.
@@ -37,6 +40,12 @@ export default function PaymentUpload() {
         payment_reference: (v) => checkPaymentReference(v, paymentMethod),
         proof: (f) => (f ? checkFile(f, FILE_RULES.receiptImage) : 'Please upload a photo of your receipt.'),
     }, { idPrefix: 'upload-' });
+
+    useEffect(() => {
+        fetchContractTemplate()
+            .then((res) => setAccounts(accountsForMethod(res.template.payment_accounts, paymentMethod)))
+            .catch((err) => console.error('Failed to load payment accounts:', err));
+    }, [paymentMethod]);
 
     if (!invoiceId) {
         return (
@@ -48,9 +57,6 @@ export default function PaymentUpload() {
             </div>
         );
     }
-
-    const mockAccountNo = paymentMethod === 'GCash' ? '0917-123-4567' : 'BDO - 0012 3456 7890';
-    const mockAccountName = 'AMS Property Management';
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
@@ -165,10 +171,16 @@ export default function PaymentUpload() {
                     </div>
                     <div className="border-t border-slate-200 md:border-white/10 pt-4 mt-4">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
-                        <div className="flex flex-col gap-1.5 text-sm font-medium">
-                            <span><strong className="text-slate-400 mr-2">{t('paymentUpload.accountName')}:</strong> {mockAccountName}</span>
-                            <span className="flex items-center"><strong className="text-slate-400 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{mockAccountNo}</span></span>
-                        </div>
+                        {accounts.length === 0 && (
+                            <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-400">{t('paymentUpload.noAccount')}</p>
+                        )}
+                        {accounts.map((acct) => (
+                            <div key={acct.id} className="flex flex-col gap-1.5 text-sm font-medium [&+&]:mt-3 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-200 md:[&+&]:border-white/10">
+                                {accounts.length > 1 && <span className="text-xs font-bold text-slate-500 md:text-slate-300">{acct.label}</span>}
+                                {acct.account_name && <span><strong className="text-slate-400 mr-2">{t('paymentUpload.accountName')}:</strong> {acct.account_name}</span>}
+                                <span className="flex items-center"><strong className="text-slate-400 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{acct.account_number}</span></span>
+                            </div>
+                        ))}
                     </div>
                 </div>
 

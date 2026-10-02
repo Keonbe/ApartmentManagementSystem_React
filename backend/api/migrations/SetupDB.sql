@@ -153,6 +153,8 @@ CREATE TABLE `lease_contracts` (
   `status` enum('draft','active','expired','terminated','eviction-pending') NOT NULL DEFAULT 'draft',
   `signed_lease_path` varchar(255) DEFAULT NULL,
   `notarized_lease_path` varchar(255) DEFAULT NULL,
+  -- contract_template_versions.id the terms were issued under (NULL = latest).
+  `template_version_id` int(11) DEFAULT NULL,
   `eviction_status` varchar(50) DEFAULT NULL,
   -- Set only by the 'terminate' action (update_contract_status.php), which
   -- also ends the tenancy via vacate_tenant_room() — distinct from the
@@ -993,6 +995,20 @@ CREATE TABLE IF NOT EXISTS `password_reset_requests` (
   PRIMARY KEY (`id`),
   KEY `email_time` (`email`,`requested_at`),
   KEY `ip_time` (`ip_address`,`requested_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Admin-editable lease contract (backend/contract_template.php). One row per
+-- save; the highest version is in force. Empty until the first save or the
+-- first contract that pins the built-in default.
+CREATE TABLE IF NOT EXISTS `contract_template_versions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `version` int(11) NOT NULL,
+  `content` longtext NOT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_template_version` (`version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Advance payments as monthly credits (2026_09_advance_credits.sql): one row

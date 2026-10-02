@@ -5,6 +5,7 @@ header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
 
 require_once "../config.php";
+require_once __DIR__ . '/../contract_template.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -95,8 +96,11 @@ $deposit_amount = ($deposit_amount === null || $deposit_amount === '') ? (float)
 
 $id = $input['id'] ?? uniqid('CTR-');
 
-$stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status) VALUES (?, ?, ?, ?, ?, 'draft')");
-$stmt->bind_param("sidss", $id, $rent_application_id, $deposit_amount, $lease_start, $lease_end);
+// The contract keeps the clauses in force today, even if the template is edited later.
+$template_version_id = contract_template_pin_version_id($conn);
+
+$stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, deposit_amount, lease_start, lease_end, status, template_version_id) VALUES (?, ?, ?, ?, ?, 'draft', ?)");
+$stmt->bind_param("sidssi", $id, $rent_application_id, $deposit_amount, $lease_start, $lease_end, $template_version_id);
 
 if ($stmt->execute()) {
     log_activity($conn, $admin_id, 'contract', "Generated Lease Contract", "Contract ID: $id for Application: $rent_application_id");

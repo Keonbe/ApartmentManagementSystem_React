@@ -7,7 +7,7 @@ import {
   faCheckCircle, faClock, faUsers, faVenusMars,
   faFileAlt, faExclamationTriangle, faHome,
   faList, faColumns, faEye, faFilter, faChevronDown,
-  faFilePdf, faPaperclip
+  faFilePdf, faPaperclip, faSpinner
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
@@ -81,6 +81,7 @@ const AdminApplications = () => {
   const [errorMsg, setErrorMsg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [approveTarget, setApproveTarget] = useState(null);
+  const [isApproving, setIsApproving] = useState(false);
   const [scheduleTarget, setScheduleTarget] = useState(null);
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleMessage, setScheduleMessage] = useState('');
@@ -227,15 +228,18 @@ const AdminApplications = () => {
   };
 
   const confirmApprove = async () => {
-    if (!approveTarget) return;
+    if (!approveTarget || isApproving) return;
+    setIsApproving(true);
     try {
       const res = await api.post('/update_tenant_status.php', { id: approveTarget.id, status: 'Approved' });
       if (!res.data.success) throw new Error(apiErrorMessage(res, 'Failed to approve the application.'));
       setApproveTarget(null);
       setShowProfileModal(false);
-      fetchApplications();
+      await fetchApplications();
     } catch (err) {
       alert(apiErrorMessage(err, 'Failed to approve the application.'));
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -935,14 +939,18 @@ const AdminApplications = () => {
               {(selectedApp.status === 'Pending Review' || selectedApp.status === 'Pending Deposit') && (
                 <div className="flex gap-4 mt-8 pt-6 border-t border-slate-200">
                     <button 
+                      type="button"
+                      disabled={isApproving}
                       onClick={() => setApproveTarget(selectedApp)} 
-                      className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white p-4 rounded-xl border-0 cursor-pointer text-sm font-bold hover:bg-emerald-600 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
+                      className="flex-1 flex items-center justify-center gap-2 bg-emerald-500 text-white p-4 rounded-xl border-0 cursor-pointer text-sm font-bold hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5"
                     >
                       <FontAwesomeIcon icon={faCheckCircle} className="text-lg" /> APPROVE
                     </button>
                     <button 
+                      type="button"
+                      disabled={isApproving}
                       onClick={() => setRejectTarget(selectedApp)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-white text-red-600 border-2 border-red-200 p-4 rounded-xl cursor-pointer text-sm font-bold hover:bg-red-50 hover:border-red-300 transition-all shadow-sm"
+                    className="flex-1 flex items-center justify-center gap-2 bg-white text-red-600 border-2 border-red-200 p-4 rounded-xl cursor-pointer text-sm font-bold hover:bg-red-50 hover:border-red-300 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-sm"
                   >
                     <FontAwesomeIcon icon={faTimes} className="text-lg" /> REJECT
                   </button>
@@ -986,11 +994,35 @@ const AdminApplications = () => {
       )}
       
       {approveTarget && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setApproveTarget(null)}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => !isApproving && setApproveTarget(null)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
             <h3 className="m-0 text-lg font-bold text-slate-800">Approve this application?</h3>
             <p className="mt-2 text-sm text-slate-500">This reserves Unit {approveTarget.unit} for {approveTarget.name} and creates their initial payment request. It does not mark them as moved in.</p>
-            <div className="mt-6 flex justify-end gap-3"><button onClick={() => setApproveTarget(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Cancel</button><button onClick={confirmApprove} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Yes, approve</button></div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button 
+                type="button"
+                disabled={isApproving}
+                onClick={() => setApproveTarget(null)} 
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                disabled={isApproving}
+                onClick={confirmApprove} 
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-75 disabled:cursor-not-allowed px-4 py-2 text-sm font-semibold text-white cursor-pointer transition-all flex items-center gap-2 shadow-sm"
+              >
+                {isApproving ? (
+                  <>
+                    <FontAwesomeIcon icon={faSpinner} spin />
+                    <span>Approving...</span>
+                  </>
+                ) : (
+                  'Yes, approve'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

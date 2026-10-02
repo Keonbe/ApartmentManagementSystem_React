@@ -28,6 +28,7 @@ const draftInvoiceId = (year, month) =>
   `INV-${year}${String(month).padStart(2, '0')}-${String(Math.floor(1000 + Math.random() * 9000))}`;
 import ExpensesModal from '../Components/ExpensesModal';
 import { expenseCategoryLabel } from '../config/expenseCategories';
+import { fetchContractTemplate, pick } from '../Components/contract/contractTemplate';
 
 const monthsList = [
   { value: 1, label: 'January' },
@@ -65,6 +66,14 @@ const AdminReports = () => {
       setActiveModule('utilities');
     }
   }
+
+  // Payment accounts printed on invoices come from Admin → Edit Contract.
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
+  useEffect(() => {
+    fetchContractTemplate()
+      .then((res) => setPaymentAccounts(res.template.payment_accounts || []))
+      .catch((err) => console.error('Failed to load payment accounts:', err));
+  }, []);
 
   // Modal Invoice Generation States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -2685,9 +2694,12 @@ const AdminReports = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-xs">
                     <div className="space-y-1 text-slate-600 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
                       <p className="font-bold text-slate-800 text-[11px] uppercase tracking-wide m-0 mb-1">Payment Instructions</p>
-                      <p className="m-0">• <strong>GCash:</strong> 0912-345-6789 (AMS Leasing)</p>
-                      <p className="m-0">• <strong>BDO Bank:</strong> 1234-5678-9012 (Apartment AMS)</p>
-                      <p className="m-0">• <strong>Office Cashier:</strong> 8:00 AM – 5:00 PM Mon–Sat</p>
+                      {paymentAccounts.map((acct) => (
+                        <p key={acct.id} className="m-0">
+                          • <strong>{acct.label}:</strong>{' '}
+                          {[acct.account_number, acct.account_name && `(${acct.account_name})`, !acct.account_number && pick(acct.note, 'en')].filter(Boolean).join(' ') || '—'}
+                        </p>
+                      ))}
                       <p className="m-0 text-[10px] text-slate-500 pt-1 italic">Please reference <strong>{invoiceForm.invoiceNumber}</strong> upon payment.</p>
                     </div>
 

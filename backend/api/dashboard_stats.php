@@ -86,7 +86,7 @@ try {
     $stmt = $conn->prepare("
         SELECT 
             SUM(CASE WHEN status IN ('Approved', 'active', 'pending-move-out') THEN 1 ELSE 0 END) as active_tenants,
-            SUM(CASE WHEN status IN ('Pending Review', 'Pending') THEN 1 ELSE 0 END) as pending_apps
+            SUM(CASE WHEN LOWER(status) IN ('pending review', 'pending', 'pending deposit', 'action required') THEN 1 ELSE 0 END) as pending_apps
         FROM rent_applications
     ");
     $stmt->execute();
@@ -237,7 +237,7 @@ try {
     $stmt = $conn->prepare("
         SELECT id, first_name, last_name, room_name, monthly_rent, created_at 
         FROM rent_applications 
-        WHERE status IN ('Pending Review', 'Pending') 
+        WHERE LOWER(status) IN ('pending review', 'pending', 'pending deposit', 'action required') 
         ORDER BY created_at DESC 
         LIMIT 4
     ");
@@ -256,10 +256,10 @@ try {
 
     // 9b. Pending / Unverified Invoices
     $stmt = $conn->prepare("
-        SELECT i.id, u.first_name, u.last_name, ra.room_name, i.total_amount, i.status, i.due_date, i.billing_period 
+        SELECT i.id, u.first_name, u.last_name, COALESCE(ra.room_name, 'N/A') as room_name, i.total_amount, i.status, i.due_date, i.billing_period 
         FROM invoices i
         LEFT JOIN users u ON i.user_id = u.id
-        LEFT JOIN rent_applications ra ON u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')
+        LEFT JOIN rent_applications ra ON (i.rent_application_id = ra.id OR (i.rent_application_id IS NULL AND u.id = ra.user_id AND ra.status IN ('Approved', 'active', 'pending-move-out')))
         WHERE LOWER(i.status) IN " . billing_open_status_sql() . "
         ORDER BY CASE WHEN LOWER(i.status) = 'pending-verification' THEN 1 WHEN i.due_date < CURRENT_DATE() THEN 2 ELSE 3 END, i.created_at DESC
         LIMIT 4
@@ -353,7 +353,8 @@ try {
     $stmt->close();
 
     echo json_encode($response);
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    error_log("[dashboard_stats] " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
     http_response_code(500);
     echo json_encode(["success" => false, "message" => $e->getMessage()]);
 }

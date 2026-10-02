@@ -1,6 +1,6 @@
-import { faFileContract, faCalendarAlt, faUsers, faImage, faUserShield, faBuilding, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
-import { SettingsSection, Field, WithUnit, INPUT, INPUT_NUMBER } from './SettingsSection';
-import { LIMITS } from '../../utils/validation';
+import { Link } from 'react-router-dom';
+import { faFileContract, faCalendarAlt, faUsers, faImage, faFileSignature } from '@fortawesome/free-solid-svg-icons';
+import { SettingsSection, Field, WithUnit, Callout, INPUT, INPUT_NUMBER } from './SettingsSection';
 import { blockNonIntegerKeys, numberValue } from '../../Components/form/formHelpers';
 
 // Whole-number setting: empty stays empty (required stops the save).
@@ -16,17 +16,6 @@ const intInput = (settings, updateSetting, key, min, max) => ({
   value: settings[key],
   onKeyDown: blockNonIntegerKeys,
   onChange: (e) => updateSetting(key, numberValue(e)),
-});
-
-const textInput = (settings, updateSetting, key, maxLength = LIMITS.landlordText) => ({
-  id: `setting-${key}`,
-  name: key,
-  type: 'text',
-  autoComplete: 'off',
-  maxLength,
-  value: settings[key],
-  onChange: (e) => updateSetting(key, e.target.value),
-  onBlur: (e) => { if (e.target.value !== e.target.value.trim()) updateSetting(key, e.target.value.trim()); },
 });
 
 export default function LeasingPanel({ settings, updateSetting }) {
@@ -70,31 +59,10 @@ export default function LeasingPanel({ settings, updateSetting }) {
         </div>
       </SettingsSection>
 
-      <SettingsSection
-        icon={faBuilding}
-        tone="violet"
-        title="Lease Contract Details"
-        description="Shown as the Owner / Lessor on every generated lease contract."
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Owner / Landlord Name" htmlFor="setting-landlordName" icon={faUserShield}>
-            <input {...textInput(settings, updateSetting, 'landlordName')} className={INPUT} />
-          </Field>
-
-          <Field label="Owner's Address" htmlFor="setting-landlordAddress" icon={faUserShield}>
-            <input {...textInput(settings, updateSetting, 'landlordAddress')} className={INPUT} />
-          </Field>
-
-          <Field label="Apartment / Property Address" htmlFor="setting-propertyAddress" icon={faBuilding} hint={'The building\'s location, shown under "Description of the Apartment".'}>
-            <input {...textInput(settings, updateSetting, 'propertyAddress')} className={INPUT} />
-          </Field>
-
-          <Field label="Owner Contact Number" htmlFor="setting-landlordContact" icon={faInfoCircle} hint="Shown on the contract exactly as entered — mask it if it should not be public.">
-            {/* Free text on purpose (it may be masked, e.g. 0917-XXX-XXXX); capped like other contact numbers. */}
-            <input {...textInput(settings, updateSetting, 'landlordContact', 30)} className={INPUT} />
-          </Field>
-        </div>
-      </SettingsSection>
+      <Callout tone="violet" icon={faFileSignature} title="Lease contract details moved">
+        The owner's name, address and contact number, the payment accounts and every clause of the lease
+        are now edited in <Link to="/admin-contract-editor" className="font-bold text-violet-700 underline">Edit Contract</Link>.
+      </Callout>
     </>
   );
 }

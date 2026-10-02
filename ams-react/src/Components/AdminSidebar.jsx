@@ -5,7 +5,7 @@ import {
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
   faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt,
-  faEnvelopeOpenText, faEnvelope
+  faEnvelopeOpenText, faEnvelope, faFileSignature
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
@@ -43,6 +43,7 @@ const defaultNavSections = [
     items: [
       { to: '/admin-reports', icon: faFileAlt, label: 'Reports' },
       { to: '/admin-contracts', icon: faFileContract, label: 'Contracts' },
+      { to: '/admin-contract-editor', icon: faFileSignature, label: 'Edit Contract' },
     ],
   },
 ];
@@ -182,7 +183,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex h-full text-left shrink-0 select-none border-r border-slate-800">
+      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex h-full text-left shrink-0 select-none border-r border-slate-800 print:hidden">
         {renderNavContent(false)}
       </aside>
 
@@ -190,14 +191,14 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {isDrawerOpen && (
         <div 
           onClick={handleClose}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-opacity modal-overlay-anim"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-opacity modal-overlay-anim print:hidden"
           aria-hidden="true"
         />
       )}
 
       {/* Mobile Slide-Out Drawer */}
       <aside 
-        className={`admin-sidebar-mobile-drawer fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-slate-900 text-slate-300 flex flex-col h-full text-left md:hidden transform transition-transform duration-300 ease-in-out select-none ${
+        className={`admin-sidebar-mobile-drawer fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-slate-900 text-slate-300 flex flex-col h-full text-left md:hidden transform transition-transform duration-300 ease-in-out select-none print:hidden ${
           isDrawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Mobile Navigation"

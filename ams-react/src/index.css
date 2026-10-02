@@ -152,7 +152,7 @@ code {
   }
 
   @page {
-    margin: 12mm 12mm 12mm 12mm;
+    margin: 0;
     size: auto;
   }
 }

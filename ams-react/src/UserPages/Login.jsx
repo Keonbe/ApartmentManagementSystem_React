@@ -72,7 +72,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                         const roomRes = await api.get(`/my_room.php?email=${encodeURIComponent(res.data.user.email_address || '')}`);
                         if (roomRes.data.success && roomRes.data.data) {
                             const status = roomRes.data.data.status?.toLowerCase();
-                            if (['pending', 'pending review'].includes(status)) {
+                            if (['pending', 'pending review', 'approved', 'action required', 'pending deposit'].includes(status) || roomRes.data.data.has_pending_first_payment) {
                                 navigate('/track-application', { replace: true });
                                 return;
                             }

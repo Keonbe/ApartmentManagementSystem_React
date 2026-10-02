@@ -117,7 +117,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const unreadCount = notifications.filter(n => !Number(n.is_read)).length;
 
   return (
-    <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 select-none relative z-40">
+    <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 select-none relative z-40 print:hidden">
 
       {/* Left Area: Hamburger + Title */}
       <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">

@@ -15,11 +15,8 @@ export const SETTINGS_TABS = [
     id: 'leasing',
     label: 'Leasing',
     icon: faFileContract,
-    description: 'Lease rules, occupancy limits and the details printed on lease contracts.',
-    keys: [
-      'minLeaseDuration', 'reservationHoldDays', 'maxOccupantsPerUnit', 'roomPreviewMode',
-      'landlordName', 'landlordAddress', 'propertyAddress', 'landlordContact',
-    ],
+    description: 'Lease rules, occupancy limits and the public room preview.',
+    keys: ['minLeaseDuration', 'reservationHoldDays', 'maxOccupantsPerUnit', 'roomPreviewMode'],
   },
   {
     id: 'payments',
