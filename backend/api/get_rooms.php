@@ -119,7 +119,7 @@ try {
         $leaseHistory = [];
         while ($row = $lh_res->fetch_assoc()) {
             $leaseHistory[] = [
-                'event' => 'Lease Extended',
+                'event' => 'Rent Extended',
                 'date' => $row['created_at'] ? substr($row['created_at'], 0, 10) : null,
                 'detail' => "Extended by {$row['added_months']} month(s)",
                 'oldEnd' => $row['previous_lease_end'],

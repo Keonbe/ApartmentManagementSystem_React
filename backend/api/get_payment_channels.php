@@ -27,7 +27,11 @@ $all_channels = [
     [ "id" => "bank_sandbox",   "label" => "Bank Transfer",  "family" => "sandbox", "icon" => "bank",  "key" => "payment_ch_bank_sandbox" ],
     [ "id" => "paymaya",        "label" => "Maya",           "family" => "sandbox", "icon" => "maya",  "key" => "payment_ch_maya" ],
     [ "id" => "gcash_manual",   "label" => "GCash (Manual)", "family" => "manual",  "icon" => "gcash", "key" => "payment_ch_gcash_manual" ],
-    [ "id" => "bank_manual",    "label" => "Bank Transfer (Manual)", "family" => "manual", "icon" => "bank", "key" => "payment_ch_bank_manual" ],
+    // Manual bank transfers, one per bank (2026-10-01), so the admin records
+    // the bank the tenant actually used. Both follow the one bank-transfer
+    // switch in Settings (payment_ch_bank_manual).
+    [ "id" => "bdo_manual",     "label" => "BDO (Manual)",   "family" => "manual",  "icon" => "bank",  "key" => "payment_ch_bank_manual" ],
+    [ "id" => "bpi_manual",     "label" => "BPI (Manual)",   "family" => "manual",  "icon" => "bank",  "key" => "payment_ch_bank_manual" ],
     [ "id" => "in_person",      "label" => "In-Person Payment", "family" => "in_person", "icon" => "cash", "key" => "payment_ch_in_person" ]
 ];
 

@@ -207,7 +207,7 @@ export default function MyRoom() {
             });
 
             if (res.data.success) {
-                alert("Your lease extension request has been sent to administration for verification.");
+                alert("Your rent extension request has been sent to administration for verification.");
                 // Refresh the current route
                 window.location.reload();
             } else {
@@ -306,9 +306,9 @@ export default function MyRoom() {
                         <div className="flex items-center space-x-3">
                             <FontAwesomeIcon icon={faCalendarAlt} className="text-amber-400 text-2xl" />
                             <div>
-                                <h4 className="font-bold text-amber-300 m-0 text-sm">Lease Expiring Soon!</h4>
+                                <h4 className="font-bold text-amber-300 m-0 text-sm">Rent Contract Expiring Soon!</h4>
                                 <p className="text-xs m-0 mt-0.5 text-amber-200/90">
-                                    Your current lease contract expires in <strong>{daysUntilExpiration} days</strong> ({expectedEnd}). Submit an extension to prevent service disruption.
+                                    Your current rent contract expires in <strong>{daysUntilExpiration} days</strong> ({expectedEnd}). Submit an extension to prevent service disruption.
                                 </p>
                             </div>
                         </div>

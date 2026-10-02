@@ -48,7 +48,7 @@ if (strlen($location_details) > 50 || strlen($incident_time) > 50 || strlen($rea
 
 if (!get_active_tenancy($conn, $user_id)) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Only tenants with an active lease can request CCTV footage."]);
+    echo json_encode(["success" => false, "message" => "Only tenants with an active rental can request CCTV footage."]);
     exit;
 }
 

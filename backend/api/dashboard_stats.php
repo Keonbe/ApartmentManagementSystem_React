@@ -40,11 +40,12 @@ $response = [
 ];
 
 try {
-    // 1. Total Revenue (Current Month & Previous Month for MoM Trend)
+    // 1. Total Revenue (Current Month & Previous Month for MoM Trend). Security
+    // deposits are held for the tenant, not revenue (payments audit 2026-09-30).
     $stmt = $conn->prepare("
         SELECT 
-            SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(CURRENT_DATE()) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(CURRENT_DATE()) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as current_revenue,
-            SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as last_revenue
+            SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(CURRENT_DATE()) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(CURRENT_DATE()) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - COALESCE(security_deposit, 0) ELSE 0 END) as current_revenue,
+            SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - COALESCE(security_deposit, 0) ELSE 0 END) as last_revenue
         FROM invoices 
         WHERE LOWER(status) = 'paid' AND advance_months IS NULL
     ");

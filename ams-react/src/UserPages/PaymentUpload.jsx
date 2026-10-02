@@ -6,7 +6,7 @@ import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
-import { LIMITS, checkPaymentReference, checkText } from '../utils/validation';
+import { LIMITS, checkPaymentReference, checkText, isBankMethod } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -23,6 +23,8 @@ export default function PaymentUpload() {
     const { t } = useLang();
     const state = location.state || {};
     const { invoiceId, amount, paymentMethod, returnUrl } = state;
+    // paymentMethod is the channel label, e.g. 'GCash (Manual)' or 'BPI (Manual)'.
+    const isGcash = /gcash/i.test(paymentMethod || '');
 
     const [senderName, setSenderName] = useState('');
     const [referenceNo, setReferenceNo] = useState('');
@@ -82,7 +84,7 @@ export default function PaymentUpload() {
     //{/*LimitsGCashCharactersDynamicallyTo13Digits*/}
     const handleReferenceChange = (e) => {
         const val = e.target.value;
-        if (paymentMethod === 'GCash') {
+        if (isGcash) {
             const numericVal = val.replace(/\D/g, '').slice(0, 13);
             setReferenceNo(numericVal);
         } else {
@@ -220,14 +222,14 @@ export default function PaymentUpload() {
                                     if (v) form.validateField('payment_reference', { ...values, payment_reference: v });
                                 }}
                                 required
-                                inputMode={paymentMethod === 'GCash' ? "numeric" : "text"}
-                                maxLength={paymentMethod === 'GCash' ? 13 : paymentMethod === 'Bank Transfer' ? 55 : LIMITS.paymentReference}
+                                inputMode={isGcash ? "numeric" : "text"}
+                                maxLength={isGcash ? 13 : isBankMethod(paymentMethod) ? 55 : LIMITS.paymentReference}
                                 className={INPUT_CLS + invalidCls(form.errors.payment_reference)}
-                                placeholder={paymentMethod === 'GCash' ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
+                                placeholder={isGcash ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
                             />
                             <FieldError id="upload-payment_reference" error={form.errors.payment_reference} />
                             <p className="text-[10px] text-slate-400 m-0 leading-relaxed mt-1 font-medium">
-                                {paymentMethod === 'GCash' 
+                                {isGcash 
                                     ? "GCash reference numbers must be exactly 13 digits (numbers only)." 
                                     : "Bank transfer reference numbers can be up to 55 characters and cannot consist of numbers only."}
                             </p>

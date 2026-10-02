@@ -155,12 +155,12 @@ const AdminUnits = () => {
     const end = new Date(endDate);
     end.setHours(0,0,0,0);
     if (end <= start) {
-      return 'Lease end date must be after the move-in date.';
+      return 'Rent end date must be after the move-in date.';
     }
 
     const months = monthsBetween(startDate, endDate);
     if (months < minLeaseDuration) {
-      return `Lease duration must be at least ${minLeaseDuration} months. Current: ${months} month(s).`;
+      return `Rent duration must be at least ${minLeaseDuration} months. Current: ${months} month(s).`;
     }
     return '';
   };
@@ -177,14 +177,14 @@ const AdminUnits = () => {
     userId: (v) => (users.some(u => String(u.id) === String(v)) ? '' : 'Choose the tenant to assign.'),
     moveIn: (v) => checkDate(v, { label: 'Move-in date', min: localDateString(), max: maxFutureDate() })
       .replace(/cannot be before .*/, 'cannot be in the past.'),
-    leaseEnd: (v, all) => checkDate(v, { label: 'Lease end', max: maxFutureDate() })
-      || checkDateRange(all.moveIn, v, { startLabel: 'Move-in date', endLabel: 'Lease end' })
+    leaseEnd: (v, all) => checkDate(v, { label: 'Rent end', max: maxFutureDate() })
+      || checkDateRange(all.moveIn, v, { startLabel: 'Move-in date', endLabel: 'Rent end' })
       || validateLeaseDuration(all.moveIn, v),
     rent: (v) => (v !== '' && v != null ? checkAmount(v, { label: 'Monthly rent', min: 0.01, allowZero: false }) : ''),
     identityVerified: (v) => (v ? '' : 'Please confirm identity verification before assigning a tenant.'),
   }, { idPrefix: 'assign-' });
   const extendErrors = useFieldErrors({
-    newLeaseEnd: (v) => checkDate(v, { label: 'New lease end', max: maxFutureDate() })
+    newLeaseEnd: (v) => checkDate(v, { label: 'New rent end', max: maxFutureDate() })
       || (selectedUnit ? validateLeaseDuration(selectedUnit.leaseEnd, v) : ''),
     newRent: (v) => (v !== '' ? checkAmount(v, { label: 'New rent', min: 0.01, allowZero: false }) : ''),
   }, { idPrefix: 'extend-' });
@@ -247,6 +247,7 @@ const AdminUnits = () => {
         fetchRooms();
         setShowAssignModal(false);
         setAssignForm(emptyAssignForm);
+        alert(response.data.message);
       } else if (!assignErrors.applyServerErrors(response)) {
         setLeaseError(apiErrorMessage(response, 'Failed to assign tenant.'));
       }
@@ -279,11 +280,11 @@ const AdminUnits = () => {
         setExtendForm({ newLeaseEnd: '', newRent: '' });
         setShowExtendForm(false);
       } else if (!extendErrors.applyServerErrors(response)) {
-        setLeaseError(apiErrorMessage(response, 'Failed to extend lease.'));
+        setLeaseError(apiErrorMessage(response, 'Failed to extend rent.'));
       }
     } catch (error) {
       console.error('Failed to extend lease:', error);
-      if (!extendErrors.applyServerErrors(error)) setLeaseError(apiErrorMessage(error, 'Failed to extend lease.'));
+      if (!extendErrors.applyServerErrors(error)) setLeaseError(apiErrorMessage(error, 'Failed to extend rent.'));
     } finally {
       setExtending(false);
     }
@@ -342,7 +343,7 @@ const AdminUnits = () => {
             {/* Min Lease Duration Notice */}
             <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2.5 flex items-center gap-2 text-xs text-indigo-700">
               <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" />
-              <span>Minimum lease duration policy: <strong>{minLeaseDuration} months</strong>. Configure in Settings → System Configuration.</span>
+              <span>Minimum rent duration policy: <strong>{minLeaseDuration} months</strong>. Configure in Settings → System Configuration.</span>
             </div>
 
             {/* Filter Pills */}
@@ -389,7 +390,7 @@ const AdminUnits = () => {
                         {remaining !== null && (
                           <div className={`text-[10px] font-medium mt-1.5 flex items-center gap-1 ${remaining <= 30 ? 'text-red-500' : remaining <= 90 ? 'text-amber-500' : 'text-slate-400'}`}>
                             <FontAwesomeIcon icon={faClock} className="text-[9px]" />
-                            {remaining > 0 ? `${remaining} days left` : 'Lease expired'}
+                            {remaining > 0 ? `${remaining} days left` : 'Rent expired'}
                           </div>
                         )}
                       </>
@@ -538,7 +539,7 @@ const AdminUnits = () => {
                   <FieldError id="assign-moveIn" error={assignErrors.errors.moveIn} />
                 </div>
                 <div>
-                  <label htmlFor="assign-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                  <label htmlFor="assign-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent End *</label>
                   <input type="date" {...assignErrors.fieldA11y('leaseEnd')} min={assignForm.moveIn || localDateString()} max={maxFutureDate()} value={assignForm.leaseEnd}
                     onChange={e => { setAssignForm({ ...assignForm, leaseEnd: e.target.value }); assignErrors.clearError('leaseEnd'); setLeaseError(''); }}
                     onBlur={() => assignForm.leaseEnd && assignErrors.validateField('leaseEnd', assignForm)}
@@ -551,6 +552,9 @@ const AdminUnits = () => {
                   Duration: <strong>{monthsBetween(assignForm.moveIn, assignForm.leaseEnd)} months</strong> · Min required: <strong>{minLeaseDuration} months</strong>
                 </div>
               )}
+              <p className="m-0 text-xs text-slate-500 bg-indigo-50 border border-indigo-100 rounded-lg p-2">
+                The unit is reserved and a move-in invoice (1 month advance rent + 1 month security deposit) is issued. It becomes occupied when the move-in is confirmed after that invoice is paid.
+              </p>
               {leaseError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 text-xs text-red-700">
                   <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 mt-0.5" />
@@ -697,7 +701,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
     { key: 'gallery', label: 'Gallery', icon: faImages },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
     { key: 'occupancyHistory', label: 'Occupancy History', icon: faHistory },
-    { key: 'leaseHistory', label: 'Lease History', icon: faFileContract },
+    { key: 'leaseHistory', label: 'Rent History', icon: faFileContract },
     { key: 'maintenance', label: 'Maintenance', icon: faWrench },
   ];
 
@@ -904,7 +908,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               {unit.status === 'occupied' ? (
                 <>
                   <div className="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl p-5 border border-indigo-100">
-                    <h4 className="text-sm font-semibold text-slate-800 m-0 mb-4">Lease Progress</h4>
+                    <h4 className="text-sm font-semibold text-slate-800 m-0 mb-4">Rent Progress</h4>
                     <div className="grid grid-cols-4 gap-2 text-center mb-4">
                       <div><p className="text-xl font-bold text-indigo-600 m-0 truncate" title={unit.tenant}>{unit.tenant?.split(' ')[0]}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Tenant</p></div>
                       <div><p className="text-xl font-bold text-slate-800 m-0">{unit.occupants || 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Occupants</p></div>
@@ -917,13 +921,13 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                     </div>
                   </div>
                   {!showExtendForm ? (
-                    <button onClick={() => { setShowExtendForm(true); setLeaseError(''); extendErrors.setErrors({}); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Lease / Adjust Rent</button>
+                    <button onClick={() => { setShowExtendForm(true); setLeaseError(''); extendErrors.setErrors({}); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors border-dashed cursor-pointer"><FontAwesomeIcon icon={faSync} /> Extend Rent / Adjust Rent</button>
                   ) : (
                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
-                      <h4 className="text-sm font-semibold text-slate-800 m-0">Extend Lease</h4>
+                      <h4 className="text-sm font-semibold text-slate-800 m-0">Extend Rent</h4>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label htmlFor="extend-newLeaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Lease End *</label>
+                          <label htmlFor="extend-newLeaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent End *</label>
                           <input type="date" {...extendErrors.fieldA11y('newLeaseEnd')} min={unit.leaseEnd || localDateString()} max={maxFutureDate()} value={extendForm.newLeaseEnd}
                             onChange={e => { setExtendForm({ ...extendForm, newLeaseEnd: e.target.value }); extendErrors.clearError('newLeaseEnd'); setLeaseError(''); }}
                             onBlur={() => extendForm.newLeaseEnd && extendErrors.validateField('newLeaseEnd', extendForm)}
@@ -957,11 +961,11 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       </div>
 
                       {/* Previous Extensions Table */}
-                      {unit.leaseHistory && unit.leaseHistory.filter(l => l.event === 'Lease Extended').length > 0 && (
+                      {unit.leaseHistory && unit.leaseHistory.filter(l => l.event === 'Rent Extended').length > 0 && (
                         <div className="mt-3 pt-3 border-t border-indigo-100">
                           <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2 m-0">Previous Extensions</h5>
                           <div className="space-y-1.5">
-                            {unit.leaseHistory.filter(l => l.event === 'Lease Extended').map((ext, idx) => (
+                            {unit.leaseHistory.filter(l => l.event === 'Rent Extended').map((ext, idx) => (
                               <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-2 border border-slate-100 text-xs">
                                 <div>
                                   <span className="text-slate-600 font-semibold">{ext.oldEnd} → {ext.newEnd}</span>
@@ -1044,7 +1048,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
             <div className="space-y-4">
               <h4 className="text-sm font-bold text-slate-700 m-0 flex items-center gap-2">
                 <FontAwesomeIcon icon={faFileContract} className="text-indigo-500" />
-                Lease Event Log
+                Rent Event Log
               </h4>
               {unit.leaseHistory && unit.leaseHistory.length > 0 ? (
                 <div className="stagger-children relative pl-6">
@@ -1081,7 +1085,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
               ) : (
                 <div className="text-center py-12">
                   <FontAwesomeIcon icon={faFileContract} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                  <p className="text-sm text-slate-400 m-0">No lease history recorded for this unit.</p>
+                  <p className="text-sm text-slate-400 m-0">No rent history recorded for this unit.</p>
                 </div>
               )}
             </div>

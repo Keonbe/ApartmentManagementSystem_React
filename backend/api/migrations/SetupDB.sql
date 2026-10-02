@@ -165,7 +165,7 @@ CREATE TABLE `lease_contracts` (
   -- Claim column for the once-per-contract lease-end reminder
   -- (run_notification_sweep() -> send_lease_end_reminders()).
   `renewal_reminder_sent_at` datetime DEFAULT NULL,
-  `deposit_status` varchar(50) DEFAULT 'Held',
+  `deposit_status` varchar(50) DEFAULT 'Pending',
   `damage_deduction` decimal(10,2) DEFAULT 0.00,
   `utility_deduction` decimal(10,2) DEFAULT 0.00,
   `refund_amount` decimal(10,2) DEFAULT 0.00,
@@ -1044,7 +1044,7 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('overdueThresholdDays', '15'),
 ('autoFlagEviction', 'true'),
 ('maintenanceMonthlyBudget', '50000'),
-('tenantResponsibilityClause', '"Per the Terms & Conditions of this lease agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the leased unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation."'),
+('tenantResponsibilityClause', '"Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation."'),
 ('payment_mode', 'manual'),
 ('payment_sandbox_enabled', '0'),
 ('payment_ch_gcash_sandbox', '1'),

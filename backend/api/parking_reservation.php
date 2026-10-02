@@ -26,7 +26,7 @@ function parking_fail($code, $message) {
 // The reservation belongs to the session user; any userId in the form is ignored.
 $auth = require_user($conn);
 if ($auth['role'] !== 'user' || !get_active_tenancy($conn, $auth['id'])) {
-    parking_fail(403, "Only tenants with an active lease can reserve parking.");
+    parking_fail(403, "Only tenants with an active rental can reserve parking.");
 }
 $user_id = $auth['id'];
 

@@ -94,7 +94,7 @@ if ($preferred_date < $earliest) {
 $lease = get_active_tenancy($conn, $user_id);
 if (!$lease) {
     http_response_code(403);
-    echo json_encode(["success" => false, "message" => "Only tenants with an active lease can book services."]);
+    echo json_encode(["success" => false, "message" => "Only tenants with an active rental can book services."]);
     exit;
 }
 $room_name = $lease['room_name'];

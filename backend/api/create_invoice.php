@@ -99,14 +99,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tenancy = get_active_tenancy($conn, $user_id);
         if (!$tenancy) {
             http_response_code(422);
-            echo json_encode(["success" => false, "message" => "This tenant has no active lease to bill."]);
+            echo json_encode(["success" => false, "message" => "This tenant has no active rental to bill."]);
             exit;
         }
         $rent_app_id = (int)$tenancy['id'];
 
         if (!empty($input['appId']) && (int)$input['appId'] !== $rent_app_id) {
             http_response_code(422);
-            echo json_encode(["success" => false, "message" => "The supplied application does not match this tenant's active lease."]);
+            echo json_encode(["success" => false, "message" => "The supplied application does not match this tenant's active rental."]);
             exit;
         }
 

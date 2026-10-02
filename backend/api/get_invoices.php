@@ -12,6 +12,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
+// Per tenant (keyed by user id), for the current tenancy:
+//   deposit: amount, contract status, and `state` — 'unpaid' (move-in invoice
+//            still open), 'held', 'settled' (applied at move-out/termination,
+//            `status` says how), or 'not-billed' (no move-in invoice or paid
+//            deposit on record);
+//   advance: prepaid-rent credits by advance_credits status — months and amount.
+function tenant_billing_accounts($conn) {
+    $accounts = [];
+    $res = $conn->query("SELECT ra.user_id, ra.id AS app_id, lc.id AS contract_id, lc.deposit_amount, lc.deposit_status,
+                COALESCE(lc.damage_deduction, 0) AS damage_deduction, COALESCE(lc.utility_deduction, 0) AS utility_deduction,
+                mi.id AS move_in_invoice, mi.status AS move_in_status, mi.security_deposit AS move_in_deposit
+            FROM rent_applications ra
+            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
+            LEFT JOIN invoices mi ON mi.id = (SELECT i.id FROM invoices i WHERE i.rent_application_id = ra.id
+                                              AND i.security_deposit > 0 AND i.status <> 'cancelled'
+                                              ORDER BY i.created_at DESC LIMIT 1)
+            WHERE ra.user_id IS NOT NULL
+              AND ra.id = (SELECT MAX(ra2.id) FROM rent_applications ra2 WHERE ra2.user_id = ra.user_id)");
+    if ($res) {
+        while ($r = $res->fetch_assoc()) {
+            $status = $r['deposit_status'];
+            if ($r['move_in_invoice'] && $r['move_in_status'] !== 'paid') {
+                $state = 'unpaid';
+            } elseif ($status === 'Held' || ($status === 'Pending' && $r['move_in_status'] === 'paid')) {
+                $state = 'held';
+            } elseif ($status && !in_array($status, ['Pending', 'Held'], true)) {
+                $state = 'settled';
+            } else {
+                $state = 'not-billed';
+            }
+            $accounts[(int)$r['user_id']] = [
+                'deposit' => [
+                    'state' => $state,
+                    'status' => $status,
+                    'amount' => (float)($r['deposit_amount'] ?? $r['move_in_deposit'] ?? 0),
+                    'deductions' => (float)$r['damage_deduction'] + (float)$r['utility_deduction'],
+                    'contract_id' => $r['contract_id'],
+                    'move_in_invoice' => $r['move_in_invoice'],
+                    'move_in_status' => $r['move_in_status'],
+                ],
+                'advance' => [],
+            ];
+        }
+    }
+
+    $credits = $conn->query("SELECT user_id, status, COUNT(*) AS months, COALESCE(SUM(amount), 0) AS amount
+            FROM advance_credits WHERE status IN ('reserved', 'available', 'refund-due') GROUP BY user_id, status");
+    if ($credits) {
+        while ($c = $credits->fetch_assoc()) {
+            $uid = (int)$c['user_id'];
+            if (!isset($accounts[$uid])) continue;
+            $accounts[$uid]['advance'][$c['status']] = ['months' => (int)$c['months'], 'amount' => round((float)$c['amount'], 2)];
+        }
+    }
+    return $accounts;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
         // Billing data is financial PII (amounts, payment references, sender
@@ -121,7 +178,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             ];
         }
 
-        echo json_encode(["success" => true, "invoices" => $invoices]);
+        $response = ["success" => true, "invoices" => $invoices];
+        // Admin list only: each tenant's deposit and prepaid-rent position, read
+        // from the contract, the move-in invoice and advance_credits — the
+        // payments page shows these as read-only status (payments audit 2026-09-30).
+        if (!$user_id_param) $response['accounts'] = tenant_billing_accounts($conn);
+        echo json_encode($response);
 
     } catch (Exception $e) {
         http_response_code(500);

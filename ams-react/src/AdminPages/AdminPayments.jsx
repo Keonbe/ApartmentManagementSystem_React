@@ -5,12 +5,12 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, faCheckCircle, faPrint, faCalendarAlt,
   faDollarSign, faFileAlt, faExclamationTriangle, faTimes, faHistory, faMoneyBillWave, faInfoCircle, faCircle,
-  faTrash, faChartBar, faBalanceScale, faShieldAlt, faEye, faExternalLinkAlt,
+  faChartBar, faBalanceScale, faShieldAlt, faEye, faExternalLinkAlt,
   faBell
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
-import { LIMITS, MAX_AMOUNT, checkAmount, checkPaymentReference, checkText, localDateString, maxFutureDate } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, checkAmount, checkPaymentReference, isBankMethod, localDateString, maxFutureDate } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
@@ -20,9 +20,54 @@ import { ADMIN_PAYMENTS_EVENT } from '../config/notificationLinks';
 import { daysPastDue, formatCoveredPeriod, isBundleKey, isPastDue } from '../utils/billingPeriod';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
-const currentPeriodLabel = () => new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
-const METHODS = ['Cash', 'GCash', 'Bank Transfer'];
+// Desk methods (backend DESK_PAYMENT_METHODS). BDO and BPI are bank transfers,
+// each its own method.
+const METHODS = ['Cash', 'GCash', 'BDO', 'BPI'];
+// The desk methods a tenant's channel label ('GCash (Manual)', 'BPI (Manual)',
+// 'Cash on Hand', …) can be recorded as — mirrors desk_methods_for_label().
+const deskMethodsFor = (label) => {
+  const l = String(label || '').trim().toLowerCase();
+  if (!l) return [];
+  if (l.includes('gcash')) return ['GCash'];
+  if (l.includes('bdo')) return ['BDO'];
+  if (l.includes('bpi')) return ['BPI'];
+  if (l.includes('bank')) return ['BDO', 'BPI'];
+  if (l.includes('cash') || l.includes('in-person') || l.includes('in person')) return ['Cash'];
+  return [];
+};
 const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white';
+// Statuses adjust_invoice.php accepts (backend INVOICE_ADJUSTABLE_STATUSES).
+const ADJUSTABLE_STATUSES = ['pending', 'unpaid', 'overdue', 'scheduled', 'payment-failed'];
+// Manual invoice lines adjust_invoice.php may change; services, maintenance
+// and the security deposit are system-posted and stay as they are.
+const ADJUST_LINES = [['baseRent', 'base_rent', 'Base rent'], ['water', 'water', 'Water'], ['electricity', 'electricity', 'Electricity'], ['parking', 'parking', 'Parking'], ['lateFee', 'late_fee', 'Late fee']];
+
+const CHIP_TONES = {
+  emerald: 'text-emerald-700', amber: 'text-amber-700', red: 'text-red-700', indigo: 'text-indigo-700', slate: 'text-slate-500',
+};
+
+// Read-only status of the tenant's security deposit, from the contract and
+// the move-in invoice (get_invoices.php accounts[].deposit). Recorded by the
+// move-in, move-out and termination flows — never toggled from this page.
+const depositChip = (account) => {
+  const d = account?.deposit;
+  if (!d) return { text: 'No tenancy on record', tone: 'slate' };
+  if (d.state === 'unpaid') return { text: `Unpaid · ${formatCurrency(d.amount)}`, sub: `On move-in invoice ${d.move_in_invoice}`, tone: 'amber' };
+  if (d.state === 'held') return { text: `Held · ${formatCurrency(d.amount)}`, sub: 'Non-refundable; applied at move-out', tone: 'emerald' };
+  if (d.state === 'settled') return { text: d.status, sub: d.deductions > 0 ? `Deductions ${formatCurrency(d.deductions)}` : `Deposit ${formatCurrency(d.amount)}`, tone: 'indigo' };
+  return { text: 'Not billed', sub: 'No move-in invoice or paid deposit on record', tone: 'red' };
+};
+
+// Read-only status of rent the tenant prepaid (advance_credits). The move-in
+// advance month is part of the move-in invoice, not this.
+const prepaidChip = (account) => {
+  const a = account?.advance || {};
+  const months = (n) => `${n} month${n === 1 ? '' : 's'}`;
+  if (a['refund-due']) return { text: `Refund due · ${formatCurrency(a['refund-due'].amount)}`, sub: `${months(a['refund-due'].months)} not reached at move-out`, tone: 'red' };
+  if (a.available) return { text: `${months(a.available.months)} credit`, sub: `${formatCurrency(a.available.amount)}, applied as each month is billed`, tone: 'emerald' };
+  if (a.reserved) return { text: 'Awaiting payment', sub: `Advance for ${months(a.reserved.months)} not paid yet`, tone: 'amber' };
+  return { text: 'None', sub: 'No prepaid months', tone: 'slate' };
+};
 
 const getBackendAssetUrl = (path) => (path ? fileUrl(path.replace(/^\//, '')) : '');
 
@@ -89,7 +134,9 @@ const AdminPayments = () => {
       const res = await api.get('/get_invoices.php');
       if (res.data.success) {
         const grouped = {};
-        
+        // Each tenant's deposit and prepaid-rent position (get_invoices.php).
+        const accounts = res.data.accounts || {};
+
         res.data.invoices.forEach(inv => {
           if (!grouped[inv.user_id]) {
             grouped[inv.user_id] = {
@@ -97,12 +144,9 @@ const AdminPayments = () => {
               // Null-safe name creation protects the component tree from throwing TypeErrors
               name: inv.first_name ? `${inv.first_name} ${inv.last_name}` : "Unknown User",
               unit: inv.room_name ?? "Unassigned",
-              status: inv.status ?? "pending", 
-              depositStatus: 'Paid', 
-              advanceStatus: 'Paid', 
-              termOfPayment: 'Monthly',
+              status: inv.status ?? "pending",
+              account: accounts[inv.user_id] || null,
               dueDate: inv.due_date ?? "",
-              dueDateDay: 5,
               billing: { baseRent: 0, water: 0, electricity: 0, parking: 0, services: 0, maintenance: 0, addOns: 0 },
               history: [],
               outstandingBalance: 0,
@@ -118,16 +162,6 @@ const AdminPayments = () => {
             t.outstandingBalance += parseFloat(inv.total_amount || 0);
             (t.openInvoices = t.openInvoices || []).push(inv);
           } else if (inv.status === 'paid') {
-            // Advance credit left: paid advance months minus the months
-            // already billed and settled from them.
-            const credit = (t.advanceCredit = t.advanceCredit || { months: 0, amount: 0 });
-            if (inv.advance_months) {
-              credit.months += inv.advance_months;
-              credit.amount += parseFloat(inv.total_amount || 0);
-            } else if (inv.paid_from_advance) {
-              credit.months -= 1;
-              credit.amount -= parseFloat(inv.total_amount || 0);
-            }
             const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
             t.history.push({
               id: inv.id, 
@@ -190,11 +224,22 @@ const AdminPayments = () => {
           t.pendingInvoiceId = sel.payment_group || sel.id;
           t.pendingAmount = sum('total_amount');
           t.advanceGroup = sel.payment_group ? { key: sel.payment_group, months } : null;
+          // A single bill's charges and due date are changed through
+          // adjust_invoice.php, never at the till; a group or advance is not adjustable.
+          t.adjustInvoice = !sel.payment_group && !sel.advance_months && ADJUSTABLE_STATUSES.includes(sel.status) ? sel : null;
           if (sel.proof_of_payment_path) t.proofOfPaymentPath = sel.proof_of_payment_path;
           if (sel.payment_reference) t.paymentReference = sel.payment_reference;
           if (sel.sender_name) t.senderName = sel.sender_name;
           if (sel.payment_gateway) t.paymentGateway = sel.payment_gateway;
-          if (sel.payment_method) t.preferredMethod = sel.payment_method;
+          // How the tenant chose to pay this bill. A proof under review locks
+          // the desk to that method (record_payment_admin.php enforces it).
+          t.declaredLabel = sel.payment_method || (sel.payment_gateway === 'in_person' ? 'In-person visit' : null);
+          const declared = deskMethodsFor(sel.payment_method);
+          t.declaredMethod = declared[0] || (sel.payment_gateway === 'in_person' ? 'Cash' : null);
+          // Under review, only the declared method(s) may be recorded: one, or
+          // either bank for an older generic bank-transfer proof.
+          t.allowedMethods = sel.status === 'pending-verification' && declared.length ? declared : METHODS;
+          t.methodLocked = t.allowedMethods.length === 1;
         });
 
         const tenantArray = Object.values(grouped);
@@ -235,16 +280,18 @@ const AdminPayments = () => {
     return () => window.removeEventListener(ADMIN_PAYMENTS_EVENT, loadInvoices);
   }, []);
   
-  // Used for the draft receipt only; it used to default to a fixed 'July 2026'.
-  const [billingPeriod, setBillingPeriod] = useState(currentPeriodLabel);
+  // The till records a payment against the bill as issued: the period,
+  // charges and due date come from the invoice (payments audit 2026-09-30 —
+  // the editable Period, Term, Prorated Rent and Add-ons controls here were
+  // never saved). Changes go through "Adjust invoice" (adjust_invoice.php).
   const [recording, setRecording] = useState(false);
-  const [isExtendedRent, setIsExtendedRent] = useState(false);
-  const [extendedAmount, setExtendedAmount] = useState(0);
-  const [customAddOns, setCustomAddOns] = useState(0);
+  const [adjustForm, setAdjustForm] = useState(null); // the open adjustment, or null
+  const [adjusting, setAdjusting] = useState(false);
+  const [adjustError, setAdjustError] = useState('');
 
   // Payment Recording States
   const [methodChoice, setMethodChoice] = useState({ tenant: null, method: 'Cash' });
-  const [amountTendered, setAmountTendered] = useState('');
+  const [tender, setTender] = useState({ tenant: null, value: '' });
   const [paymentReference, setPaymentReference] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -291,20 +338,21 @@ const AdminPayments = () => {
     });
   }, [tenants, searchTerm, sortOption, statusFilter]);
 
-  // The method defaults to the selected tenant's preferred one; a manual choice only
-  // sticks while that same tenant record is selected.
-  const paymentMethod = methodChoice.tenant === activeTenant ? methodChoice.method : (activeTenant?.preferredMethod || 'Cash');
+  // The method is the tenant's declared one: fixed while their proof is under
+  // review, otherwise the default, which a manual choice overrides while that
+  // same tenant record is selected.
+  const allowedMethods = activeTenant?.allowedMethods || METHODS;
+  const chosenMethod = methodChoice.tenant === activeTenant ? methodChoice.method : (activeTenant?.declaredMethod || 'Cash');
+  const paymentMethod = allowedMethods.includes(chosenMethod) ? chosenMethod : allowedMethods[0];
   const setPaymentMethod = (method) => setMethodChoice({ tenant: activeTenant, method });
 
-  const calculateTotal = () => {
-    if (!activeTenant) return 0;
-    // What "Clear & Process" settles (one invoice, or one advance payment's
-    // months) — not every open invoice, which the button never settled.
-    return isExtendedRent
-      ? Number(extendedAmount) + Number(customAddOns)
-      : (activeTenant.pendingAmount || 0) + Number(customAddOns);
-  };
-  const totalDue = calculateTotal();
+  // What "Clear & Process" settles (one invoice, or one payment group's
+  // bills) — not every open invoice, which the button never settled.
+  const totalDue = activeTenant ? (activeTenant.pendingAmount || 0) : 0;
+  // Starts at the total due; a typed amount only sticks while that same tenant
+  // record is selected (like the method above).
+  const amountTendered = tender.tenant === activeTenant ? tender.value : (totalDue > 0 ? String(totalDue) : '');
+  const setAmountTendered = (value) => setTender({ tenant: activeTenant, value });
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
 
   // Summaries
@@ -316,7 +364,10 @@ const AdminPayments = () => {
   // Security Deposit Tracking summaries (Non-refundable)
   const totalDepositsHeld = contracts.filter(c => c.deposit_status === 'Held').reduce((sum, c) => sum + parseFloat(c.deposit_amount || 0), 0);
   const totalDepositDeductions = contracts.reduce((sum, c) => sum + parseFloat(c.damage_deduction || 0) + parseFloat(c.utility_deduction || 0), 0);
-  const totalAppliedToRent = contracts.filter(c => c.status === 'expired').reduce((sum, c) => {
+  // A deposit is applied once move-out or termination records its disposition
+  // (deposit_status 'Applied to …'); 'Pending' means it was never paid.
+  const depositApplied = (c) => String(c.deposit_status || '').startsWith('Applied');
+  const totalAppliedToRent = contracts.filter(depositApplied).reduce((sum, c) => {
     const dep = parseFloat(c.deposit_amount || 0);
     const dmg = parseFloat(c.damage_deduction || 0);
     const utl = parseFloat(c.utility_deduction || 0);
@@ -361,21 +412,19 @@ const AdminPayments = () => {
     return t.status !== 'paid' && diff !== null && diff >= 0 && diff <= 5;
   }).length;
 
-  const handleUpdateTenantField = (field, value) => {
-    setTenants(prev => prev.map(t => t.id === selectedTenantId ? { ...t, [field]: value } : t));
-  };
-
-  // Keys match record_payment_admin.php's body where one exists.
-  const recordValues = { billingPeriod, extendedAmount, customAddOns, paymentMethod, amountPaid: amountTendered, paymentReference };
+  // Keys match record_payment_admin.php's body.
+  const recordValues = { paymentMethod, amountPaid: amountTendered, paymentReference };
   const recordForm = useFieldErrors({
-    billingPeriod: (v) => checkText(v, { label: 'Period', max: LIMITS.billingPeriod }),
-    extendedAmount: (v) => (isExtendedRent ? checkAmount(v, { label: 'Prorated rent', min: 0.01, allowZero: false }) : ''),
-    customAddOns: (v) => checkAmount(v, { label: 'Add-ons', required: false }),
-    paymentMethod: (v) => (METHODS.includes(v) ? '' : 'Choose a payment method.'),
+    paymentMethod: (v) => (allowedMethods.includes(v) ? '' : 'Choose a payment method.'),
+    // Required for every method: the server settles the bill in full only when
+    // the amount covers it (no partial payments). Cash may exceed the total
+    // (the difference is change); a transfer must match it exactly.
     amountPaid: (v, all) => {
-      const base = checkAmount(v, { label: 'Amount tendered', required: all.paymentMethod === 'Cash' });
-      if (base || String(v ?? '').trim() === '') return base;
-      return all.paymentMethod === 'Cash' && Number(v) < totalDue ? `Amount tendered must cover the total due (${formatCurrency(totalDue)}).` : '';
+      const base = checkAmount(v, { label: all.paymentMethod === 'Cash' ? 'Amount tendered' : 'Amount received', required: true, min: 0.01, allowZero: false });
+      if (base) return base;
+      if (Number(v) + 0.009 < totalDue) return `The amount must cover the total due (${formatCurrency(totalDue)}). Partial payments are not supported.`;
+      if (all.paymentMethod !== 'Cash' && Number(v) - totalDue > 0.009) return `A ${all.paymentMethod} payment must match the total due (${formatCurrency(totalDue)}).`;
+      return '';
     },
     // Optional for GCash/bank (the tenant's own reference is kept when blank).
     paymentReference: (v, all) => (all.paymentMethod !== 'Cash' && String(v ?? '').trim() ? checkPaymentReference(v, all.paymentMethod) : ''),
@@ -395,21 +444,16 @@ const handleMarkAsPaid = async () => {
       const res = await api.post('/record_payment_admin.php', {
         invoiceId: activeTenant.pendingInvoiceId,
         paymentMethod: paymentMethod,
-        // The amount tendered and reference were previously collected in this
-        // form and then thrown away, so nothing about the payment itself was
-        // recorded beyond the method.
-        amountPaid: amountTendered !== '' ? Number(amountTendered) : undefined,
+        // Always sent: the server checks it against the bill's total.
+        amountPaid: Number(amountTendered),
         paymentReference: paymentReference.trim() || undefined
       });
-      
+
       // Safely check if the response is successful
       if (res.data && res.data.success) {
         fetchInvoices();
         showFlash(`Payment confirmed for ${activeTenant.name}. The tenant has been notified and their receipt is ready.`);
-        setIsExtendedRent(false);
-        setExtendedAmount(0); 
-        setCustomAddOns(0);
-        setAmountTendered('');
+        setTender({ tenant: null, value: '' });
         setPaymentReference('');
         setShowConfirmModal(false);
       } else {
@@ -424,6 +468,30 @@ const handleMarkAsPaid = async () => {
       if (!recordForm.applyServerErrors(err)) alert(apiErrorMessage(err, "A network or server error occurred."));
     } finally {
       setRecording(false);
+    }
+  };
+
+  // Cancels a tenant's unfinished online checkout (release_checkout_session.php)
+  // so the desk can record the payment. If the tenant did pay at the gateway,
+  // cancelling would lose that payment's match, so the admin checks first.
+  const [releasing, setReleasing] = useState(false);
+  const handleReleaseCheckout = async () => {
+    if (!activeTenant?.pendingInvoiceId || releasing) return;
+    if (!window.confirm(`Cancel ${activeTenant.name}'s online checkout?\n\nCheck the PayMongo dashboard first: if this checkout was paid there, do not cancel it — the payment will be confirmed automatically.`)) return;
+    setReleasing(true);
+    try {
+      const res = await api.post('/release_checkout_session.php', { invoice_id: activeTenant.pendingInvoiceId });
+      if (res.data?.released) {
+        fetchInvoices();
+        showFlash(`Online checkout cancelled for ${activeTenant.name}. The tenant has been notified; you can now record the payment.`);
+      } else {
+        alert(res.data?.message || 'No open checkout to cancel.');
+        fetchInvoices();
+      }
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not cancel the online checkout.'));
+    } finally {
+      setReleasing(false);
     }
   };
 
@@ -457,14 +525,53 @@ const handleMarkAsPaid = async () => {
     if (record) {
       setReceiptData({ rctId: record.id, date: record.datePaid, tenant: activeTenant.name, unit: activeTenant.unit, period: record.period, amount: record.amount, breakdown: record.breakdown, status: record.status.toUpperCase(), method: record.method, gateway: record.gateway });
     } else {
-      setReceiptData({ rctId: 'RCT-DRAFT', date: today, tenant: activeTenant.name, unit: activeTenant.unit, period: billingPeriod, amount: totalDue, breakdown: `Rent: ${activeTenant.billing.baseRent}`, status: 'UNPAID', method: paymentMethod, gateway: activeTenant.paymentGateway || 'Manual' });
+      setReceiptData({ rctId: 'RCT-DRAFT', date: today, tenant: activeTenant.name, unit: activeTenant.unit, period: activeTenant.billingPeriod, amount: totalDue, breakdown: `Rent: ${activeTenant.billing.baseRent}`, status: 'UNPAID', method: paymentMethod, gateway: activeTenant.paymentGateway || 'Manual' });
     }
     setShowReceipt(true);
   };
 
-  const handleDeleteHistory = (recordId) => {
-    if (window.confirm('Are you sure you want to delete this payment record?')) {
-      setTenants(prev => prev.map(t => t.id === selectedTenantId ? { ...t, history: t.history.filter(h => h.id !== recordId) } : t));
+  // Adjust invoice: the bill's manual lines and due date, through
+  // adjust_invoice.php (which recomputes the total from every column, logs it
+  // and tells the tenant). Only for a single bill no payment is in flight for.
+  const openAdjust = () => {
+    const inv = activeTenant?.adjustInvoice;
+    if (!inv) return;
+    const form = { invoiceId: inv.id, period: inv.billing_period, originalDue: String(inv.due_date || '').slice(0, 10), dueDate: String(inv.due_date || '').slice(0, 10),
+      services: Number(inv.services || 0), maintenance: Number(inv.maintenance || 0), securityDeposit: Number(inv.security_deposit || 0), oldTotal: Number(inv.total_amount || 0) };
+    ADJUST_LINES.forEach(([key, column]) => { form[key] = String(Number(inv[column] || 0)); });
+    setAdjustError('');
+    setAdjustForm(form);
+  };
+  const adjustTotal = adjustForm
+    ? ADJUST_LINES.reduce((s, [key]) => s + (Number(adjustForm[key]) || 0), 0) + adjustForm.services + adjustForm.maintenance + adjustForm.securityDeposit
+    : 0;
+  const submitAdjust = async (e) => {
+    e?.preventDefault();
+    if (!adjustForm || adjusting) return;
+    for (const [key, , label] of ADJUST_LINES) {
+      const err = checkAmount(adjustForm[key], { label, required: false });
+      if (err) { setAdjustError(err); return; }
+    }
+    if (adjustForm.dueDate !== adjustForm.originalDue && adjustForm.dueDate < localDateString()) {
+      setAdjustError('The due date cannot be in the past.');
+      return;
+    }
+    setAdjusting(true);
+    try {
+      const payload = { invoiceId: adjustForm.invoiceId, dueDate: adjustForm.dueDate };
+      ADJUST_LINES.forEach(([key]) => { payload[key] = Number(adjustForm[key]) || 0; });
+      const res = await api.post('/adjust_invoice.php', payload);
+      if (res.data?.success) {
+        setAdjustForm(null);
+        fetchInvoices();
+        showFlash(`Invoice ${adjustForm.invoiceId} adjusted — new total ${formatCurrency(res.data.total_amount)}. The tenant has been notified.`);
+      } else {
+        setAdjustError(res.data?.message || 'Could not adjust the invoice.');
+      }
+    } catch (err) {
+      setAdjustError(apiErrorMessage(err, 'Could not adjust the invoice.'));
+    } finally {
+      setAdjusting(false);
     }
   };
 
@@ -716,14 +823,12 @@ const handleMarkAsPaid = async () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                  {/* Read-only: what the bill says. The period, charges and due
+                      date are changed with "Adjust invoice", never at the till. */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-2">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <label htmlFor="record-billingPeriod" className="block text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Period</label>
-                      <input type="text" {...recordForm.fieldA11y('billingPeriod')} autoComplete="off" maxLength={LIMITS.billingPeriod} value={billingPeriod}
-                        onChange={e => { setBillingPeriod(e.target.value); recordForm.clearError('billingPeriod'); }}
-                        onBlur={() => { const v = billingPeriod.trim(); setBillingPeriod(v); recordForm.validateField('billingPeriod', { ...recordValues, billingPeriod: v }); }}
-                        className={`w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800${invalidCls(recordForm.errors.billingPeriod)}`} />
-                      <FieldError id="record-billingPeriod" error={recordForm.errors.billingPeriod} />
+                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Period</p>
+                      <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.billingPeriod || '—'}</p>
                     </div>
                     {/* A past-due bill shows the period it covers (from move-in), not its lapsed due date. */}
                     {activeTenant.pastDue ? (
@@ -733,25 +838,30 @@ const handleMarkAsPaid = async () => {
                       </div>
                     ) : (
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <label htmlFor="record-dueDate" className="block text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Due Date</label>
-                      <input type="date" id="record-dueDate" name="dueDate" min={localDateString()} max={maxFutureDate()} value={activeTenant.dueDate} onChange={e => handleUpdateTenantField('dueDate', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800" />
+                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Due Date</p>
+                      <p className="text-sm font-medium text-slate-800 m-0">{activeTenant.dueDate || '—'}</p>
                     </div>
                     )}
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                       <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Term</p>
-                      <select value={activeTenant.termOfPayment} onChange={e => handleUpdateTenantField('termOfPayment', e.target.value)} className="w-full bg-transparent text-sm font-medium outline-none border-0 p-0 border-b border-dashed border-slate-300 focus:border-indigo-500 text-slate-800 cursor-pointer">
-                        <option value="Monthly">Monthly</option>
-                        <option value="Semi-monthly">Semi-monthly</option>
-                      </select>
+                      <p className="text-sm font-medium text-slate-800 m-0">Monthly</p>
+                      <p className="text-[10px] text-slate-400 m-0 mt-0.5">Due on the move-in day each month</p>
                     </div>
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleUpdateTenantField('depositStatus', activeTenant.depositStatus === 'Paid' ? 'Pending' : 'Paid')}>
-                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Deposit</p>
-                      <p className={`text-sm font-medium m-0 mt-0.5 ${activeTenant.depositStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{activeTenant.depositStatus}</p>
-                    </div>
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleUpdateTenantField('advanceStatus', activeTenant.advanceStatus === 'Paid' ? 'Pending' : 'Paid')}>
-                      <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">Advance</p>
-                      <p className={`text-sm font-medium m-0 mt-0.5 ${activeTenant.advanceStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{activeTenant.advanceStatus}</p>
-                    </div>
+                    {[['Security Deposit', depositChip(activeTenant.account)], ['Prepaid Rent', prepaidChip(activeTenant.account)]].map(([label, chip]) => (
+                      <div key={label} className="bg-white p-3 rounded-lg border border-slate-200">
+                        <p className="text-[10px] uppercase text-slate-400 font-semibold mb-1 m-0">{label}</p>
+                        <p className={`text-sm font-semibold m-0 ${CHIP_TONES[chip.tone]}`}>{chip.text}</p>
+                        {chip.sub && <p className="text-[10px] text-slate-400 m-0 mt-0.5">{chip.sub}</p>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between gap-3 mb-6 text-[11px] text-slate-500">
+                    <span>Amounts, period and due date come from the invoice.</span>
+                    {activeTenant.adjustInvoice && (
+                      <button type="button" onClick={openAdjust} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 border-solid text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                        <FontAwesomeIcon icon={faFileAlt} /> Adjust invoice…
+                      </button>
+                    )}
                   </div>
 
                   {activeTenant.advanceInvoice && (
@@ -765,9 +875,9 @@ const handleMarkAsPaid = async () => {
                     </div>
                   )}
 
-                  {activeTenant.advanceCredit?.months > 0 && (
-                    <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
-                      <strong>Advance credit:</strong> {activeTenant.advanceCredit.months} prepaid month{activeTenant.advanceCredit.months === 1 ? '' : 's'} left ({formatCurrency(activeTenant.advanceCredit.amount)}), applied automatically as each month is billed.
+                  {activeTenant.account?.deposit?.state === 'unpaid' && activeTenant.pendingInvoiceId !== activeTenant.account.deposit.move_in_invoice && (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                      <strong>Move-in invoice unpaid:</strong> {activeTenant.account.deposit.move_in_invoice} (advance rent + security deposit) is still open. The tenancy cannot start until it is paid.
                     </div>
                   )}
 
@@ -787,41 +897,10 @@ const handleMarkAsPaid = async () => {
                     </div>
                   )}
 
-                  <div className="flex flex-col gap-2 mb-4">
-                    <div className="flex items-center gap-2">
-                      <input type="checkbox" id="extendedRent" checked={isExtendedRent} onChange={e => setIsExtendedRent(e.target.checked)} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
-                      <label htmlFor="extendedRent" className="text-sm font-medium text-slate-700 cursor-pointer">Use Extended/Prorated Rent</label>
-                    </div>
-                    {isExtendedRent && (
-                      <div className="flex items-start gap-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
-                        <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 text-indigo-400" />
-                        <p className="m-0">Prorated rent is applied when a tenant moves in midway through a cycle.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-end justify-between border-t border-slate-100 pt-4 mb-6">
-                    <div className="w-1/3 space-y-3">
-                      {isExtendedRent && (
-                        <div>
-                          <label htmlFor="record-extendedAmount" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Prorated Base Rent</label>
-                          <input type="number" {...recordForm.fieldA11y('extendedAmount')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={extendedAmount}
-                            onKeyDown={blockNonNumericKeys}
-                            onChange={e => { setExtendedAmount(e.target.value); recordForm.clearError('extendedAmount'); }}
-                            onBlur={() => blurRecord('extendedAmount')}
-                            className={AMOUNT_INPUT + invalidCls(recordForm.errors.extendedAmount)} placeholder="0" />
-                          <FieldError id="record-extendedAmount" error={recordForm.errors.extendedAmount} />
-                        </div>
-                      )}
-                      <div>
-                        <label htmlFor="record-customAddOns" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Custom Add-ons</label>
-                        <input type="number" {...recordForm.fieldA11y('customAddOns')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={customAddOns}
-                          onKeyDown={blockNonNumericKeys}
-                          onChange={e => { setCustomAddOns(e.target.value); recordForm.clearError('customAddOns'); }}
-                          onBlur={() => blurRecord('customAddOns')}
-                          className={AMOUNT_INPUT + invalidCls(recordForm.errors.customAddOns)} placeholder="0" />
-                        <FieldError id="record-customAddOns" error={recordForm.errors.customAddOns} />
-                      </div>
+                  <div className="flex items-end justify-between gap-4 border-t border-slate-100 pt-4 mb-6">
+                    <div className="max-w-xs flex items-start gap-2 text-[11px] text-slate-500">
+                      <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 text-indigo-400" />
+                      <p className="m-0">The bill is settled in full at its total. To change a charge or the due date, or to add a one-off charge, adjust the invoice first; a rent extension is billed from the tenant's extension request.</p>
                     </div>
                     <div className="text-right flex flex-col items-end">
                       <div className="mb-3 text-xs text-slate-500 space-y-1">
@@ -832,7 +911,7 @@ const handleMarkAsPaid = async () => {
                         {activeTenant.billing.parking > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Parking:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.parking)}</span></div>}
                         {activeTenant.billing.services > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-On Services:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.services)}</span></div>}
                         {activeTenant.billing.maintenance > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Maintenance Recharge:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.maintenance)}</span></div>}
-                        {Number(customAddOns) > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Add-ons:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(customAddOns)}</span></div>}
+                        {activeTenant.billing.lateFee > 0 && <div className="flex justify-end gap-4"><span className="w-32 text-right">Late Fee:</span> <span className="w-20 text-right font-semibold text-slate-700">{formatCurrency(activeTenant.billing.lateFee)}</span></div>}
                         <div className="border-t border-slate-200 my-1 ml-auto w-56"></div>
                       </div>
                       <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Total Due</p>
@@ -847,13 +926,18 @@ const handleMarkAsPaid = async () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
                           <label htmlFor="record-paymentMethod" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Method</label>
-                          <select {...recordForm.fieldA11y('paymentMethod')} value={paymentMethod} onChange={e => { setPaymentMethod(e.target.value); recordForm.setErrors({}); }} className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500${invalidCls(recordForm.errors.paymentMethod)}`}>
-                            {METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                          <select {...recordForm.fieldA11y('paymentMethod')} value={paymentMethod} disabled={activeTenant.methodLocked} onChange={e => { setPaymentMethod(e.target.value); recordForm.setErrors({}); }} className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 disabled:bg-slate-100 disabled:cursor-not-allowed${invalidCls(recordForm.errors.paymentMethod)}`}>
+                            {allowedMethods.map(m => <option key={m} value={m}>{m}</option>)}
                           </select>
                           <FieldError id="record-paymentMethod" error={recordForm.errors.paymentMethod} />
+                          {activeTenant.methodLocked ? (
+                            <p className="text-[10px] text-slate-500 m-0 mt-1">Declared by the tenant with their proof ({activeTenant.declaredLabel}). To record another method, reject the proof.</p>
+                          ) : activeTenant.declaredLabel && (
+                            <p className="text-[10px] text-slate-500 m-0 mt-1">Tenant chose: {activeTenant.declaredLabel}</p>
+                          )}
                         </div>
                         <div>
-                          <label htmlFor="record-amountPaid" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Amount Tendered</label>
+                          <label htmlFor="record-amountPaid" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{paymentMethod === 'Cash' ? 'Amount Tendered' : 'Amount Received'}</label>
                           <input type="number" {...recordForm.fieldA11y('amountPaid')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={amountTendered}
                             onKeyDown={blockNonNumericKeys}
                             onChange={e => { setAmountTendered(e.target.value); recordForm.clearError('amountPaid'); }}
@@ -876,7 +960,7 @@ const handleMarkAsPaid = async () => {
                             autoComplete="off"
                             inputMode={paymentMethod === 'GCash' ? 'numeric' : 'text'}
                             value={paymentReference}
-                            maxLength={paymentMethod === 'GCash' ? 13 : paymentMethod === 'Bank Transfer' ? 55 : LIMITS.paymentReference}
+                            maxLength={paymentMethod === 'GCash' ? 13 : isBankMethod(paymentMethod) ? 55 : LIMITS.paymentReference}
                             onChange={e => { setPaymentReference(e.target.value); recordForm.clearError('paymentReference'); }}
                             onBlur={() => { const v = paymentReference.trim(); setPaymentReference(v); recordForm.validateField('paymentReference', { ...recordValues, paymentReference: v }); }}
                             className={AMOUNT_INPUT + invalidCls(recordForm.errors.paymentReference)}
@@ -944,7 +1028,11 @@ const handleMarkAsPaid = async () => {
                            <h5 className="text-xs font-bold text-amber-900 uppercase tracking-wider m-0 flex items-center gap-1.5">
                             <FontAwesomeIcon icon={faExclamationTriangle} /> Checkout Processing
                            </h5>
-                           <p className="text-xs text-amber-800 m-0">An online checkout session is currently active. Please wait for the webhook to confirm payment.</p>
+                           <p className="text-xs text-amber-800 m-0">An online checkout session is currently active. Please wait for the webhook to confirm payment. A payment can't be recorded here while it is open, so the tenant is never charged twice.</p>
+                           <button type="button" onClick={handleReleaseCheckout} disabled={releasing}
+                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 border-solid text-amber-800 text-xs font-semibold rounded-lg hover:bg-amber-100 cursor-pointer transition-colors disabled:opacity-50">
+                             <FontAwesomeIcon icon={faTimes} /> {releasing ? 'Cancelling…' : 'Cancel online checkout'}
+                           </button>
                         </div>
                       )}
                       
@@ -962,7 +1050,7 @@ const handleMarkAsPaid = async () => {
                   <div className="flex gap-3">
                     <button 
                       onClick={handleConfirmPayment} 
-                      disabled={recording || totalDue <= 0 || activeTenant.status === 'paid'}
+                      disabled={recording || totalDue <= 0 || activeTenant.status === 'paid' || activeTenant.status === 'processing'}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors border-0 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment
@@ -1001,7 +1089,6 @@ const handleMarkAsPaid = async () => {
                           <th className="py-2 px-3">Date Paid</th>
                           <th className="py-2 px-3 text-center">Proof</th>
                           <th className="py-2 px-3 text-right">Receipt</th>
-                          <th className="py-2 px-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1031,14 +1118,9 @@ const handleMarkAsPaid = async () => {
                               )}
                             </td>
                             <td className="py-3 px-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
-                            <td className="py-3 px-3 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <button onClick={() => handleDeleteHistory(record.id)} className="text-slate-500 hover:text-red-600 border-0 bg-transparent cursor-pointer p-1 transition-colors"><FontAwesomeIcon icon={faTrash} /></button>
-                              </div>
-                            </td>
                           </tr>
                         )) : (
-                          <tr><td colSpan="8" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
+                          <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -1225,7 +1307,7 @@ const handleMarkAsPaid = async () => {
                       <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-50">
                         <th className="py-3 px-4">Tenant Name</th>
                         <th className="py-3 px-4 text-center">Unit</th>
-                        <th className="py-3 px-4">Lease Term</th>
+                        <th className="py-3 px-4">Rent Term</th>
                         <th className="py-3 px-4">Original Deposit</th>
                         <th className="py-3 px-4">Status</th>
                         <th className="py-3 px-4">Fixture Damages</th>
@@ -1242,8 +1324,8 @@ const handleMarkAsPaid = async () => {
                         const baseDeposit = parseFloat(c.deposit || c.deposit_amount || 0);
                         const dmg = parseFloat(c.damage_deduction || 0);
                         const utl = parseFloat(c.utility_deduction || 0);
-                        const appliedRent = c.status === 'expired' ? Math.max(0, baseDeposit - dmg - utl) : 0;
-                        const status = c.deposit_status || (c.status === 'active' ? 'Held' : 'Processed');
+                        const appliedRent = depositApplied(c) ? Math.max(0, baseDeposit - dmg - utl) : 0;
+                        const status = c.deposit_status || 'Pending';
                         
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50">
@@ -1255,6 +1337,7 @@ const handleMarkAsPaid = async () => {
                               <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
                                 status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                                 status === 'Applied to Rent' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                status === 'Not Collected' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
                                 'bg-amber-50 text-amber-700 border border-amber-200'
                               }`}>
                                 {status}
@@ -1281,6 +1364,49 @@ const handleMarkAsPaid = async () => {
         </div>
       </main>
 
+      {/* Adjust Invoice Modal — adjust_invoice.php */}
+      {adjustForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => !adjusting && setAdjustForm(null)}>
+          <form className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()} onSubmit={submitAdjust} noValidate>
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">Adjust Invoice</h3>
+              <p className="text-xs text-slate-500 m-0 mb-4"><span className="font-mono">{adjustForm.invoiceId}</span> · {adjustForm.period}. The change is logged and the tenant is notified of the new total.</p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                {ADJUST_LINES.map(([key, , label]) => (
+                  <div key={key}>
+                    <label htmlFor={`adjust-${key}`} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>
+                    <input id={`adjust-${key}`} type="number" inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={adjustForm[key]}
+                      onKeyDown={blockNonNumericKeys}
+                      onChange={e => { setAdjustForm({ ...adjustForm, [key]: e.target.value }); setAdjustError(''); }}
+                      className={AMOUNT_INPUT} />
+                  </div>
+                ))}
+                <div>
+                  <label htmlFor="adjust-dueDate" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Due date</label>
+                  <input id="adjust-dueDate" type="date" min={adjustForm.originalDue < localDateString() ? adjustForm.originalDue : localDateString()} max={maxFutureDate()} value={adjustForm.dueDate}
+                    onChange={e => { setAdjustForm({ ...adjustForm, dueDate: e.target.value }); setAdjustError(''); }}
+                    className={AMOUNT_INPUT} />
+                </div>
+              </div>
+              {(adjustForm.services > 0 || adjustForm.maintenance > 0 || adjustForm.securityDeposit > 0) && (
+                <p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded p-2 m-0 mb-3">
+                  Already posted, not editable here: Services {formatCurrency(adjustForm.services)} · Maintenance {formatCurrency(adjustForm.maintenance)} · Security deposit {formatCurrency(adjustForm.securityDeposit)}.
+                </p>
+              )}
+              <div className="flex justify-between text-sm mb-4">
+                <span className="text-slate-500">Total {formatCurrency(adjustForm.oldTotal)} →</span>
+                <span className="font-bold text-indigo-700">{formatCurrency(adjustTotal)}</span>
+              </div>
+              {adjustError && <p role="alert" className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 m-0 mb-3">{adjustError}</p>}
+              <div className="flex gap-2">
+                <button type="submit" disabled={adjusting} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{adjusting ? 'Saving…' : 'Save Adjustment'}</button>
+                <button type="button" disabled={adjusting} onClick={() => setAdjustForm(null)} className="flex-1 disabled:opacity-50 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Confirmation Modal */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm modal-overlay-anim" onClick={() => !recording && setShowConfirmModal(false)}>
@@ -1290,7 +1416,7 @@ const handleMarkAsPaid = async () => {
               <p className="text-sm text-slate-600 mb-4">Are you sure you want to process this payment? This action will generate an official receipt record row.</p>
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm space-y-2 mb-6">
                 <div className="flex justify-between"><span className="text-slate-500">Tenant</span><span className="font-semibold text-slate-800">{activeTenant.name}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Period</span><span className="font-semibold text-slate-800 text-right">{activeTenant.billingPeriod || billingPeriod}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Period</span><span className="font-semibold text-slate-800 text-right">{activeTenant.billingPeriod}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-bold text-emerald-600">{formatCurrency(totalDue)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Method</span><span className="font-semibold text-slate-800">{paymentMethod}</span></div>
               </div>

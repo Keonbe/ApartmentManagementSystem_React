@@ -13,9 +13,9 @@ export const SETTINGS_TABS = [
   },
   {
     id: 'leasing',
-    label: 'Leasing',
+    label: 'Rental',
     icon: faFileContract,
-    description: 'Lease rules, occupancy limits and the public room preview.',
+    description: 'Rental rules, occupancy limits and the public room preview.',
     keys: ['minLeaseDuration', 'reservationHoldDays', 'maxOccupantsPerUnit', 'roomPreviewMode'],
   },
   {

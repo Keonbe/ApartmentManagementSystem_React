@@ -177,7 +177,7 @@ const AdminDashboard = () => {
                 icon={faKey} 
                 title="Vacant Units" 
                 value={stats.vacant_rooms} 
-                subtext="Available to Lease" 
+                subtext="Available for Rent" 
                 color="slate" 
                 onClick={() => navigate('/admin-units')} 
                 hoverable 
@@ -638,7 +638,7 @@ const AdminDashboard = () => {
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <p className="text-xs font-bold text-slate-800 m-0">{app.name}</p>
-                                    <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded font-semibold">Lease Application</span>
+                                    <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded font-semibold">Rent Application</span>
                                   </div>
                                   <p className="text-[11px] text-slate-500 m-0 mt-0.5">
                                     Requested Unit <strong>{app.unit}</strong> • {formatCurrency(app.rent)}/mo • {app.date}
@@ -836,7 +836,7 @@ const AdminDashboard = () => {
                           <FontAwesomeIcon icon={faFileSignature} className="text-xs" />
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-800 m-0">Create Lease Agreement</p>
+                          <p className="text-xs font-bold text-slate-800 m-0">Create Rent Agreement</p>
                           <p className="text-[10px] text-slate-500 m-0">Generate contract for approved tenant</p>
                         </div>
                       </div>
@@ -906,7 +906,7 @@ const AdminDashboard = () => {
                   
                   <div className="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
                     <div>
-                      <span className="text-[10px] text-slate-400">Total Leased</span>
+                      <span className="text-[10px] text-slate-400">Total Rented</span>
                       <p className="font-bold text-emerald-400 text-sm m-0">{stats.occupied_rooms} / {stats.total_rooms} Units</p>
                     </div>
                     <button 

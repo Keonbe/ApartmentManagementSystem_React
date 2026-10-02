@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $credits = advance_credits_list($conn, $user_id);
     if (!$tenancy) {
         echo json_encode(["success" => true, "available" => false, "months" => [], "pending" => $pending, "credits" => $credits,
-                          "message" => "Advance payment is available once your lease is active."]);
+                          "message" => "Advance payment is available once your rental is active."]);
         exit;
     }
     $rent = tenancy_monthly_rent($conn, (int)$tenancy['app_id']);
@@ -158,7 +158,7 @@ $input = json_decode(file_get_contents("php://input"), true) ?: [];
 $action = $input['action'] ?? '';
 
 if ($action === 'create') {
-    if (!$tenancy) fail(403, "Advance payment is available once your lease is active.");
+    if (!$tenancy) fail(403, "Advance payment is available once your rental is active.");
     if (open_advance_invoice($conn, $user_id) || open_legacy_group($conn, $user_id)) {
         fail(409, "You already have an advance payment waiting. Pay or cancel it first.");
     }
@@ -173,8 +173,8 @@ if ($action === 'create') {
     $months = advance_months($conn, $user_id, $tenancy, $rent);
     if ($count > count($months)) {
         fail(422, count($months) === 0
-            ? "There are no upcoming months left to prepay before your lease ends."
-            : "Only " . count($months) . " upcoming month(s) can be prepaid before your lease ends.");
+            ? "There are no upcoming months left to prepay before your rent ends."
+            : "Only " . count($months) . " upcoming month(s) can be prepaid before your rent ends.");
     }
     $months = array_slice($months, 0, $count);
     $first = $months[0];

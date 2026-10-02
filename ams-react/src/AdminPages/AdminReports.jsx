@@ -200,7 +200,7 @@ const AdminReports = () => {
             totalOutstanding: bd.incomeStatement?.totalOutstanding ?? (bd.outstandingBalances || []).reduce((sum, b) => sum + b.balance, 0),
             collectionEfficiency: bd.incomeStatement?.collectionEfficiency ?? 0,
             records: bd.paymentRecords || [],
-            methodsBreakdown: bd.methodsBreakdown || { Cash: 0, GCash: 0, 'Bank Transfer': 0 }
+            methodsBreakdown: bd.methodsBreakdown || { Cash: 0, GCash: 0, BDO: 0, BPI: 0 }
           },
           // The server always sends these. The fallbacks are empty, never invented
           // percentages — a report that can't load should show zeros, not a plausible story.
@@ -262,7 +262,7 @@ const AdminReports = () => {
   // Max value for revenue scaling in chart
   const maxRevenueTrend = useMemo(() => {
     if (!trendPoints || trendPoints.length === 0) return 10000;
-    const maxVal = Math.max(...trendPoints.map(p => Math.max(p.revenue || 0, p.expenses || 0, (p.rent || 0) + (p.electric || 0) + (p.water || 0) + (p.parking || 0) + (p.deposit || 0))), 0);
+    const maxVal = Math.max(...trendPoints.map(p => Math.max(p.revenue || 0, p.expenses || 0, (p.rent || 0) + (p.electric || 0) + (p.water || 0) + (p.parking || 0))), 0);
     return maxVal > 0 ? maxVal * 1.15 : 10000;
   }, [trendPoints]);
 
@@ -466,7 +466,7 @@ const AdminReports = () => {
     let csvContent = "";
     
     if (moduleType === 'income' || activeModule === 'income') {
-      csvContent += "Unit,Room Type,Floor,Base Rent,Water,Electricity,Services,Parking,Deposits,Total Collected,% Gross Contribution,Invoices Count\r\n";
+      csvContent += "Unit,Room Type,Floor,Base Rent,Water,Electricity,Services,Parking,Deposits (held; not in total),Total Collected,% Gross Contribution,Invoices Count\r\n";
       (data?.unitIncome || []).forEach(u => {
         csvContent += `"${u.unit}","${u.roomType || 'Standard'}",${u.floor || 1},${u.rent || 0},${u.water || 0},${u.electric || 0},${u.services || 0},${u.parking || 0},${u.deposit || 0},${u.total || 0},"${u.pct || 0}%",${u.invoicesCount || 0}\r\n`;
       });
@@ -488,7 +488,7 @@ const AdminReports = () => {
         csvContent += `"${s.category}",${s.amount},"${s.pct}%",${s.prevAmount},"${s.growthPct}%"\r\n`;
       });
     } else if (moduleType === 'occupancy' || activeModule === 'occupancy') {
-      csvContent += "Unit,Tenant Name,Email,Phone,Rent,Move-In Date,Lease End,Status\r\n";
+      csvContent += "Unit,Tenant Name,Email,Phone,Rent,Move-In Date,Rent End,Status\r\n";
       (data?.occupancy?.tenantList || []).forEach(t => {
         csvContent += `"${t.unit}","${t.name}","${t.email}","${t.phone}",${t.rent},"${t.moveIn}","${t.leaseEnd}","${t.status}"\r\n`;
       });
@@ -841,7 +841,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Core Base Rent Share</p>
                     <p className="text-xl font-bold text-indigo-600 m-0 mt-1">{data.diversification.coreRentPct}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.rentCollected)} from unit leases</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.rentCollected)} from unit rentals</span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
@@ -853,7 +853,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Ancillary & Parking Share</p>
                     <p className="text-xl font-bold text-pink-600 m-0 mt-1">{data.diversification.ancillaryPct}%</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.parkingCollected + data.payments.depositCollected)} parking & fees</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">{formatCurrency(data.payments.parkingCollected + data.payments.servicesCollected + data.payments.lateFeesCollected)} parking, services & late fees</span>
                   </div>
 
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
@@ -880,7 +880,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Vacant Units</p>
                     <p className="text-xl font-bold text-slate-600 m-0 mt-1">{data.occupancy.vacantUnits}</p>
-                    <span className="text-[9px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Available to Lease</span>
+                    <span className="text-[9px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-semibold w-fit mt-2 block">Available for Rent</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Move-Ins / Move-Outs</p>
@@ -888,7 +888,7 @@ const AdminReports = () => {
                     <span className="text-[9px] text-slate-500 mt-2 block">Contract modifications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Average Lease Term</p>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Average Rent Term</p>
                     <p className="text-xl font-bold text-emerald-600 m-0 mt-1">{data.occupancy.avgStayDuration} Mos</p>
                     <span className="text-[9px] text-slate-500 mt-2 block">Contracted months across all tenancies</span>
                   </div>
@@ -960,7 +960,7 @@ const AdminReports = () => {
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Room Rent Applications</p>
                     <p className="text-xl font-bold text-slate-800 m-0 mt-1">{data.reservations.roomApps}</p>
-                    <span className="text-[9px] text-slate-500 mt-2 block">Total lease applications</span>
+                    <span className="text-[9px] text-slate-500 mt-2 block">Total rent applications</span>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-slate-300">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide m-0">Room App Statuses</p>
@@ -1090,12 +1090,6 @@ const AdminReports = () => {
                           <span className="flex items-center gap-2"><FontAwesomeIcon icon={faSquareParking} className="text-pink-500 w-3.5" /> Parking Permits & Space</span>
                           <span className="font-semibold">{formatCurrency(data.payments.parkingCollected)}</span>
                         </div>
-                        {data.payments.depositCollected > 0 && (
-                          <div className="flex justify-between text-xs py-1 text-slate-700">
-                            <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-emerald-500 w-3.5" /> Security Deposits & Fees</span>
-                            <span className="font-semibold">{formatCurrency(data.payments.depositCollected)}</span>
-                          </div>
-                        )}
                         {data.payments.lateFeesCollected > 0 && (
                           <div className="flex justify-between text-xs py-1 text-slate-700">
                             <span className="flex items-center gap-2"><FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500 w-3.5" /> Late Payment Fees</span>
@@ -1106,6 +1100,13 @@ const AdminReports = () => {
                           <span>Total Gross Revenue Collected</span>
                           <span className="text-indigo-700 font-extrabold">{formatCurrency(data.incomeStatement.grossRevenue)}</span>
                         </div>
+                        {/* A deposit is held for the tenant, so it is not revenue. */}
+                        {data.payments.depositCollected > 0 && (
+                          <div className="flex justify-between text-xs py-1 text-slate-500">
+                            <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-emerald-500 w-3.5" /> Security deposits received (held, not revenue)</span>
+                            <span className="font-semibold">{formatCurrency(data.payments.depositCollected)}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Right: Operating Deductions & Net Margin */}
@@ -1189,7 +1190,7 @@ const AdminReports = () => {
                             <th className="py-3 px-4 text-right">Water</th>
                             <th className="py-3 px-4 text-right">Electricity</th>
                             <th className="py-3 px-4 text-right">Services</th>
-                            <th className="py-3 px-4 text-right">Parking / Dep</th>
+                            <th className="py-3 px-4 text-right">Parking</th>
                             <th className="py-3 px-4 text-right font-extrabold text-indigo-900">Total Income</th>
                             <th className="py-3 px-4 text-center">% Share</th>
                           </tr>
@@ -1206,7 +1207,7 @@ const AdminReports = () => {
                               <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.water)}</td>
                               <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.electric)}</td>
                               <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.services || 0)}</td>
-                              <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.parking + u.deposit)}</td>
+                              <td className="py-3 px-4 text-right text-slate-600">{formatCurrency(u.parking)}</td>
                               <td className="py-3 px-4 text-right font-extrabold text-emerald-600">{formatCurrency(u.total)}</td>
                               <td className="py-3 px-4 text-center">
                                 <div className="flex items-center justify-center gap-2">
@@ -1271,7 +1272,7 @@ const AdminReports = () => {
 
                     <div className="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-slate-100 text-center">
                       <div className="p-2 bg-indigo-50/50 rounded-lg border border-indigo-100">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Core Leases</span>
+                        <span className="text-[9px] text-slate-400 uppercase font-bold block">Core Rentals</span>
                         <span className="text-xs font-bold text-indigo-700">{data.diversification.coreRentPct}%</span>
                       </div>
                       <div className="p-2 bg-amber-50/50 rounded-lg border border-amber-100">
@@ -1308,7 +1309,6 @@ const AdminReports = () => {
                           const eHeight = ((p.electric || 0) / maxRevenueTrend) * 100;
                           const wHeight = ((p.water || 0) / maxRevenueTrend) * 100;
                           const pkHeight = ((p.parking || 0) / maxRevenueTrend) * 100;
-                          const dpHeight = ((p.deposit || 0) / maxRevenueTrend) * 100;
                           const hasRevenue = (p.revenue || 0) > 0;
 
                           return (
@@ -1320,7 +1320,6 @@ const AdminReports = () => {
                                 <div className="flex justify-between"><span className="text-amber-300">Elec:</span><span>{formatCurrency(p.electric)}</span></div>
                                 <div className="flex justify-between"><span className="text-blue-300">Water:</span><span>{formatCurrency(p.water)}</span></div>
                                 <div className="flex justify-between"><span className="text-pink-300">Park:</span><span>{formatCurrency(p.parking)}</span></div>
-                                <div className="flex justify-between"><span className="text-emerald-300">Deposit:</span><span>{formatCurrency(p.deposit)}</span></div>
                                 <div className="flex justify-between font-bold border-t border-slate-600 pt-0.5 mt-0.5"><span className="text-slate-200">Total:</span><span>{formatCurrency(p.revenue)}</span></div>
                               </div>
 
@@ -1330,7 +1329,6 @@ const AdminReports = () => {
                                 {p.electric > 0 && <div className="w-full bg-amber-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${eHeight}%` }}></div>}
                                 {p.water > 0 && <div className="w-full bg-blue-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${wHeight}%` }}></div>}
                                 {p.parking > 0 && <div className="w-full bg-pink-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${pkHeight}%` }}></div>}
-                                {p.deposit > 0 && <div className="w-full bg-emerald-500 opacity-90 hover:opacity-100 transition-opacity" style={{ height: `${dpHeight}%` }}></div>}
                                 {!hasRevenue && (
                                   <div className="w-full bg-slate-200 h-0.5 rounded"></div>
                                 )}
@@ -1347,7 +1345,6 @@ const AdminReports = () => {
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-500"></span> Electricity</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-500"></span> Water</span>
                       <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-pink-500"></span> Parking</span>
-                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-500"></span> Deposits & Fees</span>
                     </div>
                   </div>
 
@@ -1578,7 +1575,7 @@ const AdminReports = () => {
 
                   <div className="flex items-center gap-1.5 mt-2 text-[10px] text-slate-500 border-t border-slate-50 pt-3">
                     <span className="w-3.5 h-1 bg-emerald-600 inline-block rounded-full"></span> 
-                    Active Lease Occupancy Percentage Trend Line
+                    Active Rent Occupancy Percentage Trend Line
                   </div>
                 </div>
               )}
@@ -1805,7 +1802,7 @@ const AdminReports = () => {
                 <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white print:border-slate-200">
                   <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 m-0">
                     <FontAwesomeIcon icon={faBuilding} className="text-indigo-600" />
-                    Active Lease & Unit Registry Ledger
+                    Active Rent & Unit Registry Ledger
                   </h3>
                   <span className="text-xs text-slate-500 print:hidden">Showing active/pending move-outs</span>
                 </div>
@@ -2003,7 +2000,7 @@ const AdminReports = () => {
                   <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center print:bg-white">
                     <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2 m-0">
                       <FontAwesomeIcon icon={faBuilding} className="text-indigo-600" />
-                      Rent Lease Booking Requests
+                      Rent Booking Requests
                     </h3>
                   </div>
                   <div className="overflow-x-auto">
@@ -2569,7 +2566,7 @@ const AdminReports = () => {
                         </div>
                         <div>
                           <h1 className="text-lg font-extrabold text-slate-900 tracking-tight uppercase m-0">APARTMENT MANAGEMENT SYSTEM</h1>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold m-0">Property Leasing & Financial Administration</p>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold m-0">Property Rental & Financial Administration</p>
                         </div>
                       </div>
                       <p className="text-xs text-slate-600 mt-2 m-0">Unit 101 Management Office, Metro Manila • Tel: +63 912 345 6789</p>

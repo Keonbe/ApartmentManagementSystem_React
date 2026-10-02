@@ -60,7 +60,7 @@ if (empty($app_id) && !empty($user_id)) {
         $dup_row = $dup_res->fetch_assoc();
         $st = strtolower($dup_row['status']);
         if ($st === 'pending review' || $st === 'approved' || $st === 'active' || $st === 'pending-move-out') {
-            echo json_encode(["success" => false, "message" => "You already have an active or pending lease application. You cannot submit another one unless it is rejected."]);
+            echo json_encode(["success" => false, "message" => "You already have an active or pending rent application. You cannot submit another one unless it is rejected."]);
             exit;
         }
     }

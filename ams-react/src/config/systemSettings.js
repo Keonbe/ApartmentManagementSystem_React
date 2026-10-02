@@ -14,7 +14,7 @@ const DEFAULTS = {
   autoFlagEviction: true,          // auto-flag when threshold exceeded
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
-    'Per the Terms & Conditions of this lease agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the leased unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
+    'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
   paymentMode: 'manual',
   paymentSandboxEnabled: true,
   paymentChGcashSandbox: true,
@@ -33,7 +33,7 @@ const DEFAULTS = {
   // Landlord details and payment accounts moved to the contract template
   // (Admin → Edit Contract, backend/contract_template.php).
   roomPreviewMode: 'images',            // public room preview: 'images' or 'floor_plan'
-  maxOccupantsPerUnit: 8,                    // lease holder + household members
+  maxOccupantsPerUnit: 8,                    // main tenant + household members
 
   // Notification channels. Both switches ship off: email needs SMTP credentials
   // and SMS costs money and needs a carrier-registered sender ID. The 'log'

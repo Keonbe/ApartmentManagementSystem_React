@@ -20,7 +20,7 @@ if (!verify_admin($conn, $admin_id)) {
 
 $input = json_decode(file_get_contents("php://input"), true);
 $id = $input['id'] ?? 0;
-$archiveReason = $input['archiveReason'] ?? 'End of Lease';
+$archiveReason = $input['archiveReason'] ?? 'End of Rent Term';
 $archiveNotes = $input['archiveNotes'] ?? '';
 $archiveDate = date('Y-m-d');
 

@@ -31,7 +31,7 @@ $lease_end = $input['leaseEnd'] ?? null;
 
 if (empty($rent_application_id) || empty($lease_start) || empty($lease_end)) {
     http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Rent Application ID, Lease Start, and Lease End are required."]);
+    echo json_encode(["success" => false, "message" => "Rent Application ID, Rent Start, and Rent End are required."]);
     exit;
 }
 
@@ -44,13 +44,13 @@ if (!$start_dt || !$end_dt) {
 }
 if ($end_dt <= $start_dt) {
     http_response_code(422);
-    echo json_encode(["success" => false, "message" => "Lease end must be after lease start."]);
+    echo json_encode(["success" => false, "message" => "Rent end must be after rent start."]);
     exit;
 }
 $max_end = (clone $start_dt)->modify('+24 months');
 if ($end_dt > $max_end) {
     http_response_code(422);
-    echo json_encode(["success" => false, "message" => "The maximum lease period is 24 months."]);
+    echo json_encode(["success" => false, "message" => "The maximum rent period is 24 months."]);
     exit;
 }
 
@@ -103,7 +103,7 @@ $stmt = $conn->prepare("INSERT INTO lease_contracts (id, rent_application_id, de
 $stmt->bind_param("sidssi", $id, $rent_application_id, $deposit_amount, $lease_start, $lease_end, $template_version_id);
 
 if ($stmt->execute()) {
-    log_activity($conn, $admin_id, 'contract', "Generated Lease Contract", "Contract ID: $id for Application: $rent_application_id");
+    log_activity($conn, $admin_id, 'contract', "Generated Rent Contract", "Contract ID: $id for Application: $rent_application_id");
     echo json_encode(["success" => true, "message" => "Contract created successfully", "contractId" => $id]);
 } else {
     http_response_code(409);

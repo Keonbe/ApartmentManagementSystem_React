@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faCreditCard, faCheck, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnBase } from '../api/env';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
-import { addDays, checkDate, checkPaymentReference, localDateString, LIMITS } from '../utils/validation';
+import { addDays, checkDate, checkPaymentReference, isBankMethod, localDateString, LIMITS } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import { daysPastDue, formatCoveredPeriod, formatDay, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
@@ -25,7 +25,7 @@ const TIME_SLOTS = ['morning', 'afternoon'];
 const referenceInputProps = (label = '') => {
     const m = label.toLowerCase();
     if (m.includes('gcash')) return { maxLength: 13, inputMode: 'numeric', placeholder: '13-digit GCash reference' };
-    if (m.includes('bank')) return { maxLength: 55, inputMode: 'text', placeholder: 'e.g. BDO-2026-000123' };
+    if (isBankMethod(m)) return { maxLength: 55, inputMode: 'text', placeholder: m.includes('bpi') ? 'e.g. BPI-2026-000123' : 'e.g. BDO-2026-000123' };
     return { maxLength: LIMITS.paymentReference, inputMode: 'text', placeholder: 'e.g. 1002 9382 1823' };
 };
 import '../assets/styles/responsive/user/pay-bills.responsive.css';
@@ -35,7 +35,6 @@ export default function PayBills() {
     const { t } = useLang();
     const [selectedMethod, setSelectedMethod] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [isAutoPayEnabled, setIsAutoPayEnabled] = useState(false);
     const [paymentChannels, setPaymentChannels] = useState([]);
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTimeSlot, setScheduledTimeSlot] = useState('morning');
@@ -169,6 +168,8 @@ export default function PayBills() {
         };
     })();
     const advanceMonthsText = openAdvance ? openAdvance.months.map(m => m.label).join(', ') : '';
+    // Prepaid months still waiting for their month (paid automatically when billed).
+    const prepaidCount = (advance?.credits || []).filter(c => c.status === 'available').length;
 
     // ── Combined payment of overdue bills (bundle_payment.php) ──
     // With two or more unpaid bills, at least one overdue, the tenant pays them
@@ -310,14 +311,14 @@ export default function PayBills() {
                 const res = await api.get('/get_payment_channels.php');
                 if (res.data.success && res.data.channels) {
                     const mapped = res.data.channels.map(ch => {
-                        let icon, color, isDigital;
-                        if (ch.icon === 'gcash') { icon = faWallet; color = 'text-blue-600'; isDigital = true; }
-                        else if (ch.icon === 'bank') { icon = faUniversity; color = 'text-indigo-600'; isDigital = true; }
-                        else if (ch.icon === 'qr') { icon = faMoneyBillWave; color = 'text-blue-500'; isDigital = true; }
-                        else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; isDigital = true; }
-                        else { icon = faMoneyBillWave; color = 'text-emerald-600'; isDigital = false; }
+                        let icon, color;
+                        if (ch.icon === 'gcash') { icon = faWallet; color = 'text-blue-600'; }
+                        else if (ch.icon === 'bank') { icon = faUniversity; color = 'text-indigo-600'; }
+                        else if (ch.icon === 'qr') { icon = faMoneyBillWave; color = 'text-blue-500'; }
+                        else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; }
+                        else { icon = faMoneyBillWave; color = 'text-emerald-600'; }
                         
-                        return { ...ch, icon, color, isDigital };
+                        return { ...ch, icon, color };
                     });
                     setPaymentChannels(mapped);
                     if (mapped.length > 0) {
@@ -368,11 +369,6 @@ export default function PayBills() {
         setSelectedMethod(methodId);
         setIsDropdownOpen(false);
         payForm.setErrors({});
-        {/*Block enrollment if not digital*/}
-        const methodObj = paymentChannels.find(m => m.id === methodId);
-        if (methodObj && !methodObj.isDigital) {
-            setIsAutoPayEnabled(false);
-        }
     };
 
     const [paymentReference, setPaymentReference] = useState('');
@@ -1001,32 +997,30 @@ export default function PayBills() {
                             </div>
                         )}
 
-                        {/*Polished Automatic Subscriptions Selection Box with Custom Transparent Checkbox*/}
-                        <div className={`p-4 rounded-2xl border transition-all duration-300 flex items-center justify-between ${currentMethodObj.isDigital ? 'bg-slate-50/50 border-slate-100 opacity-100' : 'bg-slate-50/30 border-slate-100/50 opacity-40 select-none pointer-events-none'}`}>
-                            <div className="space-y-0.5 pr-4 text-left">
-                                <div className="flex items-center space-x-2 text-slate-800 font-bold text-sm">
-                                    <FontAwesomeIcon icon={faCreditCard} className="text-slate-400 text-xs" />
-                                    <span>{t('payBills.autoPay')}</span>
+                        {/* Paying ahead is the one automatic payment there is:
+                            prepaid months are paid from the advance when billed.
+                            (Replaces an "Automatic Payment" checkbox that was
+                            never saved or acted on.) */}
+                        {(advance?.available || advance?.credits?.length > 0) && (
+                            <div className="p-4 rounded-2xl border bg-slate-50/50 border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                                <div className="space-y-0.5">
+                                    <div className="flex items-center space-x-2 text-slate-800 font-bold text-sm">
+                                        <FontAwesomeIcon icon={faCalendarPlus} className="text-indigo-400 text-xs" />
+                                        <span>{prepaidCount > 0 ? t('payBills.prepaidCount').replace('{n}', prepaidCount) : t('payBills.payAhead')}</span>
+                                    </div>
+                                    <p className="text-slate-400 text-[11px] m-0 leading-relaxed font-medium">
+                                        {prepaidCount > 0 ? t('payBills.prepaidDesc') : t('payBills.payAheadDesc')}
+                                    </p>
                                 </div>
-                                <p className="text-slate-400 text-[11px] m-0 leading-relaxed font-medium">
-                                    {t('payBills.autoPayDesc')}
-                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => document.getElementById('pay-in-advance')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="shrink-0 px-4 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-bold cursor-pointer hover:bg-indigo-50"
+                                >
+                                    {prepaidCount > 0 ? t('payBills.viewPrepaid') : t('payBills.payAheadBtn')}
+                                </button>
                             </div>
-
-                            {/*Custom Blueprint-Compliant Checkbox Box Element Layer Context*/}
-                            <label className={`relative flex items-center justify-center w-6 h-6 rounded-md border-2 bg-transparent transition-all flex-shrink-0 ${!currentMethodObj.isDigital ? 'border-slate-300 cursor-not-allowed' : 'border-indigo-500 cursor-pointer'}`}>
-                                <input
-                                    type="checkbox"
-                                    checked={isAutoPayEnabled}
-                                    disabled={!currentMethodObj.isDigital}
-                                    onChange={(e) => setIsAutoPayEnabled(e.target.checked)}
-                                    className="sr-only"
-                                />
-                                <div className={`w-full h-full rounded-[4px] bg-indigo-600 flex items-center justify-center text-white text-[10px] transition-transform duration-150 ${isAutoPayEnabled ? 'scale-100' : 'scale-0'}`}>
-                                    <FontAwesomeIcon icon={faCheck} />
-                                </div>
-                            </label>
-                        </div>
+                        )}
 
                         {/*Action Submission Execution Button Panel Layout*/}
                         <div className="pt-2">
@@ -1048,7 +1042,7 @@ export default function PayBills() {
                 {/* Pay in advance: one payment credits N upcoming months; each
                     month is still billed on its usual date and paid from it. */}
                 {(advance?.available || advance?.credits?.length > 0) && (
-                    <div className="pay-bills-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-4">
+                    <div id="pay-in-advance" className="pay-bills-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-4 scroll-mt-4">
                         <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
                             <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 text-lg">
                                 <FontAwesomeIcon icon={faCalendarPlus} />
@@ -1132,7 +1126,7 @@ export default function PayBills() {
                             </div>
                         ) : advance?.available ? (
                             <p className="text-sm text-slate-600 m-0">
-                                There are no upcoming months left to prepay before your lease ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
+                                There are no upcoming months left to prepay before your rent ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
                             </p>
                         ) : null}
 

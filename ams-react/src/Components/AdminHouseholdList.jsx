@@ -25,7 +25,7 @@ export default function AdminHouseholdList({ userId }) {
       <ul className="list-none m-0 p-0 border border-slate-100 rounded-lg divide-y divide-slate-100">
         <li className="flex justify-between px-3 py-2 text-sm">
           <span className="font-semibold text-slate-700">{data.leaseHolder}</span>
-          <span className="text-[10px] font-bold uppercase text-indigo-600">Lease holder</span>
+          <span className="text-[10px] font-bold uppercase text-indigo-600">Main tenant</span>
         </li>
         {data.members.map((m) => (
           <li key={m.id} className="flex justify-between gap-3 px-3 py-2 text-sm">

@@ -322,7 +322,7 @@ export default function RentApplication() {
         }
 
         if (hasActiveApplication) {
-            setNotice("You already have an active or pending lease application. You cannot submit another one.");
+            setNotice("You already have an active or pending rent application. You cannot submit another one.");
             return;
         }
 

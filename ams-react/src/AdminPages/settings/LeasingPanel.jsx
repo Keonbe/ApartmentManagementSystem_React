@@ -24,11 +24,11 @@ export default function LeasingPanel({ settings, updateSetting }) {
       <SettingsSection
         icon={faFileContract}
         tone="indigo"
-        title="Lease Policy"
-        description="Lease length, reservation holds, occupancy and the public room preview."
+        title="Rent Policy"
+        description="Rent length, reservation holds, occupancy and the public room preview."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Minimum Lease Duration" htmlFor="setting-minLeaseDuration" icon={faCalendarAlt} hint="Tenants cannot sign leases shorter than this duration.">
+          <Field label="Minimum Rent Duration" htmlFor="setting-minLeaseDuration" icon={faCalendarAlt} hint="Rent terms cannot be shorter than this duration.">
             <WithUnit suffix="months">
               <input {...intInput(settings, updateSetting, 'minLeaseDuration', 1, 24)} className={`${INPUT_NUMBER} w-24`} />
             </WithUnit>
@@ -40,7 +40,7 @@ export default function LeasingPanel({ settings, updateSetting }) {
             </WithUnit>
           </Field>
 
-          <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Lease holder plus household members. Applications and occupant requests above this are refused.">
+          <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Main tenant plus household members. Applications and occupant requests above this are refused.">
             <WithUnit suffix="people">
               <input {...intInput(settings, updateSetting, 'maxOccupantsPerUnit', 1, 20)} className={`${INPUT_NUMBER} w-24`} />
             </WithUnit>
@@ -59,8 +59,8 @@ export default function LeasingPanel({ settings, updateSetting }) {
         </div>
       </SettingsSection>
 
-      <Callout tone="violet" icon={faFileSignature} title="Lease contract details moved">
-        The owner's name, address and contact number, the payment accounts and every clause of the lease
+      <Callout tone="violet" icon={faFileSignature} title="Rent contract details moved">
+        The owner's name, address and contact number, the payment accounts and every clause of the contract
         are now edited in <Link to="/admin-contract-editor" className="font-bold text-violet-700 underline">Edit Contract</Link>.
       </Callout>
     </>

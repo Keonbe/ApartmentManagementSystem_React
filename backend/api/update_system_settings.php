@@ -91,7 +91,7 @@ foreach ($input as $key => $value) {
     }
     if ($key === 'lease_end_reminder_days' && (!ctype_digit($value) || (int)$value < 0 || (int)$value > 180)) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Lease-end reminder days must be a whole number between 0 and 180."]);
+        echo json_encode(["success" => false, "message" => "Rent-end reminder days must be a whole number between 0 and 180."]);
         exit;
     }
 

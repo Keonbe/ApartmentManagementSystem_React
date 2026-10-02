@@ -53,7 +53,7 @@ echo json_encode([
     "success" => true,
     "preferences" => $preferences,
     // Shown to the user as the list of notices that cannot be switched off.
-    "always_on" => ['Overdue payment alerts', 'Bills and payment confirmations', 'Application and lease decisions', 'Maintenance updates', 'Contract and move-out notices'],
+    "always_on" => ['Overdue payment alerts', 'Bills and payment confirmations', 'Application and rent decisions', 'Maintenance updates', 'Contract and move-out notices'],
     // Whether the building has each channel switched on at all. A tenant's
     // per-category SMS choice means nothing while sms_available is false.
     "channels" => [

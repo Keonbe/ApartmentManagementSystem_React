@@ -345,12 +345,12 @@ try {
         mb_strlen($s) . ' chars');
 
     clear_state($conn, $uid);
-    dispatch_external_notification($conn, $uid, 'contract_update', 'Lease Approaching End',
+    dispatch_external_notification($conn, $uid, 'contract_update', 'Rent Approaching End',
         sms_lease_reminder_template('101', '2026-10-26', 30),
         email_lease_reminder_template('Selftest', '101', 'Oct 26, 2026', 30), 'sync');
     $sms = log_rows($conn, $uid, 'sms');
     $email = log_rows($conn, $uid, 'email');
-    check('M6-46', 'The lease-end reminder goes out by SMS and email',
+    check('M6-46', 'The rent-end reminder goes out by SMS and email',
         count($sms) === 1 && $sms[0]['status'] === 'sent' && count($email) === 1 && $email[0]['status'] === 'sent',
         count($sms) . ' sms, ' . count($email) . ' email');
 
