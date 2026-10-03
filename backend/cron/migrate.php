@@ -25,6 +25,55 @@ function migration_is_comment_only($sql)
     return trim($withoutComments ?? $sql) === '';
 }
 
+/** Return the MySQL error code from a result-advance failure, if available. */
+function migration_result_error_code($conn, $exception = null)
+{
+    $code = (int) $conn->errno;
+    if ($code === 0 && $exception !== null) {
+        $code = (int) $exception->getCode();
+    }
+    return $code;
+}
+
+/** Drain outstanding multi_query results after a tolerated statement error. */
+function migration_drain_results($conn, &$output, $name, &$noticeLogged)
+{
+    $benignErrors = [1060, 1061, 1050, 1091];
+    $safetyLimit = 10000;
+
+    while ($conn->more_results() && $safetyLimit-- > 0) {
+        try {
+            if (!$conn->next_result()) {
+                $code = migration_result_error_code($conn);
+                if (!in_array($code, $benignErrors, true)) {
+                    throw new RuntimeException($conn->error ?: 'Could not advance to the next SQL result', $code);
+                }
+                if (!$noticeLogged) {
+                    migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
+                    $noticeLogged = true;
+                }
+                continue;
+            }
+            if ($result = $conn->store_result()) {
+                $result->free();
+            }
+        } catch (mysqli_sql_exception $e) {
+            $code = migration_result_error_code($conn, $e);
+            if (!in_array($code, $benignErrors, true)) {
+                throw $e;
+            }
+            if (!$noticeLogged) {
+                migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
+                $noticeLogged = true;
+            }
+        }
+    }
+
+    if ($safetyLimit <= 0) {
+        throw new RuntimeException('Stopped draining results after reaching the safety limit');
+    }
+}
+
 /**
  * Run pending migrations. Returns success, applied names, output lines, and
  * skipped non-migration SQL filenames.
@@ -107,32 +156,86 @@ function run_migrations($conn)
                 // Some MySQL versions reject IF NOT EXISTS in ALTER TABLE ADD.
                 // Normalize that syntax before submitting the migration batch.
                 $sql = preg_replace('/ADD\s+(COLUMN\s+)?IF\s+NOT\s+EXISTS/i', 'ADD $1', $sql);
+                $benignErrors = [1060, 1061, 1050, 1091];
+                $noticeLogged = false;
                 if (!$conn->multi_query($sql)) {
-                    throw new RuntimeException($conn->error);
+                    $code = (int) $conn->errno;
+                    if (!in_array($code, $benignErrors, true)) {
+                        throw new RuntimeException($conn->error, $code);
+                    }
+                    migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . ')');
+                    $noticeLogged = true;
                 }
-                do {
-                    if ($result = $conn->store_result()) {
-                        $result->free();
+                if ($conn->more_results() || $conn->field_count > 0) {
+                    do {
+                        if ($result = $conn->store_result()) {
+                            $result->free();
+                        }
+                        if (!$conn->more_results()) {
+                            break;
+                        }
+                        try {
+                            $advanced = $conn->next_result();
+                        } catch (mysqli_sql_exception $e) {
+                            $code = migration_result_error_code($conn, $e);
+                            if (!in_array($code, $benignErrors, true)) {
+                                throw $e;
+                            }
+                            if (!$noticeLogged) {
+                                migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
+                                $noticeLogged = true;
+                            }
+                            migration_drain_results($conn, $output, $name, $noticeLogged);
+                            break;
+                        }
+                        if (!$advanced) {
+                            $code = migration_result_error_code($conn);
+                            if (!in_array($code, $benignErrors, true)) {
+                                throw new RuntimeException($conn->error ?: 'Could not advance to the next SQL result', $code);
+                            }
+                            if (!$noticeLogged) {
+                                migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
+                                $noticeLogged = true;
+                            }
+                            migration_drain_results($conn, $output, $name, $noticeLogged);
+                            break;
+                        }
+                    } while (true);
+                } else {
+                    // multi_query() can fail before a result is available.
+                    $code = (int) $conn->errno;
+                    if ($code !== 0 && !in_array($code, $benignErrors, true)) {
+                        throw new RuntimeException($conn->error, $code);
                     }
-                    if (!$conn->more_results()) {
-                        break;
-                    }
-                    if (!$conn->next_result()) {
-                        throw new RuntimeException($conn->error ?: 'Could not advance to the next SQL result');
-                    }
-                } while (true);
+                }
 
                 $insert->bind_param('s', $name);
                 $insert->execute();
                 $applied[] = $name;
                 migration_log($output, 'SUCCESS', $name);
             } catch (Throwable $e) {
+                $code = migration_result_error_code($conn, $e);
+                if (in_array($code, [1060, 1061, 1050, 1091], true)) {
+                    if (!$noticeLogged) {
+                        migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . ')');
+                        $noticeLogged = true;
+                    }
+                    try {
+                        migration_drain_results($conn, $output, $name, $noticeLogged);
+                        $insert->bind_param('s', $name);
+                        $insert->execute();
+                        $applied[] = $name;
+                        migration_log($output, 'SUCCESS', $name . ' (completed with idempotency notice)');
+                        continue;
+                    } catch (Throwable $recordError) {
+                        $e = $recordError;
+                    }
+                }
+
                 // Drain pending results so this connection is usable for error handling.
                 try {
-                    while ($conn->more_results()) {
-                        if (!$conn->next_result()) break;
-                        if ($result = $conn->store_result()) $result->free();
-                    }
+                    $ignoredNotice = false;
+                    migration_drain_results($conn, $output, $name, $ignoredNotice);
                 } catch (Throwable $ignored) {
                     // Keep the original migration error.
                 }
