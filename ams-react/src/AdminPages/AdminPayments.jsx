@@ -357,6 +357,13 @@ const AdminPayments = () => {
   const setAmountTendered = (value) => setTender({ tenant: activeTenant, value });
   const splitTotal = paymentParts.reduce((sum, part) => sum + (Number(part.amount) || 0), 0);
   const remainingBalance = Math.round((totalDue - splitTotal) * 100) / 100;
+  const hasInvalidSplitPart = paymentParts.some(part => {
+    const amount = Number(part.amount);
+    return !part.amount || !Number.isFinite(amount) || amount <= 0 || amount > totalDue ||
+      (part.method !== 'cash' && (!part.reference_number?.trim() || checkPaymentReference(part.reference_number, part.method))) ||
+      (part.method === 'bank_transfer' && (!part.bank_name || (part.bank_name === 'Other' && !part.other_bank_name?.trim())));
+  });
+  const splitCanProcess = paymentParts.length > 0 && paymentParts.length <= 4 && Math.abs(remainingBalance) <= 0.009 && !hasInvalidSplitPart;
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
 
   // Summaries
@@ -437,13 +444,14 @@ const AdminPayments = () => {
 
   const handleConfirmPayment = () => {
     if (!splitMode && !recordForm.validateAll(recordValues)) return;
-    if (splitMode && (Math.abs(remainingBalance) > 0.009 || paymentParts.some(p => !p.amount || Number(p.amount) <= 0 || (p.method === 'bank_transfer' && (!p.bank_name || (p.bank_name === 'Other' && !p.other_bank_name?.trim())))))) return;
+    if (splitMode && !splitCanProcess) return;
     if (!splitMode && paymentMethod === 'bank_transfer' && (!paymentParts[0]?.bank_name || (paymentParts[0]?.bank_name === 'Other' && !paymentParts[0]?.other_bank_name?.trim()))) return;
     setShowConfirmModal(true);
   };
 
 const handleMarkAsPaid = async () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId || recording) return;
+    if (splitMode && !splitCanProcess) return;
 
     setRecording(true);
     try {
@@ -961,16 +969,21 @@ const handleMarkAsPaid = async () => {
                             onChange={e => { setAmountTendered(e.target.value); recordForm.clearError('amountPaid'); }}
                             onBlur={() => amountTendered !== '' && blurRecord('amountPaid')}
                             className={AMOUNT_INPUT + invalidCls(recordForm.errors.amountPaid)} placeholder="0" />}
-                          {splitMode && <div className="space-y-3">
-                            {paymentParts.map((part, index) => <div key={index} className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-3">
-                              <select className={AMOUNT_INPUT} value={part.method} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, method: e.target.value, bank_name: '' } : p))}><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank Transfer</option></select>
-                              {part.method === 'bank_transfer' && <><select className={AMOUNT_INPUT} value={part.bank_name} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, bank_name: e.target.value } : p))}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{part.bank_name === 'Other' && <input className={AMOUNT_INPUT} placeholder="Enter bank name" value={part.other_bank_name || ''} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, other_bank_name: e.target.value } : p))} />}</>}
-                              <input type="number" min="0.01" step="0.01" className={AMOUNT_INPUT} placeholder="Amount" value={part.amount} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, amount: e.target.value } : p))} />
-                              {part.method !== 'cash' && <input className={AMOUNT_INPUT} placeholder="Reference (optional)" value={part.reference_number} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, reference_number: e.target.value } : p))} />}
-                              {paymentParts.length > 1 && <button type="button" className="text-xs text-rose-600" onClick={() => setPaymentParts(paymentParts.filter((_, i) => i !== index))}>Remove portion</button>}
-                            </div>)}
-                            <button type="button" className="text-xs font-bold text-indigo-700" onClick={() => setPaymentParts([...paymentParts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }])}>+ Add payment portion</button>
-                            <div className="flex justify-between text-sm font-bold"><span>Total {formatCurrency(splitTotal)}</span><span className={remainingBalance === 0 ? 'text-emerald-700' : 'text-amber-700'}>{remainingBalance >= 0 ? `Remaining ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div>
+                          {splitMode && <div className="space-y-3 md:col-span-3">
+                            {paymentParts.map((part, index) => {
+                              const updatePart = (changes) => setPaymentParts(parts => parts.map((p, i) => i === index ? { ...p, ...changes } : p));
+                              const amountValue = Number(part.amount);
+                              const amountError = part.amount !== '' && (!Number.isFinite(amountValue) || amountValue <= 0 || amountValue > totalDue);
+                              const referenceError = part.method !== 'cash' && !part.reference_number.trim();
+                              return <div key={index} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 items-start gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                                <select aria-label={`Portion ${index + 1} payment method`} className={`${AMOUNT_INPUT} xl:col-span-2`} value={part.method} onChange={e => updatePart({ method: e.target.value, bank_name: '', reference_number: '' })}><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank Transfer</option></select>
+                                {part.method === 'bank_transfer' ? <div className="xl:col-span-2"><select aria-label="Bank name" className={AMOUNT_INPUT} value={part.bank_name} onChange={e => updatePart({ bank_name: e.target.value })}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{part.bank_name === 'Other' && <input className={`${AMOUNT_INPUT} mt-2`} placeholder="Enter bank name" value={part.other_bank_name || ''} onChange={e => updatePart({ other_bank_name: e.target.value })} />}</div> : <div className="hidden xl:block xl:col-span-2" />}
+                                {part.method !== 'cash' ? <div className="xl:col-span-3"><input aria-label="Reference / transaction number" required className={`${AMOUNT_INPUT}${referenceError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Ref # / Trans ID" value={part.reference_number} onChange={e => updatePart({ reference_number: e.target.value })} />{referenceError && <p className="mt-1 mb-0 text-xs text-red-600">Reference number is required.</p>}{part.reference_number.trim() && checkPaymentReference(part.reference_number, part.method) && <p className="mt-1 mb-0 text-xs text-red-600">{checkPaymentReference(part.reference_number, part.method)}</p>}</div> : <div className="hidden xl:block xl:col-span-3" />}
+                                <div className="flex gap-1 xl:col-span-4"><div className="relative min-w-0 flex-1"><span className="absolute left-3 top-2 text-sm text-slate-500">₱</span><input aria-label="Portion amount" type="number" min="0.01" max={totalDue} step="0.01" inputMode="decimal" onKeyDown={blockNonNumericKeys} className={`${AMOUNT_INPUT} pl-7${amountError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Amount" value={part.amount} onChange={e => { const value = e.target.value; updatePart({ amount: value === '' ? '' : String(Math.min(Number(value), totalDue)) }); }} /></div><button type="button" disabled={remainingBalance <= 0} onClick={() => updatePart({ amount: String(Math.max(0, Math.round((remainingBalance + (Number(part.amount) || 0)) * 100) / 100)) })} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-40">Max</button><button type="button" aria-label={`Remove portion ${index + 1}`} disabled={paymentParts.length === 1} onClick={() => setPaymentParts(parts => parts.filter((_, i) => i !== index))} className="rounded-lg border border-slate-200 bg-white px-3 text-sm text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-35"><FontAwesomeIcon icon={faTimes} /></button></div>
+                                {amountError && <p className="md:col-span-2 xl:col-span-8 m-0 text-xs text-red-600">Enter an amount greater than ₱0 and no more than {formatCurrency(totalDue)}.</p>}
+                              </div>;
+                            })}
+                            <div className="flex flex-wrap items-center justify-between gap-3"><button type="button" disabled={paymentParts.length >= 4} title={paymentParts.length >= 4 ? 'Maximum 4 split methods allowed' : undefined} onClick={() => setPaymentParts(parts => parts.length < 4 ? [...parts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }] : parts)} className="text-xs font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">+ Add payment portion</button><div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">Split Total: {formatCurrency(splitTotal)}</span><span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-700">Remaining Balance: {formatCurrency(remainingBalance)}</span><span className={`rounded-full px-3 py-1.5 ${remainingBalance === 0 ? 'bg-emerald-50 text-emerald-700' : remainingBalance > 0 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}`}>{remainingBalance === 0 ? '✓ Balanced (Ready to process)' : remainingBalance > 0 ? `Underpaid by ${formatCurrency(remainingBalance)}` : `Exceeds Total Due by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div></div>
                           </div>}
                           <FieldError id="record-amountPaid" error={recordForm.errors.amountPaid} />
                         </div>
@@ -1079,7 +1092,7 @@ const handleMarkAsPaid = async () => {
                   <div className="flex gap-3">
                     <button 
                       onClick={handleConfirmPayment} 
-                      disabled={recording || totalDue <= 0 || activeTenant.status === 'paid' || activeTenant.status === 'processing'}
+                      disabled={recording || totalDue <= 0 || activeTenant.status === 'paid' || activeTenant.status === 'processing' || (splitMode && !splitCanProcess)}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors border-0 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment
