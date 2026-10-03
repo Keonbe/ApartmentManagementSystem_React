@@ -132,17 +132,12 @@ If a start script reports "could not be started" but the port is already listeni
 ```bash
 # Schema first, then seed data. Order matters.
 /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/SetupDB.sql
-/c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/seed_mock_data.sql
+/c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/seeds/seed_mock_data.sql
 ```
 
-> `seed_mock_data.sql` uses `INSERT IGNORE` throughout, so re-running it is a **no-op, not a refresh**. To genuinely reset, either drop and recreate `ams_db` before importing, or run `backend/api/migrations/seed_reset.sql` (removes just the seed rows, keeps the admin and settings) before re-importing.
+> `seed_mock_data.sql` uses `INSERT IGNORE` throughout, so re-running it is a **no-op, not a refresh**. To genuinely reset, either drop and recreate `ams_db` before importing, or run `backend/api/migrations/seeds/seed_reset.sql` (removes just the seed rows, keeps the admin and settings) before re-importing.
 >
-> **Upgrading an existing database** (not needed after a fresh import): run the idempotent migrations once, in order. The first adds `utility_readings` and its `invoice_id` column. The second adds `login_attempts` with its per-account index and the missing `visitor_logs.id_photo_path` column, and normalises activity-log categories. The third adds `notification_preferences`, `parking_charges`, numbered-slot columns on `parking_reservations`, indexes on `notifications`/`activity_logs`, the parking/sweep settings, and recategorises a handful of existing log rows (contract, unit).
-> ```bash
-> /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_utility_readings.sql
-> /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_rbac_activity_logs.sql
-> /c/xampp/mysql/bin/mysql.exe -u root ams_db < backend/api/migrations/2026_09_notifications_parking.sql
-> ```
+> **Upgrading an existing database** (not needed after a fresh import): run `php backend/cron/migrate.php`, which applies the dated files in `backend/api/migrations/` the database hasn't had yet. Older migrations are deleted once applied everywhere; they're already in `SetupDB.sql` ([database_schema.md §3](database_schema.md)).
 
 ### 1.3 Base URLs
 
@@ -157,26 +152,29 @@ If a start script reports "could not be started" but the port is already listeni
 | Role | Email | Password | User id |
 |---|---|---|---|
 | Admin | `admin@gmail.com` | `admin123` | 4 |
-| Tenant (all 12) | see below | `tenant123` | 2, 3, 5–14 |
+| Tenant (all 15) | see below | `tenant123` | 2, 3, 5–17 |
 
 | User id | Email | Room | App id | Scenario this fixture exists for |
 |---|---|---|---|---|
 | 2 | `maria.santos@gmail.com` | A | 1 | Clean baseline — every invoice paid |
-| 3 | `jose.reyes@gmail.com` | B | 2 | Two overdue invoices (Jul + Aug 2026) |
-| 5 | `rosa.delacruz@gmail.com` | C | 3 | Lease renewed mid-year (`lease_renewals` row) |
-| 6 | `ben.flores@gmail.com` | D | 4 | Three overdue invoices; contract `eviction-pending` |
-| 7 | `lita.ramos@gmail.com` | E | 5 | Contract still in `draft` — activation fixture |
+| 3 | `jose.reyes@gmail.com` | B | 2 | Two overdue invoices (Sep + Oct 2026) |
+| 5 | `rosa.delacruz@gmail.com` | C | 3 | Rent term extended mid-year (`lease_renewals` row) |
+| 6 | `ben.flores@gmail.com` | D | 4 | Three overdue invoices (Aug–Oct 2026); contract `eviction-pending` |
+| 7 | `lita.ramos@gmail.com` | E | 5 | `Approved`, move-in invoice paid, move-in scheduled for 2026-10-05, room `reserved`, contract `draft` — the Confirm Move-In fixture |
 | 8 | `gloria.tan@gmail.com` | — (wants N) | 6 | **`Pending Review`** — the approval-gate fixture |
-| 9 | `dante.abad@gmail.com` | F | 7 | Parking assigned + one invoiced service booking |
+| 9 | `dante.abad@gmail.com` | F | 7 | Parking assigned (Apr 2026 – Mar 2027) + one invoiced service booking |
 | 10 | `pedro.cruz@gmail.com` | G | 8 | Completed maintenance request |
-| 11 | `carlo.villanueva@gmail.com` | H | 9 | Paid-up; has a converted inquiry |
-| 12 | `ana.bautista@gmail.com` | K | 10 | Completed maintenance request |
-| 13 | `mark.santiago@gmail.com` | L | 11 | Paid-up baseline |
+| 11 | `carlo.villanueva@gmail.com` | H | 9 | Paid-up; parking assigned (Jun – Nov 2026); has a converted inquiry |
+| 12 | `ana.bautista@gmail.com` | K | 10 | Completed maintenance request; term ends 2026-10-15 (rent-end reminder) |
+| 13 | `mark.santiago@gmail.com` | L | 11 | Paid up; **`pending-move-out`**, notice filed for 2026-10-20 (admin queue row `move_out_request:11`) |
 | 14 | `grace.mendoza@gmail.com` | M | 12 | Approved CCTV request; Jan-2026 deposit invoice |
+| 15 | `paolo.garcia@gmail.com` | — (was J) | 13 | Moved out 2026-09-01: application `archived` (`pre_archive_status` `moved-out`), contract `LC-0012` `expired`, deposit `Applied to Rent`; Jan–Aug invoices paid |
+| 16 | `ramon.aquino@gmail.com` | — (wanted J) | 14 | `Rejected`, with a reason |
+| 17 | `liza.navarro@gmail.com` | — (wanted J) | 15 | `Cancelled` by the applicant (`cancelled_at` set) |
 
-**Rooms:** A–H and K–M are `occupied`. `I` is `vacant` but held by an **active reservation** (expires 2026-09-20). `J` and `N` are genuinely free — use these when a test needs an assignable unit.
+**Rooms:** A–D, F–H and K–M are `occupied`; E is `reserved` for Lita. `I` is `vacant` but held by an **active reservation** (expires 2026-10-10). `J` (last tenant Paolo), `N` and `P` are free — use these when a test needs an assignable unit. `P` is an extra 3F unit at ₱4,000 that mirrors prod; it is not in `SetupDB.sql`, and `seed_reset.sql` removes it.
 
-**Invoice ids** follow `INV-<YYYYMM>-<user_id>`, e.g. `INV-202608-2`. The seeded overdue set is `INV-202607-3`, `INV-202608-3`, `INV-202606-6`, `INV-202607-6`, `INV-202608-6`.
+**Invoice ids** follow `INV-<YYYYMM>-<user_id>`, e.g. `INV-202608-2`. The data runs to 2026-10-02: every tenancy month that began by then is billed (September/October rows are rent + parking only, with `rent_period_start` set; January–August rows are label-matched). The seeded overdue set is `INV-202609-3`, `INV-202610-3`, `INV-202608-6`, `INV-202609-6`, `INV-202610-6`. Parking months already billed have `parking_charges` rows (permit 1: Apr–Sep, permit 2: Jun–Sep); October is left unbilled.
 
 ### 1.5 ⚠️ The seed data predates the acceptance-criteria gate
 
@@ -690,7 +688,7 @@ SELECT status, hold_expires_at FROM unit_reservations WHERE room_name = 'I';
 
 -- Restore to seed state
 UPDATE unit_reservations
-SET status='Active', hold_expires_at='2026-09-20', released_at=NULL, released_reason=NULL
+SET status='Active', hold_expires_at='2026-10-10', released_at=NULL, released_reason=NULL
 WHERE room_name='I' AND reserved_for_name='Katrina Villareal';
 ```
 
@@ -1679,7 +1677,7 @@ VALUES ('H', 11, '2026-08', '2026-08-31', 20, 300, 4);
 | **M8U-08** | Happy | Save, with rates carried forward | Admin token | Save A `2026-09`, water 124.5, electricity 2230, **no rates sent** | `200`, `total_amount` 1420 | `SELECT water_consumption, water_rate_per_unit, water_amount, electric_consumption, electric_amount, recorded_by FROM utility_readings WHERE room_name='A' AND billing_period='2026-09';` → `10.00, 40.00, 400.00, 85.00, 1020.00, 4` |
 | **M8U-09** | Negative | Duplicate reading | M8U-08 | Repeat M8U-08 | `409` | Row count unchanged |
 | **M8U-10** | Happy | Usage spike flagged | M8U-08 | `GET get_utility_readings.php?room_name=A&billing_period=2026-09` (admin) | `has_spike` true, `water_change_pct` 42.9, `electric_change_pct` 18.1 | Badge shows on `/admin-utilities` |
-| **M8U-11** | Money | Merge into the month's rent invoice — no second rent | `INV-TEST-UTIL-A` fixture | Sync the A reading, `merge` | `200`, `invoice_id` `INV-TEST-UTIL-A`, `merged` true | `base_rent 4000.00, water 400.00, electricity 1020.00, total_amount 5420.00`; `SELECT COUNT(*) FROM invoices WHERE user_id=2 AND billing_period IN ('September 2026','2026-09');` = **1**. Regression guard for the double-rent bug |
+| **M8U-11** | Money | Merge into the month's rent invoice — no second rent | `INV-TEST-UTIL-A` fixture | Sync the A reading, `merge` | `200`, `invoice_id` `INV-TEST-UTIL-A`, `merged` true | `base_rent 4000.00, water 400.00, electricity 1020.00, total_amount 5420.00`; `SELECT COUNT(*) FROM invoices WHERE user_id=2 AND billing_period IN ('September 2026','2026-09');` = **2** (the seeded, paid rent-only `INV-202609-2` and the fixture; no third). Regression guard for the double-rent bug |
 | **M8U-12** | Money | Replay and delete after billing | M8U-11 | Sync again; delete the reading | `409 "…already been synced…"`; `409 "…already been invoiced…"` | — |
 | **M8U-13** | Money | Merge refused onto hand-entered utilities | `INV-TEST-UTIL-K` fixture; save K `2026-09` (water 100.2, electricity 1700) | Sync the K reading, `merge` | `409 "…already carries water/electricity charges…"` | The K reading's `is_invoiced` is still `0` (claim rolled back); invoice total still `3750.00` |
 | **M8U-14** | Money | Month already paid → utilities-only invoice | `UPDATE invoices SET status='paid', paid_at=NOW() WHERE id='INV-TEST-UTIL-K';` | Sync the K reading, `merge` | `200`, `merged` false, *"No open invoice for September 2026…"* | New invoice: `base_rent 0.00`, `water 280.00`, `electricity 780.00`, `total 1060.00`, `September 2026`, `pending`, due `2026-10-05` |
@@ -2589,12 +2587,12 @@ flowchart LR
 
 ### 15.4 Test Conditions
 
-Seed fixtures: **LC-0001** (Maria, app 1, `active`, `lease_end` 2026-11-01). **LC-0004** (Ben, app 4, `eviction-pending`, `eviction_status='flagged'`). **LC-0005** (Lita, app 5, `draft`). **LC-0010** (Mark, app 11, room L, `active`, `lease_end` 2026-09-20 — closest to "today" in the seed, useful for expiry/reminder tests).
+Seed fixtures: **LC-0001** (Maria, app 1, `active`, `lease_end` 2026-11-01). **LC-0004** (Ben, app 4, `eviction-pending`, `eviction_status='flagged'`). **LC-0005** (Lita, app 5, `draft`; the application is `Approved` with the move-in invoice paid, awaiting Confirm Move-In). **LC-0009** (Ana, app 10, room K, `active`, `lease_end` 2026-10-15 — the only seeded term ending soon, useful for expiry/reminder tests).
 
 | ID | Type | Scenario | Precondition | Action | Expected | Verify |
 |---|---|---|---|---|---|---|
 | **M9-01** | Sec | `clear` refused from `draft` | LC-0005 | Admin `POST update_contract_status.php {"contractId":"LC-0005","action":"clear"}` | `422 "A draft contract cannot be cleared."` | Status unchanged — verified live |
-| **M9-02** | Happy | `activate` a draft | LC-0005 (Lita: application `active`, move-in invoice `paid`) | `{"action":"activate"}` | `200`, contract → `active`, tenant notified | Verified live 2026-09-30 |
+| **M9-02** | Happy | `activate` a draft | LC-0005 with Lita's application set `active` first (`UPDATE rent_applications SET status='active' WHERE id=5;` — as seeded it is `Approved`, so `activate` returns `409` until the move-in is confirmed), move-in invoice `paid` | `{"action":"activate"}` | `200`, contract → `active`, tenant notified | Verified live 2026-09-30 |
 | **M9-03** | Sec | `create_contract` refuses a duplicate | Application 1 already has LC-0001 | `POST create_contract.php {"rentApplicationId":1,...}` | `409 "A contract already exists for this application (LC-0001)."` | No second row inserted — verified live |
 | **M9-04** | Negative | `create_contract` refuses a Pending application | Application 6 (Gloria), status `Pending Review` | `POST create_contract.php {"rentApplicationId":6,...}` | `422 "A contract can only be generated for an approved tenant."` | — |
 | **M9-05** | Negative | `edit` refuses inverted dates | Any contract | `{"action":"edit","leaseStart":"2026-05-01","leaseEnd":"2026-01-01"}` | `422 "Lease end must be after lease start."` | Verified live |
@@ -2604,7 +2602,7 @@ Seed fixtures: **LC-0001** (Maria, app 1, `active`, `lease_end` 2026-11-01). **L
 | **M9-09** | Sec | Terminated contract accepts no further transition | Immediately after M9-08 | `clear`, then `terminate` again | Both `422` (`CONTRACT_TRANSITIONS['terminated'] = []`) | Verified live |
 | **M9-10** | Negative | Uploading before approval | Application 6 (Gloria), `Pending Review` | Tenant `POST upload_lease_document.php {rentApplicationId:6,...}` | `409 "Your contract is generated once your application is approved."` | No `lease_contracts` row created for application 6 — verified live |
 | **M9-11** | Happy | `expire_contracts.php` needs no login | — | `GET expire_contracts.php` with no `Authorization` header | `200`, `{"success":true,"expired":0}` (deliberate — see §15's summary) | Verified live |
-| **M9-12** | Boundary | Lease-end reminder fires once | LC-0010 `lease_end` within `lease_end_reminder_days` | Force the sweep (`check_due_date_reminders.php`) twice | First run notifies Mark and sets `renewal_reminder_sent_at`; second run sends 0 new | Verified live: `lease_end_reminders_sent` in the sweep result, then `0` |
+| **M9-12** | Boundary | Lease-end reminder fires once | LC-0009 `lease_end` within `lease_end_reminder_days` | Force the sweep (`check_due_date_reminders.php`) twice | First run notifies Ana and sets `renewal_reminder_sent_at`; second run sends 0 new | Verified live: `lease_end_reminders_sent` in the sweep result, then `0` |
 | **M9-13** | Happy | Tenant contract view includes status | Maria (LC-0001, `active`) | `GET get_contracts.php` as Maria | Response `contract.status` present | Verified live |
 | **M9-14** | Sec | A tenant cannot read another tenant's contract | — | `GET get_contracts.php?userId=<other>` as a tenant | `403` | — |
 | **M9-15** | Boundary | `edit` re-derives status from the new dates | An `expired` contract, application still `active` | `edit` with a `leaseEnd` in the future | Contract → `active` (not left `expired`) | `SELECT status FROM lease_contracts WHERE id='<id>';` |
@@ -2726,7 +2724,7 @@ flowchart LR
 
 ### 16.4 Test Conditions
 
-Seed fixtures: visitor **1** (Liza Santos, Maria's unit A, `checked_out`); **2** (Carmen Dela Cruz, Rosa's unit C, `checked_out`); **3** (Ricky Abad, Dante's unit F, `checked_in` since **2026-08-25** — already past the default 24h threshold, useful for overstay tests without back-dating); **4** (Unknown Visitor, Carlo's unit H, `denied`).
+Seed fixtures: visitor **1** (Liza Santos, Maria's unit A, `checked_out`); **2** (Carmen Dela Cruz, Rosa's unit C, `checked_out`); **3** (Ricky Abad, Dante's unit F, `checked_in` since **2026-09-30** — already past the default 24h threshold, useful for overstay tests without back-dating); **4** (Unknown Visitor, Carlo's unit H, `denied`).
 
 | ID | Type | Scenario | Precondition | Action | Expected | Verify |
 |---|---|---|---|---|---|---|
@@ -2936,7 +2934,7 @@ DELETE FROM activity_logs WHERE created_at >= NOW() - INTERVAL 1 HOUR;
 
 -- Fixtures that a test run can silently consume
 UPDATE unit_reservations
-SET status='Active', hold_expires_at='2026-09-20', released_at=NULL, released_reason=NULL
+SET status='Active', hold_expires_at='2026-10-10', released_at=NULL, released_reason=NULL
 WHERE room_name='I' AND reserved_for_name='Katrina Villareal';
 UPDATE rooms SET status='vacant', tenant_name=NULL, lease_start=NULL, lease_end=NULL, occupants=0
 WHERE id IN ('I','J','N');
@@ -2975,10 +2973,11 @@ DELETE FROM notification_preferences;
 UPDATE system_settings SET setting_value = '2000-01-01' WHERE setting_key = 'notification_sweep_last_run';
 
 -- Parking reservation fixtures (§14.4) — back to the seed's two Assigned + one Pending
-DELETE FROM parking_charges;
+-- (keeps the seeded claims: permit 1 Apr–Sep, permit 2 Jun–Sep)
+DELETE FROM parking_charges WHERE NOT (reservation_id IN (1, 2) AND billing_period <= '2026-09');
 DELETE FROM parking_reservations WHERE id > 3;
 UPDATE parking_reservations SET status='Assigned', slot_number=1, assigned_at='2026-04-01 09:00:00',
-  released_at=NULL, release_reason=NULL, rejection_reason=NULL, duration_months=6, total_cost=1800.00
+  released_at=NULL, release_reason=NULL, rejection_reason=NULL, duration_months=12, total_cost=3600.00
   WHERE id = 1;
 UPDATE parking_reservations SET status='Assigned', slot_number=2, assigned_at='2026-06-01 10:00:00',
   released_at=NULL, release_reason=NULL, rejection_reason=NULL, duration_months=6, total_cost=1800.00
@@ -2996,15 +2995,18 @@ UPDATE lease_contracts SET renewal_reminder_sent_at = NULL;
 -- Seed deposits are all held (a terminate or move-out test records a disposition).
 UPDATE lease_contracts SET deposit_status='Held', damage_deduction=0, utility_deduction=0, refund_amount=0, refund_date=NULL;
 UPDATE lease_contracts SET status='eviction-pending', eviction_status='flagged', termination_reason=NULL, terminated_at=NULL WHERE id='LC-0004';
-UPDATE lease_contracts SET status='draft' WHERE id='LC-0005';
-UPDATE lease_contracts SET lease_end='2026-09-20' WHERE id='LC-0010';
-UPDATE rent_applications SET status='Approved' WHERE id=4; -- Ben (LC-0004's application)
+UPDATE lease_contracts SET status='draft', lease_start='2026-09-22', lease_end='2027-09-22' WHERE id='LC-0005';
+UPDATE rent_applications SET status='Approved', move_in_date='2026-10-05' WHERE id=5; -- Lita, awaiting Confirm Move-In
+UPDATE rooms SET status='reserved', tenant_name='Lita Ramos', lease_start='2026-09-22', lease_end='2027-09-22', occupants=1 WHERE id='E';
+UPDATE invoices SET rent_period_start=NULL, billing_period='September 2026' WHERE id='INV-202609-7';
+UPDATE lease_contracts SET lease_end='2026-10-15' WHERE id='LC-0009';
+UPDATE rent_applications SET status='active' WHERE id=4; -- Ben (LC-0004's application)
 UPDATE rooms SET status='occupied', tenant_name='Ben Flores', lease_start='2025-11-01', lease_end='2026-11-01', occupants=2, last_tenant=NULL WHERE id='D';
 UPDATE system_settings SET setting_value = '2000-01-01' WHERE setting_key = 'notification_sweep_last_run';
 
 -- Visitor management fixtures (§16.4) — back to the seed's 4 rows
 DELETE FROM visitor_logs WHERE id > 4;
-UPDATE visitor_logs SET status='checked_in', check_out_at=NULL, checkout_notes=NULL, overstay_alerted_at=NULL, check_in_at='2026-08-25 16:00:00' WHERE id=3;
+UPDATE visitor_logs SET status='checked_in', check_out_at=NULL, checkout_notes=NULL, overstay_alerted_at=NULL, check_in_at='2026-09-30 16:00:00' WHERE id=3;
 UPDATE system_settings SET setting_value='24' WHERE setting_key='visitor_overstay_hours';
 UPDATE system_settings SET setting_value='true' WHERE setting_key='service_visitor_management_active';
 ```

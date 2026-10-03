@@ -576,7 +576,15 @@ erDiagram
 
 ## 3. Migration Files
 
-All migration files live in `backend/api/migrations/`.
+`backend/api/migrations/` holds:
+
+| Path | What |
+|---|---|
+| `SetupDB.sql` | The full current schema; fresh installs need only this (plus `create_messages_table.sql` for chat) |
+| `YYYY_MM_*.sql` | The current upgrade migrations: `2026_10_rent_wording`, `2026_10_room_archiving`, `2026_10_server_database_update`, `2026_10_prod_schema_repair`. `backend/cron/migrate.php` (and the git post-merge hook) runs each one not yet in `schema_migrations`; prod has the first three, the repair is pending there. CI applies them all on a fresh schema to prove they stay idempotent |
+| `seeds/` | Demo data and reset helpers: `seed_mock_data.sql` / `seed_reset.sql` / `clear_and_seed.sql` (empty or dev databases only) and `seed_prod_demo.sql` / `seed_prod_demo_reset.sql` (safe on a live database; local only, gitignored) |
+
+Migrations must run on prod's MySQL 8 as well as local MariaDB. The runner strips `IF NOT EXISTS` from `ADD COLUMN`/`ADD INDEX` and sends a file through `multi_query()`, where the first "duplicate column" error stops the rest of the file while the file is still recorded as applied; that is how prod ended up half-migrated in October 2026. Guard each change with an `information_schema` check and a prepared statement instead, as `2026_10_prod_schema_repair.sql` does. Once a migration has run everywhere (prod included), delete it: `SetupDB.sql` already has the change and git keeps the file's history (`git log --diff-filter=D -- backend/api/migrations/`). The September 2026 upgrades (`2026_09_*`) were removed this way on 2026-10-03.
 
 ### `SetupDB.sql` — the schema, run once per environment
 The single source of truth for every `CREATE TABLE`. Structure:
@@ -589,55 +597,40 @@ The single source of truth for every `CREATE TABLE`. Structure:
 **Important:** `users` and `rooms` (and every other "original" table) use `DROP TABLE IF EXISTS` — re-importing this file against a database that already has tenant data **destroys it**. Always run `seed_mock_data.sql` (if wanted) immediately after, in the same session — never re-run `SetupDB.sql` alone against a populated DB.
 
 ### `seed_mock_data.sql` — realistic demo data, optional
-Populates ~12 tenants across the 14 rooms with a full year-to-date (Jan–Aug 2026) history: applications, contracts, invoices, maintenance, parking, CCTV, service bookings, visitor logs, inquiries/reservations, announcements, notifications, and activity logs. Uses `INSERT IGNORE` throughout so it's safe to re-run without erroring on the primary keys it already inserted (though it won't update rows that already exist either).
+Populates 15 tenant accounts (11 current tenants, one applicant, and the moved-out / rejected / cancelled cases prod has) across 15 rooms (SetupDB's 14 plus prod's extra room `P`) with a history from January to early October 2026: applications, contracts, invoices, maintenance, parking, CCTV, service bookings, visitor logs, inquiries/reservations, announcements, notifications, and activity logs. Uses `INSERT IGNORE` throughout so it's safe to re-run without erroring on the primary keys it already inserted (though it won't update rows that already exist either).
 
 The roster is deliberately split into **scripted accounts** — each built to exercise one specific admin feature (an overdue tenant, one flagged for eviction, one with a draft contract awaiting activation, one with a renewal on file, one still `Pending Review`) — and **bulk accounts** that just add realistic volume. The file's own header comment documents exactly which login belongs to which scenario; see that block rather than duplicating it here, since it's the part most likely to drift out of sync with this doc otherwise.
 
 Must run **after** `SetupDB.sql` in the same import — it resolves the admin's id dynamically (`SET @admin_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1)`) rather than assuming a literal id, and references `service_catalog` rows that only exist once `SetupDB.sql` has seeded them.
 
-### `2026_09_utility_readings.sql` — upgrade for existing databases
-`utility_readings` used to be created at request time by `get_utility_readings.php`, so databases set up before September 2026 may have it without the `invoice_id` column, or not at all. This file is idempotent: `CREATE TABLE IF NOT EXISTS` plus `ADD COLUMN IF NOT EXISTS invoice_id`. A fresh `SetupDB.sql` import does not need it.
+**Never run it on a database that already has data (prod).** It inserts fixed ids and updates rooms and applications by id, so on prod it attaches mock invoices to real users and overwrites real rooms and applications; `seed_reset.sql` cannot undo that. Use `seed_prod_demo.sql` there instead.
 
-### `2026_09_rbac_activity_logs.sql` — upgrade for existing databases
-Idempotent. It creates `login_attempts` if missing and adds the `(email, attempt_time)` index for the per-account lockout. It adds the missing `visitor_logs.id_photo_path` column. It also rewrites existing `activity_logs.category` values into the 12 standard categories. A fresh `SetupDB.sql` import does not need it.
+### `seed_prod_demo.sql` and `seed_prod_demo_reset.sql` — demo data on a live database (local only)
+These two files are gitignored: they target prod and are run by hand there (Adminer or the mysql client), never deployed or run by CI.
 
-### `2026_09_decisions_features.sql` — upgrade for existing databases
-Idempotent. Creates `password_reset_requests`, `household_members`, `expenses` and `unit_waitlist`, and adds the `room_preview_mode` (`images`) and `max_occupants_per_unit` (`8`) settings. A fresh `SetupDB.sql` import does not need it.
+The prod-safe sibling of `seed_mock_data.sql`: the same people, scenarios and invoice amounts, added next to real data without touching it. Rules it follows:
+- **No fixed ids.** Users, applications and requests take new ids resolved by email; invoices and contracts are prefixed `INV-DEMO-` / `CTR-DEMO-`.
+- **Only rooms that were vacant on prod** (B, D, G, H, I, K, L, M, P; J and N stay open). A pre-flight check aborts the import if any is taken, if demo accounts already exist, or if `2026_10_prod_schema_repair.sql` has not run; everything is one transaction, so an abort writes nothing.
+- **No outbound messages.** Accounts are `@demo.example.com` (reserved, undeliverable) and opted out of email and SMS.
+- **No announcements or `activity_logs` rows**, since those reach real tenants or form the real audit trail.
 
-### Other upgrade migrations (September 2026)
-Each is idempotent and only needed for a database created before it; a fresh `SetupDB.sql` import already includes it.
+`seed_prod_demo_reset.sql` removes exactly what the seed added plus anything the demo accounts created afterwards (sweep invoices, requests, notifications, sessions), and puts back only rooms a demo tenant still holds. Tested on a copy of the 2026-10-03 prod dump: seed then reset leaves the data byte-identical to before.
 
-| File | What it does |
-|---|---|
-| `2026_09_contracts_visitors.sql` | `lease_contracts` transition columns and unique key; `visitor_logs` `expected_at` / `overstay_alerted_at` |
-| `2026_09_deposit_status.sql` | `lease_contracts.deposit_status` default `Pending` (was `Held`); unpaid drafts backfilled to `Pending` |
-| `2026_09_advance_credits.sql` | `invoices.advance_months`; creates `advance_credits` (advance payments as monthly credits) |
-| `2026_09_visitor_expected_checkout.sql` | `visitor_logs.expected_check_out_at` |
-| `2026_09_contract_templates.sql` | Creates `contract_template_versions`; `lease_contracts.template_version_id` |
-| `2026_09_notifications_parking.sql` | Creates `notification_preferences` and `parking_charges`; alters `activity_logs`, `notifications`, `parking_reservations` (numbered slots, billing) |
-| `2026_09_end_tenancy.sql` | `invoices.cancel_reason` (invoices cancelled by the end-of-tenancy helper) |
-| `2026_09_payment_proof_rejection.sql` | `invoices.proof_rejection_reason` |
-| `2026_09_billing_integrity.sql` | Audit Phase 4: `invoices.maintenance`, `maintenance_requests` billing trio |
-| `2026_09_room_gallery.sql` | `rooms.gallery` (showcase images) |
-| `2026_09_sms_email_channels.sql` | Creates `notification_log` and `notification_queue`; adds `users.sms_opt_out` / `email_opt_out` / `sms_consent_at` and `notification_preferences.sms_enabled` / `email_enabled`; seeds the SMS/SMTP settings |
-| `2026_09_sms_semaphore_live.sql` | `sms_sender_approved`, `sms_daily_cap` settings |
-| `2026_09_sms_semaphore_only.sql` | Removes the dropped Twilio/Vonage/Movider/iTexMo settings; resets a removed `sms_provider` to `log` |
-| `2026_09_sms_provider_message_id.sql` | `notification_log.provider_message_id` / `provider_status` (+ index) |
-| `2026_09_rent_periods_advance.sql` | `invoices.rent_period_start`, generated `rent_period_key`, `payment_group`, the `uq_invoice_rent_period` unique key; rewrites move-in `billing_period` from `YYYY-MM` to `Month YYYY` and marks them tenancy month 0 |
-| `create_messages_table.sql` | The chat `messages` table (not in `SetupDB.sql` yet) |
+### `create_messages_table.sql` — chat table
+Creates the chat `messages` table, which is not in `SetupDB.sql` yet (chat also creates it on first use). Run it after `SetupDB.sql` on a fresh install.
 
 ### `clear_and_seed.sql` and `seed_reset.sql`
 Both were rewritten in September 2026 to match the current schema and `seed_mock_data.sql`, and CI (`.github/workflows/ci.yml`, the `database` job) imports and runs both on every push to prove they stay in sync:
 
 - **`clear_and_seed.sql`** truncates every table `SetupDB.sql` creates and re-inserts exactly its default rows: the admin account (`admin@gmail.com` / `admin123`), the 14 rooms in the current 4/4/6 layout, the service catalog, and `system_settings`. It never drops or creates a table, so — unlike `SetupDB.sql` — it's safe to run against a database that already has the current schema. **Never run it against production**: the admin password it restores is the shared demo password, not a real credential.
-- **`seed_reset.sql`** removes exactly what `seed_mock_data.sql` inserts (matched by tenant email, announcement title and audit timestamp, not by id range, so it stays correct however ids were assigned) and resets the rooms it occupied back to vacant. It leaves the admin account, `system_settings` and the service catalog untouched, and `seed_mock_data.sql` can be re-run afterward to restore the demo.
+- **`seed_reset.sql`** removes exactly what `seed_mock_data.sql` inserts (matched by tenant email, announcement title and audit timestamp, not by id range, so it stays correct however ids were assigned) and resets the rooms it occupied back to vacant (and drops its room `P` if nothing else uses it). It leaves the admin account, `system_settings` and the service catalog untouched, and `seed_mock_data.sql` can be re-run afterward to restore the demo.
 
 Both files carry a comment that they must be kept in sync with `seed_mock_data.sql`; when that file's tenant list, rooms or announcement titles change, update these two in the same commit.
 
 ### Recommended fresh-setup order
 ```bash
 mysql -u root < backend/api/migrations/SetupDB.sql
-mysql -u root < backend/api/migrations/seed_mock_data.sql   # optional, for demo/dev data
+mysql -u root < backend/api/migrations/seeds/seed_mock_data.sql   # optional, for demo/dev data
 mysql -u root ams_db < backend/api/migrations/create_messages_table.sql   # chat (also auto-created on first use)
 ```
 See the root [README.md](../../README.md) ("Installation & Setup" section) for the full local setup walkthrough, including default login credentials.

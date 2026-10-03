@@ -112,11 +112,11 @@ Place the project inside your web root, e.g. `C:\xampp\htdocs\ApartmentManagemen
 1. Start **Apache** and **MySQL** from the XAMPP Control Panel.
 2. Import, **in this order**:
    1. [backend/api/migrations/SetupDB.sql](backend/api/migrations/SetupDB.sql) — creates `ams_db`, every table, the default settings and the admin account.
-   2. *(Optional)* [backend/api/migrations/seed_mock_data.sql](backend/api/migrations/seed_mock_data.sql) — sample tenants, applications, invoices and logs.
+   2. *(Optional)* [backend/api/migrations/seeds/seed_mock_data.sql](backend/api/migrations/seeds/seed_mock_data.sql) — sample tenants, applications, invoices and logs.
 
    > ⚠️ `SetupDB.sql` drops and recreates tables. Re-import both files together to reset.
    >
-   > **Upgrading an existing database?** Apply the `backend/api/migrations/2026_09_*.sql` files you have not run yet. Each is idempotent. The chat table comes from `create_messages_table.sql`.
+   > **Upgrading an existing database?** Run `php backend/cron/migrate.php`: it applies the dated files in `backend/api/migrations/` that the database hasn't had yet. Older migrations are deleted once applied everywhere (they're already in `SetupDB.sql`); recover one with `git log --diff-filter=D -- backend/api/migrations/` if a very old database needs it. The chat table comes from `create_messages_table.sql`.
 3. Copy `backend/config.env.example.php` to `backend/config.env.php` and set `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASS`, `DB_NAME` and `APP_ENV`. The template also documents `DEPLOYMENT_TARGET`, `APP_URL`, `ALLOWED_ORIGINS` and the PayMongo keys.
 4. Check the environment: `php backend/cron/check_environment.php`.
 
@@ -152,7 +152,7 @@ The frontend connects via `VITE_CHAT_SOCKET_URL` (default `http://localhost:3001
 
 ## 🔑 Default Accounts (Seed Data)
 
-The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql). The tenant accounts need [seed_mock_data.sql](backend/api/migrations/seed_mock_data.sql).
+The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql). The tenant accounts need [seed_mock_data.sql](backend/api/migrations/seeds/seed_mock_data.sql).
 
 | Role | Email Address | Password | Portal URL |
 |---|---|---|---|

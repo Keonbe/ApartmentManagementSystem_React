@@ -52,7 +52,7 @@
 
 - [x] Read **[§0](#0-pre-implementation-review)** — it changes the build order and the schema in §1.1.
 - [x] Build and demo against the **`log` (dry-run) driver** first ([§1.3](#13-sms-service--send_smsphp)). Done for both channels — email has a matching `log` driver ([§1.0](#10-what-phase-1-shipped)).
-- [x] Run the migration SQL — shipped as `backend/api/migrations/2026_09_sms_email_channels.sql` ([§0.1a](#01a-what-shipped))
+- [x] Run the migration SQL — shipped as `2026_09_sms_email_channels.sql` ([§0.1a](#01a-what-shipped))
 - [ ] **Phase 2 — wire the endpoints** ([§2](#phase-2--wire-to-existing-endpoints)). Nothing calls the dispatcher yet, so no tenant action produces an SMS or email. This is the next task, and it needs no provider account.
 
 **Then, to go live.** Email first: it is free, has no lead time, and demos reliably.
@@ -96,7 +96,7 @@ This section is the result of auditing the rest of this guide against the code o
 
 Implemented 2026-09-22. Phase 1 builds on these rather than restating them.
 
-**Migration — `backend/api/migrations/2026_09_sms_email_channels.sql`**, mirrored into `SetupDB.sql` (idempotent; verified by running it twice and by a clean `SetupDB.sql` + `seed_mock_data.sql` import producing the same schema).
+**Migration — `2026_09_sms_email_channels.sql`**, mirrored into `SetupDB.sql` (idempotent; verified by running it twice and by a clean `SetupDB.sql` + `seed_mock_data.sql` import producing the same schema).
 
 - **C4** — `users.email_address` is now `varchar(190)`. Nothing assumed the old width: `registration.php` validates with `FILTER_VALIDATE_EMAIL` only, and no form sets a `maxLength` on an email field.
 - **C1 / C2** — `users.sms_opt_out`, `users.email_opt_out`, `users.sms_consent_at`; `notification_preferences.sms_enabled`, `.email_enabled`.
@@ -249,7 +249,7 @@ Built 2026-09-22, on **mock drivers**. The pipeline is complete and end-to-end t
 
 ### 1.1 Database Migration
 
-**File:** [`backend/api/migrations/2026_09_sms_email_channels.sql`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/migrations/2026_09_sms_email_channels.sql) — **shipped 2026-09-22** and mirrored into `SetupDB.sql`. `seed_mock_data.sql` needed no change: it seeds neither `system_settings` nor `notification_preferences`.
+**File:** `2026_09_sms_email_channels.sql` (removed; now in `SetupDB.sql`) — **shipped 2026-09-22** and mirrored into `SetupDB.sql`. `seed_mock_data.sql` needed no change: it seeds neither `system_settings` nor `notification_preferences`.
 
 > **Revised in v1.1** for findings **C1** (global opt-out), **C3** (settings key collision), **C4** (`email_address` width) and **C11** (log retention). The listing below is what was applied, with two deliberate differences: the file is named for the migration convention already in the directory, and `payload` is `longtext` rather than `JSON` — MariaDB 10.4 aliases `JSON` to `longtext` anyway, so the dump and the source now agree.
 
@@ -1589,12 +1589,12 @@ After all tests pass:
 | ✅ `backend/api/services/email_templates.php` | 1 | **Shipped:** escaped throughout (C10) |
 | ✅ `backend/api/services/sms_templates.php` | 1 | **Shipped 2026-09-26:** SMS templates to Semaphore's content rules (§1.5a) |
 | ✅ `backend/api/services/send_notification.php` | 1 | **Shipped:** dispatcher, enqueue and the queue drain |
-| ✅ `backend/api/migrations/2026_09_sms_email_channels.sql` | 1 | Schema migration — **shipped** |
+| ✅ `2026_09_sms_email_channels.sql` | 1 | Schema migration — **shipped** |
 | ✅ `backend/cron/process_queue.php` | 1 | **Shipped:** CLI drain (moved to Phase 1 per §0.2) |
 | ✅ `backend/cron/notification_selftest.php` | 1 | **Shipped:** 19 dry-run checks (M6-NN, C11, DRY), the verification gate |
 | ✅ `backend/cron/run_queue.bat` | 4 | **Shipped:** Task Scheduler runner → `backend/logs/queue_drain.log` (task not yet registered) |
 | ✅ `backend/api/get_sms_balance.php` | 3 | **Shipped:** admin-only Semaphore balance, 60 s cache |
-| ✅ `backend/api/migrations/2026_09_sms_semaphore_live.sql` / `2026_09_sms_semaphore_only.sql` | 1 | **Shipped:** Semaphore settings (`sms_sender_approved`, `sms_daily_cap`); removal of the four dropped providers' settings |
+| ✅ `2026_09_sms_semaphore_live.sql` / `2026_09_sms_semaphore_only.sql` | 1 | **Shipped:** Semaphore settings (`sms_sender_approved`, `sms_daily_cap`); removal of the four dropped providers' settings |
 | ✅ `ams-react/src/AdminPages/settings/NotificationsPanel.jsx` | 3 | **Shipped:** the Notifications tab of Account Settings |
 | ✅ `backend/api/send_test_notification.php` | 3 | **Shipped:** admin test send; returns the rendered message for the console |
 | ✅ `docs/features/sms_email_mock_testing.md` | 1 | **Shipped:** how to run and test the mock drivers |
@@ -1691,7 +1691,7 @@ Complete map of every event that triggers a notification, the endpoint that fire
 1. Go to [semaphore.co](https://semaphore.co) → Sign Up → buy credits
 2. Dashboard → **API** → copy your API key
 3. **Sender Names** → Request → enter `AMS` → wait 1–3 business days for approval
-4. Run `backend/api/migrations/2026_09_sms_semaphore_live.sql` and then `2026_09_sms_semaphore_only.sql` on an existing database (fresh installs get both from `SetupDB.sql`)
+4. Make sure the database has the Semaphore settings: fresh installs get them from `SetupDB.sql`; an existing database from `php backend/cron/migrate.php`
 5. Schedule the queue drain — **required**: with a real provider the admin endpoints enqueue instead of sending, and nothing is delivered until the drain runs. From an admin prompt:
    ```bat
    schtasks /create /tn "AMS Notification Queue" /sc minute /mo 1 /tr "\"C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\run_queue.bat\""

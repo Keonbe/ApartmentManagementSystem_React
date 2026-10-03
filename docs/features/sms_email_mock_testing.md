@@ -203,7 +203,7 @@ The code path does not change. In order:
 
 1. **Email** — install PHPMailer (`cd backend && composer require phpmailer/phpmailer:^6.9`; pin 6.x, PHPMailer 7 needs PHP 8.1 and local XAMPP is 8.0.30), fill the SMTP fields with a Gmail **App Password**, set **Delivery Method** to `SMTP`. Free and no lead time — do this one first.
 2. **SMS (Semaphore — built)** — full steps in [Appendix C.1](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_implementation.md#c1-semaphore-sms--philippine-local). In short:
-   1. Apply `backend/api/migrations/2026_09_sms_semaphore_live.sql` (adds `sms_sender_approved`, `sms_daily_cap`), then `2026_09_sms_semaphore_only.sql` (removes the dropped providers' settings).
+   1. Make sure the database has the Semaphore settings (`sms_sender_approved`, `sms_daily_cap`; the dropped providers' settings removed). `SetupDB.sql` has them; an existing database gets them from `php backend/cron/migrate.php`.
    2. **Schedule the queue drain** — with a real provider, admin actions enqueue (the console shows `queued`, §6.4) and nothing is delivered until it runs:
       ```bat
       schtasks /create /tn "AMS Notification Queue" /sc minute /mo 1 /tr "\"C:\xampp\htdocs\ApartmentManagementSystem_React\backend\cron\run_queue.bat\""

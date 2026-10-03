@@ -2,7 +2,8 @@
 -- SEED RESET SCRIPT — ams_db
 -- Removes the demo data inserted by seed_mock_data.sql, plus anything the
 -- seeded tenant accounts created afterwards (invoices, requests, sessions...).
--- Preserves: the admin account, rooms, system_settings, service_catalog, and
+-- Preserves: the admin account, rooms (except the seed's room P),
+-- system_settings, service_catalog, and
 -- any rows that don't belong to the seed.
 --
 -- Rows are matched on stable values (tenant emails, the seed's inquiry emails,
@@ -20,14 +21,16 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 SET @admin_id = (SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1);
 
--- The seed's tenant accounts (12, including Gloria Tan's pending applicant).
+-- The seed's tenant accounts (15: 11 tenants, Gloria Tan's pending applicant,
+-- and the past/decided Paolo Garcia, Ramon Aquino and Liza Navarro).
 DROP TEMPORARY TABLE IF EXISTS seed_users;
 CREATE TEMPORARY TABLE seed_users (id INT PRIMARY KEY)
   SELECT id FROM users WHERE role = 'user' AND email_address IN (
     'maria.santos@gmail.com', 'jose.reyes@gmail.com', 'rosa.delacruz@gmail.com',
     'ben.flores@gmail.com', 'lita.ramos@gmail.com', 'gloria.tan@gmail.com',
     'dante.abad@gmail.com', 'pedro.cruz@gmail.com', 'carlo.villanueva@gmail.com',
-    'ana.bautista@gmail.com', 'mark.santiago@gmail.com', 'grace.mendoza@gmail.com'
+    'ana.bautista@gmail.com', 'mark.santiago@gmail.com', 'grace.mendoza@gmail.com',
+    'paolo.garcia@gmail.com', 'ramon.aquino@gmail.com', 'liza.navarro@gmail.com'
   );
 
 -- Their applications and contracts, resolved before anything is deleted.
@@ -75,11 +78,13 @@ DELETE n FROM notifications n JOIN seed_users su ON su.id = n.user_id;
 DELETE np FROM notification_preferences np JOIN seed_users su ON su.id = np.user_id;
 DELETE FROM notifications
   WHERE user_id = @admin_id AND (title, created_at) IN (
-    ('New CCTV Request',        '2026-07-21 09:00:00'),
-    ('New Maintenance Request', '2026-08-06 09:00:00'),
-    ('New Service Booking',     '2026-08-18 10:00:00'),
-    ('New Rent Application',    '2026-08-20 09:00:00'),
-    ('New Parking Reservation', '2026-08-22 11:00:00')
+    ('Move-In Scheduled',       '2026-09-26 10:00:00'),
+    ('New CCTV Request',        '2026-09-28 09:00:00'),
+    ('New Maintenance Request', '2026-09-29 09:00:00'),
+    ('New Service Booking',     '2026-09-29 10:00:00'),
+    ('New Rent Application',    '2026-09-28 09:00:00'),
+    ('New Parking Reservation', '2026-09-28 11:00:00'),
+    ('Move-Out Notice Filed',   '2026-10-01 18:00:00')
   );
 
 -- 6. Announcements and the seeded audit trail
@@ -93,17 +98,25 @@ DELETE FROM announcements WHERE title IN (
 
 DELETE FROM activity_logs
   WHERE performed_by = @admin_id AND (action, created_at) IN (
-    ('Approved Application',             '2025-10-27 09:00:00'),
-    ('Approved Application',             '2025-09-25 10:00:00'),
-    ('Approved Application',             '2025-08-27 12:00:00'),
-    ('Approved Application',             '2026-07-29 10:00:00'),
-    ('Approved Lease Extension',         '2026-07-05 10:30:00'),
-    ('Updated Contract Eviction Status', '2026-08-16 11:00:00'),
-    ('Resolved Maintenance',             '2026-02-10 14:00:00'),
-    ('Resolved Maintenance',             '2026-04-12 13:00:00'),
-    ('Verified Payment',                 '2026-08-14 09:00:00'),
-    ('Reserved Unit',                    '2026-08-28 14:30:00')
+    ('Updated Tenant Status',         '2025-10-27 09:00:00'),
+    ('Updated Tenant Status',         '2025-09-25 10:00:00'),
+    ('Updated Tenant Status',         '2025-08-27 12:00:00'),
+    ('Updated Tenant Status',         '2025-10-27 09:05:00'),
+    ('Updated Tenant Status',         '2026-09-22 10:00:00'),
+    ('Recorded Payment',              '2026-09-25 10:00:00'),
+    ('Scheduled Move-In',             '2026-09-26 10:00:00'),
+    ('Approved Rent Extension',       '2026-07-05 10:30:00'),
+    ('Flagged Eviction',              '2026-09-20 11:00:00'),
+    ('Updated Maintenance Ticket #1', '2026-02-10 15:30:00'),
+    ('Updated Maintenance Ticket #3', '2026-04-12 12:00:00'),
+    ('Recorded Payment',              '2026-09-01 09:00:00'),
+    ('Reserved Unit',                 '2026-09-26 14:30:00'),
+    ('Completed Move Out & Clearance', '2026-09-01 10:00:00'),
+    ('Archived Tenant',               '2026-09-01 10:05:00'),
+    ('Updated Tenant Status',         '2026-09-10 11:00:00')
   );
+-- Entries the seeded tenants logged themselves (e.g. Mark's move-out notice)
+DELETE al FROM activity_logs al JOIN seed_users su ON su.id = al.performed_by;
 
 -- 7. Rooms the seed occupied go back to SetupDB's vacant state
 --    (last_tenant and maintenance_flag are left as they are).
@@ -113,6 +126,12 @@ UPDATE rooms
    'Maria Santos', 'Jose Reyes', 'Rosa Dela Cruz', 'Ben Flores', 'Lita Ramos', 'Dante Abad',
    'Pedro Cruz', 'Carlo Villanueva', 'Ana Bautista', 'Mark Santiago', 'Grace Mendoza'
  );
+-- Room P is the seed's copy of prod's extra unit; drop it unless something
+-- else has started using it.
+DELETE FROM rooms
+ WHERE id = 'P' AND status = 'vacant' AND tenant_name IS NULL
+   AND NOT EXISTS (SELECT 1 FROM rent_applications WHERE room_name = 'P')
+   AND NOT EXISTS (SELECT 1 FROM unit_reservations WHERE room_name = 'P');
 
 -- 8. The accounts themselves, with their sessions and sign-in history
 DELETE s FROM sessions s JOIN seed_users su ON su.id = s.user_id;

@@ -131,7 +131,7 @@ jobs:
 
       - name: Import demo data (seed_mock_data.sql)
         run: |
-          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_mock_data.sql
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_mock_data.sql
           USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
           echo "📊 Users after seeding: $USERS"
           if [ "$USERS" -lt 13 ]; then
@@ -148,7 +148,7 @@ jobs:
 
       - name: Reset seed data (seed_reset.sql)
         run: |
-          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_reset.sql
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_reset.sql
           USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
           if [ "$USERS" -ne 1 ]; then
             echo "❌ Expected only the admin account to remain after seed_reset.sql, got $USERS users."
@@ -164,7 +164,7 @@ jobs:
 
       - name: Re-seed after reset (idempotency check)
         run: |
-          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_mock_data.sql
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_mock_data.sql
           USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
           if [ "$USERS" -lt 13 ]; then
             echo "❌ Re-seeding after a reset should reach at least 13 users again, got $USERS."
@@ -174,7 +174,7 @@ jobs:
 
       - name: Clear and seed defaults (clear_and_seed.sql)
         run: |
-          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/clear_and_seed.sql
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/clear_and_seed.sql
           ROOMS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.rooms;")
           USERS=$(mysql -h 127.0.0.1 -u root -proot -N -e "SELECT COUNT(*) FROM ams_db.users;")
           if [ "$ROOMS" -ne 14 ] || [ "$USERS" -ne 1 ]; then
@@ -185,7 +185,10 @@ jobs:
 
       - name: Apply upgrade migrations (idempotency check)
         run: |
-          for f in backend/api/migrations/2026_09_*.sql; do
+          # The current dated migrations (older ones are deleted once applied
+          # everywhere; SetupDB.sql already contains them).
+          for f in backend/api/migrations/[0-9]*.sql; do
+            [ -e "$f" ] || continue
             echo "Applying $f..."
             mysql -h 127.0.0.1 -u root -proot ams_db < "$f"
           done
@@ -234,7 +237,7 @@ jobs:
       - name: Seed schema and demo data
         run: |
           mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/SetupDB.sql
-          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seed_mock_data.sql
+          mysql -h 127.0.0.1 -u root -proot ams_db < backend/api/migrations/seeds/seed_mock_data.sql
 
       - name: Point backend at the CI database
         run: |

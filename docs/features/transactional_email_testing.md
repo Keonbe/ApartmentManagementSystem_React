@@ -30,7 +30,7 @@ Refund requests/statuses are not implemented: deposit handling is explicitly non
 
 ## Quick local XAMPP test
 
-1. Start Apache/MySQL and apply migrations if this is an existing database, especially `backend/api/migrations/2026_09_sms_email_channels.sql` and `backend/api/migrations/2026_09_sms_provider_message_id.sql`, plus the other current migrations. Confirm `notification_log` includes `provider_message_id` and `provider_status`; the shared notification logger requires both columns.
+1. Start Apache/MySQL and bring an existing database up to date (`php backend/cron/migrate.php`; a fresh `SetupDB.sql` import already has everything). Confirm `notification_log` includes `provider_message_id` and `provider_status`; the shared notification logger requires both columns.
 2. In Admin → Settings → Notifications, enable Email Notifications and keep Delivery Method = **Log**. Or:
 
    ```powershell

@@ -23,6 +23,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE `activity_logs`;
 TRUNCATE TABLE `announcements`;
 TRUNCATE TABLE `cctv_requests`;
+TRUNCATE TABLE `contract_template_versions`;
 TRUNCATE TABLE `invoices`;
 TRUNCATE TABLE `lease_contracts`;
 TRUNCATE TABLE `lease_renewals`;

@@ -15,7 +15,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 - Deployment targets/guardrails: `docs/deployment/dual-deployment-environment-plan.md`; backend check `php backend/cron/check_environment.php`
 - Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `APP_TIMEZONE`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, loaded through `config.php` (the four chat endpoints still send their own `*` header first — see security_audit §6e).
 - PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
-- DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seed_mock_data.sql`
+- DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `migrations/seeds/seed_mock_data.sql` (seeds/resets live in `seeds/`; never run `seed_mock_data.sql` on prod — use the local-only, gitignored `seed_prod_demo.sql`)
 - Live API checks: curl with a Bearer token — recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`)
 
 ## Backend conventions (backend/config.php)
@@ -25,7 +25,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 - Writes call `log_activity($conn, $id, <one of LOG_CATEGORIES>, 'Title Case Action', $details)`.
 - Notifications via `create_notification()`; admin queue via `notify_admins_queue()` / `resolve_admin_queue()`. Only queue rows are `'Pending'`.
 - Invoice "still owed" = `BILLING_OPEN_STATUSES` / `billing_open_status_sql()`. Charges onto invoices: `post_service_charge()` / `post_parking_charge()` (claim-first).
-- Migrations: new idempotent file in `backend/api/migrations/` + mirror into `SetupDB.sql`/seed.
+- Migrations: new idempotent `YYYY_MM_name.sql` in `backend/api/migrations/` + mirror into `SetupDB.sql`/seeds; `cron/migrate.php` runs pending ones (prod is MySQL 8). Don't rely on `ADD COLUMN IF NOT EXISTS` — the runner strips it and a duplicate stops the rest of the file; guard with `information_schema` + `PREPARE` (pattern: `2026_10_prod_schema_repair.sql`). Once applied everywhere (prod included), delete it; `SetupDB.sql` already has it and git keeps the history.
 - Frontend API calls only through `ams-react/src/api/axiosConfig.js` (the one exception: chat's socket.io-client in `context/ChatContext.jsx`); uploads via `src/api/fileUrl.js`; new routes registered in `App.jsx` with the right guard.
 
 ## Docs (authoritative first)

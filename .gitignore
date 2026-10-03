@@ -25,3 +25,10 @@ docs/AMS_Development_Timeline.xlsx
 backend/cron/run_queue_hidden.vbs
 backend/cron/run_queue.bat
 
+
+# Prod dumps and the local snapshot built from them (real accounts, secrets).
+# Any .sql in the repo root is local-only; app SQL lives in backend/api/migrations/.
+/*.sql
+# Prod-only seeds (demo data for the live database; run by hand, never deployed)
+backend/api/migrations/seeds/seed_prod_demo.sql
+backend/api/migrations/seeds/seed_prod_demo_reset.sql

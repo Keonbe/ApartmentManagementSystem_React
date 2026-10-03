@@ -567,7 +567,7 @@ CREATE TABLE IF NOT EXISTS `unit_reservations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- 2026-09-16 decisions (migrations/2026_09_decisions_features.sql)
+-- 2026-09-16 decisions (2026_09_decisions_features.sql)
 --
 
 -- status: Pending (requested by the tenant) -> Active | Rejected; Active -> Removed.
@@ -895,8 +895,8 @@ INSERT IGNORE INTO `service_catalog`
 -- oldest-first and only the latest un-invoiced one may be deleted.
 -- is_invoiced is claimed atomically before the charge is posted, and
 -- invoice_id records where it landed (mirrors service_requests).
--- Previously created at runtime by get_utility_readings.php; existing databases
--- can run migrations/2026_09_utility_readings.sql instead.
+-- Previously created at runtime by get_utility_readings.php (the
+-- 2026_09_utility_readings.sql upgrade, since removed, added it to old databases).
 --
 CREATE TABLE IF NOT EXISTS `utility_readings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,

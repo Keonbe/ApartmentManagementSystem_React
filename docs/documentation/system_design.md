@@ -503,10 +503,10 @@ flowchart LR
 | File | Purpose |
 |------|---------|
 | `migrations/SetupDB.sql` | Full initial DB schema creation |
-| `migrations/2026_09_*.sql` | Idempotent upgrades for existing databases (billing integrity, contracts/visitors, decisions features, end tenancy, notifications/parking, payment-proof rejection, RBAC/activity logs, room gallery, SMS/email channels, Semaphore live/only, utility readings) — see [database_schema.md §3](database_schema.md) |
+| `migrations/2026_10_*.sql` | Current upgrade migrations for existing databases, applied by `backend/cron/migrate.php` — see [database_schema.md §3](database_schema.md) |
 | `migrations/create_messages_table.sql` | Chat `messages` table |
-| `migrations/clear_and_seed.sql`, `seed_reset.sql` | Reset helpers (CI-checked) |
-| *(removed)* | The old `add_archive_columns`, `fix_and_fk`, `priority_*` files no longer exist; their changes are in `SetupDB.sql` |
+| `migrations/seeds/` | Demo data and reset helpers (`seed_mock_data`, `seed_reset`, `clear_and_seed` are CI-checked; `seed_prod_demo` + reset for the live database are local only, gitignored) |
+| *(removed)* | Applied migrations are deleted once they've run everywhere: the `2026_09_*` upgrades and the old `add_archive_columns`, `fix_and_fk`, `priority_*` files. Their changes are in `SetupDB.sql` |
 
 ---
 

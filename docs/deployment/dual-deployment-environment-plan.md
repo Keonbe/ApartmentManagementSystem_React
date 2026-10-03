@@ -296,7 +296,7 @@ Use your own database server, never the SaaS one. Choose a distinct schema name 
 
    Check that the rename worked before importing: `grep -c ams_db /tmp/SetupDB_selfhosted.sql` should print `0`.
 
-4. Import `backend/api/migrations/seed_mock_data.sql` only if this is a demo instance. It contains test accounts.
+4. Import `backend/api/migrations/seeds/seed_mock_data.sql` only if this is a demo instance. It contains test accounts.
 
 5. Confirm the tables exist:
 

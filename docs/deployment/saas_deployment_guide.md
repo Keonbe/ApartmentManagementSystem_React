@@ -396,7 +396,7 @@ HOST=<PUBLIC_PROXY_HOST>; PORT=<PUBLIC_PROXY_PORT>; USER=root
 $MYSQL -h $HOST -P $PORT -u $USER -p < backend/api/migrations/SetupDB.sql
 
 # Demo data — ONLY for a demo/staging environment (see §2.6 #3)
-# $MYSQL -h $HOST -P $PORT -u $USER -p < backend/api/migrations/seed_mock_data.sql
+# $MYSQL -h $HOST -P $PORT -u $USER -p < backend/api/migrations/seeds/seed_mock_data.sql
 ```
 
 > [!NOTE]
@@ -413,10 +413,11 @@ MYSQL=/c/xampp/mysql/bin/mysql.exe; HOST=<PUBLIC_PROXY_HOST>; PORT=<PUBLIC_PROXY
 $MYSQL -h $HOST -P $PORT -u root -p -e "CREATE DATABASE IF NOT EXISTS ams_db CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
 $MYSQL -h $HOST -P $PORT -u root -p ams_db < ams_backup.sql
 
-# 3. If the dump predates September 2026, apply the idempotent upgrades (safe to run twice)
-$MYSQL -h $HOST -P $PORT -u root -p ams_db < backend/api/migrations/2026_09_utility_readings.sql
-$MYSQL -h $HOST -P $PORT -u root -p ams_db < backend/api/migrations/2026_09_rbac_activity_logs.sql
+# 3. Apply the dated migrations the dump doesn't have yet (backend/cron/migrate.php
+#    does this on the server). Each file in backend/api/migrations/ named 2026_*.sql:
+$MYSQL -h $HOST -P $PORT -u root -p ams_db < backend/api/migrations/2026_10_prod_schema_repair.sql
 ```
+A dump older than the migrations still in that folder needs the deleted ones from git history (`git log --diff-filter=D -- backend/api/migrations/`), or compare it with `SetupDB.sql` and write a guarded repair like `2026_10_prod_schema_repair.sql`.
 
 > [!CAUTION]
 > Never run `SetupDB.sql` against a database that already has data — its original tables use `DROP TABLE IF EXISTS`. `clear_and_seed.sql` is safe to run against an existing database (it truncates and reseeds rather than dropping tables), but it resets every account to the shared demo admin password — **never run it against production** ([database_schema.md §3](../documentation/database_schema.md)).

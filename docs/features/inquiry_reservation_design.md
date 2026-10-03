@@ -74,7 +74,7 @@ a value means grepping the frontend, not just the DB.
 
 ## 4. Schema
 
-Created by `backend/api/migrations/2026_09_inquiries_reservations.sql` and
+Created by `2026_09_inquiries_reservations.sql` and
 mirrored into `SetupDB.sql`. `submit_inquiry.php` and `get_inquiries.php` also
 carry `CREATE TABLE IF NOT EXISTS` blocks, following the self-provisioning
 precedent set by `get_utility_readings.php`.
