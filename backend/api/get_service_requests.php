@@ -6,6 +6,11 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-
 
 require_once "../config.php";
 
+// This endpoint currently avoids GROUP BY by resolving the active unit with a
+// scalar subquery; remove the strict group-by mode for compatibility with older
+// deployed query variants while keeping the present query deterministic.
+$conn->query("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();

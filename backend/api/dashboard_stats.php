@@ -12,7 +12,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 $admin_id = require_admin($conn);
-promote_overdue_invoices($conn);
+
+// Older installations may not yet have the advance-payment migration. Apply
+// the exclusion only when the column exists; otherwise treat all invoices as
+// standard invoices so dashboard statistics remain available.
+$advanceMonthsFilter = '';
+$advanceMonthsColumn = $conn->query("SHOW COLUMNS FROM invoices LIKE 'advance_months'");
+if ($advanceMonthsColumn && $advanceMonthsColumn->num_rows > 0) {
+    $advanceMonthsFilter = ' AND advance_months IS NULL';
+    promote_overdue_invoices($conn);
+}
 
 $response = [
     'success' => true,
@@ -47,7 +56,7 @@ try {
             SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(CURRENT_DATE()) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(CURRENT_DATE()) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - COALESCE(security_deposit, 0) ELSE 0 END) as current_revenue,
             SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - COALESCE(security_deposit, 0) ELSE 0 END) as last_revenue
         FROM invoices 
-        WHERE LOWER(status) = 'paid' AND advance_months IS NULL
+        WHERE LOWER(status) = 'paid' $advanceMonthsFilter
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -72,7 +81,7 @@ try {
             SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as overdue_total,
             SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cnt
         FROM invoices 
-        WHERE LOWER(status) IN " . billing_open_status_sql() . " AND advance_months IS NULL
+        WHERE LOWER(status) IN " . billing_open_status_sql() . " $advanceMonthsFilter
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -144,7 +153,7 @@ try {
             SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as total
         FROM invoices 
         WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())
-          AND LOWER(status) <> 'cancelled' AND advance_months IS NULL
+          AND LOWER(status) <> 'cancelled' $advanceMonthsFilter
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -184,7 +193,7 @@ try {
             COUNT(*) as total_cnt
         FROM invoices 
         WHERE created_at >= DATE_SUB(DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01'), INTERVAL 5 MONTH)
-          AND LOWER(status) <> 'cancelled' AND advance_months IS NULL
+          AND LOWER(status) <> 'cancelled' $advanceMonthsFilter
         GROUP BY m_key
         ORDER BY m_key ASC
     ");

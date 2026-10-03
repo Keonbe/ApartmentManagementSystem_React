@@ -6,6 +6,10 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-
 
 require_once __DIR__ . "/../config.php";
 
+// Keep report queries compatible with deployments that enable strict grouping;
+// grouped report queries below explicitly group their selected expressions.
+$conn->query("SET SESSION sql_mode=(SELECT REPLACE(@@sql_mode,'ONLY_FULL_GROUP_BY',''))");
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
@@ -525,6 +529,8 @@ for ($i = 5; $i >= 0; $i--) {
     $target_year = (int)date('Y', strtotime($target_date));
     $target_month = (int)date('n', strtotime($target_date));
     $month_label = date('M', strtotime($target_date));
+    $target_start_date = sprintf('%04d-%02d-01', $target_year, $target_month);
+    $target_end_date = date('Y-m-t', strtotime($target_start_date));
     
     // Multi-stream revenue query directly from paid invoices
     $rev_stmt = $conn->prepare("SELECT 
@@ -572,9 +578,9 @@ for ($i = 5; $i >= 0; $i--) {
             SELECT ra.room_name 
             FROM lease_contracts lc
             JOIN rent_applications ra ON lc.rent_application_id = ra.id
-            WHERE lc.lease_start IS NOT NULL AND lc.lease_start != ''
-              AND lc.lease_start <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
-              AND (lc.lease_end IS NULL OR lc.lease_end = '' OR lc.lease_end >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
+             WHERE lc.lease_start IS NOT NULL
+               AND lc.lease_start <= ?
+               AND (lc.lease_end IS NULL OR lc.lease_end >= ?)
             UNION
             SELECT ra2.room_name
             FROM rent_applications ra2
@@ -585,11 +591,17 @@ for ($i = 5; $i >= 0; $i--) {
             -- as occupied in every month since its creation forever, making
             -- the trend line monotonically non-decreasing by construction.
             WHERE ra2.status IN ('Approved', 'active', 'pending-move-out')
-              AND ra2.created_at <= LAST_DAY(STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d'))
-              AND DATE_ADD(ra2.created_at, INTERVAL ra2.months_of_rent MONTH) >= STR_TO_DATE(CONCAT(?, '-', ?, '-01'), '%Y-%m-%d')
+               AND ra2.created_at <= ?
+               AND DATE_ADD(ra2.created_at, INTERVAL ra2.months_of_rent MONTH) >= ?
         ) as occ
     ");
-    $occ_stmt->bind_param("iiiiiiii", $target_year, $target_month, $target_year, $target_month, $target_year, $target_month, $target_year, $target_month);
+    $occ_stmt->bind_param(
+        "ssss",
+        $target_end_date,
+        $target_start_date,
+        $target_end_date,
+        $target_start_date
+    );
     $occ_stmt->execute();
     $occ_res = $occ_stmt->get_result()->fetch_assoc();
     $occupied = (int)($occ_res['count'] ?? 0);
