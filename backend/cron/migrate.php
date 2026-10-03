@@ -104,6 +104,9 @@ function run_migrations($conn)
             }
 
             try {
+                // Some MySQL versions reject IF NOT EXISTS in ALTER TABLE ADD.
+                // Normalize that syntax before submitting the migration batch.
+                $sql = preg_replace('/ADD\s+(COLUMN\s+)?IF\s+NOT\s+EXISTS/i', 'ADD $1', $sql);
                 if (!$conn->multi_query($sql)) {
                     throw new RuntimeException($conn->error);
                 }
