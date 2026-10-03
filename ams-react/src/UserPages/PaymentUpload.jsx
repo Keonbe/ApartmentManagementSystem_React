@@ -16,6 +16,7 @@ import { fetchContractTemplate, accountsForMethod } from '../Components/contract
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
 
 const INPUT_CLS = "focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm";
+const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
 
 export default function PaymentUpload() {
     const location = useLocation();
@@ -25,9 +26,11 @@ export default function PaymentUpload() {
     const { invoiceId, amount, paymentMethod, returnUrl } = state;
     // paymentMethod is the channel label, e.g. 'GCash (Manual)' or 'BPI (Manual)'.
     const isGcash = /gcash/i.test(paymentMethod || '');
+    const isBankTransfer = isBankMethod(paymentMethod);
 
     const [senderName, setSenderName] = useState('');
     const [referenceNo, setReferenceNo] = useState('');
+    const [bankName, setBankName] = useState('');
     const [proofImage, setProofImage] = useState(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [uploading, setUploading] = useState(false);
@@ -93,7 +96,7 @@ export default function PaymentUpload() {
         form.clearError('payment_reference');
     };
 
-    const values = { sender_name: senderName, payment_reference: referenceNo, proof: proofImage };
+    const values = { sender_name: senderName, payment_reference: referenceNo, proof: proofImage, bank_name: bankName };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -102,6 +105,10 @@ export default function PaymentUpload() {
         setSenderName(clean.sender_name);
         setReferenceNo(clean.payment_reference);
         if (!form.validateAll(clean)) return;
+        if (isBankTransfer && !bankName) {
+            setError('Choose the bank you transferred from.');
+            return;
+        }
 
         setUploading(true);
         setError('');
@@ -116,6 +123,7 @@ export default function PaymentUpload() {
         formData.append('invoice_id', invoiceId);
         formData.append('paymentMethod', paymentMethod);
         formData.append('payment_method', paymentMethod);
+        if (isBankTransfer) formData.append('bank_name', bankName);
         formData.append('senderName', clean.sender_name);
         formData.append('sender_name', clean.sender_name);
         formData.append('referenceNo', clean.payment_reference);
@@ -188,6 +196,15 @@ export default function PaymentUpload() {
 
                 <form onSubmit={handleSubmit} className="space-y-6" noValidate>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {isBankTransfer && (
+                            <div className="space-y-2 md:col-span-2">
+                                <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Bank transferred from</label>
+                                <select id="upload-bank-name" value={bankName} onChange={(e) => { setBankName(e.target.value); setError(''); }} required className={INPUT_CLS}>
+                                    <option value="">Select your bank</option>
+                                    {BANKS.map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                                </select>
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <label htmlFor="upload-sender_name" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.senderName')}</label>
                             <input

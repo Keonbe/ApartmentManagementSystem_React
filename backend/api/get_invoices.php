@@ -130,6 +130,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
 
         $invoices = [];
+        $transactions_by_invoice = [];
+        if ($user_id_param) {
+            $tx_stmt = $conn->prepare("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id WHERE i.user_id = ? ORDER BY pt.id ASC");
+            $tx_stmt->bind_param('i', $user_id_param);
+            $tx_stmt->execute();
+            $tx_result = $tx_stmt->get_result();
+            $tx_stmt->close();
+        } else {
+            $tx_result = $conn->query("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id ORDER BY pt.id ASC");
+        }
+        if ($tx_result) {
+            while ($tx = $tx_result->fetch_assoc()) {
+                $transactions_by_invoice[$tx['invoice_id']][] = [
+                    'id' => (int)$tx['id'],
+                    'amount' => (float)$tx['amount'],
+                    'payment_method' => $tx['payment_method'],
+                    'bank_name' => $tx['bank_name'],
+                    'reference_number' => $tx['reference_number'],
+                    'recorded_by' => $tx['recorded_by'] ? (int)$tx['recorded_by'] : null,
+                    'created_at' => $tx['created_at'],
+                ];
+            }
+        }
         while ($row = $result->fetch_assoc()) {
             // The dates the bill covers, from the move-in day — shown instead
             // of the due date once a bill is past due.
@@ -158,6 +181,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'due_date' => $row['due_date'] ?? '',
                 'paid_at' => $row['paid_at'] ?? null,
                 'payment_method' => !empty($row['payment_method']) ? $row['payment_method'] : (!empty($row['payment_gateway']) && strpos($row['payment_gateway'], 'paymongo') !== false ? 'PayMongo (Sandbox)' : null),
+                'bank_name' => $row['bank_name'] ?? null,
+                'payment_transactions' => $transactions_by_invoice[$row['id']] ?? [],
                 'sender_name' => $row['sender_name'] ?? null,
                 'payment_reference' => $row['payment_reference'] ?? null,
                 'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null,

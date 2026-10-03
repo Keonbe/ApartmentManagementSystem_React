@@ -97,6 +97,7 @@ export default function UserPaymentHistory() {
             breakdown: breakdown,
             status: inv.status.toUpperCase(),
             method: inv.payment_method || 'N/A',
+            paymentTransactions: inv.payment_transactions || [],
             reference: inv.payment_reference || null,
             proofPath: inv.proof_of_payment_path || null
         };
@@ -318,6 +319,11 @@ export default function UserPaymentHistory() {
                                 <div className="text-right">
                                     <p className="text-slate-500 text-[10px] uppercase m-0">{t('paymentHistory.method')}</p>
                                     <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p>
+                                    {receiptData.paymentTransactions?.length > 0 && (
+                                        <div className="mt-2 text-left space-y-1">
+                                            {receiptData.paymentTransactions.map((tx) => <p key={tx.id} className="text-[10px] text-slate-700 m-0">{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</p>)}
+                                        </div>
+                                    )}
                                     {receiptData.reference && (
                                         <p className="text-[10px] text-indigo-600 m-0 mt-1 font-bold">Ref: {receiptData.reference}</p>
                                     )}

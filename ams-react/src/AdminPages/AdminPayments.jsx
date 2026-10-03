@@ -20,19 +20,18 @@ import { ADMIN_PAYMENTS_EVENT } from '../config/notificationLinks';
 import { daysPastDue, formatCoveredPeriod, isBundleKey, isPastDue } from '../utils/billingPeriod';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
-// Desk methods (backend DESK_PAYMENT_METHODS). BDO and BPI are bank transfers,
-// each its own method.
-const METHODS = ['Cash', 'GCash', 'BDO', 'BPI'];
+// Desk methods are cash, GCash and bank transfer; the actual bank is captured
+// separately on each transaction.
+const METHODS = ['cash', 'gcash', 'bank_transfer'];
+const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
 // The desk methods a tenant's channel label ('GCash (Manual)', 'BPI (Manual)',
 // 'Cash on Hand', …) can be recorded as — mirrors desk_methods_for_label().
 const deskMethodsFor = (label) => {
   const l = String(label || '').trim().toLowerCase();
   if (!l) return [];
-  if (l.includes('gcash')) return ['GCash'];
-  if (l.includes('bdo')) return ['BDO'];
-  if (l.includes('bpi')) return ['BPI'];
-  if (l.includes('bank')) return ['BDO', 'BPI'];
-  if (l.includes('cash') || l.includes('in-person') || l.includes('in person')) return ['Cash'];
+  if (l.includes('gcash')) return ['gcash'];
+  if (l.includes('bank') || l.includes('bdo') || l.includes('bpi')) return ['bank_transfer'];
+  if (l.includes('cash') || l.includes('in-person') || l.includes('in person')) return ['cash'];
   return [];
 };
 const AMOUNT_INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white';
@@ -171,6 +170,7 @@ const AdminPayments = () => {
               datePaid: inv.paid_at, 
               status: 'paid', 
               method: methodDisplay,
+              paymentTransactions: inv.payment_transactions || [],
               gateway: inv.payment_gateway,
               proofOfPaymentPath: inv.proof_of_payment_path,
               paymentReference: inv.payment_reference,
@@ -235,7 +235,7 @@ const AdminPayments = () => {
           // the desk to that method (record_payment_admin.php enforces it).
           t.declaredLabel = sel.payment_method || (sel.payment_gateway === 'in_person' ? 'In-person visit' : null);
           const declared = deskMethodsFor(sel.payment_method);
-          t.declaredMethod = declared[0] || (sel.payment_gateway === 'in_person' ? 'Cash' : null);
+          t.declaredMethod = declared[0] || (sel.payment_gateway === 'in_person' ? 'cash' : null);
           // Under review, only the declared method(s) may be recorded: one, or
           // either bank for an older generic bank-transfer proof.
           t.allowedMethods = sel.status === 'pending-verification' && declared.length ? declared : METHODS;
@@ -290,8 +290,10 @@ const AdminPayments = () => {
   const [adjustError, setAdjustError] = useState('');
 
   // Payment Recording States
-  const [methodChoice, setMethodChoice] = useState({ tenant: null, method: 'Cash' });
+  const [methodChoice, setMethodChoice] = useState({ tenant: null, method: 'cash' });
   const [tender, setTender] = useState({ tenant: null, value: '' });
+  const [splitMode, setSplitMode] = useState(false);
+  const [paymentParts, setPaymentParts] = useState([{ method: 'cash', bank_name: '', amount: '', reference_number: '' }]);
   const [paymentReference, setPaymentReference] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -342,7 +344,7 @@ const AdminPayments = () => {
   // review, otherwise the default, which a manual choice overrides while that
   // same tenant record is selected.
   const allowedMethods = activeTenant?.allowedMethods || METHODS;
-  const chosenMethod = methodChoice.tenant === activeTenant ? methodChoice.method : (activeTenant?.declaredMethod || 'Cash');
+  const chosenMethod = methodChoice.tenant === activeTenant ? methodChoice.method : (activeTenant?.declaredMethod || 'cash');
   const paymentMethod = allowedMethods.includes(chosenMethod) ? chosenMethod : allowedMethods[0];
   const setPaymentMethod = (method) => setMethodChoice({ tenant: activeTenant, method });
 
@@ -353,6 +355,8 @@ const AdminPayments = () => {
   // record is selected (like the method above).
   const amountTendered = tender.tenant === activeTenant ? tender.value : (totalDue > 0 ? String(totalDue) : '');
   const setAmountTendered = (value) => setTender({ tenant: activeTenant, value });
+  const splitTotal = paymentParts.reduce((sum, part) => sum + (Number(part.amount) || 0), 0);
+  const remainingBalance = Math.round((totalDue - splitTotal) * 100) / 100;
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
 
   // Summaries
@@ -420,19 +424,21 @@ const AdminPayments = () => {
     // the amount covers it (no partial payments). Cash may exceed the total
     // (the difference is change); a transfer must match it exactly.
     amountPaid: (v, all) => {
-      const base = checkAmount(v, { label: all.paymentMethod === 'Cash' ? 'Amount tendered' : 'Amount received', required: true, min: 0.01, allowZero: false });
+      const base = checkAmount(v, { label: all.paymentMethod === 'cash' ? 'Amount tendered' : 'Amount received', required: true, min: 0.01, allowZero: false });
       if (base) return base;
-      if (Number(v) + 0.009 < totalDue) return `The amount must cover the total due (${formatCurrency(totalDue)}). Partial payments are not supported.`;
-      if (all.paymentMethod !== 'Cash' && Number(v) - totalDue > 0.009) return `A ${all.paymentMethod} payment must match the total due (${formatCurrency(totalDue)}).`;
+      if (Number(v) + 0.009 < totalDue) return `The amount must cover the total due (${formatCurrency(totalDue)}).`;
+      if (all.paymentMethod !== 'cash' && Number(v) - totalDue > 0.009) return `A ${all.paymentMethod} payment must match the total due (${formatCurrency(totalDue)}).`;
       return '';
     },
     // Optional for GCash/bank (the tenant's own reference is kept when blank).
-    paymentReference: (v, all) => (all.paymentMethod !== 'Cash' && String(v ?? '').trim() ? checkPaymentReference(v, all.paymentMethod) : ''),
+    paymentReference: (v, all) => (all.paymentMethod !== 'cash' && String(v ?? '').trim() ? checkPaymentReference(v, all.paymentMethod) : ''),
   }, { idPrefix: 'record-' });
   const blurRecord = (name) => recordForm.validateField(name, recordValues);
 
   const handleConfirmPayment = () => {
-    if (!recordForm.validateAll(recordValues)) return;
+    if (!splitMode && !recordForm.validateAll(recordValues)) return;
+    if (splitMode && (Math.abs(remainingBalance) > 0.009 || paymentParts.some(p => !p.amount || Number(p.amount) <= 0 || (p.method === 'bank_transfer' && (!p.bank_name || (p.bank_name === 'Other' && !p.other_bank_name?.trim())))))) return;
+    if (!splitMode && paymentMethod === 'bank_transfer' && (!paymentParts[0]?.bank_name || (paymentParts[0]?.bank_name === 'Other' && !paymentParts[0]?.other_bank_name?.trim()))) return;
     setShowConfirmModal(true);
   };
 
@@ -443,10 +449,14 @@ const handleMarkAsPaid = async () => {
     try {
       const res = await api.post('/record_payment_admin.php', {
         invoiceId: activeTenant.pendingInvoiceId,
-        paymentMethod: paymentMethod,
-        // Always sent: the server checks it against the bill's total.
-        amountPaid: Number(amountTendered),
-        paymentReference: paymentReference.trim() || undefined
+        payments: splitMode
+          ? paymentParts.map(p => ({ method: p.method, amount: Number(p.amount), bank_name: p.method === 'bank_transfer' ? (p.bank_name === 'Other' ? p.other_bank_name.trim() : p.bank_name) : undefined, reference_number: p.reference_number.trim() || undefined }))
+          : [{
+              method: paymentMethod,
+              amount: paymentMethod === 'cash' ? totalDue : Number(amountTendered),
+              bank_name: paymentMethod === 'bank_transfer' ? (paymentParts[0]?.bank_name === 'Other' ? paymentParts[0]?.other_bank_name?.trim() : paymentParts[0]?.bank_name) : undefined,
+              reference_number: paymentReference.trim() || undefined,
+            }]
       });
 
       // Safely check if the response is successful
@@ -454,6 +464,8 @@ const handleMarkAsPaid = async () => {
         fetchInvoices();
         showFlash(`Payment confirmed for ${activeTenant.name}. The tenant has been notified and their receipt is ready.`);
         setTender({ tenant: null, value: '' });
+        setPaymentParts([{ method: 'cash', bank_name: '', amount: '', reference_number: '' }]);
+        setSplitMode(false);
         setPaymentReference('');
         setShowConfirmModal(false);
       } else {
@@ -523,7 +535,7 @@ const handleMarkAsPaid = async () => {
     if (!activeTenant) return;
     const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     if (record) {
-      setReceiptData({ rctId: record.id, date: record.datePaid, tenant: activeTenant.name, unit: activeTenant.unit, period: record.period, amount: record.amount, breakdown: record.breakdown, status: record.status.toUpperCase(), method: record.method, gateway: record.gateway });
+      setReceiptData({ rctId: record.id, date: record.datePaid, tenant: activeTenant.name, unit: activeTenant.unit, period: record.period, amount: record.amount, breakdown: record.breakdown, status: record.status.toUpperCase(), method: record.method, gateway: record.gateway, paymentTransactions: record.paymentTransactions || [], paymentReference: record.paymentReference });
     } else {
       setReceiptData({ rctId: 'RCT-DRAFT', date: today, tenant: activeTenant.name, unit: activeTenant.unit, period: activeTenant.billingPeriod, amount: totalDue, breakdown: `Rent: ${activeTenant.billing.baseRent}`, status: 'UNPAID', method: paymentMethod, gateway: activeTenant.paymentGateway || 'Manual' });
     }
@@ -925,11 +937,17 @@ const handleMarkAsPaid = async () => {
                       <h4 className="text-sm font-bold text-slate-800 mb-3 m-0">Record Payment</h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
-                          <label htmlFor="record-paymentMethod" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Method</label>
-                          <select {...recordForm.fieldA11y('paymentMethod')} value={paymentMethod} disabled={activeTenant.methodLocked} onChange={e => { setPaymentMethod(e.target.value); recordForm.setErrors({}); }} className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 disabled:bg-slate-100 disabled:cursor-not-allowed${invalidCls(recordForm.errors.paymentMethod)}`}>
-                            {allowedMethods.map(m => <option key={m} value={m}>{m}</option>)}
-                          </select>
-                          <FieldError id="record-paymentMethod" error={recordForm.errors.paymentMethod} />
+                          <div className="flex items-center justify-between gap-3 mb-1">
+                            <label htmlFor="record-paymentMethod" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Method</label>
+                            <label className="text-[11px] font-semibold text-indigo-700 flex items-center gap-1.5"><input type="checkbox" checked={splitMode} disabled={activeTenant.methodLocked} onChange={e => setSplitMode(e.target.checked)} /> Split payment</label>
+                          </div>
+                          {!splitMode && <>
+                            <select {...recordForm.fieldA11y('paymentMethod')} value={paymentMethod} disabled={activeTenant.methodLocked} onChange={e => { setPaymentMethod(e.target.value); recordForm.setErrors({}); }} className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 disabled:bg-slate-100 disabled:cursor-not-allowed${invalidCls(recordForm.errors.paymentMethod)}`}>
+                              {allowedMethods.map(m => <option key={m} value={m}>{m === 'cash' ? 'Cash' : m === 'gcash' ? 'GCash' : 'Bank Transfer'}</option>)}
+                            </select>
+                            {paymentMethod === 'bank_transfer' && <><select className="w-full mt-2 px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white" value={paymentParts[0]?.bank_name || ''} onChange={e => setPaymentParts([{ ...paymentParts[0], bank_name: e.target.value }])}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{paymentParts[0]?.bank_name === 'Other' && <input className={`${AMOUNT_INPUT} mt-2`} placeholder="Enter bank name" value={paymentParts[0]?.other_bank_name || ''} onChange={e => setPaymentParts([{ ...paymentParts[0], other_bank_name: e.target.value }])} />}</>}
+                            <FieldError id="record-paymentMethod" error={recordForm.errors.paymentMethod} />
+                          </>}
                           {activeTenant.methodLocked ? (
                             <p className="text-[10px] text-slate-500 m-0 mt-1">Declared by the tenant with their proof ({activeTenant.declaredLabel}). To record another method, reject the proof.</p>
                           ) : activeTenant.declaredLabel && (
@@ -937,12 +955,23 @@ const handleMarkAsPaid = async () => {
                           )}
                         </div>
                         <div>
-                          <label htmlFor="record-amountPaid" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{paymentMethod === 'Cash' ? 'Amount Tendered' : 'Amount Received'}</label>
-                          <input type="number" {...recordForm.fieldA11y('amountPaid')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={amountTendered}
+                          <label htmlFor="record-amountPaid" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{splitMode ? 'Split total' : paymentMethod === 'cash' ? 'Amount Tendered' : 'Amount Received'}</label>
+                          {!splitMode && <input type="number" {...recordForm.fieldA11y('amountPaid')} inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={amountTendered}
                             onKeyDown={blockNonNumericKeys}
                             onChange={e => { setAmountTendered(e.target.value); recordForm.clearError('amountPaid'); }}
                             onBlur={() => amountTendered !== '' && blurRecord('amountPaid')}
-                            className={AMOUNT_INPUT + invalidCls(recordForm.errors.amountPaid)} placeholder="0" />
+                            className={AMOUNT_INPUT + invalidCls(recordForm.errors.amountPaid)} placeholder="0" />}
+                          {splitMode && <div className="space-y-3">
+                            {paymentParts.map((part, index) => <div key={index} className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-3">
+                              <select className={AMOUNT_INPUT} value={part.method} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, method: e.target.value, bank_name: '' } : p))}><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank Transfer</option></select>
+                              {part.method === 'bank_transfer' && <><select className={AMOUNT_INPUT} value={part.bank_name} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, bank_name: e.target.value } : p))}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{part.bank_name === 'Other' && <input className={AMOUNT_INPUT} placeholder="Enter bank name" value={part.other_bank_name || ''} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, other_bank_name: e.target.value } : p))} />}</>}
+                              <input type="number" min="0.01" step="0.01" className={AMOUNT_INPUT} placeholder="Amount" value={part.amount} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, amount: e.target.value } : p))} />
+                              {part.method !== 'cash' && <input className={AMOUNT_INPUT} placeholder="Reference (optional)" value={part.reference_number} onChange={e => setPaymentParts(paymentParts.map((p, i) => i === index ? { ...p, reference_number: e.target.value } : p))} />}
+                              {paymentParts.length > 1 && <button type="button" className="text-xs text-rose-600" onClick={() => setPaymentParts(paymentParts.filter((_, i) => i !== index))}>Remove portion</button>}
+                            </div>)}
+                            <button type="button" className="text-xs font-bold text-indigo-700" onClick={() => setPaymentParts([...paymentParts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }])}>+ Add payment portion</button>
+                            <div className="flex justify-between text-sm font-bold"><span>Total {formatCurrency(splitTotal)}</span><span className={remainingBalance === 0 ? 'text-emerald-700' : 'text-amber-700'}>{remainingBalance >= 0 ? `Remaining ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div>
+                          </div>}
                           <FieldError id="record-amountPaid" error={recordForm.errors.amountPaid} />
                         </div>
                         <div>
@@ -951,16 +980,16 @@ const handleMarkAsPaid = async () => {
                         </div>
                       </div>
 
-                      {paymentMethod !== 'Cash' && (
+                      {!splitMode && paymentMethod !== 'cash' && (
                         <div className="mt-3">
                           <label htmlFor="record-paymentReference" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reference No.</label>
                           <input
                             type="text"
                             {...recordForm.fieldA11y('paymentReference')}
                             autoComplete="off"
-                            inputMode={paymentMethod === 'GCash' ? 'numeric' : 'text'}
+                            inputMode={paymentMethod === 'gcash' ? 'numeric' : 'text'}
                             value={paymentReference}
-                            maxLength={paymentMethod === 'GCash' ? 13 : isBankMethod(paymentMethod) ? 55 : LIMITS.paymentReference}
+                            maxLength={paymentMethod === 'gcash' ? 13 : isBankMethod(paymentMethod) ? 55 : LIMITS.paymentReference}
                             onChange={e => { setPaymentReference(e.target.value); recordForm.clearError('paymentReference'); }}
                             onBlur={() => { const v = paymentReference.trim(); setPaymentReference(v); recordForm.validateField('paymentReference', { ...recordValues, paymentReference: v }); }}
                             className={AMOUNT_INPUT + invalidCls(recordForm.errors.paymentReference)}
@@ -1096,7 +1125,7 @@ const handleMarkAsPaid = async () => {
                           <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="py-3 px-3 font-medium text-slate-800">{record.period}</td>
                             <td className="py-3 px-3 text-emerald-600 font-semibold">{formatCurrency(record.amount)}</td>
-                            <td className="py-3 px-3 text-slate-600"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs border border-slate-200">{record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
+                            <td className="py-3 px-3 text-slate-600"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs border border-slate-200">{record.paymentTransactions?.length > 1 ? record.paymentTransactions.map(tx => `${formatCurrency(tx.amount)} ${tx.bank_name || tx.payment_method}`).join(' + ') : record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
                             <td className="py-3 px-3 text-slate-500 text-xs truncate max-w-[150px]" title={record.breakdown}>{record.breakdown}</td>
                             <td className="py-3 px-3 text-slate-500">{record.datePaid}</td>
                             <td className="py-3 px-3 text-center">
@@ -1450,6 +1479,8 @@ const handleMarkAsPaid = async () => {
                 <div className="text-right">
                   <p className="text-slate-500 text-[10px] uppercase m-0">Method</p>
                   <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p>
+                  {receiptData.paymentTransactions?.map(tx => <p key={tx.id} className="text-[10px] text-slate-700 m-0 mt-1">{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</p>)}
+                  {!receiptData.paymentTransactions?.length && receiptData.paymentReference && <p className="text-[10px] text-indigo-600 m-0 mt-1">Ref: {receiptData.paymentReference}</p>}
                   {receiptData.gateway && (
                     <>
                       <p className="text-slate-500 text-[10px] uppercase m-0 mt-2">Gateway</p>
