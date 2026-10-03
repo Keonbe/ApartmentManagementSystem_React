@@ -22,6 +22,8 @@ if ($advanceMonthsColumn && $advanceMonthsColumn->num_rows > 0) {
     $advanceMonthsFilter = ' AND advance_months IS NULL';
     promote_overdue_invoices($conn);
 }
+$roomsArchiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
+$activeRoomsFilter = ($roomsArchiveColumn && $roomsArchiveColumn->num_rows > 0) ? ' WHERE archived_at IS NULL' : '';
 
 $response = [
     'success' => true,
@@ -113,7 +115,7 @@ try {
             COUNT(*) as total, 
             SUM(CASE WHEN LOWER(status) = 'occupied' THEN 1 ELSE 0 END) as occupied, 
             SUM(CASE WHEN LOWER(status) = 'vacant' THEN 1 ELSE 0 END) as vacant 
-        FROM rooms
+        FROM rooms $activeRoomsFilter
     ");
     $stmt->execute();
     $res = $stmt->get_result();
@@ -319,7 +321,7 @@ try {
     $response['rooms_summary'] = [];
     $stmt = $conn->prepare("
         SELECT id, type, floor, status, monthly_rent, tenant_name, maintenance_flag 
-        FROM rooms 
+        FROM rooms $activeRoomsFilter
         ORDER BY floor ASC, id ASC
     ");
     $stmt->execute();

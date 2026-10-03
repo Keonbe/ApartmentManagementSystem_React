@@ -6,7 +6,7 @@ import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
   faHistory, faLayerGroup, faSync, faWrench, faFileContract,
-  faInfoCircle, faChevronRight, faImages, faUpload, faTrash
+  faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { publicAssetUrl } from '../api/fileUrl';
@@ -61,6 +61,8 @@ const AdminUnits = () => {
   const [leaseError, setLeaseError] = useState('');
   const [addUnitError, setAddUnitError] = useState('');
   const [addUnitSubmitting, setAddUnitSubmitting] = useState(false);
+  const [removingUnitId, setRemovingUnitId] = useState(null);
+  const [unitActionError, setUnitActionError] = useState('');
   
   const minLeaseDuration = 6;
 
@@ -223,6 +225,33 @@ const AdminUnits = () => {
   const closeAddModal = () => { setShowAddModal(false); setAddUnitError(''); unitErrors.setErrors({}); };
   const closeAssignModal = () => { setShowAssignModal(false); setLeaseError(''); assignErrors.setErrors({}); };
 
+  const handleRemoveUnit = async (unit) => {
+    if (removingUnitId) return;
+    const confirmed = window.confirm(
+      `Remove Unit ${unit.id} from active listings? This is allowed only for a vacant unit with no active tenancy or reservation. Historical records will be retained.`
+    );
+    if (!confirmed) return;
+
+    setUnitActionError('');
+    setRemovingUnitId(unit.id);
+    try {
+      const response = await api.post('archive_room.php', { id: unit.id });
+      if (!response.data.success) {
+        setUnitActionError(response.data.message || 'Failed to remove unit.');
+        return;
+      }
+      setUnits(current => current.filter(item => item.id !== unit.id));
+      if (selectedUnit?.id === unit.id) {
+        setShowDetailModal(false);
+        setSelectedUnit(null);
+      }
+    } catch (error) {
+      setUnitActionError(apiErrorMessage(error, 'Failed to remove unit.'));
+    } finally {
+      setRemovingUnitId(null);
+    }
+  };
+
   const handleAssignTenant = async (e) => {
     e?.preventDefault();
     if (!selectedUnit || assigning) return;
@@ -347,6 +376,11 @@ const AdminUnits = () => {
             </div>
 
             {/* Filter Pills */}
+            {unitActionError && (
+              <div role="alert" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
+                {unitActionError}
+              </div>
+            )}
             <div className="flex items-center gap-3 flex-wrap">
               {filters.map(f => (
                 <button
@@ -415,6 +449,18 @@ const AdminUnits = () => {
                           className="flex-1 flex items-center justify-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-md py-1.5 transition-colors border-0 cursor-pointer"
                         >
                           <FontAwesomeIcon icon={faUserPlus} className="text-[9px]" /> Assign
+                        </button>
+                      )}
+                      {unit.status === 'vacant' && !unit.tenant && (
+                        <button
+                          type="button"
+                          disabled={removingUnitId !== null}
+                          onClick={() => handleRemoveUnit(unit)}
+                          title={`Remove Unit ${unit.id} from active listings`}
+                          className="flex items-center justify-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-md px-2 py-1.5 transition-colors border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <FontAwesomeIcon icon={faBoxArchive} className="text-[9px]" />
+                          {removingUnitId === unit.id ? 'Removing…' : 'Remove'}
                         </button>
                       )}
                     </div>

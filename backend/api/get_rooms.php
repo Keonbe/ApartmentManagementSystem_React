@@ -24,7 +24,9 @@ $is_admin = $caller && $caller['role'] === 'admin';
 release_expired_reservations($conn);
 
 try {
-    $stmt = $conn->prepare("SELECT * FROM rooms ORDER BY id");
+    $archiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
+    $activeRoomFilter = ($archiveColumn && $archiveColumn->num_rows > 0) ? ' WHERE archived_at IS NULL' : '';
+    $stmt = $conn->prepare("SELECT * FROM rooms" . $activeRoomFilter . " ORDER BY id");
     $stmt->execute();
     $result = $stmt->get_result();
     $rooms = $result->fetch_all(MYSQLI_ASSOC);

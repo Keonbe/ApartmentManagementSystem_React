@@ -57,7 +57,7 @@ $conn->begin_transaction();
 
 try {
     // 1. Lock the room row and require it to be vacant.
-    $room_stmt = $conn->prepare("SELECT status FROM rooms WHERE id = ? FOR UPDATE");
+    $room_stmt = $conn->prepare("SELECT status FROM rooms WHERE id = ? AND archived_at IS NULL FOR UPDATE");
     $room_stmt->bind_param("s", $room_name);
     $room_stmt->execute();
     $room = $room_stmt->get_result()->fetch_assoc();

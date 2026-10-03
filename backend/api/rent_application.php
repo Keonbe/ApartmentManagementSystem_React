@@ -200,13 +200,17 @@ if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
 
 // The client-supplied rent is a display value only; take the figure that
 // actually governs billing from the room itself (H4).
-$room_rent_stmt = $conn->prepare("SELECT monthly_rent FROM rooms WHERE id = ?");
+$room_rent_stmt = $conn->prepare("SELECT monthly_rent FROM rooms WHERE id = ? AND archived_at IS NULL");
 $room_rent_stmt->bind_param("s", $room_name);
 $room_rent_stmt->execute();
 $room_rent_row = $room_rent_stmt->get_result()->fetch_assoc();
 $room_rent_stmt->close();
 if ($room_rent_row) {
     $monthly_rent = $room_rent_row['monthly_rent'];
+} else {
+    http_response_code(409);
+    echo json_encode(["success" => false, "message" => "This unit is no longer available for applications."]);
+    exit;
 }
 
 $conn->begin_transaction();

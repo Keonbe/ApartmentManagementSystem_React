@@ -130,7 +130,9 @@ $data = [
 ];
 
 // 1. Total rooms count in building
-$stmt = $conn->prepare("SELECT COUNT(*) as total FROM rooms");
+$roomsArchiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
+$roomsActiveFilter = ($roomsArchiveColumn && $roomsArchiveColumn->num_rows > 0) ? ' WHERE archived_at IS NULL' : '';
+$stmt = $conn->prepare("SELECT COUNT(*) as total FROM rooms" . $roomsActiveFilter);
 $stmt->execute();
 if ($row = $stmt->get_result()->fetch_assoc()) {
     $data['totalRooms'] = (int)$row['total'];
@@ -138,7 +140,7 @@ if ($row = $stmt->get_result()->fetch_assoc()) {
 $stmt->close();
 
 // 2. Room occupancy (Active rooms right now)
-$stmt = $conn->prepare("SELECT COUNT(*) as occupied FROM rooms WHERE status = 'Occupied'");
+$stmt = $conn->prepare("SELECT COUNT(*) as occupied FROM rooms" . ($roomsActiveFilter ? " WHERE archived_at IS NULL AND status = 'Occupied'" : " WHERE status = 'Occupied'"));
 $stmt->execute();
 if ($row = $stmt->get_result()->fetch_assoc()) {
     $data['totalOccupied'] = (int)$row['occupied'];
@@ -682,7 +684,8 @@ $data['maintenanceBudget'] = $monthly_budget * ($timeframe === 'yearly' ? 12 : (
 
 // Monthly rent not being earned on vacant units — the "Occupancy Gap" figure
 // used to assume ₱4,000 for every vacant unit.
-$row = $conn->query("SELECT COALESCE(SUM(monthly_rent), 0) AS potential FROM rooms WHERE LOWER(status) = 'vacant'")->fetch_assoc();
+$vacantRoomsFilter = $roomsActiveFilter ? " WHERE archived_at IS NULL AND LOWER(status) = 'vacant'" : " WHERE LOWER(status) = 'vacant'";
+$row = $conn->query("SELECT COALESCE(SUM(monthly_rent), 0) AS potential FROM rooms" . $vacantRoomsFilter)->fetch_assoc();
 $data['vacantRentPotential'] = (float)$row['potential'];
 
 // Average resolution time for requests resolved in the period (null when none were)

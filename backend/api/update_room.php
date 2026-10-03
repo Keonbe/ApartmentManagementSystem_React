@@ -28,7 +28,9 @@ try {
     $id = $data['id'];
     
     // Get existing room to track changes
-    $stmt = $conn->prepare("SELECT * FROM rooms WHERE id = ?");
+    $archiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
+    $activeRoomFilter = ($archiveColumn && $archiveColumn->num_rows > 0) ? ' AND archived_at IS NULL' : '';
+    $stmt = $conn->prepare("SELECT * FROM rooms WHERE id = ?" . $activeRoomFilter);
     $stmt->bind_param("s", $id);
     $stmt->execute();
     $result = $stmt->get_result();

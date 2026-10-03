@@ -27,16 +27,34 @@ try {
         exit();
     }
 
-    $stmt = $conn->prepare("SELECT id FROM rooms WHERE id = ?");
+    $archiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
+    if (!$archiveColumn || $archiveColumn->num_rows === 0) {
+        throw new Exception('Apply the room archiving migration before restoring removed units.');
+    }
+
+    $stmt = $conn->prepare("SELECT id, archived_at FROM rooms WHERE id = ?");
     $stmt->bind_param("s", $id);
     $stmt->execute();
-    if ($stmt->get_result()->fetch_assoc()) {
+    $existingRoom = $stmt->get_result()->fetch_assoc();
+    if ($existingRoom && $existingRoom['archived_at'] === null) {
         $stmt->close();
         http_response_code(409);
         echo json_encode(['success' => false, 'message' => "Unit $id already exists."]);
         exit();
     }
     $stmt->close();
+
+    if ($existingRoom) {
+        $stmt = $conn->prepare("UPDATE rooms SET type = ?, floor = ?, monthly_rent = ?, status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, last_tenant = NULL, maintenance_flag = 0, occupants = 0, room_condition = 'Good', furnishing_status = 'Unfurnished', last_inspection_date = NULL, gallery = NULL, archived_at = NULL, archived_by = NULL WHERE id = ? AND archived_at IS NOT NULL");
+        $stmt->bind_param("ssds", $type, $floor, $rent, $id);
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to restore unit: " . $stmt->error);
+        }
+        $stmt->close();
+        log_activity($conn, $adminId, 'unit', "Restored Unit $id", "Type: $type, Floor: $floor, Rent: $rent");
+        echo json_encode(['success' => true, 'message' => "Unit $id restored successfully."]);
+        exit();
+    }
 
     $stmt = $conn->prepare("INSERT INTO rooms (id, type, floor, monthly_rent, status) VALUES (?, ?, ?, ?, 'vacant')");
     $stmt->bind_param("sssd", $id, $type, $floor, $rent);
