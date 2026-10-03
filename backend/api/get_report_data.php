@@ -13,14 +13,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $admin_id = require_admin($conn);
 
+try {
 // Bring invoice states up to date first, so an invoice that lapsed since anyone
 // last opened the billing pages is already counted as overdue here.
 promote_overdue_invoices($conn);
 
 $timeframe = $_GET['timeframe'] ?? 'monthly';
+if (!in_array($timeframe, ['monthly', 'quarterly', 'yearly'], true)) {
+    $timeframe = 'monthly';
+}
 $month = isset($_GET['month']) ? (int)$_GET['month'] : date('n');
 $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 $quarter = isset($_GET['quarter']) ? (int)$_GET['quarter'] : ceil(date('n') / 3);
+$month = min(12, max(1, $month));
+$quarter = min(4, max(1, $quarter));
 
 // Collected money is dated by when it was paid; created_at stands in only for a
 // paid row with no paid_at stamp. The 6-month trend below uses the same rule, so
@@ -433,7 +439,7 @@ FROM invoices i
 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
 LEFT JOIN rooms r ON ra.room_name = r.id
 WHERE i.status = 'paid' AND i.advance_months IS NULL AND $invoiceDateCondition
-GROUP BY unit, r.type, r.floor
+GROUP BY COALESCE(r.id, ra.room_name, 'General'), r.type, r.floor
 ORDER BY total_collected DESC");
 if ($stmt) {
     $stmt->execute();
@@ -877,4 +883,16 @@ $data['inquiryConversion'] = [
 
 echo json_encode(['success' => true, 'data' => $data]);
 $conn->close();
+} catch (Throwable $e) {
+    error_log('[AMS] get_report_data.php: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Failed to generate report data.',
+        'data' => [],
+    ]);
+    if (isset($conn) && $conn instanceof mysqli) {
+        $conn->close();
+    }
+}
 ?>

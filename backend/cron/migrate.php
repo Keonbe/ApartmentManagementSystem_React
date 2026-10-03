@@ -153,9 +153,11 @@ function run_migrations($conn)
             }
 
             try {
-                // Some MySQL versions reject IF NOT EXISTS in ALTER TABLE ADD.
-                // Normalize that syntax before submitting the migration batch.
+                // Some MySQL versions reject IF NOT EXISTS in ALTER TABLE ADD
+                // and CREATE INDEX. Normalize those clauses before submission.
                 $sql = preg_replace('/ADD\s+(COLUMN\s+)?IF\s+NOT\s+EXISTS/i', 'ADD $1', $sql);
+                $sql = preg_replace('/ADD\s+(UNIQUE\s+)?(INDEX|KEY)\s+IF\s+NOT\s+EXISTS/i', 'ADD $1$2', $sql);
+                $sql = preg_replace('/CREATE\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE $1INDEX', $sql);
                 $benignErrors = [1060, 1061, 1050, 1091];
                 $noticeLogged = false;
                 if (!$conn->multi_query($sql)) {
