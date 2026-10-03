@@ -987,6 +987,18 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             $method_update->close();
         }
 
+        // Admin desk settlements replace any rows left by a previous failed
+        // or re-tested attempt. Keep this inside the settlement transaction so
+        // a failed settlement restores the prior ledger rows on rollback.
+        if (is_array($payment_splits)) {
+            $delete_tx = $conn->prepare("DELETE FROM payment_transactions WHERE invoice_id = ?");
+            $delete_tx->bind_param("s", $invoice_id);
+            if (!$delete_tx->execute()) {
+                throw new Exception("Failed to replace payment transaction details.");
+            }
+            $delete_tx->close();
+        }
+
         foreach (is_array($payment_splits) ? $transactions : [] as $transaction) {
             $tx_method = (string)($transaction['method'] ?? strtolower((string)$payment_method));
             $tx_amount = round((float)($transaction['amount'] ?? 0), 2);

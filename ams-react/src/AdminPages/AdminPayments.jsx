@@ -162,15 +162,29 @@ const AdminPayments = () => {
             (t.openInvoices = t.openInvoices || []).push(inv);
           } else if (inv.status === 'paid') {
             const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
+            const invoiceBreakdown = [
+              ['Rent', inv.base_rent],
+              ['Water', inv.water],
+              ['Electricity', inv.electricity],
+              ['Parking', inv.parking],
+              ['Services', inv.services],
+              ['Maintenance', inv.maintenance],
+              ['Security deposit', inv.security_deposit],
+              ['Late fee', inv.late_fee],
+            ]
+              .filter(([, amount]) => Number(amount) > 0)
+              .map(([label, amount]) => `${label}: ${formatCurrency(amount)}`)
+              .join(' · ');
+            const paymentTransactions = inv.payment_transactions || [];
             t.history.push({
               id: inv.id, 
               period: inv.billing_period, 
-              breakdown: `Total: ${inv.total_amount}`,
+              breakdown: invoiceBreakdown || `Total: ${formatCurrency(inv.total_amount)}`,
               amount: parseFloat(inv.total_amount || 0), 
               datePaid: inv.paid_at, 
               status: 'paid', 
               method: methodDisplay,
-              paymentTransactions: inv.payment_transactions || [],
+              paymentTransactions,
               gateway: inv.payment_gateway,
               proofOfPaymentPath: inv.proof_of_payment_path,
               paymentReference: inv.payment_reference,
@@ -1128,28 +1142,34 @@ const handleMarkAsPaid = async () => {
                     </div>
                   </div>
                   
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
+                  <div className="w-full overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wide bg-slate-50">
-                          <th className="py-2 px-3">Period</th>
-                          <th className="py-2 px-3">Amount</th>
-                          <th className="py-2 px-3">Method</th>
-                          <th className="py-2 px-3">Breakdown</th>
-                          <th className="py-2 px-3">Date Paid</th>
-                          <th className="py-2 px-3 text-center">Proof</th>
-                          <th className="py-2 px-3 text-right">Receipt</th>
+                          <th className="w-32 px-4 py-3">Period</th>
+                          <th className="w-28 px-4 py-3">Amount</th>
+                          <th className="w-32 px-4 py-3">Method</th>
+                          <th className="max-w-xs px-4 py-3">Breakdown</th>
+                          <th className="w-40 px-4 py-3 whitespace-nowrap">Date Paid</th>
+                          <th className="w-28 px-4 py-3 text-center whitespace-nowrap">Proof</th>
+                          <th className="w-28 px-4 py-3 text-center whitespace-nowrap">Receipt</th>
                         </tr>
                       </thead>
                       <tbody>
                         {paginatedHistory.length > 0 ? paginatedHistory.map((record, idx) => (
                           <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
-                            <td className="py-3 px-3 font-medium text-slate-800">{record.period}</td>
-                            <td className="py-3 px-3 text-emerald-600 font-semibold">{formatCurrency(record.amount)}</td>
-                            <td className="py-3 px-3 text-slate-600"><span className="px-2 py-0.5 bg-slate-100 rounded text-xs border border-slate-200">{record.paymentTransactions?.length > 1 ? record.paymentTransactions.map(tx => `${formatCurrency(tx.amount)} ${tx.bank_name || tx.payment_method}`).join(' + ') : record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
-                            <td className="py-3 px-3 text-slate-500 text-xs truncate max-w-[150px]" title={record.breakdown}>{record.breakdown}</td>
-                            <td className="py-3 px-3 text-slate-500">{record.datePaid}</td>
-                            <td className="py-3 px-3 text-center">
+                            <td className="w-32 px-4 py-3 font-medium text-slate-900">{record.period}</td>
+                            <td className="w-28 px-4 py-3 font-bold text-emerald-600 whitespace-nowrap">{formatCurrency(record.amount)}</td>
+                            <td className="w-32 px-4 py-3 text-slate-600"><span className="inline-block max-w-full whitespace-normal break-words rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5">{record.method?.toLowerCase() === 'split' || record.paymentTransactions?.length > 1 ? 'Split Payment' : record.method || (record.gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'N/A')}</span></td>
+                            <td className="max-w-xs px-4 py-3 text-slate-600 break-words whitespace-normal" title={record.paymentTransactions?.length ? record.paymentTransactions.map(tx => `${formatCurrency(tx.amount)} ${tx.bank_name || tx.payment_method}${tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}`).join(' + ') : record.breakdown}>
+                              {record.paymentTransactions?.length > 1
+                                ? record.paymentTransactions.map(tx => `${formatCurrency(tx.amount)} ${tx.bank_name || tx.payment_method}${tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}`).join(' + ')
+                                : record.paymentTransactions?.length === 1 && record.method?.toLowerCase() === 'split'
+                                  ? `${formatCurrency(record.paymentTransactions[0].amount)} ${record.paymentTransactions[0].bank_name || record.paymentTransactions[0].payment_method}${record.paymentTransactions[0].reference_number ? ` (Ref: ${record.paymentTransactions[0].reference_number})` : ''}`
+                                  : record.paymentReference ? `Ref: ${record.paymentReference}` : record.breakdown || '—'}
+                            </td>
+                            <td className="w-40 px-4 py-3 text-slate-500 whitespace-nowrap">{record.datePaid}</td>
+                            <td className="w-28 px-4 py-3 text-center whitespace-nowrap">
                               {record.proofOfPaymentPath ? (
                                 <button
                                   onClick={() => setPreviewProof({
@@ -1167,7 +1187,7 @@ const handleMarkAsPaid = async () => {
                                 <span className="text-slate-300 text-xs">—</span>
                               )}
                             </td>
-                            <td className="py-3 px-3 text-right"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
+                            <td className="w-28 px-4 py-3 text-center whitespace-nowrap"><button onClick={() => handleGenerateReceipt(record)} className="text-indigo-600 border-0 bg-slate-100 hover:bg-indigo-100 p-1.5 rounded cursor-pointer transition-colors text-xs" title="View Receipt"><FontAwesomeIcon icon={faPrint} /></button></td>
                           </tr>
                         )) : (
                           <tr><td colSpan="7" className="py-4 text-center text-slate-500 text-sm">No records found.</td></tr>
