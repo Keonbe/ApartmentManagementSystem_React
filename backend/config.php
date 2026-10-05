@@ -937,7 +937,7 @@ function billing_open_status_sql() {
 // settle_payment_key(), which sends one notice for a whole advance payment.
 //
 // Returns ['ok' => bool, 'message' => string, 'invoice_id', 'user_id', 'activated' => bool].
-function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference = null, $amount_paid = null, $notify_tenant = true) {
+function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference = null, $amount_paid = null, $notify_tenant = true, $payment_splits = null, $recorded_by = null) {
     $conn->begin_transaction();
 
     try {
@@ -952,19 +952,63 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             }
         }
 
-        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, payment_reference = COALESCE(?, payment_reference), paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
-        $stmt->bind_param("sss", $payment_method, $payment_reference, $invoice_id);
+        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months, id, billing_period, total_amount, payment_reference FROM invoices WHERE id = ?");
+        $inv_q->bind_param("s", $invoice_id);
+        $inv_q->execute();
+        $inv_res = $inv_q->get_result()->fetch_assoc();
+        $inv_q->close();
+        if (!$inv_res) throw new Exception("Invoice not found.");
+
+        $bank_name = null;
+        if (is_array($payment_splits) && count($payment_splits) === 1) $bank_name = $payment_splits[0]['bank_name'] ?? null;
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, payment_reference = COALESCE(?, payment_reference), bank_name = COALESCE(?, bank_name), paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
+        $stmt->bind_param("ssss", $payment_method, $payment_reference, $bank_name, $invoice_id);
         $stmt->execute();
         if ($stmt->affected_rows === 0) {
             throw new Exception("Invoice not found or already settled.");
         }
         $stmt->close();
 
-        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months, id, billing_period, total_amount, payment_reference FROM invoices WHERE id = ?");
-        $inv_q->bind_param("s", $invoice_id);
-        $inv_q->execute();
-        $inv_res = $inv_q->get_result()->fetch_assoc();
-        $inv_q->close();
+        // Each paid invoice has its own transaction rows, kept in the same DB
+        // transaction as the status update. Existing gateway/advance callers
+        // are recorded as a single legacy-compatible transaction.
+        $transactions = is_array($payment_splits) ? $payment_splits : [[
+            'method' => strtolower((string)$payment_method),
+            'amount' => (float)$inv_res['total_amount'],
+            'bank_name' => $bank_name,
+            'reference_number' => $payment_reference,
+        ]];
+        if (is_array($payment_splits)) {
+            $resolved_method = count($transactions) > 1 ? 'split' : (($transactions[0]['method'] ?? '') === 'bank_transfer' && !empty($transactions[0]['bank_name']) ? $transactions[0]['bank_name'] : $payment_method);
+            $resolved_bank = count($transactions) === 1 ? ($transactions[0]['bank_name'] ?? null) : null;
+            $method_update = $conn->prepare("UPDATE invoices SET payment_method = ?, bank_name = COALESCE(?, bank_name) WHERE id = ? AND status = 'paid'");
+            $method_update->bind_param("sss", $resolved_method, $resolved_bank, $invoice_id);
+            $method_update->execute();
+            $method_update->close();
+        }
+
+        // Admin desk settlements replace any rows left by a previous failed
+        // or re-tested attempt. Keep this inside the settlement transaction so
+        // a failed settlement restores the prior ledger rows on rollback.
+        if (is_array($payment_splits)) {
+            $delete_tx = $conn->prepare("DELETE FROM payment_transactions WHERE invoice_id = ?");
+            $delete_tx->bind_param("s", $invoice_id);
+            if (!$delete_tx->execute()) {
+                throw new Exception("Failed to replace payment transaction details.");
+            }
+            $delete_tx->close();
+        }
+
+        foreach (is_array($payment_splits) ? $transactions : [] as $transaction) {
+            $tx_method = (string)($transaction['method'] ?? strtolower((string)$payment_method));
+            $tx_amount = round((float)($transaction['amount'] ?? 0), 2);
+            $tx_bank = $transaction['bank_name'] ?? null;
+            $tx_reference = $transaction['reference_number'] ?? $payment_reference;
+            $insert_tx = $conn->prepare("INSERT INTO payment_transactions (invoice_id, amount, payment_method, bank_name, reference_number, recorded_by) VALUES (?, ?, ?, ?, ?, ?)");
+            $insert_tx->bind_param("sdsssi", $invoice_id, $tx_amount, $tx_method, $tx_bank, $tx_reference, $recorded_by);
+            $insert_tx->execute();
+            $insert_tx->close();
+        }
 
         $activated = false;
 
@@ -1169,6 +1213,7 @@ function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_s
     $has_contract = (bool)$check_ctr->get_result()->fetch_assoc();
     $check_ctr->close();
     if (!$has_contract) {
+        $contract_id = uniqid('CTR-');
         $template_version_id = null;
         if (file_exists(__DIR__ . '/contract_template.php')) {
             require_once __DIR__ . '/contract_template.php';
@@ -1500,16 +1545,15 @@ function expire_unpaid_advances($conn, $only_user_id = null) {
 // desk_methods_for_label() gives the desk methods a label can be recorded
 // as — one, or both banks for an older generic 'Bank Transfer (Manual)'
 // proof — and [] when it implies none (e.g. an online Maya/card checkout).
-const DESK_PAYMENT_METHODS = ['Cash', 'GCash', 'BDO', 'BPI'];
+const DESK_PAYMENT_METHODS = ['cash', 'gcash', 'bank_transfer'];
+const PHILIPPINE_BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
 
 function desk_methods_for_label($label) {
     $l = strtolower(trim((string)$label));
     if ($l === '') return [];
-    if (strpos($l, 'gcash') !== false) return ['GCash'];
-    if (strpos($l, 'bdo') !== false) return ['BDO'];
-    if (strpos($l, 'bpi') !== false) return ['BPI'];
-    if (strpos($l, 'bank') !== false) return ['BDO', 'BPI'];
-    if (strpos($l, 'cash') !== false || strpos($l, 'in-person') !== false || strpos($l, 'in person') !== false) return ['Cash'];
+    if (strpos($l, 'gcash') !== false) return ['gcash'];
+    if (strpos($l, 'cash') !== false || strpos($l, 'in-person') !== false || strpos($l, 'in person') !== false) return ['cash'];
+    if (strpos($l, 'bank') !== false || strpos($l, 'bdo') !== false || strpos($l, 'bpi') !== false) return ['bank_transfer'];
     return [];
 }
 
@@ -1570,9 +1614,9 @@ function payment_key_invoices($conn, $key, $user_id = null, $statuses = null) {
 // "Payment Received" notice for the whole group, not one per month.
 // $amount_paid (desk only) must cover the combined total. Returns
 // settle_invoice()'s shape plus 'invoice_ids', the invoices settled.
-function settle_payment_key($conn, $key, $payment_method, $payment_reference = null, $amount_paid = null) {
+function settle_payment_key($conn, $key, $payment_method, $payment_reference = null, $amount_paid = null, $payment_splits = null, $recorded_by = null) {
     if (!is_payment_group_key($key)) {
-        $result = settle_invoice($conn, $key, $payment_method, $payment_reference, $amount_paid);
+        $result = settle_invoice($conn, $key, $payment_method, $payment_reference, $amount_paid, true, $payment_splits, $recorded_by);
         $result['invoice_ids'] = $result['ok'] ? [$key] : [];
         return $result;
     }
@@ -1591,6 +1635,36 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
 
     $settled = [];
     $settled_rows = [];
+    $split_allocations = [];
+    $legacy_cash_overpayment = $payment_splits === null && $amount_paid !== null && $amount_paid > $total && strtolower((string)$payment_method) === 'cash';
+    if ($legacy_cash_overpayment) {
+        $payment_splits = [[
+            'method' => strtolower((string)$payment_method),
+            'amount' => round($total, 2),
+            'bank_name' => null,
+            'reference_number' => $payment_reference,
+        ]];
+    }
+    if (is_array($payment_splits)) {
+        $split_index = 0;
+        $split_remaining = (float)$payment_splits[0]['amount'];
+        foreach ($rows as $row) {
+            $invoice_allocations = [];
+            $invoice_remaining = (float)$row['total_amount'];
+            while ($invoice_remaining > 0.009 && isset($payment_splits[$split_index])) {
+                $allocated = min($invoice_remaining, $split_remaining);
+                $invoice_allocations[] = array_replace($payment_splits[$split_index], ['amount' => round($allocated, 2)]);
+                $invoice_remaining = round($invoice_remaining - $allocated, 2);
+                $split_remaining = round($split_remaining - $allocated, 2);
+                if ($split_remaining <= 0.009) {
+                    $split_index++;
+                    if (isset($payment_splits[$split_index])) $split_remaining = (float)$payment_splits[$split_index]['amount'];
+                }
+            }
+            if ($invoice_remaining > 0.009) return $fail("Payment split allocation did not cover every invoice.");
+            $split_allocations[$row['id']] = $invoice_allocations;
+        }
+    }
     // One notice for the months that were settled, even when a later month
     // fails. A combined payment's notice opens its combined receipt (invoice:BND-…).
     $notify = function () use ($conn, $key, $payment_method, $bundle, &$settled_rows) {
@@ -1622,8 +1696,8 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
         }
     };
     foreach ($rows as $row) {
-        $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false);
-        if (!$result['ok']) {
+        $result = settle_invoice($conn, $row['id'], $payment_method, $payment_reference, null, false, $split_allocations[$row['id']] ?? null, $recorded_by);
+        if ($result['ok'] === false) {
             $notify();
             return $fail("Settled " . count($settled) . " of " . count($rows) . " months; {$row['id']} failed: {$result['message']}", $settled);
         }

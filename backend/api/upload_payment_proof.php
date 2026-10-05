@@ -22,6 +22,17 @@ $invoice_id = $_POST['invoice_id'] ?? $_POST['invoiceId'] ?? null;
 $payment_reference = $_POST['payment_reference'] ?? $_POST['referenceNo'] ?? null;
 $payment_method = $_POST['payment_method'] ?? $_POST['paymentMethod'] ?? 'GCash';
 $sender_name = $_POST['sender_name'] ?? $_POST['senderName'] ?? null;
+$bank_name = trim((string)($_POST['bank_name'] ?? $_POST['bankName'] ?? ''));
+
+if (preg_match('/bank|bdo|bpi|metrobank|landbank|rcbc|unionbank|security|maya bank/i', (string)$payment_method)) {
+    if (!in_array($bank_name, PHILIPPINE_BANKS, true)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Choose a supported originating bank."]);
+        exit;
+    }
+} else {
+    $bank_name = '';
+}
 
 if (empty($invoice_id)) {
     echo json_encode(["success" => false, "message" => "Invoice ID is required."]);
@@ -87,9 +98,9 @@ if ($proof_file) {
 
 // A fresh proof replaces any earlier rejection, so the tenant's bill page
 // stops showing the old rejection reason.
-$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, status = 'pending-verification', proof_rejection_reason = NULL";
-$params = [$payment_method, $payment_reference, $sender_name];
-$types = "sss";
+$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, bank_name = ?, status = 'pending-verification', proof_rejection_reason = NULL";
+$params = [$payment_method, $payment_reference, $sender_name, $bank_name ?: null];
+$types = "ssss";
 
 if ($proof_path) {
     $query .= ", proof_of_payment_path = ?";
