@@ -250,7 +250,7 @@ function NewRequestModal({ rooms, onClose, onSubmit, isSubmitting }) {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="newreq-issueType" className={LABEL}>Category</label>
               <select {...form.fieldA11y('issueType')} value={newReq.issueType} onChange={e => setField('issueType', e.target.value)} className={fieldCls('issueType', FIELD)}>
@@ -867,13 +867,13 @@ const AdminMaintainance = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
         <Header title="Maintenance Tasks" />
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Budget Panel */}

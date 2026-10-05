@@ -155,13 +155,13 @@ export default function AdminActivityLogs() {
   const hasFilters = category !== 'all' || performer !== 'all' || search || from || to;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
         <Header title="System Activity Logs" />
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -344,7 +344,7 @@ export default function AdminActivityLogs() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Category</span>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border mt-1 ${(categoryStyle[selectedLog.category] || categoryStyle.system).color}`}>

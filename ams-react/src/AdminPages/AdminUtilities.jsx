@@ -285,7 +285,7 @@ export default function AdminUtilities() {
   }, [readings, searchQuery, roomFilter, periodFilter, statusFilter]);
 
   return (
-    <div className="flex h-screen w-full font-sans" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
+    <div className="admin-shell flex h-screen w-full font-sans" style={{ backgroundColor: '#f8fafc', color: '#0f172a' }}>
       {/* Persistent / Mobile Responsive Admin Sidebar */}
       <Sidebar />
 
@@ -293,7 +293,7 @@ export default function AdminUtilities() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left" style={{ backgroundColor: '#f8fafc' }}>
         <Header title="Utility Tracking & Sub-Meters" />
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8" style={{ backgroundColor: '#f8fafc' }}>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8" style={{ backgroundColor: '#f8fafc' }}>
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Top KPI Summary Metric Cards */}
@@ -1071,7 +1071,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   Prev Reading: <strong>{modalCalculations.waterPrev} m³</strong>
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="reading-water_curr_reading" className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (m³)</label>
                   <input
@@ -1143,7 +1143,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   Prev Reading: <strong>{modalCalculations.elecPrev} kWh</strong>
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="reading-electric_curr_reading" className="block text-[11px] font-bold text-slate-600 mb-1">Current Reading (kWh)</label>
                   <input

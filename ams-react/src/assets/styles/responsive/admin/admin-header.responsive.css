@@ -4,7 +4,7 @@
    Base: Tailwind utilities in AdminDashboardHeader.jsx
    ===================================================== */
 
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   .admin-header-root {
     height: 4.25rem !important;
     padding-left: 1rem !important;

@@ -374,6 +374,33 @@ const AdminPayments = () => {
     return sum + Math.max(0, dep - dmg - utl);
   }, 0);
 
+  // One deposit row, shared by the deposits table (md and up) and its phone cards.
+  const depositRowData = (c) => {
+    const baseDeposit = parseFloat(c.deposit || c.deposit_amount || 0);
+    const dmg = parseFloat(c.damage_deduction || 0);
+    const utl = parseFloat(c.utility_deduction || 0);
+    const fmtMonth = (d) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A');
+    return {
+      tenantName: c.tenant || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Tenant',
+      unit: c.unit || c.room_name,
+      leaseStart: fmtMonth(c.leaseStart || c.lease_start),
+      leaseEnd: fmtMonth(c.leaseEnd || c.lease_end),
+      baseDeposit, dmg, utl,
+      appliedRent: depositApplied(c) ? Math.max(0, baseDeposit - dmg - utl) : 0,
+      status: c.deposit_status || 'Pending',
+    };
+  };
+  const depositStatusBadge = (status) => (
+    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+      status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+      status === 'Applied to Rent' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+      status === 'Not Collected' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+      'bg-amber-50 text-amber-700 border border-amber-200'
+    }`}>
+      {status}
+    </span>
+  );
+
   // Outstanding Balance Aging
   const agingData = useMemo(() => {
     const now = new Date();
@@ -589,7 +616,7 @@ const handleMarkAsPaid = async () => {
   // SAFETY GUARD CLAUSE: Stops render tree compilation if async requests haven't completed
   if (loading) {
     return (
-      <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+      <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
         <Sidebar />
         <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
           <Header title="Payment Management" />
@@ -603,7 +630,7 @@ const handleMarkAsPaid = async () => {
 
   if (!activeTenant) {
     return (
-      <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+      <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
         <Sidebar />
         <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
           <Header title="Payment Management" />
@@ -620,13 +647,13 @@ const handleMarkAsPaid = async () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
         <Header title="Payment Management" />
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Summary Cards */}
@@ -1301,7 +1328,7 @@ const handleMarkAsPaid = async () => {
                 </div>
 
                 {/* Detailed Deposits Table */}
-                <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-xl">
                   <table className="w-full text-left text-xs whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wide bg-slate-50">
@@ -1318,31 +1345,15 @@ const handleMarkAsPaid = async () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {contracts.length > 0 ? contracts.map((c, idx) => {
-                        const tenantName = c.tenant || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Tenant';
-                        const leaseStart = c.leaseStart || c.lease_start ? new Date(c.leaseStart || c.lease_start).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A';
-                        const leaseEnd = c.leaseEnd || c.lease_end ? new Date(c.leaseEnd || c.lease_end).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A';
-                        const baseDeposit = parseFloat(c.deposit || c.deposit_amount || 0);
-                        const dmg = parseFloat(c.damage_deduction || 0);
-                        const utl = parseFloat(c.utility_deduction || 0);
-                        const appliedRent = depositApplied(c) ? Math.max(0, baseDeposit - dmg - utl) : 0;
-                        const status = c.deposit_status || 'Pending';
-                        
+                        const { tenantName, unit, leaseStart, leaseEnd, baseDeposit, dmg, utl, appliedRent, status } = depositRowData(c);
+
                         return (
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="py-3.5 px-4 font-bold text-slate-800">{tenantName}</td>
-                            <td className="py-3.5 px-4 text-center font-bold text-indigo-600">{c.unit || c.room_name}</td>
+                            <td className="py-3.5 px-4 text-center font-bold text-indigo-600">{unit}</td>
                             <td className="py-3.5 px-4 text-slate-500">{leaseStart} – {leaseEnd}</td>
                             <td className="py-3.5 px-4 font-semibold text-slate-700">{formatCurrency(baseDeposit)}</td>
-                            <td className="py-3.5 px-4">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                status === 'Applied to Rent' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                                status === 'Not Collected' ? 'bg-slate-100 text-slate-600 border border-slate-200' :
-                                'bg-amber-50 text-amber-700 border border-amber-200'
-                              }`}>
-                                {status}
-                              </span>
-                            </td>
+                            <td className="py-3.5 px-4">{depositStatusBadge(status)}</td>
                             <td className={`py-3.5 px-4 font-semibold ${dmg > 0 ? 'text-red-600' : 'text-slate-400'}`}>{dmg > 0 ? formatCurrency(dmg) : '—'}</td>
                             <td className={`py-3.5 px-4 font-semibold ${utl > 0 ? 'text-red-600' : 'text-slate-400'}`}>{utl > 0 ? formatCurrency(utl) : '—'}</td>
                             <td className="py-3.5 px-4 font-bold text-indigo-600">{appliedRent > 0 ? formatCurrency(appliedRent) : '—'}</td>
@@ -1355,6 +1366,40 @@ const handleMarkAsPaid = async () => {
                     </tbody>
                   </table>
               </div>
+
+                {/* Deposit cards (phones) */}
+                <div className="md:hidden space-y-3">
+                  {contracts.length > 0 ? contracts.map((c, idx) => {
+                    const { tenantName, unit, leaseStart, leaseEnd, baseDeposit, dmg, utl, appliedRent, status } = depositRowData(c);
+                    return (
+                      <div key={idx} className="border border-slate-100 rounded-xl p-4 space-y-2 text-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-800 m-0 truncate">{tenantName}</p>
+                            <p className="text-xs text-slate-500 m-0 mt-0.5"><span className="font-bold text-indigo-600">Unit {unit}</span> · {leaseStart} – {leaseEnd}</p>
+                          </div>
+                          <div className="shrink-0">{depositStatusBadge(status)}</div>
+                        </div>
+                        <dl className="space-y-1.5 m-0 pt-2 border-t border-slate-100">
+                          {[
+                            ['Original deposit', formatCurrency(baseDeposit), 'text-slate-700'],
+                            ['Fixture damages', dmg > 0 ? formatCurrency(dmg) : '—', dmg > 0 ? 'text-red-600' : 'text-slate-400'],
+                            ['Unpaid utilities', utl > 0 ? formatCurrency(utl) : '—', utl > 0 ? 'text-red-600' : 'text-slate-400'],
+                            ['Applied to rent', appliedRent > 0 ? formatCurrency(appliedRent) : '—', 'text-indigo-600'],
+                            ['Refunded', '₱0.00 (Non-Refundable)', 'text-slate-400'],
+                          ].map(([label, value, tone]) => (
+                            <div key={label} className="flex justify-between gap-3">
+                              <dt className="text-slate-500">{label}</dt>
+                              <dd className={`m-0 font-semibold text-right ${tone}`}>{value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    );
+                  }) : (
+                    <div className="py-6 text-center text-slate-400 text-sm">No security deposit transactions registered.</div>
+                  )}
+                </div>
             </div>
             </div>
             </div>
@@ -1371,7 +1416,7 @@ const handleMarkAsPaid = async () => {
             <div className="p-6">
               <h3 className="text-lg font-bold text-slate-800 mb-1 mt-0">Adjust Invoice</h3>
               <p className="text-xs text-slate-500 m-0 mb-4"><span className="font-mono">{adjustForm.invoiceId}</span> · {adjustForm.period}. The change is logged and the tenant is notified of the new total.</p>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 {ADJUST_LINES.map(([key, , label]) => (
                   <div key={key}>
                     <label htmlFor={`adjust-${key}`} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>

@@ -225,17 +225,57 @@ const AdminUsers = () => {
     admin: users.filter(u => u.role === 'admin' && !u.is_archived).length
   };
 
+  // Row actions, shared by the table (md and up) and the phone cards; iconSize keeps
+  // the table compact and gives phones 44px targets.
+  const renderUserActions = (u, iconSize, layout) => (
+    <div className={`flex items-center ${layout}`}>
+      {u.is_self ? (
+        <span className="text-[10px] font-semibold text-slate-400" title="Your own details and password are managed from Account Settings">
+          You · Account Settings
+        </span>
+      ) : statusFilter === 'active' ? (
+        <>
+          <button onClick={() => openEdit(u)} title="Edit"
+            className={`${iconSize} rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
+            <FontAwesomeIcon icon={faEdit} className="text-xs" />
+          </button>
+          <button onClick={() => { setShowResetModal(u.id); setNewPassword(''); }} title="Reset Password"
+            className={`${iconSize} rounded-lg bg-slate-100 hover:bg-amber-100 hover:text-amber-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
+            <FontAwesomeIcon icon={faKey} className="text-xs" />
+          </button>
+          <button
+            onClick={() => handleSetRole(u, u.role === 'admin' ? 'user' : 'admin')}
+            title={u.role === 'admin' ? 'Revoke Admin' : 'Promote to Admin'}
+            className={`${iconSize} rounded-lg flex items-center justify-center border-0 cursor-pointer transition-colors ${u.role === 'admin' ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600' : 'bg-slate-100 hover:bg-violet-100 hover:text-violet-600 text-slate-500'}`}>
+            <FontAwesomeIcon icon={faUserShield} className="text-xs" />
+          </button>
+          {u.role !== 'admin' && (
+            <button onClick={() => setArchiveTarget(u)} title="Archive User"
+              className={`${iconSize} rounded-lg bg-slate-100 hover:bg-amber-50 hover:text-amber-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors`}>
+              <FontAwesomeIcon icon={faTrash} className="text-xs" />
+            </button>
+          )}
+        </>
+      ) : (
+        <button onClick={() => handleRestore(u)} title="Restore User"
+          className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
+          <FontAwesomeIcon icon={faCheck} className="text-[10px]" /> Restore Account
+        </button>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
         <Header title="User Management" />
 
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-6xl mx-auto space-y-6">
 
             {/* Stats Row */}
-            <div className="stagger-children grid grid-cols-3 gap-4">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { label: 'Total Accounts', value: counts.all, color: 'bg-indigo-500' },
                 { label: 'Regular Users', value: counts.user, color: 'bg-slate-500' },
@@ -296,7 +336,8 @@ const AdminUsers = () => {
               ) : filtered.length === 0 ? (
                 <div className="py-20 text-center text-slate-400 text-sm">No users found.</div>
               ) : (
-                <table className="w-full text-sm border-collapse">
+                <>
+                <table className="hidden md:table w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Name</th>
@@ -327,47 +368,41 @@ const AdminUsers = () => {
                         <td className="px-4 py-3">
                           <RoleBadge role={u.role} />
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-end gap-1">
-                            {u.is_self ? (
-                              <span className="text-[10px] font-semibold text-slate-400" title="Your own details and password are managed from Account Settings">
-                                You · Account Settings
-                              </span>
-                            ) : statusFilter === 'active' ? (
-                              <>
-                                <button onClick={() => openEdit(u)} title="Edit"
-                                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors">
-                                  <FontAwesomeIcon icon={faEdit} className="text-xs" />
-                                </button>
-                                <button onClick={() => { setShowResetModal(u.id); setNewPassword(''); }} title="Reset Password"
-                                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-100 hover:text-amber-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors">
-                                  <FontAwesomeIcon icon={faKey} className="text-xs" />
-                                </button>
-                                <button
-                                  onClick={() => handleSetRole(u, u.role === 'admin' ? 'user' : 'admin')}
-                                  title={u.role === 'admin' ? 'Revoke Admin' : 'Promote to Admin'}
-                                  className={`w-7 h-7 rounded-lg flex items-center justify-center border-0 cursor-pointer transition-colors ${u.role === 'admin' ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600' : 'bg-slate-100 hover:bg-violet-100 hover:text-violet-600 text-slate-500'}`}>
-                                  <FontAwesomeIcon icon={faUserShield} className="text-xs" />
-                                </button>
-                                {u.role !== 'admin' && (
-                                  <button onClick={() => setArchiveTarget(u)} title="Archive User"
-                                    className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-amber-50 hover:text-amber-600 text-slate-500 flex items-center justify-center border-0 cursor-pointer transition-colors">
-                                    <FontAwesomeIcon icon={faTrash} className="text-xs" />
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <button onClick={() => handleRestore(u)} title="Restore User"
-                                className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors">
-                                <FontAwesomeIcon icon={faCheck} className="text-[10px]" /> Restore Account
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        <td className="px-4 py-3">{renderUserActions(u, 'w-7 h-7', 'justify-end gap-1')}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+
+                {/* Cards (phones) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {filtered.map(u => (
+                    <div key={u.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {u.first_name.charAt(0)}{u.last_name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-800 m-0 truncate">{u.first_name} {u.middle_name ? u.middle_name.charAt(0) + '. ' : ''}{u.last_name}{u.suffix ? ' ' + u.suffix : ''}</p>
+                            <p className="text-[10px] text-slate-400 m-0">ID #{u.id}</p>
+                          </div>
+                        </div>
+                        <RoleBadge role={u.role} />
+                      </div>
+                      <dl className="space-y-1.5 text-sm m-0">
+                        {[['Email', u.email], ['Contact', u.contact_no || '—'], ['Gender', u.gender || '—']].map(([label, value]) => (
+                          <div key={label} className="flex justify-between gap-3">
+                            <dt className="text-slate-500 shrink-0">{label}</dt>
+                            <dd className="m-0 text-slate-700 text-right break-all">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                      {renderUserActions(u, 'w-11 h-11', 'gap-2')}
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </div>
           </div>
@@ -394,7 +429,7 @@ const AdminUsers = () => {
             </div>
             <form onSubmit={handleSaveEdit} noValidate>
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {EDIT_FIELDS.map(f => {
                   const a11y = editErrors.fieldA11y(f.key);
                   const error = editErrors.errors[f.key];

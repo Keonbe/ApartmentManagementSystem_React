@@ -145,16 +145,16 @@ export default function AdminParking() {
   const dialogValid = dialog && (dialog.mode === 'assign' ? dialog.slot !== '' : dialog.reason.trim().length > 0);
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
         <Header title="Parking Management" />
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Stat cards — all from the database */}
-            <div className="stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="card-interactive rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Slots In Use</span>

@@ -31,6 +31,10 @@ const LOG_CATEGORY_STYLE = {
 };
 
 const formatCurrency = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+// Short form (₱125K) for the bar labels on phones, where six full amounts don't fit.
+const formatCompactCurrency = (n) => `₱${Number(n || 0).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`;
+// Chart tooltips on the first/last month align to the card edge instead of overflowing it.
+const tooltipAlign = (i, count) => (i === 0 ? 'left-0' : i === count - 1 ? 'right-0' : 'left-1/2 -translate-x-1/2');
 
 const formatLogDate = (dateStr) => {
   if (!dateStr) return 'Recently';
@@ -132,17 +136,17 @@ const AdminDashboard = () => {
                               (pendingActions?.maintenance?.length || 0);
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
         <Header title="Admin Dashboard" />
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
-          <div className="max-w-7xl mx-auto space-y-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8">
 
             {/* Core KPI Cards Grid */}
-            <div className="stagger-children grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
               <StatCard 
                 icon={faDollarSign} 
                 title="Monthly Revenue" 
@@ -249,7 +253,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Quick Summary Metrics Ribbon */}
-                <div className="grid grid-cols-3 bg-slate-50/70 border-b border-slate-100 px-6 py-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50/70 border-b border-slate-100 px-4 md:px-6 py-3 text-xs">
                   <div>
                     <span className="text-slate-400 font-medium">6-Mo Total Collected</span>
                     <p className="font-bold text-emerald-600 text-sm m-0 mt-0.5">{formatCurrency(stats.total_6m_collected)}</p>
@@ -291,8 +295,8 @@ const AdminDashboard = () => {
                       </div>
 
                       {/* Stacked Bars */}
-                      <div className="h-48 flex items-end justify-between gap-3 sm:gap-6 px-2 pb-2 mt-2">
-                        {incomeData.map(d => {
+                      <div className="h-48 flex items-end justify-between gap-2 sm:gap-6 px-0 sm:px-2 pb-2 mt-2">
+                        {incomeData.map((d, i) => {
                           const totalBilled = Math.max((d.collected || 0) + (d.pending || 0), d.billed || 0);
                           const barContainerPx = 192; // h-48 = 12rem = 192px
                           const dynamicHeight = totalBilled > 0 ? `${Math.max((totalBilled / maxValue) * barContainerPx, 14)}px` : '4px';
@@ -303,11 +307,11 @@ const AdminDashboard = () => {
                           return (
                             <div 
                               key={d.key || d.month} 
-                              className="flex flex-col items-center flex-1 gap-2 group relative cursor-pointer" 
+                              className="flex flex-col items-center flex-1 min-w-0 gap-2 group relative cursor-pointer"
                               onClick={() => setSelectedMonth(isSelected ? null : d.month)}
                             >
                               {/* Hover / Active Tooltip */}
-                              <div className={`absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] p-2.5 rounded-lg shadow-xl transition-all z-50 w-36 pointer-events-none ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 translate-y-2'}`}>
+                              <div className={`absolute bottom-full mb-2 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-[11px] p-2.5 rounded-lg shadow-xl transition-all z-50 w-36 pointer-events-none ${isSelected ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 group-hover:-translate-y-1 translate-y-2'}`}>
                                 <p className="font-bold text-slate-200 border-b border-slate-700 pb-1 mb-1.5">{d.full_month || d.month}</p>
                                 <div className="flex justify-between mb-1"><span className="text-slate-400">Collected:</span><span className="font-bold text-emerald-400">{formatCurrency(d.collected)}</span></div>
                                 <div className="flex justify-between mb-1"><span className="text-slate-400">Pending:</span><span className="font-bold text-amber-400">{formatCurrency(d.pending)}</span></div>
@@ -315,8 +319,9 @@ const AdminDashboard = () => {
                               </div>
                               
                               {/* Amount Label above bar */}
-                              <span className="text-[10px] font-semibold text-slate-400 group-hover:text-slate-700 transition-colors">
-                                {totalBilled > 0 ? formatCurrency(totalBilled) : '₱0'}
+                              <span className="text-[10px] font-semibold text-slate-400 group-hover:text-slate-700 transition-colors whitespace-nowrap">
+                                <span className="sm:hidden">{formatCompactCurrency(totalBilled)}</span>
+                                <span className="hidden sm:inline">{totalBilled > 0 ? formatCurrency(totalBilled) : '₱0'}</span>
                               </span>
 
                               {/* The Stacked Bar */}
@@ -377,7 +382,7 @@ const AdminDashboard = () => {
                                 style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
                                 onClick={() => setSelectedMonth(isSelected ? null : d.month)}
                               >
-                                <div className={`absolute -top-16 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg opacity-0 transition-all z-30 w-32 pointer-events-none ${isSelected ? 'opacity-100' : 'group-hover:opacity-100'}`}>
+                                <div className={`absolute -top-16 ${tooltipAlign(i, incomeData.length)} bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg opacity-0 transition-all z-30 w-32 pointer-events-none ${isSelected ? 'opacity-100' : 'group-hover:opacity-100'}`}>
                                   <p className="font-bold text-slate-200 m-0 mb-1">{d.full_month || d.month}</p>
                                   <div className="flex justify-between"><span className="text-slate-400">Collected</span><span className="font-bold text-emerald-400">{formatCurrency(d.collected)}</span></div>
                                   <div className="flex justify-between"><span className="text-slate-400">Pending</span><span className="font-bold text-amber-400">{formatCurrency(d.pending)}</span></div>
@@ -455,7 +460,7 @@ const AdminDashboard = () => {
                             {activeMonthData.count || 0} Invoice{activeMonthData.count !== 1 ? 's' : ''}
                           </span>
                         </div>
-                        <div className="flex gap-4 mt-1 text-slate-600 text-xs">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-slate-600 text-xs">
                           <span>Collected: <strong className="text-emerald-700">{formatCurrency(activeMonthData.collected)}</strong></span>
                           <span>Pending: <strong className="text-amber-700">{formatCurrency(activeMonthData.pending)}</strong></span>
                           <span>Billed: <strong>{formatCurrency(Math.max((activeMonthData.collected || 0) + (activeMonthData.pending || 0), activeMonthData.billed || 0))}</strong></span>

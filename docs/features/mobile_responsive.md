@@ -65,7 +65,7 @@ You are an expert Frontend Engineer tasked with implementing full mobile respons
    - Add sufficient spacing (`gap-4` or `space-y-4`) to prevent accidental mis-taps.
 
 5. **Responsive Navigation & Sidebars**
-   - Layouts containing sidebars (such as `AdminSidebar.jsx` or user dashboard menus) must collapse to a hamburger-activated drawer, bottom navigation bar, or scrollable horizontal menu on screens below `md` (768px).
+   - Layouts containing sidebars (such as `AdminSidebar.jsx` or user dashboard menus) must collapse to a hamburger-activated drawer, bottom navigation bar, or scrollable horizontal menu on small screens. The admin sidebar collapses below `lg` (1024px), so tablets get the full content width; user menus below `md` (768px).
    - Use CSS state transitions: `transition-all duration-300 ease-in-out` for showing/hiding side drawers.
 
 6. **Responsive Tables & Modals**
@@ -80,6 +80,18 @@ You are an expert Frontend Engineer tasked with implementing full mobile respons
 Please refactor/create components adhering strictly to these domain-scoped guidelines.
 
 ```
+
+---
+
+## As built: admin pages
+
+Each admin page in `src/AdminPages/` renders its own `<Sidebar/>` + `<Header/>` shell (there is no shared layout component). The responsive behaviour is:
+
+- **Sidebar / header**: `AdminSidebar.jsx` is pinned at `lg` and up; below that it is an off-canvas drawer with a backdrop, opened by the header hamburger (`toggle-admin-sidebar` event). Backdrop click, Escape, or navigating closes it; the page behind it does not scroll while open. Touch sizing for both lives in `admin-sidebar.responsive.css` / `admin-header.responsive.css` (`max-width: 1023px`).
+- **Page shell**: every page root carries `admin-shell`; the scroll container uses `p-4 sm:p-6 lg:p-8`.
+- **Phone rules** (`admin/admin-shell.responsive.css`, below 768px, scoped to `.admin-shell`, imported once from `AdminSidebar.jsx`): tables in `.table-scroll-x` / `.overflow-x-auto` get `min-width: 640px` and scroll (tables with their own `min-w-*` keep it); `.modal-card-anim` dialogs cap at `92dvh` and scroll inside; inputs/selects/textareas and buttons are at least 44px tall (opt a button out with `touch-compact`; `role="switch"` toggles are excluded).
+- **Card lists below `md`**: Tenants, Applications (table view), Users and the Payments deposits table hide the table and render the same rows as Label: Value cards, sharing the row's render helpers and handlers. Every other table scrolls.
+- **Grids**: stat cards go `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4` (dashboard KPIs `… lg:grid-cols-3 2xl:grid-cols-6`); form pairs inside modals go `grid-cols-1 sm:grid-cols-2`.
 
 ---
 

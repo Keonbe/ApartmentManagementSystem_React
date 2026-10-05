@@ -410,12 +410,110 @@ const AdminTenants = () => {
     setShowProfileModal(true);
   };
 
+  // Shared by the table (md and up) and the card list (phones).
+  // Payment standing from real invoices (checklist 8.4)
+  const renderPaymentStanding = (t) => (t.status !== 'archived' && t.paymentStatus) ? (
+    <div className="mt-1">
+      {t.paymentStatus === 'overdue' ? (
+        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200" title={`${t.daysOverdue} day(s) past due`}>
+          Overdue ₱{Number(t.overdueBalance).toLocaleString()}
+        </span>
+      ) : t.paymentStatus === 'due' ? (
+        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          Due ₱{Number(t.outstandingBalance).toLocaleString()}
+        </span>
+      ) : (
+        <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          Paid up
+        </span>
+      )}
+    </div>
+  ) : null;
+
+  const renderTenantDetails = (t) => (
+    t.status === 'archived' ? (
+      <div>
+        <div>Archived: {t.archiveDate}</div>
+        <div className="text-[10px] text-violet-500 font-semibold">{t.archiveReason}</div>
+      </div>
+    ) : t.status === 'Pending Review' ? (
+      <span className="text-slate-400">Move-in date pending</span>
+    ) : t.status === 'Approved' ? (
+      <span className="text-sky-600 font-semibold">Pending move-in payment</span>
+    ) : t.leaseEnd ? (
+      <div>
+        <div>Rent ends: {t.leaseEnd}</div>
+        {daysRemaining(t.leaseEnd) > 0 && (
+          <div className={`text-[10px] font-semibold ${daysRemaining(t.leaseEnd) <= 30 ? 'text-red-500' : 'text-slate-400'}`}>
+            {daysRemaining(t.leaseEnd)} days remaining
+          </div>
+        )}
+      </div>
+    ) : t.status === 'pending-move-out' ? (
+      <div>
+        <div>Scheduled Out: {t.requestedMoveOutDate}</div>
+        {daysRemaining(t.requestedMoveOutDate) > 0 ? (
+          <div className="text-[10px] text-amber-600 font-semibold">
+            {daysRemaining(t.requestedMoveOutDate)} days notice
+          </div>
+        ) : (
+          <div className="text-[10px] text-red-500 font-semibold">Notice expired / due today</div>
+        )}
+      </div>
+    ) : (
+      <span className="text-slate-300">—</span>
+    )
+  );
+
+  const renderTenantActions = (t) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        onClick={() => openProfile(t)}
+        className="flex items-center gap-1.5 text-indigo-600 font-semibold border-0 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+      >
+        <FontAwesomeIcon icon={faEye} className="text-[10px]" /> View
+      </button>
+      {t.status === 'moved-out' && (
+        <button
+          onClick={() => openArchiveModal(t)}
+          className="flex items-center gap-1.5 text-violet-600 font-semibold border-0 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+        >
+          <FontAwesomeIcon icon={faArchive} className="text-[10px]" /> Archive
+        </button>
+      )}
+      {t.status === 'archived' && (
+        <button
+          onClick={() => handleRestoreTenant(t.id)}
+          className="flex items-center gap-1.5 text-emerald-600 font-semibold border-0 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+        >
+          <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Restore Tenant
+        </button>
+      )}
+      {t.status === 'active' && (
+        <button
+          onClick={() => handleInitiateMoveOutClick(t)}
+          className="flex items-center gap-1.5 text-amber-600 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+        >
+          <FontAwesomeIcon icon={faSignOutAlt} className="text-[10px]" /> Move Out
+        </button>
+      )}
+      {t.status === 'pending-move-out' && (
+        <button
+          onClick={() => openClearanceModal(t)}
+          className="flex items-center gap-1.5 text-slate-600 font-semibold border-0 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
+        >
+          <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Complete Move Out
+        </button>
+      )}
+    </div>
+  );
+
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
         <Header title="Tenant Management" />
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Search Bar */}
@@ -486,7 +584,7 @@ const AdminTenants = () => {
             </div>
 
             {/* Tenant Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm table-scroll-x">
+            <div className="hidden md:block bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm table-scroll-x">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
@@ -518,106 +616,54 @@ const AdminTenants = () => {
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-bold text-indigo-600">Unit {t.unit}</span>
-                        {/* Payment standing from real invoices (checklist 8.4) */}
-                        {t.status !== 'archived' && t.paymentStatus && (
-                          <div className="mt-1">
-                            {t.paymentStatus === 'overdue' ? (
-                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200" title={`${t.daysOverdue} day(s) past due`}>
-                                Overdue ₱{Number(t.overdueBalance).toLocaleString()}
-                              </span>
-                            ) : t.paymentStatus === 'due' ? (
-                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                                Due ₱{Number(t.outstandingBalance).toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Paid up
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        {renderPaymentStanding(t)}
                       </td>
                       <td className="px-4 py-3">{getOccupancyBadge(t.status)}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {t.status === 'archived' ? (
-                          <div>
-                            <div>Archived: {t.archiveDate}</div>
-                            <div className="text-[10px] text-violet-500 font-semibold">{t.archiveReason}</div>
-                          </div>
-                        ) : t.status === 'Pending Review' ? (
-                          <span className="text-slate-400">Move-in date pending</span>
-                        ) : t.status === 'Approved' ? (
-                          <span className="text-sky-600 font-semibold">Pending move-in payment</span>
-                        ) : t.leaseEnd ? (
-                          <div>
-                            <div>Rent ends: {t.leaseEnd}</div>
-                            {daysRemaining(t.leaseEnd) > 0 && (
-                              <div className={`text-[10px] font-semibold ${daysRemaining(t.leaseEnd) <= 30 ? 'text-red-500' : 'text-slate-400'}`}>
-                                {daysRemaining(t.leaseEnd)} days remaining
-                              </div>
-                            )}
-                          </div>
-                        ) : t.status === 'pending-move-out' ? (
-                          <div>
-                            <div>Scheduled Out: {t.requestedMoveOutDate}</div>
-                            {daysRemaining(t.requestedMoveOutDate) > 0 ? (
-                              <div className="text-[10px] text-amber-600 font-semibold">
-                                {daysRemaining(t.requestedMoveOutDate)} days notice
-                              </div>
-                            ) : (
-                              <div className="text-[10px] text-red-500 font-semibold">Notice expired / due today</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => openProfile(t)} 
-                            className="flex items-center gap-1.5 text-indigo-600 font-semibold border-0 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
-                          >
-                            <FontAwesomeIcon icon={faEye} className="text-[10px]" /> View
-                          </button>
-                          {t.status === 'moved-out' && (
-                            <button 
-                              onClick={() => openArchiveModal(t)}
-                              className="flex items-center gap-1.5 text-violet-600 font-semibold border-0 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
-                            >
-                              <FontAwesomeIcon icon={faArchive} className="text-[10px]" /> Archive
-                            </button>
-                          )}
-                          {t.status === 'archived' && (
-                            <button 
-                              onClick={() => handleRestoreTenant(t.id)}
-                              className="flex items-center gap-1.5 text-emerald-600 font-semibold border-0 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
-                            >
-                              <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Restore Tenant
-                            </button>
-                          )}
-                          {t.status === 'active' && (
-                            <button 
-                              onClick={() => handleInitiateMoveOutClick(t)}
-                              className="flex items-center gap-1.5 text-amber-600 font-semibold border-0 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
-                            >
-                              <FontAwesomeIcon icon={faSignOutAlt} className="text-[10px]" /> Move Out
-                            </button>
-                          )}
-                          {t.status === 'pending-move-out' && (
-                            <button 
-                              onClick={() => openClearanceModal(t)}
-                              className="flex items-center gap-1.5 text-slate-600 font-semibold border-0 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
-                            >
-                              <FontAwesomeIcon icon={faCheckCircle} className="text-[10px]" /> Complete Move Out
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{renderTenantDetails(t)}</td>
+                      <td className="px-4 py-3">{renderTenantActions(t)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Tenant Cards (phones) */}
+            <div className="md:hidden space-y-3">
+              {displayed.length === 0 && (
+                <div className="bg-white border border-slate-200 rounded-xl text-center py-12 text-slate-400 text-sm">No tenants found matching your criteria.</div>
+              )}
+              {displayed.map((t, idx) => (
+                <div key={t.id || idx} className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold ${
+                        t.status === 'archived' ? 'bg-violet-100 text-violet-700' : 'bg-indigo-100 text-indigo-700'
+                      }`}>
+                        {(t.name || '').charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-800 truncate">{t.name}</div>
+                        <div className="text-[11px] text-slate-400 truncate">{t.email}</div>
+                      </div>
+                    </div>
+                    <div className="shrink-0">{getOccupancyBadge(t.status)}</div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-500">Unit</span>
+                      <div className="text-right">
+                        <span className="font-bold text-indigo-600">Unit {t.unit}</span>
+                        {renderPaymentStanding(t)}
+                      </div>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-500">Details</span>
+                      <div className="text-right text-xs text-slate-500">{renderTenantDetails(t)}</div>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-slate-100">{renderTenantActions(t)}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -677,12 +723,12 @@ const AdminTenants = () => {
             </div>
 
             {/* Tab Content */}
-            <div className="flex-1 overflow-y-auto p-6 bg-white">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white">
               
               {/* Overview Tab */}
               {profileTab === 'overview' && (
                 <div className="space-y-5">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Full Name</p>
                       <p className="text-sm font-medium text-slate-700 m-0">{selectedTenant.name}</p>

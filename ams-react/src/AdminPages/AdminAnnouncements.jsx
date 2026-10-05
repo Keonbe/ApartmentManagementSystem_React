@@ -197,13 +197,13 @@ const AdminAnnouncements = () => {
   const sendLabel = specific ? (form.unit ? `Send to Unit ${form.unit}` : 'Send to unit') : 'Send to all tenants';
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left bg-slate-50">
         <Header title="Announcements" />
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-4xl mx-auto space-y-6">
 
             {/* Compose Announcement */}

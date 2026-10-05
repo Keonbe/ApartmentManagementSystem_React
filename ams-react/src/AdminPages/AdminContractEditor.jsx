@@ -1208,7 +1208,7 @@ const AdminContractEditor = ({ embedded = false }) => {
   }
 
   return (
-    <div className="flex h-screen w-full font-sans bg-slate-50 text-slate-900 print:h-auto print:block print:bg-white print:overflow-visible">
+    <div className="admin-shell flex h-screen w-full font-sans bg-slate-50 text-slate-900 print:h-auto print:block print:bg-white print:overflow-visible">
       <div className="print:hidden">
         <Sidebar />
       </div>
@@ -1216,7 +1216,7 @@ const AdminContractEditor = ({ embedded = false }) => {
         <div className="print:hidden">
           <Header title="Contract Editor" />
         </div>
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 print:p-0 print:overflow-visible print:block">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 print:p-0 print:overflow-visible print:block">
           <div className="max-w-6xl mx-auto print:max-w-none print:m-0 print:p-0">
             {editorContent}
           </div>

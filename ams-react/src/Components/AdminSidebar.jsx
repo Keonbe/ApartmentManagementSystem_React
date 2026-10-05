@@ -9,6 +9,8 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
+// Phone rules for every admin page (.admin-shell): every page renders this sidebar.
+import '../assets/styles/responsive/admin/admin-shell.responsive.css';
 
 const defaultNavSections = [
   {
@@ -116,6 +118,23 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
     };
   }, []);
 
+  // While the drawer is open: Escape closes it and the page behind it does not scroll.
+  useEffect(() => {
+    if (!isDrawerOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (propOnClose) propOnClose();
+      setInternalIsOpen(false);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [isDrawerOpen, propOnClose]);
+
   const isItemVisible = (item) => {
     if (!item.serviceKey) return true; // Always visible for core items
     const val = settings[item.serviceKey];
@@ -183,7 +202,7 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex h-full text-left shrink-0 select-none border-r border-slate-800 print:hidden">
+      <aside className="w-64 bg-slate-900 text-slate-300 flex-col hidden lg:flex h-full text-left shrink-0 select-none border-r border-slate-800 print:hidden">
         {renderNavContent(false)}
       </aside>
 
@@ -191,14 +210,14 @@ const Sidebar = ({ isOpen: propIsOpen, onClose: propOnClose }) => {
       {isDrawerOpen && (
         <div 
           onClick={handleClose}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden transition-opacity modal-overlay-anim print:hidden"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity modal-overlay-anim print:hidden"
           aria-hidden="true"
         />
       )}
 
       {/* Mobile Slide-Out Drawer */}
       <aside 
-        className={`admin-sidebar-mobile-drawer fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-slate-900 text-slate-300 flex flex-col h-full text-left md:hidden transform transition-transform duration-300 ease-in-out select-none print:hidden ${
+        className={`admin-sidebar-mobile-drawer fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-slate-900 text-slate-300 flex flex-col h-full text-left lg:hidden transform transition-transform duration-300 ease-in-out select-none print:hidden ${
           isDrawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         aria-label="Mobile Navigation"

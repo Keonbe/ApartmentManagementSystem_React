@@ -412,20 +412,20 @@ const AdminServicePage = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
         <Header title="Service Management" />
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
-          <div className="mx-auto max-w-7xl space-y-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-7xl space-y-6 lg:space-y-8">
 
             {/*HeroBanner*/}
             <section className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-600 via-indigo-500 to-blue-500 p-6 text-white shadow-sm">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div className="max-w-2xl">
                   <p className="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-indigo-100">Admin Control Center</p>
-                  <h2 className="text-2xl font-semibold">Manage optional tenant modules and review incoming requests.</h2>
+                  <h2 className="text-xl md:text-2xl font-semibold">Manage optional tenant modules and review incoming requests.</h2>
                   <p className="mt-2 text-sm text-indigo-100">
                     Enable or disable modular features for tenant portals in real-time.
                   </p>
@@ -543,7 +543,7 @@ const AdminServicePage = () => {
                                   type="button"
                                   onClick={() => handleToggleCatalogItem(item)}
                                   title={item.isActive ? 'Hide from tenants' : 'Make bookable'}
-                                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${item.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                  className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${item.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
                                 >
                                   <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${item.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
@@ -954,7 +954,7 @@ const ServiceCard = ({ service, onToggle }) => {
             type="button"
             disabled
             title="Core module is always enabled"
-            className="relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center rounded-full border-2 border-transparent bg-indigo-600 opacity-80"
+            className="touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center rounded-full border-2 border-transparent bg-indigo-600 opacity-80"
           >
             <span className="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 translate-x-5" />
           </button>
@@ -962,7 +962,7 @@ const ServiceCard = ({ service, onToggle }) => {
           <button
             type="button"
             onClick={onToggle}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
+            className={`touch-compact relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${service.isActive ? 'bg-indigo-600' : 'bg-slate-300'}`}
           >
             <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${service.isActive ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>

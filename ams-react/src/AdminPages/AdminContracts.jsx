@@ -492,7 +492,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 print:h-auto print:block print:bg-white print:overflow-visible">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900 print:h-auto print:block print:bg-white print:overflow-visible">
       <div className="print:hidden">
         <Sidebar />
       </div>
@@ -502,7 +502,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           <Header title="Contracts" />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 print:p-0 print:overflow-visible print:block">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 print:p-0 print:overflow-visible print:block">
           <div className="max-w-6xl mx-auto space-y-6 print:space-y-0 print:max-w-none print:m-0 print:p-0">
 
             {/* Top Navigation Tabs: Contracts Management vs Contract Template Editor */}
@@ -721,7 +721,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
 
               {createStep === 2 && (
                 <>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="contract-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
                       <input type="number" id="contract-rent" name="rent" inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={form.rent} onKeyDown={blockNonNumericKeys} onChange={e => setForm(p => ({...p, rent: e.target.value}))} className={DATE_INPUT} />
@@ -736,7 +736,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       <FieldError id="contract-deposit" error={contractErrors.errors.deposit} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="contract-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent Start *</label>
                       <input type="date" {...contractErrors.fieldA11y('leaseStart')} max={maxFutureDate()} value={form.leaseStart}

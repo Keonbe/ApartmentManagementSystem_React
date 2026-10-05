@@ -544,7 +544,7 @@ const AdminReports = () => {
 
   if (loading || !data) {
     return (
-      <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+      <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
         <div className="print:hidden">
           <Sidebar />
         </div>
@@ -564,7 +564,7 @@ const AdminReports = () => {
   }
 
   return (
-    <div className={`flex min-h-screen bg-slate-50 font-sans text-slate-900 ${showInvoiceModal ? 'print:h-auto print:overflow-visible print:bg-white' : 'h-screen overflow-hidden print:h-auto print:overflow-visible print:bg-white'}`}>
+    <div className={`admin-shell flex min-h-screen bg-slate-50 font-sans text-slate-900 ${showInvoiceModal ? 'print:h-auto print:overflow-visible print:bg-white' : 'h-screen overflow-hidden print:h-auto print:overflow-visible print:bg-white'}`}>
       {/* Sidebar (Hidden on Print) */}
       <div className="print:hidden">
         <Sidebar />
@@ -578,7 +578,7 @@ const AdminReports = () => {
         </div>
 
         {/* Dashboard Workspace */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 print:p-0 print:overflow-visible print:h-auto">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 print:p-0 print:overflow-visible print:h-auto">
           <div className="max-w-7xl mx-auto space-y-6 print:space-y-4 print:max-w-none print:w-full">
             
             {/* PRINT-ONLY BUSINESS REPORT HEADER */}

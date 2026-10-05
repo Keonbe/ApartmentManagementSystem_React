@@ -117,7 +117,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
   const unreadCount = notifications.filter(n => !Number(n.is_read)).length;
 
   return (
-    <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 select-none relative z-40 print:hidden">
+    <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 lg:px-8 shrink-0 select-none relative z-40 print:hidden">
 
       {/* Left Area: Hamburger + Title */}
       <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
@@ -125,7 +125,7 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
           type="button"
           onClick={handleToggle}
           aria-label="Open Navigation Menu"
-          className="admin-header-hamburger btn-interactive text-slate-700 hover:text-indigo-600 md:hidden bg-transparent border-0 cursor-pointer p-2 flex items-center justify-center text-lg focus:outline-none shrink-0"
+          className="admin-header-hamburger btn-interactive text-slate-700 hover:text-indigo-600 lg:hidden bg-transparent border-0 cursor-pointer p-2 flex items-center justify-center text-lg focus:outline-none shrink-0"
         >
           <FontAwesomeIcon icon={faBars} />
         </button>

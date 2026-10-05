@@ -286,7 +286,7 @@ const AdminAccountSettings = () => {
   const showSaveBar = activeTab !== 'account' && isDirty;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">

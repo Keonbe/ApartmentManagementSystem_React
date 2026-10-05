@@ -77,16 +77,16 @@ export default function AdminCctv() {
   const rejectedCount = requests.filter(r => r.status === 'Rejected').length;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
         <Header title="CCTV Footage Requests" />
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Top Stat Cards */}
-            <div className="stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Filings</span>

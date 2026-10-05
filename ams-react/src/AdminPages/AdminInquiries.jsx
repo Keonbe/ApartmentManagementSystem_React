@@ -385,15 +385,15 @@ export default function AdminInquiries() {
   const tabs = view === 'inquiries' ? INQUIRY_TABS : RESERVATION_TABS;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
         <Header title="Inquiries & Reservations" />
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl space-y-6">
 
             {/* Stat Cards */}
-            <div className="stagger-children grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="card-interactive rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Total Inquiries</span>
@@ -724,7 +724,7 @@ export default function AdminInquiries() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-white rounded-xl p-3.5 border border-slate-200">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faEnvelope} className="mr-1" /> Email</p>
                   <p className="text-sm font-semibold text-slate-800 m-0 break-all">{selected.email}</p>
@@ -933,7 +933,7 @@ export default function AdminInquiries() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="reserve-hold_days" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Hold Period (days)</label>
                   {/* Kept as typed: Number('') used to turn an empty field into 0. */}

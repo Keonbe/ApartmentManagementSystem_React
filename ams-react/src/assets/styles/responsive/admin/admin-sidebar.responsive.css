@@ -21,7 +21,7 @@
   background: rgba(148, 163, 184, 0.4);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   .admin-sidebar-mobile-drawer {
     box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5) !important;
   }

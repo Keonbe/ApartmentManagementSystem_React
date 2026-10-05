@@ -1,0 +1,38 @@
+/* =====================================================
+   ADMIN PAGE SHELL — admin-shell.responsive.css
+   Domain: admin
+   Scope: the root div of every admin page carries .admin-shell.
+   Imported once from AdminSidebar.jsx (every admin page renders it).
+   Unlayered rules, so they win over Tailwind utilities without !important.
+   ===================================================== */
+
+@media (max-width: 767px) {
+  /* Wide tables scroll inside their card instead of squashing their columns.
+     Tables that already set their own min-w-* keep it. */
+  .admin-shell .table-scroll-x > table:not([class*="min-w-"]),
+  .admin-shell .overflow-x-auto > table:not([class*="min-w-"]) {
+    min-width: 640px;
+  }
+
+  /* Dialogs: nearly full width, never taller than the screen. */
+  .admin-shell .modal-card-anim {
+    width: calc(100% - 1.5rem);
+    max-height: 92dvh;
+    overflow-y: auto;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Touch targets. 16px text keeps iOS from zooming into focused fields. */
+  .admin-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  .admin-shell select,
+  .admin-shell textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  /* .touch-compact opts a button out (toggle switches, dense pills). */
+  .admin-shell button:not(.touch-compact):not([role="switch"]) {
+    min-height: 44px;
+  }
+}

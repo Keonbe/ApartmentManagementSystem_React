@@ -291,6 +291,24 @@ const AdminApplications = () => {
     return name ? name.charAt(0).toUpperCase() : '?';
   };
 
+  // Shared by the table row (md and up) and the phone card.
+  const renderApplicantAvatar = (app) => (
+    app.avatar_url ? (
+      <img
+        src={fileUrl(app.avatar_url)}
+        alt="Avatar"
+        className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 shadow-inner"
+      />
+    ) : (
+      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 shadow-inner ${
+        app.status === 'Pending Review' || app.status === 'Pending Deposit' ? 'bg-indigo-500' :
+        app.status === 'active' || app.status === 'Approved' ? 'bg-emerald-500' : 'bg-red-500'
+      }`}>
+        {getInitials(app.name)}
+      </div>
+    )
+  );
+
   const renderStatusBadge = (status) => {
     const norm = String(status || '').toLowerCase();
     if (norm === 'pending review' || norm === 'pending deposit') {
@@ -389,11 +407,11 @@ const AdminApplications = () => {
   );
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
         <Header title="Rent Applications Tracker" />
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Header Area */}
@@ -595,7 +613,7 @@ const AdminApplications = () => {
             {/* Table View (Horizontal Orientation) */}
             {!loading && viewMode === 'table' && (
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm table-scroll-x">
-                <table className="w-full text-sm">
+                <table className="hidden md:table w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-left">
                       <th className="px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Applicant</th>
@@ -634,20 +652,7 @@ const AdminApplications = () => {
                           {/* Applicant */}
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-3">
-                              {app.avatar_url ? (
-                                <img 
-                                  src={fileUrl(app.avatar_url)} 
-                                  alt="Avatar" 
-                                  className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 shadow-inner"
-                                />
-                              ) : (
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 shadow-inner ${
-                                  app.status === 'Pending Review' || app.status === 'Pending Deposit' ? 'bg-indigo-500' : 
-                                  app.status === 'active' || app.status === 'Approved' ? 'bg-emerald-500' : 'bg-red-500'
-                                }`}>
-                                  {getInitials(app.name)}
-                                </div>
-                              )}
+                              {renderApplicantAvatar(app)}
                               <div className="min-w-0">
                                 <div className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors flex items-center gap-2">
                                   <span className="truncate">{app.name}</span>
@@ -720,6 +725,62 @@ const AdminApplications = () => {
                     )}
                   </tbody>
                 </table>
+
+                {/* Cards (phones) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                  {filteredApps.length === 0 ? (
+                    <div className="text-center py-12 px-4 text-slate-400 text-sm">
+                      <FontAwesomeIcon icon={faSearch} className="text-slate-300 text-2xl mb-2 block mx-auto" />
+                      No applications found matching your criteria.
+                      {selectedStatuses.length < STATUS_OPTIONS.length && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStatuses(STATUS_OPTIONS.map(s => s.id))}
+                          className="block mx-auto mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-transparent border-0 cursor-pointer"
+                        >
+                          Reset status filters
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    filteredApps.map((app) => (
+                      <div key={app.id} className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {renderApplicantAvatar(app)}
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-800 truncate">{app.name}</div>
+                              <div className="text-xs text-slate-400 truncate">{app.email || '—'}</div>
+                            </div>
+                          </div>
+                          <div className="shrink-0">{renderStatusBadge(app.status)}</div>
+                        </div>
+                        <dl className="space-y-1.5 text-sm m-0">
+                          {[
+                            ['Unit', <span className="font-bold text-slate-700">Unit {app.unit} · <span className="text-indigo-600">{app.rent}</span></span>],
+                            ['Terms', `${app.occupants} Person(s) · ${app.months_of_rent} Months`],
+                            ['Move in by', getMoveInDisplay(app)],
+                            ['Applied on', app.created_at ? new Date(app.created_at).toLocaleDateString() : '—'],
+                            ...(app.phone ? [['Phone', app.phone]] : []),
+                          ].map(([label, value]) => (
+                            <div key={label} className="flex justify-between gap-3">
+                              <dt className="text-slate-500 shrink-0">{label}</dt>
+                              <dd className="m-0 text-slate-700 text-right">{value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <button
+                          type="button"
+                          onClick={() => openProfile(app)}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold text-sm transition-all border border-indigo-200 hover:border-indigo-600 cursor-pointer"
+                        >
+                          <FontAwesomeIcon icon={faEye} />
+                          <span>Review</span>
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             )}
 
@@ -831,7 +892,7 @@ const AdminApplications = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-50 space-y-8">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50 space-y-6 sm:space-y-8">
               
               {['Rejected', 'Declined', 'Cancelled'].includes(selectedApp.status) && selectedApp.rejection_reason && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-2.5 text-red-800">

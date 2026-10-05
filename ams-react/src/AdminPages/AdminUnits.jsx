@@ -320,13 +320,13 @@ const AdminUnits = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
       <Sidebar />
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden text-left">
         <Header title="Unit Management" />
 
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
 
             {/* Top Bar */}
@@ -491,7 +491,7 @@ const AdminUnits = () => {
               {addUnitError && (
                 <div role="alert" className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{addUnitError}</div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[['id', 'Unit Number *', 'e.g. 6A'], ['floor', 'Floor *', 'e.g. 6F']].map(([key, label, placeholder]) => (
                   <div key={key}>
                     <label htmlFor={`unit-${key}`} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>
@@ -503,7 +503,7 @@ const AdminUnits = () => {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="unit-type" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Type *</label>
                   <select {...unitErrors.fieldA11y('type')} value={unitForm.type} onChange={e => { setUnitForm({ ...unitForm, type: e.target.value }); unitErrors.clearError('type'); }} className={FIELD_CLS + invalidCls(unitErrors.errors.type)}>
@@ -568,7 +568,7 @@ const AdminUnits = () => {
                 </select>
                 <FieldError id="assign-userId" error={assignErrors.errors.userId} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="assign-moveIn" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Move-in Date *</label>
                   <input type="date" {...assignErrors.fieldA11y('moveIn')} min={localDateString()} max={maxFutureDate()} value={assignForm.moveIn}
@@ -783,7 +783,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-white">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white">
           {activeTab === 'overview' && (
             <div className="space-y-5">
               <div className={`rounded-xl p-4 border ${unit.status === 'occupied' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
@@ -800,7 +800,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <DetailField label="Unit Number" value={unit.id} />
                 <DetailField label="Type" value={unit.type} />
                 <DetailField label="Floor" value={unit.floor} />
@@ -971,7 +971,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   ) : (
                     <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
                       <h4 className="text-sm font-semibold text-slate-800 m-0">Extend Rent</h4>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label htmlFor="extend-newLeaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent End *</label>
                           <input type="date" {...extendErrors.fieldA11y('newLeaseEnd')} min={unit.leaseEnd || localDateString()} max={maxFutureDate()} value={extendForm.newLeaseEnd}
