@@ -11,19 +11,39 @@ const PAYMENT_MODES = [
   { value: 'sandbox', label: 'Sandbox only', hint: 'PayMongo test mode' },
 ];
 
-function ChannelRow({ label, sublabel, checked, onChange }) {
+// A channel outside the current mode's family is never offered to tenants
+// (get_payment_channels.php), so it renders unchecked and locked; the saved
+// value is kept and comes back when the mode is switched again.
+function ChannelRow({ label, sublabel, checked, onChange, disabled = false }) {
   return (
-    <label className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+    <label className={`flex items-center justify-between gap-3 p-2 rounded-lg transition-colors ${
+      disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 cursor-pointer'
+    }`}>
       <span>
         <span className="text-xs font-medium text-slate-700 block">{label}</span>
         {sublabel && <span className="text-[10px] text-slate-400">{sublabel}</span>}
       </span>
-      <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} className={CHECKBOX} />
+      <input
+        type="checkbox"
+        checked={!disabled && !!checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className={`${CHECKBOX} disabled:cursor-not-allowed`}
+      />
     </label>
   );
 }
 
+function ModeBadge({ active, mode }) {
+  return active
+    ? <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-semibold">Active</span>
+    : <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-semibold">Off in {mode} mode</span>;
+}
+
 export default function PaymentsPanel({ settings, updateSetting }) {
+  const isSandbox = settings.paymentMode === 'sandbox';
+  const modeName = isSandbox ? 'Sandbox' : 'Manual';
+
   return (
     <>
       <SettingsSection
@@ -109,35 +129,32 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           <div className="p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Manual & In-Person</span>
-              <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">Offline / Verification</span>
+              <ModeBadge active={!isSandbox} mode={modeName} />
             </div>
             <div className="space-y-1">
-              <ChannelRow label="GCash (Receipt Upload)" checked={settings.paymentChGcashManual} onChange={(v) => updateSetting('paymentChGcashManual', v)} />
-              <ChannelRow label="BDO / BPI Bank Transfer (Receipt Upload)" checked={settings.paymentChBankManual} onChange={(v) => updateSetting('paymentChBankManual', v)} />
-              <ChannelRow label="In-Person Payment" sublabel="Scheduled management office visit" checked={settings.paymentChInPerson} onChange={(v) => updateSetting('paymentChInPerson', v)} />
+              <ChannelRow label="GCash (Receipt Upload)" disabled={isSandbox} checked={settings.paymentChGcashManual} onChange={(v) => updateSetting('paymentChGcashManual', v)} />
+              <ChannelRow label="BDO / BPI Bank Transfer (Receipt Upload)" disabled={isSandbox} checked={settings.paymentChBankManual} onChange={(v) => updateSetting('paymentChBankManual', v)} />
+              <ChannelRow label="In-Person Payment" sublabel="Scheduled office visit · offered in both modes" checked={settings.paymentChInPerson} onChange={(v) => updateSetting('paymentChInPerson', v)} />
             </div>
           </div>
 
           <div className="p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">Sandbox (PayMongo)</span>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={!!settings.paymentSandboxEnabled}
-                  onChange={(e) => updateSetting('paymentSandboxEnabled', e.target.checked)}
-                  className="cursor-pointer"
-                />
-                Master Active
-              </label>
+              <ModeBadge active={isSandbox} mode={modeName} />
             </div>
             <div className="space-y-1">
-              <ChannelRow label="GCash Sandbox" checked={settings.paymentChGcashSandbox} onChange={(v) => updateSetting('paymentChGcashSandbox', v)} />
-              <ChannelRow label="Bank Transfer Sandbox" checked={settings.paymentChBankSandbox} onChange={(v) => updateSetting('paymentChBankSandbox', v)} />
-              <ChannelRow label="Maya Sandbox" checked={settings.paymentChMaya} onChange={(v) => updateSetting('paymentChMaya', v)} />
+              <ChannelRow label="GCash Sandbox" disabled={!isSandbox} checked={settings.paymentChGcashSandbox} onChange={(v) => updateSetting('paymentChGcashSandbox', v)} />
+              <ChannelRow label="Bank Transfer Sandbox" disabled={!isSandbox} checked={settings.paymentChBankSandbox} onChange={(v) => updateSetting('paymentChBankSandbox', v)} />
+              <ChannelRow label="Maya Sandbox" disabled={!isSandbox} checked={settings.paymentChMaya} onChange={(v) => updateSetting('paymentChMaya', v)} />
             </div>
           </div>
         </div>
+
+        <p className="text-[11px] text-slate-500">
+          Tenants see the {isSandbox ? 'PayMongo sandbox' : 'receipt-upload'} channels plus In-Person.
+          Switch the mode above to use the other family; your channel choices are kept.
+        </p>
       </SettingsSection>
 
       <SettingsSection

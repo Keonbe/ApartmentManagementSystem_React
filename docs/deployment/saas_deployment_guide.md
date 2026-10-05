@@ -583,7 +583,7 @@ The secret key, public key and webhook secret are stored in the database (`syste
 
 1. PayMongo dashboard → **Developers → API Keys** → copy the **test** secret key (`sk_test_…`) and public key (`pk_test_…`).
 2. AMS → sign in as admin → **Account Settings → System Configuration → Payment Channels & Gateway Settings**:
-   - Operating Payment Mode: **Sandbox Only (PayMongo Test Mode)**, and tick **Master Active**
+   - Operating Payment Mode: **Sandbox only (PayMongo test mode)**. The Sandbox card then shows *Active* and the receipt-upload channels lock (In-Person stays available)
    - Tick the sandbox channels you want (GCash, Maya, bank transfer)
    - Paste the **Sandbox Secret Key** and **Sandbox Public Key**
 3. **Save System Settings.** The change is recorded in the Activity Log with the secret values hidden.
