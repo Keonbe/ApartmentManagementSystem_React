@@ -16,8 +16,9 @@ try {
     $input = json_decode(file_get_contents("php://input"), true);
     $additionalMonths = (int)($input['additionalMonths'] ?? 0);
 
-    $minLeaseSetting = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'minLeaseDuration'")->fetch_assoc();
-    $minLeaseDuration = $minLeaseSetting ? (int)$minLeaseSetting['setting_value'] : 3;
+    // Capped at the 12-month extension maximum so a long minimum term never
+    // makes extensions impossible.
+    $minLeaseDuration = min(12, max(1, (int)get_setting($conn, 'min_lease_duration', 3)));
 
     if ($additionalMonths < $minLeaseDuration || $additionalMonths > 12) {
         throw new Exception("Invalid request: Extension must be between $minLeaseDuration and 12 months.");

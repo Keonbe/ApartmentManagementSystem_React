@@ -109,6 +109,16 @@ if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($emai
     exit;
 }
 
+// The rent term follows the admin's Minimum Rent Duration setting; 24 matches
+// the form's MAX_MONTHS.
+$min_months = max(1, (int)get_setting($conn, 'min_lease_duration', 3));
+if (!ctype_digit((string)$months_of_rent) || (int)$months_of_rent < $min_months || (int)$months_of_rent > 24) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Months of rent must be between $min_months and 24."]);
+    exit;
+}
+$months_of_rent = (int)$months_of_rent;
+
 // Stored normalized as +639XXXXXXXXX (the form has a fixed +63 prefix).
 $contact_no = normalize_ph_mobile($contact_no);
 if ($contact_no === null) {

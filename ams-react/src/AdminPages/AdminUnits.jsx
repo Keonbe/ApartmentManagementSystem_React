@@ -9,6 +9,7 @@ import {
   faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { getSystemSettings } from '../config/systemSettings';
 import { publicAssetUrl } from '../api/fileUrl';
 import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFiles } from '../utils/fileLimits';
@@ -64,7 +65,11 @@ const AdminUnits = () => {
   const [removingUnitId, setRemovingUnitId] = useState(null);
   const [unitActionError, setUnitActionError] = useState('');
   
-  const minLeaseDuration = 6;
+  // Settings → Rental → Minimum Rent Duration.
+  const [minLeaseDuration, setMinLeaseDuration] = useState(3);
+  useEffect(() => {
+    getSystemSettings().then(s => setMinLeaseDuration(s.minLeaseDuration || 3));
+  }, []);
 
   const fetchUsers = async () => {
     try {

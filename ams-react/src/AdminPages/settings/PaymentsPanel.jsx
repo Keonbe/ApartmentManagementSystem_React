@@ -2,7 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faExclamationTriangle, faDollarSign, faShieldAlt, faInfoCircle, faCreditCard, faLock,
 } from '@fortawesome/free-solid-svg-icons';
-import { SettingsSection, Field, WithUnit, Switch, Callout, INPUT_MONO, INPUT_NUMBER, CHECKBOX } from './SettingsSection';
+import { SettingsSection, Field, WithUnit, Callout, INPUT_MONO, INPUT_NUMBER, CHECKBOX } from './SettingsSection';
 import { LIMITS } from '../../utils/validation';
 import { blockNonIntegerKeys, numberValue } from '../../Components/form/formHelpers';
 
@@ -50,42 +50,24 @@ export default function PaymentsPanel({ settings, updateSetting }) {
         icon={faExclamationTriangle}
         tone="rose"
         title="Overdue & Eviction Policy"
-        description="When an unpaid tenant is treated as at risk, and whether they are flagged automatically."
+        description="When an unpaid tenant is listed for eviction review."
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Overdue Payment Threshold" htmlFor="setting-overdueThresholdDays" icon={faDollarSign} hint="Tenants exceeding this threshold will be flagged for eviction review.">
-            <WithUnit suffix="days overdue">
-              <input
-                id="setting-overdueThresholdDays" name="overdueThresholdDays"
-                type="number" inputMode="numeric" min="1" max="365" step="1" required
-                value={settings.overdueThresholdDays}
-                onKeyDown={blockNonIntegerKeys}
-                onChange={(e) => updateSetting('overdueThresholdDays', numberValue(e))}
-                className={`${INPUT_NUMBER} w-24`}
-              />
-            </WithUnit>
-          </Field>
-
-          <Field label="Auto-Flag for Eviction" icon={faShieldAlt} hint="Automatically flag contracts when the threshold is exceeded.">
-            <div className="flex items-center gap-3 mt-1">
-              <Switch
-                checked={settings.autoFlagEviction}
-                onChange={(v) => updateSetting('autoFlagEviction', v)}
-                label="Auto-flag for eviction"
-                tone="rose"
-              />
-              <span className={`text-sm font-semibold ${settings.autoFlagEviction ? 'text-rose-600' : 'text-slate-400'}`}>
-                {settings.autoFlagEviction ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-          </Field>
-        </div>
+        <Field label="Overdue Payment Threshold" htmlFor="setting-overdueThresholdDays" icon={faDollarSign} hint="Tenants past this threshold are listed for eviction review on the Contracts page.">
+          <WithUnit suffix="days overdue">
+            <input
+              id="setting-overdueThresholdDays" name="overdueThresholdDays"
+              type="number" inputMode="numeric" min="1" max="365" step="1" required
+              value={settings.overdueThresholdDays}
+              onKeyDown={blockNonIntegerKeys}
+              onChange={(e) => updateSetting('overdueThresholdDays', numberValue(e))}
+              className={`${INPUT_NUMBER} w-24`}
+            />
+          </WithUnit>
+        </Field>
 
         <Callout tone="rose" icon={faInfoCircle} title="Active Eviction Policy">
-          Tenants with overdue payments exceeding <strong>{settings.overdueThresholdDays} days</strong> will be
-          {settings.autoFlagEviction
-            ? ' automatically flagged for eviction review on the Contracts page.'
-            : ' shown as at-risk but will NOT be auto-flagged. Manual action required.'}
+          Tenants overdue more than <strong>{settings.overdueThresholdDays} days</strong> appear in the eviction
+          banner on the Contracts page, where you can flag them for review. Flagging is never automatic.
         </Callout>
       </SettingsSection>
 
@@ -187,7 +169,7 @@ export default function PaymentsPanel({ settings, updateSetting }) {
               className={INPUT_MONO}
             />
           </Field>
-          <Field label="Sandbox Public Key" htmlFor="setting-paymongoPublicKey">
+          <Field label="Sandbox Public Key" htmlFor="setting-paymongoPublicKey" hint="Not used yet. Checkout runs on the server with the secret key; kept for a future client-side checkout.">
             <input
               id="setting-paymongoPublicKey" name="paymongoPublicKey"
               type="text" autoComplete="off" spellCheck={false} maxLength={LIMITS.smtpField}

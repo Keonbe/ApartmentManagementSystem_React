@@ -3,6 +3,7 @@ import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X, AlertCi
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import { getSystemSettings } from '../config/systemSettings';
 import { useLang } from '../config/i18n';
 import { LIMITS, checkIntRange, checkPersonName, checkPhMobile, toPhLocal10, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
@@ -140,6 +141,11 @@ export default function RentApplication() {
     const [monthsOfRent, setMonthsOfRent] = useState(draft.monthsOfRent || '');
     const [prefMoveInDate, setPrefMoveInDate] = useState(draft.prefMoveInDate || '');
     const [isASAP, setIsASAP] = useState(false);
+    // Settings → Rental → Minimum Rent Duration (rent_application.php enforces it too).
+    const [minMonths, setMinMonths] = useState(1);
+    useEffect(() => {
+        getSystemSettings().then(s => setMinMonths(Math.min(MAX_MONTHS, s.minLeaseDuration || 1)));
+    }, []);
 
     useEffect(() => {
         const fetchUserProfile = async () => {
@@ -242,7 +248,7 @@ export default function RentApplication() {
         contactNo: (v) => checkPhMobile(v),
         gender: (v) => (GENDERS.includes(v) ? '' : 'Please select your gender.'),
         occupants: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants'),
-        monthsOfRent: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_MONTHS, 'Months of rent'),
+        monthsOfRent: (v) => checkIntRange(v === '' ? NaN : v, minMonths, MAX_MONTHS, 'Months of rent'),
         prefMoveInDate: (v) => (isASAP || v ? '' : 'Please select when you need to move in by.'),
         // Only a vacant unit can be applied for (checked once the list has loaded).
         roomName: (v) => (!isEditing && rooms.length && !availableRooms.some(r => r.id === v) ? `Room ${v} is not available. Choose another room.` : ''),
@@ -577,17 +583,17 @@ export default function RentApplication() {
                                 <div className="flex flex-col">
                                     <label htmlFor="rent-monthsOfRent" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
                                         <span>{t('rent.monthsOfRent')} {form.errors.monthsOfRent && <span className="text-rose-500 ml-0.5">*</span>}</span>
-                                        <span className="text-xs font-semibold text-slate-400">{t('rent.monthsMax')}</span>
+                                        <span className="text-xs font-semibold text-slate-400">{t('rent.monthsMax').replace('{min}', minMonths)}</span>
                                     </label>
                                     <div className="flex flex-col">
                                     <input
                                         type="number"
                                         {...form.fieldA11y('monthsOfRent')}
                                         inputMode="numeric"
-                                        min="1"
+                                        min={minMonths}
                                         max={MAX_MONTHS}
                                         step="1"
-                                        placeholder="e.g. 6 (Max 24)"
+                                        placeholder={`e.g. ${Math.max(6, minMonths)} (Min ${minMonths}, Max 24)`}
                                         value={monthsOfRent}
                                         disabled={isReadOnly}
                                         onKeyDown={blockNonIntegerKeys}

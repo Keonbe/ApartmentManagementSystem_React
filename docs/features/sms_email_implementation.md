@@ -963,7 +963,7 @@ dispatch_external_broadcast(
 
 > **Cost gate (§0.3).** Announcements are the one event that multiplies by tenant count, and the category closest to marketing. Three rules for the admin form:
 > - SMS is **off by default** and must be ticked deliberately per announcement.
-> - Show the recipient count and the estimated cost next to the tick (`{n} recipients × ₱0.50 ≈ ₱{n×0.5}`), read from a `sms_unit_cost` setting.
+> - Show the recipient count and the estimated cost next to the tick (`{n} recipients × ₱0.50 ≈ ₱{n×0.5}`), read from a `sms_unit_cost` setting. **Built (2026-10-05):** AdminAnnouncements shows "Estimated SMS cost: up to n × ₱unit" while SMS is ticked.
 > - Respect the `announcements` preference category — this is the one broadcast a tenant can fully mute, and it should be **opt-in** for SMS rather than opt-out.
 
 ---

@@ -675,11 +675,8 @@ while ($row = $res->fetch_assoc()) {
 
 // Maintenance budget for the period: the admin's monthly setting (₱50,000 when
 // unset) times the months covered. The page used a hardcoded ₱50,000 regardless.
-$monthly_budget = 50000.0;
-$res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('maintenance_monthly_budget', 'maintenanceMonthlyBudget') ORDER BY setting_key = 'maintenance_monthly_budget' DESC LIMIT 1");
-if ($res && ($row = $res->fetch_assoc()) && is_numeric($row['setting_value'])) {
-    $monthly_budget = (float)$row['setting_value'];
-}
+$monthly_budget = get_setting($conn, 'maintenance_monthly_budget', '50000');
+$monthly_budget = is_numeric($monthly_budget) ? (float)$monthly_budget : 50000.0;
 $data['maintenanceBudget'] = $monthly_budget * ($timeframe === 'yearly' ? 12 : ($timeframe === 'quarterly' ? 3 : 1));
 
 // Monthly rent not being earned on vacant units — the "Occupancy Gap" figure

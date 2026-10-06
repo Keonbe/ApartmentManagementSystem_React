@@ -40,12 +40,10 @@ foreach (SECRET_SETTING_KEYS as $s_key) {
 }
 
 // Ensure numeric values are converted properly
-if(isset($settings['minLeaseDuration'])) $settings['minLeaseDuration'] = (int)$settings['minLeaseDuration'];
-if(isset($settings['overdueThresholdDays'])) $settings['overdueThresholdDays'] = (int)$settings['overdueThresholdDays'];
+if(isset($settings['min_lease_duration'])) $settings['min_lease_duration'] = (int)$settings['min_lease_duration'];
+if(isset($settings['overdue_threshold_days'])) $settings['overdue_threshold_days'] = (int)$settings['overdue_threshold_days'];
 if(isset($settings['reservation_hold_days'])) $settings['reservation_hold_days'] = (int)$settings['reservation_hold_days'];
-if(isset($settings['reservationHoldDays'])) $settings['reservationHoldDays'] = (int)$settings['reservationHoldDays'];
-if(isset($settings['maintenanceMonthlyBudget'])) $settings['maintenanceMonthlyBudget'] = (float)$settings['maintenanceMonthlyBudget'];
-if(isset($settings['autoFlagEviction'])) $settings['autoFlagEviction'] = filter_var($settings['autoFlagEviction'], FILTER_VALIDATE_BOOLEAN);
+if(isset($settings['maintenance_monthly_budget'])) $settings['maintenance_monthly_budget'] = (float)$settings['maintenance_monthly_budget'];
 if(isset($settings['max_parking_slots'])) $settings['max_parking_slots'] = (int)$settings['max_parking_slots'];
 if(isset($settings['parking_allowed_vehicle_types'])) {
     $decoded = json_decode($settings['parking_allowed_vehicle_types'], true);

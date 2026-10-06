@@ -369,7 +369,7 @@ Keys are stored in `ams_db.system_settings` (not in `.env` — this is a plain P
 | `setting_key` | Where Set | Used By | SaaS Equivalent |
 |---|---|---|---|
 | `paymongo_secret_key` | Admin > Account Settings | `create_checkout_session.php`, `paymongo_webhook.php` | Same (unchanged) |
-| `paymongo_public_key` | Admin > Account Settings | (frontend display reference only) | Same (unchanged) |
+| `paymongo_public_key` | Admin > Account Settings | Stored, not used yet (checkout runs server-side on the secret key) | Same (unchanged) |
 | `paymongo_webhook_secret` | Admin > Account Settings | `paymongo_webhook.php` (HMAC validation) | Same (unchanged) |
 | `sms_provider`, `sms_api_key`, `sms_sender_name`, `sms_sender_approved`, `sms_daily_cap` | Admin > Account Settings > Notifications | `services/send_sms.php` (every SMS), `get_sms_balance.php` | Same (unchanged) |
 | `smtp_host`, `smtp_user`, `smtp_pass` | *(planned)* Admin > Account Settings | `forgot_password.php`, `create_announcement.php` email block | Resend SMTP: `smtp.resend.com` / port 465 / API key as password |

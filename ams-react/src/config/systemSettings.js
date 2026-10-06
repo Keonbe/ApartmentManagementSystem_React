@@ -11,7 +11,6 @@ const DEFAULTS = {
   minLeaseDuration: 3,             // months
   overdueThresholdDays: 15,        // days before eviction flag
   reservationHoldDays: 7,          // days a unit reservation holds a room
-  autoFlagEviction: true,          // auto-flag when threshold exceeded
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
     'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
@@ -71,12 +70,11 @@ export const getSystemSettings = async () => {
     if (response.data.success && response.data.settings) {
       const dbSettings = response.data.settings;
       return {
-        minLeaseDuration: parseInt(dbSettings.min_lease_duration || dbSettings.minLeaseDuration || DEFAULTS.minLeaseDuration),
-        overdueThresholdDays: parseInt(dbSettings.overdue_threshold_days || dbSettings.overdueThresholdDays || DEFAULTS.overdueThresholdDays),
-        reservationHoldDays: parseInt(dbSettings.reservation_hold_days || dbSettings.reservationHoldDays || DEFAULTS.reservationHoldDays),
-        autoFlagEviction: (dbSettings.auto_flag_eviction === 1 || dbSettings.auto_flag_eviction === true || dbSettings.auto_flag_eviction === '1' || dbSettings.autoFlagEviction === true),
-        maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || dbSettings.maintenanceMonthlyBudget || DEFAULTS.maintenanceMonthlyBudget),
-        tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || dbSettings.tenantResponsibilityClause || DEFAULTS.tenantResponsibilityClause,
+        minLeaseDuration: parseInt(dbSettings.min_lease_duration || DEFAULTS.minLeaseDuration),
+        overdueThresholdDays: parseInt(dbSettings.overdue_threshold_days || DEFAULTS.overdueThresholdDays),
+        reservationHoldDays: parseInt(dbSettings.reservation_hold_days || DEFAULTS.reservationHoldDays),
+        maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || DEFAULTS.maintenanceMonthlyBudget),
+        tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || DEFAULTS.tenantResponsibilityClause,
         paymentMode: (dbSettings.payment_mode === 'sandbox' || dbSettings.payment_mode === 'manual') ? dbSettings.payment_mode : DEFAULTS.paymentMode,
         paymentSandboxEnabled: dbSettings.payment_sandbox_enabled === '1' || dbSettings.payment_sandbox_enabled === 1 || dbSettings.payment_sandbox_enabled === true,
         paymentChGcashSandbox: dbSettings.payment_ch_gcash_sandbox === '1' || dbSettings.payment_ch_gcash_sandbox === 1 || dbSettings.payment_ch_gcash_sandbox === true,
@@ -141,7 +139,6 @@ export const saveSystemSettings = async (settings) => {
       min_lease_duration: settings.minLeaseDuration,
       overdue_threshold_days: settings.overdueThresholdDays,
       reservation_hold_days: settings.reservationHoldDays,
-      auto_flag_eviction: settings.autoFlagEviction ? 1 : 0,
       maintenance_monthly_budget: settings.maintenanceMonthlyBudget,
       tenant_responsibility_clause: settings.tenantResponsibilityClause,
       payment_mode: settings.paymentMode === 'sandbox' ? 'sandbox' : 'manual',

@@ -7,6 +7,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
+import { getSystemSettings } from '../config/systemSettings';
 import { LIMITS, TITLE_MIN, checkText } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -30,7 +31,8 @@ const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: ''
 const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
 const LABEL = 'block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1';
 
-const getSmsPrefix = (type) => (type === 'General' || !type ? 'AMS: ' : `AMS ${type}: `);
+const peso = (n) => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const getSmsPrefix =(type) => (type === 'General' || !type ? 'AMS: ' : `AMS ${type}: `);
 const getSmsText = (type, title, body) => {
   const t = (title || '').trim();
   const b = (body || '').trim();
@@ -44,6 +46,11 @@ const getSmsText = (type, title, body) => {
 const AdminAnnouncements = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [tenants, setTenants] = useState([]);
+  // Settings → Notifications → Cost per SMS, for the estimate next to the recipient count.
+  const [smsUnitCost, setSmsUnitCost] = useState(0.5);
+  useEffect(() => {
+    getSystemSettings().then(s => setSmsUnitCost(Number.isFinite(s.smsUnitCost) ? s.smsUnitCost : 0.5));
+  }, []);
   const [form, setForm] = useState(EMPTY_FORM);
   const [fileKey, setFileKey] = useState(Date.now());
   const [sending, setSending] = useState(null); // 'send' | 'draft' | null
@@ -321,9 +328,15 @@ const AdminAnnouncements = () => {
               </div>
 
               {/* Recipient Count */}
-              <div className="mb-4 bg-slate-50 border border-slate-100 rounded-lg p-3 flex items-center gap-2 text-xs text-slate-600">
+              <div className="mb-4 bg-slate-50 border border-slate-100 rounded-lg p-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600">
                 <FontAwesomeIcon icon={faUsers} className="text-indigo-500" />
                 <span>Will be sent to <strong className="text-slate-800">{recipientCount} tenant{recipientCount === 1 ? '' : 's'}</strong></span>
+                {/* "Up to": tenants without SMS enabled, or opted out, are skipped. One SMS each (160-char cap). */}
+                {isSmsActive && (
+                  <span className="text-slate-500">
+                    · Estimated SMS cost: up to {recipientCount} × {peso(smsUnitCost)} = <strong className="text-slate-800">{peso(recipientCount * smsUnitCost)}</strong>
+                  </span>
+                )}
               </div>
 
               {notice && (
