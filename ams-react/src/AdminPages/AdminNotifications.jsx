@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
+import AdminNotificationModal from '../Components/AdminNotificationModal';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBell, faSearch, faTimes, faCheckDouble, faArchive, faClock, faMoneyBillWave,
@@ -74,6 +75,8 @@ const AdminNotifications = () => {
   const reminderErrors = useFieldErrors(REMINDER_VALIDATORS, { idPrefix: 'reminder-' });
   const [runningSweep, setRunningSweep] = useState(false);
 
+  const [selectedNotification, setSelectedNotification] = useState(null);
+
   const fetchNotifications = useCallback(async () => {
     try {
       const response = await api.get('get_notifications.php');
@@ -86,6 +89,9 @@ const AdminNotifications = () => {
           createdAt: n.created_at,
           read: Number(n.is_read) === 1,
           status: n.status,
+          attachment_path: n.attachment_path,
+          attachmentPath: n.attachment_path,
+          metadata_value: n.metadata_value,
         })));
       }
     } catch (e) {
@@ -218,6 +224,28 @@ const AdminNotifications = () => {
   const handleMarkRead = (id) => post('mark_notification_read.php', { notificationId: id }, 'Could not mark as read.');
   const handleArchive = (id) => post('archive_notification.php', { notificationId: id }, 'Could not archive the notification.');
 
+  const handleModalIgnore = (notif) => {
+    setSelectedNotification(null);
+    if (notif && !notif.read) handleMarkRead(notif.id);
+  };
+
+  const handleModalGoToPage = (notif, targetPath) => {
+    setSelectedNotification(null);
+    if (notif && !notif.read) handleMarkRead(notif.id);
+    const path = targetPath || ADMIN_NOTIFICATION_LINKS[notif?.type] || '/admin-notifications';
+    navigate(path);
+  };
+
+  const handleModalApprove = async (notif) => {
+    await handleProcessRequest(notif.id, 'approve');
+    setSelectedNotification(null);
+  };
+
+  const handleModalReject = async (notif) => {
+    await handleProcessRequest(notif.id, 'reject');
+    setSelectedNotification(null);
+  };
+
   const toggleSetting = (key) => setSettings(prev => ({ ...prev, [key]: !prev[key] }));
 
   return (
@@ -293,7 +321,11 @@ const AdminNotifications = () => {
                     const reviewPath = isPending && !DECIDED_HERE.includes(n.type) ? ADMIN_NOTIFICATION_LINKS[n.type] : null;
 
                     return (
-                      <div key={n.id} className={`card-interactive bg-white rounded-xl border shadow-sm p-4 flex gap-4 items-start transition-all hover:shadow-md group ${n.read ? 'border-slate-200' : 'border-indigo-200 bg-indigo-50/30'}`}>
+                      <div
+                        key={n.id}
+                        onClick={() => setSelectedNotification(n)}
+                        className={`card-interactive bg-white rounded-xl border shadow-sm p-4 flex gap-4 items-start transition-all hover:shadow-md group cursor-pointer ${n.read ? 'border-slate-200' : 'border-indigo-200 bg-indigo-50/30'}`}
+                      >
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${cfg.color}`}>
                           <FontAwesomeIcon icon={cfg.icon} className="text-sm" />
                         </div>
@@ -313,14 +345,14 @@ const AdminNotifications = () => {
                           {decideHere && (
                             <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
                               <button
-                                onClick={() => handleProcessRequest(n.id, 'approve')}
+                                onClick={(e) => { e.stopPropagation(); handleProcessRequest(n.id, 'approve'); }}
                                 disabled={processingId === n.id}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg border-0 cursor-pointer flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
                               >
                                 <FontAwesomeIcon icon={faCheckCircle} /> Approve Request
                               </button>
                               <button
-                                onClick={() => handleProcessRequest(n.id, 'reject')}
+                                onClick={(e) => { e.stopPropagation(); handleProcessRequest(n.id, 'reject'); }}
                                 disabled={processingId === n.id}
                                 className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs px-3.5 py-1.5 rounded-lg border border-rose-200 cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-50"
                               >
@@ -331,7 +363,7 @@ const AdminNotifications = () => {
                           {reviewPath && (
                             <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
                               <button
-                                onClick={() => { if (!n.read) handleMarkRead(n.id); navigate(reviewPath); }}
+                                onClick={(e) => { e.stopPropagation(); setSelectedNotification(n); }}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-lg border-0 cursor-pointer flex items-center gap-1.5 shadow-sm transition-all"
                               >
                                 <span>Review Request</span>
@@ -429,6 +461,19 @@ const AdminNotifications = () => {
           </div>
         </div>
       </main>
+
+      {selectedNotification && (
+        <AdminNotificationModal
+          notification={selectedNotification}
+          isOpen={Boolean(selectedNotification)}
+          onClose={() => setSelectedNotification(null)}
+          onIgnore={handleModalIgnore}
+          onGoToPage={handleModalGoToPage}
+          onApprove={DECIDED_HERE.includes(selectedNotification.type) ? handleModalApprove : null}
+          onReject={DECIDED_HERE.includes(selectedNotification.type) ? handleModalReject : null}
+          isProcessing={processingId === selectedNotification.id}
+        />
+      )}
 
     </div>
   );

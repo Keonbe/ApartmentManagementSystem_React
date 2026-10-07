@@ -4,10 +4,11 @@ import { faBell, faSignOutAlt, faUserCog, faBars } from '@fortawesome/free-solid
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import {
-  ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, ADMIN_PAYMENT_ALERT_TYPES, ADMIN_PAYMENTS_EVENT,
-  PAYMENT_WATCH_POLL_MS, formatRelativeTime,
+  ADMIN_NOTIFICATION_LINKS, ADMIN_NOTIFICATIONS_EVENT, ADMIN_ALERT_TYPES,
+  ADMIN_PAYMENTS_EVENT, PAYMENT_WATCH_POLL_MS, formatRelativeTime,
 } from '../config/notificationLinks';
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
+import AdminNotificationModal from './AdminNotificationModal';
 import '../assets/styles/responsive/admin/admin-header.responsive.css';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
@@ -47,23 +48,38 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     };
   }, [fetchNotifications]);
 
-  // A tenant's proof upload or cash declaration opens the bell dropdown on any
-  // admin page, the new notice highlighted, and AdminPayments reloads its list
-  // (ADMIN_PAYMENTS_EVENT).
+  const [selectedNotification, setSelectedNotification] = useState(null);
+
+  // A tenant's proof upload, cash declaration, or new action request triggers an
+  // alert modal across any admin page, giving the option to Ignore or Go to Page.
   const [highlightIds, setHighlightIds] = useState(NO_HIGHLIGHT);
-  const isPaymentAlert = useCallback((n) => n.status === 'Pending' && ADMIN_PAYMENT_ALERT_TYPES.includes(n.type), []);
-  const showPaymentAlerts = useCallback((list) => {
+  const isIncomingAlert = useCallback((n) => (
+    n.status === 'Pending' || ADMIN_ALERT_TYPES.includes(n.type)
+  ), []);
+  const showIncomingAlert = useCallback((list) => {
+    if (!list || !list.length) return;
     setHighlightIds(new Set(list.map(n => n.id)));
     setIsProfileOpen(false);
-    setIsNotifOpen(true);
+    setIsNotifOpen(false);
+    setSelectedNotification(list[0]);
     window.dispatchEvent(new CustomEvent(ADMIN_PAYMENTS_EVENT));
   }, []);
   const adminId = JSON.parse(sessionStorage.getItem('loggedInUser') || '{}').id;
   usePaymentAlerts(notifications, {
-    storageKey: adminId ? `ams_admin_payment_alert_mark_${adminId}` : null,
-    match: isPaymentAlert,
-    onNew: showPaymentAlerts,
+    storageKey: adminId ? `ams_admin_alert_mark_${adminId}` : null,
+    match: isIncomingAlert,
+    onNew: showIncomingAlert,
   });
+
+  useEffect(() => {
+    const handleOpenModal = (e) => {
+      if (e.detail) {
+        setSelectedNotification(e.detail);
+      }
+    };
+    window.addEventListener('open_admin_notification_modal', handleOpenModal);
+    return () => window.removeEventListener('open_admin_notification_modal', handleOpenModal);
+  }, []);
 
   const closeNotifications = () => {
     setIsNotifOpen(false);
@@ -100,24 +116,44 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
     }
   };
 
-  const openNotification = async (notif) => {
+  const openNotification = (notif) => {
     closeNotifications();
-    if (!Number(notif.is_read)) {
+    setSelectedNotification(notif);
+  };
+
+  const handleIgnore = async (notif) => {
+    setSelectedNotification(null);
+    if (notif && !Number(notif.is_read)) {
       try {
-        await api.post('mark_notification_read.php', { id: notif.id });
+        await api.post('mark_notification_read.php', { id: notif.id, notificationId: notif.id });
         setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: 1 } : n));
         window.dispatchEvent(new CustomEvent(ADMIN_NOTIFICATIONS_EVENT));
       } catch (err) {
         console.error(err);
       }
     }
-    navigate(ADMIN_NOTIFICATION_LINKS[notif.type] || '/admin-notifications');
+  };
+
+  const handleGoToPage = async (notif, targetPath) => {
+    setSelectedNotification(null);
+    if (notif && !Number(notif.is_read)) {
+      try {
+        await api.post('mark_notification_read.php', { id: notif.id, notificationId: notif.id });
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: 1 } : n));
+        window.dispatchEvent(new CustomEvent(ADMIN_NOTIFICATIONS_EVENT));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    const path = targetPath || ADMIN_NOTIFICATION_LINKS[notif?.type] || '/admin-notifications';
+    navigate(path);
   };
 
   const unreadCount = notifications.filter(n => !Number(n.is_read)).length;
 
   return (
-    <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 lg:px-8 shrink-0 select-none relative z-40 print:hidden">
+    <>
+      <header className="admin-header-root h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 lg:px-8 shrink-0 select-none relative z-40 print:hidden">
 
       {/* Left Area: Hamburger + Title */}
       <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
@@ -237,6 +273,17 @@ const Header = ({ title = "Dashboard", onToggleSidebar }) => {
         </div>
       </div>
     </header>
+
+    {selectedNotification && (
+      <AdminNotificationModal
+        notification={selectedNotification}
+        isOpen={Boolean(selectedNotification)}
+        onClose={() => setSelectedNotification(null)}
+        onIgnore={handleIgnore}
+        onGoToPage={handleGoToPage}
+      />
+    )}
+    </>
   );
 };
 

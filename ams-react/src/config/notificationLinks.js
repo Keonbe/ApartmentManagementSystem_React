@@ -35,6 +35,7 @@ export const ADMIN_NOTIFICATION_LINKS = {
   inquiry: '/admin-inquiries',
   payment_verification: '/admin-payments',
   cash_payment_declared: '/admin-payments',
+  payment: '/admin-payments',
   move_out_request: '/admin-tenants',
   occupancy_request: '/admin-notifications',
   household_request: '/admin-notifications',
@@ -42,6 +43,25 @@ export const ADMIN_NOTIFICATION_LINKS = {
   lease_extension_request: '/admin-notifications',
   visitor_registration: '/admin-visitors',
   visitor_overstay: '/admin-visitors',
+};
+
+export const ADMIN_NOTIFICATION_TARGETS = {
+  rent_application: { path: '/admin-applications', label: 'Go to Applications' },
+  maintenance_request: { path: '/admin-maintenance', label: 'Go to Maintenance' },
+  cctv_request: { path: '/admin-cctv', label: 'Go to CCTV' },
+  parking_reservation: { path: '/admin-parking', label: 'Go to Parking' },
+  service_request: { path: '/admin-services', label: 'Go to Services' },
+  inquiry: { path: '/admin-inquiries', label: 'Go to Inquiries' },
+  unit_waitlist: { path: '/admin-inquiries', label: 'Go to Inquiries' },
+  payment_verification: { path: '/admin-payments', label: 'Go to Payments' },
+  cash_payment_declared: { path: '/admin-payments', label: 'Go to Payments' },
+  payment: { path: '/admin-payments', label: 'Go to Payments' },
+  move_out_request: { path: '/admin-tenants', label: 'Go to Tenants' },
+  occupancy_request: { path: '/admin-notifications', label: 'Go to Requests' },
+  household_request: { path: '/admin-notifications', label: 'Go to Requests' },
+  lease_extension_request: { path: '/admin-notifications', label: 'Go to Requests' },
+  visitor_registration: { path: '/admin-visitors', label: 'Go to Visitors' },
+  visitor_overstay: { path: '/admin-visitors', label: 'Go to Visitors' },
 };
 
 // Fired after any change to notifications (read, delete, preferences) so every
@@ -67,6 +87,16 @@ export const TENANT_PAYMENT_AWAITING_TITLES = ['Payment Submitted', 'Cash Paymen
 
 // Admin queue types that mean "a tenant paid; verify it".
 export const ADMIN_PAYMENT_ALERT_TYPES = ['payment_verification', 'cash_payment_declared'];
+
+// All admin queue types that require attention when newly arrived.
+export const ADMIN_ALERT_TYPES = [
+  'payment_verification', 'cash_payment_declared', 'payment',
+  'rent_application', 'maintenance_request', 'cctv_request',
+  'parking_reservation', 'service_request', 'inquiry',
+  'occupancy_request', 'household_request', 'lease_extension_request',
+  'move_out_request', 'visitor_registration', 'visitor_overstay',
+  'unit_waitlist',
+];
 
 // Fired when the admin header sees a new payment to verify, so AdminPayments reloads.
 export const ADMIN_PAYMENTS_EVENT = 'admin_payments_updated';
