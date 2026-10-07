@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
+import FileAlertModal from '../Components/FileAlertModal';
+import DocumentPreviewModal from '../Components/DocumentPreviewModal';
 import { LIMITS, checkPaymentReference, checkText, isBankMethod } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -34,6 +36,8 @@ export default function PaymentUpload() {
     const [proofImage, setProofImage] = useState(null);
     const [previewUrl, setPreviewUrl] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [fileAlert, setFileAlert] = useState('');
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
     // Landlord's GCash/bank accounts, edited in Admin → Edit Contract.
     const [accounts, setAccounts] = useState([]);
     const [error, setError] = useState('');
@@ -64,14 +68,16 @@ export default function PaymentUpload() {
     }
 
     const handleImageChange = (e) => {
-        const file = e.target.files[0];
+        const file = e.target.files?.[0];
         if (file) {
             const fileError = checkFile(file, FILE_RULES.receiptImage);
-            form.setFieldError('proof', fileError);
             if (fileError) {
                 e.target.value = '';
+                setFileAlert(fileError);
+                form.setFieldError('proof', fileError);
                 return;
             }
+            form.clearError('proof');
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             setProofImage(file);
             setPreviewUrl(URL.createObjectURL(file));
@@ -82,6 +88,7 @@ export default function PaymentUpload() {
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setProofImage(null);
         setPreviewUrl('');
+        setShowPreviewModal(false);
     };
 
     //{/*LimitsGCashCharactersDynamicallyTo13Digits*/}
@@ -199,9 +206,20 @@ export default function PaymentUpload() {
                         {isBankTransfer && (
                             <div className="space-y-2 md:col-span-2">
                                 <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Bank transferred from</label>
-                                <select id="upload-bank-name" value={bankName} onChange={(e) => { setBankName(e.target.value); setError(''); }} required className={INPUT_CLS}>
-                                    <option value="">Select your bank</option>
-                                    {BANKS.map((bank) => <option key={bank} value={bank}>{bank}</option>)}
+                                <select 
+                                    id="upload-bank-name" 
+                                    value={bankName} 
+                                    onChange={(e) => { setBankName(e.target.value); setError(''); }} 
+                                    required 
+                                    className={`${INPUT_CLS} [&>option]:bg-slate-900 [&>option]:text-white cursor-pointer`}
+                                    style={{ colorScheme: 'dark' }}
+                                >
+                                    <option value="" className="bg-slate-900 text-white">Select your bank</option>
+                                    {BANKS.map((bank) => (
+                                        <option key={bank} value={bank} className="bg-slate-900 text-white">
+                                            {bank}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                         )}
@@ -273,12 +291,22 @@ export default function PaymentUpload() {
                             </div>
                         ) : (
                             <div className="flex flex-col items-center space-y-3 p-4 bg-slate-950/80 rounded-2xl border border-slate-200 md:border-white/10 shadow-inner">
-                                <div className="w-full h-72 flex items-center justify-center overflow-hidden rounded-xl bg-black/40">
+                                <div 
+                                    onClick={() => setShowPreviewModal(true)}
+                                    className="w-full h-72 flex items-center justify-center overflow-hidden rounded-xl bg-black/40 cursor-pointer group relative hover:ring-2 hover:ring-indigo-500 transition-all"
+                                    title="Click to view larger image"
+                                >
                                     <img 
                                         src={previewUrl} 
                                         alt="Uploaded Receipt Preview" 
-                                        className="max-h-full max-w-full object-contain rounded"
+                                        className="max-h-full max-w-full object-contain rounded group-hover:scale-[1.02] transition-transform"
                                     />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                        <span className="bg-slate-900/90 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-white/20 shadow-lg flex items-center gap-2">
+                                            <FontAwesomeIcon icon={faEye} />
+                                            <span>Click to view larger</span>
+                                        </span>
+                                    </div>
                                 </div>
                                 {proofImage && (
                                     <p className="text-xs text-slate-300 m-0 truncate w-full text-center">
@@ -331,6 +359,22 @@ export default function PaymentUpload() {
                 onClose={() => navigate(returnUrl || '/home')}
                 message="Payment submitted"
                 subtext="Your payment proof is awaiting verification by management. You will be notified as soon as it is confirmed."
+            />
+
+            {/* Modal Alert for file size / format violations */}
+            <FileAlertModal
+                isOpen={!!fileAlert}
+                message={fileAlert}
+                onClose={() => setFileAlert('')}
+            />
+
+            {/* Modal preview for full-size receipt image */}
+            <DocumentPreviewModal
+                isOpen={showPreviewModal}
+                onClose={() => setShowPreviewModal(false)}
+                title={proofImage ? proofImage.name : "Payment Receipt Preview"}
+                fileUrl={previewUrl}
+                isImage={true}
             />
         </div>
     );

@@ -13,9 +13,11 @@ import fileUrl from '../api/fileUrl';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
+import FileAlertModal from '../Components/FileAlertModal';
+import DocumentPreviewModal from '../Components/DocumentPreviewModal';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import FieldError from '../Components/form/FieldError';
-import FileChip from '../Components/form/FileChip';
+import { formatFileSize } from '../Components/form/formHelpers';
 import ReasonModal from '../Components/form/ReasonModal';
 import { apiErrorMessage } from '../utils/apiError';
 import '../assets/styles/responsive/user/track-application.responsive.css';
@@ -31,6 +33,8 @@ export default function TrackApplication() {
     const [paying, setPaying] = useState(false);
     const [contractFile, setContractFile] = useState(null);
     const [uploadingContract, setUploadingContract] = useState(false);
+    const [fileAlert, setFileAlert] = useState('');
+    const [previewModal, setPreviewModal] = useState(null); // { url, title, isImage, isLocalBlob }
     // Back from a PayMongo checkout, the move-in invoice stays 'processing'
     // until the webhook lands; say so instead of an alert.
     const [notice, setNotice] = useState(() => (
@@ -62,6 +66,9 @@ export default function TrackApplication() {
     };
 
     const clearContractFile = () => {
+        if (previewModal?.isLocalBlob && previewModal?.url) {
+            URL.revokeObjectURL(previewModal.url);
+        }
         setContractFile(null);
         setContractInputKey(k => k + 1); // remounts the file inputs, clearing them
     };
@@ -74,9 +81,40 @@ export default function TrackApplication() {
         if (fileError) {
             e.target.value = '';
             setContractFile(null);
+            setFileAlert(fileError);
             return;
         }
         setContractFile(file);
+    };
+
+    const openContractPreview = (file) => {
+        if (!file) return;
+        const isImage = file.type?.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name);
+        setPreviewModal({
+            url: URL.createObjectURL(file),
+            title: file.name || 'Signed Lease Contract',
+            isImage,
+            isLocalBlob: true
+        });
+    };
+
+    const openSubmittedContractPreview = () => {
+        if (!application?.signed_lease_path) return;
+        const path = fileUrl(application.signed_lease_path);
+        const isImage = /\.(png|jpe?g|webp|gif)$/i.test(application.signed_lease_path);
+        setPreviewModal({
+            url: path,
+            title: 'Submitted Signed Contract',
+            isImage,
+            isLocalBlob: false
+        });
+    };
+
+    const closePreviewModal = () => {
+        if (previewModal?.isLocalBlob && previewModal?.url) {
+            URL.revokeObjectURL(previewModal.url);
+        }
+        setPreviewModal(null);
     };
 
     const handleContractUpload = async (e) => {
@@ -596,15 +634,14 @@ export default function TrackApplication() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <a
-                                                        href={fileUrl(application.signed_lease_path)}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
+                                                    <button
+                                                        type="button"
+                                                        onClick={openSubmittedContractPreview}
                                                         className="inline-flex items-center gap-2 bg-indigo-600/40 hover:bg-indigo-600/60 text-white border border-indigo-500/40 text-xs font-bold px-3 py-2 rounded-xl transition-all cursor-pointer no-underline shadow-sm"
                                                     >
                                                         <FontAwesomeIcon icon={faEye} />
                                                         <span>View submitted file</span>
-                                                    </a>
+                                                    </button>
                                                     <label className="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-2 rounded-xl cursor-pointer transition-all border border-white/10 shrink-0">
                                                         <span>{t('trackApp.reupload')}</span>
                                                         <input
@@ -624,12 +661,33 @@ export default function TrackApplication() {
                                             {/* A re-picked file used to be kept but never sent: this branch had no upload button. */}
                                             {contractFile && (
                                                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                                                    <FileChip file={contractFile} onRemove={clearContractFile} className="flex-1 mt-0" />
+                                                    <div className="flex-1 flex items-center justify-between gap-3 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-xs">
+                                                        <span className="truncate text-white font-medium" title={contractFile.name}>
+                                                            {contractFile.name} <span className="text-slate-300">({formatFileSize(contractFile.size)})</span>
+                                                        </span>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openContractPreview(contractFile)}
+                                                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs border-0 cursor-pointer shadow-sm flex items-center gap-1.5 transition-colors"
+                                                            >
+                                                                <FontAwesomeIcon icon={faEye} />
+                                                                <span>View PDF</span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={clearContractFile}
+                                                                className="font-semibold text-rose-400 hover:text-rose-300 border-0 bg-transparent cursor-pointer p-0 text-xs"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                     <button
                                                         type="button"
                                                         onClick={handleContractUpload}
                                                         disabled={uploadingContract}
-                                                        className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-4 py-2 rounded-xl text-xs border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                                        className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                                                     >
                                                         {uploadingContract ? 'Uploading...' : 'Upload new copy'}
                                                     </button>
@@ -676,7 +734,30 @@ export default function TrackApplication() {
                                                     )}
                                                 </button>
                                             </form>
-                                            {contractFile && <FileChip file={contractFile} onRemove={clearContractFile} />}
+                                            {contractFile && (
+                                                <div className="flex items-center justify-between gap-3 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-xs">
+                                                    <span className="truncate text-white font-medium" title={contractFile.name}>
+                                                        {contractFile.name} <span className="text-slate-300">({formatFileSize(contractFile.size)})</span>
+                                                    </span>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openContractPreview(contractFile)}
+                                                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs border-0 cursor-pointer shadow-sm flex items-center gap-1.5 transition-colors"
+                                                        >
+                                                            <FontAwesomeIcon icon={faEye} />
+                                                            <span>View PDF</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={clearContractFile}
+                                                            className="font-semibold text-rose-400 hover:text-rose-300 border-0 bg-transparent cursor-pointer p-0 text-xs"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                             <FieldError id="contract-file" error={contractError} />
                                         </div>
                                     )}
@@ -1002,6 +1083,22 @@ export default function TrackApplication() {
                     onClose={() => setCancelApplication(false)}
                 />
             )}
+
+            {/* Modal Alert for file size / format violations */}
+            <FileAlertModal
+                isOpen={!!fileAlert}
+                message={fileAlert}
+                onClose={() => setFileAlert('')}
+            />
+
+            {/* Document / Contract Preview Modal */}
+            <DocumentPreviewModal
+                isOpen={!!previewModal}
+                onClose={closePreviewModal}
+                title={previewModal?.title || 'Contract Document'}
+                fileUrl={previewModal?.url}
+                isImage={previewModal?.isImage}
+            />
         </div>
     );
 }

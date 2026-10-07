@@ -25,7 +25,8 @@
   }
 
   /* Form inputs touch targets & iOS zoom prevention */
-  .payment-upload-card input[type="text"] {
+  .payment-upload-card input[type="text"],
+  .payment-upload-card select {
     font-size: 16px !important;
     min-height: 48px !important;
   }
@@ -54,4 +55,10 @@
   .payment-upload-card h1 {
     font-size: 1.5rem !important;
   }
+}
+
+/* Ensure bank dropdown options are clearly legible across all browsers */
+.payment-upload-card select option {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
 }
