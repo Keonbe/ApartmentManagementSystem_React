@@ -60,7 +60,7 @@ const translations = {
     'home.rentedDescription': 'You are already a tenant, so we made this dashboard focused on your room status, payments, announcements, and support requests.',
     'home.totalUnits': 'Total Units',
     'home.availableRooms': 'Available Rooms',
-    'home.cta': 'Explore Available Rooms',
+    'home.cta': 'Explore Available Rooms →',
     'home.goMyRoom': 'Go to My Room',
     'home.viewServices': 'View Services',
 
@@ -680,7 +680,7 @@ const translations = {
     'home.rentedDescription': 'Isa ka nang tenant, kaya ang dashboard na ito ay nakatuon sa status ng iyong room, bayarin, announcements, at support requests.',
     'home.totalUnits': 'Kabuuang Yunit',
     'home.availableRooms': 'Mga Bakanteng Kwarto',
-    'home.cta': 'Tingnan ang mga Bakanteng Kwarto',
+    'home.cta': 'Tingnan ang mga Kwarto →',
     'home.goMyRoom': 'Pumunta sa My Room',
     'home.viewServices': 'Tingnan ang Services',
 
@@ -700,7 +700,7 @@ const translations = {
     // --- Inquiry ---
     'inquiry.heading': 'Magpadala ng Katanungan',
     'inquiry.subtitle': 'Hindi pa handang mag-apply? Itanong ang anuman tungkol sa yunit at sasagutin kayo ng aming admin.',
-    'inquiry.homeCta': 'May katanungan? Magpadala ng inquiry',
+    'inquiry.homeCta': 'Magpadala ng Inquiry',
     'inquiry.fullName': 'Buong Pangalan',
     'inquiry.fullNamePlaceholder': 'hal. Juan Dela Cruz',
     'inquiry.email': 'Email Address',
