@@ -148,11 +148,13 @@ if ($id > 0 && !empty($status)) {
         }
         $stmt->close();
 
-        if (($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') && $current_status === 'Approved') {
-            // Admin changed mind: undo the side-effects of 'Approved'
-            // 1. Cancel pending move-in invoices
-            $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled' WHERE rent_application_id = ? AND status = 'pending'");
-            $cancel_inv->bind_param("i", $id);
+        if ($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') {
+            // Admin changed mind or cancelled: undo move-in invoices and contracts
+            // 1. Cancel all open move-in invoices
+            $open_statuses = billing_open_status_sql();
+            $cancel_inv = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = ? WHERE rent_application_id = ? AND status IN $open_statuses");
+            $c_reason = "Application $status before move-in";
+            $cancel_inv->bind_param("si", $c_reason, $id);
             $cancel_inv->execute();
             $cancel_inv->close();
 
@@ -161,6 +163,14 @@ if ($id > 0 && !empty($status)) {
             $del_ctr->bind_param("i", $id);
             $del_ctr->execute();
             $del_ctr->close();
+
+            // 3. Cancel open advance credits
+            $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE rent_application_id = " . (int)$id . " AND status IN ('reserved', 'available')");
+
+            // 4. Resolve payment notifications for the applicant
+            if (!empty($cur_row['user_id'])) {
+                $conn->query("UPDATE notifications SET status = 'Resolved', is_read = 1 WHERE user_id = " . (int)$cur_row['user_id'] . " AND type IN ('billing', 'rent_due', 'overdue') AND status = 'Pending'");
+            }
 
             // 3. Free the room
             $app_q = $conn->prepare("SELECT room_name FROM rent_applications WHERE id = ?");

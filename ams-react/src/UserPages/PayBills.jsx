@@ -82,9 +82,11 @@ export default function PayBills() {
     // combined payment of overdue bills) is paid as a whole, never shown as the
     // bill on screen.
     const byDueDate = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
+    const isCancelledApp = (i) => ['cancelled', 'rejected', 'declined', 'moved-out', 'archived'].includes(String(i?.application_status || '').toLowerCase());
     const isGrouped = (i) => !!(i.payment_group || i.advance_months);
-    const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !isGrouped(i)).sort(byDueDate);
-    const awaitingInvoices = invoices.filter(i => AWAITING_STATUSES.includes(i.status)).sort(byDueDate);
+    const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !isGrouped(i) && !isCancelledApp(i)).sort(byDueDate);
+    const awaitingInvoices = invoices.filter(i => AWAITING_STATUSES.includes(i.status) && !isCancelledApp(i)).sort(byDueDate);
+    const hasCancelledApp = invoices.length > 0 && invoices.every(isCancelledApp);
     // One "awaiting" banner per payment: a group's bills together.
     const awaitingEntries = Object.values(awaitingInvoices.reduce((acc, inv) => {
         const key = inv.payment_group || inv.id;
@@ -114,7 +116,7 @@ export default function PayBills() {
         dueDate: activeInv?.due_date || '',
         billingPeriod: activeInv?.billing_period || '',
         coveredPeriod: formatCoveredPeriod(activeInv),
-        status: activeInv?.status || 'pending',
+        status: activeInv?.status || '',
         rejectionReason: activeInv?.proof_rejection_reason || '',
         scheduledDate: activeInv?.scheduled_date || '',
         scheduledTimeSlot: activeInv?.scheduled_time_slot || '',
@@ -144,7 +146,7 @@ export default function PayBills() {
     // The open advance payment, from the watched invoices so its status stays
     // live: { key, months: [{ key, label, sub, amount }], total, payable, cancelBody }.
     const openAdvance = (() => {
-        const inv = invoices.filter(i => i.advance_months && OPEN_STATUSES.includes(i.status)).sort(byDueDate)[0];
+        const inv = invoices.filter(i => i.advance_months && OPEN_STATUSES.includes(i.status) && !isCancelledApp(i)).sort(byDueDate)[0];
         if (inv) {
             const pending = advance?.pending?.id === inv.id ? advance.pending.months : [];
             return {
@@ -155,7 +157,7 @@ export default function PayBills() {
                 cancelBody: { action: 'cancel', invoice: inv.id },
             };
         }
-        const group = invoices.filter(i => i.payment_group && !isBundleKey(i.payment_group) && OPEN_STATUSES.includes(i.status)).sort(byDueDate);
+        const group = invoices.filter(i => i.payment_group && !isBundleKey(i.payment_group) && OPEN_STATUSES.includes(i.status) && !isCancelledApp(i)).sort(byDueDate);
         const key = group[0]?.payment_group;
         if (!key) return null;
         const rows = group.filter(i => i.payment_group === key);
@@ -183,7 +185,7 @@ export default function PayBills() {
     const [bundleView, setBundleView] = useState(true);   // show an open bundle in the ledger
     const [bundleChoiceHidden, setBundleChoiceHidden] = useState(false);
     const openBundle = (() => {
-        const rows = invoices.filter(i => isBundleKey(i.payment_group) && OPEN_STATUSES.includes(i.status)).sort(byDueDate);
+        const rows = invoices.filter(i => isBundleKey(i.payment_group) && OPEN_STATUSES.includes(i.status) && !isCancelledApp(i)).sort(byDueDate);
         const key = rows[0]?.payment_group;
         if (!key) return null;
         const mine = rows.filter(i => i.payment_group === key);
@@ -590,17 +592,31 @@ export default function PayBills() {
                 )}
 
                 {loaded && !activeInv && !openBundle && (
-                    <div className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-lg">
-                            <FontAwesomeIcon icon={faCheckCircle} />
+                    hasCancelledApp ? (
+                        <div className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 text-lg">
+                                <FontAwesomeIcon icon={faTimesCircle} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm sm:text-base font-extrabold text-slate-800 m-0">Application Cancelled</h4>
+                                <p className="text-xs sm:text-sm text-slate-600 m-0 mt-1 leading-relaxed">
+                                    Your application has been cancelled. Any open bills associated with this application were voided and no payment is required.
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h4 className="text-sm sm:text-base font-extrabold text-emerald-900 m-0">You're all paid up</h4>
-                            <p className="text-xs sm:text-sm text-emerald-800 m-0 mt-1 leading-relaxed">
-                                There is no open bill right now. Receipts for past payments are in your payment history.
-                            </p>
+                    ) : (
+                        <div className="w-full bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 text-lg">
+                                <FontAwesomeIcon icon={faCheckCircle} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm sm:text-base font-extrabold text-emerald-900 m-0">You're all paid up</h4>
+                                <p className="text-xs sm:text-sm text-emerald-800 m-0 mt-1 leading-relaxed">
+                                    There is no open bill right now. Receipts for past payments are in your payment history.
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                    )
                 )}
 
                 {/* Due Date & Overdue Reminder Banner (not while a payment awaits confirmation) */}

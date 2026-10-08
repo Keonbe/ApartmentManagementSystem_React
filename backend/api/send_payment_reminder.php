@@ -37,6 +37,7 @@ try {
             FROM invoices i
             LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
             WHERE i.status IN $remindable_sql AND i.due_date IS NOT NULL
+              AND (ra.status IS NULL OR ra.status NOT IN ('Cancelled', 'Rejected', 'Declined', 'moved-out', 'archived'))
         ")->fetch_all(MYSQLI_ASSOC);
 
         $count = 0;
@@ -100,7 +101,7 @@ try {
 
     $stmt = $conn->prepare("
         SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, i.status, i.reminder_count, " . INVOICE_PERIOD_COLUMNS . ",
-               u.first_name, u.last_name, ra.room_name
+               u.first_name, u.last_name, ra.room_name, ra.status AS application_status
         FROM invoices i
         LEFT JOIN users u ON i.user_id = u.id
         LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
@@ -114,6 +115,11 @@ try {
     if (!$inv) {
         http_response_code(404);
         echo json_encode(["success" => false, "message" => "Invoice not found."]);
+        exit;
+    }
+    if (in_array(strtolower($inv['application_status'] ?? ''), ['cancelled', 'rejected', 'declined', 'moved-out', 'archived'], true)) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "No reminder needed: application is {$inv['application_status']}."]);
         exit;
     }
     if (!in_array($inv['status'], $remindable, true) || !$inv['due_date']) {

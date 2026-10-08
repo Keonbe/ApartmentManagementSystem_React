@@ -61,7 +61,9 @@ if ($result->num_rows > 0) {
     $room_data['pending_total_amount'] = null;
     $room_data['initial_payment_paid'] = false;
     
-    if ($inv_res->num_rows > 0) {
+    $is_inactive_app = in_array(strtolower($room_data['status'] ?? ''), ['cancelled', 'rejected', 'declined', 'moved-out', 'archived'], true);
+
+    if (!$is_inactive_app && $inv_res->num_rows > 0) {
         $inv_row = $inv_res->fetch_assoc();
         $room_data['has_pending_first_payment'] = true;
         $room_data['pending_invoice_id'] = $inv_row['id'];

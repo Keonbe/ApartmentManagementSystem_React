@@ -2574,6 +2574,7 @@ function run_notification_sweep($conn, $force = false) {
                                 FROM invoices i
                                 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
                                 WHERE i.status IN $statuses AND i.due_date IS NOT NULL
+                                  AND (ra.status IS NULL OR ra.status NOT IN ('Cancelled', 'Rejected', 'Declined', 'moved-out', 'archived'))
                                   AND i.due_date >= CURDATE() AND DATEDIFF(i.due_date, CURDATE()) <= ?
                                   AND (i.last_reminder_date IS NULL OR i.last_reminder_date < CURDATE())");
         $stmt->bind_param("i", $reminder_days);
@@ -2601,6 +2602,7 @@ function run_notification_sweep($conn, $force = false) {
                                 FROM invoices i
                                 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
                                 WHERE i.status = 'overdue' AND i.due_date IS NOT NULL AND i.due_date < CURDATE()
+                                  AND (ra.status IS NULL OR ra.status NOT IN ('Cancelled', 'Rejected', 'Declined', 'moved-out', 'archived'))
                                   AND (i.last_reminder_date IS NULL OR DATEDIFF(CURDATE(), i.last_reminder_date) >= ?)");
         $stmt->bind_param("i", $overdue_interval);
         $stmt->execute();

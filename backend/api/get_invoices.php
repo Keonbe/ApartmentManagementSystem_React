@@ -29,7 +29,8 @@ function tenant_billing_accounts($conn) {
                                               AND i.security_deposit > 0 AND i.status <> 'cancelled'
                                               ORDER BY i.created_at DESC LIMIT 1)
             WHERE ra.user_id IS NOT NULL
-              AND ra.id = (SELECT MAX(ra2.id) FROM rent_applications ra2 WHERE ra2.user_id = ra.user_id)");
+              AND ra.status NOT IN ('Cancelled', 'Rejected', 'Declined')
+              AND ra.id = (SELECT MAX(ra2.id) FROM rent_applications ra2 WHERE ra2.user_id = ra.user_id AND ra2.status NOT IN ('Cancelled', 'Rejected', 'Declined'))");
     if ($res) {
         while ($r = $res->fetch_assoc()) {
             $status = $r['deposit_status'];
@@ -82,6 +83,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Auto-mark lapsed invoices 'overdue' and apply the configured late fee
         promote_overdue_invoices($conn);
 
+        // Auto-cancel any open invoices whose application was cancelled, rejected, or declined before move-in
+        $open_sql = billing_open_status_sql();
+        $conn->query("
+            UPDATE invoices i
+            JOIN rent_applications ra ON i.rent_application_id = ra.id
+            SET i.status = 'cancelled',
+                i.cancel_reason = 'Application cancelled before move-in'
+            WHERE ra.status IN ('Cancelled', 'Rejected', 'Declined')
+              AND i.status IN $open_sql
+        ");
+
         $user_id_param = $_GET['userId'] ?? null;
         if ($user_id_param) {
             // A non-admin may only ever read their own invoices, whatever the
@@ -96,7 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         i.*, 
                         u.first_name, 
                         u.last_name, 
-                        ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
+                        ra.room_name,
+                        ra.status AS application_status, " . INVOICE_PERIOD_COLUMNS . "
                       FROM invoices i
                       LEFT JOIN users u ON i.user_id = u.id
                       LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
@@ -117,7 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                         i.*, 
                         u.first_name, 
                         u.last_name, 
-                        ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
+                        ra.room_name,
+                        ra.status AS application_status, " . INVOICE_PERIOD_COLUMNS . "
                       FROM invoices i
                       LEFT JOIN users u ON i.user_id = u.id
                       LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
@@ -165,6 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'first_name' => $row['first_name'] ?? '',
                 'last_name' => $row['last_name'] ?? '',
                 'room_name' => $row['room_name'] ?? 'Unassigned',
+                'application_status' => $row['application_status'] ?? null,
                 'base_rent' => $row['base_rent'],
                 'water' => $row['water'] ?? 0,
                 'electricity' => $row['electricity'] ?? 0,

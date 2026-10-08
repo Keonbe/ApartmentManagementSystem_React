@@ -15,7 +15,10 @@ try {
     if (!$app) throw new Exception('Only a pending or approved application that has not moved in can be cancelled.');
     $upd = $conn->prepare("UPDATE rent_applications SET status = 'Cancelled', rejection_reason = ?, cancelled_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Approved', 'Pending Review', 'Pending')"); $upd->bind_param('sii', $reason, $id, $auth['id']); $upd->execute(); if (!$upd->affected_rows) throw new Exception('Application status changed. Refresh and try again.'); $upd->close();
     $room = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ? AND status = 'reserved'"); $room->bind_param('s', $app['room_name']); $room->execute(); $room->close();
-    $inv = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Applicant cancelled before move-in' WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'scheduled')"); $inv->bind_param('i', $id); $inv->execute(); $inv->close();
+    $open_statuses = billing_open_status_sql();
+    $inv = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Applicant cancelled before move-in' WHERE (rent_application_id = ? OR (user_id = ? AND security_deposit > 0)) AND status IN $open_statuses"); $inv->bind_param('ii', $id, $auth['id']); $inv->execute(); $inv->close();
+    $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE (rent_application_id = " . (int)$id . " OR user_id = " . (int)$auth['id'] . ") AND status IN ('reserved', 'available')");
+    $conn->query("UPDATE notifications SET status = 'Resolved', is_read = 1 WHERE user_id = " . (int)$auth['id'] . " AND type IN ('billing', 'rent_due', 'overdue') AND status = 'Pending'");
     $contract = $conn->prepare("DELETE FROM lease_contracts WHERE rent_application_id = ? AND status = 'draft'"); $contract->bind_param('i', $id); $contract->execute(); $contract->close();
     resolve_admin_queue($conn, 'rent_application', $id);
     notify_admins_queue($conn, 'rent_application', $id, 'Application Cancelled', "Applicant cancelled Unit {$app['room_name']}. Reason: $reason");

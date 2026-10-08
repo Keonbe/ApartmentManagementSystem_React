@@ -600,6 +600,27 @@ export default function TrackApplication() {
                             </div>
                         )}
 
+                        {statusNormalized === 'cancelled' && (
+                            <div className="bg-slate-800/40 border border-slate-700/60 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4 text-left">
+                                <div className="flex items-center space-x-3 text-slate-300">
+                                    <FontAwesomeIcon icon={faTimesCircle} className="text-2xl text-slate-400" />
+                                    <h3 className="text-xl font-bold text-white m-0">Application Cancelled</h3>
+                                </div>
+                                <p className="text-slate-300 text-sm m-0 leading-relaxed font-medium">
+                                    This application has been cancelled. Any pending invoices or payment requests associated with this application have been voided, and no payment is required. You can browse available rooms and submit a new application whenever you are ready.
+                                </p>
+                                <div className="pt-2">
+                                    <button
+                                        onClick={() => navigate('/preview')}
+                                        className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer inline-flex items-center space-x-2"
+                                    >
+                                        <span>Browse Available Rooms</span>
+                                        <FontAwesomeIcon icon={faArrowRight} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {statusNormalized === 'approved' && application.has_pending_first_payment && (
                             <>
                                 {/* Step 1: Lease Contract Verification & Upload */}
@@ -980,7 +1001,8 @@ export default function TrackApplication() {
                                                 {['approved', 'active'].includes(statusNormalized) ? (
                                                     statusNormalized === 'active' ? 'Occupancy confirmed' : application.has_pending_first_payment ? 'Pending Initial Payment' : 'Ready to move in'
                                                 ) : 
-                                                 statusNormalized === 'rejected' ? 'Review feedback or re-apply' : 'Pending decisions'}
+                                                 statusNormalized === 'rejected' ? 'Review feedback or re-apply' :
+                                                 statusNormalized === 'cancelled' ? 'Application cancelled — no payment needed' : 'Pending decisions'}
                                             </span>
                                         </div>
                                     </div>
