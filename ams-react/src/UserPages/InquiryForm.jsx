@@ -356,9 +356,9 @@ export default function InquiryForm() {
                             required
                         />
                         <label htmlFor="agree-rules" className="cursor-pointer select-none text-xs leading-relaxed text-slate-600">
-                            I have read, understood, and agree to follow the{' '}
-                            <span className="font-semibold text-slate-800">Apartment Rules &amp; Policies</span>{' '}
-                            listed here prior to submitting this inquiry.
+                            {t('inquiry.rulesAcknowledgment')}{' '}
+                            <span className="font-semibold text-slate-800">{t('houseRules.title')}</span>{' '}
+                            {t('inquiry.rulesBeforeSubmit')}
                         </label>
                     </div>
 

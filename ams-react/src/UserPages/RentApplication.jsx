@@ -731,8 +731,8 @@ export default function RentApplication() {
                         <div className="pt-8 border-t border-slate-200 flex flex-col items-center gap-4">
                             <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                                 {!isReadOnly && (
-                                    <div className="flex w-full flex-col items-start gap-3 sm:flex-1">
-                                        <div className="flex items-start gap-3">
+                                    <div className="flex w-full min-w-0 flex-col items-start gap-3 pr-3 sm:flex-1">
+                                        <div className="flex w-full min-w-0 items-start gap-3">
                                             <label className="group relative mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
                                                 <input
                                                     type="checkbox"
@@ -745,16 +745,16 @@ export default function RentApplication() {
                                                     <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreePrivacy ? 'scale-100' : 'scale-0'}`} />
                                                 </div>
                                             </label>
-                                            <label htmlFor="rent-agreeTerms" className="text-sm font-semibold text-slate-600">
+                                            <label htmlFor="rent-agreeTerms" className="min-w-0 whitespace-nowrap text-xs font-semibold text-slate-600">
                                                 {t('rent.agreeTerms')}{' '}
-                                                <button type="button" onClick={() => setShowTermsModal(true)} className="inline cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 underline underline-offset-2 hover:text-indigo-700">
+                                                <button type="button" onClick={() => setShowTermsModal(true)} className="inline cursor-pointer border-0 bg-transparent p-0 font-semibold text-indigo-600 underline underline-offset-2 hover:text-indigo-700">
                                                     {t('rent.termsLink')}
                                                 </button>
                                             </label>
                                         </div>
                                         <FieldError id="rent-agreeTerms" error={form.errors.agreeTerms} className="m-0" />
 
-                                        <div className="flex items-start gap-3">
+                                        <div className="flex w-full min-w-0 items-start gap-3">
                                             <label className="group relative mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
                                                 <input
                                                     type="checkbox"
@@ -767,10 +767,10 @@ export default function RentApplication() {
                                                     <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreeRules ? 'scale-100' : 'scale-0'}`} />
                                                 </div>
                                             </label>
-                                            <label htmlFor="rent-agreeRules" className="text-sm font-semibold text-slate-600">
-                                                I have read and agree to the {' '}
+                                            <label htmlFor="rent-agreeRules" className="min-w-0 whitespace-nowrap text-xs font-semibold text-slate-600">
+                                                {t('rent.rulesAgreement')}{' '}
                                                 <button type="button" onClick={(e) => { e.preventDefault(); setIsRulesModalOpen(true); }} className="inline cursor-pointer border-0 bg-transparent p-0 font-semibold text-indigo-600 underline hover:text-indigo-800">
-                                                    Apartment Rules &amp; Policies
+                                                    {t('rent.rulesLink')}
                                                 </button>.
                                             </label>
                                         </div>
