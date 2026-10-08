@@ -49,7 +49,11 @@ export default function InquiryForm() {
 
     const [rooms, setRooms] = useState([]);
     const [loadingRooms, setLoadingRooms] = useState(true);
+    const [houseRules, setHouseRules] = useState([]);
+    const [loadingHouseRules, setLoadingHouseRules] = useState(true);
+    const [houseRulesError, setHouseRulesError] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -67,6 +71,21 @@ export default function InquiryForm() {
             }
         };
         fetchRooms();
+
+        const fetchHouseRules = async () => {
+            try {
+                const res = await api.get('house_rules.php');
+                if (res.data.success && Array.isArray(res.data.rules)) {
+                    setHouseRules(res.data.rules);
+                }
+            } catch (error) {
+                console.error('Failed to fetch apartment rules', error);
+                setHouseRulesError('Apartment rules are temporarily unavailable.');
+            } finally {
+                setLoadingHouseRules(false);
+            }
+        };
+        fetchHouseRules();
     }, []);
 
     // Keys match submit_inquiry.php's body.
@@ -92,7 +111,7 @@ export default function InquiryForm() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (submitting) return;
+        if (submitting || !hasAgreedToRules) return;
         setErrorMsg('');
 
         const clean = { ...values, full_name: fullName.trim(), email: normalizeEmail(email), message: message.trim() };
@@ -124,19 +143,48 @@ export default function InquiryForm() {
 
     const inputClass = "inquiry-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base min-h-[48px]";
     const labelClass = "text-sm font-bold text-slate-700";
+    const renderHouseRules = () => (
+        <>
+            {loadingHouseRules ? (
+                <div className="flex items-center gap-2 py-5 text-xs text-slate-500" role="status">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+                    Loading apartment rules…
+                </div>
+            ) : houseRulesError ? (
+                <p role="status" className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{houseRulesError}</p>
+            ) : houseRules.length > 0 ? (
+                <div className="max-h-[500px] space-y-2.5 overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-200">
+                    {houseRules.map((rule) => (
+                        <article key={rule.id} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 transition-colors hover:border-slate-200">
+                            <h3 className="m-0 text-xs font-semibold text-slate-800">{rule.title}</h3>
+                            <p className="m-0 mt-0.5 whitespace-pre-line text-[11px] leading-relaxed text-slate-600">{rule.description}</p>
+                        </article>
+                    ))}
+                </div>
+            ) : (
+                <p className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No apartment rules are currently available.</p>
+            )}
+        </>
+    );
 
     return (
-        <div className="inquiry-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
-
+        <div className="inquiry-root w-full min-h-[calc(100vh-76px)] bg-slate-50 box-border">
+            <div className="max-w-6xl mx-auto px-4 py-6 text-left">
                 {/*Page Heading*/}
-                <div>
-                    <h1 className="inquiry-heading text-3xl font-extrabold tracking-tight m-0 flex items-center gap-3" style={{ color: '#3b4276' }}>
+                <div className="mb-6">
+                    <h1 className="inquiry-heading flex items-center gap-2 text-2xl font-bold text-slate-800 m-0">
                         <FontAwesomeIcon icon={faEnvelopeOpenText} />
                         {t('inquiry.heading')}
                     </h1>
-                    <p className="text-slate-500 text-sm mt-2 m-0">{t('inquiry.subtitle')}</p>
+                    <p className="text-sm text-slate-500 mt-1 mb-0">{t('inquiry.subtitle')}</p>
                 </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <div className="min-w-0 lg:col-span-7">
+                        <details className="mb-6 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs lg:hidden">
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800 marker:hidden">📋 View Apartment Rules (Tap to expand)</summary>
+                    <div className="mt-3">{renderHouseRules()}</div>
+                </details>
 
                 {errorMsg && (
                     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-start gap-2.5">
@@ -146,7 +194,7 @@ export default function InquiryForm() {
                 )}
 
                 <form
-                    className="inquiry-form-card bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
+                    className="inquiry-form-card rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
                     onSubmit={handleSubmit}
                     noValidate
                 >
@@ -298,16 +346,41 @@ export default function InquiryForm() {
                         <span>{t('inquiry.note')}</span>
                     </div>
 
+                    <div className="md:col-span-2 flex items-start gap-3 pt-2">
+                        <input
+                            id="agree-rules"
+                            type="checkbox"
+                            checked={hasAgreedToRules}
+                            onChange={(e) => setHasAgreedToRules(e.target.checked)}
+                            className="mt-1 h-4 w-4 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            required
+                        />
+                        <label htmlFor="agree-rules" className="cursor-pointer select-none text-xs leading-relaxed text-slate-600">
+                            I have read, understood, and agree to follow the{' '}
+                            <span className="font-semibold text-slate-800">Apartment Rules &amp; Policies</span>{' '}
+                            listed here prior to submitting this inquiry.
+                        </label>
+                    </div>
+
                     <div className="md:col-span-2 flex justify-end">
                         <button
                             type="submit"
-                            disabled={submitting}
-                            className="inquiry-submit-btn btn-interactive bg-[#3b4276] hover:bg-[#2f3560] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 cursor-pointer min-h-[48px]"
+                            disabled={submitting || !hasAgreedToRules}
+                            title={!hasAgreedToRules ? 'Please review and agree to the apartment rules before submitting' : undefined}
+                            className={`inquiry-submit-btn btn-interactive font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 min-h-[48px] ${submitting || !hasAgreedToRules ? 'bg-slate-400 hover:bg-slate-400 opacity-50 cursor-not-allowed' : 'bg-[#3b4276] hover:bg-[#2f3560] text-white cursor-pointer'}`}
                         >
                             {submitting ? t('inquiry.submitting') : t('inquiry.submit')}
                         </button>
                     </div>
                 </form>
+                    </div>
+
+                    <aside aria-labelledby="inquiry-house-rules-title" className="sticky top-6 hidden min-w-0 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs lg:col-span-5 lg:block">
+                    <h2 id="inquiry-house-rules-title" className="m-0 text-sm font-semibold text-slate-800">Apartment Rules &amp; Policies</h2>
+                    <p className="mb-3 mt-1 text-xs text-slate-500">Key guidelines to keep in mind before inquiring.</p>
+                    {renderHouseRules()}
+                    </aside>
+                </div>
             </div>
 
             <SuccessModal

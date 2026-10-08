@@ -17,6 +17,7 @@ import PaymentsPanel from './settings/PaymentsPanel';
 import ParkingPanel from './settings/ParkingPanel';
 import NotificationsPanel from './settings/NotificationsPanel';
 import MaintenancePanel from './settings/MaintenancePanel';
+import HouseRulesPanel from './settings/HouseRulesPanel';
 
 const SETTINGS_FORM_ID = 'system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -321,13 +322,15 @@ const AdminAccountSettings = () => {
                 />
               )}
 
-              {activeTab !== 'account' && !settings && (
+              {activeTab === 'house-rules' && <HouseRulesPanel />}
+
+              {activeTab !== 'account' && activeTab !== 'house-rules' && !settings && (
                 <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">
                   <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading settings…
                 </div>
               )}
 
-              {settings && (
+              {settings && activeTab !== 'house-rules' && (
                 <form
                   id={SETTINGS_FORM_ID}
                   onSubmit={handleSettingsSave}

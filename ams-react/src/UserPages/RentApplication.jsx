@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X, AlertCircle } from 'lucide-react';
 import SuccessModal from '../Components/SuccessModal';
+import HouseRulesModal from '../Components/HouseRulesModal';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
@@ -225,6 +226,8 @@ export default function RentApplication() {
     const [notice, setNotice] = useState('');     // messages that belong to no single field
 
     const [agreePrivacy, setAgreePrivacy] = useState(false);
+    const [agreeRules, setAgreeRules] = useState(false);
+    const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
     const [showTermsModal, setShowTermsModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
@@ -256,10 +259,11 @@ export default function RentApplication() {
         validIdBackFile: requireDoc('Valid ID (back)'),
         nbiFile: requireDoc('NBI Clearance'),
         agreeTerms: (v) => (v ? '' : 'Please read and agree to the terms and privacy policy.'),
+        agreeRules: (v) => (v ? '' : 'Please read and agree to follow the apartment rules.'),
     }, { idPrefix: 'rent-' });
     const values = {
         suffix, contactNo: phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, roomName: selectedRoomId,
-        validIdFrontFile, validIdBackFile, nbiFile, agreeTerms: agreePrivacy,
+        validIdFrontFile, validIdBackFile, nbiFile, agreeTerms: agreePrivacy, agreeRules,
     };
 
     // Accepts the file when it passes the upload rules; otherwise the error pops up as a modal alert.
@@ -329,6 +333,11 @@ export default function RentApplication() {
 
         if (hasActiveApplication) {
             setNotice("You already have an active or pending rent application. You cannot submit another one.");
+            return;
+        }
+
+        if (!agreePrivacy || !agreeRules) {
+            form.validateAll({ ...values, agreeTerms: agreePrivacy, agreeRules });
             return;
         }
 
@@ -720,27 +729,52 @@ export default function RentApplication() {
                         </div>
 
                         <div className="pt-8 border-t border-slate-200 flex flex-col items-center gap-4">
-                            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-6">
+                            <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                                 {!isReadOnly && (
-                                    <div className="flex items-center space-x-3 w-full sm:w-auto">
-                                        <label className="relative flex items-center justify-center cursor-pointer w-6 h-6 shrink-0 group">
-                                            <input
-                                                type="checkbox"
-                                                {...form.fieldA11y('agreeTerms')}
-                                                checked={agreePrivacy}
-                                                onChange={(e) => { setAgreePrivacy(e.target.checked); form.clearError('agreeTerms'); }}
-                                                className="peer sr-only"
-                                            />
-                                            <div className="w-full h-full rounded-md border-2 border-slate-300 peer-checked:bg-indigo-600 peer-checked:border-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 transition-all flex items-center justify-center group-hover:border-indigo-400">
-                                                <Check className={`w-3.5 h-3.5 text-white transition-transform duration-200 ${agreePrivacy ? 'scale-100' : 'scale-0'}`} />
-                                            </div>
-                                        </label>
-                                        <label htmlFor="rent-agreeTerms" className="text-sm font-semibold text-slate-600">
-                                            {t('rent.agreeTerms')}{' '}
-                                            <button type="button" onClick={() => setShowTermsModal(true)} className="text-indigo-600 font-bold hover:text-indigo-700 bg-transparent border-0 p-0 cursor-pointer inline underline underline-offset-2">
-                                                {t('rent.termsLink')}
-                                            </button>
-                                        </label>
+                                    <div className="flex w-full flex-col items-start gap-3 sm:flex-1">
+                                        <div className="flex items-start gap-3">
+                                            <label className="group relative mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
+                                                <input
+                                                    type="checkbox"
+                                                    {...form.fieldA11y('agreeTerms')}
+                                                    checked={agreePrivacy}
+                                                    onChange={(e) => { setAgreePrivacy(e.target.checked); form.clearError('agreeTerms'); }}
+                                                    className="peer sr-only"
+                                                />
+                                                <div className="flex h-full w-full items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
+                                                    <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreePrivacy ? 'scale-100' : 'scale-0'}`} />
+                                                </div>
+                                            </label>
+                                            <label htmlFor="rent-agreeTerms" className="text-sm font-semibold text-slate-600">
+                                                {t('rent.agreeTerms')}{' '}
+                                                <button type="button" onClick={() => setShowTermsModal(true)} className="inline cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 underline underline-offset-2 hover:text-indigo-700">
+                                                    {t('rent.termsLink')}
+                                                </button>
+                                            </label>
+                                        </div>
+                                        <FieldError id="rent-agreeTerms" error={form.errors.agreeTerms} className="m-0" />
+
+                                        <div className="flex items-start gap-3">
+                                            <label className="group relative mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
+                                                <input
+                                                    type="checkbox"
+                                                    {...form.fieldA11y('agreeRules')}
+                                                    checked={agreeRules}
+                                                    onChange={(e) => { setAgreeRules(e.target.checked); form.clearError('agreeRules'); }}
+                                                    className="peer sr-only"
+                                                />
+                                                <div className="flex h-full w-full items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
+                                                    <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreeRules ? 'scale-100' : 'scale-0'}`} />
+                                                </div>
+                                            </label>
+                                            <label htmlFor="rent-agreeRules" className="text-sm font-semibold text-slate-600">
+                                                I have read and agree to the {' '}
+                                                <button type="button" onClick={(e) => { e.preventDefault(); setIsRulesModalOpen(true); }} className="inline cursor-pointer border-0 bg-transparent p-0 font-semibold text-indigo-600 underline hover:text-indigo-800">
+                                                    Apartment Rules &amp; Policies
+                                                </button>.
+                                            </label>
+                                        </div>
+                                        <FieldError id="rent-agreeRules" error={form.errors.agreeRules} className="m-0" />
                                     </div>
                                 )}
 
@@ -751,14 +785,13 @@ export default function RentApplication() {
                                 ) : (
                                     <button
                                         type="submit"
-                                        disabled={submitting}
-                                        className={`rent-app-submit-btn w-full sm:w-auto text-white font-black px-12 py-4 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 cursor-pointer hover:-translate-y-1 active:translate-y-0 uppercase tracking-wider disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30'}`}
+                                        disabled={submitting || (applicationStatus !== 'accepted' && (!agreePrivacy || !agreeRules))}
+                                        className={`rent-app-submit-btn w-full sm:w-auto font-black px-12 py-4 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30 text-white cursor-pointer' : (!agreePrivacy || !agreeRules || submitting) ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 text-white cursor-pointer hover:-translate-y-1 active:translate-y-0'}`}
                                     >
                                         {submitting ? 'Submitting…' : applicationStatus === 'accepted' ? t('rent.proceedPayment') : t('rent.submitApp')}
                                     </button>
                                 )}
                             </div>
-                            <FieldError id="rent-agreeTerms" error={form.errors.agreeTerms} className="text-center m-0" />
                         </div>
                     </form>
                 )}
@@ -869,6 +902,8 @@ export default function RentApplication() {
                     </div>
                 </div>
             )}
+
+            <HouseRulesModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} />
 
             <SuccessModal
                 isOpen={showSuccessModal}

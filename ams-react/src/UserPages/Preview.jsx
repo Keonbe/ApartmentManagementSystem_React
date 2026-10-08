@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Eye, Mail, MapPin, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Eye, Mail, MapPin, CheckCircle2, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
+import HouseRulesModal from '../Components/HouseRulesModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import { getSystemSettings } from '../config/systemSettings';
@@ -13,6 +14,10 @@ export default function Preview({ onRentClick, onInquireClick }) {
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [previewMode, setPreviewMode] = useState(null);
+    const [houseRules, setHouseRules] = useState([]);
+    const [activeModalRule, setActiveModalRule] = useState(null);
+    const [isHouseRulesOpen, setIsHouseRulesOpen] = useState(false);
+    const scrollRef = useRef(null);
     const { t } = useLang();
 
     useEffect(() => {
@@ -40,6 +45,11 @@ export default function Preview({ onRentClick, onInquireClick }) {
         };
         fetchAvailableRooms();
         getSystemSettings().then((s) => setPreviewMode(s.roomPreviewMode)).catch(() => setPreviewMode('images'));
+        api.get('house_rules.php')
+            .then(({ data }) => {
+                if (data.success && Array.isArray(data.rules)) setHouseRules(data.rules);
+            })
+            .catch((error) => console.error('Failed to fetch house rules', error));
     }, []);
 
     const selectedRoom = rooms.find(r => r.id === selectedRoomId) || null;
@@ -86,6 +96,49 @@ export default function Preview({ onRentClick, onInquireClick }) {
                             </div>
                         </div>
                     </div>
+
+                    {/*Apartment rules summary and modal action*/}
+                    <section aria-label="Apartment Rules & Policies" className="my-4 w-full min-w-0 flex-shrink-0 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center">
+                                <h3 className="m-0 flex items-center gap-1.5 text-xs font-bold text-slate-800 sm:text-sm">
+                                    <ShieldCheck aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-indigo-600" />
+                                    Apartment Rules &amp; Policies
+                                </h3>
+                            </div>
+                            {houseRules.length > 0 && (
+                                <button type="button" onClick={() => setIsHouseRulesOpen(true)} className="inline-flex flex-shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs font-semibold text-indigo-600 transition-colors hover:text-indigo-800">
+                                    View All Rules ↗
+                                </button>
+                            )}
+                        </div>
+                        <div className="relative flex min-w-0 items-center gap-1.5">
+                            {houseRules.length > 0 && (
+                                <button type="button" aria-label="Scroll rules left" onClick={() => scrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })} className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600">
+                                    <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                                </button>
+                            )}
+                            <div ref={scrollRef} className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto scroll-smooth py-1 no-scrollbar">
+                                {houseRules.map((rule) => (
+                                    <button
+                                        key={rule.id}
+                                        type="button"
+                                        title={rule.title}
+                                        onClick={() => setActiveModalRule(rule)}
+                                        className="inline-flex shrink-0 cursor-pointer items-center whitespace-nowrap rounded-full border border-slate-200/90 bg-slate-100/80 px-3.5 py-1 text-xs font-medium text-slate-700 transition-all duration-150 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 hover:shadow-2xs"
+                                    >
+                                        <span>{rule.title}</span>
+                                    </button>
+                                ))}
+                                {houseRules.length === 0 && <span className="whitespace-nowrap text-xs text-slate-500">No apartment rules are currently available.</span>}
+                            </div>
+                            {houseRules.length > 0 && (
+                                <button type="button" aria-label="Scroll rules right" onClick={() => scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })} className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-600">
+                                    <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
+                    </section>
 
                     {/*Scrollable Room Cards Track Container*/}
                     <div className="preview-room-list-scroll w-full flex-grow overflow-y-auto pr-2 pb-4 max-h-[500px] lg:max-h-none custom-scrollbar">
@@ -205,6 +258,30 @@ export default function Preview({ onRentClick, onInquireClick }) {
                 mode={previewMode}
                 images={selectedRoom?.images || []}
             />
+            <HouseRulesModal isOpen={isHouseRulesOpen} onClose={() => setIsHouseRulesOpen(false)} />
+            {activeModalRule && (
+                <div
+                    className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                    onMouseDown={(event) => { if (event.target === event.currentTarget) setActiveModalRule(null); }}
+                >
+                    <section role="dialog" aria-modal="true" aria-labelledby="selected-rule-title" className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+                        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
+                            <div className="flex items-start gap-3">
+                                <ShieldCheck aria-hidden="true" className="mt-0.5 h-5 w-5 flex-shrink-0 text-indigo-600" />
+                                <h2 id="selected-rule-title" className="m-0 text-base font-bold text-slate-900">{activeModalRule.title}</h2>
+                            </div>
+                            <button type="button" aria-label="Close rule details" onClick={() => setActiveModalRule(null)} className="flex-shrink-0 cursor-pointer border-0 bg-transparent p-0 text-lg leading-none text-slate-400 hover:text-slate-700">✕</button>
+                        </header>
+                        <div className="px-5 py-5 sm:px-6">
+                            <p className="m-0 whitespace-pre-line text-sm leading-relaxed text-slate-600">{activeModalRule.description}</p>
+                        </div>
+                        <footer className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 sm:px-6">
+                            <button type="button" onClick={() => { setActiveModalRule(null); setIsHouseRulesOpen(true); }} className="cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-indigo-600 hover:text-indigo-800">View All Rules ↗</button>
+                            <button type="button" onClick={() => setActiveModalRule(null)} className="rounded-lg border-0 bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200">Close</button>
+                        </footer>
+                    </section>
+                </div>
+            )}
         </div>
     );
 }

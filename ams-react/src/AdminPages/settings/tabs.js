@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -57,6 +57,12 @@ export const SETTINGS_TABS = [
     icon: faWrench,
     description: 'The monthly maintenance budget and the tenant-responsibility clause.',
     keys: ['maintenanceMonthlyBudget', 'tenantResponsibilityClause'],
+  },
+  {
+    id: 'house-rules',
+    label: 'House Rules',
+    icon: faClipboardList,
+    description: 'Manage the policies displayed on the public apartment preview.',
   },
 ];
 
