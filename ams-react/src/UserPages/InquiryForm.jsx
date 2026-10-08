@@ -34,7 +34,7 @@ function sessionPrefill() {
 }
 
 export default function InquiryForm() {
-    const { t } = useLang();
+    const { t, lang } = useLang();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -80,13 +80,13 @@ export default function InquiryForm() {
                 }
             } catch (error) {
                 console.error('Failed to fetch apartment rules', error);
-                setHouseRulesError('Apartment rules are temporarily unavailable.');
+                setHouseRulesError(t('houseRules.inquiryError'));
             } finally {
                 setLoadingHouseRules(false);
             }
         };
         fetchHouseRules();
-    }, []);
+    }, [t]);
 
     // Keys match submit_inquiry.php's body.
     const form = useFieldErrors({
@@ -148,7 +148,7 @@ export default function InquiryForm() {
             {loadingHouseRules ? (
                 <div className="flex items-center gap-2 py-5 text-xs text-slate-500" role="status">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
-                    Loading apartment rules…
+                    {t('houseRules.loading')}
                 </div>
             ) : houseRulesError ? (
                 <p role="status" className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{houseRulesError}</p>
@@ -156,13 +156,13 @@ export default function InquiryForm() {
                 <div className="max-h-[500px] space-y-2.5 overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-200">
                     {houseRules.map((rule) => (
                         <article key={rule.id} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 transition-colors hover:border-slate-200">
-                            <h3 className="m-0 text-xs font-semibold text-slate-800">{rule.title}</h3>
-                            <p className="m-0 mt-0.5 whitespace-pre-line text-[11px] leading-relaxed text-slate-600">{rule.description}</p>
+                            <h3 className="m-0 text-xs font-semibold text-slate-800">{lang === 'fil' && rule.title_fil?.trim() ? rule.title_fil : rule.title}</h3>
+                            <p className="m-0 mt-0.5 whitespace-pre-line text-[11px] leading-relaxed text-slate-600">{lang === 'fil' && rule.description_fil?.trim() ? rule.description_fil : rule.description}</p>
                         </article>
                     ))}
                 </div>
             ) : (
-                <p className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">No apartment rules are currently available.</p>
+                <p className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{t('houseRules.inquiryEmpty')}</p>
             )}
         </>
     );
@@ -182,7 +182,7 @@ export default function InquiryForm() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                     <div className="min-w-0 lg:col-span-7">
                         <details className="mb-6 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs lg:hidden">
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800 marker:hidden">📋 View Apartment Rules (Tap to expand)</summary>
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800 marker:hidden">{t('houseRules.mobileSummary')}</summary>
                     <div className="mt-3">{renderHouseRules()}</div>
                 </details>
 
@@ -376,8 +376,8 @@ export default function InquiryForm() {
                     </div>
 
                     <aside aria-labelledby="inquiry-house-rules-title" className="sticky top-6 hidden min-w-0 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs lg:col-span-5 lg:block">
-                    <h2 id="inquiry-house-rules-title" className="m-0 text-sm font-semibold text-slate-800">Apartment Rules &amp; Policies</h2>
-                    <p className="mb-3 mt-1 text-xs text-slate-500">Key guidelines to keep in mind before inquiring.</p>
+                    <h2 id="inquiry-house-rules-title" className="m-0 text-sm font-semibold text-slate-800">{t('houseRules.title')}</h2>
+                    <p className="mb-3 mt-1 text-xs text-slate-500">{t('houseRules.inquirySubtitle')}</p>
                     {renderHouseRules()}
                     </aside>
                 </div>

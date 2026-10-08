@@ -15,7 +15,7 @@ $isAdmin = verify_admin($conn);
 
 try {
     if ($method === 'GET') {
-        $sql = 'SELECT id, category, title, description, is_highlight, is_active, sort_order FROM house_rules WHERE is_active = 1 ORDER BY sort_order ASC, id ASC';
+        $sql = 'SELECT id, category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order FROM house_rules WHERE is_active = 1 ORDER BY sort_order ASC, id ASC';
         $result = $conn->query($sql);
         $rules = [];
         while ($row = $result->fetch_assoc()) {
@@ -89,23 +89,27 @@ try {
         $id = (int)($input['id'] ?? 0);
         $category = trim((string)($input['category'] ?? 'General'));
         $title = trim((string)($input['title'] ?? ''));
+        $titleFil = trim((string)($input['title_fil'] ?? ''));
         $description = trim((string)($input['description'] ?? ''));
+        $descriptionFil = trim((string)($input['description_fil'] ?? ''));
+        $titleFil = $titleFil === '' ? null : $titleFil;
+        $descriptionFil = $descriptionFil === '' ? null : $descriptionFil;
         $highlight = !empty($input['is_highlight']) ? 1 : 0;
         $active = array_key_exists('is_active', $input) ? (!empty($input['is_active']) ? 1 : 0) : 1;
         $sortOrder = (int)($input['sort_order'] ?? 0);
         if ($category === '') $category = 'General';
-        if (mb_strlen($category) > 100 || $title === '' || mb_strlen($title) > 255 || $description === '') {
+        if (mb_strlen($category) > 100 || $title === '' || mb_strlen($title) > 255 || ($titleFil !== null && mb_strlen($titleFil) > 255) || $description === '') {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => 'Title and description are required; title must fit its length limit.']);
             exit();
         }
         if ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO house_rules (category, title, description, is_highlight, is_active, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('sssiii', $category, $title, $description, $highlight, $active, $sortOrder);
+            $stmt = $conn->prepare('INSERT INTO house_rules (category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('sssssiii', $category, $title, $titleFil, $description, $descriptionFil, $highlight, $active, $sortOrder);
         } else {
             if ($id < 1) { http_response_code(422); echo json_encode(['success' => false, 'message' => 'A valid rule ID is required.']); exit(); }
-            $stmt = $conn->prepare('UPDATE house_rules SET category = ?, title = ?, description = ?, is_highlight = ?, is_active = ?, sort_order = ? WHERE id = ?');
-            $stmt->bind_param('sssiiii', $category, $title, $description, $highlight, $active, $sortOrder, $id);
+            $stmt = $conn->prepare('UPDATE house_rules SET category = ?, title = ?, title_fil = ?, description = ?, description_fil = ?, is_highlight = ?, is_active = ?, sort_order = ? WHERE id = ?');
+            $stmt->bind_param('sssssiiii', $category, $title, $titleFil, $description, $descriptionFil, $highlight, $active, $sortOrder, $id);
         }
         $stmt->execute();
         if ($method === 'PUT' && $stmt->affected_rows === 0) {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react';
 import api from '../../api/axiosConfig';
 
-const EMPTY_RULE = { title: '', description: '', is_highlight: 0, is_active: 1 };
+const EMPTY_RULE = { title: '', title_fil: '', description: '', description_fil: '', is_highlight: 0, is_active: 1 };
 
 export default function HouseRulesPanel() {
   const [rules, setRules] = useState([]);
@@ -103,8 +103,10 @@ export default function HouseRulesPanel() {
         </table>
       </div>
       {editing && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setEditing(null); }}><form onSubmit={saveRule} className="w-full max-w-xl space-y-4 rounded-2xl bg-white p-6 shadow-2xl"><div><h3 className="m-0 text-lg font-extrabold text-slate-800">{editing.id ? 'Edit Rule' : 'Add Rule'}</h3><p className="m-0 mt-1 text-sm text-slate-500">This policy will be visible to prospective residents when active.</p></div>
-        <label className="block text-sm font-semibold text-slate-700">Title<input required maxLength="255" value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
-        <label className="block text-sm font-semibold text-slate-700">Description<textarea required rows="4" value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} className="mt-1 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
+        <label className="block text-sm font-semibold text-slate-700">Title (English)<input required maxLength="255" value={editing.title} onChange={(event) => setEditing({ ...editing, title: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
+        <label className="block text-sm font-semibold text-slate-700">Description (English)<textarea required rows="4" value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} className="mt-1 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
+        <label className="block text-sm font-semibold text-slate-700">Title (Filipino) <span className="font-normal text-slate-400">(Optional)</span><input maxLength="255" value={editing.title_fil || ''} onChange={(event) => setEditing({ ...editing, title_fil: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
+        <label className="block text-sm font-semibold text-slate-700">Description (Filipino) <span className="font-normal text-slate-400">(Optional)</span><textarea rows="4" value={editing.description_fil || ''} onChange={(event) => setEditing({ ...editing, description_fil: event.target.value })} className="mt-1 w-full resize-y rounded-lg border border-slate-300 px-3 py-2 font-normal" /></label>
         <div className="flex justify-end gap-2 pt-2"><button type="button" disabled={saving} onClick={() => setEditing(null)} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button><button type="submit" disabled={saving} className="rounded-lg border-0 bg-indigo-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save Rule'}</button></div>
       </form></div>}
     </section>
