@@ -156,24 +156,63 @@ function release_expired_reservations($conn) {
     }
     $stmt->close();
 
-    if (empty($expired)) return 0;
+    if (!empty($expired)) {
+        $res_stmt = $conn->prepare("UPDATE unit_reservations SET status = 'Expired', released_at = NOW(), released_reason = 'Hold period lapsed' WHERE id = ? AND status = 'Active'");
+        $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant' WHERE id = ? AND status = 'reserved'");
 
-    $res_stmt = $conn->prepare("UPDATE unit_reservations SET status = 'Expired', released_at = NOW(), released_reason = 'Hold period lapsed' WHERE id = ? AND status = 'Active'");
-    $room_stmt = $conn->prepare("UPDATE rooms SET status = 'vacant' WHERE id = ? AND status = 'reserved'");
+        foreach ($expired as $row) {
+            $res_stmt->bind_param("i", $row['id']);
+            $res_stmt->execute();
+            $room_stmt->bind_param("s", $row['room_name']);
+            $room_stmt->execute();
+            if ($room_stmt->affected_rows > 0) notify_unit_waitlist($conn, $row['room_name']);
+            $released++;
+        }
 
-    foreach ($expired as $row) {
-        $res_stmt->bind_param("i", $row['id']);
-        $res_stmt->execute();
-        $room_stmt->bind_param("s", $row['room_name']);
-        $room_stmt->execute();
-        if ($room_stmt->affected_rows > 0) notify_unit_waitlist($conn, $row['room_name']);
-        $released++;
+        $res_stmt->close();
+        $room_stmt->close();
     }
 
-    $res_stmt->close();
-    $room_stmt->close();
+    // A Converted hold keeps the unit 'reserved' while its application is
+    // reviewed. Once the hold date has passed, release any such unit that no
+    // open application or active hold still claims (audit M5) — otherwise a
+    // rejected or never-filed application left it unrentable forever.
+    $conv = $conn->prepare("SELECT DISTINCT ur.room_name FROM unit_reservations ur
+                            JOIN rooms r ON r.id = ur.room_name AND r.status = 'reserved'
+                            WHERE ur.status = 'Converted' AND ur.hold_expires_at < CURDATE()");
+    if ($conv) {
+        $conv->execute();
+        $rooms = $conv->get_result()->fetch_all(MYSQLI_ASSOC);
+        $conv->close();
+        foreach ($rooms as $row) {
+            if (release_room_if_unclaimed($conn, $row['room_name'])) $released++;
+        }
+    }
 
     return $released;
+}
+
+// Application statuses that still hold a claim on their room.
+const ROOM_CLAIMING_APPLICATION_STATUSES = ['Pending Review', 'Pending', 'Approved', 'Action Required', 'active', 'pending-move-out'];
+
+// Returns a 'reserved' unit to 'vacant' when nothing claims it any more: no
+// open application for the room and no Active hold. Used when an application
+// that came from a Converted hold is rejected or cancelled, and by the sweep
+// above. Guarded on 'reserved', so an occupied unit is never touched.
+function release_room_if_unclaimed($conn, $room_name) {
+    $placeholders = implode(',', array_fill(0, count(ROOM_CLAIMING_APPLICATION_STATUSES), '?'));
+    $stmt = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0
+                            WHERE id = ? AND status = 'reserved'
+                              AND NOT EXISTS (SELECT 1 FROM rent_applications WHERE room_name = ? AND status IN ($placeholders))
+                              AND NOT EXISTS (SELECT 1 FROM unit_reservations WHERE room_name = ? AND status = 'Active')");
+    if (!$stmt) return false;
+    $params = array_merge([$room_name, $room_name], ROOM_CLAIMING_APPLICATION_STATUSES, [$room_name]);
+    $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+    $stmt->execute();
+    $freed = $stmt->affected_rows > 0;
+    $stmt->close();
+    if ($freed) notify_unit_waitlist($conn, $room_name);
+    return $freed;
 }
 
 // Expires lease contracts whose lease_end has passed, notifying each tenant.

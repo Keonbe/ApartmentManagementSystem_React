@@ -168,18 +168,10 @@ if (!$stmt->execute()) {
 $request_id = $stmt->insert_id;
 $stmt->close();
 
-//8.NotifyAdmin.metadata_valueLetsUpdate_service_status.phpResolveThisExactRowLater.
-$admin_row = $conn->query("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")->fetch_assoc();
-if ($admin_row) {
-    $notif_admin_id = (int)$admin_row['id'];
-    $notif_title = "New Service Booking";
-    $notif_msg = "A new $category booking (\"$service_name\") has been submitted for " . date('M j, Y', strtotime($preferred_date)) . " ($preferred_time_slot).";
-    $metadata = "service_request:$request_id";
-    $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, status, is_read, metadata_value) VALUES (?, 'service_request', ?, ?, 'Pending', 0, ?)");
-    $notif_stmt->bind_param("isss", $notif_admin_id, $notif_title, $notif_msg, $metadata);
-    $notif_stmt->execute();
-    $notif_stmt->close();
-}
+// 8. Admin queue row; its metadata (service_request:<id>) lets
+// update_service_status.php resolve this exact row later.
+notify_admins_queue($conn, 'service_request', $request_id, "New Service Booking",
+    "A new $category booking (\"$service_name\") has been submitted for " . date('M j, Y', strtotime($preferred_date)) . " ($preferred_time_slot).");
 
 log_activity($conn, $user_id, 'service', "Submitted Service Booking", "Service Request ID: $request_id \"$service_name\" x$quantity = " . number_format($total_cost, 2));
 

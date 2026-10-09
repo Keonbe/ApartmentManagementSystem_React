@@ -50,6 +50,22 @@ try {
     // application; a bare 'occupied' with no tenant is refused.
     $assign_user_id = $data['user_id'] ?? $data['userId'] ?? null;
     $assigning = ($data['status'] ?? null) === 'occupied';
+
+    // Room status is not free-form (audit M6): vacant/reserved/occupied follow
+    // approval, move-in, move-out and holds, and repairs use maintenance_flag.
+    // The only status this endpoint accepts is 'occupied' from the assign flow.
+    if (array_key_exists('status', $data) && !$assigning) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Room status changes through approval, move-in, move-out or a hold, not here.']);
+        exit();
+    }
+    // Tenant fields belong to the tenancy, so they're only set while assigning.
+    if (!$assigning) {
+        foreach (['tenant_name', 'tenantName', 'last_tenant', 'lastTenant', 'occupants'] as $tenantField) {
+            unset($data[$tenantField]);
+        }
+    }
+
     if ($assigning) {
         if (empty($assign_user_id)) {
             http_response_code(422);
@@ -59,6 +75,19 @@ try {
         if (!in_array($currentRoom['status'], ['vacant', 'reserved'], true)) {
             http_response_code(409);
             echo json_encode(['success' => false, 'message' => "Room $id is {$currentRoom['status']} and cannot be assigned."]);
+            exit();
+        }
+        // One tenancy per user: refuse if they already rent, or have an open
+        // application for, a different room.
+        $claiming = "'" . implode("','", ROOM_CLAIMING_APPLICATION_STATUSES) . "'";
+        $other = $conn->prepare("SELECT room_name FROM rent_applications WHERE user_id = ? AND room_name <> ? AND status IN ($claiming) LIMIT 1");
+        $other->bind_param("is", $assign_user_id, $id);
+        $other->execute();
+        $other_row = $other->get_result()->fetch_assoc();
+        $other->close();
+        if ($other_row) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => "This tenant already has an open rent or application for Unit {$other_row['room_name']}."]);
             exit();
         }
         $data['status'] = 'reserved';

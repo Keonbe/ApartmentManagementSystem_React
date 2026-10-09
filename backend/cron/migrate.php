@@ -4,9 +4,20 @@
  *
  * Only YYYY_MM_*.sql files are migrations. This intentionally excludes utility
  * scripts such as SetupDB.sql and seed/reset scripts, which may be destructive.
+ *
+ * Each file is split into statements and run one at a time. A statement that
+ * fails because its change is already there (duplicate column/key/table, or a
+ * missing column/key to drop) is skipped and the rest of the file still runs.
+ * Running the whole file through multi_query() used to stop the server at that
+ * first error while the runner still recorded the file as applied, which left
+ * prod missing 15 columns (see 2026_10_prod_schema_repair.sql).
  */
 
 require_once __DIR__ . '/../config.php';
+
+// Errors that mean "this change is already applied": duplicate column (1060),
+// duplicate key name (1061), table exists (1050), can't drop missing key/column (1091).
+const MIGRATION_BENIGN_ERRORS = [1060, 1061, 1050, 1091];
 
 /** Emit one migration log line and return it for the web response. */
 function migration_log(&$output, $status, $message)
@@ -25,66 +36,117 @@ function migration_is_comment_only($sql)
     return trim($withoutComments ?? $sql) === '';
 }
 
-/** Return the MySQL error code from a result-advance failure, if available. */
-function migration_result_error_code($conn, $exception = null)
+/**
+ * Split a SQL file into statements on `;`, ignoring semicolons inside quoted
+ * strings/identifiers and comments. Comment-only chunks are dropped. Files with
+ * DELIMITER blocks (procedures, triggers) are not supported.
+ */
+function migration_split_statements($sql)
 {
-    $code = (int) $conn->errno;
-    if ($code === 0 && $exception !== null) {
-        $code = (int) $exception->getCode();
+    $statements = [];
+    $current = '';
+    $len = strlen($sql);
+    $i = 0;
+
+    while ($i < $len) {
+        $ch = $sql[$i];
+        $next = $i + 1 < $len ? $sql[$i + 1] : '';
+
+        // Line comments: -- (followed by whitespace or end) and #.
+        if (($ch === '-' && $next === '-' && ($i + 2 >= $len || ctype_space($sql[$i + 2]))) || $ch === '#') {
+            $end = strpos($sql, "\n", $i);
+            $end = $end === false ? $len : $end;
+            $current .= substr($sql, $i, $end - $i);
+            $i = $end;
+            continue;
+        }
+        // Block comments.
+        if ($ch === '/' && $next === '*') {
+            $end = strpos($sql, '*/', $i + 2);
+            $end = $end === false ? $len : $end + 2;
+            $current .= substr($sql, $i, $end - $i);
+            $i = $end;
+            continue;
+        }
+        // Quoted strings and identifiers: '...', "...", `...`.
+        if ($ch === "'" || $ch === '"' || $ch === '`') {
+            $quote = $ch;
+            $current .= $ch;
+            $i++;
+            while ($i < $len) {
+                $c = $sql[$i];
+                if ($c === '\\' && $quote !== '`' && $i + 1 < $len) {
+                    $current .= $c . $sql[$i + 1];
+                    $i += 2;
+                    continue;
+                }
+                $current .= $c;
+                $i++;
+                if ($c === $quote) {
+                    // A doubled quote is an escaped quote, not the end.
+                    if ($i < $len && $sql[$i] === $quote) {
+                        $current .= $sql[$i];
+                        $i++;
+                        continue;
+                    }
+                    break;
+                }
+            }
+            continue;
+        }
+        if ($ch === ';') {
+            if (!migration_is_comment_only($current)) {
+                $statements[] = trim($current);
+            }
+            $current = '';
+            $i++;
+            continue;
+        }
+        $current .= $ch;
+        $i++;
     }
-    return $code;
+
+    if (!migration_is_comment_only($current)) {
+        $statements[] = trim($current);
+    }
+    return $statements;
 }
 
-/** Drain outstanding multi_query results after a tolerated statement error. */
-function migration_drain_results($conn, &$output, $name, &$noticeLogged)
+/**
+ * Run one statement. Returns 0 on success or the MySQL error code. Works whether
+ * mysqli reports errors by returning false (PHP 8.0 default) or by throwing.
+ */
+function migration_run_statement($conn, $statement, &$error)
 {
-    $benignErrors = [1060, 1061, 1050, 1091];
-    $safetyLimit = 10000;
-
-    while ($conn->more_results() && $safetyLimit-- > 0) {
-        try {
-            if (!$conn->next_result()) {
-                $code = migration_result_error_code($conn);
-                if (!in_array($code, $benignErrors, true)) {
-                    throw new RuntimeException($conn->error ?: 'Could not advance to the next SQL result', $code);
-                }
-                if (!$noticeLogged) {
-                    migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
-                    $noticeLogged = true;
-                }
-                continue;
-            }
-            if ($result = $conn->store_result()) {
-                $result->free();
-            }
-        } catch (mysqli_sql_exception $e) {
-            $code = migration_result_error_code($conn, $e);
-            if (!in_array($code, $benignErrors, true)) {
-                throw $e;
-            }
-            if (!$noticeLogged) {
-                migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
-                $noticeLogged = true;
-            }
+    $error = '';
+    try {
+        $result = $conn->query($statement);
+        if ($result === false) {
+            $error = $conn->error;
+            return (int) $conn->errno ?: -1;
         }
-    }
-
-    if ($safetyLimit <= 0) {
-        throw new RuntimeException('Stopped draining results after reaching the safety limit');
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+        return 0;
+    } catch (mysqli_sql_exception $e) {
+        $error = $e->getMessage();
+        return (int) $e->getCode() ?: -1;
     }
 }
 
 /**
  * Run pending migrations. Returns success, applied names, output lines, and
- * skipped non-migration SQL filenames.
+ * skipped non-migration SQL filenames. $migrationDir defaults to
+ * backend/api/migrations; tests can point it at a scratch folder.
  */
-function run_migrations($conn)
+function run_migrations($conn, $migrationDir = null)
 {
     $output = [];
     $applied = [];
     $skipped = [];
     $success = true;
-    $migrationDir = __DIR__ . '/../api/migrations';
+    $migrationDir = $migrationDir ?? __DIR__ . '/../api/migrations';
 
     try {
         $conn->query(
@@ -137,114 +199,55 @@ function run_migrations($conn)
                 $success = false;
                 break;
             }
-            if (migration_is_comment_only($sql)) {
-                try {
-                    $insert->bind_param('s', $name);
-                    $insert->execute();
-                    $applied[] = $name;
-                    migration_log($output, 'SKIPPED', $name . ' (empty or comment-only)');
-                } catch (Throwable $e) {
-                    error_log('[AMS migration] ' . $name . ': ' . $e->getMessage());
-                    migration_log($output, 'FAILED', $name . ' (could not record skipped migration)');
-                    $success = false;
-                    break;
+
+            // Some MySQL versions reject IF NOT EXISTS in ALTER TABLE ADD and
+            // CREATE INDEX. Strip those clauses; the duplicate error they were
+            // guarding against is tolerated per statement below.
+            $sql = preg_replace('/ADD\s+(COLUMN\s+)?IF\s+NOT\s+EXISTS/i', 'ADD $1', $sql);
+            $sql = preg_replace('/ADD\s+(UNIQUE\s+)?(INDEX|KEY)\s+IF\s+NOT\s+EXISTS/i', 'ADD $1$2', $sql);
+            $sql = preg_replace('/CREATE\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE $1INDEX', $sql);
+
+            $statements = migration_split_statements($sql);
+            $failed = false;
+            $notices = 0;
+            foreach ($statements as $index => $statement) {
+                $error = '';
+                $code = migration_run_statement($conn, $statement, $error);
+                if ($code === 0) {
+                    continue;
                 }
-                continue;
+                if (in_array($code, MIGRATION_BENIGN_ERRORS, true)) {
+                    $notices++;
+                    continue;
+                }
+                error_log('[AMS migration] ' . $name . ' statement ' . ($index + 1) . ' (MySQL ' . $code . '): ' . $error);
+                migration_log($output, 'FAILED', $name . ' at statement ' . ($index + 1) . ' of ' . count($statements) . ' (see server log for details)');
+                $failed = true;
+                break;
+            }
+            if ($failed) {
+                $success = false;
+                break;
             }
 
             try {
-                // Some MySQL versions reject IF NOT EXISTS in ALTER TABLE ADD
-                // and CREATE INDEX. Normalize those clauses before submission.
-                $sql = preg_replace('/ADD\s+(COLUMN\s+)?IF\s+NOT\s+EXISTS/i', 'ADD $1', $sql);
-                $sql = preg_replace('/ADD\s+(UNIQUE\s+)?(INDEX|KEY)\s+IF\s+NOT\s+EXISTS/i', 'ADD $1$2', $sql);
-                $sql = preg_replace('/CREATE\s+(UNIQUE\s+)?INDEX\s+IF\s+NOT\s+EXISTS/i', 'CREATE $1INDEX', $sql);
-                $benignErrors = [1060, 1061, 1050, 1091];
-                $noticeLogged = false;
-                if (!$conn->multi_query($sql)) {
-                    $code = (int) $conn->errno;
-                    if (!in_array($code, $benignErrors, true)) {
-                        throw new RuntimeException($conn->error, $code);
-                    }
-                    migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . ')');
-                    $noticeLogged = true;
-                }
-                if ($conn->more_results() || $conn->field_count > 0) {
-                    do {
-                        if ($result = $conn->store_result()) {
-                            $result->free();
-                        }
-                        if (!$conn->more_results()) {
-                            break;
-                        }
-                        try {
-                            $advanced = $conn->next_result();
-                        } catch (mysqli_sql_exception $e) {
-                            $code = migration_result_error_code($conn, $e);
-                            if (!in_array($code, $benignErrors, true)) {
-                                throw $e;
-                            }
-                            if (!$noticeLogged) {
-                                migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
-                                $noticeLogged = true;
-                            }
-                            migration_drain_results($conn, $output, $name, $noticeLogged);
-                            break;
-                        }
-                        if (!$advanced) {
-                            $code = migration_result_error_code($conn);
-                            if (!in_array($code, $benignErrors, true)) {
-                                throw new RuntimeException($conn->error ?: 'Could not advance to the next SQL result', $code);
-                            }
-                            if (!$noticeLogged) {
-                                migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . '); draining remaining results');
-                                $noticeLogged = true;
-                            }
-                            migration_drain_results($conn, $output, $name, $noticeLogged);
-                            break;
-                        }
-                    } while (true);
-                } else {
-                    // multi_query() can fail before a result is available.
-                    $code = (int) $conn->errno;
-                    if ($code !== 0 && !in_array($code, $benignErrors, true)) {
-                        throw new RuntimeException($conn->error, $code);
-                    }
-                }
-
                 $insert->bind_param('s', $name);
-                $insert->execute();
-                $applied[] = $name;
-                migration_log($output, 'SUCCESS', $name);
+                if (!$insert->execute()) {
+                    throw new RuntimeException($insert->error);
+                }
             } catch (Throwable $e) {
-                $code = migration_result_error_code($conn, $e);
-                if (in_array($code, [1060, 1061, 1050, 1091], true)) {
-                    if (!$noticeLogged) {
-                        migration_log($output, 'NOTICE', $name . ' statement already applied (MySQL error ' . $code . ')');
-                        $noticeLogged = true;
-                    }
-                    try {
-                        migration_drain_results($conn, $output, $name, $noticeLogged);
-                        $insert->bind_param('s', $name);
-                        $insert->execute();
-                        $applied[] = $name;
-                        migration_log($output, 'SUCCESS', $name . ' (completed with idempotency notice)');
-                        continue;
-                    } catch (Throwable $recordError) {
-                        $e = $recordError;
-                    }
-                }
-
-                // Drain pending results so this connection is usable for error handling.
-                try {
-                    $ignoredNotice = false;
-                    migration_drain_results($conn, $output, $name, $ignoredNotice);
-                } catch (Throwable $ignored) {
-                    // Keep the original migration error.
-                }
                 error_log('[AMS migration] ' . $name . ': ' . $e->getMessage());
-                migration_log($output, 'FAILED', $name . ' (see server log for details)');
+                migration_log($output, 'FAILED', $name . ' (could not record migration)');
                 $success = false;
                 break;
+            }
+            $applied[] = $name;
+            if (count($statements) === 0) {
+                migration_log($output, 'SKIPPED', $name . ' (empty or comment-only)');
+            } elseif ($notices > 0) {
+                migration_log($output, 'SUCCESS', $name . " ($notices statement(s) already applied, skipped)");
+            } else {
+                migration_log($output, 'SUCCESS', $name);
             }
         }
 
@@ -268,7 +271,7 @@ function run_migrations($conn)
     ];
 }
 
-if (PHP_SAPI === 'cli') {
+if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === realpath(__FILE__)) {
     $result = run_migrations($conn);
     $conn->close();
     exit($result['success'] ? 0 : 1);

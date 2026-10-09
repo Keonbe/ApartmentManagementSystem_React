@@ -80,7 +80,9 @@ try {
         }
     } else {
         // Converted: the unit stays 'reserved'. The approval cascade in
-        // update_tenant_status.php flips it to 'occupied' on move-in.
+        // update_tenant_status.php flips it to 'occupied' on move-in. If the
+        // application is rejected/cancelled, or none is filed by the hold
+        // date, release_room_if_unclaimed() (config.php) frees the unit.
         if (!empty($reservation['inquiry_id'])) {
             $inq_id = (int)$reservation['inquiry_id'];
             $inq_upd = $conn->prepare("UPDATE inquiries SET status = 'Converted' WHERE id = ?");

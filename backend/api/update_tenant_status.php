@@ -83,7 +83,7 @@ if ($id > 0 && !empty($status)) {
         // transaction and refuse a move it doesn't allow — e.g. a Pending
         // Review application can't be pushed straight to moved-out, and an
         // application that's already Rejected can't be moved again from here.
-        $cur_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE id = ?");
+        $cur_stmt = $conn->prepare("SELECT status, user_id FROM rent_applications WHERE id = ?");
         $cur_stmt->bind_param("i", $id);
         $cur_stmt->execute();
         $cur_row = $cur_stmt->get_result()->fetch_assoc();
@@ -172,7 +172,7 @@ if ($id > 0 && !empty($status)) {
                 $conn->query("UPDATE notifications SET status = 'Resolved', is_read = 1 WHERE user_id = " . (int)$cur_row['user_id'] . " AND type IN ('billing', 'rent_due', 'overdue') AND status = 'Pending'");
             }
 
-            // 3. Free the room
+            // 5. Free the room
             $app_q = $conn->prepare("SELECT room_name FROM rent_applications WHERE id = ?");
             $app_q->bind_param("i", $id);
             $app_q->execute();
@@ -180,17 +180,27 @@ if ($id > 0 && !empty($status)) {
             $app_q->close();
             if ($room_row) {
                 $room_name = $room_row['room_name'];
-                
-                $room_id_clean = trim(str_replace('Room', '', $room_name));
-                $free_room = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
-                $free_room->bind_param("s", $room_id_clean);
-                $free_room->execute();
-                $free_room->close();
-                
-                $free_room2 = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
-                $free_room2->bind_param("s", $room_name);
-                $free_room2->execute();
-                $free_room2->close();
+
+                if ($current_status === 'Approved') {
+                    // An approved application holds the room ('reserved' for it).
+                    $room_id_clean = trim(str_replace('Room', '', $room_name));
+                    $free_room = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
+                    $free_room->bind_param("s", $room_id_clean);
+                    $free_room->execute();
+                    $free_room->close();
+
+                    $free_room2 = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id = ?");
+                    $free_room2->bind_param("s", $room_name);
+                    $free_room2->execute();
+                    $free_room2->close();
+                } else {
+                    // Not yet approved: the room may belong to someone else (an
+                    // approved applicant or a tenant), so never vacate it outright.
+                    // It may still be 'reserved' from the Converted hold this
+                    // application came from (audit M5) — release it only if no
+                    // other application or hold claims it.
+                    release_room_if_unclaimed($conn, $room_name);
+                }
             }
         }
 
@@ -404,7 +414,13 @@ if ($id > 0 && !empty($status)) {
                 $room = $u_res['room_name'];
                 
                 $notif_title = $status === 'active' ? 'Move-In Confirmed' : "Application " . ($status === 'Declined' ? 'Rejected' : $status);
-                $notif_msg = "Your rent application for Unit $room has been " . strtolower($notif_title) . ".";
+                if ($status === 'active') {
+                    $notif_msg = "Your move-in to Unit $room has been confirmed.";
+                } elseif ($status === 'Action Required') {
+                    $notif_msg = "Your rent application for Unit $room needs more information from you.";
+                } else {
+                    $notif_msg = "Your rent application for Unit $room has been " . strtolower($status === 'Declined' ? 'Rejected' : $status) . ".";
+                }
                 if (!empty($rejection_reason)) {
                     $notif_msg .= " Reason: $rejection_reason";
                 }

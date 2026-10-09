@@ -7,7 +7,7 @@ import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
     faBell, faFileContract, faHistory,
-    faHome, faCompass, faConciergeBell, faBed, faUserPlus, faCheckCircle, faTimesCircle
+    faHome, faCompass, faConciergeBell, faBed, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import {
     TENANT_NOTIFICATION_LINKS, TENANT_NOTIFICATIONS_EVENT, NOTIFICATION_POLL_MS, PAYMENT_WATCH_POLL_MS,

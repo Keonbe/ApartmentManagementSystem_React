@@ -2,6 +2,8 @@
 
 > **Compiled:** 2026-09-16 from every backlog, audit, checklist, deployment and design doc in the repository. The source files are unchanged and hold the full details, so follow the **Source** link before starting any task.
 >
+> **Updated:** 2026-10-07 — closed audit M2, M5, M6, M10 (already fixed in code), L8 and L10, plus the min-rent-duration row (done in d632ae1); migration runner now runs statement by statement.
+>
 > **Updated:** 2026-09-24 — chat (PR #8) moved to Recently Completed with its remaining gaps as one Urgent row; chat/log security findings added (security_audit §6e); SaaS (Railway/Vercel) items marked on hold.
 >
 > **Scope:** this file lists open work only. Items that the source docs still show as open but the code already implements are listed under [Recently Completed](#recently-completed), not here.
@@ -30,13 +32,13 @@
 | Category | Open tasks | High |
 |---|---|---|
 | [Urgent](#urgent--panelist-checklist-gaps) (panelist checklist gaps) | 3 | 3 |
-| Backend | 11 | 0 |
-| Frontend | 8 | 0 |
+| Backend | 8 | 0 |
+| Frontend | 4 | 0 |
 | Security | 18 | 5 |
 | Deployment | 16 | 0 |
 | Testing and quality | 2 | 0 |
 | Documentation | 8 | 0 |
-| **Total** | **66** | **5** |
+| **Total** | **59** | **5** |
 
 The Urgent row's "High" count is its own 3 Urgent items, not audit-High — see the note on priority above. The Total's High column counts only true audit-High items (Security 5), so it does not double-count the Urgent row.
 
@@ -82,14 +84,10 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks �
 |---|---|---|---|
 | [ ] | High | **Sec** System-wide backend input validation: shared `v_*` helpers in `config.php`, typed checks on every write endpoint (worst: `update_room`, `update_tenant_status` negative deductions, `upload_payment_proof` proof not required, `rent_application` rent from client), one 422 error contract, no leaked DB errors, then MariaDB strict mode. **Deferred — not started.** | [input_validation_backend_plan.md](audits/input_validation_backend_plan.md) |
 | [ ] | Medium | **Bug** PayMongo return URLs fall back to a hardcoded `localhost` hash URL that `BrowserRouter` can't route. Build them from a server setting (M11, remaining part). | [Audit M11](audits/ams_security_workflow_audit_2026-09-16.md#m11), [Guide §18.1 #4](documentation/module_verification_guide.md#181-defects) |
-| [ ] | Medium | **Bug** M2: editing an expired contract's dates rewrites the lease dates of a room that has since been re-let. | [Audit M2](audits/ams_security_workflow_audit_2026-09-16.md#m2) |
-| [ ] | Medium | **Bug** M5: a "Converted" unit hold leaves the unit reserved forever. | [Audit M5](audits/ams_security_workflow_audit_2026-09-16.md#m5) |
-| [ ] | Medium | **Bug** M6: manual occupancy skips the vacancy check, invoice and contract, and `rooms.status` has no allowlist. | [Audit M6](audits/ams_security_workflow_audit_2026-09-16.md#m6), [Guide §18.3](documentation/module_verification_guide.md#183-sharp-edges-working-as-designed-but-easy-to-misread) |
 | [ ] | Medium | **Bug** M7: lease length, occupants, room and rent aren't validated when an application is submitted. The form now checks phone, email, lengths and documents before sending (2026-09-25); the server side is in the deferred [backend validation plan](audits/input_validation_backend_plan.md). | [Audit M7](audits/ams_security_workflow_audit_2026-09-16.md#m7) |
 | [ ] | Low | **Bug** L5: the service-charge reversal runs before the status claim and outside a single transaction. | [Audit L5](audits/ams_security_workflow_audit_2026-09-16.md#l5) |
 | [ ] | Low | **Bug** L6: lease extensions skip the 24-month cap and `CONTRACT_TRANSITIONS`, and don't re-arm the lease-end reminder. | [Audit L6](audits/ams_security_workflow_audit_2026-09-16.md#l6) |
 | [ ] | Low | **Maint** L7: `get_rooms.php` runs N+1 queries, and the sweep, overstay and overdue checks run on every poll or GET. | [Audit L7](audits/ams_security_workflow_audit_2026-09-16.md#l7) |
-| [ ] | Low | **Maint** L10: `service_request.php` writes its queue row by hand. Use `notify_admins_queue()`. | [Audit L10](audits/ams_security_workflow_audit_2026-09-16.md#l10) |
 | [ ] | Unprioritized | **Enh** Scheduled announcements (FR-10.6), targeting specific tenants instead of only "all" or "one unit" (FR-10.7), and reservation reports per module (parking, CCTV, maintenance per unit) (FR-11.7). | [todo.md Announcements](todo.md#announcements), [todo.md Reports](todo.md#reports), [system_design FR-10](documentation/system_design.md#fr-10-announcements--notifications) |
 | [ ] | Unprioritized | **Enh / Bug** Service-management known limitations: no recurring bookings, no staff-assignment UI, reversal after payment is manual, and `parking_reservation.php` still stores `../uploads/` paths. | [service_management_design §8](features/service_management_design.md#8-known-limitations) |
 
@@ -97,10 +95,7 @@ Every feature `panelist_feature_checklist.md`'s Master Checklist still marks �
 
 | Status | Priority | Task | Source |
 |---|---|---|---|
-| [ ] | Medium | **Bug** M10: adding, editing or deleting admin payment-history records in `AdminPayments.jsx` is never saved. Remove those controls or back them with real endpoints. | [Audit M10](audits/ams_security_workflow_audit_2026-09-16.md#m10) |
-| [ ] | Low | **Bug** L8: add a catch-all 404 route (unknown paths render blank), show errors in a shared toast instead of `console.error`, and stop PayBills from submitting when the proof upload fails. PayBills part done 2026-09-25, and write actions now show the server's message via `utils/apiError.js`; the 404 route and a shared toast remain. | [Audit L8](audits/ams_security_workflow_audit_2026-09-16.md#l8), [Guide §18.3](documentation/module_verification_guide.md#183-sharp-edges-working-as-designed-but-easy-to-misread) |
 | [ ] | Unprioritized | **Enh** Add a lease-extension history tab to the `AdminUnits` detail modal. The `lease_renewals` data already exists. | [todo.md Room & Occupancy](todo.md#room--occupancy), [todo.md Unit Management](todo.md#unit-management) |
-| [ ] | Unprioritized | **Enh** Make the minimum and maximum lease or rental duration configurable. `AdminUnits.jsx` still hardcodes 6 months, although Settings → Leasing saves `min_lease_duration` (default 3) that nothing reads; its hint also points to a "System Configuration" page that no longer exists. | [todo.md Room & Occupancy](todo.md#room--occupancy), [todo.md Reservation & Lease](todo.md#reservation--lease) |
 | [x] | Unprioritized | **Enh** Add min/max limits to form inputs, including a plate-number `maxLength` in `ParkingReservation.jsx`. The backend already validates both. Done 2026-09-25 (branch `feature/frontend-validation`): limits come from `utils/validation.js` `LIMITS`, read from SetupDB column sizes. | [todo.md Registration & Application](todo.md#registration--application), [todo.md Parking Reservation](todo.md#parking-reservation) |
 | [ ] | Unprioritized | **Enh** Let a rejected applicant edit and resubmit their application. Today they can only file a new one. | [todo.md Registration & Application](todo.md#registration--application) |
 | [ ] | Unprioritized | **Enh** Documents: accept Police Clearance and Proof of Billing uploads, and let an admin request more documents from a tenant (with a notification). | [todo.md Documents](todo.md#documents) |
@@ -201,6 +196,7 @@ Items the source docs mark done. Items marked † are still shown as open in an 
 
 | Status | Item | Source |
 |---|---|---|
+| [x] | Backlog bugs (2026-10-07): **M2** editing a past tenant's contract dates no longer rewrites a re-let room; **M5** a Converted unit hold is released when its application is rejected/cancelled or, after the hold date, when nothing claims the room (`release_room_if_unclaimed()`); **M6** `update_room.php` refuses free-form `status` (422) and a second tenancy for the same user (409); **M10** † admin payment-history edit/delete/ad-hoc controls were already gone; **L8** catch-all 404 page (the shared-toast part was dropped by choice); **L10** service bookings use `notify_admins_queue()`. Also: `cron/migrate.php` runs each statement separately so a duplicate column can no longer skip the rest of a file; tenant notification no longer says "has been application rejected"; TopBar crash on an Action Required notice (`faInfoCircle` not imported) fixed; min rent duration configurable (d632ae1). | [verification guide M2-14…16, M9-26, §18.3](documentation/module_verification_guide.md), [database_schema §3](documentation/database_schema.md) |
 | [x] | Panel feedback (2026-09-26): fixed +63 contact numbers stored as `+639XXXXXXXXX`; visitor ID number required, visit date/time, checkout-note dropdown; payment confirmation loop (tenant notified on submit, live "awaiting / confirmed / rejected" on PayBills); **monthly rent invoices generated automatically** from the lease start (`generate_due_rent_invoices()` in the daily sweep, no back-billing, no past due dates), lease extensions billed the same way; tenant advance payment of 1–6 months (one payment, one invoice and receipt per month, `advance_payment.php`, `ADV-…` payment groups); fixed `pay_bill.php` returning 409 after every successful manual proof upload. | [verification guide §6](documentation/module_verification_guide.md#6-module-3--rental-payment--billing), [§16](documentation/module_verification_guide.md) |
 | [x] | Frontend input hardening, second pass (2026-09-26): every data-entry form and modal shows errors on the field (red border, message under it, `aria-invalid`/`aria-describedby`), validates on blur and submit and clears on typing, trims text, has textarea counters, blocks `e`/`+`/`-` in number fields, links date ranges (end `min` = start, cleared if the start moves past it), and disables submit while a request runs. New shared pieces: `hooks/useFieldErrors.js`, `hooks/useFilePreview.js`, `Components/form/*` (FieldError, CharCount, PasswordChecklist, PasswordField, FileChip, ReasonModal), `apiFieldErrors()`. New passwords need upper/lower/number/symbol, enforced by the backend too. The four `window.prompt()` reasons are now a modal. Fixed along the way: TrackApplication re-upload never sent the file, maintenance budget and settings number fields (step 1000 / empty became 0), PayBills pay button double-submit, preview URLs never released. | [input_validation_backend_plan.md](audits/input_validation_backend_plan.md), [verification guide M11-32…34](documentation/module_verification_guide.md) |
 | [x] | Frontend input validation (2026-09-25, `feature/frontend-validation`): shared `utils/validation.js` (column-size `LIMITS`, PH mobile rule matching `profile.php`, password 8-72, amounts within decimal(10,2), real calendar dates), `utils/fileLimits.js` (each upload endpoint's types/size plus the 12 MB `post_max_size` total) and `utils/apiError.js`. Applied to account, billing, tenancy, applicant, maintenance/service, parking/visitor/CCTV, announcement and settings forms. Fixed along the way: Registration allowed 6-character passwords, both phone checks accepted numbers starting with 8 that the backend rejects, visitor ID photos accepted PDFs the backend refuses, UTC date defaults were a day early in Manila before 08:00, AdminParking showed failed updates as success, archiving a tenant ignored the result. The backend is still the boundary: see the deferred plan. | [input_validation_backend_plan.md](audits/input_validation_backend_plan.md) |

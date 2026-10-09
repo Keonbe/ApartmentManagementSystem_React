@@ -108,12 +108,17 @@ if ($action === 'edit') {
         } else {
             // Keep rooms.lease_start/lease_end in step — get_rooms.php and the
             // occupancy views read the lease dates from there, not the contract.
+            // Only while this application still holds the room: an expired
+            // contract of a tenant who moved out must not rewrite the dates of
+            // whoever rents the room now (audit M2).
             if (!empty($contract['rent_application_id'])) {
                 $room_stmt = $conn->prepare("
                     UPDATE rooms r
                     JOIN rent_applications ra ON ra.room_name = r.id
                     SET r.lease_start = ?, r.lease_end = ?
                     WHERE ra.id = ?
+                      AND ra.status IN ('Approved', 'active', 'pending-move-out')
+                      AND r.status IN ('reserved', 'occupied')
                 ");
                 $room_stmt->bind_param("ssi", $lease_start, $lease_end, $contract['rent_application_id']);
                 $room_stmt->execute();

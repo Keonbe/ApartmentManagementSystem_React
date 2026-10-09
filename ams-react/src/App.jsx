@@ -33,6 +33,7 @@ import UserVisitors from './UserPages/UserVisitors';
 import UserUtilities from './UserPages/UserUtilities';
 import ServiceBooking from './UserPages/ServiceBooking';
 import ServiceCatalog from './UserPages/ServiceCatalog';
+import NotFound from './UserPages/NotFound';
 
 // Admin Pages
 import AdminDashboard from './AdminPages/AdminDashboard';
@@ -258,6 +259,9 @@ function AppContent() {
         <Route path="/admin-users" element={<AdminProtectedRoute><AdminUsers /></AdminProtectedRoute>} />
         <Route path="/admin-utilities" element={<AdminProtectedRoute><AdminUtilities /></AdminProtectedRoute>} />
         <Route path="/admin-messages" element={<AdminProtectedRoute><AdminMessages /></AdminProtectedRoute>} />
+
+        {/* Anything else: a 404 page instead of a blank screen */}
+        <Route path="*" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><NotFound /></BaseAppLayout>} />
       </Routes>
         {!['/login', '/register', '/admin-messages'].includes(location.pathname)
           && (sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser'))
