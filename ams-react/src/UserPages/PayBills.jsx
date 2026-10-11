@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { appReturnBase } from '../api/env';
+import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
@@ -48,7 +48,7 @@ export default function PayBills() {
     // Back from a PayMongo checkout: the invoice stays 'processing' until the
     // webhook lands; useInvoiceWatch keeps polling and shows "Payment confirmed" then.
     const [notice, setNotice] = useState(() => (
-        /[?&]status=success\b/.test(window.location.hash)
+        gatewayReturnParams().get('status') === 'success'
             ? {
                 message: 'Payment sent',
                 subtext: 'We are waiting for the payment gateway to confirm it. This page updates by itself, and you will also get a notification.',
@@ -320,7 +320,7 @@ export default function PayBills() {
                         else if (ch.icon === 'maya') { icon = faWallet; color = 'text-emerald-500'; }
                         else { icon = faMoneyBillWave; color = 'text-emerald-600'; }
                         
-                        return { ...ch, icon, color };
+                        return { ...ch, icon, color, isGcash: ch.icon === 'gcash' };
                     });
                     setPaymentChannels(mapped);
                     if (mapped.length > 0) {
@@ -335,10 +335,9 @@ export default function PayBills() {
         const loadAdvanceOnMount = async () => { await loadAdvance(); };
         loadAdvanceOnMount();
 
-        // HashRouter: the gateway's return query sits after the hash (#/pay-bills?status=...).
-        const hash = window.location.hash;
-        if (hash.includes('?')) {
-            const queryParams = new URLSearchParams(hash.split('?')[1]);
+        // Back from the gateway: /pay-bills?status=...&invoice_id=...
+        const queryParams = gatewayReturnParams();
+        if (queryParams.has('status')) {
             const status = queryParams.get('status');
             if (status === 'success') {
                 // The "Payment sent" notice is set from the URL on first render.
@@ -348,14 +347,18 @@ export default function PayBills() {
                 // stays in 'processing' and becomes unpayable.
                 const invoiceId = queryParams.get('invoice_id');
                 (async () => {
+                    let released = true;
                     if (invoiceId) {
                         try {
                             await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
                         } catch (err) {
                             console.error('Failed to release the cancelled payment session:', err);
+                            released = false;
                         }
                     }
-                    alert("Payment was cancelled.");
+                    alert(released
+                        ? "Payment was cancelled."
+                        : "Payment was cancelled, but this bill could not be reopened for payment. Please contact management to release it.");
                     navigate('/pay-bills', { replace: true });
                     refresh();
                 })();
@@ -445,12 +448,11 @@ export default function PayBills() {
 
         if (currentMethodObj.family === 'sandbox') {
             try {
-                const returnBase = appReturnBase();
                 const res = await api.post("/create_checkout_session.php", {
                     invoice_id: payKey,
                     channel: currentMethodObj.id,
-                    success_url: `${returnBase}#/pay-bills?status=success&invoice_id=${encodeURIComponent(payKey)}`,
-                    cancel_url: `${returnBase}#/pay-bills?status=cancelled&invoice_id=${encodeURIComponent(payKey)}`
+                    success_url: appReturnUrl('pay-bills', { status: 'success', invoice_id: payKey }),
+                    cancel_url: appReturnUrl('pay-bills', { status: 'cancelled', invoice_id: payKey })
                 });
                 
                 if (res.data.success && res.data.checkout_url) {
@@ -886,7 +888,7 @@ export default function PayBills() {
                                 className="pay-bills-method-trigger btn-interactive focus-glow w-full min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
                             >
                                 <div className="flex items-center space-x-3 text-slate-800 font-semibold text-sm">
-                                    {currentMethodObj.id === 'gcash' ? (
+                                    {currentMethodObj.isGcash ? (
                                         <div className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center font-black text-[9px] tracking-tighter select-none px-0.5">GCash</div>
                                     ) : (
                                         <FontAwesomeIcon icon={currentMethodObj.icon} className={`text-base ${currentMethodObj.color}`} />
@@ -907,7 +909,7 @@ export default function PayBills() {
                                             className={`pay-bills-dropdown-item w-full min-h-[48px] px-4 py-3 flex items-center justify-between text-left transition-colors border-0 bg-transparent cursor-pointer font-medium text-sm ${selectedMethod === method.id ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50'}`}
                                         >
                                             <div className="flex items-center space-x-3 font-semibold">
-                                                {method.icon === 'gcash' ? (
+                                                {method.isGcash ? (
                                                     <div className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center font-black text-[9px] tracking-tighter select-none px-0.5">GCash</div>
                                                 ) : (
                                                     <FontAwesomeIcon icon={method.icon} className={`text-base ${method.color}`} />

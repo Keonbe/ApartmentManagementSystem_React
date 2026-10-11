@@ -36,7 +36,7 @@ if (empty($invoice_id)) {
     exit;
 }
 
-$current = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, services, maintenance, security_deposit, total_amount, due_date, status, advance_months FROM invoices WHERE id = ?");
+$current = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, late_fee_waived, services, maintenance, security_deposit, total_amount, due_date, status, advance_months FROM invoices WHERE id = ?");
 $current->bind_param("s", $invoice_id);
 $current->execute();
 $row = $current->get_result()->fetch_assoc();
@@ -119,16 +119,31 @@ $new_total = $new_values['base_rent'] + $new_values['water'] + $new_values['elec
 // Optimistic lock: the status this endpoint already validated must still
 // hold at write time — a payment could have started at the gateway in the
 // meantime.
-$stmt = $conn->prepare("UPDATE invoices SET base_rent = ?, water = ?, electricity = ?, parking = ?, late_fee = ?, total_amount = ?, due_date = ? WHERE id = ? AND status = ?");
+// A late fee the admin takes off stays off: promote_overdue_invoices() charges
+// any overdue invoice whose fee is 0 unless it is marked waived. Entering a fee
+// again clears the mark.
+$late_fee_waived = (int)$row['late_fee_waived'];
+if ($new_values['late_fee'] > 0) {
+    $late_fee_waived = 0;
+} elseif ((float)$row['late_fee'] > 0) {
+    $late_fee_waived = 1;
+}
+
+// A due date moved to today or later means the invoice is no longer overdue.
+$new_status = ($row['status'] === 'overdue' && !empty($due_date) && $due_date >= date('Y-m-d')) ? 'pending' : $row['status'];
+
+$stmt = $conn->prepare("UPDATE invoices SET base_rent = ?, water = ?, electricity = ?, parking = ?, late_fee = ?, late_fee_waived = ?, total_amount = ?, due_date = ?, status = ? WHERE id = ? AND status = ?");
 $stmt->bind_param(
-    "ddddddsss",
+    "dddddidssss",
     $new_values['base_rent'],
     $new_values['water'],
     $new_values['electricity'],
     $new_values['parking'],
     $new_values['late_fee'],
+    $late_fee_waived,
     $new_total,
     $due_date,
+    $new_status,
     $invoice_id,
     $row['status']
 );

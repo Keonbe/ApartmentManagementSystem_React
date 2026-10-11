@@ -62,7 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode(["success" => false, "message" => "Each portion needs a supported method and a positive amount with at most two decimals."]);
             exit;
         }
-        if ($method === 'bank_transfer' && !in_array($bank_name, PHILIPPINE_BANKS, true)) {
+        // A listed bank, or the name the admin typed after choosing "Other" —
+        // the page sends that name, never the word "Other" itself.
+        $listed_bank = $bank_name !== 'Other' && in_array($bank_name, PHILIPPINE_BANKS, true);
+        $custom_bank = (bool)preg_match('/^[\p{L}\p{N}][\p{L}\p{N} .&\'\-]{1,59}$/u', $bank_name) && strcasecmp($bank_name, 'Other') !== 0;
+        if ($method === 'bank_transfer' && !$listed_bank && !$custom_bank) {
             http_response_code(422);
             echo json_encode(["success" => false, "message" => "Choose a supported originating bank for each bank transfer."]);
             exit;

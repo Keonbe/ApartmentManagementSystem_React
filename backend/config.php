@@ -55,8 +55,9 @@ if (APP_ENV === 'production') {
     @ini_set('log_errors', '1');
 }
 
-@ini_set('upload_max_filesize', '10M');
-@ini_set('post_max_size', '12M');
+// upload_max_filesize and post_max_size cannot be set here (PHP_INI_PERDIR):
+// they come from php.ini, and cron/check_environment.php reports them when
+// they are too small for the largest upload (a 25 MB chat video).
 @ini_set('memory_limit', '128M');
 
 // An uncaught exception used to print PHP's own error page — or, in the many
@@ -2180,14 +2181,14 @@ function promote_overdue_invoices($conn) {
             UPDATE invoices
             SET late_fee = ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2),
                 total_amount = total_amount + ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2)
-            WHERE status = 'overdue' AND late_fee = 0 AND advance_months IS NULL
+            WHERE status = 'overdue' AND late_fee = 0 AND late_fee_waived = 0 AND advance_months IS NULL
         ");
         $stmt->bind_param("dd", $value, $value);
     } else {
         $stmt = $conn->prepare("
             UPDATE invoices
             SET late_fee = ?, total_amount = total_amount + ?
-            WHERE status = 'overdue' AND late_fee = 0 AND advance_months IS NULL
+            WHERE status = 'overdue' AND late_fee = 0 AND late_fee_waived = 0 AND advance_months IS NULL
         ");
         $stmt->bind_param("dd", $value, $value);
     }

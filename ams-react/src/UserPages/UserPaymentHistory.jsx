@@ -70,6 +70,9 @@ export default function UserPaymentHistory() {
         if (parseFloat(inv.parking) > 0) {
             breakdown += `\nParking: ${formatCurrency(inv.parking)}`;
         }
+        if (parseFloat(inv.services) > 0) {
+            breakdown += `\nAdd-On Services: ${formatCurrency(inv.services)}`;
+        }
         if (parseFloat(inv.maintenance) > 0) {
             breakdown += `\nMaintenance Recharge: ${formatCurrency(inv.maintenance)}`;
         }
@@ -207,7 +210,7 @@ export default function UserPaymentHistory() {
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="text-xs font-bold tracking-wider text-slate-400">INV-{inv.id}</span>
+                                                    <span className="text-xs font-bold tracking-wider text-slate-400">{String(inv.id).startsWith('INV-') ? inv.id : `INV-${inv.id}`}</span>
                                                     <span className="text-xs text-slate-300">•</span>
                                                     <span className="text-xs font-medium text-slate-500">{t('paymentHistory.billed')} {new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                                 </div>

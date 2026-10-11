@@ -8,7 +8,7 @@ import {
     faPaperclip, faFilePdf
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { appReturnBase } from '../api/env';
+import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import fileUrl from '../api/fileUrl';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import { useLang } from '../config/i18n';
@@ -38,7 +38,7 @@ export default function TrackApplication() {
     // Back from a PayMongo checkout, the move-in invoice stays 'processing'
     // until the webhook lands; say so instead of an alert.
     const [notice, setNotice] = useState(() => (
-        /[?&]status=success\b/.test(window.location.hash)
+        gatewayReturnParams().get('status') === 'success'
             ? { message: 'Payment sent', subtext: 'We are waiting for the payment gateway to confirm it. You will be notified once it is confirmed.' }
             : null
     ));
@@ -174,12 +174,11 @@ export default function TrackApplication() {
 
         if (currentMethodObj.family === 'sandbox') {
             try {
-                const returnBase = appReturnBase();
                 const res = await api.post("/create_checkout_session.php", {
                     invoice_id: application.pending_invoice_id,
                     channel: currentMethodObj.id,
-                    success_url: `${returnBase}#/track-application?status=success&invoice_id=${encodeURIComponent(application.pending_invoice_id)}`,
-                    cancel_url: `${returnBase}#/track-application?status=cancelled`
+                    success_url: appReturnUrl('track-application', { status: 'success', invoice_id: application.pending_invoice_id }),
+                    cancel_url: appReturnUrl('track-application', { status: 'cancelled', invoice_id: application.pending_invoice_id })
                 });
                 
                 if (res.data.success && res.data.checkout_url) {
@@ -296,18 +295,33 @@ export default function TrackApplication() {
         fetchChannels();
         fetchApplicationStatus();
 
-        const hash = window.location.hash;
-        if (hash.includes('?')) {
-            const queryParams = new URLSearchParams(hash.split('?')[1]);
+        // Back from the gateway: /track-application?status=...&invoice_id=...
+        const queryParams = gatewayReturnParams();
+        if (queryParams.has('status')) {
             const status = queryParams.get('status');
             if (status === 'success') {
                 // The "Payment sent" notice is set from the URL on first render.
                 navigate('/track-application', { replace: true });
             } else if (status === 'cancelled') {
-                setTimeout(() => {
-                    alert("Payment was cancelled.");
+                // Hand the move-in invoice back to 'pending'. Without this it
+                // stays in 'processing' and cannot be paid again.
+                const invoiceId = queryParams.get('invoice_id');
+                (async () => {
+                    let released = true;
+                    if (invoiceId) {
+                        try {
+                            await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
+                        } catch (err) {
+                            console.error('Failed to release the cancelled payment session:', err);
+                            released = false;
+                        }
+                    }
+                    alert(released
+                        ? "Payment was cancelled."
+                        : "Payment was cancelled, but this payment could not be reopened. Please contact management to release it.");
                     navigate('/track-application', { replace: true });
-                }, 500);
+                    fetchApplicationStatus();
+                })();
             }
         }
     }, [activeEmail, fetchApplication, navigate]);

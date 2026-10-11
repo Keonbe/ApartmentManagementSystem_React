@@ -605,7 +605,7 @@ The endpoint verifies the `Paymongo-Signature` header, rejects events older than
 4. PayMongo → Webhooks → your endpoint → **recent deliveries** should show `200`.
 
 > [!NOTE]
-> The return link after checkout is built from the page's own address plus `#/pay-bills?status=…`. If the status banner doesn't appear on return, the payment is still settled by the webhook — see the known issue in [module_verification_guide.md §14.1 #4](../documentation/module_verification_guide.md).
+> The return link after checkout is `<VITE_PUBLIC_URL or the site origin>/pay-bills?status=…&invoice_id=…` (a real path with a query string, since the app uses `BrowserRouter`). Pay Bills reads it, shows the status notice, and releases the invoice on a cancel. If the notice doesn't appear, the payment is still settled by the webhook.
 
 ### 7.4 Going live
 

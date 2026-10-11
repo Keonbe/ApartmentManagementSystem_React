@@ -37,7 +37,20 @@ export const PUBLIC_URL = import.meta.env.VITE_PUBLIC_URL || '';
 export const DEPLOYMENT_TARGET = import.meta.env.VITE_DEPLOYMENT_TARGET
     || (import.meta.env.DEV ? 'local' : import.meta.env.MODE);
 
-// Base for a hash-route link back into this app, e.g. `${appReturnBase()}#/pay-bills`.
-export const appReturnBase = () => (
-    PUBLIC_URL ? withSlash(PUBLIC_URL) : `${window.location.origin}${window.location.pathname}`
-);
+// A link back into this app for a payment gateway to return the tenant to,
+// e.g. appReturnUrl('pay-bills', { status: 'cancelled', invoice_id }). The app
+// uses BrowserRouter, so the route is a real path and the result goes in the
+// query string — a "#/route?…" link lands on Home and is never read.
+export const appReturnUrl = (route, params = {}) => {
+    const base = PUBLIC_URL ? withSlash(PUBLIC_URL) : `${window.location.origin}/`;
+    const query = new URLSearchParams(params).toString();
+    return `${base}${route}${query ? `?${query}` : ''}`;
+};
+
+// What the gateway sent back. Reads the query string, and the old
+// "#/route?status=…" form too, for a checkout opened before the links changed.
+export const gatewayReturnParams = () => {
+    const { search, hash } = window.location;
+    if (new URLSearchParams(search).has('status')) return new URLSearchParams(search);
+    return new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
+};

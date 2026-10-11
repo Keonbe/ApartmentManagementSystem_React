@@ -9,7 +9,7 @@ The integration handles digital payments (GCash, Maya, QR Ph) through PayMongo's
 1. **User Request**: In `PayBills.jsx`, the tenant selects a digital payment method.
 2. **Checkout API**: The frontend sends an AJAX request to the backend's `/api/create_checkout_session.php`.
 3. **Redirection**: The backend returns a secure `checkout_url`. The frontend redirects the tenant to PayMongo's hosted checkout page.
-4. **Return**: After authorization (or cancellation), PayMongo redirects the tenant back to `/#/pay-bills?status=success` (or `cancelled`). 
+4. **Return**: After authorization (or cancellation), PayMongo redirects the tenant back to `/pay-bills?status=success&invoice_id=…` (or `cancelled`). 
 
 ### Backend Endpoints
 - `create_checkout_session.php`: 

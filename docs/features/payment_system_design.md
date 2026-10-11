@@ -184,8 +184,8 @@ sequenceDiagram
 // 2. Build PayMongo Checkout Session request:
 //    - line_items: [{ amount: invoice_total * 100, currency: 'PHP', name: 'Invoice #INV-xxx' }]
 //    - payment_method_types: map frontend channel to valid PayMongo types (e.g. 'gcash', 'paymaya', 'qrph', 'dob', 'card')
-//    - success_url: passed dynamically from frontend (e.g. /#/pay-bills?status=success)
-//    - cancel_url: passed dynamically from frontend (e.g. /#/pay-bills?status=cancelled)
+//    - success_url: passed dynamically from frontend (e.g. /pay-bills?status=success&invoice_id=…)
+//    - cancel_url: passed dynamically from frontend (e.g. /pay-bills?status=cancelled&invoice_id=…)
 //    - metadata: { invoice_id, user_id }
 // 3. cURL POST to https://api.paymongo.com/v1/checkout_sessions (SSL verify disabled for localhost)
 // 4. Store checkout_session_id in invoices table (new column)

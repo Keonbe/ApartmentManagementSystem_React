@@ -142,9 +142,11 @@ if (empty($secret_key)) {
 // Return links. The SPA sends its own (it knows its path); once APP_URL is set
 // they are accepted only if they point into this deployment's frontend, so a
 // checkout can never hand the tenant back to another deployment.
+// The app uses BrowserRouter: the route is a real path and the result rides in
+// the query string (PayBills.jsx and TrackApplication.jsx read it).
 $return_base = APP_URL !== ''
     ? APP_URL . '/'
-    : 'http://localhost:8080/ApartmentManagementSystem_React/ams-react/dist/index.html';
+    : (!empty($_SERVER['HTTP_ORIGIN']) ? rtrim($_SERVER['HTTP_ORIGIN'], '/') . '/' : 'http://localhost:5173/');
 $own_return_url = function ($url) {
     if (!is_string($url) || $url === '') return false;
     if (APP_URL === '') return APP_ENV !== 'production';
@@ -152,12 +154,12 @@ $own_return_url = function ($url) {
 };
 $success_url = $own_return_url($data['success_url'] ?? null)
     ? $data['success_url']
-    : $return_base . "#/pay-bills?status=success&invoice_id=" . urlencode($invoice_id);
+    : $return_base . "pay-bills?status=success&invoice_id=" . urlencode($invoice_id);
 // The invoice id must ride along on the cancel URL too, so the app can release
 // the 'processing' hold this endpoint is about to place on it.
 $cancel_url = $own_return_url($data['cancel_url'] ?? null)
     ? $data['cancel_url']
-    : $return_base . "#/pay-bills?status=cancelled&invoice_id=" . urlencode($invoice_id);
+    : $return_base . "pay-bills?status=cancelled&invoice_id=" . urlencode($invoice_id);
 
 $payload = [
     'data' => [

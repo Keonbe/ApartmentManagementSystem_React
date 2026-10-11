@@ -241,7 +241,7 @@ npm run check:deploy -- production      # expect: no localhost URLs
    ```
 
 3. Open the frontend, sign in, open a page with an uploaded file (for example a payment proof), and confirm the file loads from the API domain.
-4. Start a sandbox payment and confirm PayMongo returns you to `https://<saas-frontend-domain>/#/pay-bills?...`.
+4. Start a sandbox payment and confirm PayMongo returns you to `https://<saas-frontend-domain>/pay-bills?...`.
 
 ## 9. Self-hosted deployment steps
 
@@ -662,5 +662,5 @@ Limitations
 - **Shared PayMongo accounts can't be detected.** Operators must use their own account and webhook.
 - **Not live-tested:** the checkout return-URL validation and the `PAYMONGO_*` overrides were checked by reading the code and `php -l` only, because a live test needs a PayMongo key and would mutate invoices. CORS wildcard dropping was not exercised live, since it would mean editing the local `config.env.php`.
 - **`vite.config.js` dev proxy** still rewrites `/api` to a stale `/Capstone/...` path. It is unused (the SPA calls absolute URLs) and left untouched as unrelated.
-- Existing frontend cancel links (`#/pay-bills?status=cancelled`) don't carry `invoice_id`, as before. That's unchanged by this work.
+- Cancel links now carry `invoice_id` (`/pay-bills?status=cancelled&invoice_id=…`), so the app can release the held invoice (changed 2026-10-11).
 - The Docker boot check runs as `www-data` and never claims. Claiming is a deliberate manual step.

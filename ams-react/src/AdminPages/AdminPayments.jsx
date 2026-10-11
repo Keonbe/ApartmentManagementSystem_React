@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -258,7 +258,10 @@ const AdminPayments = () => {
 
         const tenantArray = Object.values(grouped);
         setTenants(tenantArray);
-        if (tenantArray.length > 0) setSelectedTenantId(tenantArray[0].id);
+        // Keep the admin on the tenant they were working with. This also runs on
+        // background refreshes; jumping to the first tenant there could put a
+        // different tenant under an open Confirm Payment dialog.
+        if (tenantArray.length > 0) setSelectedTenantId(prev => (tenantArray.some(t => t.id === prev) ? prev : tenantArray[0].id));
       }
     } catch(err) { 
       console.error(err); 
@@ -310,6 +313,7 @@ const AdminPayments = () => {
   const [paymentParts, setPaymentParts] = useState([{ method: 'cash', bank_name: '', amount: '', reference_number: '' }]);
   const [paymentReference, setPaymentReference] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const confirmTarget = useRef(null);
 
   // History Table States
   const [historySearchPeriod, setHistorySearchPeriod] = useState('');
@@ -487,12 +491,22 @@ const AdminPayments = () => {
     if (!splitMode && !recordForm.validateAll(recordValues)) return;
     if (splitMode && !splitCanProcess) return;
     if (!splitMode && paymentMethod === 'bank_transfer' && (!paymentParts[0]?.bank_name || (paymentParts[0]?.bank_name === 'Other' && !paymentParts[0]?.other_bank_name?.trim()))) return;
+    // What the admin is confirming, fixed at the moment the dialog opens.
+    confirmTarget.current = { tenantId: activeTenant?.id, invoiceId: activeTenant?.pendingInvoiceId, amount: totalDue };
     setShowConfirmModal(true);
   };
 
 const handleMarkAsPaid = async () => {
     if (!activeTenant || !activeTenant.pendingInvoiceId || recording) return;
     if (splitMode && !splitCanProcess) return;
+    // A refresh while the dialog was open may have changed the bill behind it.
+    // Never post a payment for anything other than what was on screen.
+    const target = confirmTarget.current;
+    if (!target || target.tenantId !== activeTenant.id || target.invoiceId !== activeTenant.pendingInvoiceId || target.amount !== totalDue) {
+      setShowConfirmModal(false);
+      alert('This bill changed while the confirmation was open. Nothing was recorded — please review it and confirm again.');
+      return;
+    }
 
     setRecording(true);
     try {
@@ -1265,7 +1279,7 @@ const handleMarkAsPaid = async () => {
                 {/* Outstanding Balance Aging */}
                 <div>
                   <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide mb-3 m-0">Outstanding Balance Aging</h4>
-                  <div className="grid grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-center">
                       <p className="text-sm lg:text-base font-bold text-emerald-700 m-0">{formatCurrency(agingData.current)}</p>
                       <p className="text-[10px] text-emerald-600 font-semibold m-0 mt-0.5">Current</p>
