@@ -4,7 +4,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 
 ## Session start
 
-1. Read `TASK.md` (local, gitignored) if present — it is the current workstream.
+1. Read `TASK.md` (local, gitignored) if present — it is the current workstream plus open items. Finished workstreams live in `TASK.archive.md` (also local): grep it by topic, never read it whole.
 2. `git status` + `git log --oneline -5`.
 3. Open only files named there; `grep` before reading. Read large docs by section (Grep headings → Read with offset/limit), never whole.
 
@@ -36,6 +36,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 - `docs/features/sms_email_implementation.md` (+ `sms_email_mock_testing.md` runbook) — SMS/email pipeline, Semaphore
 - `docs/features/chat_design.md` — chat: "As built" section first; the rest is design
 - `docs/deployment/*` — deployment
+- `docs/documentation/claude_code_guide.md` — this repo's Claude Code setup: `/db-snapshot`, hooks, permissions
 - Historical/possibly stale: `api_documentation.md`, `notification_services.md` (design), `todo.md`, `.agents/prd.md`
 
 ## Workflow rules
@@ -47,7 +48,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 - Plans (plan mode) open with a short **TL;DR**: a few one-line bullets on what changes and why, before the detailed sections.
 - Prefer Edit over full-file Write unless most of the file changes.
 - Verify proportionately: `php -l` on changed PHP, `npm run build` for JSX, curl only the rows that prove the fix.
-- Before stopping or when a workstream ends: update `TASK.md`; draft a commit message (don't commit unless asked), grouped Backend / Frontend / Docs.
+- Before stopping or when a workstream ends: update `TASK.md`; draft a commit message (don't commit unless asked), grouped Backend / Frontend / Docs. Once a workstream is committed, move its section to `TASK.archive.md` and keep only its unfinished points under "Open items".
 - When a change makes a doc claim stale, fix that doc section in the same task.
 - Start a new session once a workstream is committed, or when switching branches/tasks — don't carry finished work into the next request.
 

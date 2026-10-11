@@ -12,8 +12,69 @@
       "Bash(git stash list)",
       "Bash(/c/xampp/php/php.exe -l *)",
       "Bash(npm run build)",
+      "Bash(npm run build:local)",
       "Bash(npm run lint)",
-      "Bash(netstat -ano*)"
+      "Bash(netstat -ano*)",
+      "PowerShell(git status)",
+      "PowerShell(git status *)",
+      "PowerShell(git log *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git show *)",
+      "PowerShell(git branch)",
+      "PowerShell(git branch --show-current)",
+      "PowerShell(git stash list)",
+      "PowerShell(C:\\xampp\\php\\php.exe -l *)",
+      "PowerShell(npm run build)",
+      "PowerShell(npm run build:local)",
+      "PowerShell(npm run lint)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(git reset --hard*)",
+      "Bash(git checkout -- *)",
+      "Bash(git clean *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git push)",
+      "PowerShell(git push *)",
+      "PowerShell(git reset --hard*)",
+      "PowerShell(git checkout -- *)",
+      "PowerShell(git clean *)",
+      "Edit(/backend/config.env.php)"
+    ],
+    "deny": [
+      "Read(/deploy/env/*.env)",
+      "Read(/ams-react/.env.selfhosted)",
+      "Read(/*.sql)",
+      "Read(/backend/api/migrations/seeds/seed_prod_demo*.sql)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-db.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/php-lint.js\"",
+            "timeout": 20,
+            "statusMessage": "php -l"
+          }
+        ]
+      }
     ]
   }
 }

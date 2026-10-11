@@ -1,6 +1,8 @@
 backend/api/get_notifications.log
 backend/config.env.php
 TASK.md
+TASK.archive.md
+.db-snapshots/
 docs/audits/ams_security_workflow_audit_2026-09-16.md
 
 # Filled-in deployment env files (templates are *.example)
