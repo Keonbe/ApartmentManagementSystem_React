@@ -90,6 +90,34 @@ if ($id > 0) {
         // may have been 'pending-verification' or 'scheduled'), so 'pending'
         // is the closest safe default: it puts the balance back as owed
         // without falsely claiming a payment proof is already under review.
+        //
+        // Advance credits go back with them, and must go first while the
+        // advance invoices are still marked as cancelled by this archive:
+        // end_tenancy() turned unpaid ('reserved') months into 'cancelled'
+        // and paid, unreached ('available') months into 'refund-due'. Left
+        // like that, the tenant could pay the reinstated advance invoice and
+        // get no months for it, or lose months already paid for. Only when
+        // the tenancy is actually resuming — a tenant who stays moved out is
+        // still owed the refund.
+        $credits_reserved = 0;
+        $credits_available = 0;
+        if ($reactivate_tenancy) {
+            $cr_stmt = $conn->prepare("UPDATE advance_credits c JOIN invoices i ON i.id = c.advance_invoice_id
+                                       SET c.status = 'reserved'
+                                       WHERE c.rent_application_id = ? AND c.status = 'cancelled'
+                                         AND i.status = 'cancelled' AND i.cancel_reason = 'Archived'");
+            $cr_stmt->bind_param("i", $id);
+            $cr_stmt->execute();
+            $credits_reserved = $cr_stmt->affected_rows;
+            $cr_stmt->close();
+
+            $ca_stmt = $conn->prepare("UPDATE advance_credits SET status = 'available' WHERE rent_application_id = ? AND status = 'refund-due'");
+            $ca_stmt->bind_param("i", $id);
+            $ca_stmt->execute();
+            $credits_available = $ca_stmt->affected_rows;
+            $ca_stmt->close();
+        }
+
         $inv_stmt = $conn->prepare("UPDATE invoices SET status = 'pending', cancel_reason = NULL WHERE rent_application_id = ? AND status = 'cancelled' AND cancel_reason = 'Archived'");
         $inv_stmt->bind_param("i", $id);
         $inv_stmt->execute();
@@ -117,7 +145,8 @@ if ($id > 0) {
         }
 
         $conn->commit();
-        log_activity($conn, $admin_id, 'Tenant Management', 'Restore Tenant', "Restored archived tenant $full_name (ID $id) to status '$restore_status'" . ($invoices_restored > 0 ? ", $invoices_restored invoice(s) reinstated" : ""));
+        log_activity($conn, $admin_id, 'Tenant Management', 'Restore Tenant', "Restored archived tenant $full_name (ID $id) to status '$restore_status'" . ($invoices_restored > 0 ? ", $invoices_restored invoice(s) reinstated" : "")
+            . ($credits_reserved + $credits_available > 0 ? ", " . ($credits_reserved + $credits_available) . " advance month(s) reinstated" : ""));
         $message = "Tenant restored successfully.";
         if ($reactivate_tenancy) {
             $message = $room_restored ? "Tenant and unit restored successfully." : "Tenant restored successfully, but room $room_name is no longer vacant.";

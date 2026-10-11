@@ -123,6 +123,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
             $dup->close();
+
+            // A month the tenant already prepaid is billed by the daily sweep
+            // and settled from the credit. Billing it here would charge the
+            // rent again and leave the credit unused until move-out.
+            foreach (advance_credits_by_month($conn, $user_id) as $period_start => $credit) {
+                if ($credit['status'] === 'available' && billing_period_label(new DateTime($period_start)) === $billing_period) {
+                    http_response_code(409);
+                    echo json_encode(["success" => false, "message" => "Rent for {$billing_period} is already covered by this tenant's advance payment ({$credit['advance_invoice_id']}). It is billed and settled automatically."]);
+                    exit;
+                }
+            }
         }
 
         // Audit H8: creation is insert-only. A fresh invoice starts with no
