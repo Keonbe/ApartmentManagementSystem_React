@@ -12,34 +12,6 @@ require_once __DIR__ . '/../config.php';
 const MESSAGE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const MESSAGE_VIDEO_MAX_BYTES = 25 * 1024 * 1024;
 
-function ensure_messages_table($conn) {
-    $sql = "CREATE TABLE IF NOT EXISTS messages (
-        id INT(11) NOT NULL AUTO_INCREMENT,
-        sender_id INT(11) NOT NULL,
-        receiver_id INT(11) NOT NULL,
-        message TEXT NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        is_read TINYINT(1) NOT NULL DEFAULT 0,
-        PRIMARY KEY (id),
-        KEY fk_sender (sender_id),
-        KEY async_receiver (receiver_id),
-        CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
-        CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
-
-    if (!$conn->query($sql)) {
-        throw new Exception('Unable to ensure messages table: ' . $conn->error);
-    }
-    $column = $conn->query("SHOW COLUMNS FROM messages LIKE 'attachment_path'");
-    if ($column->num_rows === 0) {
-        $conn->query("ALTER TABLE messages ADD attachment_path VARCHAR(255) NULL");
-    }
-    $replyColumn = $conn->query("SHOW COLUMNS FROM messages LIKE 'reply_to_id'");
-    if ($replyColumn->num_rows === 0) {
-        $conn->query("ALTER TABLE messages ADD reply_to_id INT(11) NULL");
-    }
-}
-
 $sender_id = intval($_SERVER['HTTP_X_USER_ID'] ?? $_SERVER['HTTP_X_ADMIN_ID'] ?? 0);
 $body = $_POST ?: (json_decode(file_get_contents('php://input'), true) ?: []);
 $receiver_id = intval($body['receiver_id'] ?? 0);
@@ -70,8 +42,6 @@ if ($sender_id === $receiver_id) {
 }
 
 try {
-    ensure_messages_table($conn);
-
     $attachmentPath = null;
     if ($attachment) {
         $finfo = new finfo(FILEINFO_MIME_TYPE);
@@ -157,9 +127,9 @@ try {
         "success" => true,
         "message" => $newMessage
     ]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => public_error_message($e)]);
 }
 
 $stmt?->close();
