@@ -171,7 +171,7 @@ try {
     $queued = queue_rows($conn, $uid);
     $enqueued_only = count($queued) === 2 && count(log_rows($conn, $uid)) === 0;
 
-    $drain = process_notification_queue($conn, 10);
+    $drain = process_notification_queue($conn, 10, $uid);
     $after = queue_rows($conn, $uid);
     $sent_states = array_column($after, 'status');
     check('M6-12', 'Dispatch enqueues without sending, then the drain delivers',
@@ -185,7 +185,7 @@ try {
     $attempts_seen = [];
     for ($i = 0; $i < 4; $i++) {
         $conn->query("UPDATE notification_queue SET next_attempt_at = NOW() WHERE user_id = $uid AND status = 'pending'");
-        process_notification_queue($conn, 5);
+        process_notification_queue($conn, 5, $uid);
         $row = queue_rows($conn, $uid)[0] ?? null;
         if ($row) $attempts_seen[] = $row['attempts'] . ':' . $row['status'];
     }
@@ -203,8 +203,8 @@ try {
     }
     // A second connection stands in for a second process: both drain at once.
     $conn2 = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
-    $a = process_notification_queue($conn, 4);
-    $b = process_notification_queue($conn2, 4);
+    $a = process_notification_queue($conn, 4, $uid);
+    $b = process_notification_queue($conn2, 4, $uid);
     $conn2->close();
     check('M6-14', 'Two drains racing never send the same job twice',
         ($a['sent'] + $b['sent']) === 4 && count(log_rows($conn, $uid, 'sms')) === 4,
@@ -219,7 +219,7 @@ try {
     put_setting($conn, 'notifications_quiet_end', (string)(($now_hour + 1) % 24));
     enqueue_notification($conn, $uid, 'sms', 'rent_due', ['to' => '09171234567', 'body' => 'AMS: rent due soon']);
     enqueue_notification($conn, $uid, 'sms', 'overdue', ['to' => '09171234567', 'body' => 'AMS: rent overdue']);
-    $q = process_notification_queue($conn, 10);
+    $q = process_notification_queue($conn, 10, $uid);
     $states = [];
     $held_until = null;
     foreach (queue_rows($conn, $uid) as $r) {
@@ -251,7 +251,7 @@ try {
     $stmt->execute();
     $stmt->close();
     $before = count(log_rows($conn, $uid));
-    $drain = process_notification_queue($conn, 5);
+    $drain = process_notification_queue($conn, 5, $uid);
     check('M6-18', 'The drain prunes log rows past the retention window',
         $drain['pruned'] >= 1 && count(log_rows($conn, $uid)) === $before - 1,
         'pruned ' . $drain['pruned']);
@@ -291,7 +291,7 @@ try {
     foreach (['09171234567', '0917 123 4567', '+63 917 123 4567', '12345'] as $to) {
         enqueue_notification($conn, $uid, 'sms', 'info', ['to' => $to, 'body' => 'AMS bulk test']);
     }
-    $drain = process_notification_queue($conn, 10);
+    $drain = process_notification_queue($conn, 10, $uid);
     $after = count(glob($outbox . '/*-sms-*.txt') ?: []);
     $by_status = [];
     foreach (log_rows($conn, $uid, 'sms') as $r) $by_status[$r['status']] = ($by_status[$r['status']] ?? 0) + 1;

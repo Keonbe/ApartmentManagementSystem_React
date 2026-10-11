@@ -111,6 +111,27 @@ if ($target === 'selfhosted' && preg_match('/railway\.(app|internal)|rlwy\.net/i
     $errors[] = 'Self-hosted deployment points at a Railway host (DB_HOST or APP_URL) — that is the SaaS infrastructure.';
 }
 
+// --- Upload limits ---------------------------------------------------------
+// php.ini decides these; ini_set() cannot. The largest upload any endpoint
+// accepts is a 25 MB chat video (send_message.php), and most are 10 MB. This
+// reads the CLI's php.ini, which on some hosts differs from the web server's.
+$ini_bytes = function ($name) {
+    $raw = trim((string) ini_get($name));
+    $n = (float) $raw;
+    switch (strtoupper(substr($raw, -1))) {
+        case 'G': $n *= 1024;
+        case 'M': $n *= 1024;
+        case 'K': $n *= 1024;
+    }
+    return $n;
+};
+foreach (['upload_max_filesize' => 25, 'post_max_size' => 26] as $name => $need_mb) {
+    $have = $ini_bytes($name);
+    if ($have > 0 && $have < $need_mb * 1048576) {
+        $report($have < 10 * 1048576, "$name is " . ini_get($name) . "; uploads up to 25 MB need at least {$need_mb}M in php.ini.");
+    }
+}
+
 // --- Clock -----------------------------------------------------------------
 // config.php pins PHP and the DB session to APP_TIMEZONE; quiet hours read the
 // DB clock and due/overdue reads PHP's, so a drift between them is an error.

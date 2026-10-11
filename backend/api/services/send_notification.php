@@ -183,7 +183,7 @@ function enqueue_notification($conn, $user_id, $channel, $event_type, $payload) 
  * Drain up to $limit jobs. Safe to run from more than one process at a time.
  * Returns ['processed', 'sent', 'failed', 'deferred', 'pruned'].
  */
-function process_notification_queue($conn, $limit = 20) {
+function process_notification_queue($conn, $limit = 20, $only_user_id = null) {
     $limit  = max(1, min(500, (int)$limit));
     $counts = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'deferred' => 0, 'pruned' => 0];
 
@@ -195,9 +195,12 @@ function process_notification_queue($conn, $limit = 20) {
     // Claim first, then read back what was claimed. Two drains running at once
     // would otherwise SELECT the same pending rows and send them twice; this is
     // the claim-first pattern post_parking_charge() already uses.
+    // $only_user_id keeps a drain to one recipient's jobs: the selftest runs
+    // with the 'log' drivers switched on and must not claim real tenants' jobs.
+    $only_user_sql = $only_user_id !== null ? " AND user_id = " . (int)$only_user_id : "";
     $token = bin2hex(random_bytes(8));
     $claim = $conn->prepare("UPDATE notification_queue SET status = 'processing', claim_token = ?
-                             WHERE status = 'pending' AND next_attempt_at <= NOW()
+                             WHERE status = 'pending' AND next_attempt_at <= NOW()$only_user_sql
                              ORDER BY created_at ASC LIMIT $limit");
     if (!$claim) return $counts;
     $claim->bind_param("s", $token);
