@@ -736,6 +736,10 @@ export default function AdminVisitors() {
                                   type="button"
                                   onClick={() => {
                                     setSelectedVisitorForCheckout(v);
+                                    // Start clean: a dismissed dialog keeps its note otherwise.
+                                    setCheckoutNote(CHECKOUT_NOTE_OPTIONS[0]);
+                                    setCheckoutOther('');
+                                    checkIn.clearError('checkoutOther');
                                     setShowCheckoutModal(true);
                                   }}
                                   className="admin-visitors-action-btn inline-flex items-center gap-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors border-0 cursor-pointer"

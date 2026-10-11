@@ -976,7 +976,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                 <>
                   <div className="bg-gradient-to-br from-indigo-50 to-slate-50 rounded-xl p-5 border border-indigo-100">
                     <h4 className="text-sm font-semibold text-slate-800 m-0 mb-4">Rent Progress</h4>
-                    <div className="grid grid-cols-4 gap-2 text-center mb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center mb-4">
                       <div><p className="text-xl font-bold text-indigo-600 m-0 truncate" title={unit.tenant}>{unit.tenant?.split(' ')[0]}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Tenant</p></div>
                       <div><p className="text-xl font-bold text-slate-800 m-0">{unit.occupants || 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Occupants</p></div>
                       <div><p className="text-xl font-bold text-slate-800 m-0">{elapsed > 0 ? elapsed : 0}</p><p className="text-[11px] text-slate-400 m-0 mt-0.5">Days Elapsed</p></div>
@@ -1085,7 +1085,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                             {occ.status === 'current' ? 'Active' : 'Ended'}
                           </span>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                           <div><span className="text-slate-400">Period:</span> <span className="font-semibold text-slate-700">{occ.leaseStart} → {occ.leaseEnd}</span></div>
                           <div><span className="text-slate-400">Duration:</span> <span className="font-semibold text-slate-700">{duration} months</span></div>
                           <div><span className="text-slate-400">Rent:</span> <span className="font-bold text-indigo-600">{formatCurrency(occ.rent)}</span></div>

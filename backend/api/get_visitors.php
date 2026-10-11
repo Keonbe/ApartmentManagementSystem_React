@@ -119,7 +119,7 @@ try {
     }
 
     $visitors = [];
-    while ($row = $res->fetch_assoc()) {
+    while ($res && $row = $res->fetch_assoc()) {
         $is_overstayed = ($row['status'] === 'checked_in' && (int)$row['elapsed_hours'] >= $overstay_hours);
         $display_status = $is_overstayed ? 'overstayed' : $row['status'];
 

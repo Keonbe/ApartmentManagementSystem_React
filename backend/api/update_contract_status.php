@@ -32,7 +32,7 @@ if (empty($contract_id) || empty($action)) {
 
 // Load current status up front so every action can be checked against
 // CONTRACT_TRANSITIONS instead of guessing from its own WHERE clause.
-$lookup = $conn->prepare("SELECT lc.status, lc.rent_application_id, ra.status AS app_status
+$lookup = $conn->prepare("SELECT lc.status, lc.lease_end, lc.rent_application_id, ra.status AS app_status
                           FROM lease_contracts lc
                           LEFT JOIN rent_applications ra ON ra.id = lc.rent_application_id
                           WHERE lc.id = ?");
@@ -82,6 +82,17 @@ if ($action === 'edit') {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "The maximum rent period is 24 months."]);
         exit;
+    }
+    // Moving the end date later is an extension, so it obeys the same
+    // "Maximum Months Ahead" setting as the three extension paths. Keeping or
+    // shortening an end date that is already far out is still allowed.
+    if (empty($contract['lease_end']) || $lease_end > $contract['lease_end']) {
+        $ahead_error = rent_end_ahead_error($conn, $lease_end);
+        if ($ahead_error !== null) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => $ahead_error]);
+            exit;
+        }
     }
 
     // Re-derive status from the new dates: an active lease whose new end date

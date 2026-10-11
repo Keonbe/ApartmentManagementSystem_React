@@ -185,12 +185,14 @@ const AdminApplications = () => {
       });
       if (!res.data.success) {
         alert(apiErrorMessage(res, 'Failed to update the application.'));
-        return;
+        return false;
       }
       fetchApplications();
+      return true;
     } catch (err) {
       console.error("Error updating status:", err);
       alert(apiErrorMessage(err, 'Failed to update the application.'));
+      return false;
     }
   };
 
@@ -264,8 +266,8 @@ const AdminApplications = () => {
 
   const confirmMoveIn = async (app) => {
     if (!window.confirm(`Confirm that ${app.name} has physically moved into Unit ${app.unit}?`)) return;
-    await updateStatus(app.id, 'active');
-    setShowProfileModal(false);
+    // Stay on the profile when the server refuses, so the reason can be acted on.
+    if (await updateStatus(app.id, 'active')) setShowProfileModal(false);
   };
 
   const openProfile = (app) => {

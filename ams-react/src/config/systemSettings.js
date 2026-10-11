@@ -126,7 +126,7 @@ export const getSystemSettings = async () => {
         notificationsQuietStart: parseInt(dbSettings.notifications_quiet_start ?? DEFAULTS.notificationsQuietStart),
         notificationsQuietEnd: parseInt(dbSettings.notifications_quiet_end ?? DEFAULTS.notificationsQuietEnd),
         notificationLogRetentionDays: parseInt(dbSettings.notification_log_retention_days || DEFAULTS.notificationLogRetentionDays),
-        smsUnitCost: parseFloat(dbSettings.sms_unit_cost || DEFAULTS.smsUnitCost),
+        smsUnitCost: Number.isFinite(parseFloat(dbSettings.sms_unit_cost)) ? parseFloat(dbSettings.sms_unit_cost) : DEFAULTS.smsUnitCost,
       };
     }
   } catch (e) {

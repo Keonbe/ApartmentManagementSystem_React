@@ -9,3 +9,13 @@
     Header set Cache-Control "public, max-age=31536000, immutable"
   </If>
 </IfModule>
+
+# Client-side routes (/pay-bills, /my-room, ...) are not files. Without this a
+# reload or a typed deep link gets Apache's 404 instead of the app, which then
+# shows its own 404 page for a route it does not know.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.html [L]
+</IfModule>

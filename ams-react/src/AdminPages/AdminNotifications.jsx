@@ -461,7 +461,7 @@ const AdminNotifications = () => {
                     </button>
                     <p className="text-[10px] text-slate-400 m-0 flex gap-2">
                       <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5" />
-                      Email and SMS delivery are not available yet; all notices are in-app.
+                      These automatic reminders go out in-app and by email, not by SMS. To text a tenant, use Send Due Reminder on the Payments page.
                     </p>
                   </div>
                 </div>
