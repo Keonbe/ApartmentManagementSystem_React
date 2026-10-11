@@ -49,6 +49,8 @@ TRUNCATE TABLE `sessions`;
 TRUNCATE TABLE `login_attempts`;
 TRUNCATE TABLE `password_resets`;
 TRUNCATE TABLE `password_reset_requests`;
+TRUNCATE TABLE `payment_transactions`;
+TRUNCATE TABLE `rate_limit_events`;
 
 -- ============================================================
 -- SEED DATA (copied from SetupDB.sql — keep both in sync)
@@ -96,6 +98,7 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('currency_symbol', '₱'),
 ('maintenance_auto_assign', 'true'),
 ('min_lease_duration', '3'),
+('max_rent_ahead_months', '12'),
 ('overdue_threshold_days', '15'),
 ('maintenance_monthly_budget', '50000'),
 ('tenant_responsibility_clause', 'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building''s maintenance budget allocation.'),

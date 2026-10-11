@@ -32,6 +32,16 @@ if (mb_strlen($first_name) > 100 || mb_strlen($last_name) > 100) fail("Names mus
 if ($pw_error = password_policy_error($password)) fail($pw_error);
 if ($password !== $confirmPass) fail("Confirmed password does not match");
 
+// Audit M13: at most REGISTRATION_MAX_PER_IP attempts per IP per window. Every
+// attempt that reaches the email check counts, so the form can't be used to
+// test many addresses for an existing account either.
+$ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+if (rate_limit_exceeded($conn, 'registration', $ip, REGISTRATION_MAX_PER_IP, REGISTRATION_WINDOW_MINUTES)) {
+    http_response_code(429);
+    fail("Too many sign-up attempts from this network. Please try again in an hour.");
+}
+rate_limit_record($conn, 'registration', $ip);
+
 $checkStmt = $conn->prepare("SELECT 1 FROM users WHERE email_address = ?");
 $checkStmt->bind_param("s", $email_address);
 $checkStmt->execute();

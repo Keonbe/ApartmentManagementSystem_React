@@ -100,6 +100,11 @@ foreach ($input as $key => $value) {
         echo json_encode(["success" => false, "message" => "Room preview mode must be images or floor_plan."]);
         exit;
     }
+    if ($key === 'max_rent_ahead_months' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > MAX_RENT_AHEAD_MONTHS_CEILING)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Maximum months ahead must be a whole number between 1 and " . MAX_RENT_AHEAD_MONTHS_CEILING . "."]);
+        exit;
+    }
     if ($key === 'max_occupants_per_unit' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 20)) {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "Maximum occupants per unit must be a whole number between 1 and 20."]);

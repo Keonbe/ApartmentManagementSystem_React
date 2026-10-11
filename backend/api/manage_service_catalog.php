@@ -72,7 +72,7 @@ try {
                 //TheUniqueKeyOnCategory+NameIsTheLikelyCulprit
                 $msg = $conn->errno === 1062
                     ? "A $category service named \"$name\" already exists."
-                    : "Failed to create service: " . $stmt->error;
+                    : "Failed to create service.";
                 $stmt->close();
                 echo json_encode(["success" => false, "message" => $msg]);
                 exit;
@@ -117,7 +117,7 @@ try {
             if (!$stmt->execute()) {
                 $msg = $conn->errno === 1062
                     ? "A $category service named \"$name\" already exists."
-                    : "Failed to update service: " . $stmt->error;
+                    : "Failed to update service.";
                 $stmt->close();
                 echo json_encode(["success" => false, "message" => $msg]);
                 exit;
@@ -188,7 +188,7 @@ try {
     }
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => public_error_message($e)]);
 }
 
 $conn->close();

@@ -33,7 +33,8 @@ try {
 
     $res = $conn->query($sql);
     if (!$res) {
-        throw new Exception("Database query error: " . $conn->error);
+        error_log("[AMS] Database query error: " . $conn->error);
+        throw new Exception("Database query error.");
     }
 
     $requests = [];

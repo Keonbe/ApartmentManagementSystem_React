@@ -154,7 +154,7 @@ try {
 
 } catch (Exception $e) {
     $conn->rollback();
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => public_error_message($e)]);
 }
 
 $conn->close();

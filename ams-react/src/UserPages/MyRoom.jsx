@@ -22,6 +22,10 @@ import '../assets/styles/responsive/user/my-room.responsive.css';
 
 export default function MyRoom() {
     const navigate = useNavigate();
+    // my_room.php: { allowed, reason, overdueTotal, maxMonthsAhead }. An overdue
+    // bill, a scheduled move-out or an inactive contract blocks extending.
+    const [extension, setExtension] = useState(null);
+    const extensionBlocked = extension && !extension.allowed;
     const { t } = useLang();
 
     const [loggedInUser] = useState(() => {
@@ -130,6 +134,7 @@ export default function MyRoom() {
                 const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
                 if (res.data.success && res.data.data) {
                     const data = res.data.data;
+                    setExtension(data.extension || null);
 
                     if (data.occupants) {
                         const count = parseInt(data.occupants, 10);
@@ -502,8 +507,23 @@ export default function MyRoom() {
                                     <h3 className="text-lg font-bold text-white m-0">{t('myRoom.extendLease')}</h3>
                                 </div>
                                 <p className="text-slate-300 text-xs leading-relaxed m-0 font-medium">
-                                    Select a new prospective end date to file an official extension request to administration.
+                                    Choose how many months to add and send the request to management. Each added month is billed a week before it starts.
+                                    {extension?.maxMonthsAhead ? ` Your rent can reach at most ${extension.maxMonthsAhead} month(s) from today.` : ''}
                                 </p>
+                                {extensionBlocked && (
+                                    <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-amber-200">
+                                        <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5 shrink-0 text-amber-400" />
+                                        <div className="space-y-2">
+                                            <p className="m-0">{extension.reason}</p>
+                                            {extension.overdueTotal > 0 && (
+                                                <button type="button" onClick={() => navigate('/pay-bills')}
+                                                    className="rounded-lg border-0 bg-amber-400 px-3 py-1.5 text-[11px] font-bold text-slate-900 cursor-pointer hover:bg-amber-300">
+                                                    Go to Pay Bills
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="space-y-3 w-full box-border">
                                 <div className="flex flex-col space-y-1.5">
@@ -535,7 +555,7 @@ export default function MyRoom() {
                                 </div>
                                 <button
                                     type="submit"
-                                    disabled={!!busy}
+                                    disabled={!!busy || extensionBlocked}
                                     className="w-full bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {busy === 'extend' ? 'Sending…' : 'Submit Extension'}

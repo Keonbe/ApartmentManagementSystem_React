@@ -78,21 +78,21 @@ export default function Home({ onCardClick, username }) {
                             </span>
                         </div>
 
-                        <div className="home-cta-buttons flex w-full flex-col items-stretch gap-2.5 pt-2 sm:w-auto sm:flex-row sm:flex-nowrap sm:items-center">
+                        <div className="home-cta-buttons flex w-full min-w-0 flex-col items-stretch gap-2.5 pt-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                             <button
                                 onClick={() => navigate('/inquire')}
-                                className="w-full sm:w-auto home-inquire-btn btn-interactive bg-white/10 hover:bg-white/20 text-white font-medium px-3.5 py-2.5 rounded-xl text-xs sm:text-sm whitespace-nowrap text-center transition-all duration-300 border border-white/10 cursor-pointer flex items-center justify-center space-x-2 group"
+                                className="w-full sm:w-auto home-inquire-btn btn-interactive bg-white/10 hover:bg-white/20 text-white font-medium px-3.5 py-2.5 rounded-xl text-xs sm:text-sm whitespace-normal leading-snug text-center min-w-0 transition-all duration-300 border border-white/10 cursor-pointer flex items-center justify-center space-x-2 group"
                             >
-                                <Mail className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
+                                <Mail className="w-4 h-4 shrink-0 text-slate-300 group-hover:text-white transition-colors" />
                                 <span>{t('inquiry.homeCta')}</span>
                             </button>
 
                             <button
                                 onClick={onCardClick}
-                                className="w-full sm:w-auto home-cta-btn btn-interactive bg-indigo-500 hover:bg-indigo-600 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-medium px-3.5 py-2.5 rounded-xl text-xs sm:text-sm whitespace-nowrap text-center transition-all duration-300 shadow-lg shadow-indigo-600/30 border-0 cursor-pointer flex items-center justify-center space-x-2 group"
+                                className="w-full sm:w-auto home-cta-btn btn-interactive bg-indigo-500 hover:bg-indigo-600 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-medium px-3.5 py-2.5 rounded-xl text-xs sm:text-sm whitespace-normal leading-snug text-center min-w-0 transition-all duration-300 shadow-lg shadow-indigo-600/30 border-0 cursor-pointer flex items-center justify-center space-x-2 group"
                             >
                                 <span>{t('home.cta')}</span>
-                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                <ArrowRight className="w-4 h-4 shrink-0 group-hover:translate-x-1 transition-transform" />
                             </button>
                         </div>
                     </div>

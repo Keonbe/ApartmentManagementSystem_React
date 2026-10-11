@@ -175,7 +175,7 @@ if ($stmt->execute()) {
         "proof_path" => $proof_path
     ]);
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to update invoice payment details", "error" => $stmt->error]);
+    echo json_encode(["success" => false, "message" => "Failed to update invoice payment details"]);
 }
 
 $stmt->close();

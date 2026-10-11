@@ -111,7 +111,7 @@ if ($stmt->execute()) {
 
     echo json_encode(["success" => true, "message" => "Payment processed successfully"]);
 } else {
-    echo json_encode(["success" => false, "message" => "Failed to process payment", "error" => $stmt->error]);
+    echo json_encode(["success" => false, "message" => "Failed to process payment"]);
 }
 
 $stmt->close();

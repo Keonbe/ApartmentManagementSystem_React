@@ -92,6 +92,9 @@ const AdminNotifications = () => {
           attachment_path: n.attachment_path,
           attachmentPath: n.attachment_path,
           metadata_value: n.metadata_value,
+          // Rent-extension requests: the tenant's past-due total (approval is
+          // refused while it's above zero — extension_block_reason()).
+          tenantOverdueTotal: Number(n.tenant_overdue_total || 0),
         })));
       }
     } catch (e) {
@@ -341,6 +344,13 @@ const AdminNotifications = () => {
                           </div>
 
                           <p className="text-xs text-slate-600 m-0 leading-relaxed">{n.message}</p>
+
+                          {decideHere && n.type === 'lease_extension_request' && n.tenantOverdueTotal > 0 && (
+                            <p className="mt-2 mb-0 inline-flex items-center gap-1.5 rounded-md bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 border border-rose-200">
+                              <FontAwesomeIcon icon={faTimesCircle} />
+                              Overdue: ₱{n.tenantOverdueTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })} — approval is refused until it's settled.
+                            </p>
+                          )}
 
                           {decideHere && (
                             <div className="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">

@@ -11,3 +11,5 @@ backend/config.env.php
 backend/uploads/**
 backend/api/migrations
 backend/api/*.log
+backend/logs/*
+!backend/logs/.htaccess

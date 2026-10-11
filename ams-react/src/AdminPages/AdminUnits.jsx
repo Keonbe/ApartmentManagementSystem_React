@@ -11,7 +11,22 @@ import {
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
 import { publicAssetUrl } from '../api/fileUrl';
-import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
+import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, checkIntRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
+
+// admin_extend_rent.php extends by whole months, at most 12 (the server also
+// enforces Settings -> Rental -> Maximum Months Ahead and the dues rules).
+const MAX_EXTENSION_MONTHS = 12;
+
+// YYYY-MM-DD plus n months, clamped to the month's last day — the date the
+// server's DATE_ADD(lease_end, INTERVAL n MONTH) lands on.
+const addMonthsTo = (dateStr, n) => {
+  if (!dateStr || !n) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const target = new Date(y, m - 1 + Number(n), 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(d, lastDay));
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
+};
 import { FILE_RULES, acceptFor, checkFiles } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -58,7 +73,7 @@ const AdminUnits = () => {
   
   const [unitForm, setUnitForm] = useState(emptyUnitForm);
   const [assignForm, setAssignForm] = useState(emptyAssignForm);
-  const [extendForm, setExtendForm] = useState({ newLeaseEnd: '', newRent: '' });
+  const [extendForm, setExtendForm] = useState({ addMonths: '', newRent: '' });
   const [leaseError, setLeaseError] = useState('');
   const [addUnitError, setAddUnitError] = useState('');
   const [addUnitSubmitting, setAddUnitSubmitting] = useState(false);
@@ -190,9 +205,9 @@ const AdminUnits = () => {
     rent: (v) => (v !== '' && v != null ? checkAmount(v, { label: 'Monthly rent', min: 0.01, allowZero: false }) : ''),
     identityVerified: (v) => (v ? '' : 'Please confirm identity verification before assigning a tenant.'),
   }, { idPrefix: 'assign-' });
+  const minExtensionMonths = Math.min(MAX_EXTENSION_MONTHS, Math.max(1, minLeaseDuration || 1));
   const extendErrors = useFieldErrors({
-    newLeaseEnd: (v) => checkDate(v, { label: 'New rent end', max: maxFutureDate() })
-      || (selectedUnit ? validateLeaseDuration(selectedUnit.leaseEnd, v) : ''),
+    addMonths: (v) => checkIntRange(v === '' ? NaN : v, minExtensionMonths, MAX_EXTENSION_MONTHS, 'Months to add'),
     newRent: (v) => (v !== '' ? checkAmount(v, { label: 'New rent', min: 0.01, allowZero: false }) : ''),
   }, { idPrefix: 'extend-' });
   const [assigning, setAssigning] = useState(false);
@@ -298,21 +313,22 @@ const AdminUnits = () => {
     if (!extendErrors.validateAll(extendForm)) return;
     setLeaseError('');
 
-    const newRent = Number(extendForm.newRent) || selectedUnit.rent;
-
     setExtending(true);
     try {
+      // A real extension (contract, Rent History, monthly billing), refused
+      // while the tenant has overdue bills or a scheduled move-out.
       const payload = {
-        id: selectedUnit.id,
-        lease_end: extendForm.newLeaseEnd,
-        monthly_rent: newRent
+        roomId: selectedUnit.id,
+        addMonths: Number(extendForm.addMonths),
+        newRent: extendForm.newRent !== '' ? Number(extendForm.newRent) : null,
       };
-      
-      const response = await api.post('update_room.php', payload);
+
+      const response = await api.post('admin_extend_rent.php', payload);
       if (response.data.success) {
         fetchRooms();
-        setExtendForm({ newLeaseEnd: '', newRent: '' });
+        setExtendForm({ addMonths: '', newRent: '' });
         setShowExtendForm(false);
+        alert(response.data.message);
       } else if (!extendErrors.applyServerErrors(response)) {
         setLeaseError(apiErrorMessage(response, 'Failed to extend rent.'));
       }
@@ -978,12 +994,14 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       <h4 className="text-sm font-semibold text-slate-800 m-0">Extend Rent</h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label htmlFor="extend-newLeaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent End *</label>
-                          <input type="date" {...extendErrors.fieldA11y('newLeaseEnd')} min={unit.leaseEnd || localDateString()} max={maxFutureDate()} value={extendForm.newLeaseEnd}
-                            onChange={e => { setExtendForm({ ...extendForm, newLeaseEnd: e.target.value }); extendErrors.clearError('newLeaseEnd'); setLeaseError(''); }}
-                            onBlur={() => extendForm.newLeaseEnd && extendErrors.validateField('newLeaseEnd', extendForm)}
-                            className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.newLeaseEnd)}`} />
-                          <FieldError id="extend-newLeaseEnd" error={extendErrors.errors.newLeaseEnd} />
+                          <label htmlFor="extend-addMonths" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Months to Add *</label>
+                          <input type="number" {...extendErrors.fieldA11y('addMonths')} inputMode="numeric" min={Math.min(MAX_EXTENSION_MONTHS, minLeaseDuration)} max={MAX_EXTENSION_MONTHS} step="1" value={extendForm.addMonths}
+                            onKeyDown={blockNonNumericKeys}
+                            onChange={e => { setExtendForm({ ...extendForm, addMonths: e.target.value }); extendErrors.clearError('addMonths'); setLeaseError(''); }}
+                            onBlur={() => extendForm.addMonths !== '' && extendErrors.validateField('addMonths', extendForm)}
+                            className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800 bg-white${invalidCls(extendErrors.errors.addMonths)}`}
+                            placeholder={`${Math.min(MAX_EXTENSION_MONTHS, minLeaseDuration)}–${MAX_EXTENSION_MONTHS}`} />
+                          <FieldError id="extend-addMonths" error={extendErrors.errors.addMonths} />
                         </div>
                         <div>
                           <label htmlFor="extend-newRent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">New Rent (optional)</label>
@@ -995,9 +1013,9 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                           <FieldError id="extend-newRent" error={extendErrors.errors.newRent} />
                         </div>
                       </div>
-                      {extendForm.newLeaseEnd && (
+                      {Number(extendForm.addMonths) > 0 && (
                         <div className="text-xs text-slate-500 bg-white rounded-lg p-2 border border-slate-100">
-                          Extension: <strong>{monthsBetween(unit.leaseEnd, extendForm.newLeaseEnd)} months</strong> · Min required: <strong>{minLeaseDuration} months</strong>
+                          New rent end: <strong>{addMonthsTo(unit.leaseEnd, extendForm.addMonths) || '—'}</strong> · The added months are billed a week before each starts. Refused while the tenant has overdue bills or a scheduled move-out.
                         </div>
                       )}
                       {leaseError && (

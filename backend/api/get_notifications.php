@@ -16,19 +16,22 @@ $auth = require_user($conn);
 
 // Every signed-in page polls this endpoint, so it doubles as the trigger for the
 // daily reminder / overdue / parking sweep. The sweep claims the day atomically,
-// so only the first request of the day does any work.
-try {
-    run_notification_sweep($conn);
-} catch (Throwable $e) {
-    error_log('[AMS] notification sweep failed: ' . $e->getMessage());
-}
+// so only the first request of the day does any work. Both checks below run at
+// most once a minute across all pollers (audit L7), not on every poll.
+if (throttle_claim($conn, 'poll_checks_last_run', 60)) {
+    try {
+        run_notification_sweep($conn);
+    } catch (Throwable $e) {
+        error_log('[AMS] notification sweep failed: ' . $e->getMessage());
+    }
 
-// Visitor overstay alerts are checked here too, not only in the daily sweep
-// above — the threshold is in hours, so a once-a-day check is too coarse.
-try {
-    alert_overstayed_visitors($conn);
-} catch (Throwable $e) {
-    error_log('[AMS] alert_overstayed_visitors: ' . $e->getMessage());
+    // Visitor overstay alerts are checked here too, not only in the daily sweep
+    // above — the threshold is in hours, so a once-a-day check is too coarse.
+    try {
+        alert_overstayed_visitors($conn);
+    } catch (Throwable $e) {
+        error_log('[AMS] alert_overstayed_visitors: ' . $e->getMessage());
+    }
 }
 
 try {
@@ -48,6 +51,17 @@ try {
     $stmt->execute();
     $notifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
+
+    // Pending rent-extension requests carry the tenant's overdue balance, so the
+    // admin sees why an approval would be refused (extension_block_reason()).
+    if ($auth['role'] === 'admin') {
+        foreach ($notifications as &$n) {
+            if ($n['type'] === 'lease_extension_request' && $n['status'] === 'Pending') {
+                $n['tenant_overdue_total'] = tenant_overdue_summary($conn, (int)$n['user_id'])['total'];
+            }
+        }
+        unset($n);
+    }
 
     $unread = 0;
     foreach ($notifications as $n) {

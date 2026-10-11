@@ -129,7 +129,7 @@ if ($id > 0) {
         ]);
     } catch (Exception $e) {
         $conn->rollback();
-        echo json_encode(["success" => false, "message" => $e->getMessage()]);
+        echo json_encode(["success" => false, "message" => public_error_message($e)]);
     }
 } else {
     echo json_encode(["success" => false, "message" => "Invalid ID."]);

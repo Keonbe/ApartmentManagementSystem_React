@@ -99,7 +99,10 @@ if (!empty($user_id)) {
     // check_due_date_reminders.php / get_invoices.php.
     // The shared promotion, so late fees and every open status apply here too
     // (this used to be a private UPDATE that only moved 'pending' invoices).
-    promote_overdue_invoices($conn);
+    // At most once a minute, shared with get_invoices.php (audit L7).
+    if (throttle_claim($conn, 'billing_checks_last_run', 60)) {
+        promote_overdue_invoices($conn);
+    }
     $overdue_by_user = [];
     // A past-due invoice stuck in 'pending-verification' (an unverified proof
     // submitted against an already-overdue bill) is still money owed and a

@@ -19,7 +19,10 @@ if (!defined('DB_PORT')) define('DB_PORT', (int) ams_env('DB_PORT', 3306));
 if (!defined('DB_USER')) define('DB_USER', ams_env('DB_USER', 'root'));
 if (!defined('DB_PASS')) define('DB_PASS', ams_env('DB_PASS', ''));
 if (!defined('DB_NAME')) define('DB_NAME', ams_env('DB_NAME', 'ams_db'));
-if (!defined('APP_ENV')) define('APP_ENV', ams_env('APP_ENV', 'development'));
+// Fails closed (audit C4): a deployment that forgets APP_ENV runs as production,
+// so error details and forgot_password.php's dev_token are never exposed.
+// Local XAMPP sets 'development' in config.env.php.
+if (!defined('APP_ENV')) define('APP_ENV', ams_env('APP_ENV', 'production'));
 // Public origin of the frontend (for building links in emails etc.). Empty
 // until a frontend is deployed. CORS origins are handled in cors.php.
 if (!defined('APP_URL')) define('APP_URL', rtrim(ams_env('APP_URL', ''), '/'));
@@ -73,6 +76,18 @@ if (PHP_SAPI !== 'cli') {
 
 // For endpoints that catch an exception themselves: log the detail, return a
 // safe message.
+// The message to send for a caught exception (audit L1). Endpoints throw plain
+// Exceptions with user-facing text on purpose, and those pass through; a
+// database exception (strict mysqli mode) is logged and replaced, so SQL and
+// schema details never reach the client.
+function public_error_message($e, $fallback = "Server error. Please try again.") {
+    if ($e instanceof mysqli_sql_exception) {
+        error_log('[AMS] ' . ($_SERVER['SCRIPT_NAME'] ?? 'cli') . ': ' . $e->getMessage());
+        return $fallback;
+    }
+    return $e->getMessage();
+}
+
 function server_error_response($e, $public_message = "Server error. Please try again.") {
     error_log('[AMS] ' . ($_SERVER['SCRIPT_NAME'] ?? 'cli') . ': ' . $e->getMessage());
     http_response_code(500);
@@ -306,15 +321,196 @@ function send_lease_end_reminders($conn) {
 // lease_end passes) happens outside this map, in expire_lapsed_contracts().
 const CONTRACT_TRANSITIONS = [
     'draft'            => ['activate'],
-    'active'           => ['flag', 'terminate', 'edit'],
+    'active'           => ['flag', 'terminate', 'edit', 'extend'],
     'eviction-pending' => ['clear', 'terminate', 'edit'],
-    'expired'          => ['terminate', 'edit'],
+    'expired'          => ['terminate', 'edit', 'extend'],
     'terminated'       => [],
 ];
 
 function contract_action_allowed($current_status, $action) {
     $allowed = CONTRACT_TRANSITIONS[$current_status] ?? [];
     return in_array($action, $allowed, true);
+}
+
+// How far ahead a rent end may reach after an extension (audit L6): at most
+// max_rent_ahead_months (Settings -> Rental) from today, never more than 12.
+// 'extend' in CONTRACT_TRANSITIONS limits extensions to active/expired contracts.
+const MAX_RENT_AHEAD_MONTHS_CEILING = 12;
+
+function max_rent_ahead_months($conn) {
+    $months = (int)get_setting($conn, 'max_rent_ahead_months', MAX_RENT_AHEAD_MONTHS_CEILING);
+    return min(MAX_RENT_AHEAD_MONTHS_CEILING, max(1, $months));
+}
+
+// Returns an error message when $new_end (Y-m-d) is further ahead than allowed, else null.
+function rent_end_ahead_error($conn, $new_end) {
+    $months = max_rent_ahead_months($conn);
+    $limit = date('Y-m-d', strtotime("+$months months"));
+    if ($new_end > $limit) {
+        return "Rent can only be extended up to $months month(s) ahead (until " . date('M j, Y', strtotime($limit)) . "). The new end would be " . date('M j, Y', strtotime($new_end)) . ".";
+    }
+    return null;
+}
+
+// ── Rent extensions (panel review 2026-10-09) ──
+// One rule list and one implementation for every way rent is extended: the
+// tenant's request (extend_lease.php), its approval (process_tenant_request.php)
+// and the admin's Units -> Extend Rent (admin_extend_rent.php).
+
+class ExtensionRefused extends Exception {}
+
+// The tenant's past-due bills. Payments already submitted or in progress
+// (pending-verification, processing) don't count, and neither does an unpaid
+// advance-rent invoice, which is an optional prepayment rather than a debt.
+// Uses due_date rather than status = 'overdue' so it doesn't wait for the
+// (throttled) overdue promotion.
+function tenant_overdue_summary($conn, $user_id) {
+    $statuses = array_values(array_diff(BILLING_OPEN_STATUSES, ['pending-verification', 'processing']));
+    $in = "('" . implode("','", $statuses) . "')";
+    $stmt = $conn->prepare("SELECT COUNT(*) AS c, COALESCE(SUM(total_amount), 0) AS total, MIN(due_date) AS oldest
+                            FROM invoices
+                            WHERE user_id = ? AND due_date IS NOT NULL AND due_date < CURDATE()
+                              AND status IN $in AND advance_months IS NULL");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return ['count' => (int)$row['c'], 'total' => (float)$row['total'], 'oldest_due' => $row['oldest']];
+}
+
+// Why this tenancy can't be extended by $add_months right now, or null if it
+// can. $app needs status, user_id, requested_move_out_date; $contract needs
+// status, lease_end (or is null). Pass $add_months = 0 to check everything but
+// the months-ahead limit (my_room.php, before the tenant picks a number).
+function extension_block_reason($conn, $app, $contract, $add_months) {
+    if (($app['status'] ?? '') === 'pending-move-out') {
+        $when = !empty($app['requested_move_out_date']) ? ' on ' . date('M j, Y', strtotime($app['requested_move_out_date'])) : '';
+        return "A move-out is scheduled$when. It must be cancelled by management before the rent can be extended.";
+    }
+    if (!$contract || $contract['lease_end'] === null || !contract_action_allowed($contract['status'], 'extend')) {
+        $state = $contract ? ($contract['status'] === 'eviction-pending' ? 'flagged for eviction' : $contract['status']) : 'missing';
+        return "The rent contract is $state, so the rent can't be extended. Only an active or expired contract can be.";
+    }
+    $overdue = tenant_overdue_summary($conn, (int)$app['user_id']);
+    if ($overdue['count'] > 0) {
+        return "There is ₱" . number_format($overdue['total'], 2) . " overdue ({$overdue['count']} bill(s), oldest due "
+            . date('M j, Y', strtotime($overdue['oldest_due'])) . "). It must be settled on Pay Bills before the rent can be extended.";
+    }
+    if ($add_months > 0) {
+        $proposed_end = date('Y-m-d', strtotime($contract['lease_end'] . " +$add_months months"));
+        if ($ahead_error = rent_end_ahead_error($conn, $proposed_end)) return $ahead_error;
+    }
+    return null;
+}
+
+// Extends a tenancy by $add_months inside the caller's transaction. Re-checks
+// extension_block_reason() (throws ExtensionRefused), moves the rent end on the
+// application, room and contract, reactivates an expired contract, re-arms the
+// rent-end reminder, records lease_renewals, and — when the contract had
+// expired — bills the holdover months the tenant has already lived since it
+// expired (the generator never back-bills them), due RENT_INVOICE_LEAD_DAYS
+// from today so they aren't overdue the moment they're issued. $new_rent
+// (optional) applies to months billed from now on.
+function extend_tenancy($conn, $app_id, $add_months, $admin_id, $new_rent = null) {
+    $add_months = (int)$add_months;
+    if ($add_months < 1 || $add_months > MAX_RENT_AHEAD_MONTHS_CEILING) {
+        throw new ExtensionRefused("Extensions are 1 to " . MAX_RENT_AHEAD_MONTHS_CEILING . " months.");
+    }
+
+    $stmt = $conn->prepare("SELECT id, user_id, room_name, status, requested_move_out_date FROM rent_applications WHERE id = ? FOR UPDATE");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $app = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$app || !in_array($app['status'], ['active', 'pending-move-out'], true)) {
+        throw new ExtensionRefused("Only a tenant who has moved in can have their rent extended.");
+    }
+
+    $stmt = $conn->prepare("SELECT id, status, lease_start, lease_end FROM lease_contracts WHERE rent_application_id = ? FOR UPDATE");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $contract = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($reason = extension_block_reason($conn, $app, $contract, $add_months)) {
+        throw new ExtensionRefused($reason);
+    }
+
+    $user_id = (int)$app['user_id'];
+    $current_rent = tenancy_monthly_rent($conn, $app_id);
+    $previous_end = $contract['lease_end'];
+    $was_expired = $contract['status'] === 'expired';
+
+    // Holdover months, billed at the rent in force while they were lived.
+    $holdover = [];
+    $holdover_total = 0.0;
+    if ($was_expired && $current_rent > 0) {
+        $today = date('Y-m-d');
+        $grace_due = date('Y-m-d', strtotime('+' . RENT_INVOICE_LEAD_DAYS . ' days'));
+        for ($k = 1; $k < 600; $k++) {
+            $start = rent_period_start($contract['lease_start'], $k);
+            if ($start >= $today) break;
+            if ($start < $previous_end) continue;
+            $invoice_id = issue_rent_invoice($conn, $user_id, $app_id, $start, $current_rent, null, $grace_due);
+            if ($invoice_id) {
+                $holdover[] = ['invoice_id' => $invoice_id, 'period' => billing_period_label(new DateTime($start))];
+                $holdover_total += $current_rent;
+            }
+        }
+    }
+
+    $rent_at_renewal = $new_rent !== null ? round((float)$new_rent, 2) : $current_rent;
+
+    if ($new_rent !== null) {
+        $stmt = $conn->prepare("UPDATE rent_applications SET months_of_rent = months_of_rent + ?, monthly_rent = ? WHERE id = ?");
+        $stmt->bind_param("idi", $add_months, $rent_at_renewal, $app_id);
+    } else {
+        $stmt = $conn->prepare("UPDATE rent_applications SET months_of_rent = months_of_rent + ? WHERE id = ?");
+        $stmt->bind_param("ii", $add_months, $app_id);
+    }
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt = $conn->prepare("UPDATE lease_contracts SET lease_end = DATE_ADD(lease_end, INTERVAL ? MONTH),
+                                   status = IF(status = 'expired', 'active', status), renewal_reminder_sent_at = NULL
+                            WHERE id = ?");
+    $stmt->bind_param("is", $add_months, $contract['id']);
+    $stmt->execute();
+    $stmt->close();
+
+    $stmt = $conn->prepare("SELECT lease_end FROM lease_contracts WHERE id = ?");
+    $stmt->bind_param("s", $contract['id']);
+    $stmt->execute();
+    $new_end = $stmt->get_result()->fetch_assoc()['lease_end'];
+    $stmt->close();
+
+    // The room mirrors the contract (get_rooms.php and the occupancy views read it).
+    if ($new_rent !== null) {
+        $stmt = $conn->prepare("UPDATE rooms SET lease_end = ?, monthly_rent = ? WHERE id = ?");
+        $stmt->bind_param("sds", $new_end, $rent_at_renewal, $app['room_name']);
+    } else {
+        $stmt = $conn->prepare("UPDATE rooms SET lease_end = ? WHERE id = ?");
+        $stmt->bind_param("ss", $new_end, $app['room_name']);
+    }
+    $stmt->execute();
+    $stmt->close();
+
+    $admin_id_param = $admin_id ? (int)$admin_id : null;
+    $stmt = $conn->prepare("INSERT INTO lease_renewals (contract_id, added_months, previous_lease_end, new_lease_end, rent_at_renewal, approved_by) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sissdi", $contract['id'], $add_months, $previous_end, $new_end, $rent_at_renewal, $admin_id_param);
+    $stmt->execute();
+    $stmt->close();
+
+    return [
+        'user_id' => $user_id,
+        'room' => $app['room_name'],
+        'contract_id' => $contract['id'],
+        'previous_end' => $previous_end,
+        'new_end' => $new_end,
+        'reactivated' => $was_expired,
+        'holdover_invoices' => $holdover,
+        'holdover_total' => $holdover_total,
+    ];
 }
 
 // ── Rent applications / tenant lifecycle (H5) ──
@@ -529,7 +725,8 @@ function post_service_charge($conn, $service_request_id) {
             $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $period, $due_date);
             if (!$stmt->execute()) {
                 $stmt->close();
-                throw new Exception("Failed to create services invoice: " . $conn->error);
+                error_log("[AMS] Failed to create services invoice: " . $conn->error);
+                throw new Exception("Failed to create services invoice.");
             }
             $stmt->close();
         }
@@ -539,7 +736,8 @@ function post_service_charge($conn, $service_request_id) {
         $stmt->bind_param("dds", $amount, $amount, $invoice_id);
         if (!$stmt->execute()) {
             $stmt->close();
-            throw new Exception("Failed to post service charge: " . $conn->error);
+            error_log("[AMS] Failed to post service charge: " . $conn->error);
+            throw new Exception("Failed to post service charge.");
         }
         $stmt->close();
 
@@ -562,9 +760,11 @@ function post_service_charge($conn, $service_request_id) {
 // still unpaid — once settled the money has changed hands, so the admin must
 // issue a manual credit instead.
 //
-// Returns ['ok' => bool, 'message' => string].
-function reverse_service_charge($conn, $service_request_id) {
-    $conn->begin_transaction();
+// Returns ['ok' => bool, 'message' => string]. Pass $own_transaction = false
+// when the caller already holds a transaction and will commit or roll back
+// itself (update_service_status.php claims the status in the same one, audit L5).
+function reverse_service_charge($conn, $service_request_id, $own_transaction = true) {
+    if ($own_transaction) $conn->begin_transaction();
 
     try {
         $stmt = $conn->prepare("SELECT total_cost, invoice_id, is_invoiced FROM service_requests WHERE id = ? FOR UPDATE");
@@ -574,7 +774,7 @@ function reverse_service_charge($conn, $service_request_id) {
         $stmt->close();
 
         if (!$request || !(int)$request['is_invoiced'] || !$request['invoice_id']) {
-            $conn->rollback();
+            if ($own_transaction) $conn->rollback();
             return ['ok' => true, 'message' => 'Nothing to reverse.'];
         }
 
@@ -589,7 +789,7 @@ function reverse_service_charge($conn, $service_request_id) {
         $stmt->close();
 
         if ($reversed === 0) {
-            $conn->rollback();
+            if ($own_transaction) $conn->rollback();
             $inv = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
             $inv->bind_param("s", $request['invoice_id']);
             $inv->execute();
@@ -609,11 +809,11 @@ function reverse_service_charge($conn, $service_request_id) {
         $stmt->execute();
         $stmt->close();
 
-        $conn->commit();
+        if ($own_transaction) $conn->commit();
         return ['ok' => true, 'message' => 'Service charge reversed from invoice ' . $request['invoice_id'] . '.'];
 
     } catch (Exception $e) {
-        $conn->rollback();
+        if ($own_transaction) $conn->rollback();
         return ['ok' => false, 'message' => $e->getMessage()];
     }
 }
@@ -694,7 +894,8 @@ function post_maintenance_charge($conn, $maintenance_request_id) {
             $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $period, $due_date);
             if (!$stmt->execute()) {
                 $stmt->close();
-                throw new Exception("Failed to create maintenance invoice: " . $conn->error);
+                error_log("[AMS] Failed to create maintenance invoice: " . $conn->error);
+                throw new Exception("Failed to create maintenance invoice.");
             }
             $stmt->close();
         }
@@ -703,7 +904,8 @@ function post_maintenance_charge($conn, $maintenance_request_id) {
         $stmt->bind_param("dds", $amount, $amount, $invoice_id);
         if (!$stmt->execute()) {
             $stmt->close();
-            throw new Exception("Failed to post maintenance charge: " . $conn->error);
+            error_log("[AMS] Failed to post maintenance charge: " . $conn->error);
+            throw new Exception("Failed to post maintenance charge.");
         }
         $stmt->close();
 
@@ -1241,7 +1443,8 @@ function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_s
         $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
         $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $app_id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
         if (!$inv_stmt->execute()) {
-            throw new Exception("Failed to create move-in invoice: " . $inv_stmt->error);
+            error_log("[AMS] Failed to create move-in invoice: " . $inv_stmt->error);
+            throw new Exception("Failed to create move-in invoice.");
         }
         $inv_stmt->close();
     }
@@ -1268,7 +1471,8 @@ function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_s
             $ctr_stmt->bind_param("sidss", $contract_id, $app_id, $monthly_rent, $lease_start, $lease_end);
         }
         if (!$ctr_stmt->execute()) {
-            throw new Exception("Failed to create rent contract: " . $ctr_stmt->error);
+            error_log("[AMS] Failed to create rent contract: " . $ctr_stmt->error);
+            throw new Exception("Failed to create rent contract.");
         }
         $ctr_stmt->close();
     }
@@ -1388,20 +1592,22 @@ function rent_period_billed($conn, $user_id, $period_start) {
     return $billed;
 }
 
-// Issues the rent invoice for one tenancy month, due on the month's start.
+// Issues the rent invoice for one tenancy month, due on the month's start
+// unless $due_date is given (holdover months billed late get a grace period).
 // Returns the new invoice id, or null when that month is already billed
 // (including by a concurrent writer — the unique key refuses the second row).
-function create_rent_invoice($conn, $user_id, $app_id, $period_start, $rent, $payment_group = null) {
+function create_rent_invoice($conn, $user_id, $app_id, $period_start, $rent, $payment_group = null, $due_date = null) {
     if (rent_period_billed($conn, $user_id, $period_start)) return null;
 
     $period = new DateTime($period_start);
     $label = billing_period_label($period);
     $invoice_id = 'INV-' . $period->format('Ym') . '-' . strtoupper(bin2hex(random_bytes(4)));
     $rent = round((float)$rent, 2);
+    $due_date = $due_date ?: $period_start;
 
     $stmt = $conn->prepare("INSERT IGNORE INTO invoices (id, user_id, rent_application_id, base_rent, total_amount, billing_period, status, due_date, rent_period_start, payment_group)
                             VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)");
-    $stmt->bind_param("siiddssss", $invoice_id, $user_id, $app_id, $rent, $rent, $label, $period_start, $period_start, $payment_group);
+    $stmt->bind_param("siiddssss", $invoice_id, $user_id, $app_id, $rent, $rent, $label, $due_date, $period_start, $payment_group);
     $stmt->execute();
     $created = $stmt->affected_rows > 0;
     $stmt->close();
@@ -1412,9 +1618,9 @@ function create_rent_invoice($conn, $user_id, $app_id, $period_start, $rent, $pa
 // 'available' advance credit (advance_credits row) the month is billed at the
 // credited amount and settled from it at once, so it still gets its own
 // invoice and receipt. Returns the invoice id, or null when already billed.
-function issue_rent_invoice($conn, $user_id, $app_id, $start, $rent, $credit = null) {
+function issue_rent_invoice($conn, $user_id, $app_id, $start, $rent, $credit = null, $due_date = null) {
     $amount = $credit ? (float)$credit['amount'] : (float)$rent;
-    $invoice_id = create_rent_invoice($conn, $user_id, $app_id, $start, $amount);
+    $invoice_id = create_rent_invoice($conn, $user_id, $app_id, $start, $amount, null, $due_date);
     if (!$invoice_id) return null;
 
     $label = billing_period_label(new DateTime($start));
@@ -1435,7 +1641,7 @@ function issue_rent_invoice($conn, $user_id, $app_id, $start, $rent, $credit = n
         // Could not settle: the month stays an ordinary bill and the credit
         // stays available (move-out turns it into a refund).
     }
-    $due = (new DateTime($start))->format('M j, Y');
+    $due = (new DateTime($due_date ?: $start))->format('M j, Y');
     create_notification($conn, $user_id, 'billing', "Rent Invoice: $label",
         "Your rent for $label ($money) is due on $due. You can pay it on the Pay Bills page.",
         'Resolved', "invoice:$invoice_id");
@@ -2056,29 +2262,34 @@ function revoke_user_sessions($conn, $user_id, $keep_token = null) {
     return $count;
 }
 
-// Login throttling (A-5 / A-9). Failures are counted per IP and per account.
-// The per-account limit is what stops password guessing from rotating IPs, and a
-// successful login clears only that account's failures — previously one good
-// login (even to the attacker's own account) wiped the whole IP's counter.
-// change_password.php shares the same counters, so it is no longer an
-// unthrottled side door for guessing a password.
+// Login throttling (A-5 / A-9 / audit M13). Failures are counted three ways:
+//  - per account + IP (5): locks out the person guessing, not the account owner
+//    — previously 5 failures from anywhere locked the account for everyone, so
+//    a script could keep the admin locked out;
+//  - per account across all IPs (25): still stops guessing from rotating IPs;
+//  - per IP (20): stops one client spraying many accounts.
+// A successful login clears only that account's failures. change_password.php
+// shares the same counters, so it is not an unthrottled side door.
 const LOGIN_MAX_FAILURES_PER_IP = 20;
-const LOGIN_MAX_FAILURES_PER_ACCOUNT = 5;
+const LOGIN_MAX_FAILURES_PER_ACCOUNT_IP = 5;
+const LOGIN_MAX_FAILURES_PER_ACCOUNT = 25;
 const LOGIN_LOCKOUT_MINUTES = 15;
 
 function login_throttle_message($conn, $ip, $email) {
     $email = strtolower(trim((string)$email));
     $stmt = $conn->prepare("SELECT
             SUM(ip_address = ?) AS by_ip,
-            SUM(email = ?) AS by_email
+            SUM(email = ?) AS by_email,
+            SUM(email = ? AND ip_address = ?) AS by_email_ip
         FROM login_attempts
         WHERE attempt_time > DATE_SUB(NOW(), INTERVAL " . LOGIN_LOCKOUT_MINUTES . " MINUTE)");
-    $stmt->bind_param("ss", $ip, $email);
+    $stmt->bind_param("ssss", $ip, $email, $email, $ip);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if ((int)($row['by_email'] ?? 0) >= LOGIN_MAX_FAILURES_PER_ACCOUNT) {
+    if ((int)($row['by_email_ip'] ?? 0) >= LOGIN_MAX_FAILURES_PER_ACCOUNT_IP
+        || (int)($row['by_email'] ?? 0) >= LOGIN_MAX_FAILURES_PER_ACCOUNT) {
         return "Too many failed attempts for this account. Please wait " . LOGIN_LOCKOUT_MINUTES . " minutes before trying again.";
     }
     if ((int)($row['by_ip'] ?? 0) >= LOGIN_MAX_FAILURES_PER_IP) {
@@ -2129,6 +2340,38 @@ function record_password_reset_request($conn, $ip, $email) {
     $stmt->close();
     // Only the last window is ever counted; older rows are just clutter.
     $conn->query("DELETE FROM password_reset_requests WHERE requested_at < DATE_SUB(NOW(), INTERVAL 1 DAY)");
+}
+
+// Generic counter for public forms with no account to throttle on (audit M13),
+// backed by rate_limit_events. $key is usually the client IP.
+const REGISTRATION_MAX_PER_IP = 5;
+const REGISTRATION_WINDOW_MINUTES = 60;
+
+function rate_limit_exceeded($conn, $action, $key, $max, $window_minutes) {
+    try {
+        $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM rate_limit_events
+                                WHERE action = ? AND rate_key = ? AND created_at > DATE_SUB(NOW(), INTERVAL ? MINUTE)");
+        $stmt->bind_param("ssi", $action, $key, $window_minutes);
+        $stmt->execute();
+        $count = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+        $stmt->close();
+    } catch (mysqli_sql_exception $e) {
+        return false; // table not migrated yet: don't block the form
+    }
+    return $count >= $max;
+}
+
+function rate_limit_record($conn, $action, $key) {
+    try {
+        $stmt = $conn->prepare("INSERT INTO rate_limit_events (action, rate_key) VALUES (?, ?)");
+        $stmt->bind_param("ss", $action, $key);
+        $stmt->execute();
+        $stmt->close();
+        // Only recent rows are ever counted; older ones are clutter.
+        $conn->query("DELETE FROM rate_limit_events WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 DAY)");
+    } catch (mysqli_sql_exception $e) {
+        // table not migrated yet
+    }
 }
 
 function clear_login_failures($conn, $email) {
@@ -2555,6 +2798,33 @@ function get_setting($conn, $key, $default = null) {
     return $row ? $row['setting_value'] : $default;
 }
 
+// True for at most one caller per $seconds (audit L7). Checks that every page
+// poll or GET used to run (sweep claim, overstay scan, overdue promotion, hold
+// release) are gated with this, so they run about once a minute instead of on
+// every request. Claimed atomically on a system_settings row holding a Unix
+// timestamp, the same pattern as notification_sweep_last_run.
+function throttle_claim($conn, $key, $seconds) {
+    try {
+        $stmt = $conn->prepare("UPDATE system_settings SET setting_value = UNIX_TIMESTAMP()
+                                WHERE setting_key = ? AND CAST(setting_value AS UNSIGNED) + ? <= UNIX_TIMESTAMP()");
+        $stmt->bind_param("si", $key, $seconds);
+        $stmt->execute();
+        $claimed = $stmt->affected_rows > 0;
+        $stmt->close();
+        if ($claimed) return true;
+
+        // First run: create the row; whoever inserts it owns this run.
+        $ins = $conn->prepare("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES (?, UNIX_TIMESTAMP())");
+        $ins->bind_param("s", $key);
+        $ins->execute();
+        $claimed = $ins->affected_rows > 0;
+        $ins->close();
+        return $claimed;
+    } catch (mysqli_sql_exception $e) {
+        return true; // never skip the check because the throttle itself failed
+    }
+}
+
 // Daily automation (checklist 6.2 / 6.3 / 9.6 / 10.3): overdue promotion,
 // rent-due and overdue reminders, contract expiry and lease-end reminders,
 // parking permit expiry and automatic parking billing. Visitor overstay
@@ -2837,7 +3107,8 @@ function post_parking_charge($conn, $reservation_id, DateTime $month) {
             $stmt->bind_param("siiss", $invoice_id, $user_id, $lease['id'], $label, $due_date);
             if (!$stmt->execute()) {
                 $stmt->close();
-                throw new Exception("Failed to create parking invoice: " . $conn->error);
+                error_log("[AMS] Failed to create parking invoice: " . $conn->error);
+                throw new Exception("Failed to create parking invoice.");
             }
             $stmt->close();
         }

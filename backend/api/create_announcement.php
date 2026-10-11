@@ -133,7 +133,8 @@ try {
     $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, recipient_count) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("sssssi", $tag, $title, $body, $send_to_label, $channels, $recipient_count);
     if (!$stmt->execute()) {
-        throw new Exception("Announcement insert failed: " . $stmt->error);
+        error_log("[AMS] Announcement insert failed: " . $stmt->error);
+        throw new Exception("Announcement insert failed.");
     }
     $announcement_id = $stmt->insert_id;
     $stmt->close();

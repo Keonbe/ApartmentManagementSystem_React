@@ -37,7 +37,7 @@ if ($is_admin) {
     }
 }
 
-$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -80,6 +80,22 @@ if ($result->num_rows > 0) {
     $room_data['initial_payment_paid'] = (bool)$paid_stmt->get_result()->fetch_assoc();
     $paid_stmt->close();
     
+    // Whether the rent can be extended right now, and why not (config.php
+    // extension_block_reason(): scheduled move-out, contract state, overdue
+    // bills). The months-ahead limit is checked once the tenant picks a number.
+    $room_data['extension'] = null;
+    if (in_array($room_data['status'], ['active', 'pending-move-out'], true)) {
+        $contract = $room_data['contract_id'] ? ['status' => $room_data['contract_status'], 'lease_end' => $room_data['lease_end']] : null;
+        $reason = extension_block_reason($conn, $room_data + ['user_id' => $user_id], $contract, 0);
+        $overdue = tenant_overdue_summary($conn, (int)$user_id);
+        $room_data['extension'] = [
+            'allowed' => $reason === null,
+            'reason' => $reason,
+            'overdueTotal' => $overdue['total'],
+            'maxMonthsAhead' => max_rent_ahead_months($conn),
+        ];
+    }
+
     echo json_encode(["success" => true, "data" => $room_data]);
 } else {
     echo json_encode(["success" => false, "message" => "No room application found for this user."]);

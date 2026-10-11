@@ -119,6 +119,27 @@ if ($action === 'remove') {
     exit;
 }
 
+// Uploading overwrites the stored document, so a tenant gets the same limit as
+// removing (audit M1): only while the contract is still a draft, and never the
+// notarized copy, which management uploads.
+if (!$is_admin) {
+    if ($doc_type === 'notarizedLease') {
+        http_response_code(403);
+        echo json_encode(["success" => false, "message" => "The notarized copy is uploaded by management."]);
+        exit;
+    }
+    $status_stmt = $conn->prepare("SELECT status FROM lease_contracts WHERE id = ?");
+    $status_stmt->bind_param("s", $contract_id);
+    $status_stmt->execute();
+    $status_row = $status_stmt->get_result()->fetch_assoc();
+    $status_stmt->close();
+    if (!$status_row || $status_row['status'] !== 'draft') {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This contract is no longer a draft, so its documents can't be replaced — contact management."]);
+        exit;
+    }
+}
+
 if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
     $file_name = basename($_FILES['file']['name']);
     $file_tmp = $_FILES['file']['tmp_name'];

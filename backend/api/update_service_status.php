@@ -52,17 +52,14 @@ try {
         exit;
     }
 
-    // Leaving Completed is only allowed as a cancellation, which must reverse any charge first.
-    if ($old['status'] === 'Completed' && (int)$old['is_invoiced']) {
-        $reversal = reverse_service_charge($conn, $id);
-        if (!$reversal['ok']) {
-            http_response_code(409);
-            echo json_encode(["success" => false, "message" => $reversal['message']]);
-            exit;
-        }
-    }
-
     $is_completing = ($status === 'Completed');
+
+    // Leaving Completed is only allowed as a cancellation, which must reverse
+    // any charge. Claim the status and reverse the charge in one transaction
+    // (audit L5): a lost race or a refused reversal leaves both untouched,
+    // instead of a booking still Completed with its charge already removed.
+    $reversing = $old['status'] === 'Completed' && (int)$old['is_invoiced'];
+    $conn->begin_transaction();
 
     $stmt = $conn->prepare("UPDATE service_requests
                             SET status = ?,
@@ -77,10 +74,22 @@ try {
     $stmt->close();
 
     if ($claimed === 0) {
+        $conn->rollback();
         http_response_code(409);
         echo json_encode(["success" => false, "message" => "This booking was changed by someone else. Refresh and try again."]);
         exit;
     }
+
+    if ($reversing) {
+        $reversal = reverse_service_charge($conn, $id, false);
+        if (!$reversal['ok']) {
+            $conn->rollback();
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => $reversal['message']]);
+            exit;
+        }
+    }
+    $conn->commit();
 
     //BillOnDelivery.AFailureHereIsNotFatal:TheStatusChangeStands
     //AndTheQueueOffersARetryViaSync_service_to_invoice.php.

@@ -16,7 +16,7 @@ export const SETTINGS_TABS = [
     label: 'Rental',
     icon: faFileContract,
     description: 'Rental rules, occupancy limits and the public room preview.',
-    keys: ['minLeaseDuration', 'reservationHoldDays', 'maxOccupantsPerUnit', 'roomPreviewMode'],
+    keys: ['minLeaseDuration', 'maxRentAheadMonths', 'reservationHoldDays', 'maxOccupantsPerUnit', 'roomPreviewMode'],
   },
   {
     id: 'payments',

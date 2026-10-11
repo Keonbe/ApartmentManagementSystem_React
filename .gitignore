@@ -13,7 +13,8 @@ deploy/env/*.env
 !ams-react/.env.example
 !ams-react/.env.selfhosted.example
 docs/progress_report.md
-backend/logs/
+backend/logs/*
+!backend/logs/.htaccess
 docs/AMS_Development_Timeline.xlsx
 
 # Ignore specific downloaded skills

@@ -107,7 +107,7 @@ if ($stmt->execute()) {
     echo json_encode(["success" => true, "message" => "Contract created successfully", "contractId" => $id]);
 } else {
     http_response_code(409);
-    echo json_encode(["success" => false, "message" => "Failed to create contract", "error" => $stmt->error]);
+    echo json_encode(["success" => false, "message" => "Failed to create contract"]);
 }
 
 $stmt->close();

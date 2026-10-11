@@ -151,7 +151,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         if (!$stmt->execute()) {
-            throw new Exception("Failed to insert invoice: " . $stmt->error);
+            error_log("[AMS] Failed to insert invoice: " . $stmt->error);
+            throw new Exception("Failed to insert invoice.");
         }
         $stmt->close();
 
@@ -187,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(["success" => false, "message" => $e->getMessage()]);
+        echo json_encode(["success" => false, "message" => public_error_message($e)]);
         exit;
     }
 }

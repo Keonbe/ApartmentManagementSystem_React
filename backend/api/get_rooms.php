@@ -21,7 +21,10 @@ $is_admin = $caller && $caller['role'] === 'admin';
 
 // Release lapsed unit reservations before listing, so a hold that expired
 // frees the unit for browsing visitors without needing an admin present.
-release_expired_reservations($conn);
+// At most once a minute: the Units and Preview pages call this often (L7).
+if (throttle_claim($conn, 'room_hold_check_last_run', 60)) {
+    release_expired_reservations($conn);
+}
 
 try {
     $archiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
@@ -31,9 +34,46 @@ try {
     $result = $stmt->get_result();
     $rooms = $result->fetch_all(MYSQLI_ASSOC);
 
+    // Admin history tabs: three queries for all rooms, grouped by room, instead
+    // of three queries per room (audit L7). Each keeps its original ordering.
+    $maintByRoom = $occByRoom = $leaseByRoom = [];
+    if ($is_admin) {
+        $res = $conn->query("
+            SELECT m.room_name, m.issue_category as issue, m.status, m.estimated_cost as cost, DATE(m.created_at) as date
+            FROM maintenance_requests m
+            ORDER BY m.created_at DESC
+        ");
+        while ($row = $res->fetch_assoc()) {
+            $maintByRoom[$row['room_name']][] = $row;
+        }
+
+        $res = $conn->query("
+            SELECT ra.room_name, ra.first_name, ra.last_name, ra.status, ra.monthly_rent, ra.archive_reason,
+                   lc.lease_start, lc.lease_end
+            FROM rent_applications ra
+            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
+            WHERE ra.status IN ('Approved', 'active', 'pending-move-out', 'moved-out', 'archived')
+            ORDER BY ra.created_at ASC
+        ");
+        while ($row = $res->fetch_assoc()) {
+            $occByRoom[$row['room_name']][] = $row;
+        }
+
+        $res = $conn->query("
+            SELECT ra.room_name, lr.added_months, lr.previous_lease_end, lr.new_lease_end, lr.created_at
+            FROM lease_renewals lr
+            JOIN lease_contracts lc ON lc.id = lr.contract_id
+            JOIN rent_applications ra ON ra.id = lc.rent_application_id
+            ORDER BY lr.created_at ASC
+        ");
+        while ($row = $res->fetch_assoc()) {
+            $leaseByRoom[$row['room_name']][] = $row;
+        }
+    }
+
     // Format the response to match frontend expectations
     // The frontend expects: id, type, rent, status, tenant, lastTenant, floor, leaseStart, leaseEnd, maintenanceFlag
-    $formattedRooms = array_map(function($room) use ($conn, $is_admin) {
+    $formattedRooms = array_map(function($room) use ($is_admin, $maintByRoom, $occByRoom, $leaseByRoom) {
         $roomId = $room['id'];
 
         // Showcase photos are meant for guests browsing Preview.jsx, so they're
@@ -54,18 +94,9 @@ try {
             ];
         }
 
-        // Fetch real maintenance requests associated with this room's applicants
-        $m_stmt = $conn->prepare("
-            SELECT m.issue_category as issue, m.status, m.estimated_cost as cost, DATE(m.created_at) as date
-            FROM maintenance_requests m
-            WHERE m.room_name = ?
-            ORDER BY m.created_at DESC
-        ");
-        $m_stmt->bind_param("s", $roomId);
-        $m_stmt->execute();
-        $m_res = $m_stmt->get_result();
+        // Real maintenance requests for this room.
         $maintHistory = [];
-        while ($row = $m_res->fetch_assoc()) {
+        foreach ($maintByRoom[$roomId] ?? [] as $row) {
             $maintHistory[] = [
                 'issue' => $row['issue'],
                 'status' => $row['status'],
@@ -73,24 +104,11 @@ try {
                 'date' => $row['date']
             ];
         }
-        $m_stmt->close();
 
         // Every tenant who has ever occupied this unit (current + past),
-        // backing the "Occupancy History" tab which used to be hardcoded []
-        // regardless of what data existed.
-        $occ_stmt = $conn->prepare("
-            SELECT ra.first_name, ra.last_name, ra.status, ra.monthly_rent, ra.archive_reason,
-                   lc.lease_start, lc.lease_end
-            FROM rent_applications ra
-            LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
-            WHERE ra.room_name = ? AND ra.status IN ('Approved', 'active', 'pending-move-out', 'moved-out', 'archived')
-            ORDER BY ra.created_at ASC
-        ");
-        $occ_stmt->bind_param("s", $roomId);
-        $occ_stmt->execute();
-        $occ_res = $occ_stmt->get_result();
+        // backing the "Occupancy History" tab.
         $occupancyHistory = [];
-        while ($row = $occ_res->fetch_assoc()) {
+        foreach ($occByRoom[$roomId] ?? [] as $row) {
             $tenantFullName = trim($row['first_name'] . ' ' . $row['last_name']);
             $isCurrent = in_array($row['status'], ['Approved', 'active', 'pending-move-out'], true) && $room['tenant_name'] === $tenantFullName;
             $occupancyHistory[] = [
@@ -102,24 +120,11 @@ try {
                 'moveOutReason' => $row['archive_reason'] ?: null
             ];
         }
-        $occ_stmt->close();
 
-        // Lease-extension events recorded for this unit's applications,
-        // backing the "Lease History" tab (and the "Previous Extensions"
-        // list) which used to be hardcoded [] regardless of what data existed.
-        $lh_stmt = $conn->prepare("
-            SELECT lr.added_months, lr.previous_lease_end, lr.new_lease_end, lr.created_at
-            FROM lease_renewals lr
-            JOIN lease_contracts lc ON lc.id = lr.contract_id
-            JOIN rent_applications ra ON ra.id = lc.rent_application_id
-            WHERE ra.room_name = ?
-            ORDER BY lr.created_at ASC
-        ");
-        $lh_stmt->bind_param("s", $roomId);
-        $lh_stmt->execute();
-        $lh_res = $lh_stmt->get_result();
+        // Rent-extension events recorded for this unit's applications,
+        // backing the "Lease History" tab and the "Previous Extensions" list.
         $leaseHistory = [];
-        while ($row = $lh_res->fetch_assoc()) {
+        foreach ($leaseByRoom[$roomId] ?? [] as $row) {
             $leaseHistory[] = [
                 'event' => 'Rent Extended',
                 'date' => $row['created_at'] ? substr($row['created_at'], 0, 10) : null,
@@ -128,7 +133,6 @@ try {
                 'newEnd' => $row['new_lease_end']
             ];
         }
-        $lh_stmt->close();
 
         return [
             'id' => $room['id'],
@@ -157,7 +161,6 @@ try {
         'rooms' => $formattedRooms
     ]);
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    server_error_response($e, 'Could not load units. Please try again.');
 }
 ?>

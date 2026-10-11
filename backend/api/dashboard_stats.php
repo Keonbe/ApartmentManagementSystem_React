@@ -368,7 +368,7 @@ try {
 } catch (Throwable $e) {
     error_log("[dashboard_stats] " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
     http_response_code(500);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => public_error_message($e)]);
 }
 $conn->close();
 ?>

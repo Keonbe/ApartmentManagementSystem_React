@@ -41,6 +41,7 @@ foreach (SECRET_SETTING_KEYS as $s_key) {
 
 // Ensure numeric values are converted properly
 if(isset($settings['min_lease_duration'])) $settings['min_lease_duration'] = (int)$settings['min_lease_duration'];
+if(isset($settings['max_rent_ahead_months'])) $settings['max_rent_ahead_months'] = (int)$settings['max_rent_ahead_months'];
 if(isset($settings['overdue_threshold_days'])) $settings['overdue_threshold_days'] = (int)$settings['overdue_threshold_days'];
 if(isset($settings['reservation_hold_days'])) $settings['reservation_hold_days'] = (int)$settings['reservation_hold_days'];
 if(isset($settings['maintenance_monthly_budget'])) $settings['maintenance_monthly_budget'] = (float)$settings['maintenance_monthly_budget'];

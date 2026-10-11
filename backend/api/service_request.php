@@ -159,7 +159,7 @@ $stmt->bind_param(
 );
 
 if (!$stmt->execute()) {
-    echo json_encode(["success" => false, "message" => "Failed to submit booking", "error" => $stmt->error]);
+    echo json_encode(["success" => false, "message" => "Failed to submit booking"]);
     $stmt->close();
     $conn->close();
     exit;

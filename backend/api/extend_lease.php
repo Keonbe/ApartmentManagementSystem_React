@@ -24,7 +24,7 @@ try {
         throw new Exception("Invalid request: Extension must be between $minLeaseDuration and 12 months.");
     }
 
-    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.room_name FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out') WHERE u.id = ? ORDER BY ra.id DESC LIMIT 1");
+    $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.id AS app_id, ra.room_name, ra.status, ra.user_id, ra.requested_move_out_date FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out') WHERE u.id = ? ORDER BY ra.id DESC LIMIT 1");
     $userQuery->bind_param("i", $user_id);
     $userQuery->execute();
     $user = $userQuery->get_result()->fetch_assoc();
@@ -49,12 +49,25 @@ try {
             exit;
         }
 
+        // The same rules the approval enforces (config.php extension_block_reason():
+        // scheduled move-out, contract state, overdue bills, months-ahead limit),
+        // checked now so the tenant hears it straight away.
+        $ctrCheck = $conn->prepare("SELECT status, lease_end FROM lease_contracts WHERE rent_application_id = ?");
+        $appId = (int)($user['app_id'] ?? 0);
+        $ctrCheck->bind_param("i", $appId);
+        $ctrCheck->execute();
+        $ctr = $ctrCheck->get_result()->fetch_assoc();
+        $ctrCheck->close();
+        if ($reason = extension_block_reason($conn, $user, $ctr, $additionalMonths)) {
+            throw new Exception($reason);
+        }
+
         $title = "Rent Extension Request";
         $msg = "$tenantName (Unit $roomName) requested a $additionalMonths month(s) rent extension.";
 
         $stmt = $conn->prepare("INSERT INTO notifications (user_id, type, title, message, metadata_value, status, is_read) VALUES (?, 'lease_extension_request', ?, ?, ?, 'Pending', 0)");
         if (!$stmt) {
-            throw new Exception("Database prepare failed: " . $conn->error);
+            throw new Exception("Failed to save extension request.");
         }
 
         $stmt->bind_param("isss", $userId, $title, $msg, $additionalMonths);
@@ -71,7 +84,7 @@ try {
     }
 } catch (Exception $e) {
     http_response_code(400);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => public_error_message($e)]);
 }
 
 $conn->close();

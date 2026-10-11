@@ -80,19 +80,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $auth = require_user($conn);
         $is_admin = $auth['role'] === 'admin';
 
-        // Auto-mark lapsed invoices 'overdue' and apply the configured late fee
-        promote_overdue_invoices($conn);
+        // Billing upkeep writes, at most once a minute rather than on every
+        // GET (audit L7); get_contracts.php shares the same claim.
+        if (throttle_claim($conn, 'billing_checks_last_run', 60)) {
+            // Auto-mark lapsed invoices 'overdue' and apply the configured late fee
+            promote_overdue_invoices($conn);
 
-        // Auto-cancel any open invoices whose application was cancelled, rejected, or declined before move-in
-        $open_sql = billing_open_status_sql();
-        $conn->query("
-            UPDATE invoices i
-            JOIN rent_applications ra ON i.rent_application_id = ra.id
-            SET i.status = 'cancelled',
-                i.cancel_reason = 'Application cancelled before move-in'
-            WHERE ra.status IN ('Cancelled', 'Rejected', 'Declined')
-              AND i.status IN $open_sql
-        ");
+            // Auto-cancel any open invoices whose application was cancelled, rejected, or declined before move-in
+            $open_sql = billing_open_status_sql();
+            $conn->query("
+                UPDATE invoices i
+                JOIN rent_applications ra ON i.rent_application_id = ra.id
+                SET i.status = 'cancelled',
+                    i.cancel_reason = 'Application cancelled before move-in'
+                WHERE ra.status IN ('Cancelled', 'Rejected', 'Declined')
+                  AND i.status IN $open_sql
+            ");
+        }
 
         $user_id_param = $_GET['userId'] ?? null;
         if ($user_id_param) {
@@ -140,7 +144,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
 
         if (!$result) {
-            throw new Exception("Database query failed: " . $conn->error);
+            error_log("[AMS] Database query failed: " . $conn->error);
+            throw new Exception("Database query failed.");
         }
 
         $invoices = [];

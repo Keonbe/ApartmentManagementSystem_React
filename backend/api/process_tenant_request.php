@@ -97,85 +97,35 @@ try {
         } else if ($type === 'lease_extension_request') {
             $add_months = (int) $notif['metadata_value'];
 
-            // Resolve the tenant's application ONCE and reuse its id/room_name
-            // for every downstream update, instead of re-querying by user_id
-            // (which, with more than one Approved/active row for the same
-            // tenant, could silently pick a different application per query).
-            $appStmt = $conn->prepare("SELECT id, room_name FROM rent_applications WHERE user_id = ? AND status IN ('Approved', 'active') ORDER BY id DESC LIMIT 1");
+            // The tenant's running tenancy (a scheduled move-out is found too, so
+            // extend_tenancy() can refuse it with a clear reason).
+            $appStmt = $conn->prepare("SELECT id FROM rent_applications WHERE user_id = ? AND status IN ('active', 'pending-move-out') ORDER BY id DESC LIMIT 1");
             $appStmt->bind_param("i", $target_user_id);
             $appStmt->execute();
             $app = $appStmt->get_result()->fetch_assoc();
             $appStmt->close();
-
             if (!$app) {
-                throw new Exception("No active rent application found for this tenant.");
+                throw new RequestRefused("This tenant has no running tenancy to extend.");
             }
-            $app_id = (int)$app['id'];
-            $room_name = $app['room_name'];
-            // Snapshot the current rent before the update below runs; it feeds
-            // lease_renewals.rent_at_renewal.
-            $rentStmt = $conn->prepare("SELECT monthly_rent FROM rent_applications WHERE id = ?");
-            $rentStmt->bind_param("i", $app_id);
-            $rentStmt->execute();
-            $current_rent = (float)$rentStmt->get_result()->fetch_assoc()['monthly_rent'];
-            $rentStmt->close();
 
-            $updateStmt = $conn->prepare("UPDATE rent_applications SET months_of_rent = months_of_rent + ? WHERE id = ?");
-            $updateStmt->bind_param("ii", $add_months, $app_id);
-            $updateStmt->execute();
-            $updateStmt->close();
-
-            $roomStmt = $conn->prepare("UPDATE rooms SET lease_end = DATE_ADD(lease_end, INTERVAL ? MONTH) WHERE id = ?");
-            $roomStmt->bind_param("is", $add_months, $room_name);
-            $roomStmt->execute();
-            $roomStmt->close();
-
-            // Extend the tenant's existing contract in place (one row per
-            // application, matching get_contracts.php / my_room.php's
-            // single-row assumption) and record the renewal in lease_renewals
-            // so the history of extensions is auditable even though the
-            // contract row itself isn't versioned.
-            $ctrLookup = $conn->prepare("SELECT id, lease_end, status FROM lease_contracts WHERE rent_application_id = ?");
-            $ctrLookup->bind_param("i", $app_id);
-            $ctrLookup->execute();
-            $contract = $ctrLookup->get_result()->fetch_assoc();
-            $ctrLookup->close();
-
-            if ($contract && $contract['lease_end'] !== null && $contract['status'] !== 'terminated') {
-                $contract_id = $contract['id'];
-                $previous_lease_end = $contract['lease_end'];
-
-                // A renewal on an already-'expired' contract means the tenant is
-                // continuing occupancy — reactivate it along with the new date.
-                $ctrStmt = $conn->prepare("UPDATE lease_contracts SET lease_end = DATE_ADD(lease_end, INTERVAL ? MONTH), status = IF(status = 'expired', 'active', status) WHERE id = ?");
-                $ctrStmt->bind_param("is", $add_months, $contract_id);
-                $ctrStmt->execute();
-                $ctrStmt->close();
-
-                $newEndStmt = $conn->prepare("SELECT lease_end FROM lease_contracts WHERE id = ?");
-                $newEndStmt->bind_param("s", $contract_id);
-                $newEndStmt->execute();
-                $new_lease_end = $newEndStmt->get_result()->fetch_assoc()['lease_end'];
-                $newEndStmt->close();
-
-                $renewalStmt = $conn->prepare("INSERT INTO lease_renewals (contract_id, added_months, previous_lease_end, new_lease_end, rent_at_renewal, approved_by) VALUES (?, ?, ?, ?, ?, ?)");
-                $renewalStmt->bind_param("sissdi", $contract_id, $add_months, $previous_lease_end, $new_lease_end, $current_rent, $admin_id);
-                $renewalStmt->execute();
-                $renewalStmt->close();
-
-                log_activity($conn, $admin_id, 'contract', "Approved Rent Extension", "User ID: $target_user_id — Contract $contract_id extended by $add_months month(s): $previous_lease_end → $new_lease_end");
-            } else {
-                // No contract, or one with no lease_end to extend yet (e.g.
-                // still a Draft awaiting activation). The application/room
-                // dates above are still advanced; note the gap rather than
-                // silently doing nothing to the contract.
-                log_activity($conn, $admin_id, 'contract', "Approved Rent Extension", "User ID: $target_user_id extended by $add_months month(s); no active contract lease_end to extend");
+            // Same rules as the request (contract state, overdue bills, scheduled
+            // move-out, months-ahead limit), re-checked now; bills any holdover
+            // months if the contract had expired (config.php extend_tenancy()).
+            try {
+                $extension = extend_tenancy($conn, (int)$app['id'], $add_months, $admin_id);
+            } catch (ExtensionRefused $e) {
+                throw new RequestRefused($e->getMessage());
             }
+
+            $detail = "User ID: $target_user_id — Contract {$extension['contract_id']} extended by $add_months month(s): {$extension['previous_end']} → {$extension['new_end']}";
+            if ($extension['holdover_invoices']) {
+                $detail .= "; billed " . count($extension['holdover_invoices']) . " holdover month(s) since expiry (₱" . number_format($extension['holdover_total'], 2) . ")";
+            }
+            log_activity($conn, $admin_id, 'contract', "Approved Rent Extension", $detail);
+
             // The added months are billed like every other tenancy month:
             // generate_due_rent_invoices() issues each one RENT_INVOICE_LEAD_DAYS
-            // before it starts, due on the lease-start day (run below, after
-            // commit, so a month starting this week is billed at once). They
-            // used to be pre-billed here all at once, due on the 1st.
+            // before it starts (run below, after commit).
             $extension_billed_monthly = true;
         }
     }
@@ -248,6 +198,9 @@ try {
     $msg = "Your $label has been " . strtolower($statusText) . " by management.";
     if ($extension_billed_monthly) {
         $msg .= " Each added month is billed a week before it starts, due on your usual rent day.";
+        if (!empty($extension['holdover_invoices'])) {
+            $msg .= " Your contract had expired, so the " . count($extension['holdover_invoices']) . " month(s) you stayed since then (₱" . number_format($extension['holdover_total'], 2) . ") are now billed, due " . date('M j, Y', strtotime('+' . RENT_INVOICE_LEAD_DAYS . ' days')) . ".";
+        }
     }
     create_notification($conn, $target_user_id, $type, $title, $msg, 'Resolved');
 
@@ -286,7 +239,7 @@ try {
 } catch (RequestRefused $e) {
     $conn->rollback();
     http_response_code(409);
-    echo json_encode(["success" => false, "message" => $e->getMessage()]);
+    echo json_encode(["success" => false, "message" => public_error_message($e)]);
 } catch (Exception $e) {
     $conn->rollback();
     server_error_response($e, $e->getMessage() === "This request has already been processed."

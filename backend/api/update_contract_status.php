@@ -330,7 +330,7 @@ if ($action === 'edit') {
     } catch (Exception $e) {
         $conn->rollback();
         http_response_code(409);
-        echo json_encode(["success" => false, "message" => $e->getMessage()]);
+        echo json_encode(["success" => false, "message" => public_error_message($e)]);
     }
 } else {
     http_response_code(422);

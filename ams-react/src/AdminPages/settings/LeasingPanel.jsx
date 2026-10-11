@@ -34,6 +34,12 @@ export default function LeasingPanel({ settings, updateSetting }) {
             </WithUnit>
           </Field>
 
+          <Field label="Maximum Months Ahead" htmlFor="setting-maxRentAheadMonths" icon={faCalendarAlt} hint="How far from today a rent end may reach after an extension (tenant request or Units → Extend Rent). At most 12.">
+            <WithUnit suffix="months">
+              <input {...intInput(settings, updateSetting, 'maxRentAheadMonths', 1, 12)} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+
           <Field label="Reservation Hold Period" htmlFor="setting-reservationHoldDays" icon={faCalendarAlt} hint="Default number of days a reserved unit is held before the hold expires and the unit is released.">
             <WithUnit suffix="days">
               <input {...intInput(settings, updateSetting, 'reservationHoldDays', 1, 90)} className={`${INPUT_NUMBER} w-24`} />

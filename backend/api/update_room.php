@@ -64,6 +64,16 @@ try {
         foreach (['tenant_name', 'tenantName', 'last_tenant', 'lastTenant', 'occupants'] as $tenantField) {
             unset($data[$tenantField]);
         }
+        // Rent dates belong to the contract. Changing them here only moved the
+        // room's copy, so added months were never billed; Units -> Extend Rent
+        // now goes through admin_extend_rent.php (extend_tenancy()).
+        foreach (['lease_start', 'leaseStart', 'lease_end', 'leaseEnd'] as $dateField) {
+            if (array_key_exists($dateField, $data)) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => "Use Extend Rent to change a tenant's rent end."]);
+                exit();
+            }
+        }
     }
 
     if ($assigning) {
@@ -134,7 +144,8 @@ try {
         $types = str_repeat('s', count($params)); // Assuming all are strings/castable to string for simplicity, id is string
         $stmt->bind_param($types, ...$params);
         if (!$stmt->execute()) {
-            throw new Exception("Failed to update room: " . $stmt->error);
+            error_log("[AMS] Failed to update room: " . $stmt->error);
+            throw new Exception("Failed to update room.");
         }
         $stmt->close();
 
@@ -191,7 +202,8 @@ try {
                     $ins_app = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, status, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'placeholder', 'placeholder', 'placeholder', 'Approved', NOW())");
                     $ins_app->bind_param("isssssisd", $user_id, $first_name, $last_name, $contact_no, $email, $gender, $months, $id, $monthly_rent);
                     if (!$ins_app->execute()) {
-                        throw new Exception("Failed to create application record for the assigned tenant: " . $ins_app->error);
+                        error_log("[AMS] Failed to create application record for the assigned tenant: " . $ins_app->error);
+                        throw new Exception("Failed to create application record for the assigned tenant.");
                     }
                     $assigned_app_id = (int)$conn->insert_id;
                     $ins_app->close();
@@ -211,7 +223,7 @@ try {
     } catch (Exception $e) {
         $conn->rollback();
         http_response_code(500);
-        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        echo json_encode(['success' => false, 'message' => public_error_message($e)]);
         exit();
     }
 
@@ -241,6 +253,6 @@ try {
         : 'Room updated successfully']);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => public_error_message($e)]);
 }
 ?>

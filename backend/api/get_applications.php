@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
         echo json_encode(["success" => true, "data" => $applications]);
     } else {
-        echo json_encode(["success" => false, "message" => "Database query execution error: " . $conn->error]);
+        echo json_encode(["success" => false, "message" => "Could not load applications. Please try again."]);
     }
     
     $conn->close();

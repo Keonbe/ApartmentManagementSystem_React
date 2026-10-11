@@ -1,0 +1,6 @@
+# Logs and the mock notification outbox hold tenant names, phone numbers and
+# emails. Nothing here is ever served over HTTP (security_audit L-1).
+Options -Indexes
+<RequireAll>
+    Require all denied
+</RequireAll>

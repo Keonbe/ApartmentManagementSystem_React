@@ -48,7 +48,8 @@ try {
         $stmt = $conn->prepare("UPDATE rooms SET type = ?, floor = ?, monthly_rent = ?, status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, last_tenant = NULL, maintenance_flag = 0, occupants = 0, room_condition = 'Good', furnishing_status = 'Unfurnished', last_inspection_date = NULL, gallery = NULL, archived_at = NULL, archived_by = NULL WHERE id = ? AND archived_at IS NOT NULL");
         $stmt->bind_param("ssds", $type, $floor, $rent, $id);
         if (!$stmt->execute()) {
-            throw new Exception("Failed to restore unit: " . $stmt->error);
+            error_log("[AMS] Failed to restore unit: " . $stmt->error);
+            throw new Exception("Failed to restore unit.");
         }
         $stmt->close();
         log_activity($conn, $adminId, 'unit', "Restored Unit $id", "Type: $type, Floor: $floor, Rent: $rent");
@@ -59,7 +60,8 @@ try {
     $stmt = $conn->prepare("INSERT INTO rooms (id, type, floor, monthly_rent, status) VALUES (?, ?, ?, ?, 'vacant')");
     $stmt->bind_param("sssd", $id, $type, $floor, $rent);
     if (!$stmt->execute()) {
-        throw new Exception("Failed to create unit: " . $stmt->error);
+        error_log("[AMS] Failed to create unit: " . $stmt->error);
+        throw new Exception("Failed to create unit.");
     }
     $stmt->close();
 
@@ -68,5 +70,5 @@ try {
     echo json_encode(['success' => true, 'message' => "Unit $id created successfully."]);
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => public_error_message($e)]);
 }

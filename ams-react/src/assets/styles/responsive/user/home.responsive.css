@@ -58,7 +58,9 @@
     gap: 1rem !important;
   }
 
-  .home-cta-btn {
+  /* Both CTAs full width and stacked on phones/tablets; their text may wrap. */
+  .home-cta-btn,
+  .home-inquire-btn {
     width: 100% !important;
     justify-content: center !important;
     padding: 0.875rem 1rem !important;
