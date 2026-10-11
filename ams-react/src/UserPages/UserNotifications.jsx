@@ -5,7 +5,7 @@ import {
   faBell, faSearch, faTimes, faCheckDouble, faTrash, faClock,
   faExclamationTriangle, faFileContract, faCheckCircle, faInfoCircle,
   faCog, faToggleOn, faToggleOff, faCheck, faWrench, faArrowRight, faLock,
-  faCar, faVideo, faConciergeBell, faUserFriends, faHome, faMoneyBillWave, faBullhorn
+  faCar, faVideo, faConciergeBell, faUserFriends, faHome, faMoneyBillWave, faBullhorn, faPaperclip
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
@@ -321,6 +321,11 @@ export default function UserNotifications() {
                             <h4 className={`text-sm m-0 leading-snug ${!n.read ? 'text-slate-800 font-extrabold' : 'text-slate-700 font-bold'}`}>
                               {n.title}
                             </h4>
+                            {n.attachmentPath && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-extrabold tracking-wide uppercase bg-slate-100 text-slate-600" title="Open the notification to view the attachment">
+                                <FontAwesomeIcon icon={faPaperclip} /> Attachment
+                              </span>
+                            )}
                             <span className={`px-2 py-0.5 rounded-lg text-[9px] font-extrabold tracking-wide uppercase ${cfg.badge}`}>
                               {cfg.label}
                             </span>
@@ -409,7 +414,7 @@ export default function UserNotifications() {
                         <FontAwesomeIcon icon={faLock} className="text-[9px] text-slate-300" /> {label}
                       </p>
                     ))}
-                    <p className="text-[10px] text-slate-400 m-0 pt-1">Email and SMS delivery are not available yet.</p>
+                    <p className="text-[10px] text-slate-400 m-0 pt-1">Email and text messages are sent only for the channels management has turned on.</p>
                   </div>
                 </>
               )}

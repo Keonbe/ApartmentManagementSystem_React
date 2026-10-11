@@ -25,7 +25,12 @@ $title = trim((string)($input['title'] ?? ''));
 $body = trim((string)($input['body'] ?? ''));
 $send_to = trim((string)($input['sendTo'] ?? 'All tenants'));
 $unit = trim((string)($input['unit'] ?? ''));
-$is_draft = !empty($input['draft']);
+// With an attachment the page posts a form, where every value is a string:
+// "false" must not count as a draft, and channels arrives JSON-encoded.
+$is_draft = filter_var($input['draft'] ?? false, FILTER_VALIDATE_BOOLEAN);
+if (is_string($input['channels'] ?? null)) {
+    $input['channels'] = json_decode($input['channels'], true);
+}
 // In-app always goes out. SMS and email go out only when the admin picked them:
 // with Semaphore live, every SMS costs credits, so an unticked box must mean
 // "not sent" rather than "sent anyway".
@@ -42,17 +47,33 @@ $channels = json_encode($is_draft
 
 
 $attachment_path = null;
+$attachment_tmp = null;
+$attachment_ext = null;
 if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+    // Same checks and folder as schedule_move_in.php. This used to save under
+    // backend/api/uploads/ while storing a backend/uploads/ path, so the file
+    // could never be opened.
     $file = $_FILES['attachment'];
-    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'])) {
-        $upload_dir = __DIR__ . '/uploads/notifications/';
-        if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
-        $filename = uniqid('ann_') . '.' . $ext;
-        if (move_uploaded_file($file['tmp_name'], $upload_dir . $filename)) {
-            $attachment_path = 'uploads/notifications/' . $filename;
-        }
+    if ($file['size'] > 10 * 1024 * 1024) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Attachment must be 10MB or less."]);
+        exit;
     }
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    $exts = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'application/pdf' => 'pdf'];
+    if (!isset($exts[$mime])) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Attach a JPG, PNG, or PDF."]);
+        exit;
+    }
+    // Checked here; the file is stored only once the announcement is going out
+    // (below), so a refused request or a draft leaves nothing behind.
+    $attachment_tmp = $file['tmp_name'];
+    $attachment_ext = $exts[$mime];
+} elseif (isset($_FILES['attachment']) && $_FILES['attachment']['error'] !== UPLOAD_ERR_NO_FILE) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "The attachment could not be uploaded. It may be too large."]);
+    exit;
 }
 
 if ($title === '' || $body === '') {
@@ -127,6 +148,17 @@ if (!$recipients) {
 
 $notif_type = ['Urgent' => 'warning', 'Reminder' => 'action'][$tag] ?? 'info';
 
+if ($attachment_tmp !== null) {
+    $upload_dir = __DIR__ . '/../uploads/notifications/';
+    if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+    $filename = bin2hex(random_bytes(16)) . '.' . $attachment_ext;
+    if (!move_uploaded_file($attachment_tmp, $upload_dir . $filename)) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Could not save the attachment."]);
+        exit;
+    }
+    $attachment_path = 'uploads/notifications/' . $filename;
+}
 $conn->begin_transaction();
 try {
     $recipient_count = count($recipients);
@@ -150,13 +182,20 @@ try {
         }
     }
     
-    if ($attachment_path && !empty($notif_ids)) {
-        $upd = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
-        foreach ($notif_ids as $nid) {
-            $upd->bind_param("si", $attachment_path, $nid);
-            $upd->execute();
+    if ($attachment_path) {
+        if (!empty($notif_ids)) {
+            $upd = $conn->prepare("UPDATE notifications SET attachment_path = ? WHERE id = ?");
+            foreach ($notif_ids as $nid) {
+                $upd->bind_param("si", $attachment_path, $nid);
+                $upd->execute();
+            }
+            $upd->close();
         }
-        $upd->close();
+        // The admin's history shows that a file went out, and opens it.
+        $ann_upd = $conn->prepare("UPDATE announcements SET attachment_path = ? WHERE id = ?");
+        $ann_upd->bind_param("si", $attachment_path, $announcement_id);
+        $ann_upd->execute();
+        $ann_upd->close();
     }
 
 
@@ -190,6 +229,8 @@ try {
     ]);
 } catch (Exception $e) {
     $conn->rollback();
+    // The announcement was not created, so the file saved for it is not wanted.
+    if ($attachment_path) @unlink(__DIR__ . '/../' . $attachment_path);
     server_error_response($e, "Failed to create announcement.");
 }
 

@@ -17,8 +17,18 @@ if ($public) {
     // The tenant feed: signed-in users only, and only announcements actually sent.
     // It used to be open to anyone and also matched any row addressed to
     // 'All Tenants', which included unsent drafts.
-    require_user($conn);
-    $stmt = $conn->prepare("SELECT id, tag, title, body, created_at FROM announcements WHERE status = 'sent' ORDER BY created_at DESC");
+    $viewer = require_user($conn);
+    $viewer_id = (int)$viewer['id'];
+    // The attachment is returned only to someone who can open it: a recipient
+    // (the same file sits on their notification) or an admin. A link to anyone
+    // else would just be a 403.
+    $stmt = $conn->prepare("SELECT a.id, a.tag, a.title, a.body, a.created_at,
+                                   CASE WHEN a.attachment_path IS NOT NULL AND (
+                                            ? = 1 OR EXISTS (SELECT 1 FROM notifications n WHERE n.user_id = ? AND n.attachment_path = a.attachment_path)
+                                        ) THEN a.attachment_path END AS attachment_path
+                            FROM announcements a WHERE a.status = 'sent' ORDER BY a.created_at DESC");
+    $viewer_is_admin = $viewer['role'] === 'admin' ? 1 : 0;
+    $stmt->bind_param("ii", $viewer_is_admin, $viewer_id);
     $stmt->execute();
     $result = $stmt->get_result();
 } else {

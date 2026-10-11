@@ -3,15 +3,18 @@ import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faSave, faMobileAlt, faEnvelope, faDesktop, faCalendarAlt, faUsers, faPaperPlane, faSpinner, faLock, faExclamationTriangle,
+  faSave, faMobileAlt, faEnvelope, faDesktop, faCalendarAlt, faUsers, faPaperPlane, faSpinner, faLock, faExclamationTriangle, faPaperclip, faFilePdf,
 } from '@fortawesome/free-solid-svg-icons';
 
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { getSystemSettings } from '../config/systemSettings';
 import { LIMITS, TITLE_MIN, checkText } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
+import FileChip from '../Components/form/FileChip';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { invalidCls } from '../Components/form/formHelpers';
 
 const SEND_TO = ['All tenants', 'Specific unit'];
@@ -53,6 +56,25 @@ const AdminAnnouncements = () => {
   }, []);
   const [form, setForm] = useState(EMPTY_FORM);
   const [fileKey, setFileKey] = useState(Date.now());
+  const [attachmentError, setAttachmentError] = useState('');
+  const chooseAttachment = (file) => {
+    const error = checkFile(file, FILE_RULES.announcement);
+    setAttachmentError(error);
+    setForm(f => ({ ...f, attachment: error ? null : (file || null) }));
+    if (error) setFileKey(Date.now()); // clear the rejected file from the input
+  };
+  // A preview of the chosen file, so the admin can see it was picked.
+  const [attachmentPreview, setAttachmentPreview] = useState(null);
+  useEffect(() => {
+    const file = form.attachment;
+    if (!file) { setAttachmentPreview(null); return undefined; }
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) { setAttachmentPreview({ isImage: false }); return undefined; }
+    const url = URL.createObjectURL(file);
+    setAttachmentPreview({ isImage: true, url });
+    return () => URL.revokeObjectURL(url);
+  }, [form.attachment]);
+  const clearAttachment = () => { setAttachmentError(''); setForm(f => ({ ...f, attachment: null })); setFileKey(Date.now()); };
   const [sending, setSending] = useState(null); // 'send' | 'draft' | null
   const [notice, setNotice] = useState(null);   // { ok, text }
   // Keys match create_announcement.php's body (tag/body are the form's type/body).
@@ -166,7 +188,7 @@ const AdminAnnouncements = () => {
 
     setSending(draft ? 'draft' : 'send');
     try {
-      const response = await api.post('create_announcement.php', {
+      const payload = {
         tag: form.type,
         title: clean.title,
         body: clean.body,
@@ -174,11 +196,24 @@ const AdminAnnouncements = () => {
         unit: specific ? form.unit : '',
         channels: form.channels,
         draft,
-      });
+      };
+      // A file can only travel in a form post; create_announcement.php reads
+      // either shape. A draft keeps no attachment, so it stays JSON.
+      let body = payload;
+      let config;
+      if (form.attachment && !draft) {
+        body = new FormData();
+        Object.entries(payload).forEach(([key, value]) => body.append(key, key === 'channels' ? JSON.stringify(value) : String(value)));
+        body.append('attachment', form.attachment);
+        // Without this axios turns the form into JSON (its default type) and drops the file.
+        config = { headers: { 'Content-Type': 'multipart/form-data' } };
+      }
+      const response = await api.post('create_announcement.php', body, config);
       if (!response.data.success && fields.applyServerErrors(response)) return;
       setNotice({ ok: !!response.data.success, text: response.data.message || (response.data.success ? 'Done.' : 'Failed.') });
       if (response.data.success) {
         setForm(EMPTY_FORM);
+        setAttachmentError('');
         setFileKey(Date.now());
         fetchAnnouncements();
       }
@@ -300,13 +335,27 @@ const AdminAnnouncements = () => {
 
               {/* Attachment Input */}
               <div className="mb-4">
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Attachment (Optional)</label>
-                <input 
-                  key={fileKey} type="file" 
-                  accept=".jpg,.jpeg,.png,.pdf" 
-                  onChange={e => setForm(f => ({ ...f, attachment: e.target.files[0] }))}
+                <label htmlFor="announcement-attachment" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">Attachment (Optional)</label>
+                <input
+                  id="announcement-attachment"
+                  key={fileKey} type="file"
+                  accept={acceptFor(FILE_RULES.announcement)}
+                  onChange={e => chooseAttachment(e.target.files[0])}
+                  aria-describedby="announcement-attachment-hint"
                   className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
+                <p id="announcement-attachment-hint" className="text-[11px] text-slate-400 m-0 mt-1">
+                  One file: {FILE_RULES.announcement.label}, up to {FILE_RULES.announcement.maxMB} MB. Tenants open it from the announcement in their notifications; it is not sent with the SMS or email. "Save draft" does not keep it; attach it again when you send.
+                </p>
+                {attachmentError && <p role="alert" className="text-xs text-red-600 m-0 mt-1">{attachmentError}</p>}
+                <FileChip file={form.attachment} onRemove={clearAttachment} />
+                {attachmentPreview && (
+                  <div className="mt-2 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+                    {attachmentPreview.isImage
+                      ? <img src={attachmentPreview.url} alt="Attachment preview" className="max-h-40 max-w-full object-contain" />
+                      : <div className="flex items-center gap-2 px-4 py-3 text-xs text-slate-600"><FontAwesomeIcon icon={faFilePdf} className="text-red-500 text-base" /> PDF attached</div>}
+                  </div>
+                )}
               </div>
 
               {/* Delivery Channels */}
@@ -374,6 +423,12 @@ const AdminAnnouncements = () => {
                       <span className="text-sm font-semibold text-slate-800">{item.title}</span>
                     </div>
                     <p className="text-xs text-slate-500 leading-relaxed m-0 mb-3">{item.body}</p>
+                    {item.attachment_path && (
+                      <a href={fileUrl(item.attachment_path)} target="_blank" rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-semibold no-underline hover:bg-indigo-100">
+                        <FontAwesomeIcon icon={faPaperclip} /> View attachment
+                      </a>
+                    )}
                     <div className="flex items-center flex-wrap gap-3 text-[10px] text-slate-400">
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faCalendarAlt} /> {item.date}</span>
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faUsers} /> {item.send_to} · {item.recipients} recipients</span>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBullhorn, faCalendarAlt, faTag } from '@fortawesome/free-solid-svg-icons';
+import { faBullhorn, faCalendarAlt, faTag, faPaperclip, faFilePdf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/user-announcements.responsive.css';
 
@@ -77,6 +78,28 @@ export default function UserAnnouncements() {
                                     <div className="user-announcements-content prose prose-slate max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap text-sm sm:text-base">
                                         {item.body}
                                     </div>
+                                    {item.attachment_path && (
+                                        <div className="mt-4 sm:mt-5">
+                                            <a
+                                                href={fileUrl(item.attachment_path)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 no-underline"
+                                            >
+                                                <FontAwesomeIcon icon={item.attachment_path.toLowerCase().endsWith('.pdf') ? faFilePdf : faPaperclip} />
+                                                {t('announcements.attachment')}: {t('announcements.openAttachment')}
+                                            </a>
+                                            {!item.attachment_path.toLowerCase().endsWith('.pdf') && (
+                                                <a href={fileUrl(item.attachment_path)} target="_blank" rel="noreferrer" aria-label={t('announcements.openAttachment')} className="block mt-2">
+                                                    <img
+                                                        src={fileUrl(item.attachment_path)}
+                                                        alt={t('announcements.attachment')}
+                                                        className="max-h-72 max-w-full rounded-xl border border-slate-200 object-contain bg-slate-50"
+                                                    />
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))

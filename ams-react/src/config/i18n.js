@@ -277,6 +277,8 @@ const translations = {
 
     // --- User Announcements ---
     'announcements.heading': 'Announcements',
+    'announcements.attachment': 'Attachment',
+    'announcements.openAttachment': 'Open attachment',
     'announcements.subtext': 'Stay updated with the latest news, notices, and updates from the administration.',
     'announcements.loading': 'Loading announcements...',
     'announcements.noAnnouncements': 'No Announcements',
@@ -459,7 +461,7 @@ const translations = {
     'payBills.selectMethod': 'Select Payment Method',
     'payBills.cash': 'Cash on Hand',
     'payBills.bank': 'Bank Transfer',
-    'payBills.refNo': 'Reference / Transaction No. (Optional)',
+    'payBills.refNo': 'Reference / Transaction No.',
     'payBills.proofOfPayment': 'Proof of Payment (Screenshot)',
     'payBills.payAhead': 'Pay ahead',
     'payBills.payAheadDesc': 'Prepay 1–6 upcoming months in one payment. Each month is then paid automatically from your advance on its rent day, with its own receipt.',
@@ -901,6 +903,8 @@ const translations = {
 
     // --- User Announcements ---
     'announcements.heading': 'Mga Anunsyo',
+    'announcements.attachment': 'Kalakip',
+    'announcements.openAttachment': 'Buksan ang kalakip',
     'announcements.subtext': 'Manatiling updated sa pinakahuling balita, abiso, at mga update mula sa pamunuan.',
     'announcements.loading': 'Nilo-load ang mga anunsyo...',
     'announcements.noAnnouncements': 'Walang mga Anunsyo',
@@ -1083,7 +1087,7 @@ const translations = {
     'payBills.selectMethod': 'Pumili ng Paraan ng Pagbabayad',
     'payBills.cash': 'Direktang Salapi (Cash)',
     'payBills.bank': 'Bank Transfer',
-    'payBills.refNo': 'Numero ng Reperensya / Transaksyon (Opsyonal)',
+    'payBills.refNo': 'Numero ng Reperensya / Transaksyon',
     'payBills.proofOfPayment': 'Katunayan ng Pagbabayad (Screenshot)',
     'payBills.payAhead': 'Magbayad nang maaga',
     'payBills.payAheadDesc': 'Bayaran nang maaga ang 1–6 na susunod na buwan sa isang bayad. Awtomatikong babayaran ang bawat buwan mula sa iyong advance sa araw ng upa, may sariling resibo.',

@@ -20,6 +20,8 @@ export const FILE_RULES = {
   maintenance: { maxMB: 10, ext: [...IMAGE, ...VIDEO], label: 'an image or a short video' },
   // service_request.php
   service:     { maxMB: 10, ext: [...IMAGE, 'pdf'], label: 'an image or PDF' },
+  // create_announcement.php (one attachment, opened from the tenant's notification)
+  announcement: { maxMB: 10, ext: ['jpg', 'jpeg', 'png', 'pdf'], label: 'JPG, PNG or PDF' },
   // check_in_visitor.php
   visitorId:   { maxMB: 5, ext: ['jpg', 'jpeg', 'png', 'webp'], label: 'JPG, PNG or WEBP' },
   // lease upload on TrackApplication
@@ -52,9 +54,9 @@ export const checkFile = (file, rule) => {
 };
 
 // A request over PHP's post_max_size arrives with no files at all, so
-// multi-file uploads check the sum. config.php's ini_set('post_max_size', '12M')
-// has no effect (the setting can't change at runtime); php.ini decides it (40M on
-// local XAMPP). 12 MB stays as a conservative cap that fits any host set to it.
+// multi-file uploads check the sum. post_max_size can't be changed at runtime;
+// php.ini decides it (40M on local XAMPP; check_environment.php reports a host
+// that is too small). 12 MB stays as a conservative cap that fits any host.
 export const POST_MAX_MB = 12;
 
 export const checkFiles = (files, rule, { maxCount = Infinity } = {}) => {
