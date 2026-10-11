@@ -28,6 +28,7 @@ TRUNCATE TABLE `invoices`;
 TRUNCATE TABLE `lease_contracts`;
 TRUNCATE TABLE `lease_renewals`;
 TRUNCATE TABLE `maintenance_requests`;
+TRUNCATE TABLE `messages`;
 TRUNCATE TABLE `notifications`;
 TRUNCATE TABLE `parking_reservations`;
 TRUNCATE TABLE `rent_applications`;

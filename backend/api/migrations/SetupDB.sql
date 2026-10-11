@@ -60,6 +60,7 @@ CREATE TABLE `announcements` (
   `status` varchar(50) NOT NULL DEFAULT 'sent',
   `scheduled_date` datetime DEFAULT NULL,
   `recipient_count` int(11) DEFAULT 0,
+  `attachment_path` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -172,6 +173,10 @@ CREATE TABLE `lease_contracts` (
   `refund_amount` decimal(10,2) DEFAULT 0.00,
   `refund_date` date DEFAULT NULL,
   `generated_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  -- E-signature images shown on the contract (upload_lease_document.php):
+  -- the tenant's on their own draft contract, the owner's by an admin.
+  `tenant_signature_path` text DEFAULT NULL,
+  `owner_signature_path` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_contract_rent_app` (`rent_application_id`),
   -- One contract per application — create_contract.php used to insert a
@@ -837,6 +842,11 @@ ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `reminder_count` int(11) NOT NUL
 -- bill breakdown never summed to the amount they were actually charged.
 ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `late_fee` decimal(10,2) NOT NULL DEFAULT 0.00 AFTER `services`;
 
+-- Set when an admin waives the late fee (adjust_invoice.php), so
+-- promote_overdue_invoices() does not charge it again
+-- (2026_10_chat_and_signature_columns.sql).
+ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `late_fee_waived` tinyint(1) NOT NULL DEFAULT 0;
+
 -- Records when the applicant checked the Terms & Conditions box at submission.
 -- update_tenant_status.php requires this to be set (along with real ID/NBI
 -- uploads) before an application can be approved (checklist item 1.7).
@@ -1052,6 +1062,25 @@ CREATE TABLE IF NOT EXISTS `payment_transactions` (
   KEY `idx_payment_transactions_recorder` (`recorded_by`),
   CONSTRAINT `fk_payment_transactions_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_payment_transactions_recorder` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Chat messages between a tenant and an admin (send_message.php,
+-- websocket-server/server.js). Same columns, keys and constraint names as
+-- production; reply_to_id has no key or constraint there either.
+CREATE TABLE IF NOT EXISTS `messages` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sender_id` int(11) NOT NULL,
+  `receiver_id` int(11) NOT NULL,
+  `message` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `is_read` tinyint(1) NOT NULL DEFAULT 0,
+  `attachment_path` varchar(255) DEFAULT NULL,
+  `reply_to_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_sender` (`sender_id`),
+  KEY `async_receiver` (`receiver_id`),
+  CONSTRAINT `fk_messages_receiver` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- House rules shown on the listing, inquiry and application forms, edited in

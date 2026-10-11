@@ -5,7 +5,7 @@ Authoritative reference for the `ams_db` MySQL/MariaDB schema and the SQL files 
 This document reflects the schema as actually defined in
 [`SetupDB.sql`](../../backend/api/migrations/SetupDB.sql) —
 verified table-by-table against that file, not against any earlier design doc.
-Last re-checked 2026-09-24: 30 tables in `SetupDB.sql`, plus the chat table `messages` (created by `create_messages_table.sql` — see §2).
+Last re-checked 2026-09-24: 31 tables in `SetupDB.sql`, including the chat table `messages` (added to `SetupDB.sql` 2026-10-11).
 
 > For workflows, API inventory, and frontend wiring status, see
 > [system_design.md](system_design.md). This doc covers only the database layer.
@@ -555,12 +555,12 @@ erDiagram
 | `inquiries` | Public/walk-in "tell me about a unit" leads. `room_name` is intentionally **not** FK-enforced — an inquiry doesn't have to name a specific unit. |
 | `unit_reservations` | A short hold on a room after a promising inquiry. "One active hold per room" is enforced at the application layer (`SELECT ... FOR UPDATE` inside a transaction) rather than a DB constraint, because MySQL has no native partial/conditional unique index. |
 | `unit_waitlist` | Basic first-come waitlist for a unit that isn't vacant, added from an inquiry (`manage_waitlist.php`). When the unit is vacated or a hold is released, `notify_unit_waitlist()` marks the first `Waiting` row `Notified`, notifies a tenant account in-app and queues an admin item (`unit_waitlist`). No hold is placed automatically. Converting or closing the inquiry removes its entries. `room_name` is a soft reference, like `inquiries`. |
-| `announcements` | Broadcast messages; `channels` is a JSON array stored as `longtext` with a `CHECK (json_valid(...))` constraint. |
+| `announcements` | Broadcast messages; `channels` is a JSON array stored as `longtext` with a `CHECK (json_valid(...))` constraint. `attachment_path` (2026-10-11, `2026_10_announcement_attachment.sql`) is the one file an admin attached when sending; tenants get the same path on their `notifications.attachment_path` rows, and `download_file.php` lets any recipient (or an admin) open it. |
 | `notifications` | Shared inbox row for **both** tenant-facing status updates and admin-facing "new request" alerts — disambiguated by `user_id` (whose inbox) and `status`/`type`, not by a separate table. `status` and `metadata_value` were added via `ALTER TABLE` after the initial `CREATE TABLE` (see the file — they're relied on everywhere but weren't in the original dump). |
 | `notification_preferences` | Per-user, per-category channel switches (`in_app_enabled`, `sms_enabled`, `email_enabled`; PK `user_id, category`). A missing row means "enabled". Checked by `user_channel_allowed()` together with `users.sms_opt_out` / `email_opt_out` (global opt-outs) and the building-wide switches. |
 | `notification_queue` | Outbound SMS/email jobs. The admin endpoints enqueue; `backend/cron/process_queue.php` claims a batch with `claim_token` (so two drains never send the same job), retries with backoff up to `max_attempts`, defers non-urgent SMS in quiet hours, and copies the failure reason to `error_message`. |
 | `notification_log` | One row per SMS/email attempt (`sent` / `failed` / `skipped`, with the reason). SMS rows sent through Semaphore also keep its `provider_message_id` and `provider_status` (`Queued` / `Pending` / `Sent` ...). Only `log_notification_delivery()` writes it; `message_body` is truncated to 500 characters and rows past `notification_log_retention_days` are pruned by the queue drain. Also the source of the daily SMS cap count. |
-| `messages` | Two-way chat (PR #8): one flat row per message, `sender_id` → `receiver_id`, `is_read`. There is no `conversations` table — a thread is all messages between two users. Created by `create_messages_table.sql` and **also at request time** by `get_chat_history.php`, `get_conversations.php` and `send_message.php`; not yet in `SetupDB.sql`. Written by the PHP endpoints and by the Socket.IO server (`websocket-server/server.js`). |
+| `messages` | Two-way chat (PR #8): one flat row per message, `sender_id` → `receiver_id`, `is_read`. There is no `conversations` table — a thread is all messages between two users. Also carries `attachment_path` and `reply_to_id` (no key or constraint on the latter, as on production). Defined in `SetupDB.sql`; `2026_10_chat_and_signature_columns.sql` adds the table or the two columns to a database that lacks them. The endpoints no longer create or alter it at request time. Written by the PHP endpoints and by the Socket.IO server (`websocket-server/server.js`). |
 | `activity_logs` | Audit trail (checklist 8.6), append-only. `performed_by` is always the session user when there is one (set by `log_activity()`), and nullable so a deleted account doesn't cascade-delete history. `category` is one of the 12 keys in `LOG_CATEGORIES`; `normalize_log_category()` maps legacy spellings on write. |
 
 ### Settings & Auth Support
@@ -581,7 +581,7 @@ erDiagram
 
 | Path | What |
 |---|---|
-| `SetupDB.sql` | The full current schema; fresh installs need only this (plus `create_messages_table.sql` for chat) |
+| `SetupDB.sql` | The full current schema; fresh installs need only this |
 | `YYYY_MM_*.sql` | The current upgrade migrations: `2026_10_rent_wording`, `2026_10_room_archiving`, `2026_10_server_database_update`, `2026_10_prod_schema_repair`. `backend/cron/migrate.php` (and the git post-merge hook) runs each one not yet in `schema_migrations`; prod has the first three, the repair is pending there. CI applies them all on a fresh schema to prove they stay idempotent |
 | `seeds/` | Demo data and reset helpers: `seed_mock_data.sql` / `seed_reset.sql` / `clear_and_seed.sql` (empty or dev databases only) and `seed_prod_demo.sql` / `seed_prod_demo_reset.sql` (safe on a live database; local only, gitignored) |
 
@@ -617,8 +617,8 @@ The prod-safe sibling of `seed_mock_data.sql`: the same people, scenarios and in
 
 `seed_prod_demo_reset.sql` removes exactly what the seed added plus anything the demo accounts created afterwards (sweep invoices, requests, notifications, sessions), and puts back only rooms a demo tenant still holds. Tested on a copy of the 2026-10-03 prod dump: seed then reset leaves the data byte-identical to before.
 
-### `create_messages_table.sql` — chat table
-Creates the chat `messages` table, which is not in `SetupDB.sql` yet (chat also creates it on first use). Run it after `SetupDB.sql` on a fresh install.
+### `2026_10_chat_and_signature_columns.sql` — chat and signature columns
+Idempotent catch-up for databases older than 2026-10-11: creates `messages` if missing, adds `messages.attachment_path` and `reply_to_id`, `lease_contracts.tenant_signature_path` and `owner_signature_path`, and `invoices.late_fee_waived`. Every statement is guarded on `information_schema`, so it does nothing on production (which already had the chat columns) or on a fresh `SetupDB.sql` install. It replaces `create_messages_table.sql`, which the migration runner never picked up.
 
 ### `clear_and_seed.sql` and `seed_reset.sql`
 Both were rewritten in September 2026 to match the current schema and `seed_mock_data.sql`, and CI (`.github/workflows/ci.yml`, the `database` job) imports and runs both on every push to prove they stay in sync:
@@ -632,7 +632,6 @@ Both files carry a comment that they must be kept in sync with `seed_mock_data.s
 ```bash
 mysql -u root < backend/api/migrations/SetupDB.sql
 mysql -u root < backend/api/migrations/seeds/seed_mock_data.sql   # optional, for demo/dev data
-mysql -u root ams_db < backend/api/migrations/create_messages_table.sql   # chat (also auto-created on first use)
 ```
 See the root [README.md](../../README.md) ("Installation & Setup" section) for the full local setup walkthrough, including default login credentials.
 

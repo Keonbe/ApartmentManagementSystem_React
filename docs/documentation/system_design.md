@@ -13,7 +13,7 @@
 
 **Processes.** Apache + PHP (API) · MariaDB · `websocket-server/server.js` (Socket.IO, :3001, chat) · cron: `backend/cron/process_queue.php` (every minute — SMS/email queue) and `daily_sweep.php` (reminders, automatic parking billing).
 
-**Tables (30 in `SetupDB.sql` + `messages`).** users, rooms, rent_applications, lease_contracts, lease_renewals, household_members · invoices, expenses, utility_readings, parking_charges · maintenance_requests, cctv_requests, parking_reservations, service_catalog, service_requests · visitor_logs, inquiries, unit_reservations, unit_waitlist · announcements, notifications, notification_preferences, notification_queue, notification_log, activity_logs · system_settings, sessions, login_attempts, password_resets, password_reset_requests · messages (chat, `create_messages_table.sql`).
+**Tables (31 in `SetupDB.sql`).** users, rooms, rent_applications, lease_contracts, lease_renewals, household_members · invoices, expenses, utility_readings, parking_charges · maintenance_requests, cctv_requests, parking_reservations, service_catalog, service_requests · visitor_logs, inquiries, unit_reservations, unit_waitlist · announcements, notifications, notification_preferences, notification_queue, notification_log, activity_logs · system_settings, sessions, login_attempts, password_resets, password_reset_requests · messages (chat).
 
 **Endpoints (105 in `backend/api/`), by area:**
 
@@ -504,7 +504,7 @@ flowchart LR
 |------|---------|
 | `migrations/SetupDB.sql` | Full initial DB schema creation |
 | `migrations/2026_10_*.sql` | Current upgrade migrations for existing databases, applied by `backend/cron/migrate.php` — see [database_schema.md §3](database_schema.md) |
-| `migrations/create_messages_table.sql` | Chat `messages` table |
+| `migrations/2026_10_chat_and_signature_columns.sql` | Chat table and columns, contract signature columns, `invoices.late_fee_waived` (idempotent catch-up) |
 | `migrations/seeds/` | Demo data and reset helpers (`seed_mock_data`, `seed_reset`, `clear_and_seed` are CI-checked; `seed_prod_demo` + reset for the live database are local only, gitignored) |
 | *(removed)* | Applied migrations are deleted once they've run everywhere: the `2026_09_*` upgrades and the old `add_archive_columns`, `fix_and_fk`, `priority_*` files. Their changes are in `SetupDB.sql` |
 

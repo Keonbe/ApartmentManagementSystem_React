@@ -2,7 +2,7 @@
 
 > **Document Version:** 2.0 — September 2026
 > **Stack:** React 19 (Vite 8) SPA → plain PHP 8 endpoints → MariaDB 10.4 (XAMPP); Node Socket.IO sidecar for chat
-> **Database:** `ams_db` — 30 tables in `backend/api/migrations/SetupDB.sql` + `messages` (`create_messages_table.sql`)
+> **Database:** `ams_db` — 31 tables in `backend/api/migrations/SetupDB.sql` (including chat `messages`)
 > **Source of truth:** the schema file and `backend/config.php`. [`database_schema.md`](database_schema.md) explains each table in prose; if a diagram and the code disagree, the code wins.
 
 ---
@@ -1729,4 +1729,4 @@ Notification types that are not in `NOTIFICATION_PREF_CATEGORIES` (e.g. overdue 
 
 ---
 
-> **Note:** These diagrams reflect `SetupDB.sql`, `create_messages_table.sql` and `backend/config.php` as of September 2026. When a migration adds a table or column, or a status transition map in `config.php` changes, update the matching ERD section and DFD process here in the same change.
+> **Note:** These diagrams reflect `SetupDB.sql` and `backend/config.php` as of September 2026. When a migration adds a table or column, or a status transition map in `config.php` changes, update the matching ERD section and DFD process here in the same change.
