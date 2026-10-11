@@ -293,7 +293,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
     formData.append('docType', docType);
     formData.append('action', 'remove');
     try {
-      const res = await api.post('/upload_lease_document.php', formData);
+      const res = await api.post('/upload_lease_document.php', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       if (res.data.success) {
         await fetchContracts();
         if (selectedContract && selectedContract.id === contractId) {
@@ -724,7 +726,9 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label htmlFor="contract-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
-                      <input type="number" id="contract-rent" name="rent" inputMode="decimal" min="0" max={MAX_AMOUNT} step="0.01" value={form.rent} onKeyDown={blockNonNumericKeys} onChange={e => setForm(p => ({...p, rent: e.target.value}))} className={DATE_INPUT} />
+                      {/* Read-only: rent is the application's; create_contract.php takes no rent. */}
+                      <input type="text" id="contract-rent" name="rent" readOnly aria-describedby="contract-rent-hint" value={formatCurrency(form.rent)} className={`${DATE_INPUT} bg-slate-50 text-slate-600 cursor-default`} />
+                      <p id="contract-rent-hint" className="m-0 mt-1 text-[11px] text-slate-400">Rent comes from the tenant's application.</p>
                     </div>
                     <div>
                       <label htmlFor="contract-deposit" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Security Deposit *</label>
@@ -1030,8 +1034,8 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                         leaseStartDate: selectedContract.leaseStart,
                         leaseEndDate: selectedContract.leaseEnd,
                         entryDate: selectedContract.leaseStart,
-                        tenantSignature: selectedContract.tenantSignature,
-                        ownerSignature: selectedContract.ownerSignature,
+                        tenantSignature: selectedContract.tenantSignature?.filePath || null,
+                        ownerSignature: selectedContract.ownerSignature?.filePath || null,
                       }}
                       allowUploadSignature={true}
                       onUploadSignature={(docType, file) => handleSignatureUpload(selectedContract.id, docType, file)}

@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $contract_id = $_POST['contractId'] ?? '';
 $rent_app_id = $_POST['rentApplicationId'] ?? '';
-$doc_type = $_POST['docType'] ?? 'signedLease'; // 'signedLease' or 'notarizedLease'
+$doc_type = $_POST['docType'] ?? 'signedLease'; // a key of $doc_columns below
 $action = $_POST['action'] ?? 'upload'; // 'upload' or 'remove'
 
 // Ownership check: a non-admin caller may only touch a contract/rent
@@ -81,13 +81,32 @@ if (empty($contract_id) || empty($doc_type)) {
     exit;
 }
 
-if ($doc_type !== 'signedLease' && $doc_type !== 'notarizedLease') {
+// The two signatures are images placed on the contract's signature lines;
+// the two lease copies are scans of the whole signed document.
+$doc_columns = [
+    'signedLease' => 'signed_lease_path',
+    'notarizedLease' => 'notarized_lease_path',
+    'tenantSignature' => 'tenant_signature_path',
+    'ownerSignature' => 'owner_signature_path',
+];
+if (!isset($doc_columns[$doc_type])) {
     http_response_code(422);
     echo json_encode(["success" => false, "message" => "Invalid docType."]);
     exit;
 }
 
-$column_name = $doc_type === 'signedLease' ? 'signed_lease_path' : 'notarized_lease_path';
+$column_name = $doc_columns[$doc_type];
+$is_signature = $doc_type === 'tenantSignature' || $doc_type === 'ownerSignature';
+// Management's own documents: a tenant may neither upload nor remove them.
+$admin_only_doc = $doc_type === 'notarizedLease' || $doc_type === 'ownerSignature';
+
+if (!$is_admin && $admin_only_doc) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => $doc_type === 'ownerSignature'
+        ? "The owner's signature is added by management."
+        : "The notarized copy is uploaded by management."]);
+    exit;
+}
 
 if ($action === 'remove') {
     // A tenant may only remove a document while the contract is still a
@@ -120,14 +139,9 @@ if ($action === 'remove') {
 }
 
 // Uploading overwrites the stored document, so a tenant gets the same limit as
-// removing (audit M1): only while the contract is still a draft, and never the
-// notarized copy, which management uploads.
+// removing (audit M1): only while the contract is still a draft. Management's
+// own documents were already refused above.
 if (!$is_admin) {
-    if ($doc_type === 'notarizedLease') {
-        http_response_code(403);
-        echo json_encode(["success" => false, "message" => "The notarized copy is uploaded by management."]);
-        exit;
-    }
     $status_stmt = $conn->prepare("SELECT status FROM lease_contracts WHERE id = ?");
     $status_stmt->bind_param("s", $contract_id);
     $status_stmt->execute();
@@ -151,10 +165,13 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
         exit;
     }
 
-    $allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png'];
+    // A signature is drawn onto the contract as an image, so a PDF is no use there.
+    $allowed_extensions = $is_signature ? ['jpg', 'jpeg', 'png'] : ['pdf', 'jpg', 'jpeg', 'png'];
     if (!in_array($file_ext, $allowed_extensions)) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Invalid file extension. Allowed formats: PDF, JPG, PNG."]);
+        echo json_encode(["success" => false, "message" => $is_signature
+            ? "A signature must be a JPG or PNG image."
+            : "Invalid file extension. Allowed formats: PDF, JPG, PNG."]);
         exit;
     }
 
@@ -162,10 +179,12 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
     $mime = finfo_file($finfo, $file_tmp);
     finfo_close($finfo);
 
-    $allowed_mimes = ['application/pdf', 'image/jpeg', 'image/png'];
+    $allowed_mimes = $is_signature ? ['image/jpeg', 'image/png'] : ['application/pdf', 'image/jpeg', 'image/png'];
     if (!in_array($mime, $allowed_mimes)) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "File content does not match allowed PDF or Image format."]);
+        echo json_encode(["success" => false, "message" => $is_signature
+            ? "A signature must be a JPG or PNG image."
+            : "File content does not match allowed PDF or Image format."]);
         exit;
     }
 

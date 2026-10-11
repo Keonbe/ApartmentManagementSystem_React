@@ -60,6 +60,7 @@ $six = [$candidates[0], $candidates[1], $candidates[0], $candidates[1], $candida
 $owner = null;
 $access = 'owner';
 $chat_participants = null;
+$notification_recipients = null;
 
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM rent_applications WHERE valid_id_front_path IN (?,?) OR valid_id_back_path IN (?,?) OR nbi_clearance_path IN (?,?) OR rejection_attachment_path IN (?,?) LIMIT 1", array_merge($six, $two));
@@ -68,7 +69,7 @@ if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE proof_of_payment_path IN (?,?) LIMIT 1", $two);
 }
 if ($owner === null) {
-    $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) LIMIT 1", [$candidates[0], $candidates[1], $candidates[0], $candidates[1]]);
+    $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) OR lc.tenant_signature_path IN (?,?) OR lc.owner_signature_path IN (?,?) LIMIT 1", array_merge($six, $two));
 }
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT id AS owner_id FROM users WHERE avatar_url IN (?,?) LIMIT 1", $two);
@@ -83,7 +84,14 @@ if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM parking_reservations WHERE document_path IN (?,?) LIMIT 1", $two);
 }
 if ($owner === null && table_has_column($conn, 'notifications', 'attachment_path') && table_has_column($conn, 'notifications', 'user_id')) {
-    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM notifications WHERE attachment_path IN (?,?) LIMIT 1", $two);
+    // One announcement file is attached to every recipient's notification, so
+    // any of them may open it — not only whichever row happens to come first.
+    $stmt = $conn->prepare("SELECT DISTINCT user_id FROM notifications WHERE attachment_path IN (?,?) AND user_id IS NOT NULL");
+    $stmt->bind_param('ss', $candidates[0], $candidates[1]);
+    $stmt->execute();
+    $recipient_ids = array_map(fn($r) => (int)$r['user_id'], $stmt->get_result()->fetch_all(MYSQLI_ASSOC));
+    $stmt->close();
+    if ($recipient_ids) $notification_recipients = $recipient_ids;
 }
 if ($owner === null) {
     // Chat media is visible only to participants in the conversation or an admin.
@@ -101,9 +109,14 @@ if ($owner === null) {
     if ($owner !== null) $access = 'admin_only';
 }
 
-if ($owner === null && $chat_participants === null) download_fail(404, "File not found.");
+if ($owner === null && $chat_participants === null && $notification_recipients === null) download_fail(404, "File not found.");
 
-if ($chat_participants !== null) {
+if ($notification_recipients !== null) {
+    $auth = get_authenticated_user($conn);
+    if (!$auth || ($auth['role'] !== 'admin' && !in_array((int)$auth['id'], $notification_recipients, true))) {
+        download_fail($auth ? 403 : 401, $auth ? "Forbidden." : "Unauthorized.");
+    }
+} elseif ($chat_participants !== null) {
     $auth = get_authenticated_user($conn);
     if (!$auth || ($auth['role'] !== 'admin' && (int)$auth['id'] !== (int)$chat_participants['sender_id'] && (int)$auth['id'] !== (int)$chat_participants['receiver_id'])) {
         download_fail($auth ? 403 : 401, $auth ? "Forbidden." : "Unauthorized.");

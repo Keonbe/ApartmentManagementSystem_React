@@ -175,12 +175,16 @@ export default function ViewContract() {
         formData.append('docType', 'tenantSignature');
         formData.append('action', 'remove');
         try {
-            const res = await api.post('/upload_lease_document.php', formData);
+            const res = await api.post('/upload_lease_document.php', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             if (res.data.success) {
                 setContractData(prev => ({
                     ...prev,
                     tenantSignature: null
                 }));
+            } else {
+                alert(res.data.message || 'Failed to remove signature.');
             }
         } catch (err) {
             console.error('Failed to remove signature:', err);
@@ -328,7 +332,8 @@ export default function ViewContract() {
                     template={template}
                     lang={language}
                     data={contractData}
-                    allowUploadSignature={!previewEmail}
+                    allowUploadSignature={!previewEmail && contractData.status === 'draft'}
+                    signatureParties={['tenantSignature']}
                     onUploadSignature={handleTenantSignatureUpload}
                     onRemoveSignature={handleTenantSignatureRemove}
                 />

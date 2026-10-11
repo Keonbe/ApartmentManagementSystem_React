@@ -9,6 +9,8 @@ import '../../assets/styles/responsive/user/view-contract.responsive.css';
 
 const BLANK = '____________________';
 
+const SIGNATURE_PARTIES = ['tenantSignature', 'ownerSignature'];
+
 const LABELS = {
   en: {
     between: 'BETWEEN',
@@ -33,6 +35,10 @@ const LABELS = {
     page: 'Page',
     of: 'of',
     tenantSign: 'Name and Signature of Tenant',
+    uploadSignature: 'Upload signature',
+    replaceSignature: 'Replace',
+    removeSignature: 'Remove',
+    signatureHint: 'PNG or JPG image',
     noAccounts: 'Ask the Owner for payment details.',
   },
   tl: {
@@ -58,6 +64,10 @@ const LABELS = {
     page: 'Pahina',
     of: 'ng',
     tenantSign: 'Pangalan at Pirma ng Nangungupahan',
+    uploadSignature: 'I-upload ang pirma',
+    replaceSignature: 'Palitan',
+    removeSignature: 'Alisin',
+    signatureHint: 'Larawang PNG o JPG',
     noAccounts: 'Makipag-ugnayan sa May-ari para sa detalye ng pagbabayad.',
   },
 };
@@ -93,6 +103,7 @@ export default function ContractDocument({
   lang = 'en',
   data = {},
   allowUploadSignature = false,
+  signatureParties = SIGNATURE_PARTIES,
   onUploadSignature,
   onRemoveSignature,
 }) {
@@ -208,6 +219,39 @@ export default function ContractDocument({
 
   const ownerSig = data.ownerSignature || details.owner_signature;
   const tenantSig = data.tenantSignature || data.tenantSignaturePath;
+
+  // Upload and remove controls for one party's signature. Screen only: the
+  // printed contract shows just the image on the line.
+  const signatureControls = (docType, uploaded) => {
+    if (!allowUploadSignature || !onUploadSignature || !signatureParties.includes(docType)) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2 pt-1 font-sans print:hidden">
+        <label className="cursor-pointer rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">
+          {uploaded ? L.replaceSignature : L.uploadSignature}
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) onUploadSignature(docType, file);
+            }}
+          />
+        </label>
+        {uploaded && onRemoveSignature && (
+          <button
+            type="button"
+            onClick={() => onRemoveSignature(docType)}
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            {L.removeSignature}
+          </button>
+        )}
+        {!uploaded && <span className="text-[11px] text-slate-400">{L.signatureHint}</span>}
+      </div>
+    );
+  };
 
   const sec1 = sections[0];
   const sec2 = sections[1];
@@ -519,6 +563,7 @@ export default function ContractDocument({
                       )}
                     </div>
                     <div className="border-b-2 border-slate-700 w-full"></div>
+                    {signatureControls('ownerSignature', !!data.ownerSignature)}
                   </div>
 
                   {/* Name field with dedicated line */}
@@ -562,6 +607,7 @@ export default function ContractDocument({
                       )}
                     </div>
                     <div className="border-b-2 border-slate-700 w-full"></div>
+                    {signatureControls('tenantSignature', !!tenantSig)}
                   </div>
 
                   {/* Name field with dedicated line */}
