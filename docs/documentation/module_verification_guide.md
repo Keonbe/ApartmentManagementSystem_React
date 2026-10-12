@@ -81,6 +81,8 @@
 17. [Date-Dependent Testing](#17-date-dependent-testing)
 18. [Known Issues & Blocked Tests](#18-known-issues--blocked-tests)
 19. [Appendix — Recipes & Reference](#19-appendix--recipes--reference)
+20. [Panelist Gap Features (2026-10-11)](#20-panelist-gap-features-2026-10-11)
+   - 20.1 Refund Approval · 20.2 Per-Floor Rent · 20.3 Utility Bill and Proof · 20.4 Other Utility Types · 20.5 Parking Rules · 20.6 Children, Minors and Pets
 
 ---
 
@@ -1532,7 +1534,7 @@ Seed fixtures: rooms **A** (Maria, user 2) and **K** (Ana, user 12) have July an
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
 | `get_utility_readings.php` | GET | `require_user` — tenants get only their own rows by session id; admins get all | `room_name`, `billing_period` (admin only; ignored for tenants) | `success`, `spike_threshold_pct`, `data[]` with `water_change_pct`, `electric_change_pct`, `has_spike`, `billing_period_label`, `invoice_id` | `401` |
-| `save_utility_reading.php` | POST JSON | `require_admin` | `room_name`, `billing_period` (`YYYY-MM`), `reading_date`, `water_curr_reading`, `electric_curr_reading`; optional rates (default: the unit's previous rate, else 40 / 12), `water_other_fees`, `electric_other_fees`, `notes` | `success`, `id`, consumption, `total_amount`, plus `warning` when the unit has no billable tenant | `422` bad period, unknown unit, bad or future date, non-numeric or negative reading, rate outside (0, 1000], negative fee, current below previous · `409` reading exists for this or a later period |
+| `save_utility_reading.php` | POST JSON | `require_admin` | `room_name`, `billing_period` (`YYYY-MM`), `reading_date`, `water_curr_reading`, `electric_curr_reading`; optional rates (default: the unit's previous rate, else 40 / 12), `water_other_fees`, `electric_other_fees`, `notes` | `success`, `id`, consumption, `total_amount`, plus `items` support (extra utility types, §20.4) | `422` bad period, unknown unit, **a unit with no tenant (2026-10-11)**, bad or future date, non-numeric or negative reading, rate outside (0, 1000], negative fee, current below previous · `409` reading exists for this or a later period |
 | `delete_utility_reading.php` | POST JSON | `require_admin` | `id` | `success` | `404` · `409` already invoiced, or not the unit's latest reading |
 | `sync_utility_to_invoice.php` | POST JSON | `require_admin` | `id`, `sync_mode` = `merge` / `separate` / `paid`, `due_date` (for `separate`) | `success`, `invoice_id`, `merged` | `404` · `409` already synced, or the merge target already has water/electricity charges · `422` no billable tenant, bad mode, due date outside today…+10 days |
 | `get_utilities_report_data.php` | GET | `require_admin` | `timeframe`, `month`, `quarter`, `year` | `water`, `electric` (totals, average per unit-month, billed), `financials` (`totalBilled`, `totalCollected`, `outstanding`, `recoveryRate`), `pendingSync`, `spikeCount`, `topUnits[]` with `hasSpike`, `coverage` (monthly only: `occupiedUnits`, `unitsRead`, `missingUnits`) | `401` · `403` |
@@ -3048,6 +3050,90 @@ Not every key exists as a row. The reminder settings — `rent_due_reminders_ena
 INSERT INTO system_settings (setting_key, setting_value) VALUES ('rent_due_reminder_days','7')
   ON DUPLICATE KEY UPDATE setting_value='7';
 ```
+
+---
+
+## 20. Panelist Gap Features (2026-10-11)
+
+Six features added after the panelist audit: refund approval (§20.1), per-floor fixed rent (§20.2), utility bill file and tenant proof (§20.3), extra utility types and the empty-unit block (§20.4), parking rules (§20.5) and children, minors and pets rules (§20.6). Inquiry-as-chat is **not built** (open decision: how an anonymous prospect joins a thread). Tests use the seed accounts of [§1.4](#14-seed-accounts); take a [`/db-snapshot`](#16-restore-discipline) first. Test IDs `M20-NN`.
+
+### 20.1 Refund Approval Workflow
+
+| Endpoint | Method | Auth | Input | Output | Errors |
+|---|---|---|---|---|---|
+| `create_refund_request.php` | POST JSON | `require_user` (tenant raises for self; admin adds `user_id`) | `type` `advance`/`overpayment`, `amount`, `reason`, `invoice_id` (overpayment) | `success`, `id` | `400` missing field · `422` amount above what is available, advance amount not a whole number of months · `409` another request holds the money |
+| `get_refund_requests.php` | GET | `require_user` (tenant: own; admin: all, `status`, `user_id`) | — | `requests[]` each with `events[]` (the status trail), `eligible` `{advance, overpayments[]}` | — |
+| `update_refund_request.php` | POST JSON | `require_admin` | `id`, `action` `approve`/`reject`/`request_info`/`mark_refunded`, `message`, `payout_method`, `payout_reference` | `success`, `status` | `400` reject or request_info without a message, payout without method and reference · `409` illegal transition (`REFUND_TRANSITIONS`) |
+| `respond_refund_request.php` | POST JSON | `require_user` (owner only) | `id`, `action` `reply`/`cancel`, `message` | `success`, `status` | `404` not the owner's · `409` no question waiting / wrong status |
+
+Status: Pending Review → Approved → Refunded; Pending Review ↔ Info Requested; Rejected and Cancelled are final. Pages: tenant `/my-refunds` (`ProtectedRoute`, so a moved-out tenant with a `refund-due` credit can still open it), admin `/admin-refunds`. Queue type `refund_request` (stays queued until the payout is recorded); tenant notification type `refund_update`. The security deposit is not refundable and cannot be requested.
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M20-01** | Happy | Full loop | Seed two `refund-due` credits of 4000 for Maria; she requests 4000 → admin `request_info` → she `reply` → admin `approve` → `mark_refunded` | Statuses Pending Review → Info Requested → Pending Review → Approved → Refunded; trail rows for each step plus `raised`; credit becomes `refunded`; queue row resolved only after the payout |
+| **M20-02** | Negative | Over-ask | Request 9000 with 8000 available | `422` naming the maximum |
+| **M20-03** | Negative | Half a month | Request 5000 against 4000 + 4000 credits | `422` "whole months"; no credit is held |
+| **M20-04** | Negative | Reject needs a reason | `reject` with no `message` | `400`; status unchanged |
+| **M20-05** | Sec | Tenant cannot decide | Maria calls `update_refund_request.php` | `403` |
+| **M20-06** | Sec | Not the owner | Jose `respond_refund_request.php` on Maria's request | `404` |
+| **M20-07** | Boundary | Reject frees the credits | Reject an advance request | `advance_credits.refund_request_id` is NULL again; a new request can be raised |
+
+### 20.2 Per-Floor Fixed Rent
+
+`system_settings.floor_rates` (JSON object floor → price; each value above 0, at most 1,000,000), edited in Settings → Floor Rent. `create_room.php` takes `rent` as optional and falls back to the floor price. `rooms.rent_is_custom` is set when a unit's rent differs from its floor price. `apply_floor_rate.php {floor, preview?}` (admin) copies the price onto **vacant, non-custom** units only; occupied and reserved units are never touched.
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M20-10** | Happy | Default from floor | Save `{"1F":7000}`; `create_room.php {id:"T1",type:"Studio",floor:"1F"}` | Rent 7000, `rent_is_custom = 0` |
+| **M20-11** | Happy | Hand-set rent survives | Create T2 with `rent: 9000` on 1F, then apply 1F | T2 stays 9000 (`rent_is_custom = 1`); response `skippedCustom` ≥ 1 |
+| **M20-12** | Boundary | Occupied untouched | Apply 1F with A–D occupied | A–D keep 4000; `skippedOccupied = 4` |
+| **M20-13** | Negative | Bad price | `floor_rates {"1F":-5}` | `422` |
+
+### 20.3 Utility Bill File and Tenant Proof
+
+`upload_utility_bill.php` (admin, multipart `reading_id`, `bill` JPG/PNG/PDF ≤ 10 MB, or `remove=1`) stores `uploads/utility_bills/…` in `utility_readings.bill_file_path`. `download_file.php` serves it to that reading's tenant and to admins. `get_utility_readings.php` adds `invoice_status`, `invoice_proof_path` and `invoice_proof_rejection`. The tenant uploads proof on `UserUtilities.jsx` through `upload_payment_proof.php` on the reading's invoice; the admin verifies or rejects it in Payments.
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M20-20** | Happy | Attach and open | Admin attaches a PDF to Maria's reading; Maria opens the path via `download_file.php` | `200` |
+| **M20-21** | Sec | Other tenant | Jose requests the same path | `403` |
+| **M20-22** | Sec | Tenant cannot attach | Maria calls `upload_utility_bill.php` | `403` |
+| **M20-23** | Negative | Bad file | Upload an `.exe` | `422` |
+| **M20-24** | Happy | Proof | Make the reading's invoice `pending`; Maria uploads proof | Invoice `pending-verification`; admin reject shows the reason in `invoice_proof_rejection` |
+
+### 20.4 Other Utility Types and Vacant-Unit Block
+
+`manage_utility_types.php` (GET any user, active only; `all=1` for admin; POST/PUT/DELETE admin, DELETE deactivates). `save_utility_reading.php` accepts `items:[{type_id, curr_reading?, rate?}]`: metered types bill (reading − previous) × rate, flat types bill the rate. `sync_utility_to_invoice.php` adds the items to `invoices.services`, so they show under Services on the bill. The reading is refused with `422` when the unit has no tenant.
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M20-30** | Negative | Vacant unit | Save a reading for room I | `422` "no tenant right now"; no row |
+| **M20-31** | Happy | Flat + metered | Activate Internet (flat 1000) and Gas (metered 90); reading for A with both (gas reading 10) | `utility_reading_items` 1000.00 and 900.00; `total_amount` includes both |
+| **M20-32** | Happy | Billed on the invoice | Sync that reading (`merge`) | `invoices.services = 1900`; `total_amount` = water + electricity + 1900 |
+| **M20-33** | Negative | Inactive type | Item with a deactivated `type_id` | `422` |
+
+### 20.5 Parking Rules
+
+House rules gained `scope` (`house` default, `parking`, `minors`); `GET house_rules.php?scope=` (public). Edited in Settings → Parking Rules. `ParkingReservation.jsx` shows them with a required agreement (only when at least one active rule exists); the inquiry form and rent application show them too.
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M20-40** | Happy | Scope filter | `GET house_rules.php?scope=parking` vs. no scope | Parking list vs. general list, disjoint |
+| **M20-41** | Negative | Unknown scope | `?scope=bogus` | `422` |
+| **M20-42** | Happy | Agreement gate | Open `/parking-reservation` as a tenant | Rules listed; submit disabled until the box is ticked |
+
+### 20.6 Children, Minors and Pets
+
+**Policy: no pets, and no children under 12.** `system_settings.min_household_age` (default 12, 0–17) is the youngest age that may live in the apartment; `household_members.php` `add` refuses any member below it with `422`. `system_settings.age_categories` (1–6 categories with `label`, `min_age`, `max_age`, `rule`, `rule_fil`; ranges within 0–17 and not overlapping; defaults Infant 0–1, Toddler 2–4, Child 5–11 (not allowed) and Minor 12–17) and the `minors` rule list ("No children under 12", "Minors aged 12 to 17", "No pets allowed") are edited in Settings → Children & Pets. `household_members.php` `add` takes `age`; a Child needs an age of 0–17, and `age_category` is derived server-side. The categories and rules are shown on the inquiry form, the rent application and, appended live as the last section, the contract (`ContractDocument.jsx`).
+
+| ID | Type | Scenario | Steps | Expected |
+|---|---|---|---|---|
+| **M20-50** | Negative | Child without age | `household_members.php {action:add, relationship:"Child"}` | `422` "Enter the child's age." |
+| **M20-51** | Negative | Under 12 refused | Add a Child, age 3 (and 11) | `422` "Children under 12 are not allowed…"; no row |
+| **M20-55** | Happy | Minor allowed | Add a Child, age 12 | Row `age = 12`, `age_category = minor`, status Pending |
+| **M20-52** | Negative | Adult as Child | Child, age 30 | `422` |
+| **M20-53** | Negative | Overlap | Save categories 0–3 and 3–10 | `422`; setting unchanged |
+| **M20-54** | Happy | Contract | Open `/view-contract` | Last section "Children, Minors and Pets" lists the categories and rules |
 
 ---
 

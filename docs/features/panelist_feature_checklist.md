@@ -377,6 +377,7 @@ flowchart TD
 - [x] **1.6 Application Processing Flow** ✅ — Pending Review → Approved/Rejected
 - [x] **1.7 Acceptance Criteria Enforcement** ✅ — `update_tenant_status.php` rejects approval unless valid ID (front/back), NBI clearance, and a recorded `terms_agreed_at` (checked at submission via a required Terms & Conditions checkbox in `RentApplication.jsx`) are all present.
 - [x] **1.8 Inquiry Handling & Reservation Tracking** ✅ — Public inquiry form (guest or prefilled), admin triage pipeline, and unit reservations that hold a room with an auto-expiring hold (`inquiries` + `unit_reservations` tables, `AdminInquiries.jsx`, `InquiryForm.jsx`)
+- [x] **1.9 Children, Minors and Pets Rules** ✅ — Policy: no pets and no children under 12 (`min_household_age`, default 12, admin-editable; `household_members.php` refuses a younger member). Admin-editable age categories (infant / toddler / child / minor, each with its own age range and rule) and a children-and-pets rules list (Settings → Children & Pets). Shown on the inquiry form, the rent application and the contract (appended live to `ContractDocument.jsx`). A household member's age is captured on add (`household_members.age`, `age_category`; required for a Child), and the category is derived server-side.
 
 ---
 
@@ -392,6 +393,7 @@ flowchart TD
 - [x] **2.5 Occupancy Tracking** ✅ — Dynamic stay durations, active counts, and a 6-month occupancy trend (`get_report_data.php`). No dedicated "vacancy rate" metric — occupancy and vacancy are complementary, so this is covered by the same trend data rather than a separate figure.
 - [x] **2.6 Extended Rent / Lease Renewal** ✅ — `extend_lease.php`
 - [x] **2.7 Unit Rate Configuration** ✅ — `update_room.php` sets base monthly rent per unit. There are no separate water/electricity/parking *rate* columns on `rooms` — those utilities are billed per-reading/per-reservation (`save_utility_reading.php`, parking reservations), not configured as a fixed per-unit allocation.
+- [x] **2.8 Per-Floor Fixed Rent** ✅ — Settings → Floor Rent keeps a floor → price table (`system_settings.floor_rates`). A new unit starts at its floor's rent (`create_room.php`), and any unit's rent can still be set by hand (`rooms.rent_is_custom`). "Apply to vacant units" (`apply_floor_rate.php`) copies a changed price onto vacant, non-custom units only; occupied and reserved units keep the rent they agreed to.
 
 ---
 
@@ -413,6 +415,7 @@ flowchart TD
 - [x] **3.10 Extended Rent Terms** ✅ — (The admin payment screen's former *Use Extended/Prorated Rent* checkbox was not this feature: it was never saved and was removed 2026-09-30.) Approving a tenant's lease-extension request (`process_tenant_request.php`) extends the contract; the added months are then billed like every other tenancy month by the monthly rent generator (each a week before it starts, due on the lease-start day), and a month starting within that week is billed at approval. Until 2026-09-26 all added months were pre-billed at once, due on the 1st. Since 2026-10-09 every extension (the tenant's request, its approval, and the admin's Units → Extend Rent via `admin_extend_rent.php`) goes through `extend_tenancy()` with one rule list (`extension_block_reason()`): refused while any bill is **past due** (bills not yet due and payments under verification don't block), while a move-out is scheduled, unless the contract is active or expired, and beyond `max_rent_ahead_months`. Extending an **expired** contract also bills the holdover months the tenant lived since it expired, at the old rent, due a week later. The admin extend used to change only the room's dates, so its months were never billed
 - [x] **3.11 Payment Methods (GCash, Cash, Bank)** ✅ — Manual payments are Cash, GCash, BDO or BPI (BDO and BPI are bank transfers with separate options, for tenants uploading a proof and at the desk), and the recorded method follows the tenant's chosen channel: locked while their proof is under verification, and no desk recording while an online checkout is open (the admin can cancel a stale one) — 2026-10-01. Online (PayMongo sandbox: GCash/Maya/card/online banking) or manual transfer channels, **plus** in-person cash, which is always offered alongside whichever remote family is active
 - [x] **3.12 Term of Payment Rules** ✅ — The move-in invoice bills 1 month advance rent + 1 month security deposit, and approval is gated on documents + terms agreement (see 1.7). Enforcement lives in the approval/invoice endpoints, not in DB constraints. Since 2026-09-30 no path skips it: a manual unit assignment issues the same move-in invoice and leaves the unit `reserved`, and a contract cannot be activated until that invoice is paid and the move-in confirmed. **Advance payment (2026-09-26, panel feedback):** a tenant can prepay 1–6 upcoming months from Pay Bills (`advance_payment.php`). **Reworked 2026-09-28 (panel feedback: no lump sum):** the tenant pays one advance-rent invoice, and each month it covers is stored as a credit (`advance_credits`). The system still generates every month's rent invoice on its usual date and pays it from the credit at once, so each month keeps its own invoice and receipt ("Paid from advance payment INV-…"). Reports count the rent in the month it covers. An advance unpaid by its first month expires; unused credit at move-out is flagged as a refund (verification guide M3-52…58).
+- [x] **3.13 Refund Approval Workflow** ✅ — A tenant (`UserRefunds.jsx`, `/my-refunds`) or an admin on their behalf raises a refund of advance rent or an overpayment with a reason and amount (`create_refund_request.php`). The admin (`AdminRefunds.jsx`, `/admin-refunds`) approves, rejects with a required reason, or asks for more information; the tenant replies or cancels (`respond_refund_request.php`); the admin records the payout, which settles the held advance credits (`advance_credits.status = 'refunded'`). Every step is a timestamped row in `refund_request_events`. The security deposit stays non-refundable (3.9) and cannot be requested. This replaces the dead end where `refund-due` could never be cleared.
 
 ---
 
@@ -480,6 +483,7 @@ flowchart TD
 - [x] **7.5 Admin Inbox** ✅ — `AdminMessages.jsx`: threads sorted by most recent, searchable, unread badges
 - [ ] **7.6 New Message Notification** 🔧 — Real-time push to an open widget/inbox only; no `notifications` row is written on send
 - [ ] **7.7 Complaints Management** 📋 — Design complete: conversation flagged `is_complaint` + `complaint_status` tracking, additive to §1–§11 — must be rebased onto the built `messages` table, since `conversations` does not exist (see [chat_design.md §12](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md))
+- [ ] **7.8 Inquiry Conversation** ❌ — Not started: turning an inquiry into a prospect ↔ admin conversation (needs a token-keyed thread for guests who have no account; the existing chat requires a `users` row). Open decision, see TASK.md.
 
 ---
 
@@ -502,6 +506,8 @@ flowchart TD
   - **Export honesty:** a `truncated` flag and "Exported N of M" wording replace the old claim of exporting everything when a search actually hit the 5,000-row cap; CSV cells starting with `= + - @` are now escaped against formula injection
 - [x] **8.7 Utility Usage Tracking** ✅ — `utility_readings` table (now in `SetupDB.sql`), `AdminUtilities.jsx`, `UserUtilities.jsx`. Each unit has one water and electricity reading per billing month. Readings are validated: a meter can't read lower than last month, readings are recorded oldest-first, and rates carry forward. Each reading shows the change from the previous month and flags a usage spike above 30%. A mistyped reading is corrected by deleting the latest un-invoiced one. `sync_utility_to_invoice.php` posts the charge onto the tenant's open invoice for that month, or onto a utilities-only invoice — rent is never billed twice. Reports show units read vs. occupied and which units are still unread. Tenants see only their own readings (session-scoped)
 - [x] **8.8 Sampling Data / Demo Data** ✅ — `backend/api/migrations/seeds/seed_mock_data.sql`: 12 tenants across 14 rooms (2 vacant, 1 with a pending application), 8 months of invoices (Jan–Aug 2026, mixing paid/overdue/pending-verification and all three payment methods), plus maintenance requests, parking reservations, CCTV requests, service bookings, visitor logs, inquiries/waitlist, announcements, notifications and activity-log rows — enough to demo every Module 8 report tab without an empty state. `seed_reset.sql` removes it cleanly and `clear_and_seed.sql` restores the bare `SetupDB.sql` defaults; both are exercised by CI (`.github/workflows/ci.yml`, the `database` job)
+- [x] **8.9 Utility Bill File & Tenant Proof of Payment** ✅ — The admin attaches the provider's bill (PDF/JPG/PNG, 10 MB) to a reading (`upload_utility_bill.php`, `utility_readings.bill_file_path`); the tenant opens it from `UserUtilities.jsx`. A tenant who pays outside the system uploads proof there, through the existing `upload_payment_proof.php` on the reading's invoice, and the admin verifies or rejects it in Payments as usual.
+- [x] **8.10 Other Utility Types & Empty-Unit Block** ✅ — Settings → Utilities defines extra utilities (internet, gas, ...) as a flat fee or a meter reading × rate (`utility_types`, `utility_reading_items`). Their charge rides on the invoice's `services` column. `save_utility_reading.php` now refuses a reading for a vacant or unoccupied unit.
 
 ---
 
@@ -531,6 +537,7 @@ flowchart TD
 - [x] **10.2 Reservation Request** ✅ — `parking_reservation.php`, one open reservation per tenant (enforced by a unique key, not just an application check), refused once the lot is full or the parking module is switched off
 - [x] **10.3 Parking Fee Integration** ✅ — `post_parking_charge()` posts the fee onto the tenant's invoice per calendar month of the permit term, claimed by a `(reservation_id, billing_period)` unique key so a month is never billed twice. Admin-configurable: **manual** ("Bill this month" button, reversible while unpaid) or **automatic** (posted on assignment and by the daily sweep each following month)
 - [x] **10.4 Slot Assignment Management** ✅ — Numbered slots (`slot_number`, 1..`max_parking_slots`); the admin picks a free slot from a live picker, and the database itself refuses two `Assigned` rows on one slot. Status transitions are enforced (`Pending → Assigned \| Rejected \| Cancelled`, `Assigned → Released`). The slot is released automatically on move-out, on archiving, or when its term ends (daily sweep) — previously a moved-out tenant's slot stayed occupied forever
+- [x] **10.5 Parking Rules Before Applying** ✅ — Admin-editable parking rules (Settings → Parking Rules, `house_rules.scope = 'parking'`) are shown on `ParkingReservation.jsx` with a required agreement before submit, and on the inquiry form and rent application.
 
 ---
 
@@ -569,19 +576,19 @@ flowchart TD
 
 | Module | Total Features | ✅ Done | 🔧 Partial | 📋 Designed | ❌ Not Started |
 |---|---|---|---|---|---|
-| 1. Tenant Management | 8 | 8 | 0 | 0 | 0 |
-| 2. Unit Management | 7 | 7 | 0 | 0 | 0 |
-| 3. Payment & Billing | 12 | 12 | 0 | 0 | 0 |
+| 1. Tenant Management | 9 | 9 | 0 | 0 | 0 |
+| 2. Unit Management | 8 | 8 | 0 | 0 | 0 |
+| 3. Payment & Billing | 13 | 13 | 0 | 0 | 0 |
 | 4. Maintenance Request | 10 | 10 | 0 | 0 | 0 |
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
 | 6. Notification | 8 | 6 | 2 | 0 | 0 |
-| 7. Communication | 7 | 4 | 2 | 1 | 0 |
-| 8. Dashboard & Reports | 8 | 8 | 0 | 0 | 0 |
+| 7. Communication | 8 | 4 | 2 | 1 | 1 |
+| 8. Dashboard & Reports | 10 | 10 | 0 | 0 | 0 |
 | 9. Contracts | 8 | 8 | 0 | 0 | 0 |
-| 10. Parking | 4 | 4 | 0 | 0 | 0 |
+| 10. Parking | 5 | 5 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 4 | 4 | 0 | 0 | 0 |
-| **TOTAL** | **86** | **81** | **4** | **1** | **0** |
+| **TOTAL** | **93** | **87** | **4** | **1** | **1** |
 
 > Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data), then again after closing 3.10 (Extended Rent Terms) on 2026-09-20, and again on 2026-09-23 when the SMS/email pipeline was wired into the admin endpoints — 4.10 closed, and 6.6 / 6.7 moved from 📋 to 🔧 (built and wired, still on the dry-run drivers), and on 2026-09-24 when Module 7 was re-marked after the chat merge (PR #8): 7.2–7.5 ✅, 7.1 and 7.6 🔧, 7.7 still 📋.
 
@@ -589,11 +596,11 @@ flowchart TD
 
 | Core Requirement | Covered By |
 |---|---|
-| Payment Tracking & Billing | Module 3 (12 features) |
-| Communication Management | Module 7 (7 features) + Module 6 (8 features) |
+| Payment Tracking & Billing | Module 3 (13 features) |
+| Communication Management | Module 7 (8 features) + Module 6 (8 features) |
 | Maintenance Request | Module 4 (10 features) |
 | Inquiry and Reservation | Module 1.8 (inquiries + unit reservations), Module 10, Module 11.5, Module 12 |
-| Report Generation | Module 8 (8 features) |
+| Report Generation | Module 8 (10 features) |
 | Modular Services | Module 5 (5 features) + Module 12 (4 features) |
 
 ---
