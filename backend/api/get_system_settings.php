@@ -51,6 +51,16 @@ if(isset($settings['parking_allowed_vehicle_types'])) {
     $settings['parking_allowed_vehicle_types'] = is_array($decoded) ? $decoded : ['motorcycle'];
 }
 
+if (isset($settings['min_household_age'])) $settings['min_household_age'] = (int)$settings['min_household_age'];
+if (isset($settings['age_categories'])) {
+    $decoded = json_decode($settings['age_categories'], true);
+    $settings['age_categories'] = is_array($decoded) ? $decoded : [];
+}
+if (isset($settings['floor_rates'])) {
+    $decoded = json_decode($settings['floor_rates']);
+    $settings['floor_rates'] = is_object($decoded) ? $decoded : new stdClass();
+}
+
 echo json_encode(["success" => true, "settings" => $settings]);
 $conn->close();
 ?>

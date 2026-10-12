@@ -71,6 +71,64 @@ foreach ($input as $key => $value) {
             exit;
         }
     }
+    // Floor → monthly rent table. Stored as a JSON object {"1F": 5000}.
+    if ($key === 'floor_rates') {
+        $decoded = json_decode($value, true);
+        $clean = [];
+        $bad = !is_array($decoded);
+        if (!$bad) {
+            foreach ($decoded as $floor => $price) {
+                $floor = trim((string)$floor);
+                if ($floor === '' || mb_strlen($floor) > 50 || !is_numeric($price) || (float)$price <= 0 || (float)$price > 1000000) { $bad = true; break; }
+                $clean[$floor] = round((float)$price, 2);
+            }
+        }
+        if ($bad) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "Each floor needs a rent above 0 and up to 1,000,000."]);
+            exit;
+        }
+        $value = json_encode($clean, JSON_FORCE_OBJECT);
+    }
+    if ($key === 'min_household_age' && (!ctype_digit($value) || (int)$value > 17)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "The minimum household age must be a whole number from 0 to 17."]);
+        exit;
+    }
+    // Age categories for children (infant / toddler / minor ...): non-overlapping ranges within 0-17.
+    if ($key === 'age_categories') {
+        $decoded = json_decode($value, true);
+        $clean = [];
+        $bad = !is_array($decoded) || count($decoded) < 1 || count($decoded) > 6;
+        if (!$bad) {
+            $used_keys = [];
+            foreach ($decoded as $c) {
+                $label = trim((string)($c['label'] ?? ''));
+                $min = $c['min_age'] ?? null;
+                $max = $c['max_age'] ?? null;
+                $rule = trim((string)($c['rule'] ?? ''));
+                $rule_fil = trim((string)($c['rule_fil'] ?? ''));
+                if ($label === '' || mb_strlen($label) > 40 || !is_numeric($min) || !is_numeric($max)
+                    || (int)$min < 0 || (int)$max > 17 || (int)$min > (int)$max
+                    || mb_strlen($rule) > 500 || mb_strlen($rule_fil) > 500) { $bad = true; break; }
+                $k = trim((string)($c['key'] ?? ''));
+                if (!preg_match('/^[a-z0-9_]{1,30}$/', $k)) $k = substr(preg_replace('/[^a-z0-9]+/', '_', strtolower($label)), 0, 30) ?: 'category';
+                while (isset($used_keys[$k])) $k = substr($k, 0, 27) . '_' . count($used_keys);
+                $used_keys[$k] = true;
+                $clean[] = ['key' => $k, 'label' => $label, 'min_age' => (int)$min, 'max_age' => (int)$max, 'rule' => $rule, 'rule_fil' => $rule_fil];
+            }
+            usort($clean, fn($a, $b) => $a['min_age'] <=> $b['min_age']);
+            for ($i = 1; !$bad && $i < count($clean); $i++) {
+                if ($clean[$i]['min_age'] <= $clean[$i - 1]['max_age']) $bad = true;
+            }
+        }
+        if ($bad) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "Age categories need a name, an age range between 0 and 17 that does not overlap another category, and rules under 500 characters."]);
+            exit;
+        }
+        $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
+    }
     if ($key === 'parking_billing_mode' && !in_array($value, ['manual', 'auto'], true)) {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "Parking billing mode must be manual or auto."]);

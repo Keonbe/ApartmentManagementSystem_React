@@ -20,12 +20,16 @@ try {
     $type = trim($data['type'] ?? '');
     $floor = trim($data['floor'] ?? '');
     $rent = $data['rent'] ?? null;
+    $floor_rate = $floor !== '' ? floor_rate_for($conn, $floor) : null;
+    // No rent given: the unit takes its floor's fixed rent (Settings → Floor Rent).
+    if (($rent === null || $rent === '') && $floor_rate !== null) $rent = $floor_rate;
 
     if ($id === '' || $type === '' || $floor === '' || $rent === null || !is_numeric($rent) || (float)$rent <= 0) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Unit number, floor, type, and a positive rent are required.']);
+        echo json_encode(['success' => false, 'message' => 'Unit number, floor, type, and a positive rent are required. Set a rent for this floor in Settings to skip typing it.']);
         exit();
     }
+    $custom = ($floor_rate === null || abs($floor_rate - (float)$rent) > 0.001) ? 1 : 0;
 
     $archiveColumn = $conn->query("SHOW COLUMNS FROM rooms LIKE 'archived_at'");
     if (!$archiveColumn || $archiveColumn->num_rows === 0) {
@@ -45,8 +49,8 @@ try {
     $stmt->close();
 
     if ($existingRoom) {
-        $stmt = $conn->prepare("UPDATE rooms SET type = ?, floor = ?, monthly_rent = ?, status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, last_tenant = NULL, maintenance_flag = 0, occupants = 0, room_condition = 'Good', furnishing_status = 'Unfurnished', last_inspection_date = NULL, gallery = NULL, archived_at = NULL, archived_by = NULL WHERE id = ? AND archived_at IS NOT NULL");
-        $stmt->bind_param("ssds", $type, $floor, $rent, $id);
+        $stmt = $conn->prepare("UPDATE rooms SET type = ?, floor = ?, monthly_rent = ?, rent_is_custom = ?, status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, last_tenant = NULL, maintenance_flag = 0, occupants = 0, room_condition = 'Good', furnishing_status = 'Unfurnished', last_inspection_date = NULL, gallery = NULL, archived_at = NULL, archived_by = NULL WHERE id = ? AND archived_at IS NOT NULL");
+        $stmt->bind_param("ssdis", $type, $floor, $rent, $custom, $id);
         if (!$stmt->execute()) {
             error_log("[AMS] Failed to restore unit: " . $stmt->error);
             throw new Exception("Failed to restore unit.");
@@ -57,8 +61,8 @@ try {
         exit();
     }
 
-    $stmt = $conn->prepare("INSERT INTO rooms (id, type, floor, monthly_rent, status) VALUES (?, ?, ?, ?, 'vacant')");
-    $stmt->bind_param("sssd", $id, $type, $floor, $rent);
+    $stmt = $conn->prepare("INSERT INTO rooms (id, type, floor, monthly_rent, rent_is_custom, status) VALUES (?, ?, ?, ?, ?, 'vacant')");
+    $stmt->bind_param("sssdi", $id, $type, $floor, $rent, $custom);
     if (!$stmt->execute()) {
         error_log("[AMS] Failed to create unit: " . $stmt->error);
         throw new Exception("Failed to create unit.");

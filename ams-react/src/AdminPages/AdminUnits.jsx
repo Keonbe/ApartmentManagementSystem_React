@@ -72,6 +72,12 @@ const AdminUnits = () => {
   const [showExtendForm, setShowExtendForm] = useState(false);
   
   const [unitForm, setUnitForm] = useState(emptyUnitForm);
+  // Floor -> fixed rent from Settings. A new unit's rent follows its floor until typed over.
+  const [floorRates, setFloorRates] = useState({});
+  const [rentTyped, setRentTyped] = useState(false);
+  useEffect(() => {
+    api.get('get_system_settings.php').then((res) => setFloorRates(res.data?.settings?.floor_rates || {})).catch(() => {});
+  }, []);
   const [assignForm, setAssignForm] = useState(emptyAssignForm);
   const [extendForm, setExtendForm] = useState({ addMonths: '', newRent: '' });
   const [leaseError, setLeaseError] = useState('');
@@ -231,6 +237,7 @@ const AdminUnits = () => {
       if (response.data.success) {
         await fetchRooms();
         setUnitForm(emptyUnitForm);
+        setRentTyped(false);
         setShowAddModal(false);
       } else if (!unitErrors.applyServerErrors(response)) {
         setAddUnitError(response.data.message || 'Failed to create unit.');
@@ -361,7 +368,7 @@ const AdminUnits = () => {
                 />
               </div>
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={() => { setRentTyped(false); setUnitForm({ ...emptyUnitForm, rent: floorRates[emptyUnitForm.floor] ? String(floorRates[emptyUnitForm.floor]) : '' }); setShowAddModal(true); }}
                 className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm border-0 cursor-pointer"
               >
                 <FontAwesomeIcon icon={faPlus} /> Add Unit
@@ -517,7 +524,12 @@ const AdminUnits = () => {
                   <div key={key}>
                     <label htmlFor={`unit-${key}`} className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</label>
                     <input {...unitErrors.fieldA11y(key)} autoComplete="off" value={unitForm[key]} maxLength={LIMITS.unitId}
-                      onChange={e => { setUnitForm({ ...unitForm, [key]: e.target.value }); unitErrors.clearError(key); }}
+                      onChange={e => {
+                        const next = { ...unitForm, [key]: e.target.value };
+                        const rate = key === 'floor' ? floorRates[e.target.value.trim()] : undefined;
+                        if (rate && !rentTyped) { next.rent = String(rate); unitErrors.clearError('rent'); }
+                        setUnitForm(next); unitErrors.clearError(key);
+                      }}
                       onBlur={() => { const v = unitForm[key].trim(); setUnitForm({ ...unitForm, [key]: v }); if (v) unitErrors.validateField(key, { ...unitForm, [key]: v }); }}
                       className={FIELD_CLS + invalidCls(unitErrors.errors[key])} placeholder={placeholder} />
                     <FieldError id={`unit-${key}`} error={unitErrors.errors[key]} />
@@ -533,10 +545,10 @@ const AdminUnits = () => {
                   <FieldError id="unit-type" error={unitErrors.errors.type} />
                 </div>
                 <div>
-                  <label htmlFor="unit-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *</label>
+                  <label htmlFor="unit-rent" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Monthly Rent *{floorRates[unitForm.floor.trim()] ? <span className="normal-case font-normal text-slate-400"> (floor rent {floorRates[unitForm.floor.trim()]})</span> : null}</label>
                   <input type="number" {...unitErrors.fieldA11y('rent')} inputMode="decimal" min="0.01" max={MAX_AMOUNT} step="0.01" value={unitForm.rent}
                     onKeyDown={blockNonNumericKeys}
-                    onChange={e => { setUnitForm({ ...unitForm, rent: e.target.value }); unitErrors.clearError('rent'); }}
+                    onChange={e => { setRentTyped(true); setUnitForm({ ...unitForm, rent: e.target.value }); unitErrors.clearError('rent'); }}
                     onBlur={() => unitForm.rent !== '' && unitErrors.validateField('rent', unitForm)}
                     className={FIELD_CLS + invalidCls(unitErrors.errors.rent)} placeholder="6500" />
                   <FieldError id="unit-rent" error={unitErrors.errors.rent} />

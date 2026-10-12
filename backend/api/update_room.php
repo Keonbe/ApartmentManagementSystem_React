@@ -123,6 +123,21 @@ try {
         }
     }
 
+    // A rent set by hand (outside the assign flow) is remembered as a custom
+    // rent, so "apply floor rent" leaves it alone. Matching the floor price
+    // clears the flag.
+    if (!$assigning && (array_key_exists('monthly_rent', $data) || array_key_exists('monthlyRent', $data))) {
+        $new_rent = $data['monthly_rent'] ?? $data['monthlyRent'];
+        if (!is_numeric($new_rent) || (float)$new_rent <= 0) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Monthly rent must be greater than 0.']);
+            exit();
+        }
+        $floor_rate = floor_rate_for($conn, $currentRoom['floor']);
+        $updateFields[] = "rent_is_custom = ?";
+        $params[] = ($floor_rate === null || abs($floor_rate - (float)$new_rent) > 0.001) ? 1 : 0;
+    }
+
     if (empty($updateFields)) {
          http_response_code(400);
          echo json_encode(['success' => false, 'message' => 'No fields provided to update.']);
