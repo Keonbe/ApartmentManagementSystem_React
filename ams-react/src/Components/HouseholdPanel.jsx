@@ -9,7 +9,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from './form/FieldError';
 import { invalidCls } from './form/formHelpers';
 
-const EMPTY = { fullName: '', relationship: '', contactNo: '' };
+const EMPTY = { fullName: '', relationship: '', contactNo: '', age: '' };
 
 // Household roster on My Room (household_members.php). One shared lease: the
 // lease holder signs in; the people living with them are listed here. Adding or
@@ -25,7 +25,18 @@ export default function HouseholdPanel() {
     fullName: (v) => checkPersonName(v, { label: 'Full name', max: LIMITS.fullName }),
     relationship: (v) => ((data?.relationships || []).includes(v) ? '' : 'Please choose a relationship.'),
     contactNo: (v) => (v ? checkPhMobile(v) : ''),
+    // A child needs an age (0-17) so the matching age-category rule applies.
+    age: (v, all) => {
+      if (v === '' || v === undefined) return all.relationship === 'Child' ? "Enter the child's age." : '';
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 120) return 'Enter the age in whole years.';
+      if (data?.minAge && n < data.minAge) return `Children under ${data.minAge} are not allowed to live in the apartment.`;
+      if (all.relationship === 'Child' && n > 17) return 'A child must be 17 or younger.';
+      return '';
+    },
   }, { idPrefix: 'household-' });
+
+  const categoryFor = (age) => (data?.ageCategories || []).find((c) => age >= Number(c.min_age) && age <= Number(c.max_age));
 
   const load = async () => {
     try {
@@ -81,7 +92,7 @@ export default function HouseholdPanel() {
     const clean = { ...form, fullName: form.fullName.trim() };
     setForm(clean);
     if (!fields.validateAll(clean)) return;
-    send({ action: 'add', ...clean, contactNo: toPhE164(clean.contactNo) }, () => setForm(EMPTY));
+    send({ action: 'add', ...clean, age: clean.age === '' ? null : Number(clean.age), contactNo: toPhE164(clean.contactNo) }, () => setForm(EMPTY));
   };
 
   const requestRemove = (m) => {
@@ -128,7 +139,7 @@ export default function HouseholdPanel() {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-100 m-0 truncate">{m.fullName}</p>
               <p className="text-[11px] text-slate-400 m-0">
-                {m.relationship}{m.contactNo ? ` · ${m.contactNo}` : ''}
+                {m.relationship}{m.age !== null && m.age !== undefined ? ` · age ${m.age}` : ''}{m.ageCategory ? ` (${(data.ageCategories || []).find((c) => c.key === m.ageCategory)?.label || m.ageCategory})` : ''}{m.contactNo ? ` · ${m.contactNo}` : ''}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -178,6 +189,16 @@ export default function HouseholdPanel() {
           <FieldError id="household-relationship" error={fields.errors.relationship} className="m-0 normal-case tracking-normal font-normal" />
         </label>
         <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          {form.relationship === 'Child' ? 'Age (required)' : 'Age (optional)'}
+          <input {...fields.fieldA11y('age')} type="number" min="0" max="120" step="1" inputMode="numeric" value={form.age}
+            onChange={(e) => change('age', e.target.value)} onBlur={() => blur('age')}
+            className={inputCls + invalidCls(fields.errors.age)} disabled={full} />
+          {form.age !== '' && categoryFor(Number(form.age)) && (
+            <span className="normal-case tracking-normal font-normal text-indigo-300">{categoryFor(Number(form.age)).label}: {categoryFor(Number(form.age)).rule}</span>
+          )}
+          <FieldError id="household-age" error={fields.errors.age} className="m-0 normal-case tracking-normal font-normal" />
+        </label>
+        <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Mobile (optional)
           <PhoneInput
             id="household-contactNo"
@@ -193,7 +214,7 @@ export default function HouseholdPanel() {
         </label>
         <div className="sm:col-span-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <p className="text-[11px] text-slate-400 m-0">
-            {full
+            {data.minAge ? `Children under ${data.minAge} and pets are not allowed. ` : ''}{full
               ? `Your unit has reached the limit of ${data.maxOccupants} occupants.`
               : 'Requests are reviewed by management. A new person above 4 occupants adds the monthly surcharge.'}
           </p>

@@ -1,6 +1,7 @@
 import { Fragment, useEffect } from 'react';
 import { parseLine, pick, roman } from './contractTemplate';
 import { fileUrl } from '../../api/fileUrl';
+import useScopedRules from '../../hooks/useScopedRules';
 import '../../assets/styles/responsive/user/view-contract.responsive.css';
 
 // Renders the official lease contract document for an apartment tenant.
@@ -110,7 +111,30 @@ export default function ContractDocument({
   const L = LABELS[lang] || LABELS.en;
   const details = template.details || {};
   const terms = template.terms || {};
-  const sections = terms.sections || [];
+  // Children, minors and pets: always the current Settings rules and age categories,
+  // appended as the last section so an older saved contract text still carries them.
+  const { rules: minorRules, ageCategories } = useScopedRules('minors', true);
+  const tl = lang === 'tl';
+  const minorsSection = (minorRules.length || ageCategories.length) ? {
+    id: 'sec-minors-live',
+    title: { en: 'CHILDREN, MINORS AND PETS', tl: 'MGA BATA, MENOR DE EDAD AT ALAGANG HAYOP' },
+    clauses: [
+      ...(ageCategories.length ? [{
+        id: 'cl-age-categories',
+        title: { en: 'Age Categories', tl: 'Mga Kategorya ng Edad' },
+        body: {
+          en: ageCategories.map((c) => `**${c.label}** (age ${c.min_age} to ${c.max_age}): ${c.rule}`).join('\n'),
+          tl: ageCategories.map((c) => `**${c.label}** (edad ${c.min_age} hanggang ${c.max_age}): ${tl && c.rule_fil?.trim() ? c.rule_fil : c.rule}`).join('\n'),
+        },
+      }] : []),
+      ...minorRules.map((r) => ({
+        id: `cl-minor-rule-${r.id}`,
+        title: { en: r.title, tl: r.title_fil?.trim() || r.title },
+        body: { en: r.description, tl: r.description_fil?.trim() || r.description },
+      })),
+    ],
+  } : null;
+  const sections = [...(terms.sections || []), ...(minorsSection ? [minorsSection] : [])];
 
   // Per-tenant dynamic data mapping
   const values = {

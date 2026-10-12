@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
     $app_id = (int)$app['id'];
-    $stmt = $conn->prepare("SELECT id, full_name, relationship, contact_no, status, added_at, removed_at, removal_requested_at, created_at FROM household_members WHERE rent_application_id = ? AND status IN ('Active', 'Pending') ORDER BY status = 'Pending', full_name");
+    $stmt = $conn->prepare("SELECT id, full_name, relationship, contact_no, age, age_category, status, added_at, removed_at, removal_requested_at, created_at FROM household_members WHERE rent_application_id = ? AND status IN ('Active', 'Pending') ORDER BY status = 'Pending', full_name");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
     $members = [];
@@ -53,6 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'fullName'         => $row['full_name'],
             'relationship'     => $row['relationship'],
             'contactNo'        => $row['contact_no'],
+            'age'              => $row['age'] === null ? null : (int)$row['age'],
+            'ageCategory'      => $row['age_category'],
             'status'           => $row['status'],
             'removalRequested' => $row['removal_requested_at'] !== null,
             'addedAt'          => $row['added_at'],
@@ -69,6 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         "occupants"     => (int)$app['occupants'],
         "maxOccupants"  => max_occupants_per_unit($conn),
         "relationships" => HOUSEHOLD_RELATIONSHIPS,
+        "ageCategories" => age_categories($conn),
+        "minAge"        => min_household_age($conn),
         "members"       => $members,
     ]);
     exit;
@@ -89,6 +93,7 @@ switch ($action) {
         $name = trim((string)($input['fullName'] ?? ''));
         $relationship = (string)($input['relationship'] ?? '');
         $contact = trim((string)($input['contactNo'] ?? ''));
+        $age_raw = $input['age'] ?? null;
 
         if (mb_strlen($name) < 2 || mb_strlen($name) > 150) fail(422, "Full name must be 2 to 150 characters.");
         if (!in_array($relationship, HOUSEHOLD_RELATIONSHIPS, true)) fail(422, "Choose a relationship from the list.");
@@ -96,6 +101,21 @@ switch ($action) {
             $contact = normalize_ph_mobile($contact); // stored as +639XXXXXXXXX
             if ($contact === null) fail(422, "Contact number must be a Philippine mobile number (+63 9XX XXX XXXX).");
         }
+
+        // Children must have an age (0-17) so the right age-category rule applies.
+        $age = null;
+        $age_category = null;
+        if ($age_raw !== null && $age_raw !== '') {
+            if (!is_numeric($age_raw) || (int)$age_raw != $age_raw || (int)$age_raw < 0 || (int)$age_raw > 120) fail(422, "Enter the age as a whole number of years.");
+            $age = (int)$age_raw;
+        }
+        if ($relationship === 'Child') {
+            if ($age === null) fail(422, "Enter the child's age.");
+            if ($age > 17) fail(422, "A child must be 17 or younger. Choose another relationship for an adult.");
+        }
+        if ($age !== null) $age_category = age_category_for($conn, $age);
+        $min_age = min_household_age($conn);
+        if ($age !== null && $age < $min_age) fail(422, "Children under {$min_age} are not allowed to live in the apartment.");
 
         // Pending additions count toward the limit too, so a tenant can't queue past it.
         $stmt = $conn->prepare("SELECT SUM(status = 'Active') AS active, SUM(status = 'Pending') AS pending, SUM(LOWER(full_name) = LOWER(?)) AS same_name FROM household_members WHERE rent_application_id = ? AND status IN ('Active', 'Pending')");
@@ -108,14 +128,14 @@ switch ($action) {
         if (1 + (int)$counts['active'] + (int)$counts['pending'] >= $max) fail(409, "Your unit is limited to $max occupants, including you.");
 
         $contact_val = $contact === '' ? null : $contact;
-        $stmt = $conn->prepare("INSERT INTO household_members (rent_application_id, full_name, relationship, contact_no, status) VALUES (?, ?, ?, ?, 'Pending')");
-        $stmt->bind_param("isss", $app_id, $name, $relationship, $contact_val);
+        $stmt = $conn->prepare("INSERT INTO household_members (rent_application_id, full_name, relationship, contact_no, age, age_category, status) VALUES (?, ?, ?, ?, ?, ?, 'Pending')");
+        $stmt->bind_param("isssis", $app_id, $name, $relationship, $contact_val, $age, $age_category);
         if (!$stmt->execute()) fail(500, "Could not submit the request.");
         $member_id = $stmt->insert_id;
         $stmt->close();
 
         create_notification($conn, $auth['id'], 'household_request', "Household Member Request",
-            "$holder (Unit $room) asked to add $name ($relationship) to the household.", 'Pending', "add:$member_id");
+            "$holder (Unit $room) asked to add $name ($relationship" . ($age !== null ? ", age $age" : '') . ") to the household.", 'Pending', "add:$member_id");
         log_activity($conn, $auth['id'], 'tenant', 'Requested Household Member', "Unit $room: add $name ($relationship)");
         echo json_encode(["success" => true, "message" => "Request sent. $name will appear on your household once management approves."]);
         break;
