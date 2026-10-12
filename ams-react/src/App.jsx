@@ -29,6 +29,7 @@ import ViewContract from './UserPages/ViewContract';
 import UserMyRequests from './UserPages/UserMyRequests';
 import UserAnnouncements from './UserPages/UserAnnouncements';
 import UserPaymentHistory from './UserPages/UserPaymentHistory';
+import UserRefunds from './UserPages/UserRefunds';
 import UserVisitors from './UserPages/UserVisitors';
 import UserUtilities from './UserPages/UserUtilities';
 import ServiceBooking from './UserPages/ServiceBooking';
@@ -41,6 +42,7 @@ import AdminUnits from './AdminPages/AdminUnits';
 import AdminTenants from './AdminPages/AdminTenants';
 import AdminApplications from './AdminPages/AdminApplications';
 import AdminPayments from './AdminPages/AdminPayments';
+import AdminRefunds from './AdminPages/AdminRefunds';
 import AdminMaintenance from './AdminPages/AdminMaintainance';
 import AdminAnnouncements from './AdminPages/AdminAnnouncements';
 import AdminReports from './AdminPages/AdminReports';
@@ -226,6 +228,7 @@ function AppContent() {
         <Route path="/my-room" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><MyRoom /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/view-contract" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><ViewContract /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserNotifications /></BaseAppLayout></ProtectedRoute>} />
+        <Route path="/my-refunds" element={<ProtectedRoute><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserRefunds /></BaseAppLayout></ProtectedRoute>} />
         <Route path="/my-requests" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserMyRequests /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/announcements" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserAnnouncements /></BaseAppLayout></TenantProtectedRoute>} />
         <Route path="/payment-history" element={<TenantProtectedRoute hasRentedRoom={hasRentedRoom} isCheckingRoom={isCheckingRoom}><BaseAppLayout hasRentedRoom={hasRentedRoom}><UserPaymentHistory /></BaseAppLayout></TenantProtectedRoute>} />
@@ -246,6 +249,7 @@ function AppContent() {
         <Route path="/admin-visitors" element={<AdminProtectedRoute><AdminVisitors /></AdminProtectedRoute>} />
         <Route path="/admin-parking" element={<AdminProtectedRoute><AdminParking /></AdminProtectedRoute>} />
         <Route path="/admin-payments" element={<AdminProtectedRoute><AdminPayments /></AdminProtectedRoute>} />
+        <Route path="/admin-refunds" element={<AdminProtectedRoute><AdminRefunds /></AdminProtectedRoute>} />
         <Route path="/admin-maintenance" element={<AdminProtectedRoute><AdminMaintenance /></AdminProtectedRoute>} />
         <Route path="/admin-cctv" element={<AdminProtectedRoute><AdminCctv /></AdminProtectedRoute>} />
         <Route path="/admin-announcements" element={<AdminProtectedRoute><AdminAnnouncements /></AdminProtectedRoute>} />

@@ -62,7 +62,7 @@ const depositChip = (account) => {
 const prepaidChip = (account) => {
   const a = account?.advance || {};
   const months = (n) => `${n} month${n === 1 ? '' : 's'}`;
-  if (a['refund-due']) return { text: `Refund due · ${formatCurrency(a['refund-due'].amount)}`, sub: `${months(a['refund-due'].months)} not reached at move-out`, tone: 'red' };
+  if (a['refund-due']) return { text: `Refund due · ${formatCurrency(a['refund-due'].amount)}`, sub: `${months(a['refund-due'].months)} not reached at move-out. Handle it under Refunds.`, tone: 'red' };
   if (a.available) return { text: `${months(a.available.months)} credit`, sub: `${formatCurrency(a.available.amount)}, applied as each month is billed`, tone: 'emerald' };
   if (a.reserved) return { text: 'Awaiting payment', sub: `Advance for ${months(a.reserved.months)} not paid yet`, tone: 'amber' };
   return { text: 'None', sub: 'No prepaid months', tone: 'slate' };

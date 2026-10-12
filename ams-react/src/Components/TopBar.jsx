@@ -6,7 +6,7 @@ import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { 
     faChevronDown, faSignOutAlt, faBars, faTimes, faCog, faSignInAlt, 
-    faBell, faFileContract, faHistory,
+    faBell, faFileContract, faHistory, faMoneyBillTransfer,
     faHome, faCompass, faConciergeBell, faBed, faUserPlus, faCheckCircle, faTimesCircle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 import {
@@ -388,6 +388,10 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                             <span>Payment History</span>
                                         </button>
                                     )}
+                                    <button onClick={() => { setIsDropdownOpen(false); navigate('/my-refunds'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
+                                        <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-slate-400 text-xs" />
+                                        <span>My Refunds</span>
+                                    </button>
                                     <div className="border-t border-slate-100 my-1"></div>
                                     <button onClick={() => { setIsDropdownOpen(false); handleLogout(); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
                                         <FontAwesomeIcon icon={faSignOutAlt} className="text-xs" />

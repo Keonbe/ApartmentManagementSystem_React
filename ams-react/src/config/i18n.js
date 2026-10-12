@@ -333,6 +333,7 @@ const translations = {
     // --- User Payment History ---
     'paymentHistory.heading': 'Payment History',
     'paymentHistory.subtext': 'Review your past billing statements and official receipts.',
+    'paymentHistory.myRefunds': 'My Refunds',
     'paymentHistory.loading': 'Loading payment records...',
     'paymentHistory.none': 'No Payment History',
     'paymentHistory.noneDesc': "You don't have any generated invoices or payments yet.",
@@ -959,6 +960,7 @@ const translations = {
     // --- User Payment History ---
     'paymentHistory.heading': 'Kasaysayan ng Pagbabayad',
     'paymentHistory.subtext': 'Suriin ang iyong mga nakaraang billing statement at opisyal na resibo.',
+    'paymentHistory.myRefunds': 'Aking mga Refund',
     'paymentHistory.loading': 'Nilo-load ang mga tala ng pagbabayad...',
     'paymentHistory.none': 'Walang Kasaysayan ng Pagbabayad',
     'paymentHistory.noneDesc': 'Wala ka pang natatanggap na invoice o tala ng bayad.',

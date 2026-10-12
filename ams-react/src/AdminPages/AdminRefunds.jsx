@@ -1,0 +1,172 @@
+import { useState, useEffect, useCallback } from 'react';
+import Header from '../Components/AdminDashboardHeader';
+import Sidebar from '../Components/AdminSidebar';
+import api from '../api/axiosConfig';
+import { apiErrorMessage } from '../utils/apiError';
+import { RefundForm, RefundTrail, StatusBadge } from '../Components/RefundParts';
+import { TYPE_LABELS, peso, when } from '../utils/refundFormat';
+
+const FILTERS = ['all', 'Pending Review', 'Info Requested', 'Approved', 'Refunded', 'Rejected', 'Cancelled'];
+
+export default function AdminRefunds() {
+  const [requests, setRequests] = useState([]);
+  const [filter, setFilter] = useState('Pending Review');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const [text, setText] = useState({});      // per-request message / reason box
+  const [payout, setPayout] = useState({});  // per-request { method, reference }
+  const [tenants, setTenants] = useState([]);
+  const [newUserId, setNewUserId] = useState('');
+  const [eligible, setEligible] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get('get_refund_requests.php');
+      if (res.data.success) setRequests(res.data.requests || []);
+    } catch (err) {
+      setNotice({ ok: false, text: apiErrorMessage(err, 'Could not load refund requests.') });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(load, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  useEffect(() => {
+    if (!showNew || tenants.length) return undefined;
+    const timer = window.setTimeout(() => api.get('get_tenants.php').then((res) => {
+      const seen = new Set();
+      const list = (res.data.data || []).filter((t) => t.user_id && !seen.has(t.user_id) && seen.add(t.user_id));
+      setTenants(list);
+    }).catch(() => {}), 0);
+    return () => window.clearTimeout(timer);
+  }, [showNew, tenants.length]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!newUserId) { setEligible(null); return; }
+      api.get('get_refund_requests.php', { params: { user_id: newUserId } })
+        .then((res) => setEligible(res.data.eligible || { advance: 0, overpayments: [] }))
+        .catch(() => setEligible(null));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [newUserId]);
+
+  const call = async (endpoint, body, okText, done) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const res = await api.post(endpoint, body);
+      setNotice({ ok: !!res.data.success, text: res.data.success ? okText : res.data.message });
+      if (res.data.success) { done?.(); await load(); }
+    } catch (err) {
+      setNotice({ ok: false, text: apiErrorMessage(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const act = (r, action, okText) => call('update_refund_request.php',
+    { id: r.id, action, message: text[r.id] || '', payout_method: payout[r.id]?.method || '', payout_reference: payout[r.id]?.reference || '' },
+    okText, () => setText((p) => ({ ...p, [r.id]: '' })));
+
+  const shown = requests.filter((r) => filter === 'all' || r.status === filter);
+  const btn = 'cursor-pointer rounded-lg border-0 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50';
+
+  return (
+    <div className="admin-shell flex h-screen bg-slate-50 font-sans text-slate-900">
+      <Sidebar />
+      <div className="flex flex-1 flex-col overflow-hidden bg-white text-left font-sans">
+        <Header title="Refund Requests" />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-5xl space-y-6">
+            <p className="m-0 text-sm text-slate-500">Advance rent and overpayments only; the security deposit is not refundable. Approving a request does not move money. Record the payout once it is sent.</p>
+
+            {notice && <div role="status" className={`rounded-lg border p-3 text-sm font-semibold ${notice.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>{notice.text}</div>}
+
+            <div className="flex flex-wrap items-center gap-2">
+              {FILTERS.map((f) => (
+                <button key={f} type="button" onClick={() => setFilter(f)}
+                  className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-bold ${filter === f ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-600'}`}>
+                  {f === 'all' ? 'All' : f} ({f === 'all' ? requests.length : requests.filter((r) => r.status === f).length})
+                </button>
+              ))}
+              <button type="button" onClick={() => setShowNew((v) => !v)} className="ml-auto cursor-pointer rounded-lg border border-indigo-600 bg-white px-3 py-1.5 text-xs font-bold text-indigo-700">
+                {showNew ? 'Close' : 'Open a request for a tenant'}
+              </button>
+            </div>
+
+            {showNew && (
+              <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <label className="block text-xs font-bold text-slate-600">Tenant
+                  <select value={newUserId} onChange={(e) => setNewUserId(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm font-normal">
+                    <option value="">Choose a tenant</option>
+                    {tenants.map((t) => <option key={t.user_id} value={t.user_id}>{t.name} · {t.unit}</option>)}
+                  </select>
+                </label>
+                {eligible && (
+                  <RefundForm eligible={eligible} busy={busy}
+                    onSubmit={(body, reset) => call('create_refund_request.php', { ...body, user_id: Number(newUserId) }, 'Refund request opened.', () => { reset(); setNewUserId(''); })} />
+                )}
+              </section>
+            )}
+
+            {loading ? <p className="text-sm text-slate-500">Loading…</p> : shown.length === 0 ? (
+              <p className="rounded-xl border border-slate-200 p-6 text-sm text-slate-500">No refund requests here.</p>
+            ) : shown.map((r) => (
+              <article key={r.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="m-0 text-base font-bold text-slate-800">{r.tenantName}{r.roomName ? ` · Unit ${r.roomName}` : ''}</h3>
+                    <p className="m-0 text-xs text-slate-400">#{r.id} · {TYPE_LABELS[r.type]}{r.invoiceId ? ` (${r.invoiceId})` : ''} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by admin' : ''}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="m-0 text-lg font-extrabold text-slate-800">{peso(r.amount)}</p>
+                    <StatusBadge status={r.status} />
+                  </div>
+                </div>
+                <p className="m-0 mt-2 whitespace-pre-wrap text-sm text-slate-600">{r.reason}</p>
+                {r.status === 'Refunded' && <p className="m-0 mt-2 text-sm font-semibold text-emerald-700">Paid out via {r.payoutMethod} (ref {r.payoutReference}).</p>}
+                <RefundTrail events={r.events} />
+
+                {(r.status === 'Pending Review') && (
+                  <div className="mt-4 space-y-2">
+                    <label className="block text-xs font-bold text-slate-600">Message to tenant
+                      <textarea rows={2} maxLength={1000} value={text[r.id] || ''} placeholder="Your question, or the reason for rejecting"
+                        onChange={(e) => setText((p) => ({ ...p, [r.id]: e.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm font-normal" />
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={busy} onClick={() => act(r, 'approve', 'Refund approved.')} className={`${btn} bg-emerald-600 hover:bg-emerald-700`}>Approve</button>
+                      <button type="button" disabled={busy || !(text[r.id] || '').trim()} title="Sends your message to the tenant and pauses this request until they reply."
+                        onClick={() => act(r, 'request_info', 'Question sent to the tenant.')} className={`${btn} bg-sky-600 hover:bg-sky-700`}>Ask tenant a question</button>
+                      <button type="button" disabled={busy || !(text[r.id] || '').trim()} onClick={() => act(r, 'reject', 'Refund rejected.')} className={`${btn} bg-rose-600 hover:bg-rose-700`}>Reject</button>
+                    </div>
+                    <p className="m-0 text-xs text-slate-500"><strong>Ask tenant a question:</strong> sends your message and waits for their reply. <strong>Reject:</strong> sends your message as the reason and closes the request.</p>
+                  </div>
+                )}
+                {r.status === 'Info Requested' && (
+                  <p className="m-0 mt-3 text-sm font-semibold text-sky-700">Waiting for the tenant's reply.</p>
+                )}
+                {r.status === 'Approved' && (
+                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <input placeholder="Paid via (e.g. GCash, bank transfer, cash)" maxLength={50} value={payout[r.id]?.method || ''}
+                      onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], method: e.target.value } }))} className="rounded-lg border border-slate-300 p-2 text-sm" />
+                    <input placeholder="Payout reference" maxLength={100} value={payout[r.id]?.reference || ''}
+                      onChange={(e) => setPayout((p) => ({ ...p, [r.id]: { ...p[r.id], reference: e.target.value } }))} className="rounded-lg border border-slate-300 p-2 text-sm" />
+                    <button type="button" disabled={busy || !payout[r.id]?.method?.trim() || !payout[r.id]?.reference?.trim()}
+                      onClick={() => act(r, 'mark_refunded', 'Payout recorded.')} className={`${btn} bg-indigo-600 hover:bg-indigo-700`}>Record payout</button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

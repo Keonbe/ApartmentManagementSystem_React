@@ -2394,8 +2394,93 @@ const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     // Audit M12: a move-out notice needs an admin to schedule clearance, and a
     // cash-on-hand declaration needs an admin to expect the tenant at the desk
     // — neither reached the queue before.
-    'move_out_request', 'cash_payment_declared'
+    'move_out_request', 'cash_payment_declared',
+    // Refund requests wait for an admin decision.
+    'refund_request'
 ];
+
+// Age categories (infant / toddler / minor ...), edited in Settings → Minors & Pets.
+// Returns [['key','label','min_age','max_age','rule','rule_fil'], ...] ordered by min_age.
+function age_categories($conn) {
+    $res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'age_categories'");
+    $row = $res ? $res->fetch_assoc() : null;
+    $cats = $row ? json_decode($row['setting_value'], true) : [];
+    if (!is_array($cats)) return [];
+    usort($cats, fn($a, $b) => (int)$a['min_age'] <=> (int)$b['min_age']);
+    return $cats;
+}
+
+// Youngest age allowed to live in the apartment (children below it are refused). Default 12.
+function min_household_age($conn) {
+    $res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'min_household_age'");
+    $row = $res ? $res->fetch_assoc() : null;
+    return ($row && ctype_digit((string)$row['setting_value'])) ? (int)$row['setting_value'] : 12;
+}
+
+// The category an age falls into, or null when it is outside every range (e.g. adults).
+function age_category_for($conn, $age) {
+    foreach (age_categories($conn) as $c) {
+        if ($age >= (int)$c['min_age'] && $age <= (int)$c['max_age']) return $c['key'];
+    }
+    return null;
+}
+
+// Fixed monthly rent for a floor (Settings → Floor Rent), or null when none is set.
+function floor_rate_for($conn, $floor) {
+    $res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'floor_rates'");
+    $row = $res ? $res->fetch_assoc() : null;
+    $rates = $row ? json_decode($row['setting_value'], true) : [];
+    $floor = trim((string)$floor);
+    return (is_array($rates) && isset($rates[$floor]) && is_numeric($rates[$floor])) ? round((float)$rates[$floor], 2) : null;
+}
+
+// ── Refund requests ──
+// Advance rent and overpayments only; the security deposit is not refundable.
+// Admin actions: approve / reject / request_info / mark_refunded. Tenant
+// actions: reply (answers an info request) / cancel.
+const REFUND_TRANSITIONS = [
+    'Pending Review' => ['Approved', 'Rejected', 'Info Requested', 'Cancelled'],
+    'Info Requested' => ['Pending Review', 'Cancelled'],
+    'Approved'       => ['Refunded'],
+];
+const REFUND_OPEN_STATUSES = ['Pending Review', 'Info Requested', 'Approved'];
+
+// What a tenant could still ask back, net of requests that already hold it.
+// advance: credits in refund-due/available not tied to a request.
+// overpayment: paid invoices whose recorded payments exceed the bill.
+function refund_eligible($conn, $user_id) {
+    $user_id = (int)$user_id;
+    $advance = 0.0;
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM advance_credits WHERE user_id = ? AND status IN ('refund-due','available') AND refund_request_id IS NULL");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $stmt->bind_result($advance);
+    $stmt->fetch();
+    $stmt->close();
+
+    $over = [];
+    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount, COALESCE(SUM(t.amount),0) AS paid
+        FROM invoices i JOIN payment_transactions t ON t.invoice_id = i.id
+        WHERE i.user_id = ? AND i.status = 'paid'
+        GROUP BY i.id, i.billing_period, i.total_amount
+        HAVING paid > i.total_amount");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) {
+        $held = 0.0;
+        $q = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM refund_requests WHERE invoice_id = ? AND type = 'overpayment' AND status IN ('Pending Review','Info Requested','Approved','Refunded')");
+        $q->bind_param("s", $r['id']);
+        $q->execute();
+        $q->bind_result($held);
+        $q->fetch();
+        $q->close();
+        $left = round((float)$r['paid'] - (float)$r['total_amount'] - (float)$held, 2);
+        if ($left > 0) $over[] = ['invoiceId' => $r['id'], 'label' => $r['billing_period'], 'amount' => $left];
+    }
+    $stmt->close();
+    return ['advance' => round((float)$advance, 2), 'overpayments' => $over];
+}
 
 function admin_queue_types_sql() {
     return "('" . implode("','", ADMIN_QUEUE_NOTIFICATION_TYPES) . "')";

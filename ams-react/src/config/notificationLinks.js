@@ -7,6 +7,7 @@ export const TENANT_NOTIFICATION_LINKS = {
   overdue: { path: '/pay-bills', label: 'Pay Bill' },
   billing: { path: '/pay-bills', label: 'View Bill' },
   payment: { path: '/payment-history', label: 'Payment History' },
+  refund_update: { path: '/my-refunds', label: 'My Refunds' },
   maintenance_update: { path: '/my-requests', label: 'View Request' },
   service_status: { path: '/my-requests', label: 'View Request' },
   cctv_request: { path: '/my-requests', label: 'View Request' },
@@ -36,6 +37,7 @@ export const ADMIN_NOTIFICATION_LINKS = {
   payment_verification: '/admin-payments',
   cash_payment_declared: '/admin-payments',
   payment: '/admin-payments',
+  refund_request: '/admin-refunds',
   move_out_request: '/admin-tenants',
   occupancy_request: '/admin-notifications',
   household_request: '/admin-notifications',
@@ -56,6 +58,7 @@ export const ADMIN_NOTIFICATION_TARGETS = {
   payment_verification: { path: '/admin-payments', label: 'Go to Payments' },
   cash_payment_declared: { path: '/admin-payments', label: 'Go to Payments' },
   payment: { path: '/admin-payments', label: 'Go to Payments' },
+  refund_request: { path: '/admin-refunds', label: 'Go to Refunds' },
   move_out_request: { path: '/admin-tenants', label: 'Go to Tenants' },
   occupancy_request: { path: '/admin-notifications', label: 'Go to Requests' },
   household_request: { path: '/admin-notifications', label: 'Go to Requests' },
@@ -90,7 +93,7 @@ export const ADMIN_PAYMENT_ALERT_TYPES = ['payment_verification', 'cash_payment_
 
 // All admin queue types that require attention when newly arrived.
 export const ADMIN_ALERT_TYPES = [
-  'payment_verification', 'cash_payment_declared', 'payment',
+  'payment_verification', 'cash_payment_declared', 'payment', 'refund_request',
   'rent_application', 'maintenance_request', 'cctv_request',
   'parking_reservation', 'service_request', 'inquiry',
   'occupancy_request', 'household_request', 'lease_extension_request',

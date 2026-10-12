@@ -38,10 +38,11 @@ const typeConfig = {
   household_request: { label: 'Household Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
   occupancy_request: { label: 'Occupancy Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
   lease_extension_request: { label: 'Rent Extension', icon: faFileContract, color: 'bg-emerald-50 text-emerald-600 border-emerald-100', badge: 'bg-emerald-100 text-emerald-700' },
+  refund_update: { label: 'Refund', icon: faMoneyBillWave, color: 'bg-emerald-50 text-emerald-600 border-emerald-100', badge: 'bg-emerald-100 text-emerald-700' },
 };
 
 const TAB_TYPES = {
-  billing: ['rent_due', 'overdue', 'billing', 'payment'],
+  billing: ['rent_due', 'overdue', 'billing', 'payment', 'refund_update'],
   requests: ['maintenance_update', 'service_status', 'cctv_request', 'parking_reservation', 'visitor_log', 'occupancy_request', 'household_request', 'lease_extension_request'],
   lease: ['application_update', 'contract_update', 'move_out_update', 'inquiry_update', 'unit_reservation', 'waitlist_update'],
   announcements: ['info', 'warning', 'action'],

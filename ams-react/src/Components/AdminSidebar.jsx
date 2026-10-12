@@ -5,7 +5,7 @@ import {
   faHome, faBuilding, faUsers, faCreditCard, 
   faWrench, faBullhorn, faFileAlt, faBell, faFileContract, faConciergeBell,
   faHistory, faUsersCog, faTimes, faIdBadge, faCar, faVideo, faBolt,
-  faEnvelopeOpenText, faEnvelope, faFileSignature
+  faEnvelopeOpenText, faEnvelope, faFileSignature, faMoneyBillTransfer
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import '../assets/styles/responsive/admin/admin-sidebar.responsive.css';
@@ -23,6 +23,7 @@ const defaultNavSections = [
       { to: '/admin-tenants', icon: faUsers, label: 'Tenants' },
       { to: '/admin-users', icon: faUsersCog, label: 'Users' },
       { to: '/admin-payments', icon: faCreditCard, label: 'Payments' }, // Core service: always visible
+      { to: '/admin-refunds', icon: faMoneyBillTransfer, label: 'Refunds' },
     ],
   },
   {

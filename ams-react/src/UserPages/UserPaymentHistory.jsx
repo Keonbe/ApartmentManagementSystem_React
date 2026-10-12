@@ -148,7 +148,14 @@ export default function UserPaymentHistory() {
         <div className="payment-history-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-[1000px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
                 
-                <div className="border-b border-slate-200 pb-4">
+                <div className="border-b border-slate-200 pb-4 relative">
+                    <button
+                        onClick={() => navigate('/my-refunds')}
+                        className="sm:absolute sm:right-0 sm:top-0 mb-3 sm:mb-0 px-4 py-2 rounded-lg border border-indigo-200 bg-white text-indigo-600 text-sm font-semibold cursor-pointer hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                    >
+                        {t('paymentHistory.myRefunds')}
+                        <FontAwesomeIcon icon={faArrowRight} />
+                    </button>
                     <h1 className="payment-history-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none flex items-center gap-3" style={{ color: '#3b4276' }}>
                         <FontAwesomeIcon icon={faHistory} className="text-indigo-500 text-2xl sm:text-3xl" />
                         {t('paymentHistory.heading')}
