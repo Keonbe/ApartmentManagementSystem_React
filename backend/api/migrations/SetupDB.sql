@@ -353,6 +353,7 @@ CREATE TABLE `rooms` (
   `type` varchar(50) NOT NULL,
   `floor` varchar(50) NOT NULL,
   `monthly_rent` decimal(10,2) NOT NULL,
+  `rent_is_custom` tinyint(1) NOT NULL DEFAULT 0,
   `status` varchar(20) NOT NULL DEFAULT 'vacant',
   `tenant_name` varchar(100) DEFAULT NULL,
   `lease_start` date DEFAULT NULL,
@@ -584,6 +585,8 @@ CREATE TABLE IF NOT EXISTS `household_members` (
   `full_name` varchar(150) NOT NULL,
   `relationship` varchar(50) NOT NULL,
   `contact_no` varchar(30) DEFAULT NULL,
+  `age` tinyint(3) unsigned DEFAULT NULL,
+  `age_category` varchar(30) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'Pending',
   `added_at` datetime DEFAULT NULL,
   `removed_at` datetime DEFAULT NULL,
@@ -929,6 +932,7 @@ CREATE TABLE IF NOT EXISTS `utility_readings` (
   `electric_other_fees` decimal(10,2) DEFAULT 0.00,
   `is_invoiced` tinyint(1) DEFAULT 0,
   `invoice_id` varchar(50) DEFAULT NULL,
+  `bill_file_path` varchar(255) DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `recorded_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -1034,10 +1038,11 @@ CREATE TABLE IF NOT EXISTS `advance_credits` (
   `rent_application_id` int(11) DEFAULT NULL,
   `period_start` date NOT NULL,
   `amount` decimal(10,2) NOT NULL,
-  `status` enum('reserved','available','applied','cancelled','refund-due') NOT NULL DEFAULT 'reserved',
+  `status` enum('reserved','available','applied','cancelled','refund-due','refunded') NOT NULL DEFAULT 'reserved',
   `credit_key` date GENERATED ALWAYS AS (IF(`status` = 'cancelled', NULL, `period_start`)) STORED,
   `applied_invoice_id` varchar(50) DEFAULT NULL,
   `applied_at` timestamp NULL DEFAULT NULL,
+  `refund_request_id` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_advance_credit_period` (`user_id`, `credit_key`),
@@ -1095,6 +1100,7 @@ CREATE TABLE IF NOT EXISTS `house_rules` (
   `is_highlight` tinyint(1) NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `sort_order` int(11) NOT NULL DEFAULT 0,
+  `scope` varchar(20) NOT NULL DEFAULT 'house',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -1109,6 +1115,23 @@ SELECT * FROM (
 ) AS defaults
 WHERE NOT EXISTS (SELECT 1 FROM `house_rules`);
 
+-- Parking and minors/pets rules (2026_10_panelist_gaps.sql).
+INSERT INTO `house_rules` (`category`, `title`, `description`, `is_highlight`, `sort_order`, `scope`)
+SELECT * FROM (
+  SELECT 'Parking' AS category, 'One slot per rent' AS title, 'Each rent may reserve one parking slot. Additional slots depend on availability and management approval.' AS description, 1 AS is_highlight, 10 AS sort_order, 'parking' AS scope UNION ALL
+  SELECT 'Parking', 'Registered vehicles only', 'Only the vehicle named in your reservation may use your slot. Upload the vehicle OR/CR and report any change of vehicle to management.', 1, 20, 'parking' UNION ALL
+  SELECT 'Parking', 'Park within your slot', 'Park only inside your assigned slot and never block driveways or exits. Vehicles left in the wrong place may be moved at the owner''s risk.', 0, 30, 'parking'
+) AS defaults
+WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'parking');
+
+INSERT INTO `house_rules` (`category`, `title`, `description`, `is_highlight`, `sort_order`, `scope`)
+SELECT * FROM (
+  SELECT 'Children' AS category, 'No children under 12' AS title, 'Children under 12 years old are not allowed to live in the apartment. Every household member must be declared with their age, and a household request for a child under 12 is refused.' AS description, 1 AS is_highlight, 10 AS sort_order, 'minors' AS scope UNION ALL
+  SELECT 'Children', 'Minors aged 12 to 17', 'Minors 12 to 17 may live in the apartment. The tenant is responsible for their conduct, and they must follow every house rule in all common areas.', 1, 20, 'minors' UNION ALL
+  SELECT 'Pets', 'No pets allowed', 'Pets are not allowed inside the units or anywhere on the premises.', 0, 30, 'minors'
+) AS defaults
+WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'minors');
+
 -- Counter for public forms without an account to throttle on, e.g.
 -- registration per IP (audit M13; 2026_10_rate_limits_and_rent_horizon.sql).
 CREATE TABLE IF NOT EXISTS `rate_limit_events` (
@@ -1120,9 +1143,87 @@ CREATE TABLE IF NOT EXISTS `rate_limit_events` (
   KEY `idx_rate_limit_lookup` (`action`, `rate_key`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Refund approval workflow (2026_10_panelist_gaps.sql). Security deposits are not refundable here.
+CREATE TABLE IF NOT EXISTS `refund_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `rent_application_id` int(11) DEFAULT NULL,
+  `type` enum('advance','overpayment') NOT NULL,
+  `invoice_id` varchar(50) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `reason` text NOT NULL,
+  `status` enum('Pending Review','Info Requested','Approved','Rejected','Refunded','Cancelled') NOT NULL DEFAULT 'Pending Review',
+  `decision_reason` text DEFAULT NULL,
+  `payout_method` varchar(50) DEFAULT NULL,
+  `payout_reference` varchar(100) DEFAULT NULL,
+  `raised_by` int(11) DEFAULT NULL,
+  `raised_by_role` varchar(10) NOT NULL DEFAULT 'user',
+  `decided_by` int(11) DEFAULT NULL,
+  `decided_at` datetime DEFAULT NULL,
+  `refunded_at` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_refund_user` (`user_id`, `status`),
+  KEY `idx_refund_status` (`status`),
+  CONSTRAINT `fk_refund_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `refund_request_events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `refund_request_id` int(11) NOT NULL,
+  `actor_id` int(11) DEFAULT NULL,
+  `actor_role` varchar(10) NOT NULL,
+  `action` varchar(30) NOT NULL,
+  `message` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_refund_event_request` (`refund_request_id`),
+  CONSTRAINT `fk_refund_event_request` FOREIGN KEY (`refund_request_id`) REFERENCES `refund_requests` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Extra utility types (2026_10_panelist_gaps.sql). Charges post to invoices.services.
+CREATE TABLE IF NOT EXISTS `utility_types` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `code` varchar(30) NOT NULL,
+  `name` varchar(60) NOT NULL,
+  `unit_label` varchar(20) DEFAULT NULL,
+  `billing_mode` enum('metered','flat') NOT NULL DEFAULT 'flat',
+  `default_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_utility_type_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `utility_reading_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `reading_id` int(11) NOT NULL,
+  `type_id` int(11) NOT NULL,
+  `prev_reading` decimal(10,2) DEFAULT NULL,
+  `curr_reading` decimal(10,2) DEFAULT NULL,
+  `consumption` decimal(10,2) DEFAULT NULL,
+  `rate` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `other_fees` decimal(10,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_reading_type` (`reading_id`, `type_id`),
+  KEY `idx_item_type` (`type_id`),
+  CONSTRAINT `fk_item_reading` FOREIGN KEY (`reading_id`) REFERENCES `utility_readings` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_item_type` FOREIGN KEY (`type_id`) REFERENCES `utility_types` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT IGNORE INTO `utility_types` (`code`, `name`, `unit_label`, `billing_mode`, `default_rate`, `is_active`, `sort_order`) VALUES
+('internet', 'Internet', NULL, 'flat', 1000.00, 0, 1),
+('gas', 'Gas', 'kg', 'metered', 90.00, 0, 2);
+
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
+('floor_rates', '{}'),
+('min_household_age', '12'),
+('age_categories', '[{"key":"infant","label":"Infant","min_age":0,"max_age":1,"rule":"Not allowed. Children under 12 may not live in the apartment.","rule_fil":""},{"key":"toddler","label":"Toddler","min_age":2,"max_age":4,"rule":"Not allowed. Children under 12 may not live in the apartment.","rule_fil":""},{"key":"child","label":"Child","min_age":5,"max_age":11,"rule":"Not allowed. Children under 12 may not live in the apartment.","rule_fil":""},{"key":"minor","label":"Minor","min_age":12,"max_age":17,"rule":"Allowed, with adult responsibility for their conduct. Running and playing in hallways, elevators and the parking area is not allowed.","rule_fil":""}]'),
 ('contact_email', 'admin@ams.com'),
 ('contact_phone', '+63 912 345 6789'),
 ('currency_symbol', '₱'),
