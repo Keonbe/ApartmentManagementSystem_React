@@ -43,6 +43,12 @@ $room_exists = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 if (!$room_exists) fail(422, "Unit {$room_name} does not exist.");
 
+// Only an occupied unit has someone to bill. A vacant or unoccupied unit is
+// refused instead of saving a reading nobody can be invoiced for.
+$tenancy = get_room_tenancy($conn, $room_name);
+$user_id = $tenancy ? (int)$tenancy['user_id'] : null;
+if (!$user_id) fail(422, "Unit {$room_name} has no tenant right now. Readings can only be recorded for an occupied unit.");
+
 $date = DateTime::createFromFormat('!Y-m-d', $reading_date);
 if (!$date || $date->format('Y-m-d') !== $reading_date) fail(422, "Reading date must be a valid date (YYYY-MM-DD).");
 if ($reading_date > date('Y-m-d')) fail(422, "Reading date cannot be in the future.");
@@ -99,9 +105,52 @@ $water_amount = round($water_consumption * $water_rate_per_unit, 2);
 $electric_consumption = round($electric_curr_reading - $electric_prev_reading, 2);
 $electric_amount = round($electric_consumption * $electric_rate_per_unit, 2);
 
-$tenancy = get_room_tenancy($conn, $room_name);
-$user_id = $tenancy ? (int)$tenancy['user_id'] : null;
+// Extra utility types: items = [{type_id, curr_reading?, rate?, other_fees?}].
+// Metered types bill (reading - previous) x rate; flat types bill the rate.
+$items = [];
+$raw_items = $input['items'] ?? [];
+if (!is_array($raw_items)) fail(422, "Extra utilities must be a list.");
+$seen_types = [];
+foreach ($raw_items as $raw) {
+    $type_id = (int)($raw['type_id'] ?? 0);
+    if ($type_id <= 0 || isset($seen_types[$type_id])) fail(422, "Each extra utility can be entered once.");
+    $seen_types[$type_id] = true;
 
+    $stmt = $conn->prepare("SELECT id, name, billing_mode, default_rate, is_active FROM utility_types WHERE id = ?");
+    $stmt->bind_param("i", $type_id);
+    $stmt->execute();
+    $type = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$type || !(int)$type['is_active']) fail(422, "That utility type is not available.");
+
+    $rate = number_field($raw, 'rate', (float)$type['default_rate']);
+    $fees = number_field($raw, 'other_fees', 0.00);
+    if ($rate === null || $rate < 0 || $rate > 100000) fail(422, "{$type['name']}: enter a valid rate or fee.");
+    if ($fees === null || $fees < 0) fail(422, "{$type['name']}: other fees cannot be negative.");
+
+    $item = ['type_id' => $type_id, 'prev' => null, 'curr' => null, 'consumption' => null, 'rate' => $rate, 'fees' => $fees];
+    if ($type['billing_mode'] === 'metered') {
+        $curr = number_field($raw, 'curr_reading');
+        if ($curr === null || $curr < 0) fail(422, "{$type['name']}: enter the current meter reading.");
+        $stmt = $conn->prepare("SELECT i.curr_reading FROM utility_reading_items i JOIN utility_readings r ON r.id = i.reading_id
+                                WHERE r.room_name = ? AND i.type_id = ? AND r.billing_period < ? ORDER BY r.billing_period DESC LIMIT 1");
+        $stmt->bind_param("sis", $room_name, $type_id, $billing_period);
+        $stmt->execute();
+        $p = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $prev_item = $p ? (float)$p['curr_reading'] : 0.00;
+        if ($curr < $prev_item) fail(422, "{$type['name']} reading ({$curr}) is lower than the previous reading ({$prev_item}) for Unit {$room_name}.");
+        $item['prev'] = $prev_item;
+        $item['curr'] = $curr;
+        $item['consumption'] = round($curr - $prev_item, 2);
+        $item['amount'] = round($item['consumption'] * $rate, 2);
+    } else {
+        $item['amount'] = round($rate, 2);
+    }
+    $items[] = $item;
+}
+
+$conn->begin_transaction();
 $stmt = $conn->prepare("INSERT INTO utility_readings
     (room_name, user_id, billing_period, reading_date, water_prev_reading, water_curr_reading, water_rate_per_unit, water_consumption, water_amount, water_other_fees, electric_prev_reading, electric_curr_reading, electric_rate_per_unit, electric_consumption, electric_amount, electric_other_fees, notes, recorded_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -122,13 +171,28 @@ try {
 $stmt->close();
 
 if (!$ok) {
+    $conn->rollback();
     // The unique key catches a concurrent save of the same unit and period.
     if ($errno === 1062) fail(409, "A reading for Unit {$room_name} ({$billing_period}) already exists.");
     fail(500, "Failed to save the reading.");
 }
 $reading_id = $conn->insert_id;
 
-$total = round($water_amount + $water_other_fees + $electric_amount + $electric_other_fees, 2);
+$extra_total = 0.0;
+foreach ($items as $item) {
+    $ins = $conn->prepare("INSERT INTO utility_reading_items (reading_id, type_id, prev_reading, curr_reading, consumption, rate, amount, other_fees) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $ins->bind_param("iiddddd" . "d", $reading_id, $item['type_id'], $item['prev'], $item['curr'], $item['consumption'], $item['rate'], $item['amount'], $item['fees']);
+    if (!$ins->execute()) {
+        $ins->close();
+        $conn->rollback();
+        fail(500, "Failed to save the extra utility charges.");
+    }
+    $ins->close();
+    $extra_total += $item['amount'] + $item['fees'];
+}
+$conn->commit();
+
+$total = round($water_amount + $water_other_fees + $electric_amount + $electric_other_fees + $extra_total, 2);
 log_activity($conn, $admin_id, 'utilities', 'Recorded Utility Reading', "Recorded utility reading #{$reading_id} for Unit {$room_name} ({$billing_period}) — ₱" . number_format($total, 2));
 
 $response = [
@@ -139,9 +203,6 @@ $response = [
     "electric_consumption" => $electric_consumption,
     "total_amount" => $total,
 ];
-if (!$user_id) {
-    $response["warning"] = "Unit {$room_name} has no billable tenant right now, so this reading cannot be invoiced until one is assigned.";
-}
 echo json_encode($response);
 $conn->close();
 ?>

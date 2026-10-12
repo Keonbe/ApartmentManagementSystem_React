@@ -93,7 +93,15 @@ try {
 
     $water_total = round((float)$reading['water_amount'] + (float)$reading['water_other_fees'], 2);
     $electric_total = round((float)$reading['electric_amount'] + (float)$reading['electric_other_fees'], 2);
-    $charge = round($water_total + $electric_total, 2);
+    // Extra utility types (internet, gas, ...) ride on the invoice's `services` column, which accumulates.
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(amount + other_fees), 0) FROM utility_reading_items WHERE reading_id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $stmt->bind_result($extra_raw);
+    $stmt->fetch();
+    $stmt->close();
+    $extra_total = round((float)$extra_raw, 2);
+    $charge = round($water_total + $electric_total + $extra_total, 2);
 
     $period = $reading['billing_period'];
     $label = utility_period_label($period);
@@ -134,8 +142,8 @@ try {
             }
 
             // Additive on total_amount, so late fees, services and deposits already on the invoice survive.
-            $stmt = $conn->prepare("UPDATE invoices SET water = ?, electricity = ?, total_amount = total_amount + ? WHERE id = ?");
-            $stmt->bind_param("ddds", $water_total, $electric_total, $charge, $invoice['id']);
+            $stmt = $conn->prepare("UPDATE invoices SET water = ?, electricity = ?, services = services + ?, total_amount = total_amount + ? WHERE id = ?");
+            $stmt->bind_param("dddds", $water_total, $electric_total, $extra_total, $charge, $invoice['id']);
             if (!$stmt->execute()) throw new Exception("Failed to update invoice.");
             $stmt->close();
 
@@ -162,9 +170,9 @@ try {
         $payment_reference = $is_paid ? "UTIL-READING-{$id}" : null;
         $paid_at = $is_paid ? $now->format('Y-m-d H:i:s') : null;
 
-        $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, water, electricity, total_amount, billing_period, status, due_date, payment_method, payment_reference, paid_at)
-                                VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("siidddssssss", $target_inv_id, $user_id, $rent_app_id, $water_total, $electric_total, $charge, $label, $status, $due_date, $payment_method, $payment_reference, $paid_at);
+        $stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, water, electricity, services, total_amount, billing_period, status, due_date, payment_method, payment_reference, paid_at)
+                                VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("siiddddssssss", $target_inv_id, $user_id, $rent_app_id, $water_total, $electric_total, $extra_total, $charge, $label, $status, $due_date, $payment_method, $payment_reference, $paid_at);
         if (!$stmt->execute()) throw new Exception("Failed to create the utility invoice.");
         $stmt->close();
     }
@@ -183,10 +191,10 @@ try {
     $amount_text = "₱" . number_format($charge, 2);
     if ($sync_mode === 'paid') {
         $notif_title = "Utility Payment Recorded: {$label}";
-        $notif_msg = "Your {$label} water and electricity charge of {$amount_text} was paid in cash (invoice {$target_inv_id}).";
+        $notif_msg = "Your {$label} utility charge of {$amount_text} was paid in cash (invoice {$target_inv_id}).";
     } else {
         $notif_title = "Utility Charges Billed: {$label}";
-        $notif_msg = "Water and electricity for {$label} ({$amount_text}) " . ($merged ? "were added to invoice {$target_inv_id}." : "were billed on invoice {$target_inv_id}.");
+        $notif_msg = "Utility charges for {$label} ({$amount_text}) " . ($merged ? "were added to invoice {$target_inv_id}." : "were billed on invoice {$target_inv_id}.");
     }
     create_notification($conn, $user_id, 'billing', $notif_title, $notif_msg);
 
