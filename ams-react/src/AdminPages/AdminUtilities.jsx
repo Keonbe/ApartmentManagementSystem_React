@@ -11,6 +11,8 @@ import {
 import api from '../api/axiosConfig';
 import { LIMITS, MAX_AMOUNT, addDays, checkAmount, checkDate, checkText, localDateString } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import fileUrl from '../api/fileUrl';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
@@ -199,6 +201,28 @@ export default function AdminUtilities() {
     } catch (err) {
       console.error("Sync error:", err);
       alert(apiErrorMessage(err, "Failed to sync utility."));
+    } finally {
+      setSyncingId(null);
+    }
+  };
+
+  // Attach / replace the provider's bill on a reading (file = null removes it).
+  const handleBillFile = async (reading, file) => {
+    if (file) {
+      const fileError = checkFile(file, FILE_RULES.document);
+      if (fileError) { alert(fileError); return; }
+    } else if (!window.confirm('Remove the bill file from this reading?')) {
+      return;
+    }
+    const fd = new FormData();
+    fd.append('reading_id', reading.id);
+    if (file) fd.append('bill', file); else fd.append('remove', '1');
+    setSyncingId(reading.id);
+    try {
+      const res = await api.post('/upload_utility_bill.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (res?.data?.success) reloadData(); else alert(res?.data?.message || 'Could not update the bill file.');
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not update the bill file.'));
     } finally {
       setSyncingId(null);
     }
@@ -583,7 +607,7 @@ export default function AdminUtilities() {
                       </tr>
                     ) : (
                       filteredReadings.map(r => {
-                        const totalCost = parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0);
+                        const totalCost = parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0) + (r.items || []).reduce((sum, it) => sum + parseFloat(it.amount || 0) + parseFloat(it.other_fees || 0), 0);
                         const isInvoiced = r.is_invoiced == 1;
 
                         return (
@@ -718,6 +742,20 @@ export default function AdminUtilities() {
                               ) : (
                                 <span className="text-xs font-medium text-slate-400">Synced</span>
                               )}
+                              <div className="mt-1.5 flex items-center justify-end gap-2 text-[11px] font-semibold">
+                                {r.bill_file_path && (
+                                  <a href={fileUrl(r.bill_file_path)} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">View bill</a>
+                                )}
+                                <label className="cursor-pointer text-slate-500 hover:text-indigo-600">
+                                  {r.bill_file_path ? 'Replace bill' : 'Attach bill'}
+                                  <input type="file" className="hidden" aria-label={`Attach bill file for Unit ${r.room_name}`} accept={acceptFor(FILE_RULES.document)}
+                                    disabled={syncingId === r.id}
+                                    onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleBillFile(r, f); }} />
+                                </label>
+                                {r.bill_file_path && (
+                                  <button type="button" onClick={() => handleBillFile(r, null)} className="cursor-pointer border-0 bg-transparent p-0 text-rose-600 hover:underline">Remove</button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -847,8 +885,22 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
 }
 
 // Subcomponent: Isolated modal to prevent whole-page re-renders during typing
+// Last metered reading of an extra utility type for a unit, before the given period.
+function lastItemReading(readings, room, period, typeId) {
+  if (!room || !Array.isArray(readings)) return 0;
+  const earlier = readings
+    .filter((r) => r.room_name === room && r.billing_period < period)
+    .sort((a, b) => (a.billing_period < b.billing_period ? 1 : -1));
+  for (const r of earlier) {
+    const it = (r.items || []).find((i) => Number(i.type_id) === Number(typeId));
+    if (it) return parseFloat(it.curr_reading) || 0;
+  }
+  return 0;
+}
+
 function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
   const [submitting, setSubmitting] = useState(false);
+  const [billFile, setBillFile] = useState(null);
   const [formData, setFormData] = useState(() => {
     // #11: Use local date to avoid UTC rollover showing wrong month on the 1st (UTC+8)
     const now = new Date();
@@ -867,6 +919,26 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
       notes: ''
     };
   });
+
+  // Extra utility types (internet, gas, ...) set up in Settings. extra[type_id] = { on, curr, rate }.
+  const [utilityTypes, setUtilityTypes] = useState([]);
+  const [extra, setExtra] = useState({});
+  useEffect(() => {
+    if (!show) return;
+    api.get('/manage_utility_types.php').then((res) => setUtilityTypes(res.data?.types || [])).catch(() => {});
+  }, [show]);
+  const setExtraField = (type, patch) => setExtra((prev) => ({
+    ...prev,
+    [type.id]: { on: false, curr: '', rate: String(type.default_rate), ...prev[type.id], ...patch },
+  }));
+  const extraItems = utilityTypes.filter((t) => extra[t.id]?.on).map((t) => {
+    const e = extra[t.id];
+    const rate = parseFloat(e.rate) || 0;
+    const prev = lastItemReading(readings, formData.room_name, formData.billing_period, t.id);
+    const cons = t.billing_mode === 'metered' ? Math.max(0, (parseFloat(e.curr) || 0) - prev) : null;
+    return { type: t, prev, e, amount: t.billing_mode === 'metered' ? cons * rate : rate };
+  });
+  const extraTotal = extraItems.reduce((sum, i) => sum + i.amount, 0);
 
   // Previous reading detection for selected room in modal
   const selectedRoomPrevReading = useMemo(() => {
@@ -962,9 +1034,25 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
     if (!readingForm.validateAll(clean)) return;
     setSubmitting(true);
     try {
-      const res = await api.post('/save_utility_reading.php', clean);
+      const items = extraItems.map(({ type, e }) => (type.billing_mode === 'metered'
+        ? { type_id: Number(type.id), curr_reading: e.curr, rate: e.rate }
+        : { type_id: Number(type.id), rate: e.rate }));
+      const res = await api.post('/save_utility_reading.php', { ...clean, items });
       if (res?.data?.success) {
-        alert([res.data.message || "Utility reading saved successfully!", res.data.warning].filter(Boolean).join('\n\n'));
+        // The reading is saved first; the bill is attached to it afterwards.
+        let billWarning = null;
+        if (billFile) {
+          try {
+            const fd = new FormData();
+            fd.append('reading_id', res.data.id);
+            fd.append('bill', billFile);
+            const up = await api.post('/upload_utility_bill.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            if (!up?.data?.success) billWarning = up?.data?.message || 'The reading was saved, but the bill could not be attached.';
+          } catch (upErr) {
+            billWarning = `The reading was saved, but the bill could not be attached: ${apiErrorMessage(upErr, 'upload failed.')} Use "Attach bill" on the reading to retry.`;
+          }
+        }
+        alert([res.data.message || "Utility reading saved successfully!", res.data.warning, billWarning].filter(Boolean).join('\n\n'));
         onSuccess();
       } else if (!readingForm.applyServerErrors(res)) {
         alert(res?.data?.message || "Failed to save reading.");
@@ -1020,8 +1108,8 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
                   required
                   className={fieldCls('room_name', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500 cursor-pointer")}
                 >
-                  <option value="">Select Room</option>
-                  {rooms.map(room => (
+                  <option value="">Select an occupied unit</option>
+                  {rooms.filter(room => room.status === 'occupied').map(room => (
                     <option key={room.id} value={room.id}>
                       Unit {room.id} ({room.status}{room.tenant ? ` - ${room.tenant}` : ''})
                     </option>
@@ -1205,10 +1293,56 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
               </div>
             </div>
 
+            {/* Extra utility types */}
+            {utilityTypes.length > 0 && (
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="m-0 text-xs font-bold text-slate-700">Other utilities (optional)</p>
+                {utilityTypes.map((t) => {
+                  const e = extra[t.id] || { on: false, curr: '', rate: String(t.default_rate) };
+                  const prev = lastItemReading(readings, formData.room_name, formData.billing_period, t.id);
+                  const metered = t.billing_mode === 'metered';
+                  return (
+                    <div key={t.id} className="grid grid-cols-12 items-center gap-2 text-xs">
+                      <label className="col-span-12 flex items-center gap-2 font-semibold text-slate-700 sm:col-span-4">
+                        <input type="checkbox" checked={e.on} onChange={(ev) => setExtraField(t, { on: ev.target.checked })} />
+                        {t.name}
+                      </label>
+                      {metered && (
+                        <input type="number" min={prev} step="0.01" disabled={!e.on} value={e.curr} onChange={(ev) => setExtraField(t, { curr: ev.target.value })}
+                          aria-label={`${t.name} current reading`} placeholder={`Reading (previous ${prev})`} className="col-span-6 rounded-lg border border-slate-200 bg-white px-2 py-1.5 sm:col-span-4" />
+                      )}
+                      <input type="number" min="0" step="0.01" disabled={!e.on} value={e.rate} onChange={(ev) => setExtraField(t, { rate: ev.target.value })}
+                        aria-label={`${t.name} ${metered ? 'rate' : 'fee'}`} placeholder={metered ? `Rate per ${t.unit_label || 'unit'}` : 'Flat fee'}
+                        className={`rounded-lg border border-slate-200 bg-white px-2 py-1.5 ${metered ? 'col-span-6 sm:col-span-4' : 'col-span-12 sm:col-span-8'}`} />
+                    </div>
+                  );
+                })}
+                {extraTotal > 0 && <p className="m-0 text-right text-[11px] font-semibold text-slate-600">Other utilities: ₱{extraTotal.toFixed(2)}</p>}
+              </div>
+            )}
+
             {/* Combined Total Preview */}
             <div className="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between text-xs font-bold">
               <span>Calculated Total Utility Bill:</span>
-              <span className="text-base text-emerald-400">₱{modalCalculations.totalAmt}</span>
+              <span className="text-base text-emerald-400">₱{(parseFloat(modalCalculations.totalAmt) + extraTotal).toFixed(2)}</span>
+            </div>
+
+            {/* Provider bill (optional) */}
+            <div>
+              <label htmlFor="reading-bill_file" className="block text-xs font-bold text-slate-700 mb-1">Provider Bill (Optional)</label>
+              <input
+                id="reading-bill_file"
+                type="file"
+                accept={acceptFor(FILE_RULES.document)}
+                onChange={(ev) => {
+                  const f = ev.target.files?.[0] || null;
+                  const err = f ? checkFile(f, FILE_RULES.document) : null;
+                  if (err) { alert(err); ev.target.value = ''; setBillFile(null); return; }
+                  setBillFile(f);
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800"
+              />
+              <p className="m-0 mt-1 text-[11px] text-slate-500">Attach the water or electric company's bill for this reading. You can also add or replace it later from the readings list.</p>
             </div>
 
             {/* Notes */}

@@ -72,6 +72,9 @@ if ($owner === null) {
     $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) OR lc.tenant_signature_path IN (?,?) OR lc.owner_signature_path IN (?,?) LIMIT 1", array_merge($six, $two));
 }
 if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM utility_readings WHERE bill_file_path IN (?,?) AND user_id IS NOT NULL LIMIT 1", $two);
+}
+if ($owner === null) {
     $owner = find_owner($conn, "SELECT id AS owner_id FROM users WHERE avatar_url IN (?,?) LIMIT 1", $two);
 }
 if ($owner === null) {

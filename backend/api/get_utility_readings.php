@@ -27,8 +27,13 @@ $query = "SELECT ur.*,
                  prev.user_id              AS prev_user_id,
                  u.first_name    AS tenant_first_name,
                  u.last_name     AS tenant_last_name,
-                 u.email_address AS tenant_email
+                 u.email_address AS tenant_email,
+                 inv.status AS invoice_status,
+                 inv.total_amount AS invoice_total,
+                 inv.proof_of_payment_path AS invoice_proof_path,
+                 inv.proof_rejection_reason AS invoice_proof_rejection
           FROM utility_readings ur
+          LEFT JOIN invoices inv ON inv.id = ur.invoice_id
           LEFT JOIN users u ON ur.user_id = u.id
           LEFT JOIN utility_readings prev
                  ON prev.room_name = ur.room_name
@@ -96,6 +101,18 @@ while ($row = $result->fetch_assoc()) {
     $readings[] = $row;
 }
 $stmt->close();
+
+// Extra utility types (internet, gas, ...) per reading.
+if ($readings) {
+    $ids = implode(',', array_map(fn($r) => (int)$r['id'], $readings)); // ints only
+    $by_reading = [];
+    $res = $conn->query("SELECT i.reading_id, i.type_id, t.name, t.unit_label, t.billing_mode, i.prev_reading, i.curr_reading, i.consumption, i.rate, i.amount, i.other_fees
+                         FROM utility_reading_items i JOIN utility_types t ON t.id = i.type_id
+                         WHERE i.reading_id IN ($ids) ORDER BY t.sort_order, t.id");
+    while ($it = $res->fetch_assoc()) $by_reading[(int)$it['reading_id']][] = $it;
+    foreach ($readings as &$r) $r['items'] = $by_reading[(int)$r['id']] ?? [];
+    unset($r);
+}
 
 echo json_encode(["success" => true, "spike_threshold_pct" => UTILITY_SPIKE_THRESHOLD_PCT, "data" => $readings]);
 $conn->close();

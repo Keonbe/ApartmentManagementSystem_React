@@ -1,6 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
+import fileUrl from '../api/fileUrl';
+import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
+import { apiErrorMessage } from '../utils/apiError';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTint, faBolt, faCheckCircle, faClock, faArrowLeft,
@@ -14,24 +17,26 @@ export default function UserUtilities() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchReadings = async () => {
-      try {
-        const res = await api.get('/get_utility_readings.php');
-        if (res.data.success && Array.isArray(res.data.data)) {
-          setReadings(res.data.data);
-        } else {
-          setReadings([]);
-        }
-      } catch (err) {
-        console.error("Failed to load utility history:", err);
-        setError("Unable to load meter readings. Please try again later.");
-      } finally {
-        setLoading(false);
+  const fetchReadings = useCallback(async () => {
+    try {
+      const res = await api.get('/get_utility_readings.php');
+      if (res.data.success && Array.isArray(res.data.data)) {
+        setReadings(res.data.data);
+      } else {
+        setReadings([]);
       }
-    };
-    fetchReadings();
+    } catch (err) {
+      console.error("Failed to load utility history:", err);
+      setError("Unable to load meter readings. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(fetchReadings, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchReadings]);
 
   // Average usage per billing cycle across the tenant's own readings.
   const summary = useMemo(() => {
@@ -130,7 +135,7 @@ export default function UserUtilities() {
             )}
             {readings.map(r => {
               // #2: Include other_fees in total (matches what sync sends to invoice)
-              const totalAmount = parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0);
+              const totalAmount = parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0) + (r.items || []).reduce((sum, it) => sum + parseFloat(it.amount || 0) + parseFloat(it.other_fees || 0), 0);
               const isInvoiced = r.is_invoiced == 1;
 
               return (
@@ -273,6 +278,20 @@ export default function UserUtilities() {
 
                   </div>
 
+                  {(r.items || []).length > 0 && (
+                    <div className="px-4 py-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-xs text-slate-700 space-y-1">
+                      <span className="font-bold text-indigo-900">Other utilities</span>
+                      {r.items.map((it) => (
+                        <div key={it.type_id} className="flex justify-between">
+                          <span>{it.name}{it.billing_mode === 'metered' ? ` (${it.consumption} ${it.unit_label || 'units'} @ ₱${it.rate})` : ''}</span>
+                          <span className="font-semibold">₱{(parseFloat(it.amount) + parseFloat(it.other_fees || 0)).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <ReadingPayment r={r} onChanged={fetchReadings} />
+
                   {/* Notes Footer */}
                   {r.notes && (
                     <div className="pt-2 text-xs text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex items-center gap-2">
@@ -288,6 +307,86 @@ export default function UserUtilities() {
         )}
 
       </div>
+    </div>
+  );
+}
+
+// Bill file + proof of payment for one reading. Proof goes through the same
+// upload_payment_proof.php the Pay Bills page uses, on the reading's invoice.
+function ReadingPayment({ r, onChanged }) {
+  const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState('GCash');
+  const [reference, setReference] = useState('');
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const status = r.invoice_status;
+  const canUpload = !!r.invoice_id && ['pending', 'overdue'].includes(status);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const fileError = file ? checkFile(file, FILE_RULES.paymentProof) : 'Choose your proof of payment.';
+    if (fileError) { setMsg({ ok: false, text: fileError }); return; }
+    if (!reference.trim()) { setMsg({ ok: false, text: 'Enter the payment reference number.' }); return; }
+    const fd = new FormData();
+    fd.append('invoice_id', r.invoice_id);
+    fd.append('payment_reference', reference.trim());
+    fd.append('payment_method', method);
+    fd.append('proof', file);
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await api.post('/upload_payment_proof.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (!res.data.success) { setMsg({ ok: false, text: apiErrorMessage(res) }); return; }
+      setMsg({ ok: true, text: 'Proof sent. Management will verify your payment.' });
+      setOpen(false);
+      setFile(null);
+      setReference('');
+      onChanged();
+    } catch (err) {
+      setMsg({ ok: false, text: apiErrorMessage(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!r.bill_file_path && !r.invoice_id) return null;
+
+  return (
+    <div className="pt-2 text-xs text-slate-600 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {r.bill_file_path && (
+          <a href={fileUrl(r.bill_file_path)} target="_blank" rel="noreferrer" className="font-bold text-indigo-600 hover:underline">View utility bill</a>
+        )}
+        {status === 'paid' && <span className="font-bold text-emerald-700">Paid</span>}
+        {status === 'pending-verification' && <span className="font-bold text-sky-700">Proof sent. Waiting for management to verify.</span>}
+        {canUpload && !open && (
+          <button type="button" onClick={() => setOpen(true)} className="cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 hover:underline">
+            I paid outside the system: upload proof
+          </button>
+        )}
+      </div>
+      {canUpload && r.invoice_proof_rejection && (
+        <p className="m-0 font-semibold text-rose-700">Your last proof was rejected: {r.invoice_proof_rejection}</p>
+      )}
+      {open && (
+        <form onSubmit={submit} className="space-y-2">
+          <p className="m-0 text-slate-500">This bill may be on the same invoice as your rent, so your proof covers the whole invoice.</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <select aria-label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)} className="rounded-lg border border-slate-300 bg-white p-2">
+              <option>GCash</option><option>Maya</option><option>Other</option>
+            </select>
+            <input aria-label="Reference number" value={reference} maxLength={100} onChange={(e) => setReference(e.target.value)} placeholder="Reference number" className="rounded-lg border border-slate-300 p-2" />
+            <input type="file" aria-label="Proof of payment" accept={acceptFor(FILE_RULES.paymentProof)} onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-xs" />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy} className="cursor-pointer rounded-lg border-0 bg-indigo-600 px-3 py-1.5 font-bold text-white disabled:opacity-50">{busy ? 'Sending…' : 'Send proof'}</button>
+            <button type="button" onClick={() => setOpen(false)} className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600">Cancel</button>
+          </div>
+        </form>
+      )}
+      {msg && <p role="status" className={`m-0 font-semibold ${msg.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{msg.text}</p>}
     </div>
   );
 }
