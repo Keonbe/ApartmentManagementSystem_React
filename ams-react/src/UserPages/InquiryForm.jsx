@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEnvelopeOpenText, faExclamationTriangle, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SuccessModal from '../Components/SuccessModal';
+import ScopedRules from '../Components/ScopedRules';
 import api from '../api/axiosConfig';
 import { LIMITS, checkDate, checkEmail, checkIntRange, checkPersonName, checkPhMobile, checkText, localDateString, maxFutureDate, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
@@ -344,6 +345,11 @@ export default function InquiryForm() {
                     <div className="md:col-span-2 flex items-start gap-2.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl p-3.5">
                         <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 shrink-0 text-indigo-400" />
                         <span>{t('inquiry.note')}</span>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-3">
+                        <ScopedRules scope="minors" withAgeCategories title="Children and pets" />
+                        <ScopedRules scope="parking" title="Parking rules" />
                     </div>
 
                     <div className="md:col-span-2 flex items-start gap-3 pt-2">

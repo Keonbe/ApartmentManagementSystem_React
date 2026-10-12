@@ -4,7 +4,15 @@ import api from '../../api/axiosConfig';
 
 const EMPTY_RULE = { title: '', title_fil: '', description: '', description_fil: '', is_highlight: 0, is_active: 1 };
 
-export default function HouseRulesPanel() {
+// scope: 'house' (general rules), 'parking' or 'minors' (children and pets). Each scope is its own list.
+const SCOPE_COPY = {
+  house: { title: 'House Rules Management', blurb: 'Customize the policies shown to prospective residents.' },
+  parking: { title: 'Parking Rules', blurb: 'Shown to a tenant before they submit a parking reservation, and to applicants.' },
+  minors: { title: 'Children and Pets Rules', blurb: 'Shown on the inquiry form, the rent application and the contract.' },
+};
+
+export default function HouseRulesPanel({ scope = 'house' }) {
+  const copy = SCOPE_COPY[scope] || SCOPE_COPY.house;
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,14 +23,14 @@ export default function HouseRulesPanel() {
   const loadRules = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('house_rules.php');
+      const { data } = await api.get('house_rules.php', { params: { scope } });
       if (!data.success) throw new Error(data.message || 'Could not load house rules.');
       setRules(data.rules || []);
       setError('');
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Could not load house rules.');
     } finally { setLoading(false); }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     const timer = window.setTimeout(loadRules, 0);
@@ -37,6 +45,7 @@ export default function HouseRulesPanel() {
       const isEdit = Boolean(editing.id);
       const payload = {
         ...editing,
+        scope,
         category: editing.category?.trim() || 'General',
         is_highlight: Number(editing.is_highlight) || 0,
         is_active: editing.is_active === undefined ? 1 : Number(editing.is_active),
@@ -92,7 +101,7 @@ export default function HouseRulesPanel() {
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5">
-        <div><h3 className="m-0 text-base font-extrabold text-slate-800">House Rules Management</h3><p className="m-0 mt-1 text-sm text-slate-500">Customize the policies shown to prospective residents.</p></div>
+        <div><h3 className="m-0 text-base font-extrabold text-slate-800">{copy.title}</h3><p className="m-0 mt-1 text-sm text-slate-500">{copy.blurb}</p></div>
         <button type="button" onClick={() => setEditing({ ...EMPTY_RULE })} className="inline-flex items-center gap-2 rounded-xl border-0 bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"><Plus className="h-4 w-4" /> Add Rule</button>
       </div>
       {notice && <p role="status" className="m-0 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p>}

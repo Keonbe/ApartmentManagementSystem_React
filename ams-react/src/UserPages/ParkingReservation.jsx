@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCloudUploadAlt, faFilePdf, faEye, faTimes, faExclamationTriangle, faCar, faClock, faBan } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
+import ScopedRules from '../Components/ScopedRules';
+import useScopedRules from '../hooks/useScopedRules';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
@@ -147,6 +149,10 @@ export default function ParkingReservation() {
     };
 
     // Keys match parking_reservation.php's form fields.
+    // Admin-editable parking rules (Settings → Parking Rules); agreement is required when any exist.
+    const { rules: parkingRules } = useScopedRules('parking');
+    const [agreeParkingRules, setAgreeParkingRules] = useState(false);
+
     const form = useFieldErrors({
         vehicleType: (v) => (allowedVehicleTypes.includes(v) ? '' : 'This vehicle type is not currently accepted.'),
         vehicleModel: (v) => checkText(v, { label: 'Vehicle model', min: 2, max: LIMITS.vehicleModel }),
@@ -223,6 +229,10 @@ export default function ParkingReservation() {
         e.preventDefault();
         if (submitting) return;
         setFormError('');
+        if (parkingRules.length > 0 && !agreeParkingRules) {
+            setFormError('Please read and agree to the parking rules before reserving.');
+            return;
+        }
 
         // Vehicle model, transmission and duration used to rely on `required` alone.
         const cleanModel = vehicleModel.trim();
@@ -509,6 +519,16 @@ export default function ParkingReservation() {
                         <FieldError id="parking-uploadedFile" error={form.errors.uploadedFile} className="m-0" />
                     </div>
 
+                    {parkingRules.length > 0 && (
+                        <div className="md:col-span-2 space-y-3">
+                            <ScopedRules scope="parking" title="Parking rules" />
+                            <label className="flex cursor-pointer items-start gap-2.5 text-xs font-semibold text-slate-700">
+                                <input type="checkbox" checked={agreeParkingRules} onChange={(e) => setAgreeParkingRules(e.target.checked)} className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300" />
+                                <span>I have read and agree to follow the parking rules.</span>
+                            </label>
+                        </div>
+                    )}
+
                     {/*PricingOverviewAndSubmitButton*/}
                     <div className="parking-pricing-row md:col-span-2 border-t border-slate-100 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-6 mt-4">
                         <div className="parking-pricing-items flex items-center justify-between sm:justify-start gap-6 sm:space-x-12 select-none">
@@ -524,7 +544,7 @@ export default function ParkingReservation() {
 
                         <button
                             type="submit"
-                            disabled={loadingSlots || availableSlots <= 0 || submitting}
+                            disabled={loadingSlots || availableSlots <= 0 || submitting || (parkingRules.length > 0 && !agreeParkingRules)}
                             className="parking-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
                             {submitting ? 'Submitting…' : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}

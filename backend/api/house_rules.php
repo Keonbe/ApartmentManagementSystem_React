@@ -14,9 +14,20 @@ $method = $_SERVER['REQUEST_METHOD'];
 $isAdmin = verify_admin($conn);
 
 try {
+    // Scopes: 'house' (general rules, the default), 'parking' (shown before a parking
+    // reservation) and 'minors' (children and pets, shown on inquiry, application and contract).
+    $scopes = ['house', 'parking', 'minors'];
     if ($method === 'GET') {
-        $sql = 'SELECT id, category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order FROM house_rules WHERE is_active = 1 ORDER BY sort_order ASC, id ASC';
-        $result = $conn->query($sql);
+        $scope = $_GET['scope'] ?? 'house';
+        if (!in_array($scope, $scopes, true)) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Unknown rule scope.']);
+            exit();
+        }
+        $stmt = $conn->prepare('SELECT id, category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order FROM house_rules WHERE is_active = 1 AND scope = ? ORDER BY sort_order ASC, id ASC');
+        $stmt->bind_param('s', $scope);
+        $stmt->execute();
+        $result = $stmt->get_result();
         $rules = [];
         while ($row = $result->fetch_assoc()) {
             $row['id'] = (int)$row['id'];
@@ -97,6 +108,12 @@ try {
         $highlight = !empty($input['is_highlight']) ? 1 : 0;
         $active = array_key_exists('is_active', $input) ? (!empty($input['is_active']) ? 1 : 0) : 1;
         $sortOrder = (int)($input['sort_order'] ?? 0);
+        $scope = $input['scope'] ?? 'house';
+        if (!in_array($scope, $scopes, true)) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'Unknown rule scope.']);
+            exit();
+        }
         if ($category === '') $category = 'General';
         if (mb_strlen($category) > 100 || $title === '' || mb_strlen($title) > 255 || ($titleFil !== null && mb_strlen($titleFil) > 255) || $description === '') {
             http_response_code(422);
@@ -104,8 +121,8 @@ try {
             exit();
         }
         if ($method === 'POST') {
-            $stmt = $conn->prepare('INSERT INTO house_rules (category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->bind_param('sssssiii', $category, $title, $titleFil, $description, $descriptionFil, $highlight, $active, $sortOrder);
+            $stmt = $conn->prepare('INSERT INTO house_rules (category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order, scope) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->bind_param('sssssiiis', $category, $title, $titleFil, $description, $descriptionFil, $highlight, $active, $sortOrder, $scope);
         } else {
             if ($id < 1) { http_response_code(422); echo json_encode(['success' => false, 'message' => 'A valid rule ID is required.']); exit(); }
             $stmt = $conn->prepare('UPDATE house_rules SET category = ?, title = ?, title_fil = ?, description = ?, description_fil = ?, is_highlight = ?, is_active = ?, sort_order = ? WHERE id = ?');
