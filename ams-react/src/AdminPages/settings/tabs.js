@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -59,6 +59,30 @@ export const SETTINGS_TABS = [
     keys: ['maintenanceMonthlyBudget', 'tenantResponsibilityClause'],
   },
   {
+    id: 'floor-rent',
+    label: 'Floor Rent',
+    icon: faLayerGroup,
+    description: "A fixed monthly rent for each floor. New units start at their floor's rent.",
+  },
+  {
+    id: 'utility-types',
+    label: 'Utilities',
+    icon: faBolt,
+    description: 'Other utilities beyond water and electricity, such as internet or gas.',
+  },
+  {
+    id: 'parking-rules',
+    label: 'Parking Rules',
+    icon: faSquareParking,
+    description: 'Rules shown before a parking reservation is submitted.',
+  },
+  {
+    id: 'minors',
+    label: 'Children & Pets',
+    icon: faChildren,
+    description: 'Age categories for infants, toddlers and minors, and the rules for children and pets.',
+  },
+  {
     id: 'house-rules',
     label: 'House Rules',
     icon: faClipboardList,
@@ -67,3 +91,7 @@ export const SETTINGS_TABS = [
 ];
 
 export const SETTINGS_TAB_IDS = SETTINGS_TABS.map((t) => t.id);
+
+// Tabs that save on their own (their panel talks to its own endpoints), so the
+// shared settings form and its save bar stay out of the way.
+export const SELF_SAVING_TAB_IDS = ['house-rules', 'floor-rent', 'utility-types', 'parking-rules', 'minors'];

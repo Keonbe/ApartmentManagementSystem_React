@@ -9,7 +9,7 @@ import api from '../api/axiosConfig';
 import { LIMITS, checkEmail, checkNewPassword, checkPasswordMatch, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
-import { SETTINGS_TABS, SETTINGS_TAB_IDS } from './settings/tabs';
+import { SETTINGS_TABS, SETTINGS_TAB_IDS, SELF_SAVING_TAB_IDS } from './settings/tabs';
 import SettingsNav from './settings/SettingsNav';
 import AccountPanel from './settings/AccountPanel';
 import LeasingPanel from './settings/LeasingPanel';
@@ -18,6 +18,9 @@ import ParkingPanel from './settings/ParkingPanel';
 import NotificationsPanel from './settings/NotificationsPanel';
 import MaintenancePanel from './settings/MaintenancePanel';
 import HouseRulesPanel from './settings/HouseRulesPanel';
+import FloorRentPanel from './settings/FloorRentPanel';
+import UtilityTypesPanel from './settings/UtilityTypesPanel';
+import MinorsPanel from './settings/MinorsPanel';
 
 const SETTINGS_FORM_ID = 'system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -323,14 +326,18 @@ const AdminAccountSettings = () => {
               )}
 
               {activeTab === 'house-rules' && <HouseRulesPanel />}
+              {activeTab === 'floor-rent' && <FloorRentPanel />}
+              {activeTab === 'utility-types' && <UtilityTypesPanel />}
+              {activeTab === 'parking-rules' && <HouseRulesPanel scope="parking" />}
+              {activeTab === 'minors' && <MinorsPanel />}
 
-              {activeTab !== 'account' && activeTab !== 'house-rules' && !settings && (
+              {activeTab !== 'account' && !SELF_SAVING_TAB_IDS.includes(activeTab) && !settings && (
                 <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">
                   <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading settings…
                 </div>
               )}
 
-              {settings && activeTab !== 'house-rules' && (
+              {settings && !SELF_SAVING_TAB_IDS.includes(activeTab) && (
                 <form
                   id={SETTINGS_FORM_ID}
                   onSubmit={handleSettingsSave}
