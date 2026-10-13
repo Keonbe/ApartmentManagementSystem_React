@@ -539,7 +539,7 @@ const AdminContractEditor = ({ embedded = false }) => {
             hint='Optional badge, e.g. "(Tenant Copy)" or "(Original Copy)".' />
           <BiInput id="terms-subject" label="Subject Heading" max={LIM.heading} value={draft.terms.subject}
             onChange={(val) => update((d) => { d.terms.subject = val; })} onFieldFocus={onFieldFocus}
-            hint='e.g. "SUBJECT: RESIDENTIAL APARTMENT LEASE".' />
+            hint='e.g. "SUBJECT: RESIDENTIAL APARTMENT RENT".' />
         </div>
         <BiInput id="terms-intro" label="Preamble / Introduction" multiline rows={2} max={LIM.body} value={draft.terms.intro}
           onChange={(val) => update((d) => { d.terms.intro = val; })} onFieldFocus={onFieldFocus} />
@@ -1055,7 +1055,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       <div className="print:hidden editor-meta-header flex flex-wrap items-start justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-slate-900 m-0">Lease Contract Template</h2>
+            <h2 className="text-xl font-bold text-slate-900 m-0">Rent Contract Template</h2>
             {meta?.version && (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700">
                 Version {meta.version}

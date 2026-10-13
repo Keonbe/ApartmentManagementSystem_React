@@ -19,8 +19,8 @@ export const BUILTIN_PLACEHOLDERS = [
   { key: 'advance_rent', label: 'Advance rent' },
   { key: 'security_deposit', label: 'Security deposit' },
   { key: 'move_in_date', label: 'Move-in date (marks tentative dates)' },
-  { key: 'lease_start', label: 'Lease start date' },
-  { key: 'lease_end', label: 'Lease end date' },
+  { key: 'lease_start', label: 'Rent start date' },
+  { key: 'lease_end', label: 'Rent end date' },
   { key: 'due_day', label: 'Monthly due day' },
   { key: 'payment_methods', label: 'Payment accounts list (on its own line)' },
 ];

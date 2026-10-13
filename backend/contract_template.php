@@ -76,9 +76,9 @@ function contract_template_default($conn) {
             ['key' => 'move_out_notice_days', 'label' => 'Move-out notice (days)', 'value' => '15'],
         ],
         'terms' => [
-            'title'      => ct_text('APARTMENT LEASE AGREEMENT', 'KONTRATA SA PAGPAPAUPA NG APARTMENT'),
+            'title'      => ct_text('APARTMENT RENT AGREEMENT', 'KONTRATA SA PAGPAPAUPA NG APARTMENT'),
             'copy_label' => ct_text('(Tenant Copy)', '(Kopya ng Nangungupahan)'),
-            'subject'    => ct_text('SUBJECT: APARTMENT LEASE', 'PAKSA: PAGPAPAUPA NG APARTMENT'),
+            'subject'    => ct_text('SUBJECT: APARTMENT RENT', 'PAKSA: PAGPAPAUPA NG APARTMENT'),
             'intro'      => ct_text(
                 'Under the following conditions, the Owner and the Tenant have agreed on the following rental terms for the apartment:',
                 'Sa ilalim ng mga sumusunod na kondisyon, ang May-ari at ang Nangungupahan ay nagkasunduan sa mga sumusunod na tuntunin ng pagrenta ng apartment:'
@@ -100,7 +100,7 @@ function contract_template_default($conn) {
                         )),
                         ct_clause('cl-move-in', ct_text('Move-in Date', 'Petsa ng Pagpasok'),
                             ct_text('{{move_in_date}}', '{{move_in_date}}')),
-                        ct_clause('cl-term', ct_text('Term of Lease', 'Panahon ng Pag-upa'),
+                        ct_clause('cl-term', ct_text('Rent Term', 'Panahon ng Pag-upa'),
                             ct_text('{{lease_start}} to {{lease_end}}', '{{lease_start}} hanggang {{lease_end}}')),
                     ],
                 ],
@@ -121,7 +121,7 @@ function contract_template_default($conn) {
                             'Bago pumasok sa unit, ang Nangungupahan ay magbabayad ng paunang upa para sa unang buwan na nagkakahalaga ng {{advance_rent}}. Ito ay ibinibilang sa upa ng unang buwan ng pananatili at hindi bahagi ng security deposit.'
                         )),
                         ct_clause('cl-deposit', ct_text('Security Deposit', 'Security Deposit'), ct_text(
-                            "In addition to the advance rent, the Tenant shall pay a security deposit amounting to {{security_deposit}}, equivalent to one month's rent. The deposit shall serve as a guarantee against possible damages or unpaid expenses.\n\n**Use of the Security Deposit:**\nThe security deposit is **not refunded in cash**. It is instead **applied against unpaid rent, unpaid electricity and water bills, or damage** to the unit and its fixtures. If no deductions remain at the end of the lease, it may be applied to the last month's rent.",
+                            "In addition to the advance rent, the Tenant shall pay a security deposit amounting to {{security_deposit}}, equivalent to one month's rent. The deposit shall serve as a guarantee against possible damages or unpaid expenses.\n\n**Use of the Security Deposit:**\nThe security deposit is **not refunded in cash**. It is instead **applied against unpaid rent, unpaid electricity and water bills, or damage** to the unit and its fixtures. If no deductions remain at the end of the rent term, it may be applied to the last month's rent.",
                             "Bukod sa paunang upa, ang Nangungupahan ay magbabayad ng security deposit na nagkakahalaga ng {{security_deposit}}, katumbas ng isang buwang upa. Ang deposito ay magsisilbing garantiya para sa mga posibleng pinsala o hindi nabayarang gastusin.\n\n**Paggamit ng Security Deposit:**\nAng security deposit ay **hindi ibinabalik bilang cash**. Sa halip, ito ay **ikinakaltas sa mga hindi nabayarang upa, singil sa kuryente at tubig, o pinsala** sa unit at mga kagamitan nito. Kung wala nang natitirang kaltas sa pagtatapos ng kontrata, maaari itong ipambayad sa huling buwan ng pag-upa."
                         )),
                         ct_clause('cl-due-date', ct_text('Due Date Reminder', 'Paalala sa Takdang Araw ng Bayad'), ct_text(
@@ -147,7 +147,7 @@ function contract_template_default($conn) {
                             'Ang May-ari ay responsable sa pagpapagawa ng mga pangunahing sira at pagkukumpuni ng apartment. Ang mga pangunahing sira ay may kinalaman sa mga sistema ng tubig, kuryente, at estruktura ng apartment.'
                         )),
                         ct_clause('cl-owner-housing', ct_text('Providing Proper Housing', 'Pagbibigay ng Maayos na Tirahan'), ct_text(
-                            'The Owner ensures that the apartment is clean, well-maintained, and safe to use before the lease proceeds.',
+                            'The Owner ensures that the apartment is clean, well-maintained, and safe to use before the rent term begins.',
                             'Tinitiyak ng May-ari na ang apartment ay malinis, maayos, at ligtas gamitin bago magpatuloy ang pagrenta.'
                         )),
                     ],

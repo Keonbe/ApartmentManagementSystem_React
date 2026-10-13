@@ -33,7 +33,7 @@ const typeConfig = {
   inquiry_update: { label: 'Inquiry', icon: faInfoCircle, color: 'bg-sky-50 text-sky-600 border-sky-100', badge: 'bg-sky-100 text-sky-700' },
   unit_reservation: { label: 'Unit Hold', icon: faHome, color: 'bg-sky-50 text-sky-600 border-sky-100', badge: 'bg-sky-100 text-sky-700' },
   waitlist_update: { label: 'Waitlist', icon: faHome, color: 'bg-sky-50 text-sky-600 border-sky-100', badge: 'bg-sky-100 text-sky-700' },
-  contract_update: { label: 'Lease', icon: faFileContract, color: 'bg-violet-50 text-violet-600 border-violet-100', badge: 'bg-violet-100 text-violet-700' },
+  contract_update: { label: 'Rent', icon: faFileContract, color: 'bg-violet-50 text-violet-600 border-violet-100', badge: 'bg-violet-100 text-violet-700' },
   move_out_update: { label: 'Move-Out', icon: faHome, color: 'bg-violet-50 text-violet-600 border-violet-100', badge: 'bg-violet-100 text-violet-700' },
   household_request: { label: 'Household Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },
   occupancy_request: { label: 'Occupancy Request', icon: faUserFriends, color: 'bg-purple-50 text-purple-600 border-purple-100', badge: 'bg-purple-100 text-purple-700' },

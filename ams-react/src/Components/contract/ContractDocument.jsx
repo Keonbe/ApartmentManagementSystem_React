@@ -233,7 +233,7 @@ export default function ContractDocument({
     };
   }, []);
 
-  const title = pick(terms.title, lang) || 'APARTMENT LEASE AGREEMENT';
+  const title = pick(terms.title, lang) || 'APARTMENT RENT AGREEMENT';
   const copyLabel = pick(terms.copy_label, lang);
   const cleanCopyLabel = copyLabel ? copyLabel.replace(/^\((.*)\)$/, '$1') : '';
   const subject = pick(terms.subject, lang);

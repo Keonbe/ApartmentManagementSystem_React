@@ -92,7 +92,7 @@ export default function TrackApplication() {
         const isImage = file.type?.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name);
         setPreviewModal({
             url: URL.createObjectURL(file),
-            title: file.name || 'Signed Lease Contract',
+            title: file.name || 'Signed Rent Contract',
             isImage,
             isLocalBlob: true
         });

@@ -942,7 +942,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       <div className="w-full space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease Start *</label>
+                            <label htmlFor="contract-edit-leaseStart" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent Start *</label>
                             <input
                               type="date"
                               {...editErrors.fieldA11y('leaseStart')}
@@ -959,7 +959,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                             <FieldError id="contract-edit-leaseStart" error={editErrors.errors.leaseStart} />
                           </div>
                           <div>
-                            <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Lease End *</label>
+                            <label htmlFor="contract-edit-leaseEnd" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Rent End *</label>
                             <input
                               type="date"
                               {...editErrors.fieldA11y('leaseEnd')}
@@ -1076,7 +1076,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                               <FontAwesomeIcon icon={selectedContract.signedLease?.uploaded ? faCheckCircle : faFileSignature} />
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 m-0">Signed Lease Agreement (Physical Scan / PDF)</p>
+                              <p className="text-sm font-semibold text-slate-800 m-0">Signed Rent Agreement (Physical Scan / PDF)</p>
                               {selectedContract.signedLease?.uploaded ? (
                                 <div className="flex items-center gap-2 mt-1">
                                   <p className="text-[11px] text-slate-500 m-0 font-sans">
@@ -1117,7 +1117,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                               <FontAwesomeIcon icon={selectedContract.notarizedLease?.uploaded ? faCheckCircle : faShieldAlt} />
                             </div>
                             <div>
-                              <p className="text-sm font-semibold text-slate-800 m-0">Notarized Lease Copy</p>
+                              <p className="text-sm font-semibold text-slate-800 m-0">Notarized Rent Agreement Copy</p>
                               {selectedContract.notarizedLease?.uploaded ? (
                                 <div className="flex items-center gap-2 mt-1">
                                   <p className="text-[11px] text-slate-500 m-0 font-sans">
