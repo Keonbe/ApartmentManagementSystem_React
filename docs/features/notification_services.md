@@ -1,7 +1,7 @@
 # AMS — SMS & Email Notification Services
 
 > [!IMPORTANT]
-> **Historical design document (August 2026) — not the current state.** Superseded by [sms_email_implementation.md](sms_email_implementation.md) (implementation, go-live, tests) and [sms_email_mock_testing.md](sms_email_mock_testing.md) (runbook). Since this was written: **Semaphore is the only SMS provider** and its driver is live; Twilio, Vonage, Movider and iTexMo were dropped (2026-09-24); email runs on the `log` dry-run driver until PHPMailer and SMTP are configured. Provider comparisons below are kept as research only.
+> **Historical design document (August 2026) — not the current state.** Superseded by [sms_email_implementation.md](sms_email_implementation.md) and [transactional_email_testing.md](transactional_email_testing.md). Since this was written, Semaphore became the only supported SMS provider, and transactional email dispatch plus SMTP support were implemented. SMTP configuration is deployment-specific; provider comparisons below are retained as historical research only.
 
 > **Document Version:** 1.1 — August 2026
 > **Status:** Research & Planning

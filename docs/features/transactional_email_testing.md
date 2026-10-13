@@ -2,7 +2,7 @@
 
 ## Service and existing triggers
 
-Email uses `backend/api/services/send_email.php` (PHPMailer SMTP or a `log` dry-run) and escaped, table-based HTML templates in `email_templates.php`. `notifications_email_enabled` defaults off and `email_driver` defaults to `log`; therefore a trigger does not imply an inbox delivery. The log driver creates `backend/logs/notification_outbox/*.html` and a `notification_log` row. SMTP reads host, port, username, password, from name and from email from `system_settings`; failures are recorded as failed attempts and PHP errors are sent to the server error log.
+Email uses `backend/api/services/send_email.php` (PHPMailer SMTP or a `log` dry-run) and escaped, table-based HTML templates in `email_templates.php`. SMTP has been configured for this deployment, but the code defaults remain `notifications_email_enabled = 0` and `email_driver = 'log'`; check Admin → Settings → Notifications for the active database before expecting inbox delivery. The log driver creates `backend/logs/notification_outbox/*.html` and a `notification_log` row. SMTP reads host, port, username, password, from name and from email from `system_settings`; failures are recorded as failed attempts and PHP errors are sent to the server error log. Never put SMTP credentials in this document.
 
 `notification_log` already fulfils the requested audit table: recipient, subject, `event_type`, status and `sent_at` (plus channel/error). No duplicate `email_logs` table is required.
 
@@ -31,13 +31,13 @@ Refund requests/statuses are not implemented: deposit handling is explicitly non
 ## Quick local XAMPP test
 
 1. Start Apache/MySQL and bring an existing database up to date (`php backend/cron/migrate.php`; a fresh `SetupDB.sql` import already has everything). Confirm `notification_log` includes `provider_message_id` and `provider_status`; the shared notification logger requires both columns.
-2. In Admin → Settings → Notifications, enable Email Notifications and keep Delivery Method = **Log**. Or:
+4. For a dry run, in Admin → Settings → Notifications, enable Email Notifications and select Delivery Method = **Log**. For an actual delivery test, enable Email Notifications and select **SMTP** only after confirming the deployment's SMTP settings are present. Or set the dry-run values directly:
 
    ```powershell
    C:\xampp\mysql\bin\mysql.exe -u root ams_db -e "UPDATE system_settings SET setting_value='1' WHERE setting_key='notifications_email_enabled'; UPDATE system_settings SET setting_value='log' WHERE setting_key='email_driver';"
    ```
 
-   `log` is a dry run: it does not contact SMTP. Use an application account with a valid email address. Check Admin settings and tenant `email_opt_out` / category preferences if no log appears.
+   `log` is a dry run: it does not contact SMTP. Use an application account with a valid email address. Check Admin settings and tenant `email_opt_out` / category preferences if no log appears. For SMTP, use only a mailbox you control and check `notification_log` for delivery status/errors.
 
 3. Trigger each workflow using the normal UI:
    - Submit a rent application → `Rental Application Received`.
@@ -54,7 +54,7 @@ Refund requests/statuses are not implemented: deposit handling is explicitly non
    Get-ChildItem backend\logs\notification_outbox\*.html | Sort-Object LastWriteTime -Descending | Select-Object -First 10
    ```
 
-   Open the newest matching `.html` in a browser. For real delivery, configure Gmail App Password/SMTP in Admin Settings, set driver to `SMTP`, and use only a mailbox you control. With real SMTP and queue mode, run `C:\xampp\php\php.exe backend\cron\process_queue.php` to drain queued jobs.
+   Open the newest matching `.html` for Log-driver tests. For SMTP tests, select the configured SMTP driver and use only a mailbox you control. With queue mode, run `C:\\xampp\\php\\php.exe backend\\cron\\process_queue.php` to drain queued jobs.
 
 5. Build log example:
 
@@ -66,4 +66,4 @@ Refund requests/statuses are not implemented: deposit handling is explicitly non
 
 6. Database-free template check: `C:\xampp\php\php.exe backend\cron\email_template_selftest.php`. This does not use MySQL, change settings, or contact SMTP.
 
-Restore the previous email switch and driver values after tests. This environment may already have SMTP enabled; use the **Log** driver for dry-run tests and don't leave SMTP switched on unintentionally.
+Restore the previous email switch and driver values after tests. SMTP configuration is deployment-specific; do not assume another local or production database has the same settings.

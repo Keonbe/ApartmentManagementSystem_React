@@ -701,7 +701,7 @@ ALTER TABLE maintenance_requests
 | AdminUtilities | ✅ | Meter readings → invoices |
 | AdminUsers | ✅ | `manage_users.php` (RBAC) |
 | AdminMessages / ChatWidget | ✅ | Chat — Socket.IO + `get_chat_history` / `send_message` / `get_conversations` (socket server not yet authenticated — security_audit §6e) |
-| SMS / Email | 🔧 | Pipeline + Semaphore driver built; runs on dry-run drivers until configured |
+| SMS / Email | 🔧 | Transactional email and SMTP support implemented; SMTP configured for current deployment. Runtime email still depends on per-database enable/driver settings; SMS go-live remains pending. |
 | AdminAnnouncements | ✅ | `create_announcement.php` + `get_announcements.php`; auto-notifies tenants |
 | AdminReports | ✅ | `get_report_data.php` fully wired |
 | AdminNotifications | ✅ | `get_notifications.php` + mark read/delete |
@@ -875,7 +875,7 @@ ALTER TABLE maintenance_requests
 | FR-10.6 | The system shall allow admins to schedule announcements for future delivery. | 🔲 (drafts exist; scheduled sending does not) |
 | FR-10.7 | The system shall allow admins to target specific tenants for announcements (instead of all non-admin users). | 🔧 (one unit's tenants can be targeted) |
 | FR-10.8 | The system shall automatically send notifications when admin updates CCTV/parking/maintenance request status. | ✅ |
-| FR-10.9 | The system shall deliver notifications by SMS (Semaphore) and email (SMTP) through a queue with retries, quiet hours, a daily SMS cap and per-user opt-outs. | 🔧 (built; dry-run until configured) |
+| FR-10.9 | The system shall deliver notifications by SMS (Semaphore) and email (SMTP) through a queue with retries, quiet hours, a daily SMS cap and per-user opt-outs. | 🔧 (email SMTP configured for current deployment; verify runtime settings; SMS go-live pending) |
 | FR-10.10 | The system shall provide real-time tenant ↔ admin chat with conversation history and unread counts. | ✅ (admin-initiated threads and per-message notifications pending) |
 
 ---

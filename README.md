@@ -184,7 +184,7 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
   - Reports (monthly, yearly, occupancy, maintenance, income statement, revenue diversification) with CSV/print export.
   - User management (RBAC), activity log.
   - Tabbed settings: account, leasing, payments, parking, notifications (Semaphore SMS, SMTP), maintenance.
-- **Notifications:** in-app for every workflow. SMS through **Semaphore** and email through SMTP share one dispatcher with a queue, retries, quiet hours, a daily SMS cap and tenant opt-outs. Both run as dry runs until configured.
+- **Notifications:** in-app for every workflow. SMS through **Semaphore** and email through SMTP share one dispatcher with a queue, retries, quiet hours, a daily SMS cap and tenant opt-outs. SMTP is configured for the current deployment; actual email delivery depends on the database's email-enabled switch, SMTP driver selection, and queue processing. SMS go-live remains pending.
 
 ---
 

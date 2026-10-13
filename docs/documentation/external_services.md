@@ -16,8 +16,8 @@
 | Module | Service Type | Self-Hosted Provider | SaaS Provider (Fallback) | Status | Ref |
 |---|---|---|---|---|---|
 | **Online Bill Payment** | Payment Gateway | PayMongo (Sandbox / Live) | PayMongo *(unchanged)* | ✅ Implemented (Sandbox) | [Section 2.1](#21-online-bill-payment-paymongo) · [paymongo_integration_guide.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/paymongo_integration_guide.md) |
-| **Password Reset Link Delivery** | Email | None configured — Dev token bypass | Resend.com / Mailgun | ✅ Implemented (Dev Bypass) | [Section 2.2](#22-password-reset-link-delivery-email) |
-| **Announcement Broadcast — Email** | Email (Transactional) | PHPMailer + Gmail SMTP (driver built; PHPMailer not installed) | Resend.com / Mailgun | 🟡 Built — runs on the `log` dry-run driver | [Section 2.3](#23-announcement-broadcast-email) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
+| **Password Reset Link Delivery** | Email | SMTP configured, but reset email not wired | Resend.com / Mailgun | 🟡 Token flow implemented; email dispatch remains outstanding | [Section 2.2](#22-password-reset-link-delivery-email) |
+| **Transactional / Announcement Email** | Email (Transactional) | PHPMailer + configured SMTP (deployment setting) | Resend.com / Mailgun | 🟡 Dispatch wired; runtime delivery depends on `notifications_email_enabled` and `email_driver` in each database | [Section 2.3](#23-announcement-broadcast-email) · [transactional_email_testing.md](../features/transactional_email_testing.md) |
 | **Announcement Broadcast — SMS** | SMS Gateway | Semaphore (driver live) | Semaphore *(unchanged — the only supported provider)* | 🟡 Driver live — go-live pending | [Section 2.4](#24-announcement-broadcast-sms) · [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) |
 | **Tenant Preference: SMS** | SMS Gateway | Semaphore | Semaphore *(unchanged)* | 🟡 Backend wired — tenant SMS/email toggles not in the UI yet | [Section 2.5](#25-tenant-notification-preferences) |
 | **Database** | Data Store | MySQL / MariaDB (XAMPP localhost) | Railway MySQL / PlanetScale | ✅ Running Locally | [Section 2.6](#26-database-mysqlmariadb) |
@@ -147,26 +147,7 @@ Allows users who have forgotten their passwords to request a secure, time-limite
 | [`ams-react/src/UserPages/ResetPassword.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/UserPages/ResetPassword.jsx) | New password form — reads `?email=...&token=...` from URL, submits to `reset_password.php` |
 | [`ams-react/src/App.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/App.jsx) | `<Route path="/reset-password" element={<ResetPassword />} />` |
 
-**Step-by-Step Manual Verification (Dev Mode):**
-1. Open `http://localhost:5173/#/login`.
-2. Click **Forgot Password?**.
-3. Enter a valid email from `ams_db.users.email_address`.
-4. Click **Send Reset Link**.
-5. A green `[DEV MODE]` box appears with a direct "Click here to reset password" link — click it.
-6. On the Reset Password page, enter a new password (min 6 chars) and confirm it.
-7. Click **Reset Password** — you should see "Password successfully reset."
-8. Verify: `ams_db.users.password` is updated (bcrypt hash); `ams_db.password_resets` row for that email is deleted; `ams_db.activity_logs` has a new entry for `Reset Password`.
-
-**Current Dev Mode State:**
-- `forgot_password.php` detects `APP_ENV === 'development'` (set in `backend/config.php`) and includes `dev_token` in the JSON response.
-- The raw token is displayed in the React UI as a direct link. **This dev_token response must NOT exist in production.**
-
-**Planned for Production (Self-Hosted):**
-- Install [PHPMailer](https://github.com/PHPMailer/PHPMailer) via Composer: `composer require phpmailer/phpmailer`.
-- Configure SMTP credentials (Gmail App Password, SendGrid, or AWS SES).
-- In `forgot_password.php`, replace the `dev_token` response with a PHPMailer call to send an email with the reset link.
-- Remove the `APP_ENV === 'development'` dev bypass block.
-- The reset link format: `https://yourdomain.com/#/reset-password?email=...&token=<raw_token>`
+Password-reset token generation and verification are implemented, but `forgot_password.php` does not send email. In development it returns `dev_token` for UI testing. Do not treat its success response as proof an email was sent; reset-email dispatch and production-safe token handling remain outstanding.
 
 **SaaS Alternative (Email Provider):**
 
@@ -185,41 +166,21 @@ Allows users who have forgotten their passwords to request a secure, time-limite
 
 ---
 
-### 2.3 Announcement Broadcast — Email
+### 2.3 Transactional and Announcement Email
 
-Admin creates announcements with the `email` channel selected. Intended to deliver the announcement body to all tenants' registered email addresses.
+Transactional dispatch is wired for the events listed in [transactional_email_testing.md](../features/transactional_email_testing.md). SMTP is configured for the current deployment; actual delivery still depends on that database's email-enabled switch and SMTP driver. Password-reset emails are not wired.
 
 **PHP Backend Files:**
 | File | Role |
 |---|---|
-| [`backend/api/create_announcement.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/create_announcement.php) | Inserts into `announcements`, auto-creates `notifications` rows for all tenants. Email delivery block: **not yet implemented** |
+| [`backend/api/create_announcement.php`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/backend/api/create_announcement.php) | Creates announcements and dispatches selected external channels through the shared notification path |
 
 **Frontend Files:**
 | File | Role |
 |---|---|
 | [`ams-react/src/AdminPages/AdminAnnouncements.jsx`](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/ams-react/src/AdminPages/AdminAnnouncements.jsx) | Admin form with channel toggles: **In-App**, **SMS**, **Email** |
 
-**Step-by-Step Manual Verification (Dev Mode):**
-1. Log in as Admin → **Announcements** → Create Announcement.
-2. Enable the **Email** channel toggle.
-3. Submit the announcement.
-4. Verify: `ams_db.announcements.channels` contains `"email"` in its JSON array.
-5. Verify: `ams_db.notifications` rows are created for each tenant (in-app works).
-6. **Email is NOT dispatched** — no outbound email occurs in the current implementation.
-
-**Current Dev Mode State:**
-- `create_announcement.php` stores the `channels` JSON field including `"email"` but has no email-sending logic. The `email` toggle in the UI is cosmetic only.
-
-**Planned for Production (Self-Hosted):**
-- After PHPMailer setup (see Section 2.2), add a loop in `create_announcement.php`:
-  ```php
-  // After announcement is inserted, fetch all non-archived tenant emails:
-  $tenants = $conn->query("SELECT u.email_address, u.first_name FROM users u WHERE u.role = 'user' AND u.is_archived = 0");
-  while ($row = $tenants->fetch_assoc()) {
-      send_announcement_email($row['email_address'], $row['first_name'], $title, $body);
-  }
-  ```
-- Add rate-limiting or queuing to avoid hitting SMTP send limits on large tenant lists.
+**Verification:** Follow the real-SMTP steps in [transactional_email_testing.md](../features/transactional_email_testing.md). For a no-network test, set `email_driver` to `log` and inspect the notification log/outbox. The announcement email channel must be selected, and global/category opt-outs still apply.
 
 **SaaS Alternative:** Same provider comparison as [Section 2.2 — SaaS Alternative](#22-password-reset-link-delivery-email). Resend.com's free tier (3,000/mo) is sufficient for most apartment complexes. For larger tenant lists, Resend's paid tier ($20/mo for 50k) or Mailgun ($35/mo for 50k) applies. The same PHPMailer + Resend SMTP configuration covers both password reset emails and announcement broadcasts.
 

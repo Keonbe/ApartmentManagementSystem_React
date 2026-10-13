@@ -1,8 +1,8 @@
 # AMS — SMS & Email Notification Implementation Guide
 
-> **Version:** 1.3 — Phase 1 built on mock drivers **2026-09-22**; §0.1 findings implemented the same day; audited against the codebase on 2026-09-20 (commit `8352371`)
-> **Status:** Phase 1 built and console-tested on mock drivers — see [§1.0](#10-what-phase-1-shipped) and the [mock testing runbook](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md). Phase 2 wiring is next.
-> **Prerequisite:** none for the dry run. A provider account is needed only to go live (see [Appendix C](#appendix-c--provider-setup)).
+> **Version:** 1.3 — original implementation plan dated 2026-09-22; historical build notes retained below.
+> **Current status:** Email dispatch and SMTP support are implemented. SMTP is configured for the current deployment, but actual delivery also requires Email Notifications enabled and Email Driver set to SMTP in that deployment's database. The application defaults remain disabled / `log`. See the [transactional email testing guide](transactional_email_testing.md) for current triggers and verification; the [mock testing runbook](sms_email_mock_testing.md) covers safe dry runs.
+> **Scope note:** Phase checklists and provider setup instructions below are historical planning material and may not reflect current outstanding work.
 > **Closes:** Panelist checklist items **4.10** (🔧), **6.6** (📋), **6.7** (📋); extends **6.8**
 
 ---
@@ -47,17 +47,16 @@
 
 ## Quick-Start Checklist
 
-> **Phase 1 is built.** To run and test what exists today, go straight to the
-> **[mock testing runbook](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/sms_email_mock_testing.md)** — no account, no credentials, no spend. The list below is what remains before real messages can go out.
+> For current email events and real SMTP verification, use the **[transactional email testing guide](transactional_email_testing.md)**. For a no-network dry run, use the **[mock testing runbook](sms_email_mock_testing.md)**. The checklist below records the original implementation build sequence; it is not a current go-live checklist.
 
 - [x] Read **[§0](#0-pre-implementation-review)** — it changes the build order and the schema in §1.1.
 - [x] Build and demo against the **`log` (dry-run) driver** first ([§1.3](#13-sms-service--send_smsphp)). Done for both channels — email has a matching `log` driver ([§1.0](#10-what-phase-1-shipped)).
 - [x] Run the migration SQL — shipped as `2026_09_sms_email_channels.sql` ([§0.1a](#01a-what-shipped))
-- [ ] **Phase 2 — wire the endpoints** ([§2](#phase-2--wire-to-existing-endpoints)). Nothing calls the dispatcher yet, so no tenant action produces an SMS or email. This is the next task, and it needs no provider account.
+- [x] **Endpoint wiring** — current transactional email triggers are listed in [transactional_email_testing.md](transactional_email_testing.md). This historical build checklist is not a current implementation status.
 
-**Then, to go live.** Email first: it is free, has no lead time, and demos reliably.
+**Email go-live configuration (current deployment):** SMTP is configured. Confirm Email Notifications is enabled, Email Driver is `smtp`, and the queue is being drained before expecting delivery.
 
-- [ ] Create a Gmail App Password (Google Account → Security → 2FA → App Passwords), install PHPMailer ([§1.2](#12-install-phpmailer)), fill the SMTP fields in Account Settings and set **Email Driver** to `smtp`
+- [x] PHPMailer SMTP support and deployment configuration — done for the current deployment. Do not copy credentials into docs or assume another database is configured.
 - [ ] Sign up with **Semaphore** — the only SMS provider AMS supports (see [Appendix C.1](#c1-semaphore-sms--philippine-local)). **Start the sender-ID registration on day one** — it is the long pole (1–3 business days).
 - [x] Semaphore driver — **shipped 2026-09-24**. The Twilio / Vonage / Movider / iTexMo stubs were removed the same day (migration `2026_09_sms_semaphore_only.sql`).
 - [ ] Schedule the queue drain (`backend/cron/run_queue.bat`, every minute — command in C.1). A real provider makes the admin endpoints enqueue; nothing is delivered until it runs.

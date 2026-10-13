@@ -87,7 +87,7 @@ Without identity, any tenant could view another tenant's bills or approve their 
 - `X-User-Id` and `X-Admin-Id` headers injected on every API request via `axiosConfig.js`
 - `verify_admin($conn, $admin_id)` server-side guard on all admin endpoints
 - Profile edit (name, contact number, avatar) and password change
-- **Forgot Password / Reset Password** — token-based (`forgot_password.php`, `reset_password.php`); dev-mode returns raw token in response; production must wire PHPMailer SMTP delivery
+- **Forgot Password / Reset Password** — token-based (`forgot_password.php`, `reset_password.php`); reset-email delivery is not wired, and development mode returns the raw token in the response.
 
 ### What Is Explicitly Out of Scope
 - Social login — unnecessary overhead for a known user base
@@ -499,10 +499,10 @@ See `docs/features/service_management_design.md`.
 ## Module 6: Notification
 
 ### What It Does
-Keeps tenants and admin informed of important events through in-app notifications. SMS and email are built on a shared dispatcher and queue: SMS through Semaphore (live driver, go-live pending), email on the dry-run driver until SMTP is configured.
+Keeps tenants and admin informed of important events through in-app notifications. SMS and email use a shared dispatcher and queue. Email uses PHPMailer with SMTP support; SMTP has been configured for the current deployment, while the application defaults to the `log` driver with email notifications disabled. SMS uses Semaphore; live SMS go-live remains pending.
 
 ### Implementation Status
-In-app notifications fully wired. SMS built (Semaphore — the only provider); email built on the `log` dry-run driver. Remaining: SMS go-live, SMTP, sweep-driven rent SMS, tenant SMS/email toggles, announcement channel selection.
+In-app notifications fully wired. Transactional email dispatch is wired for the documented events; SMTP is configured for the current deployment, but the active database must have email enabled and `email_driver` set to `smtp` for actual delivery. Remaining: SMS go-live, sweep-driven rent SMS, tenant SMS/email controls, announcement channel selection, and password-reset email delivery.
 
 ---
 
@@ -550,9 +550,7 @@ In-app notifications fully wired. SMS built (Semaphore — the only provider); e
 
 **Remaining for SMS:** Semaphore credits + key, `AMS` sender-name approval, the queue drain scheduled, and a verified live send.
 
-**Remaining for Email (PHPMailer):**
-- Install PHPMailer via Composer; set the SMTP credentials in Account Settings (`smtp_host`, `smtp_username`, `smtp_password`) and switch the email driver to SMTP
-- Wire email into `forgot_password.php` (announcements already dispatch)
+**Email:** SMTP is configured for the current deployment; confirm per-database email settings in Admin → Account Settings → Notifications. `forgot_password.php` still does not send reset emails and exposes a development token when `APP_ENV=development`; wire secure reset-email delivery before relying on that flow outside development.
 
 ### Acceptance Criteria
 - Every invoice generation creates an in-app notification for the tenant
@@ -914,8 +912,8 @@ Fully implemented and DB-backed.
 | Service | Provider | Status | Key Setting |
 |---|---|---|---|
 | **Payment Gateway** | PayMongo (Sandbox to Live) | Implemented (Sandbox) | `paymongo_secret_key`, `paymongo_public_key`, `paymongo_webhook_secret` in `system_settings` |
-| **Password Reset Email** | PHPMailer + SMTP | Dev bypass active | Must wire SMTP before production; remove `dev_token` response |
-| **Announcement Email** | PHPMailer + SMTP | Built — `log` dry-run driver until SMTP is configured | `smtp_host`, `smtp_username`, `smtp_password`, `email_driver` in `system_settings` |
+| **Password Reset Email** | PHPMailer + SMTP | Not wired; development mode returns `dev_token` | Add reset-email dispatch and ensure dev token is unavailable in production |
+| **Transactional / Announcement Email** | PHPMailer + SMTP | SMTP configured for current deployment; runtime delivery depends on email switch and driver in `system_settings` | SMTP settings and `email_driver` in `system_settings` |
 | **Announcement SMS** | Semaphore API (only provider) | Built — live driver, go-live pending | `sms_provider`, `sms_api_key`, `sms_sender_name`, `sms_sender_approved`, `sms_daily_cap` in `system_settings` |
 | **Tenant Notification Preferences** | Internal | Backend wired (`notification_preferences`, global opt-outs); tenant UI saves in-app toggles only | SMS/email toggles in `UserNotifications.jsx` |
 
@@ -992,7 +990,7 @@ Core tenant, admin, payments, contracts, visitor management, and maintenance wor
 **Goal:** Wire SMS and email channels so they actually dispatch.
 
 **Scope:**
-- [ ] Configure PHPMailer SMTP in `system_settings` (the SMTP driver is built; PHPMailer is not installed)
+- [x] Transactional email dispatcher and PHPMailer SMTP driver implemented; SMTP configured for the current deployment (delivery still requires the per-database email switch and SMTP driver)
 - [x] Announcement email/SMS dispatch — via `dispatch_admin_action_broadcast()` — SMS and email go out only when ticked on the form (in-app always); a unit picker targets one unit; **Save draft** stores without notifying (fixed 2026-09-24)
 - [x] Semaphore SMS driver — live; [ ] go-live (credits, sender approval, scheduled queue drain)
 - [x] `notification_preferences` table + endpoints; [ ] SMS/email toggles in `UserNotifications.jsx` (in-app only today)
