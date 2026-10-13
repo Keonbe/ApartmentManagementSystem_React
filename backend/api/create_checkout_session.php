@@ -78,7 +78,7 @@ $prev_statuses = array_column($invoices, 'status', 'id');
 // Any failure below must give the claim back, or the invoices are stuck in
 // 'processing' with no checkout session ever created for them.
 function release_checkout_claim($conn, $prev_statuses, $user_id) {
-    $release = $conn->prepare("UPDATE invoices SET status = ? WHERE id = ? AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
+    $release = $conn->prepare("UPDATE invoices SET status = ?, processing_since = NULL WHERE id = ? AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
     foreach ($prev_statuses as $id => $prev_status) {
         $id = (string)$id;
         $release->bind_param("ssi", $prev_status, $id, $user_id);
@@ -87,7 +87,7 @@ function release_checkout_claim($conn, $prev_statuses, $user_id) {
     $release->close();
 }
 
-$claim = $conn->prepare("UPDATE invoices SET status = 'processing' WHERE ? IN (id, payment_group) AND user_id = ? AND status IN $open_statuses AND status <> 'processing'");
+$claim = $conn->prepare("UPDATE invoices SET status = 'processing', processing_since = NOW() WHERE ? IN (id, payment_group) AND user_id = ? AND status IN $open_statuses AND status <> 'processing'");
 $claim->bind_param("si", $invoice_id, $user_id);
 $claim->execute();
 $claimed = $claim->affected_rows;

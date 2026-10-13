@@ -1489,7 +1489,9 @@ function issue_move_in_billing($conn, $app_id, $user_id, $monthly_rent, $lease_s
         // rent is tenancy month 0; confirming the move-in relabels it to the
         // month the tenancy actually starts.
         $billing_period = billing_period_label(new DateTime($lease_start));
-        $due_date = date('Y-m-d', strtotime('+7 days'));
+        // The move-in invoice is due within the payment window (Settings); the
+        // sweep cancels the application if it is still unpaid after that.
+        $due_date = date('Y-m-d', strtotime('+' . payment_window_days($conn) . ' days'));
         $total_amount = $monthly_rent * 2; // 1st month + 1 month deposit
         $inv_stmt = $conn->prepare("INSERT INTO invoices (id, user_id, rent_application_id, base_rent, security_deposit, total_amount, billing_period, status, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
         $inv_stmt->bind_param("siidddss", $invoice_id, $user_id, $app_id, $monthly_rent, $monthly_rent, $total_amount, $billing_period, $due_date);
@@ -2183,6 +2185,111 @@ function store_room_image($file) {
     return ['room_images/' . $name, null];
 }
 
+// ── Payment window ──
+// system_settings.payment_window_days (default 3): how long a tenant has to
+// finish paying. It applies to an online checkout (an invoice held in
+// 'processing') and to the move-in invoice of an approved application, whose
+// due date is set to the window when it is issued. Monthly rent keeps its own
+// schedule and late fees: voiding a rent invoice would erase a real debt.
+function payment_window_days($conn) {
+    return max(1, min(30, (int)get_setting($conn, 'payment_window_days', 3)));
+}
+
+// Releases checkouts abandoned past the window and cancels approved
+// applications whose move-in invoice went unpaid past its due date. Every row
+// is claimed with a conditional UPDATE and notified only when this call won it,
+// so concurrent pollers cannot double-process. Returns counts.
+function void_lapsed_payments($conn) {
+    $out = ['checkouts_released' => 0, 'applications_voided' => 0];
+    $days = payment_window_days($conn);
+
+    // 1. Abandoned checkouts (same release as release_checkout_session.php).
+    $stmt = $conn->prepare("SELECT id, user_id FROM invoices
+                            WHERE status = 'processing' AND processing_since IS NOT NULL
+                              AND processing_since < DATE_SUB(NOW(), INTERVAL ? DAY)");
+    $stmt->bind_param("i", $days);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    $released_by_user = [];
+    foreach ($rows as $r) {
+        $upd = $conn->prepare("UPDATE invoices
+            SET status = CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 'overdue' ELSE 'pending' END,
+                checkout_session_id = NULL, processing_since = NULL
+            WHERE id = ? AND status = 'processing' AND processing_since < DATE_SUB(NOW(), INTERVAL ? DAY)");
+        $upd->bind_param("si", $r['id'], $days);
+        $upd->execute();
+        $won = $upd->affected_rows > 0;
+        $upd->close();
+        if ($won) {
+            $out['checkouts_released']++;
+            $released_by_user[(int)$r['user_id']][] = $r['id'];
+        }
+    }
+    foreach ($released_by_user as $uid => $ids) {
+        create_notification($conn, $uid, 'payment', 'Online Checkout Expired',
+            "Your unfinished online payment was cancelled after $days days. You can pay again from Pay Bills.",
+            'Resolved', 'invoice:' . $ids[0]);
+    }
+
+    // 2. Approved applications whose move-in invoice was never paid.
+    $res = $conn->query("SELECT ra.id AS app_id, ra.user_id, ra.room_name, i.id AS invoice_id
+        FROM rent_applications ra
+        JOIN invoices i ON i.rent_application_id = ra.id AND i.security_deposit > 0
+        WHERE ra.status = 'Approved'
+          AND i.status IN ('pending', 'unpaid', 'overdue', 'payment-failed')
+          AND i.due_date IS NOT NULL AND i.due_date < CURDATE()
+          AND NOT EXISTS (SELECT 1 FROM invoices p WHERE p.rent_application_id = ra.id AND p.status IN ('paid', 'processing', 'pending-verification', 'scheduled'))");
+    $lapsed = $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
+    foreach ($lapsed as $a) {
+        $app_id = (int)$a['app_id'];
+        $conn->begin_transaction();
+        try {
+            $reason = "Move-in payment was not made within $days days of approval.";
+            $claim = $conn->prepare("UPDATE rent_applications SET status = 'Cancelled', rejection_reason = ?, cancelled_at = NOW() WHERE id = ? AND status = 'Approved'");
+            $claim->bind_param("si", $reason, $app_id);
+            $claim->execute();
+            $won = $claim->affected_rows > 0;
+            $claim->close();
+            if (!$won) { $conn->rollback(); continue; }
+
+            $open = billing_open_status_sql();
+            $c = $conn->prepare("UPDATE invoices SET status = 'cancelled', cancel_reason = 'Payment window lapsed' WHERE rent_application_id = ? AND status IN $open");
+            $c->bind_param("i", $app_id);
+            $c->execute();
+            $c->close();
+            $d = $conn->prepare("DELETE FROM lease_contracts WHERE rent_application_id = ? AND status = 'draft'");
+            $d->bind_param("i", $app_id);
+            $d->execute();
+            $d->close();
+            $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE rent_application_id = $app_id AND status IN ('reserved', 'available')");
+
+            $room = (string)$a['room_name'];
+            $room_clean = trim(str_replace('Room', '', $room));
+            $free = $conn->prepare("UPDATE rooms SET status = 'vacant', tenant_name = NULL, lease_start = NULL, lease_end = NULL, occupants = 0 WHERE id IN (?, ?) AND status = 'reserved'");
+            $free->bind_param("ss", $room_clean, $room);
+            $free->execute();
+            $free->close();
+
+            resolve_admin_queue($conn, 'rent_application', $app_id);
+            create_notification($conn, (int)$a['user_id'], 'application_update', 'Application Cancelled',
+                "Your approved rent application for Unit $room was cancelled because the move-in payment was not made within $days days. You may apply again.");
+            $conn->commit();
+            notify_unit_waitlist($conn, $room);
+            notify_admins_info($conn, 'rent_application', 'Application Cancelled Automatically',
+                "Unit $room: the approved applicant did not pay the move-in invoice {$a['invoice_id']} in time.", "rent_application:$app_id");
+            log_activity($conn, null, 'system', 'Payment Window Lapsed', "Application #$app_id cancelled; invoice {$a['invoice_id']} voided", 0);
+            $out['applications_voided']++;
+        } catch (Throwable $e) {
+            $conn->rollback();
+            error_log('[AMS] void_lapsed_payments: ' . $e->getMessage());
+        }
+    }
+    if ($out['checkouts_released'] > 0) {
+        log_activity($conn, null, 'system', 'Payment Window Lapsed', "Released {$out['checkouts_released']} abandoned checkout(s)", 0);
+    }
+    return $out;
+}
 // Promotes lapsed invoices to 'overdue' and applies the configured late fee.
 //
 // Both the promotion and the fee live here because they must always happen
@@ -2203,7 +2310,8 @@ function promote_overdue_invoices($conn) {
         SET status = 'overdue',
             -- A checkout that never completed must not leave a session id
             -- behind that a late-arriving webhook could still match on.
-            checkout_session_id = CASE WHEN status = 'processing' THEN NULL ELSE checkout_session_id END
+            checkout_session_id = CASE WHEN status = 'processing' THEN NULL ELSE checkout_session_id END,
+            processing_since = CASE WHEN status = 'processing' THEN NULL ELSE processing_since END
         WHERE due_date IS NOT NULL AND due_date < CURDATE()
           AND (
                 status IN ('pending', 'unpaid', 'payment-failed', 'processing')

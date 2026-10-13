@@ -10,6 +10,7 @@ import api from '../api/axiosConfig';
 const DEFAULTS = {
   minLeaseDuration: 3,             // months
   maxRentAheadMonths: 12,          // how far ahead an extension may reach (max 12)
+  paymentWindowDays: 3,            // days a tenant has to pay before an unpaid checkout/move-in invoice lapses
   overdueThresholdDays: 15,        // days before eviction flag
   reservationHoldDays: 7,          // days a unit reservation holds a room
   maintenanceMonthlyBudget: 50000, // PHP
@@ -73,6 +74,7 @@ export const getSystemSettings = async () => {
       return {
         minLeaseDuration: parseInt(dbSettings.min_lease_duration || DEFAULTS.minLeaseDuration),
         maxRentAheadMonths: parseInt(dbSettings.max_rent_ahead_months || DEFAULTS.maxRentAheadMonths),
+        paymentWindowDays: parseInt(dbSettings.payment_window_days || DEFAULTS.paymentWindowDays),
         overdueThresholdDays: parseInt(dbSettings.overdue_threshold_days || DEFAULTS.overdueThresholdDays),
         reservationHoldDays: parseInt(dbSettings.reservation_hold_days || DEFAULTS.reservationHoldDays),
         maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || DEFAULTS.maintenanceMonthlyBudget),
@@ -140,6 +142,7 @@ export const saveSystemSettings = async (settings) => {
     const payload = {
       min_lease_duration: settings.minLeaseDuration,
       max_rent_ahead_months: String(settings.maxRentAheadMonths ?? DEFAULTS.maxRentAheadMonths),
+      payment_window_days: settings.paymentWindowDays,
       overdue_threshold_days: settings.overdueThresholdDays,
       reservation_hold_days: settings.reservationHoldDays,
       maintenance_monthly_budget: settings.maintenanceMonthlyBudget,

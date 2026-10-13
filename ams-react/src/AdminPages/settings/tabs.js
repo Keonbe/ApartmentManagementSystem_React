@@ -24,6 +24,7 @@ export const SETTINGS_TABS = [
     icon: faCreditCard,
     description: 'Overdue and eviction policy, payment channels and the PayMongo gateway.',
     keys: [
+      'paymentWindowDays',
       'overdueThresholdDays',
       'paymentMode', 'paymentSandboxEnabled',
       'paymentChGcashManual', 'paymentChBankManual', 'paymentChInPerson',

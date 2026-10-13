@@ -25,6 +25,13 @@ if (throttle_claim($conn, 'poll_checks_last_run', 60)) {
         error_log('[AMS] notification sweep failed: ' . $e->getMessage());
     }
 
+    // Abandoned checkouts and unpaid move-in invoices past the payment window.
+    try {
+        void_lapsed_payments($conn);
+    } catch (Throwable $e) {
+        error_log('[AMS] payment window sweep failed: ' . $e->getMessage());
+    }
+
     // Visitor overstay alerts are checked here too, not only in the daily sweep
     // above — the threshold is in hours, so a once-a-day check is too coarse.
     try {

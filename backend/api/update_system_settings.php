@@ -147,6 +147,11 @@ foreach ($input as $key => $value) {
         echo json_encode(["success" => false, "message" => "Visitor overstay threshold must be a whole number between 1 and 168 hours."]);
         exit;
     }
+    if ($key === 'payment_window_days' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 30)) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Payment window must be a whole number of days between 1 and 30.", "errors" => ["paymentWindowDays" => "Enter 1 to 30 days."]]);
+        exit;
+    }
     if ($key === 'lease_end_reminder_days' && (!ctype_digit($value) || (int)$value < 0 || (int)$value > 180)) {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "Rent-end reminder days must be a whole number between 0 and 180."]);

@@ -52,6 +52,19 @@ export default function PaymentsPanel({ settings, updateSetting }) {
         title="Overdue & Eviction Policy"
         description="When an unpaid tenant is listed for eviction review."
       >
+        <Field label="Payment Window" htmlFor="setting-paymentWindowDays" icon={faDollarSign} hint="How long a tenant has to pay a move-in invoice or finish an online checkout. After that an unfinished checkout is released and an unpaid move-in application is cancelled automatically.">
+          <WithUnit suffix="days">
+            <input
+              id="setting-paymentWindowDays" name="paymentWindowDays"
+              type="number" inputMode="numeric" min="1" max="30" step="1" required
+              value={settings.paymentWindowDays}
+              onKeyDown={blockNonIntegerKeys}
+              onChange={(e) => updateSetting('paymentWindowDays', numberValue(e))}
+              className={`${INPUT_NUMBER} w-24`}
+            />
+          </WithUnit>
+        </Field>
+
         <Field label="Overdue Payment Threshold" htmlFor="setting-overdueThresholdDays" icon={faDollarSign} hint="Tenants past this threshold are listed for eviction review on the Contracts page.">
           <WithUnit suffix="days overdue">
             <input

@@ -19,6 +19,7 @@ require_once __DIR__ . '/../config.php';
 
 $result = run_notification_sweep($conn, true);
 unset($result['ran']);
+$result += void_lapsed_payments($conn);
 
 echo '[' . date('Y-m-d H:i:s') . "] Notification sweep\n";
 foreach ($result as $key => $value) {
