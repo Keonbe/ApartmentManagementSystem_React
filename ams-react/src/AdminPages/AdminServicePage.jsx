@@ -370,10 +370,18 @@ const AdminServicePage = () => {
   //=== ServiceBookingLifecycle ===
   const handleServiceStatus = async (request, newStatus) => {
     if (CONFIRM_MESSAGES[newStatus] && !window.confirm(CONFIRM_MESSAGES[newStatus])) return;
+    // Rejecting or cancelling a booking that was already approved needs a reason
+    // (a charge the tenant already paid becomes a refund request).
+    let reason;
+    if (['Rejected', 'Cancelled'].includes(newStatus) && request.status !== 'Pending') {
+      reason = (window.prompt('Reason for ' + (newStatus === 'Rejected' ? 'rejecting' : 'cancelling') + ' this booking (required):') || '').trim();
+      if (!reason) return;
+    }
     try {
       const res = await api.post('update_service_status.php', {
         rawId: request.rawId || request.id,
         status: newStatus,
+        ...(reason ? { adminNotes: reason } : {}),
       });
       if (!res.data.success) {
         alert(res.data.message || 'Failed to update booking status.');

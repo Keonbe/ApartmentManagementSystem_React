@@ -12,7 +12,7 @@ export const STATUS_STYLES = {
   Cancelled: 'bg-slate-100 text-slate-600',
 };
 
-export const TYPE_LABELS = { advance: 'Advance rent', overpayment: 'Overpayment' };
+export const TYPE_LABELS = { advance: 'Advance rent', overpayment: 'Overpayment', rejected_application: 'Rejected application payment', rejected_charge: 'Rejected charge' };
 
 export const ACTION_LABELS = {
   raised: 'Request raised',

@@ -224,6 +224,7 @@ const AdminApplications = () => {
       throw new Error(apiErrorMessage(err, 'Failed to update the application.'), { cause: err });
     }
     if (!res.data.success) throw new Error(apiErrorMessage(res, 'Failed to update the application.'));
+    if (res.data.refunds_raised) alert(`${res.data.refunds_raised} refund request(s) were opened for payments this applicant already made. Review them under Refunds.`);
     setRejectTarget(null);
     setShowProfileModal(false);
     fetchApplications();
@@ -1045,7 +1046,7 @@ const AdminApplications = () => {
       {rejectTarget && (
         <ReasonModal
           title={rejectTarget.status === 'Approved' ? "Revoke Approval & Reject Application" : "Reject Application"}
-          description={`${rejectTarget.name || 'The applicant'} is notified with this reason.`}
+          description={`${rejectTarget.name || 'The applicant'} is notified with this reason.${rejectTarget.status === 'Approved' ? ' Any payment already made is sent to Refunds as a refund request.' : ''}`}
           label="Reason for rejecting this application"
           confirmLabel={rejectTarget.status === 'Approved' ? "Revoke & Reject" : "Reject Application"}
           suggestions={['Incomplete or unverifiable documents', 'Unit is no longer available', 'Does not meet tenancy requirements', 'Change of mind', 'Other']}

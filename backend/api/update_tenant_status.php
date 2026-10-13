@@ -26,12 +26,6 @@ if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection
     exit;
 }
 
-if (in_array($status, ['Rejected', 'Declined'], true) && trim((string)$rejection_reason) === '') {
-    http_response_code(422);
-    echo json_encode(["success" => false, "message" => "A rejection reason is required."]);
-    exit;
-}
-
 $attachment_path = null;
 if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
     $file = $_FILES['attachment'];
@@ -100,6 +94,17 @@ if ($id > 0 && !empty($status)) {
             exit;
         }
 
+        // Cancelling an approved application can mean money goes back: a reason is required.
+        $refund_on_cancel = $current_status === 'Approved' && in_array($status, ['Rejected', 'Declined', 'Cancelled'], true);
+        if ($refund_on_cancel && trim((string)$rejection_reason) === '') {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "A reason is required to reject or cancel an approved application.", "errors" => ["rejection_reason" => "A reason is required."]]);
+            $conn->rollback();
+            $conn->close();
+            exit;
+        }
+        $refunds_raised = [];
+
         if ($status === 'Rejected' || $status === 'Declined' || $status === 'Cancelled' || $status === 'Action Required') {
             $stmt = $conn->prepare("UPDATE rent_applications SET status = ?, rejection_reason = ?, rejection_attachment_path = ? WHERE id = ? AND status = ?");
             if (!$stmt) {
@@ -166,6 +171,12 @@ if ($id > 0 && !empty($status)) {
 
             // 3. Cancel open advance credits
             $conn->query("UPDATE advance_credits SET status = 'cancelled' WHERE rent_application_id = " . (int)$id . " AND status IN ('reserved', 'available')");
+
+            // 3b. Money already paid on an approved application goes back through
+            // a refund request per paid invoice (the admin decides at /admin-refunds).
+            if ($refund_on_cancel && !empty($cur_row['user_id'])) {
+                $refunds_raised = raise_rejection_refunds($conn, $cur_row['user_id'], $id, trim((string)$rejection_reason), $admin_id);
+            }
 
             // 4. Resolve payment notifications for the applicant
             if (!empty($cur_row['user_id'])) {
@@ -424,6 +435,10 @@ if ($id > 0 && !empty($status)) {
                 if (!empty($rejection_reason)) {
                     $notif_msg .= " Reason: $rejection_reason";
                 }
+                if (!empty($refunds_raised)) {
+                    $refund_total = array_sum(array_column($refunds_raised, 'amount'));
+                    $notif_msg .= " A refund request of ₱" . number_format($refund_total, 2) . " was opened for the payments you made. You can follow it under My Refunds.";
+                }
                 
                 $notif_id = create_notification($conn, $tenant_id, 'application_update', $notif_title, $notif_msg);
                 if ($notif_id && $attachment_path) {
@@ -439,6 +454,10 @@ if ($id > 0 && !empty($status)) {
         }
 
         $conn->commit();
+        foreach ($refunds_raised as $rf) {
+            notify_refund_raised($conn, $rf['id'], $rf['amount'], 'a payment on a rejected application');
+            log_activity($conn, $admin_id, 'billing', 'Refund Requested', "Refund #{$rf['id']}: ₱" . number_format($rf['amount'], 2) . " (rejected application #$id)");
+        }
         // Queue the approval email only after the transaction commits. Notification
         // failures must never roll back a completed application approval.
         if (in_array($status, ['Approved', 'Rejected', 'Declined', 'Cancelled'], true) && !empty($tenant_id)) {
@@ -461,6 +480,7 @@ if ($id > 0 && !empty($status)) {
             }
         }
         $response = ["success" => true];
+        if (!empty($refunds_raised)) $response["refunds_raised"] = count($refunds_raised);
         if ($status === 'moved-out') {
             $response["balance_due"] = $balance > 0 ? round($balance, 2) : 0;
         }

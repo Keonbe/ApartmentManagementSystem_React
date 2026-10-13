@@ -59,6 +59,13 @@ try {
     // (audit L5): a lost race or a refused reversal leaves both untouched,
     // instead of a booking still Completed with its charge already removed.
     $reversing = $old['status'] === 'Completed' && (int)$old['is_invoiced'];
+    // Rejecting or cancelling a booking that was already approved (or billed)
+    // needs a reason: a charge that was paid becomes a refund request.
+    if (in_array($status, ['Rejected', 'Cancelled'], true) && ($old['status'] !== 'Pending' || $reversing) && ($admin_notes === null || $admin_notes === '')) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "A reason is required to " . ($status === 'Rejected' ? 'reject' : 'cancel') . " this booking.", "errors" => ["adminNotes" => "A reason is required."]]);
+        exit;
+    }
     $conn->begin_transaction();
 
     $stmt = $conn->prepare("UPDATE service_requests
@@ -81,7 +88,7 @@ try {
     }
 
     if ($reversing) {
-        $reversal = reverse_service_charge($conn, $id, false);
+        $reversal = reverse_service_charge($conn, $id, false, ['reason' => (string)$admin_notes, 'actor_id' => $admin_id]);
         if (!$reversal['ok']) {
             $conn->rollback();
             http_response_code(409);

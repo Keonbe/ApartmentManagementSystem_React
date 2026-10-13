@@ -757,6 +757,37 @@ function post_service_charge($conn, $service_request_id) {
     }
 }
 
+function invoice_is_paid($conn, $invoice_id) {
+    $st = null;
+    $q = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
+    $q->bind_param("s", $invoice_id);
+    $q->execute();
+    $q->bind_result($st);
+    $q->fetch();
+    $q->close();
+    return $st === 'paid';
+}
+
+// A charge on an invoice the tenant already paid cannot be taken off the bill:
+// raise a refund request for the charge instead (the admin decides at
+// /admin-refunds). Throws if the request cannot be saved; the caller owns the
+// transaction. Returns the new request id, or 0 if a request already holds it.
+function refund_paid_charge($conn, $user_id, $invoice_id, $amount, $label, $reason, $actor_id) {
+    $amount = round((float)$amount, 2);
+    if ($amount <= 0 || !$user_id) return 0;
+    $app_id = null;
+    $q = $conn->prepare("SELECT rent_application_id FROM invoices WHERE id = ?");
+    $q->bind_param("s", $invoice_id);
+    $q->execute();
+    $q->bind_result($app_id);
+    $q->fetch();
+    $q->close();
+    $why = "$label rejected after payment: $reason";
+    $rid = insert_refund_request($conn, (int)$user_id, $app_id ? (int)$app_id : null, 'rejected_charge', $invoice_id, $amount, $why, (int)$actor_id, 'admin');
+    notify_refund_raised($conn, $rid, $amount, strtolower($label) . ' charge');
+    return $rid;
+}
+
 // Backs a service charge out of its invoice. Only possible while that invoice is
 // still unpaid — once settled the money has changed hands, so the admin must
 // issue a manual credit instead.
@@ -764,11 +795,11 @@ function post_service_charge($conn, $service_request_id) {
 // Returns ['ok' => bool, 'message' => string]. Pass $own_transaction = false
 // when the caller already holds a transaction and will commit or roll back
 // itself (update_service_status.php claims the status in the same one, audit L5).
-function reverse_service_charge($conn, $service_request_id, $own_transaction = true) {
+function reverse_service_charge($conn, $service_request_id, $own_transaction = true, $refund_ctx = null) {
     if ($own_transaction) $conn->begin_transaction();
 
     try {
-        $stmt = $conn->prepare("SELECT total_cost, invoice_id, is_invoiced FROM service_requests WHERE id = ? FOR UPDATE");
+        $stmt = $conn->prepare("SELECT total_cost, invoice_id, is_invoiced, user_id FROM service_requests WHERE id = ? FOR UPDATE");
         $stmt->bind_param("i", $service_request_id);
         $stmt->execute();
         $request = $stmt->get_result()->fetch_assoc();
@@ -789,6 +820,16 @@ function reverse_service_charge($conn, $service_request_id, $own_transaction = t
         $reversed = $stmt->affected_rows;
         $stmt->close();
 
+        if ($reversed === 0 && $refund_ctx && invoice_is_paid($conn, $request['invoice_id'])) {
+            // Already paid: detach the charge and ask for the money back.
+            $rid = refund_paid_charge($conn, $request['user_id'], $request['invoice_id'], $amount, 'Service', $refund_ctx['reason'], $refund_ctx['actor_id']);
+            $stmt = $conn->prepare("UPDATE service_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
+            $stmt->bind_param("i", $service_request_id);
+            $stmt->execute();
+            $stmt->close();
+            if ($own_transaction) $conn->commit();
+            return ['ok' => true, 'message' => 'Charge was already paid; refund request #' . $rid . ' opened.', 'refund_id' => $rid];
+        }
         if ($reversed === 0) {
             if ($own_transaction) $conn->rollback();
             $inv = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
@@ -930,11 +971,11 @@ function post_maintenance_charge($conn, $maintenance_request_id) {
 // a manual credit instead.
 //
 // Returns ['ok' => bool, 'message' => string].
-function reverse_maintenance_charge($conn, $maintenance_request_id) {
+function reverse_maintenance_charge($conn, $maintenance_request_id, $refund_ctx = null) {
     $conn->begin_transaction();
 
     try {
-        $stmt = $conn->prepare("SELECT actual_cost, estimated_cost, invoice_id, is_invoiced FROM maintenance_requests WHERE id = ? FOR UPDATE");
+        $stmt = $conn->prepare("SELECT actual_cost, estimated_cost, invoice_id, is_invoiced, user_id FROM maintenance_requests WHERE id = ? FOR UPDATE");
         $stmt->bind_param("i", $maintenance_request_id);
         $stmt->execute();
         $request = $stmt->get_result()->fetch_assoc();
@@ -954,6 +995,15 @@ function reverse_maintenance_charge($conn, $maintenance_request_id) {
         $reversed = $stmt->affected_rows;
         $stmt->close();
 
+        if ($reversed === 0 && $refund_ctx && invoice_is_paid($conn, $request['invoice_id'])) {
+            $rid = refund_paid_charge($conn, $request['user_id'], $request['invoice_id'], $amount, 'Maintenance', $refund_ctx['reason'], $refund_ctx['actor_id']);
+            $stmt = $conn->prepare("UPDATE maintenance_requests SET is_invoiced = 0, invoice_id = NULL, billing_period = NULL WHERE id = ?");
+            $stmt->bind_param("i", $maintenance_request_id);
+            $stmt->execute();
+            $stmt->close();
+            $conn->commit();
+            return ['ok' => true, 'message' => 'Charge was already paid; refund request #' . $rid . ' opened.', 'refund_id' => $rid];
+        }
         if ($reversed === 0) {
             $conn->rollback();
             $inv = $conn->prepare("SELECT status FROM invoices WHERE id = ?");
@@ -2469,7 +2519,7 @@ function refund_eligible($conn, $user_id) {
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) {
         $held = 0.0;
-        $q = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM refund_requests WHERE invoice_id = ? AND type = 'overpayment' AND status IN ('Pending Review','Info Requested','Approved','Refunded')");
+        $q = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM refund_requests WHERE invoice_id = ? AND type <> 'advance' AND status IN ('Pending Review','Info Requested','Approved','Refunded')");
         $q->bind_param("s", $r['id']);
         $q->execute();
         $q->bind_result($held);
@@ -2480,6 +2530,64 @@ function refund_eligible($conn, $user_id) {
     }
     $stmt->close();
     return ['advance' => round((float)$advance, 2), 'overpayments' => $over];
+}
+
+// Inserts a refund request with its 'raised' event; throws on failure. The
+// caller owns the transaction and the credit holds. Admin-queue notice is
+// separate (notify_refund_raised) so it only fires after commit.
+function insert_refund_request($conn, $user_id, $app_id, $type, $invoice_id, $amount, $reason, $actor_id, $actor_role) {
+    $ins = $conn->prepare("INSERT INTO refund_requests (user_id, rent_application_id, type, invoice_id, amount, reason, raised_by, raised_by_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $ins->bind_param("iissdsis", $user_id, $app_id, $type, $invoice_id, $amount, $reason, $actor_id, $actor_role);
+    if (!$ins->execute()) throw new Exception("Could not save the refund request.");
+    $rid = (int)$conn->insert_id;
+    $ins->close();
+    $ev = $conn->prepare("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES (?, ?, ?, 'raised', ?)");
+    $ev->bind_param("iiss", $rid, $actor_id, $actor_role, $reason);
+    $ev->execute();
+    $ev->close();
+    return $rid;
+}
+
+function notify_refund_raised($conn, $rid, $amount, $label) {
+    notify_admins_queue($conn, 'refund_request', $rid, 'Refund Request',
+        "A refund of ₱" . number_format($amount, 2) . " for $label needs review.");
+}
+
+// Money already paid on a rent application's invoices, for a rejection after
+// approval: [['invoiceId','label','amount']] (what the payments recorded, or
+// the invoice total when none were itemised), minus anything a refund request
+// already holds. Invoices settled from an advance credit are not new money.
+function paid_invoices_for_application($conn, $app_id) {
+    $app_id = (int)$app_id;
+    $out = [];
+    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount,
+            (SELECT COALESCE(SUM(t.amount),0) FROM payment_transactions t WHERE t.invoice_id = i.id) AS tx_paid
+        FROM invoices i
+        WHERE i.rent_application_id = ? AND i.status = 'paid'
+          AND NOT EXISTS (SELECT 1 FROM refund_requests r WHERE r.invoice_id = i.id AND r.status IN ('Pending Review','Info Requested','Approved','Refunded'))
+          AND (i.payment_method IS NULL OR i.payment_method <> 'Advance credit')");
+    $stmt->bind_param("i", $app_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($r = $res->fetch_assoc()) {
+        $amt = (float)$r['tx_paid'] > 0 ? (float)$r['tx_paid'] : (float)$r['total_amount'];
+        if ($amt > 0) $out[] = ['invoiceId' => $r['id'], 'label' => $r['billing_period'], 'amount' => round($amt, 2)];
+    }
+    $stmt->close();
+    return $out;
+}
+
+// Raises one refund request per paid invoice of an application that is being
+// rejected or cancelled after approval. Runs inside the caller's transaction.
+// Returns the list of [rid, amount] raised; the caller notifies after commit.
+function raise_rejection_refunds($conn, $user_id, $app_id, $reason, $actor_id) {
+    $raised = [];
+    foreach (paid_invoices_for_application($conn, $app_id) as $p) {
+        $why = "Application rejected after payment: " . $reason;
+        $rid = insert_refund_request($conn, (int)$user_id, (int)$app_id, 'rejected_application', $p['invoiceId'], $p['amount'], $why, (int)$actor_id, 'admin');
+        $raised[] = ['id' => $rid, 'amount' => $p['amount']];
+    }
+    return $raised;
 }
 
 function admin_queue_types_sql() {

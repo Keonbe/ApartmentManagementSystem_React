@@ -85,11 +85,7 @@ try {
     }
     if ($amount > $max + 0.001) throw new Exception("Another request already holds this money.");
 
-    $ins = $conn->prepare("INSERT INTO refund_requests (user_id, rent_application_id, type, invoice_id, amount, reason, raised_by, raised_by_role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $ins->bind_param("iissdsis", $user_id, $app_id, $type, $invoice_ref, $amount, $reason, $actor_id, $actor_role);
-    if (!$ins->execute()) throw new Exception("Could not save the request.");
-    $rid = $conn->insert_id;
-    $ins->close();
+    $rid = insert_refund_request($conn, $user_id, $app_id, $type, $invoice_ref, $amount, $reason, $actor_id, $actor_role);
 
     if ($type === 'advance') {
         // Hold credits (oldest first) until the requested amount is covered.
@@ -106,10 +102,6 @@ try {
         if (abs($left) > 0.01) throw new Exception("Advance rent is refunded in whole months. Enter the full amount of one or more months.");
     }
 
-    $ev = $conn->prepare("INSERT INTO refund_request_events (refund_request_id, actor_id, actor_role, action, message) VALUES (?, ?, ?, 'raised', ?)");
-    $ev->bind_param("iiss", $rid, $actor_id, $actor_role, $reason);
-    $ev->execute();
-    $ev->close();
     $conn->commit();
 } catch (Exception $e) {
     $conn->rollback();
@@ -118,8 +110,7 @@ try {
 
 $label = $type === 'advance' ? 'advance rent' : 'an overpayment';
 log_activity($conn, $actor_id, 'billing', 'Refund Requested', "Refund #$rid: ₱" . number_format($amount, 2) . " ($type) for user $user_id");
-notify_admins_queue($conn, 'refund_request', $rid, 'Refund Request',
-    "A refund of ₱" . number_format($amount, 2) . " for $label needs review.");
+notify_refund_raised($conn, $rid, $amount, $label);
 if ($actor_role === 'admin') {
     create_notification($conn, $user_id, 'refund_update', 'Refund Request Opened',
         "A refund request of ₱" . number_format($amount, 2) . " was opened for you.");

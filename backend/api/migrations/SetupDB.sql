@@ -1148,7 +1148,7 @@ CREATE TABLE IF NOT EXISTS `refund_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `rent_application_id` int(11) DEFAULT NULL,
-  `type` enum('advance','overpayment') NOT NULL,
+  `type` enum('advance','overpayment','rejected_application','rejected_charge') NOT NULL,
   `invoice_id` varchar(50) DEFAULT NULL,
   `amount` decimal(10,2) NOT NULL,
   `reason` text NOT NULL,

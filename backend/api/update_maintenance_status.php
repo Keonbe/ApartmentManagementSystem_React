@@ -210,7 +210,7 @@ if ($final_status === 'Completed' && $final_tenant_responsible === 1 && !(int)$c
     $final_tenant_responsible === 0
     || ($status_changed && $current['status'] === 'Completed' && $new_status !== 'Completed')
 )) {
-    $reversal = reverse_maintenance_charge($conn, $id);
+    $reversal = reverse_maintenance_charge($conn, $id, ['reason' => trim((string)($input['rejectionReason'] ?? '')) ?: 'Ticket status changed to ' . $new_status, 'actor_id' => $admin_id]);
     if ($reversal['ok']) {
         log_activity($conn, $admin_id, 'billing', "Reversed Maintenance Charge", "Maintenance Ticket #$id: " . $reversal['message']);
     }
