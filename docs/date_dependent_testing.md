@@ -586,6 +586,8 @@ ORDER BY lc.id DESC LIMIT 1;
 | Late fee is not charged twice | Same as above, then reload | `late_fee` unchanged on the second read |
 | Invoice due today — no fee | `SET due_date = CURDATE()` | Not yet overdue (promotion needs `due_date < CURDATE()`) |
 | Invoice due in future — no fee | `SET due_date = DATE_ADD(CURDATE(), INTERVAL 30 DAY)` | Late fee = 0 |
+| Abandoned checkout released (payment window) | `SET status='processing', processing_since = DATE_SUB(NOW(), INTERVAL 4 DAY), checkout_session_id='cs_x'` on an open invoice, then poll `get_notifications.php` or run `php backend/cron/daily_sweep.php` | Back to `pending`/`overdue`, session id cleared, tenant notified "Online Checkout Expired" |
+| Unpaid move-in invoice voided (payment window) | On an `Approved` application whose move-in invoice is unpaid: `SET due_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`, then poll or run the sweep | Application `Cancelled`, invoice `cancelled` ("Payment window lapsed"), unit freed, lapsed row in the follow-up monitor |
 | Abandoned online checkout still chased | `SET status='processing', due_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)` | Promoted to `overdue`; stale `checkout_session_id` cleared |
 | Missed in-person booking | `SET status='scheduled', scheduled_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`, past `due_date` | Promoted to `overdue` |
 | Reservation hold expires | `SET hold_expires_at = DATE_SUB(CURDATE(), INTERVAL 1 DAY)` on an `Active` row, then load `/preview` | Reservation → `Expired` |
@@ -599,6 +601,35 @@ ORDER BY lc.id DESC LIMIT 1;
 | CCTV — reject | Admin: Reject in AdminServicePage | `status = 'Rejected'` in DB |
 | Move-out → vacant room | Tenant submits move-out, admin archives | `rooms.status = 'vacant'` |
 | Announcement → notification fan-out | Admin creates announcement | One `notifications` row per non-admin user |
+
+---
+
+## 13b. Defense scenario checklist
+
+Build once on a scratch DB (or on dev after `/db-snapshot save`; restore with `/db-snapshot restore`). Never on prod.
+
+```bash
+bash .claude/skills/db-snapshot/snapshot.sh scratch defense --seed
+sed 's/ams_db/defense/g' backend/api/migrations/seeds/seed_panelist_gaps.sql | mysql -uroot defense      # optional: extra refund rows
+sed 's/ams_db/defense/g' backend/api/migrations/seeds/seed_defense_scenarios.sql | mysql -uroot defense  # safe to run twice
+```
+
+`seed_defense_scenarios.sql` uses `CURDATE()` offsets, so it stays valid on any day. Admin `admin@gmail.com` / `admin123`; tenants `tenant123`.
+
+| # | Scenario | Seeded as | Where to show it | Expected |
+|---|---|---|---|---|
+| 1 | Split payment | `INV-DEF-SPLIT` (Rosa, user 5): ₱2,500 cash + ₱1,500 GCash | AdminPayments history; Rosa's Payment History receipt | One receipt listing both payment rows |
+| 2 | Single full payment | `INV-DEF-FULL` (Dante, user 9): one ₱4,000 cash row | Dante's Payment History | One payment row |
+| 3 | Overdue invoice | `INV-DEF-OVERDUE` (Pedro, user 10), due 12 days ago | AdminNotifications → Needs follow-up; AdminTenants | Listed with days late; Remind sends one notice per day |
+| 4 | Rejected after approval | App 14 (Ramon) with paid `INV-DEF-REJECTED` ₱8,000 | AdminRefunds | `rejected_application` request, Pending Review. Live check: approve and pay an application, then reject it with a reason: a refund request is raised per paid invoice |
+| 5 | Scheduled move-in | App 5 (Lita, unit E), move-in 3 days from today | AdminApplications; TrackApplication (Lita) | Move-in date shown; Confirm Move-In works only once it arrives |
+| 6 | Utility reading | Unit H metered (last month), unit G total only (this month) | AdminUtilities, UserUtilities (Pedro) | Total-only row shows "Total only"; Sync (paid) books ₱1,850.50 under Services |
+| 7 | Visitor overstay | `DEF Overstay Guest` (Maria, unit A), checked in 2 days ago | AdminVisitors after one notification poll | A "Visitor Overstay" alert is queued for the admin (threshold: Settings, default 24 h) |
+| 8 | Refund request | Row from #4; `seed_panelist_gaps.sql` adds advance and overpayment ones | /admin-refunds, /my-refunds | Approve, then Mark refunded needs a payout method and reference |
+| 9 | Payment window | `INV-DEF-ABANDONED` (Carlo, user 11) in `processing` for 4 days | Poll `get_notifications.php` or run `php backend/cron/daily_sweep.php` | Back to `pending`; Carlo notified "Online Checkout Expired" |
+| 10 | Documents outstanding | App 6 (Gloria) `Action Required` | Needs follow-up panel | Listed under missing documents; tenant nudge sent once |
+
+Settings → Payments → Payment Window (default 3 days) controls #9 and the move-in invoice due date.
 
 ---
 

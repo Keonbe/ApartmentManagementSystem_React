@@ -3137,4 +3137,43 @@ House rules gained `scope` (`house` default, `parking`, `minors`); `GET house_ru
 
 ---
 
+## 21. Defense Gaps (2026-10-13)
+
+Seed: `seeds/seed_defense_scenarios.sql` (checklist in `docs/date_dependent_testing.md` §13b). Migration: `2026_10_defense_gaps.sql`.
+
+### 21.1 Rejection after approval with money, payment window, follow-up monitor
+
+| ID | Type | Step | Expected |
+|---|---|---|---|
+| **M21-01** | Negative | `update_tenant_status.php` `Rejected` on an Approved application with no reason | 422 "A reason is required…" |
+| **M21-02** | Happy | Reject an Approved application whose move-in invoice is paid (reason given) | One `refund_requests` row per paid invoice, `type='rejected_application'`, amount = recorded payments; response `refunds_raised`; admin queue `refund_request`; tenant told; open invoices cancelled; unit freed |
+| **M21-03** | Happy | Reject an Approved application with nothing paid | No refund row |
+| **M21-04** | Happy | `update_service_status.php` Cancelled on a Completed booking whose invoice is paid, with `adminNotes` | `rejected_charge` refund request, charge detached, 200 |
+| **M21-05** | Negative | Same without `adminNotes` (or Rejected/Cancelled from Approved) | 422 with `errors.adminNotes` |
+| **M21-06** | Happy | Invoice `processing` with `processing_since` 4 days ago, then poll `get_notifications.php` | Back to `pending`/`overdue`, `checkout_session_id` and `processing_since` cleared, tenant notified once |
+| **M21-07** | Happy | Approved application, move-in invoice unpaid and past due | Application `Cancelled`, invoice `cancelled` ("Payment window lapsed"), unit freed, waitlist notified; a second poll does nothing |
+| **M21-08** | Negative | Settings `payment_window_days` 0 or 31 | 422 |
+| **M21-09** | Happy | `GET monitor_followups.php` | Overdue tenants (+ lapsed applicants) and document items; admin queue rows `payment_followup` / `document_followup` created once |
+| **M21-10** | Happy | `POST monitor_followups.php {kind,id}` twice | First sends the tenant notice; second 409 (once a day) |
+| **M21-11** | Happy | Problem clears (invoice paid, application answered) then open the monitor | Queue row resolved |
+
+### 21.2 Utility "record total only"
+
+| ID | Type | Step | Expected |
+|---|---|---|---|
+| **M21-20** | Happy | `save_utility_reading.php` `entry_mode:'total'`, `total_amount` 1850.50, note | Row with `entry_mode='total'`, readings 0 |
+| **M21-21** | Negative | `total_amount` 0, or `items` present | 422 |
+| **M21-22** | Happy | Next month's metered reading | Takes its previous reading from the last metered row |
+| **M21-23** | Happy | Sync a total row in `paid` mode | Invoice `services` = total, water/electricity 0, paid; tenant sees "Utilities, total amount" with the note |
+
+### 21.3 Wording, rules, combined receipt
+
+| ID | Type | Step | Expected |
+|---|---|---|---|
+| **M21-30** | UI | Admin Contracts, Contract Editor, Notifications tag, Track Application | No user-facing "Lease"; contract title "APARTMENT RENT AGREEMENT" |
+| **M21-31** | UI | /preview, inquiry form, application, contract | "No children under 12 and no pets" banner and minors rules on each; Filipino text in Filipino mode |
+| **M21-32** | UI | Pay two bills together (combined payment), open the combined receipt | Payment rows of every bill listed, not only the first |
+
+---
+
 *Add newly audited modules to this guide following [§2](#2-extending-this-guide).*
