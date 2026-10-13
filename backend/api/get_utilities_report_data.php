@@ -74,6 +74,8 @@ while ($row = $res->fetch_assoc()) {
     $electric = (float)$row['electric_consumption'];
     $waterCost = (float)$row['water_cost'];
     $electricCost = (float)$row['electric_cost'];
+    // A recorded total has no water/electric split: it counts toward the unit cost and sync queue only.
+    $totalOnly = ($row['entry_mode'] ?? 'metered') === 'total' ? (float)$row['total_amount'] : 0.0;
 
     $data['water']['totalM3'] += $water;
     $data['water']['totalBilled'] += $waterCost;
@@ -82,7 +84,7 @@ while ($row = $res->fetch_assoc()) {
 
     if (!(int)$row['is_invoiced']) {
         $data['pendingSync']['count']++;
-        $data['pendingSync']['amount'] += $waterCost + $electricCost;
+        $data['pendingSync']['amount'] += $waterCost + $electricCost + $totalOnly;
     }
 
     $prevWater = (float)$row['prev_water'];
@@ -97,7 +99,7 @@ while ($row = $res->fetch_assoc()) {
     }
     $units[$unit]['waterM3'] += $water;
     $units[$unit]['electricKwh'] += $electric;
-    $units[$unit]['totalCost'] += $waterCost + $electricCost;
+    $units[$unit]['totalCost'] += $waterCost + $electricCost + $totalOnly;
     $units[$unit]['readings']++;
     $units[$unit]['hasSpike'] = $units[$unit]['hasSpike'] || $spike;
 }

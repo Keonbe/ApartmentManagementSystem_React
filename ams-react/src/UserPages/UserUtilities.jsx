@@ -41,12 +41,14 @@ export default function UserUtilities() {
   // Average usage per billing cycle across the tenant's own readings.
   const summary = useMemo(() => {
     if (readings.length === 0) return null;
+    // Total-only records have no meters: they count toward the cost average, not the usage averages.
+    const metered = readings.filter((r) => r.entry_mode !== 'total');
     const sum = (key) => readings.reduce((acc, r) => acc + (parseFloat(r[key]) || 0), 0);
     return {
       cycles: readings.length,
-      avgWater: (sum('water_consumption') / readings.length).toFixed(2),
-      avgElectric: (sum('electric_consumption') / readings.length).toFixed(2),
-      avgCost: (sum('water_amount') + sum('water_other_fees') + sum('electric_amount') + sum('electric_other_fees')) / readings.length,
+      avgWater: (metered.length ? sum('water_consumption') / metered.length : 0).toFixed(2),
+      avgElectric: (metered.length ? sum('electric_consumption') / metered.length : 0).toFixed(2),
+      avgCost: (sum('water_amount') + sum('water_other_fees') + sum('electric_amount') + sum('electric_other_fees') + sum('total_amount')) / readings.length,
     };
   }, [readings]);
 
@@ -135,7 +137,8 @@ export default function UserUtilities() {
             )}
             {readings.map(r => {
               // #2: Include other_fees in total (matches what sync sends to invoice)
-              const totalAmount = parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0) + (r.items || []).reduce((sum, it) => sum + parseFloat(it.amount || 0) + parseFloat(it.other_fees || 0), 0);
+              const isTotalOnly = r.entry_mode === 'total';
+              const totalAmount = (isTotalOnly ? parseFloat(r.total_amount || 0) : 0) + parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0) + (r.items || []).reduce((sum, it) => sum + parseFloat(it.amount || 0) + parseFloat(it.other_fees || 0), 0);
               const isInvoiced = r.is_invoiced == 1;
 
               return (
@@ -173,6 +176,12 @@ export default function UserUtilities() {
                   {/* Sub-Meter Breakdown Grids */}
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-center">
                     
+                    {isTotalOnly ? (
+                      <div className="md:col-span-8 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-1 text-xs text-slate-600">
+                        <span className="text-xs font-bold text-indigo-900">Utilities, total amount</span>
+                        <p className="m-0">No meter readings were taken for this month. Management recorded one total for your utilities.</p>
+                      </div>
+                    ) : (<>
                     {/* Water Meter Block */}
                     <div className="md:col-span-4 p-4 rounded-2xl bg-blue-50/60 border border-blue-100 space-y-2.5">
                       <div className="flex items-center justify-between">
@@ -258,6 +267,8 @@ export default function UserUtilities() {
                         </span>
                       </div>
                     </div>
+
+                    </>)}
 
                     {/* Total Combined Summary Block */}
                     <div className="md:col-span-4 p-5 rounded-2xl bg-slate-900 text-white flex flex-col justify-between space-y-3">

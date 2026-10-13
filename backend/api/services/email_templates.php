@@ -153,8 +153,10 @@ function email_utility_invoice_template($tenant_name, array $invoice, $reading) 
     $electric_amount = round((float)($reading['electric_amount'] ?? 0) + (float)($reading['electric_other_fees'] ?? 0), 2);
     $content = '<p style="color:#334155;line-height:1.6;">Hello <strong>' . esc($tenant_name) . '</strong>, utility charges for ' . esc($invoice['billing_period'] ?? '') . ' have been billed.</p>'
              . '<table style="width:100%;border-collapse:collapse;margin:16px 0;">'
-             . '<tr><td style="padding:7px 0;color:#64748b;">Water usage</td><td style="padding:7px 0;text-align:right;">' . number_format((float)($reading['water_consumption'] ?? 0), 2) . ' m³ — PHP ' . number_format($water_amount, 2) . '</td></tr>'
-             . '<tr><td style="padding:7px 0;color:#64748b;">Electricity usage</td><td style="padding:7px 0;text-align:right;">' . number_format((float)($reading['electric_consumption'] ?? 0), 2) . ' kWh — PHP ' . number_format($electric_amount, 2) . '</td></tr>'
+             . (($reading['entry_mode'] ?? 'metered') === 'total'
+                 ? '<tr><td style="padding:7px 0;color:#64748b;">Utilities (total)</td><td style="padding:7px 0;text-align:right;">PHP ' . number_format((float)($reading['total_amount'] ?? 0), 2) . '</td></tr>'
+                 : '<tr><td style="padding:7px 0;color:#64748b;">Water usage</td><td style="padding:7px 0;text-align:right;">' . number_format((float)($reading['water_consumption'] ?? 0), 2) . ' m³ — PHP ' . number_format($water_amount, 2) . '</td></tr>'
+             . '<tr><td style="padding:7px 0;color:#64748b;">Electricity usage</td><td style="padding:7px 0;text-align:right;">' . number_format((float)($reading['electric_consumption'] ?? 0), 2) . ' kWh — PHP ' . number_format($electric_amount, 2) . '</td></tr>')
              . '<tr><td style="padding:7px 0;color:#64748b;">Invoice total</td><td style="padding:7px 0;text-align:right;font-weight:bold;">PHP ' . number_format((float)($invoice['total_amount'] ?? 0), 2) . '</td></tr></table>'
              . '<p style="color:#334155;line-height:1.6;">Due date: <strong>' . esc($invoice['due_date'] ?? '') . '</strong></p>';
     return email_base_template('Utility Charges Billed', $content);

@@ -68,7 +68,40 @@ if ($later) {
     fail(409, "Unit {$room_name} already has a reading for {$later['billing_period']}. Readings must be recorded in order, oldest first.");
 }
 
-$stmt = $conn->prepare("SELECT water_curr_reading, electric_curr_reading, water_rate_per_unit, electric_rate_per_unit FROM utility_readings WHERE room_name = ? AND billing_period < ? ORDER BY billing_period DESC LIMIT 1");
+// "Record total only": the tenant paid the whole amount, so the admin enters a
+// single total (and a note) with no meter readings. It bills through the same
+// sync as a metered reading and does not break the meter chain: later metered
+// readings take their "previous" from the last metered row.
+$entry_mode = ($input['entry_mode'] ?? 'metered') === 'total' ? 'total' : 'metered';
+if ($entry_mode === 'total') {
+    $total_amount = number_field($input, 'total_amount');
+    if ($total_amount === null || $total_amount <= 0) fail(422, "Enter the total amount paid (greater than ₱0).");
+    if ($total_amount > 1000000) fail(422, "The total amount is too large.");
+    $total_amount = round($total_amount, 2);
+    if (!empty($input['items'])) fail(422, "Extra utilities are not used when recording a total only.");
+    if (mb_strlen($notes) > 500) fail(422, "The note can be up to 500 characters.");
+
+    $stmt = $conn->prepare("INSERT INTO utility_readings (room_name, user_id, billing_period, reading_date, entry_mode, total_amount, notes, recorded_by) VALUES (?, ?, ?, ?, 'total', ?, ?, ?)");
+    $stmt->bind_param("sissdsi", $room_name, $user_id, $billing_period, $reading_date, $total_amount, $notes, $admin_id);
+    try {
+        $ok = $stmt->execute();
+        $errno = $stmt->errno;
+    } catch (mysqli_sql_exception $e) {
+        $ok = false;
+        $errno = $e->getCode();
+    }
+    $stmt->close();
+    if (!$ok) {
+        if ($errno === 1062) fail(409, "A reading for Unit {$room_name} ({$billing_period}) already exists.");
+        fail(500, "Failed to save the record.");
+    }
+    $reading_id = $conn->insert_id;
+    log_activity($conn, $admin_id, 'utilities', 'Recorded Utility Total', "Recorded utility total #{$reading_id} for Unit {$room_name} ({$billing_period}) — ₱" . number_format($total_amount, 2));
+    echo json_encode(["success" => true, "message" => "Utility total saved successfully.", "id" => $reading_id, "total_amount" => $total_amount]);
+    $conn->close();
+    exit;
+}
+$stmt = $conn->prepare("SELECT water_curr_reading, electric_curr_reading, water_rate_per_unit, electric_rate_per_unit FROM utility_readings WHERE room_name = ? AND billing_period < ? AND entry_mode = 'metered' ORDER BY billing_period DESC LIMIT 1");
 $stmt->bind_param("ss", $room_name, $billing_period);
 $stmt->execute();
 $prev = $stmt->get_result()->fetch_assoc();

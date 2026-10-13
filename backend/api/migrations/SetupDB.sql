@@ -934,6 +934,8 @@ CREATE TABLE IF NOT EXISTS `utility_readings` (
   `is_invoiced` tinyint(1) DEFAULT 0,
   `invoice_id` varchar(50) DEFAULT NULL,
   `bill_file_path` varchar(255) DEFAULT NULL,
+  `entry_mode` enum('metered','total') NOT NULL DEFAULT 'metered',
+  `total_amount` decimal(10,2) DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `recorded_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),

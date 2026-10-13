@@ -37,9 +37,10 @@ $query = "SELECT ur.*,
           LEFT JOIN users u ON ur.user_id = u.id
           LEFT JOIN utility_readings prev
                  ON prev.room_name = ur.room_name
+                AND prev.entry_mode = 'metered'
                 AND prev.billing_period = (
                     SELECT MAX(p2.billing_period) FROM utility_readings p2
-                    WHERE p2.room_name = ur.room_name AND p2.billing_period < ur.billing_period
+                    WHERE p2.room_name = ur.room_name AND p2.entry_mode = 'metered' AND p2.billing_period < ur.billing_period
                 )
           WHERE 1=1";
 $types = "";
@@ -85,7 +86,7 @@ function change_pct($current, $previous) {
 $readings = [];
 while ($row = $result->fetch_assoc()) {
     // A tenant only compares against their own earlier usage, never a previous occupant's.
-    $has_prev = $row['prev_water_cons'] !== null && ($is_admin || (int)$row['prev_user_id'] === $user['id']);
+    $has_prev = ($row['entry_mode'] ?? 'metered') === 'metered' && $row['prev_water_cons'] !== null && ($is_admin || (int)$row['prev_user_id'] === $user['id']);
 
     $row['water_change_pct'] = $has_prev ? change_pct($row['water_consumption'], $row['prev_water_cons']) : null;
     $row['electric_change_pct'] = $has_prev ? change_pct($row['electric_consumption'], $row['prev_elec_cons']) : null;

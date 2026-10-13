@@ -66,7 +66,7 @@ try {
         $exists ? fail(409, "This reading has already been synced to an invoice.") : fail(404, "Utility reading not found.");
     }
 
-    $stmt = $conn->prepare("SELECT room_name, user_id, billing_period, water_amount, water_other_fees, water_consumption, electric_amount, electric_other_fees, electric_consumption FROM utility_readings WHERE id = ? FOR UPDATE");
+    $stmt = $conn->prepare("SELECT room_name, user_id, billing_period, water_amount, water_other_fees, water_consumption, electric_amount, electric_other_fees, electric_consumption, entry_mode, total_amount FROM utility_readings WHERE id = ? FOR UPDATE");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $reading = $stmt->get_result()->fetch_assoc();
@@ -101,6 +101,12 @@ try {
     $stmt->fetch();
     $stmt->close();
     $extra_total = round((float)$extra_raw, 2);
+    if (($reading['entry_mode'] ?? 'metered') === 'total') {
+        // A recorded total has no meter split: it rides on `services` like the extra utilities.
+        $water_total = 0.0;
+        $electric_total = 0.0;
+        $extra_total = round((float)$reading['total_amount'], 2);
+    }
     $charge = round($water_total + $electric_total + $extra_total, 2);
 
     $period = $reading['billing_period'];

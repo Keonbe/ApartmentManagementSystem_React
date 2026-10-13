@@ -36,7 +36,7 @@ function formatBillingPeriod(periodStr) {
 function findPreviousReading(readings, roomName, period) {
   if (!roomName || !Array.isArray(readings)) return null;
   return readings
-    .filter(r => r.room_name === roomName && (!period || r.billing_period < period))
+    .filter(r => r.room_name === roomName && r.entry_mode !== 'total' && (!period || r.billing_period < period))
     .sort((a, b) => b.billing_period.localeCompare(a.billing_period))[0] || null;
 }
 
@@ -607,7 +607,7 @@ export default function AdminUtilities() {
                       </tr>
                     ) : (
                       filteredReadings.map(r => {
-                        const totalCost = parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0) + (r.items || []).reduce((sum, it) => sum + parseFloat(it.amount || 0) + parseFloat(it.other_fees || 0), 0);
+                        const totalCost = (r.entry_mode === 'total' ? parseFloat(r.total_amount || 0) : 0) + parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0) + (r.items || []).reduce((sum, it) => sum + parseFloat(it.amount || 0) + parseFloat(it.other_fees || 0), 0);
                         const isInvoiced = r.is_invoiced == 1;
 
                         return (
@@ -654,6 +654,12 @@ export default function AdminUtilities() {
                               {formatBillingPeriod(r.billing_period)}
                             </td>
 
+                            {r.entry_mode === 'total' ? (
+                              <td colSpan={2} className="px-4 py-4 text-xs text-slate-600">
+                                <span className="inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700">Total only</span>
+                                <span className="ml-2">{r.notes || 'No meter readings; the tenant paid the full amount.'}</span>
+                              </td>
+                            ) : (<>
                             {/* Water */}
                             <td className="px-4 py-4 text-xs">
                               <div className="space-y-0.5">
@@ -691,6 +697,8 @@ export default function AdminUtilities() {
                                 )}
                               </div>
                             </td>
+
+                            </>)}
 
                             {/* Total Cost */}
                             <td className="px-4 py-4 text-right">
@@ -889,7 +897,7 @@ function SyncOptionsModal({ readingId, onClose, onSync, busy = false }) {
 function lastItemReading(readings, room, period, typeId) {
   if (!room || !Array.isArray(readings)) return 0;
   const earlier = readings
-    .filter((r) => r.room_name === room && r.billing_period < period)
+    .filter((r) => r.room_name === room && r.entry_mode !== 'total' && r.billing_period < period)
     .sort((a, b) => (a.billing_period < b.billing_period ? 1 : -1));
   for (const r of earlier) {
     const it = (r.items || []).find((i) => Number(i.type_id) === Number(typeId));
@@ -916,6 +924,8 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
       electric_other_fees: 0.00,
       water_rate_per_unit: 40.00,
       electric_rate_per_unit: 12.00,
+      entry_mode: 'metered',
+      total_amount: '',
       notes: ''
     };
   });
@@ -987,14 +997,15 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
     room_name: (v) => (rooms.some(r => String(r.id) === String(v)) ? '' : 'Please select a unit.'),
     billing_period: (v) => (/^\d{4}-(0[1-9]|1[0-2])$/.test(String(v ?? '')) ? '' : 'Billing period is required.'),
     reading_date: (v, all) => checkDate(v, { label: 'Reading date', max: localDateString(), min: all.billing_period ? `${all.billing_period}-01` : undefined }),
-    water_curr_reading: (v) => checkAmount(v, { label: 'Water reading', min: selectedRoomPrevReading.water })
+    water_curr_reading: (v, all) => all.entry_mode === 'total' ? '' : checkAmount(v, { label: 'Water reading', min: selectedRoomPrevReading.water })
       .replace(`at least ${selectedRoomPrevReading.water}`, `at least the previous reading (${selectedRoomPrevReading.water})`),
-    electric_curr_reading: (v) => checkAmount(v, { label: 'Electricity reading', min: selectedRoomPrevReading.electric })
+    electric_curr_reading: (v, all) => all.entry_mode === 'total' ? '' : checkAmount(v, { label: 'Electricity reading', min: selectedRoomPrevReading.electric })
       .replace(`at least ${selectedRoomPrevReading.electric}`, `at least the previous reading (${selectedRoomPrevReading.electric})`),
-    water_rate_per_unit: (v) => checkAmount(v, { label: 'Water rate', min: 0.01, max: 1000, allowZero: false }),
-    electric_rate_per_unit: (v) => checkAmount(v, { label: 'Electricity rate', min: 0.01, max: 1000, allowZero: false }),
+    water_rate_per_unit: (v, all) => all.entry_mode === 'total' ? '' : checkAmount(v, { label: 'Water rate', min: 0.01, max: 1000, allowZero: false }),
+    electric_rate_per_unit: (v, all) => all.entry_mode === 'total' ? '' : checkAmount(v, { label: 'Electricity rate', min: 0.01, max: 1000, allowZero: false }),
     water_other_fees: (v) => checkAmount(v, { label: 'Other water fees', required: false }),
     electric_other_fees: (v) => checkAmount(v, { label: 'Other electricity fees', required: false }),
+    total_amount: (v, all) => (all.entry_mode === 'total' ? checkAmount(v, { label: 'Total amount', min: 0.01, allowZero: false }) : ''),
     notes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
   }, { idPrefix: 'reading-' });
 
@@ -1037,7 +1048,9 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
       const items = extraItems.map(({ type, e }) => (type.billing_mode === 'metered'
         ? { type_id: Number(type.id), curr_reading: e.curr, rate: e.rate }
         : { type_id: Number(type.id), rate: e.rate }));
-      const res = await api.post('/save_utility_reading.php', { ...clean, items });
+      const res = await api.post('/save_utility_reading.php', clean.entry_mode === 'total'
+        ? { room_name: clean.room_name, billing_period: clean.billing_period, reading_date: clean.reading_date, notes: clean.notes, entry_mode: 'total', total_amount: clean.total_amount }
+        : { ...clean, items });
       if (res?.data?.success) {
         // The reading is saved first; the bill is attached to it afterwards.
         let billWarning = null;
@@ -1149,6 +1162,40 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
               <FieldError id="reading-reading_date" error={readingForm.errors.reading_date} />
             </div>
 
+            {/* Entry mode: meter readings, or just the total when the tenant paid in full */}
+            <div role="radiogroup" aria-label="How to record" className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
+              {[['metered', 'Meter readings'], ['total', 'Record total only']].map(([mode, label]) => (
+                <button key={mode} type="button" role="radio" aria-checked={formData.entry_mode === mode}
+                  onClick={() => setFormData(prev => ({ ...prev, entry_mode: mode }))}
+                  className={`rounded-lg border-0 px-3 py-2 cursor-pointer transition-colors ${formData.entry_mode === mode ? 'bg-white text-indigo-700 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {formData.entry_mode === 'total' && (
+              <div>
+                <label htmlFor="reading-total_amount" className="block text-xs font-bold text-slate-700 mb-1">Total Utilities Paid (₱) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...readingForm.fieldA11y('total_amount')}
+                  onBlur={handleBlur}
+                  inputMode="decimal"
+                  onKeyDown={blockNonNumericKeys}
+                  min="0.01"
+                  max={MAX_AMOUNT}
+                  value={formData.total_amount}
+                  onChange={handleInputChange}
+                  placeholder="e.g. 1850.00"
+                  className={fieldCls('total_amount', "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-indigo-500")}
+                />
+                <FieldError id="reading-total_amount" error={readingForm.errors.total_amount} />
+                <p className="m-0 mt-1 text-[11px] text-slate-500">No meter readings are stored. Use the note below to say what the total covers.</p>
+              </div>
+            )}
+
+            {formData.entry_mode === 'metered' && (<>
             {/* Water Section */}
             <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
               <div className="flex items-center justify-between">
@@ -1326,6 +1373,7 @@ function RecordReadingModal({ show, onClose, onSuccess, rooms, readings }) {
               <span>Calculated Total Utility Bill:</span>
               <span className="text-base text-emerald-400">₱{(parseFloat(modalCalculations.totalAmt) + extraTotal).toFixed(2)}</span>
             </div>
+            </>)}
 
             {/* Provider bill (optional) */}
             <div>
