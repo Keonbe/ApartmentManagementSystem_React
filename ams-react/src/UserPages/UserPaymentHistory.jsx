@@ -129,6 +129,9 @@ export default function UserPaymentHistory() {
             advanceMonths: 0,
             bundleKey: null,
             combinedBills: bills.length,
+            // Every bill's payment rows, not only the first bill's.
+            paymentTransactions: bills.flatMap(b => b.payment_transactions || []),
+            reference: [...new Set(bills.map(b => b.payment_reference).filter(Boolean))].join(', ') || null,
             amount: bills.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
             breakdown: bills.map(i => {
                 const range = formatPeriodRange(i.period_start, i.period_end);
