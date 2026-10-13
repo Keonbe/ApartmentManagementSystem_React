@@ -16,13 +16,17 @@ export default function HouseRulesModal({ isOpen, onClose }) {
       if (cancelled) return null;
       setLoading(true);
       setError('');
-      return api.get('house_rules.php');
+      // House rules plus the children and pets policy.
+      return Promise.all([
+        api.get('house_rules.php'),
+        api.get('house_rules.php', { params: { scope: 'minors' } }).catch(() => ({ data: {} })),
+      ]);
     });
     request
       .then((response) => {
         if (!response) return;
-        const { data } = response;
-        if (!cancelled) setRules(data.success && Array.isArray(data.rules) ? data.rules : []);
+        const list = (r) => (r.data?.success && Array.isArray(r.data.rules) ? r.data.rules : []);
+        if (!cancelled) setRules([...list(response[0]), ...list(response[1])]);
       })
       .catch(() => { if (!cancelled) setError(t('houseRules.loadError')); })
       .finally(() => { if (!cancelled) setLoading(false); });

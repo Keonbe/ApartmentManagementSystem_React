@@ -1135,6 +1135,28 @@ SELECT * FROM (
 ) AS defaults
 WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'minors');
 
+-- ===== rules_filipino =====
+-- Filipino text for the starter children/pets and parking rules, only while the
+-- admin has not written one.
+UPDATE `house_rules` SET `title_fil` = 'Bawal ang batang wala pang 12 taon',
+  `description_fil` = 'Hindi pinapayagang tumira sa apartment ang mga batang wala pang 12 taong gulang. Dapat ideklara ang edad ng bawat miyembro ng sambahayan.'
+ WHERE `scope` = 'minors' AND `title` = 'No children under 12' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Mga menor de edad (12 hanggang 17)',
+  `description_fil` = 'Maaaring tumira ang mga menor de edad na 12 hanggang 17. Responsable ang nangungupahan sa kanilang asal at dapat nilang sundin ang lahat ng patakaran.'
+ WHERE `scope` = 'minors' AND `title` = 'Minors aged 12 to 17' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Bawal ang alagang hayop',
+  `description_fil` = 'Hindi pinapayagan ang mga alagang hayop sa loob ng mga unit o saanman sa lugar.'
+ WHERE `scope` = 'minors' AND `title` = 'No pets allowed' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Isang parking slot bawat uupahan',
+  `description_fil` = 'Isang parking slot lamang bawat uupahan. Ang karagdagan ay depende sa availability at pag-apruba ng management.'
+ WHERE `scope` = 'parking' AND `title` = 'One slot per rent' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Rehistradong sasakyan lamang',
+  `description_fil` = 'Ang sasakyang nakasaad lamang sa reservation ang maaaring gumamit ng slot. I-upload ang OR/CR at ipaalam sa management ang anumang pagpapalit.'
+ WHERE `scope` = 'parking' AND `title` = 'Registered vehicles only' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Pumarada sa loob ng slot',
+  `description_fil` = 'Pumarada lamang sa nakatalagang slot at huwag harangan ang daanan o labasan.'
+ WHERE `scope` = 'parking' AND `title` = 'Park within your slot' AND (`title_fil` IS NULL OR `title_fil` = '');
+
 -- Counter for public forms without an account to throttle on, e.g.
 -- registration per IP (audit M13; 2026_10_rate_limits_and_rent_horizon.sql).
 CREATE TABLE IF NOT EXISTS `rate_limit_events` (

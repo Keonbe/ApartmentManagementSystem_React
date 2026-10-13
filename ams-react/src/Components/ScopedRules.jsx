@@ -7,15 +7,15 @@ import { useLang } from '../config/i18n';
 export default function ScopedRules({ scope, title, withAgeCategories = false, className = '' }) {
   const { lang } = useLang();
   const { rules, ageCategories, minAge } = useScopedRules(scope, withAgeCategories);
-  if (!rules.length && !ageCategories.length) return null;
+  if (!rules.length && !ageCategories.length && !(withAgeCategories && minAge > 0)) return null;
 
   const pick = (en, fil) => (lang === 'fil' && fil?.trim() ? fil : en);
 
   return (
     <section className={`rounded-xl border border-amber-200 bg-amber-50/60 p-4 text-left ${className}`}>
       <h3 className="m-0 mb-2 text-sm font-bold text-slate-800">{title}</h3>
-      {minAge > 0 && ageCategories.length > 0 && (
-        <p className="m-0 mb-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">No children under {minAge} and no pets are allowed.</p>
+      {withAgeCategories && minAge > 0 && (
+        <p className="m-0 mb-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{lang === 'fil' ? `Bawal ang batang wala pang ${minAge} taon at bawal ang alagang hayop.` : `No children under ${minAge} and no pets are allowed.`}</p>
       )}
       {ageCategories.length > 0 && (
         <div className="mb-3 overflow-x-auto">
