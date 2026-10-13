@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import AdminNotificationModal from '../Components/AdminNotificationModal';
+import FollowupMonitor from '../Components/FollowupMonitor';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faBell, faSearch, faTimes, faCheckDouble, faArchive, faClock, faMoneyBillWave,
@@ -42,6 +43,8 @@ const typeConfig = {
   payment_verification: { label: 'Payment Proof', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
   cash_payment_declared: { label: 'Cash Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
   payment: { label: 'Payment', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+  payment_followup: { label: 'Overdue Payment', icon: faExclamationTriangle, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
+  document_followup: { label: 'Documents Needed', icon: faFileContract, color: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700' },
   refund_request: { label: 'Refund Request', icon: faMoneyBillWave, color: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
   move_out_request: { label: 'Move-Out Notice', icon: faCalendarPlus, color: 'bg-rose-100 text-rose-600', badge: 'bg-rose-100 text-rose-700' },
 };
@@ -52,7 +55,7 @@ const FILTERS = [
   { key: 'applications', label: 'Applications & Inquiries', types: ['rent_application', 'inquiry', 'unit_waitlist'] },
   { key: 'maintenance', label: 'Maintenance', types: ['maintenance_request'] },
   { key: 'services', label: 'Services, CCTV & Parking', types: ['service_request', 'cctv_request', 'parking_reservation'] },
-  { key: 'payments', label: 'Payments', types: ['payment_verification', 'cash_payment_declared', 'payment', 'refund_request'] },
+  { key: 'payments', label: 'Payments', types: ['payment_verification', 'cash_payment_declared', 'payment', 'refund_request', 'payment_followup', 'document_followup'] },
 ];
 
 const DECIDED_HERE = ['occupancy_request', 'household_request', 'lease_extension_request'];
@@ -290,6 +293,8 @@ const AdminNotifications = () => {
                     </button>
                   </div>
                 </div>
+
+                <FollowupMonitor onChanged={fetchNotifications} />
 
                 {/* Filter Tabs */}
                 <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1 overflow-x-auto">

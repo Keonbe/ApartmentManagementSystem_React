@@ -2185,6 +2185,136 @@ function store_room_image($file) {
     return ['room_images/' . $name, null];
 }
 
+
+// ── Follow-up monitor: missed payments and missing documents ──
+// Tenants with overdue bills, and applicants/tenants who have not supplied what
+// the office needs. Listed for the admin (monitor_followups.php), reminded by
+// the tenant nudge, and mirrored into the admin queue by sync_followup_queue().
+
+function followup_overdue_tenants($conn) {
+    $rows = [];
+    $res = $conn->query("SELECT i.user_id, u.first_name, u.last_name, MAX(ra.room_name) AS room_name,
+            COUNT(*) AS bills, SUM(i.total_amount) AS amount, MIN(i.due_date) AS oldest_due,
+            GREATEST(DATEDIFF(CURDATE(), MIN(i.due_date)), 0) AS days_overdue
+        FROM invoices i
+        JOIN users u ON u.id = i.user_id
+        LEFT JOIN rent_applications ra ON ra.id = i.rent_application_id
+        WHERE i.status = 'overdue' AND u.is_archived = 0
+        GROUP BY i.user_id, u.first_name, u.last_name
+        ORDER BY days_overdue DESC");
+    while ($res && ($r = $res->fetch_assoc())) {
+        $rows[] = [
+            'kind' => 'payment', 'userId' => (int)$r['user_id'], 'id' => (int)$r['user_id'],
+            'name' => trim($r['first_name'] . ' ' . $r['last_name']), 'room' => $r['room_name'],
+            'issue' => 'Overdue payment', 'bills' => (int)$r['bills'], 'amount' => round((float)$r['amount'], 2),
+            'dueDate' => $r['oldest_due'], 'daysLate' => (int)$r['days_overdue'],
+            'detail' => (int)$r['bills'] . ' overdue bill' . ((int)$r['bills'] === 1 ? '' : 's') . ', ₱' . number_format((float)$r['amount'], 2),
+        ];
+    }
+    // Applicants whose move-in payment lapsed (cancelled by the payment window).
+    $res = $conn->query("SELECT ra.id, ra.user_id, ra.room_name, ra.first_name, ra.last_name, ra.cancelled_at
+        FROM rent_applications ra
+        WHERE ra.status = 'Cancelled' AND ra.rejection_reason LIKE 'Move-in payment was not made%'
+          AND ra.cancelled_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        ORDER BY ra.cancelled_at DESC");
+    while ($res && ($r = $res->fetch_assoc())) {
+        $rows[] = [
+            'kind' => 'lapsed', 'userId' => (int)$r['user_id'], 'id' => (int)$r['id'],
+            'name' => trim($r['first_name'] . ' ' . $r['last_name']), 'room' => $r['room_name'],
+            'issue' => 'Payment window lapsed', 'bills' => 0, 'amount' => 0, 'dueDate' => substr((string)$r['cancelled_at'], 0, 10), 'daysLate' => 0,
+            'detail' => 'Move-in payment not made in time; application cancelled.',
+        ];
+    }
+    return $rows;
+}
+
+function followup_missing_documents($conn) {
+    $rows = [];
+    $add = function ($r, $issue, $detail, $due) use (&$rows) {
+        $rows[] = [
+            'kind' => 'document', 'userId' => (int)$r['user_id'], 'id' => (int)$r['id'],
+            'name' => trim(($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? '')), 'room' => $r['room_name'],
+            'issue' => $issue, 'detail' => $detail, 'dueDate' => $due, 'bills' => 0, 'amount' => 0, 'daysLate' => 0,
+        ];
+    };
+    // The office asked for something and the applicant has not answered.
+    $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name, rejection_reason FROM rent_applications WHERE status = 'Action Required'");
+    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Action required', $r['rejection_reason'] ?: 'The office is waiting for more information.', null);
+    // Approved but a required document or the terms agreement is missing.
+    $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name FROM rent_applications
+        WHERE status = 'Approved' AND (COALESCE(valid_id_front_path,'') = '' OR COALESCE(valid_id_back_path,'') = '' OR COALESCE(nbi_clearance_path,'') = '' OR terms_agreed_at IS NULL)");
+    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Missing documents', 'A valid ID, NBI clearance or the terms agreement is missing.', null);
+    // Move-in date passed and the tenant never moved in.
+    $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name, move_in_date FROM rent_applications
+        WHERE status = 'Approved' AND move_in_date IS NOT NULL AND move_in_date < CURDATE()");
+    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Move-in deadline passed', 'The scheduled move-in date has passed without a confirmed move-in.', $r['move_in_date']);
+    // Contract still has no signed copy once the rent period has begun.
+    $res = $conn->query("SELECT ra.id, ra.user_id, ra.first_name, ra.last_name, ra.room_name, lc.lease_start
+        FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id
+        WHERE ra.status IN ('Approved', 'active') AND lc.status IN ('draft', 'active')
+          AND COALESCE(lc.signed_lease_path,'') = '' AND lc.lease_start IS NOT NULL AND lc.lease_start < CURDATE()");
+    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Contract not signed', 'The signed rent contract has not been uploaded and the rent period has already started.', $r['lease_start']);
+    return $rows;
+}
+
+// Tenant-facing nudge for one follow-up item. Once a day per item at most.
+function send_followup_nudge($conn, $item) {
+    $meta = 'followup:' . $item['kind'] . ':' . $item['id'];
+    $q = $conn->prepare("SELECT 1 FROM notifications WHERE user_id = ? AND metadata_value = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 DAY) LIMIT 1");
+    $q->bind_param("is", $item['userId'], $meta);
+    $q->execute();
+    $recent = (bool)$q->get_result()->fetch_assoc();
+    $q->close();
+    if ($recent) return false;
+    if ($item['kind'] === 'payment') {
+        create_notification($conn, $item['userId'], 'overdue', 'Payment Overdue', "You have {$item['detail']}. Please pay as soon as you can from Pay Bills, or contact the office.", 'Resolved', $meta);
+    } elseif ($item['kind'] === 'document') {
+        create_notification($conn, $item['userId'], 'application_update', $item['issue'] . ': Action Needed', $item['detail'] . ' Please open Track Application to complete this, or contact the office.', 'Resolved', $meta);
+    } else {
+        return false;
+    }
+    return true;
+}
+
+// Mirrors the current follow-up lists into the admin queue (one Pending row per
+// tenant/application, created once) and clears rows whose problem has gone.
+// Documents also get one tenant nudge when their queue row is first created.
+function sync_followup_queue($conn) {
+    $seen = ['payment_followup' => [], 'document_followup' => []];
+    $created = 0;
+    $has_pending = function ($type, $id) use ($conn) {
+        $meta = "$type:$id";
+        $q = $conn->prepare("SELECT 1 FROM notifications WHERE type = ? AND metadata_value = ? AND status = 'Pending' LIMIT 1");
+        $q->bind_param("ss", $type, $meta);
+        $q->execute();
+        $found = (bool)$q->get_result()->fetch_assoc();
+        $q->close();
+        return $found;
+    };
+    foreach (followup_overdue_tenants($conn) as $it) {
+        if ($it['kind'] !== 'payment') continue;
+        $seen['payment_followup'][$it['id']] = true;
+        if ($has_pending('payment_followup', $it['id'])) continue;
+        notify_admins_queue($conn, 'payment_followup', $it['id'], 'Overdue Payment', "{$it['name']}" . ($it['room'] ? " (Unit {$it['room']})" : '') . ": {$it['detail']}, {$it['daysLate']} days late.");
+        $created++;
+    }
+    foreach (followup_missing_documents($conn) as $it) {
+        $seen['document_followup'][$it['id']] = true;
+        if ($has_pending('document_followup', $it['id'])) continue;
+        notify_admins_queue($conn, 'document_followup', $it['id'], $it['issue'], "{$it['name']}" . ($it['room'] ? " (Unit {$it['room']})" : '') . ": {$it['detail']}");
+        send_followup_nudge($conn, $it);
+        $created++;
+    }
+    foreach ($seen as $type => $ids) {
+        $res = $conn->query("SELECT metadata_value FROM notifications WHERE type = '$type' AND status = 'Pending'");
+        while ($res && ($r = $res->fetch_assoc())) {
+            $id = (int)substr((string)$r['metadata_value'], strlen($type) + 1);
+            if (!isset($ids[$id])) resolve_admin_queue($conn, $type, $id);
+        }
+    }
+    return $created;
+}
+
 // ── Payment window ──
 // system_settings.payment_window_days (default 3): how long a tenant has to
 // finish paying. It applies to an online checkout (an invoice held in
@@ -2554,7 +2684,9 @@ const ADMIN_QUEUE_NOTIFICATION_TYPES = [
     // — neither reached the queue before.
     'move_out_request', 'cash_payment_declared',
     // Refund requests wait for an admin decision.
-    'refund_request'
+    'refund_request',
+    // Follow-up monitor: an overdue tenant, or an applicant with documents outstanding.
+    'payment_followup', 'document_followup'
 ];
 
 // Age categories (infant / toddler / minor ...), edited in Settings → Minors & Pets.
@@ -3171,6 +3303,7 @@ function run_notification_sweep($conn, $force = false) {
         'parking_charges_posted' => 0,
         'contracts_expired' => 0,
         'lease_end_reminders_sent' => 0,
+        'followups_queued' => 0,
     ];
 
     $reminders_enabled = get_setting($conn, 'rent_due_reminders_enabled', 'true') !== 'false';
@@ -3248,10 +3381,11 @@ function run_notification_sweep($conn, $force = false) {
 
     $result['contracts_expired'] = expire_lapsed_contracts($conn);
     $result['lease_end_reminders_sent'] = send_lease_end_reminders($conn);
+    $result['followups_queued'] = sync_followup_queue($conn);
 
     $did = $result['marked_overdue'] + $result['rent_invoices_created'] + $result['upcoming_reminders_sent'] + $result['overdue_reminders_sent']
          + $result['parking_released'] + $result['parking_charges_posted']
-         + $result['contracts_expired'] + $result['lease_end_reminders_sent'];
+         + $result['contracts_expired'] + $result['lease_end_reminders_sent'] + $result['followups_queued'];
     if ($did > 0) {
         log_activity($conn, null, 'system', 'Daily Notification Sweep',
             "Marked overdue: {$result['marked_overdue']}; rent invoices created: {$result['rent_invoices_created']}; due reminders: {$result['upcoming_reminders_sent']}; overdue alerts: {$result['overdue_reminders_sent']}; parking released: {$result['parking_released']}; parking charges posted: {$result['parking_charges_posted']}; contracts expired: {$result['contracts_expired']}; rent-end reminders sent: {$result['lease_end_reminders_sent']}",
