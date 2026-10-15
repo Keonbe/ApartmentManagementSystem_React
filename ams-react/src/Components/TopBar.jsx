@@ -191,7 +191,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     useEffect(() => {
         function handleClickOutside(event) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false);
-            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+            if (notificationRef.current && !notificationRef.current.contains(event.target) && !event.target.closest('.mobile-payment-alerts')) {
                 setIsNotificationOpen(false);
                 setHighlightIds(NO_HIGHLIGHT);
             }
@@ -447,6 +447,30 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     </button>
                 </div>
             </div>
+
+            {/* Payment alerts on phones: the bell dropdown above is desktop-only,
+                so a confirmed/rejected/failed payment used to show only as a badge. */}
+            {isNotificationOpen && highlightIds.size > 0 && !isMobileMenuOpen && (
+                <div className="mobile-payment-alerts md:hidden absolute left-0 right-0 top-[100%] z-50 px-3 pt-2 space-y-2" role="status">
+                    {notifications.filter(n => highlightIds.has(n.id)).map(n => {
+                        const success = TENANT_PAYMENT_ALERT_TITLES[n.title] === 'success';
+                        return (
+                            <div key={n.id} className={`flex items-start gap-2 rounded-xl p-3 shadow-xl border-l-4 ${success ? 'bg-emerald-50 border-emerald-500' : 'bg-rose-50 border-rose-500'}`}>
+                                <button type="button" onClick={() => openNotification(n)} className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer">
+                                    <p className="text-xs font-bold text-slate-800 m-0">{n.title}</p>
+                                    <p className="text-[11px] text-slate-600 m-0 mt-0.5">{n.message}</p>
+                                    <p className={`text-[11px] font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                        {success ? 'View receipt →' : 'Open Pay Bills →'}
+                                    </p>
+                                </button>
+                                <button type="button" onClick={closeNotifications} aria-label="Dismiss" className="shrink-0 w-7 h-7 rounded-lg bg-transparent border-0 text-slate-500 cursor-pointer flex items-center justify-center">
+                                    <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Mobile Dropdown Drawer */}
             {isMobileMenuOpen && (

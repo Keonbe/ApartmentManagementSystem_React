@@ -28,7 +28,7 @@ export default function LeasingPanel({ settings, updateSetting }) {
         description="Rent length, reservation holds, occupancy and the public room preview."
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <Field label="Minimum Rent Duration" htmlFor="setting-minLeaseDuration" icon={faCalendarAlt} hint="Applies to new rent applications, admin unit assignment and rent extensions (extensions cap at 12 months).">
+          <Field label="Minimum Rent Duration" htmlFor="setting-minLeaseDuration" icon={faCalendarAlt} hint="Applies to new rent applications, admin unit assignment and rent extensions (extensions cap at 12 months; when fewer months fit under Maximum Months Ahead, the extension minimum shrinks to what fits).">
             <WithUnit suffix="months">
               <input {...intInput(settings, updateSetting, 'minLeaseDuration', 1, 24)} className={`${INPUT_NUMBER} w-24`} />
             </WithUnit>

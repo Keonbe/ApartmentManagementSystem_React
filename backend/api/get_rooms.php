@@ -73,7 +73,9 @@ try {
 
     // Format the response to match frontend expectations
     // The frontend expects: id, type, rent, status, tenant, lastTenant, floor, leaseStart, leaseEnd, maintenanceFlag
-    $formattedRooms = array_map(function($room) use ($is_admin, $maintByRoom, $occByRoom, $leaseByRoom) {
+    // Read once: extension_month_range() per room used to cost two queries each.
+    $rangeSettings = $is_admin ? extension_range_settings($conn) : null;
+    $formattedRooms = array_map(function($room) use ($conn, $is_admin, $maintByRoom, $occByRoom, $leaseByRoom, $rangeSettings) {
         $roomId = $room['id'];
 
         // Showcase photos are meant for guests browsing Preview.jsx, so they're
@@ -152,6 +154,9 @@ try {
             'maintenanceHistory' => $maintHistory,
             'occupancyHistory' => $occupancyHistory,
             'leaseHistory' => $leaseHistory,
+            // Units -> Extend Rent: the months it may add (min shrinks to what
+            // fits under the months-ahead limit; max 0 = nothing fits).
+            'extensionRange' => $is_admin && $room['tenant_name'] ? extension_month_range($conn, $room['lease_end'], $rangeSettings) : null,
             'images' => $images
         ];
     }, $rooms);

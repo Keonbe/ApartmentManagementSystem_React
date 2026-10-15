@@ -4,7 +4,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.png';
 import api from "../api/axiosConfig";
-import { getSystemSettings } from '../config/systemSettings';
 import HouseholdPanel from '../Components/HouseholdPanel';
 import { addDays, checkDate, checkIntRange } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
@@ -26,6 +25,7 @@ export default function MyRoom() {
     // bill, a scheduled move-out or an inactive contract blocks extending.
     const [extension, setExtension] = useState(null);
     const extensionBlocked = extension && !extension.allowed;
+    const [additionalMonths, setAdditionalMonths] = useState(1);
     const { t } = useLang();
 
     const [loggedInUser] = useState(() => {
@@ -135,6 +135,12 @@ export default function MyRoom() {
                 if (res.data.success && res.data.data) {
                     const data = res.data.data;
                     setExtension(data.extension || null);
+                    // Start the months picker inside the allowed range.
+                    if (data.extension?.minMonths) {
+                        const lo = data.extension.minMonths;
+                        const hi = Math.max(lo, data.extension.maxMonths ?? MAX_EXTENSION_MONTHS);
+                        setAdditionalMonths(prev => (prev === '' || prev < lo ? lo : Math.min(prev, hi)));
+                    }
 
                     if (data.occupants) {
                         const count = parseInt(data.occupants, 10);
@@ -183,24 +189,18 @@ export default function MyRoom() {
         navigate('/view-contract');
     };
 
-    const [additionalMonths, setAdditionalMonths] = useState(1);
     const [busy, setBusy] = useState(''); // 'occupants' | 'extend' | 'moveout' while a request runs
 
-    // Settings → Rental → Minimum Rent Duration, capped at the 12-month extension
-    // maximum (extend_lease.php applies the same rule).
-    const [minExtension, setMinExtension] = useState(1);
-    useEffect(() => {
-        getSystemSettings().then(s => {
-            const min = Math.min(MAX_EXTENSION_MONTHS, s.minLeaseDuration || 1);
-            setMinExtension(min);
-            setAdditionalMonths(prev => (prev === '' || prev < min ? min : prev));
-        });
-    }, []);
+    // The months a request may ask for, from my_room.php: Minimum Rent Duration,
+    // shrunk to what still fits under the months-ahead limit (the server checks
+    // the same range).
+    const minExtension = extension?.minMonths || 1;
+    const maxExtension = Math.max(minExtension, extension?.maxMonths ?? MAX_EXTENSION_MONTHS);
 
     const fields = useFieldErrors({
         occupants: (v, all) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants')
             || (Number(v) === all.currentOccupants ? `Your room is already assigned to ${v} occupant(s).` : ''),
-        additionalMonths: (v) => checkIntRange(v === '' ? NaN : v, minExtension, MAX_EXTENSION_MONTHS, 'Additional months'),
+        additionalMonths: (v) => checkIntRange(v === '' ? NaN : v, minExtension, maxExtension, 'Additional months'),
         move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(MOVE_OUT_MIN_DAYS), max: addDays(MOVE_OUT_MAX_DAYS) })
             .replace(/cannot be before .*/, `must be at least ${MOVE_OUT_MIN_DAYS} days from today.`)
             .replace(/cannot be after .*/, `cannot be more than ${MOVE_OUT_MAX_DAYS} days from today.`),
@@ -527,13 +527,13 @@ export default function MyRoom() {
                             </div>
                             <div className="space-y-3 w-full box-border">
                                 <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="myroom-additionalMonths" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Additional Months ({minExtension}–{MAX_EXTENSION_MONTHS})</label>
+                                    <label htmlFor="myroom-additionalMonths" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Additional Months ({minExtension === maxExtension ? minExtension : `${minExtension}–${maxExtension}`})</label>
                                     <input
                                         type="number"
                                         {...fields.fieldA11y('additionalMonths')}
                                         inputMode="numeric"
                                         min={minExtension}
-                                        max={MAX_EXTENSION_MONTHS}
+                                        max={maxExtension}
                                         step="1"
                                         value={additionalMonths}
                                         onKeyDown={blockNonIntegerKeys}
@@ -545,7 +545,7 @@ export default function MyRoom() {
                                                 setAdditionalMonths('');
                                                 return;
                                             }
-                                            setAdditionalMonths(Math.min(intVal, MAX_EXTENSION_MONTHS));
+                                            setAdditionalMonths(Math.min(intVal, maxExtension));
                                         }}
                                         onBlur={() => fields.validateField('additionalMonths', fieldValues)}
                                         className={`w-full px-4 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm box-border font-bold${invalidCls(fields.errors.additionalMonths)}`}

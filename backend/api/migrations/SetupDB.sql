@@ -127,6 +127,9 @@ CREATE TABLE `invoices` (
   `scheduled_date` date DEFAULT NULL,
   `scheduled_time_slot` varchar(20) DEFAULT NULL,
   `checkout_session_id` varchar(100) DEFAULT NULL,
+  -- PayMongo payment intent of that session; payment.failed webhooks are
+  -- matched by it (2026_10_checkout_payment_intent.sql).
+  `checkout_payment_intent_id` varchar(100) DEFAULT NULL,
   `processing_since` datetime DEFAULT NULL,
   `payment_gateway` varchar(50) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -135,6 +138,7 @@ CREATE TABLE `invoices` (
   KEY `fk_invoice_rent_app` (`rent_application_id`),
   UNIQUE KEY `uq_invoice_rent_period` (`user_id`, `rent_period_key`),
   KEY `idx_invoice_payment_group` (`payment_group`),
+  KEY `idx_invoices_checkout_intent` (`checkout_payment_intent_id`),
   CONSTRAINT `fk_invoice_rent_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_invoice_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

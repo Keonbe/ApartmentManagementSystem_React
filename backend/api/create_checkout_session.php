@@ -248,6 +248,8 @@ if (isset($response_data['errors'])) {
 
 $checkout_session_id = $response_data['data']['id'];
 $checkout_url = $response_data['data']['attributes']['checkout_url'];
+// payment.failed webhooks name this payment intent, not the session (audit N-10a).
+$payment_intent_id = $response_data['data']['attributes']['payment_intent']['id'] ?? null;
 
 // Map channel to human-readable payment method
 $channel_method_map = [
@@ -265,8 +267,8 @@ $payment_method = $channel_method_map[$channel] ?? 'Online (Sandbox)';
 // still being the 'processing' row this request claimed with no session id yet,
 // so a second request can't overwrite the session id this one just got from the
 // gateway (the other half of the C2 race — see the claim above).
-$update = $conn->prepare("UPDATE invoices SET checkout_session_id = ?, payment_gateway = 'paymongo_sandbox', payment_method = ? WHERE ? IN (id, payment_group) AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
-$update->bind_param("sssi", $checkout_session_id, $payment_method, $invoice_id, $user_id);
+$update = $conn->prepare("UPDATE invoices SET checkout_session_id = ?, checkout_payment_intent_id = ?, payment_gateway = 'paymongo_sandbox', payment_method = ? WHERE ? IN (id, payment_group) AND user_id = ? AND status = 'processing' AND checkout_session_id IS NULL");
+$update->bind_param("ssssi", $checkout_session_id, $payment_intent_id, $payment_method, $invoice_id, $user_id);
 $update->execute();
 
 if ($update->affected_rows > 0) {

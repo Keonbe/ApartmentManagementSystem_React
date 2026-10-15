@@ -48,6 +48,14 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 - Plans (plan mode) open with a short **TL;DR**: a few one-line bullets on what changes and why, before the detailed sections.
 - Prefer Edit over full-file Write unless most of the file changes.
 - Verify proportionately: `php -l` on changed PHP, `npm run build` for JSX, curl only the rows that prove the fix.
+- **Self-review the diff before saying "done"** (the repo has no test suite, so this is the safety net). Read `git diff` and check each item, and fix before reporting:
+  - **Empty vs zero:** `||` / falsy checks on values where `0` is meaningful (use `??` / `=== 0`); a field missing from an input or webhook payload.
+  - **Concurrency:** two tabs/admins doing the same action; a stale edit after the row was sent/deleted (lock with `FOR UPDATE`, re-check state, don't trust `affected_rows` alone: unchanged rows report 0); double submit.
+  - **Order of effects:** work after `commit()` that can still throw; files deleted or written before the DB write succeeds; a failure reported for something already saved.
+  - **Queries in loops:** no DB or settings read per row. On a list endpoint, count queries before and after (`SHOW GLOBAL STATUS LIKE 'Questions'`); prod pays a network round-trip per query.
+  - **Blast radius:** grep other callers of any shared function, endpoint parameter or column you changed; seeds and `SetupDB.sql` mirrored.
+  - **Edits to big/shared files** (`config.php`): use Edit, never a scripted find-and-replace (the files are CRLF); `php -l` right after.
+  - Then test one negative, one edge (boundary/zero/missing) and one stale-state case live, not only the happy path.
 - Before stopping or when a workstream ends: update `TASK.md`; draft a commit message (don't commit unless asked), grouped Backend / Frontend / Docs. Once a workstream is committed, move its section to `TASK.archive.md` and keep only its unfinished points under "Open items".
 - When a change makes a doc claim stale, fix that doc section in the same task.
 - Start a new session once a workstream is committed, or when switching branches/tasks — don't carry finished work into the next request.

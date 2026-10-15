@@ -16,12 +16,10 @@ try {
     $input = json_decode(file_get_contents("php://input"), true);
     $additionalMonths = (int)($input['additionalMonths'] ?? 0);
 
-    // Capped at the 12-month extension maximum so a long minimum term never
-    // makes extensions impossible.
-    $minLeaseDuration = min(12, max(1, (int)get_setting($conn, 'min_lease_duration', 3)));
-
-    if ($additionalMonths < $minLeaseDuration || $additionalMonths > 12) {
-        throw new Exception("Invalid request: Extension must be between $minLeaseDuration and 12 months.");
+    // The minimum (min_lease_duration, shrunk to what fits under the
+    // months-ahead limit) is checked by extension_block_reason() below.
+    if ($additionalMonths < 1 || $additionalMonths > MAX_RENT_AHEAD_MONTHS_CEILING) {
+        throw new Exception("Invalid request: Extension must be between 1 and " . MAX_RENT_AHEAD_MONTHS_CEILING . " months.");
     }
 
     $userQuery = $conn->prepare("SELECT u.id, u.first_name, u.last_name, ra.id AS app_id, ra.room_name, ra.status, ra.user_id, ra.requested_move_out_date FROM users u LEFT JOIN rent_applications ra ON ra.user_id = u.id AND ra.status IN ('Approved', 'active', 'pending-move-out') WHERE u.id = ? ORDER BY ra.id DESC LIMIT 1");

@@ -30,14 +30,24 @@ while ($row = $res->fetch_assoc()) {
     $existing[$row['setting_key']] = $row['setting_value'];
 }
 
+// All keys save together or not at all: one rejected key used to leave the
+// keys before it saved.
+$conn->begin_transaction();
+$refuse = function ($message, $errors = null) use ($conn) {
+    $conn->rollback();
+    http_response_code(422);
+    $body = ["success" => false, "message" => $message];
+    if ($errors) $body["errors"] = $errors;
+    echo json_encode($body);
+    exit;
+};
+
 $stmt = $conn->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
 $changed = [];
 
 foreach ($input as $key => $value) {
     if (!is_string($key) || !preg_match('/^[A-Za-z0-9_]{1,100}$/', $key)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Invalid setting key."]);
-        exit;
+        $refuse("Invalid setting key.");
     }
     // Owned by cron/check_environment.php --claim; the settings page echoes it
     // back with everything else, so it is skipped rather than refused.
@@ -61,14 +71,10 @@ foreach ($input as $key => $value) {
     if ($key === 'max_parking_slots') {
         $highest = (int)($conn->query("SELECT COALESCE(MAX(slot_number), 0) AS m FROM parking_reservations WHERE status = 'Assigned'")->fetch_assoc()['m'] ?? 0);
         if (!ctype_digit($value) || (int)$value < 1 || (int)$value > 500) {
-            http_response_code(422);
-            echo json_encode(["success" => false, "message" => "Parking slots must be a whole number between 1 and 500."]);
-            exit;
+            $refuse("Parking slots must be a whole number between 1 and 500.");
         }
         if ((int)$value < $highest) {
-            http_response_code(422);
-            echo json_encode(["success" => false, "message" => "Slot #$highest is still assigned. Release it before reducing parking slots below $highest."]);
-            exit;
+            $refuse("Slot #$highest is still assigned. Release it before reducing parking slots below $highest.");
         }
     }
     // Floor → monthly rent table. Stored as a JSON object {"1F": 5000}.
@@ -84,16 +90,12 @@ foreach ($input as $key => $value) {
             }
         }
         if ($bad) {
-            http_response_code(422);
-            echo json_encode(["success" => false, "message" => "Each floor needs a rent above 0 and up to 1,000,000."]);
-            exit;
+            $refuse("Each floor needs a rent above 0 and up to 1,000,000.");
         }
         $value = json_encode($clean, JSON_FORCE_OBJECT);
     }
     if ($key === 'min_household_age' && (!ctype_digit($value) || (int)$value > 17)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "The minimum household age must be a whole number from 0 to 17."]);
-        exit;
+        $refuse("The minimum household age must be a whole number from 0 to 17.");
     }
     // Age categories for children (infant / toddler / minor ...): non-overlapping ranges within 0-17.
     if ($key === 'age_categories') {
@@ -123,55 +125,40 @@ foreach ($input as $key => $value) {
             }
         }
         if ($bad) {
-            http_response_code(422);
-            echo json_encode(["success" => false, "message" => "Age categories need a name, an age range between 0 and 17 that does not overlap another category, and rules under 500 characters."]);
-            exit;
+            $refuse("Age categories need a name, an age range between 0 and 17 that does not overlap another category, and rules under 500 characters.");
         }
         $value = json_encode($clean, JSON_UNESCAPED_UNICODE);
     }
     if ($key === 'parking_billing_mode' && !in_array($value, ['manual', 'auto'], true)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Parking billing mode must be manual or auto."]);
-        exit;
+        $refuse("Parking billing mode must be manual or auto.");
     }
     if ($key === 'parking_monthly_fee' && (!is_numeric($value) || (float)$value <= 0 || (float)$value > 100000)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Parking monthly fee must be a positive amount."]);
-        exit;
+        $refuse("Parking monthly fee must be a positive amount.");
     }
     // The UI's slider goes 1-168 hours (one week); the endpoint used to store
     // whatever was posted, including 0 or non-numeric text, which then fell
     // back to 24 with no indication anything was wrong.
     if ($key === 'visitor_overstay_hours' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 168)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Visitor overstay threshold must be a whole number between 1 and 168 hours."]);
-        exit;
+        $refuse("Visitor overstay threshold must be a whole number between 1 and 168 hours.");
     }
     if ($key === 'payment_window_days' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 30)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Payment window must be a whole number of days between 1 and 30.", "errors" => ["paymentWindowDays" => "Enter 1 to 30 days."]]);
-        exit;
+        $refuse("Payment window must be a whole number of days between 1 and 30.", ["paymentWindowDays" => "Enter 1 to 30 days."]);
     }
     if ($key === 'lease_end_reminder_days' && (!ctype_digit($value) || (int)$value < 0 || (int)$value > 180)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Rent-end reminder days must be a whole number between 0 and 180."]);
-        exit;
+        $refuse("Rent-end reminder days must be a whole number between 0 and 180.");
     }
 
     if ($key === 'room_preview_mode' && !in_array($value, ['images', 'floor_plan'], true)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Room preview mode must be images or floor_plan."]);
-        exit;
+        $refuse("Room preview mode must be images or floor_plan.");
     }
     if ($key === 'max_rent_ahead_months' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > MAX_RENT_AHEAD_MONTHS_CEILING)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Maximum months ahead must be a whole number between 1 and " . MAX_RENT_AHEAD_MONTHS_CEILING . "."]);
-        exit;
+        $refuse("Maximum months ahead must be a whole number between 1 and " . MAX_RENT_AHEAD_MONTHS_CEILING . ".");
+    }
+    if ($key === 'min_lease_duration' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 24)) {
+        $refuse("Minimum rent duration must be a whole number between 1 and 24 months.");
     }
     if ($key === 'max_occupants_per_unit' && (!ctype_digit($value) || (int)$value < 1 || (int)$value > 20)) {
-        http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Maximum occupants per unit must be a whole number between 1 and 20."]);
-        exit;
+        $refuse("Maximum occupants per unit must be a whole number between 1 and 20.");
     }
 
     if (array_key_exists($key, $existing) && $existing[$key] === $value) continue;
@@ -181,6 +168,7 @@ foreach ($input as $key => $value) {
     $changed[] = in_array($key, $secret_keys, true) ? "$key (value hidden)" : $key;
 }
 $stmt->close();
+$conn->commit();
 
 // The audit entry names what actually changed; it used to say "Updated multiple configuration keys" every time.
 if ($changed) {

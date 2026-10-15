@@ -45,7 +45,7 @@ if ($is_admin) {
 $stmt = $conn->prepare("
     UPDATE invoices
     SET status = CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 'overdue' ELSE 'pending' END,
-        checkout_session_id = NULL, processing_since = NULL
+        checkout_session_id = NULL, checkout_payment_intent_id = NULL, processing_since = NULL
     WHERE ? IN (id, payment_group) AND user_id = ? AND status = 'processing'
 ");
 $stmt->bind_param("si", $invoice_id, $owner_id);

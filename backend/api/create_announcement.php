@@ -66,14 +66,55 @@ if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ER
         echo json_encode(["success" => false, "message" => "Attach a JPG, PNG, or PDF."]);
         exit;
     }
-    // Checked here; the file is stored only once the announcement is going out
-    // (below), so a refused request or a draft leaves nothing behind.
+    // Checked here; the file is stored only once the request has passed every
+    // check (below), so a refused request leaves nothing behind.
     $attachment_tmp = $file['tmp_name'];
     $attachment_ext = $exts[$mime];
 } elseif (isset($_FILES['attachment']) && $_FILES['attachment']['error'] !== UPLOAD_ERR_NO_FILE) {
     http_response_code(422);
     echo json_encode(["success" => false, "message" => "The attachment could not be uploaded. It may be too large."]);
     exit;
+}
+
+// Reopened draft (AdminAnnouncements "Open draft"): saving updates it, sending
+// turns it into the sent announcement. Its stored file is kept unless a new
+// one is attached or removeAttachment is set.
+$draft_id = (int)($input['draftId'] ?? 0);
+$remove_attachment = filter_var($input['removeAttachment'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$draft = null;
+if ($draft_id) {
+    $stmt = $conn->prepare("SELECT id, attachment_path FROM announcements WHERE id = ? AND status = 'draft'");
+    $stmt->bind_param("i", $draft_id);
+    $stmt->execute();
+    $draft = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$draft) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "This draft no longer exists or was already sent."]);
+        exit;
+    }
+}
+$kept_attachment = ($draft && !$remove_attachment && $attachment_tmp === null) ? $draft['attachment_path'] : null;
+
+// Stores the uploaded file (if any) and returns its path, or null.
+function store_announcement_attachment($tmp, $ext) {
+    if ($tmp === null) return null;
+    $upload_dir = __DIR__ . '/../uploads/notifications/';
+    if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+    $filename = bin2hex(random_bytes(16)) . '.' . $ext;
+    if (!move_uploaded_file($tmp, $upload_dir . $filename)) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Could not save the attachment."]);
+        exit;
+    }
+    return 'uploads/notifications/' . $filename;
+}
+
+// The draft's previous file, once a save or send has replaced or removed it.
+function discard_draft_attachment($draft, $attachment_path) {
+    if ($draft && $draft['attachment_path'] && $draft['attachment_path'] !== $attachment_path) {
+        @unlink(__DIR__ . '/../' . $draft['attachment_path']);
+    }
 }
 
 if ($title === '' || $body === '') {
@@ -127,13 +168,50 @@ $recipients = array_map('intval', array_column($stmt->get_result()->fetch_all(MY
 $stmt->close();
 
 // A draft notifies nobody: store it and stop.
+// A draft keeps its attachment (it used to be dropped).
 if ($is_draft) {
     $recipient_count = count($recipients);
-    $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, status, recipient_count) VALUES (?, ?, ?, ?, ?, 'draft', ?)");
-    $stmt->bind_param("sssssi", $tag, $title, $body, $send_to_label, $channels, $recipient_count);
-    if (!$stmt->execute()) server_error_response(new Exception($stmt->error), "Failed to save the draft.");
-    $stmt->close();
-    log_activity($conn, $admin_id, 'communication', "Saved Announcement Draft", "Title: $title; To: $send_to_label");
+    $new_upload = store_announcement_attachment($attachment_tmp, $attachment_ext);
+    $attachment_path = $new_upload ?? $kept_attachment;
+    $previous_attachment = $draft['attachment_path'] ?? null;
+    $conn->begin_transaction();
+    try {
+        if ($draft) {
+            // Lock the row and re-check it is still a draft: another admin may
+            // have sent or removed it since it was opened. Its file is read
+            // here, under the lock, so only a file this draft still owns is
+            // ever replaced or deleted.
+            $lock = $conn->prepare("SELECT attachment_path FROM announcements WHERE id = ? AND status = 'draft' FOR UPDATE");
+            $lock->bind_param("i", $draft_id);
+            $lock->execute();
+            $current = $lock->get_result()->fetch_assoc();
+            $lock->close();
+            if (!$current) {
+                $conn->rollback();
+                if ($new_upload) @unlink(__DIR__ . '/../' . $new_upload);
+                http_response_code(422);
+                echo json_encode(["success" => false, "message" => "This draft no longer exists or was already sent."]);
+                exit;
+            }
+            $previous_attachment = $current['attachment_path'];
+            $attachment_path = $new_upload ?? ($remove_attachment ? null : $previous_attachment);
+            $stmt = $conn->prepare("UPDATE announcements SET tag = ?, title = ?, body = ?, send_to = ?, channels = ?, recipient_count = ?, attachment_path = ? WHERE id = ?");
+            $stmt->bind_param("sssssisi", $tag, $title, $body, $send_to_label, $channels, $recipient_count, $attachment_path, $draft_id);
+        } else {
+            $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, status, recipient_count, attachment_path) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)");
+            $stmt->bind_param("sssssis", $tag, $title, $body, $send_to_label, $channels, $recipient_count, $attachment_path);
+        }
+        $stmt->execute();
+        $stmt->close();
+        $conn->commit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        if ($new_upload) @unlink(__DIR__ . '/../' . $new_upload);
+        server_error_response($e, "Failed to save the draft.");
+        exit;
+    }
+    discard_draft_attachment(['attachment_path' => $previous_attachment], $attachment_path);
+    log_activity($conn, $admin_id, 'communication', $draft ? "Updated Announcement Draft" : "Saved Announcement Draft", "Title: $title; To: $send_to_label" . ($attachment_path ? "; with attachment" : ''));
     echo json_encode(["success" => true, "message" => "Draft saved. Nobody was notified.", "draft" => true]);
     exit;
 }
@@ -148,27 +226,37 @@ if (!$recipients) {
 
 $notif_type = ['Urgent' => 'warning', 'Reminder' => 'action'][$tag] ?? 'info';
 
-if ($attachment_tmp !== null) {
-    $upload_dir = __DIR__ . '/../uploads/notifications/';
-    if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
-    $filename = bin2hex(random_bytes(16)) . '.' . $attachment_ext;
-    if (!move_uploaded_file($attachment_tmp, $upload_dir . $filename)) {
-        http_response_code(500);
-        echo json_encode(["success" => false, "message" => "Could not save the attachment."]);
-        exit;
-    }
-    $attachment_path = 'uploads/notifications/' . $filename;
-}
+$new_upload = store_announcement_attachment($attachment_tmp, $attachment_ext);
+$attachment_path = $new_upload ?? $kept_attachment;
 $conn->begin_transaction();
 try {
     $recipient_count = count($recipients);
-    $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, recipient_count) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssssi", $tag, $title, $body, $send_to_label, $channels, $recipient_count);
-    if (!$stmt->execute()) {
-        error_log("[AMS] Announcement insert failed: " . $stmt->error);
-        throw new Exception("Announcement insert failed.");
+    if ($draft) {
+        // Sending a reopened draft turns that row into the announcement. Lock
+        // it and read its file here, so an edit or send from another tab
+        // cannot leave this one pointing at a file that was replaced.
+        $lock = $conn->prepare("SELECT attachment_path FROM announcements WHERE id = ? AND status = 'draft' FOR UPDATE");
+        $lock->bind_param("i", $draft_id);
+        $lock->execute();
+        $current = $lock->get_result()->fetch_assoc();
+        $lock->close();
+        if (!$current) throw new Exception("Draft $draft_id was already sent.");
+        $draft['attachment_path'] = $current['attachment_path'];
+        $attachment_path = $new_upload ?? ($remove_attachment ? null : $current['attachment_path']);
+        $stmt = $conn->prepare("UPDATE announcements SET tag = ?, title = ?, body = ?, send_to = ?, channels = ?, recipient_count = ?, attachment_path = ?, status = 'sent', created_at = NOW() WHERE id = ? AND status = 'draft'");
+        $stmt->bind_param("sssssisi", $tag, $title, $body, $send_to_label, $channels, $recipient_count, $attachment_path, $draft_id);
+        $stmt->execute();
+        if ($stmt->affected_rows !== 1) throw new Exception("Draft $draft_id was already sent.");
+        $announcement_id = $draft_id;
+    } else {
+        $stmt = $conn->prepare("INSERT INTO announcements (tag, title, body, send_to, channels, recipient_count) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssssi", $tag, $title, $body, $send_to_label, $channels, $recipient_count);
+        if (!$stmt->execute()) {
+            error_log("[AMS] Announcement insert failed: " . $stmt->error);
+            throw new Exception("Announcement insert failed.");
+        }
+        $announcement_id = $stmt->insert_id;
     }
-    $announcement_id = $stmt->insert_id;
     $stmt->close();
 
     // Announcements respect each tenant's "Building announcements" preference.
@@ -200,6 +288,8 @@ try {
 
 
     $conn->commit();
+    $committed = true;
+    discard_draft_attachment($draft, $attachment_path);
 
     // Broadcast outside the transaction: an SMS or email problem must not roll
     // back an announcement that tenants can already see in-app.
@@ -228,10 +318,24 @@ try {
         "notification_dispatch" => $notification_dispatch
     ]);
 } catch (Exception $e) {
-    $conn->rollback();
-    // The announcement was not created, so the file saved for it is not wanted.
-    if ($attachment_path) @unlink(__DIR__ . '/../' . $attachment_path);
-    server_error_response($e, "Failed to create announcement.");
+    if (empty($committed)) {
+        $conn->rollback();
+        // The announcement was not created, so a file uploaded for it is not
+        // wanted. A reopened draft's own file stays with the draft.
+        if ($new_upload) @unlink(__DIR__ . '/../' . $new_upload);
+        server_error_response($e, "Failed to create announcement.");
+    } else {
+        // Already committed and visible to tenants: only the SMS/email
+        // broadcast or the bookkeeping after it failed. Reporting a failure
+        // here made admins resend and duplicate the announcement.
+        error_log('[AMS] ' . ($_SERVER['SCRIPT_NAME'] ?? 'cli') . ' after commit: ' . $e->getMessage());
+        echo json_encode([
+            "success" => true,
+            "message" => "Announcement sent to " . ($delivered ?? 0) . " tenant(s) in-app, but SMS/email delivery hit an error. Check the logs before resending.",
+            "recipient_count" => $recipient_count ?? 0,
+            "delivered" => $delivered ?? 0,
+        ]);
+    }
 }
 
 $conn->close();

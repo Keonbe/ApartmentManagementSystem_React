@@ -441,9 +441,9 @@ export default function UserVisitors() {
                       </td>
 
                       <td className="px-4 py-3.5 text-xs text-slate-600">
-                        {new Date(v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(v.visitAt || v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         <br />
-                        <span className="text-[10px] text-slate-400">{new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-[10px] text-slate-400">{new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </td>
 
                       <td className="px-4 py-3.5 text-xs font-mono font-bold text-slate-700">

@@ -353,6 +353,30 @@ function rent_end_ahead_error($conn, $new_end) {
     return null;
 }
 
+// The months a rent ending on $lease_end may be extended by: 'max' is the most
+// that still fits under max_rent_ahead_months (0 when nothing fits), 'min' is
+// min_lease_duration — shrunk to 'max' when fewer months fit, so a tenant with
+// a long term left can still extend up to the limit (audit N-1/N-2).
+function extension_month_range($conn, $lease_end, $settings = null) {
+    // $settings (from extension_range_settings()) lets a caller listing many
+    // rooms read the two settings once instead of once per room.
+    $settings = $settings ?? extension_range_settings($conn);
+    $max = MAX_RENT_AHEAD_MONTHS_CEILING;
+    if ($lease_end) {
+        // The same limit rent_end_ahead_error() applies.
+        $limit = date('Y-m-d', strtotime('+' . $settings['ahead'] . ' months'));
+        while ($max > 0 && date('Y-m-d', strtotime("$lease_end +$max months")) > $limit) $max--;
+    }
+    return ['min' => min($settings['min'], max(1, $max)), 'max' => $max];
+}
+
+function extension_range_settings($conn) {
+    return [
+        'ahead' => max_rent_ahead_months($conn),
+        'min' => min(MAX_RENT_AHEAD_MONTHS_CEILING, max(1, (int)get_setting($conn, 'min_lease_duration', 3))),
+    ];
+}
+
 // ── Rent extensions (panel review 2026-10-09) ──
 // One rule list and one implementation for every way rent is extended: the
 // tenant's request (extend_lease.php), its approval (process_tenant_request.php)
@@ -398,6 +422,10 @@ function extension_block_reason($conn, $app, $contract, $add_months) {
             . date('M j, Y', strtotime($overdue['oldest_due'])) . "). It must be settled on Pay Bills before the rent can be extended.";
     }
     if ($add_months > 0) {
+        $range = extension_month_range($conn, $contract['lease_end']);
+        if ($range['max'] >= 1 && $add_months < $range['min']) {
+            return "The rent must be extended by at least {$range['min']} month(s).";
+        }
         $proposed_end = date('Y-m-d', strtotime($contract['lease_end'] . " +$add_months months"));
         if ($ahead_error = rent_end_ahead_error($conn, $proposed_end)) return $ahead_error;
     }
@@ -1885,7 +1913,7 @@ function payment_key_label($key) {
 // The invoices a payment key covers, oldest month first. $user_id limits them
 // to one owner (null = any, for admins); $statuses to those states (null = all).
 function payment_key_invoices($conn, $key, $user_id = null, $statuses = null) {
-    $sql = "SELECT id, user_id, status, total_amount, billing_period, due_date, checkout_session_id, payment_group, payment_method
+    $sql = "SELECT id, user_id, status, total_amount, billing_period, due_date, checkout_session_id, checkout_payment_intent_id, payment_group, payment_method
             FROM invoices WHERE ? IN (id, payment_group)";
     $types = "s";
     $params = [$key];
@@ -2345,7 +2373,7 @@ function void_lapsed_payments($conn) {
     foreach ($rows as $r) {
         $upd = $conn->prepare("UPDATE invoices
             SET status = CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 'overdue' ELSE 'pending' END,
-                checkout_session_id = NULL, processing_since = NULL
+                checkout_session_id = NULL, checkout_payment_intent_id = NULL, processing_since = NULL
             WHERE id = ? AND status = 'processing' AND processing_since < DATE_SUB(NOW(), INTERVAL ? DAY)");
         $upd->bind_param("si", $r['id'], $days);
         $upd->execute();
@@ -2437,11 +2465,14 @@ function promote_overdue_invoices($conn) {
     // reminded, and invisible in receivables.
     $conn->query("
         UPDATE invoices
-        SET status = 'overdue',
-            -- A checkout that never completed must not leave a session id
-            -- behind that a late-arriving webhook could still match on.
-            checkout_session_id = CASE WHEN status = 'processing' THEN NULL ELSE checkout_session_id END,
-            processing_since = CASE WHEN status = 'processing' THEN NULL ELSE processing_since END
+        -- A checkout that never completed must not leave a session id
+        -- behind that a late-arriving webhook could still match on.
+        -- status is assigned last: MySQL/MariaDB apply SET left to right, so
+        -- the CASEs must read the old status (they used to see 'overdue').
+        SET checkout_session_id = CASE WHEN status = 'processing' THEN NULL ELSE checkout_session_id END,
+            checkout_payment_intent_id = CASE WHEN status = 'processing' THEN NULL ELSE checkout_payment_intent_id END,
+            processing_since = CASE WHEN status = 'processing' THEN NULL ELSE processing_since END,
+            status = 'overdue'
         WHERE due_date IS NOT NULL AND due_date < CURDATE()
           AND (
                 status IN ('pending', 'unpaid', 'payment-failed', 'processing')

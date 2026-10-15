@@ -82,17 +82,24 @@ if ($result->num_rows > 0) {
     
     // Whether the rent can be extended right now, and why not (config.php
     // extension_block_reason(): scheduled move-out, contract state, overdue
-    // bills). The months-ahead limit is checked once the tenant picks a number.
+    // bills, months-ahead limit). minMonths/maxMonths are the months a request
+    // may ask for (config.php extension_month_range()).
     $room_data['extension'] = null;
     if (in_array($room_data['status'], ['active', 'pending-move-out'], true)) {
         $contract = $room_data['contract_id'] ? ['status' => $room_data['contract_status'], 'lease_end' => $room_data['lease_end']] : null;
         $reason = extension_block_reason($conn, $room_data + ['user_id' => $user_id], $contract, 0);
+        $range = extension_month_range($conn, $contract['lease_end'] ?? null);
+        if ($reason === null && $range['max'] < 1) {
+            $reason = rent_end_ahead_error($conn, date('Y-m-d', strtotime($contract['lease_end'] . ' +1 month')));
+        }
         $overdue = tenant_overdue_summary($conn, (int)$user_id);
         $room_data['extension'] = [
             'allowed' => $reason === null,
             'reason' => $reason,
             'overdueTotal' => $overdue['total'],
             'maxMonthsAhead' => max_rent_ahead_months($conn),
+            'minMonths' => $range['min'],
+            'maxMonths' => $range['max'],
         ];
     }
 

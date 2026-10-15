@@ -646,10 +646,10 @@ export default function AdminVisitors() {
                             {/* Check-In Time */}
                             <td className="px-4 py-4 text-xs text-slate-600">
                               <p className="m-0 font-medium">
-                                {new Date(v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                {new Date(v.visitAt || v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                               </p>
                               <p className="text-[11px] text-slate-400 m-0 mt-0.5">
-                                {new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
                               {v.expectedCheckOutAt && (
                                 <p className="text-[10px] text-slate-400 m-0 mt-0.5">Out by {fmtShort(v.expectedCheckOutAt)}</p>

@@ -19,14 +19,17 @@ const WATCH_POLL_MS = 20000;
 //   { type: 'confirmed', invoice }  awaiting → paid
 //   { type: 'rejected',  invoice }  proof sent back (reason on the invoice)
 //   { type: 'failed',    invoice }  online checkout declined
-export default function useInvoiceWatch({ onTransition } = {}) {
+// onFirstLoad receives the first list fetched (no transitions can be seen yet).
+export default function useInvoiceWatch({ onTransition, onFirstLoad } = {}) {
   const [invoices, setInvoices] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const previous = useRef(null); // Map of invoice id → status from the last fetch
   const onTransitionRef = useRef(onTransition);
+  const onFirstLoadRef = useRef(onFirstLoad);
 
   useEffect(() => {
     onTransitionRef.current = onTransition;
+    onFirstLoadRef.current = onFirstLoad;
   });
 
   const refresh = useCallback(async () => {
@@ -52,6 +55,8 @@ export default function useInvoiceWatch({ onTransition } = {}) {
           }
         });
         if (events.length > 0) onTransitionRef.current?.(events);
+      } else {
+        onFirstLoadRef.current?.(list);
       }
 
       previous.current = new Map(list.map((invoice) => [invoice.id, invoice.status]));

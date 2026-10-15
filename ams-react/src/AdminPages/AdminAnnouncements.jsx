@@ -29,7 +29,9 @@ const statusConfig = {
 const tagStyleMap = { Urgent: 'bg-red-100 text-red-800', Reminder: 'bg-blue-100 text-blue-800', General: 'bg-slate-100 text-slate-600' };
 // Tenancies create_announcement.php counts as current.
 const CURRENT_STATUSES = ['active', 'Approved', 'pending-move-out'];
-const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'], attachment: null };
+// draftId / draftAttachment: a reopened draft and the file it already holds;
+// removeAttachment drops that file on the next save or send.
+const EMPTY_FORM = { sendTo: 'All tenants', unit: '', type: 'General', title: '', body: '', channels: ['in-app'], attachment: null, draftId: null, draftAttachment: null, removeAttachment: false };
 
 const INPUT = 'focus-glow w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 outline-none focus:border-indigo-500 transition-all';
 const LABEL = 'block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1';
@@ -75,6 +77,7 @@ const AdminAnnouncements = () => {
     return () => URL.revokeObjectURL(url);
   }, [form.attachment]);
   const clearAttachment = () => { setAttachmentError(''); setForm(f => ({ ...f, attachment: null })); setFileKey(Date.now()); };
+  const removeDraftAttachment = () => setForm(f => ({ ...f, draftAttachment: null, removeAttachment: true }));
   const [sending, setSending] = useState(null); // 'send' | 'draft' | null
   const [notice, setNotice] = useState(null);   // { ok, text }
   // Keys match create_announcement.php's body (tag/body are the form's type/body).
@@ -196,12 +199,15 @@ const AdminAnnouncements = () => {
         unit: specific ? form.unit : '',
         channels: form.channels,
         draft,
+        // A reopened draft is updated (or sent) in place, keeping its file
+        // unless it was removed or replaced.
+        ...(form.draftId ? { draftId: form.draftId, removeAttachment: form.removeAttachment } : {}),
       };
       // A file can only travel in a form post; create_announcement.php reads
-      // either shape. A draft keeps no attachment, so it stays JSON.
+      // either shape. Drafts keep their attachment too.
       let body = payload;
       let config;
-      if (form.attachment && !draft) {
+      if (form.attachment) {
         body = new FormData();
         Object.entries(payload).forEach(([key, value]) => body.append(key, key === 'channels' ? JSON.stringify(value) : String(value)));
         body.append('attachment', form.attachment);
@@ -222,6 +228,36 @@ const AdminAnnouncements = () => {
     } finally {
       setSending(null);
     }
+  };
+
+  // History → "Open draft": load a saved draft into the composer. send_to is
+  // stored as "All Tenants" or "Unit <name>".
+  const openDraft = (item) => {
+    const unitMatch = /^Unit (.+)$/.exec(item.send_to || '');
+    setForm({
+      ...EMPTY_FORM,
+      sendTo: unitMatch ? 'Specific unit' : 'All tenants',
+      unit: unitMatch ? unitMatch[1] : '',
+      type: TYPES.includes(item.tag) ? item.tag : 'General',
+      title: item.title || '',
+      body: item.body || '',
+      channels: item.channels.includes('in-app') ? item.channels : ['in-app', ...item.channels],
+      draftId: item.id,
+      draftAttachment: item.attachment_path || null,
+    });
+    setAttachmentError('');
+    setFileKey(k => k + 1);
+    fields.setErrors({});
+    setNotice({ ok: true, text: 'Draft opened. Save it again or send it.' });
+    // The composer sits above the history: bring it into view.
+    requestAnimationFrame(() => document.getElementById(fields.idFor('title'))?.focus());
+  };
+  const closeDraft = () => {
+    setForm(EMPTY_FORM);
+    setAttachmentError('');
+    setFileKey(k => k + 1);
+    fields.setErrors({});
+    setNotice(null);
   };
 
   // In-app always goes out; only SMS and email are optional.
@@ -250,7 +286,14 @@ const AdminAnnouncements = () => {
 
             {/* Compose Announcement */}
             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-              <h3 className="text-base font-bold text-slate-800 mb-4 m-0">Compose Announcement</h3>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-base font-bold text-slate-800 m-0">{form.draftId ? 'Edit Draft' : 'Compose Announcement'}</h3>
+                {form.draftId && (
+                  <button type="button" onClick={closeDraft} className="text-xs font-semibold text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer p-0">
+                    Close draft
+                  </button>
+                )}
+              </div>
 
               <div className={`grid grid-cols-1 gap-3 mb-3 ${specific ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                 <div>
@@ -345,9 +388,17 @@ const AdminAnnouncements = () => {
                   className="w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
                 <p id="announcement-attachment-hint" className="text-[11px] text-slate-400 m-0 mt-1">
-                  One file: {FILE_RULES.announcement.label}, up to {FILE_RULES.announcement.maxMB} MB. Tenants open it from the announcement in their notifications; it is not sent with the SMS or email. "Save draft" does not keep it; attach it again when you send.
+                  One file: {FILE_RULES.announcement.label}, up to {FILE_RULES.announcement.maxMB} MB. Tenants open it from the announcement in their notifications; it is not sent with the SMS or email. "Save draft" keeps it with the draft.
                 </p>
                 {attachmentError && <p role="alert" className="text-xs text-red-600 m-0 mt-1">{attachmentError}</p>}
+                {/* The file a reopened draft already holds; a newly chosen file replaces it. */}
+                {form.draftAttachment && !form.attachment && (
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+                    <FontAwesomeIcon icon={faPaperclip} className="text-indigo-500" />
+                    <a href={fileUrl(form.draftAttachment)} target="_blank" rel="noreferrer" className="font-semibold text-indigo-700 no-underline hover:underline">Saved attachment</a>
+                    <button type="button" onClick={removeDraftAttachment} className="text-rose-600 font-semibold bg-transparent border-0 cursor-pointer p-0">Remove</button>
+                  </div>
+                )}
                 <FileChip file={form.attachment} onRemove={clearAttachment} />
                 {attachmentPreview && (
                   <div className="mt-2 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
@@ -428,6 +479,12 @@ const AdminAnnouncements = () => {
                         className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-semibold no-underline hover:bg-indigo-100">
                         <FontAwesomeIcon icon={faPaperclip} /> View attachment
                       </a>
+                    )}
+                    {item.status === 'draft' && (
+                      <button type="button" onClick={() => openDraft(item)} disabled={!!sending || form.draftId === item.id}
+                        className="ml-2 inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-semibold border-0 cursor-pointer hover:bg-slate-200 disabled:opacity-60 disabled:cursor-default">
+                        {form.draftId === item.id ? 'Open in composer' : 'Open draft'}
+                      </button>
                     )}
                     <div className="flex items-center flex-wrap gap-3 text-[10px] text-slate-400">
                       <span className="flex items-center gap-1"><FontAwesomeIcon icon={faCalendarAlt} /> {item.date}</span>

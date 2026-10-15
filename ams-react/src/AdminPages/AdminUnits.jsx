@@ -107,7 +107,6 @@ const AdminUnits = () => {
     try {
       const response = await api.get('get_rooms.php');
       if (response.data.success) {
-        console.log("Fetched rooms from DB:", response.data.rooms);
         // get_rooms.php now returns real maintenanceHistory/occupancyHistory/
         // leaseHistory per room — only hydrate the fields it genuinely has no
         // source for yet (history/paymentHistory), instead of clobbering the
@@ -211,9 +210,16 @@ const AdminUnits = () => {
     rent: (v) => (v !== '' && v != null ? checkAmount(v, { label: 'Monthly rent', min: 0.01, allowZero: false }) : ''),
     identityVerified: (v) => (v ? '' : 'Please confirm identity verification before assigning a tenant.'),
   }, { idPrefix: 'assign-' });
-  const minExtensionMonths = Math.min(MAX_EXTENSION_MONTHS, Math.max(1, minLeaseDuration || 1));
+  // get_rooms.php extensionRange: Minimum Rent Duration, shrunk to what fits
+  // under the months-ahead limit (config.php extension_month_range()).
+  const minExtensionMonths = selectedUnit?.extensionRange?.min || Math.min(MAX_EXTENSION_MONTHS, Math.max(1, minLeaseDuration || 1));
+  // max 0 means no month fits under the months-ahead limit (the server refuses any request).
+  const noExtensionFits = selectedUnit?.extensionRange?.max === 0;
+  const maxExtensionMonths = Math.max(minExtensionMonths, selectedUnit?.extensionRange?.max ?? MAX_EXTENSION_MONTHS);
   const extendErrors = useFieldErrors({
-    addMonths: (v) => checkIntRange(v === '' ? NaN : v, minExtensionMonths, MAX_EXTENSION_MONTHS, 'Months to add'),
+    addMonths: (v) => (noExtensionFits
+      ? 'This rent already reaches the months-ahead limit, so it cannot be extended.'
+      : checkIntRange(v === '' ? NaN : v, minExtensionMonths, maxExtensionMonths, 'Months to add')),
     newRent: (v) => (v !== '' ? checkAmount(v, { label: 'New rent', min: 0.01, allowZero: false }) : ''),
   }, { idPrefix: 'extend-' });
   const [assigning, setAssigning] = useState(false);
@@ -1007,7 +1013,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label htmlFor="extend-addMonths" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Months to Add *</label>
-                          <input type="number" {...extendErrors.fieldA11y('addMonths')} inputMode="numeric" min={Math.min(MAX_EXTENSION_MONTHS, minLeaseDuration)} max={MAX_EXTENSION_MONTHS} step="1" value={extendForm.addMonths}
+                          <input type="number" {...extendErrors.fieldA11y('addMonths')} inputMode="numeric" min={unit.extensionRange?.min || Math.min(MAX_EXTENSION_MONTHS, minLeaseDuration)} max={Math.max(1, unit.extensionRange?.max ?? MAX_EXTENSION_MONTHS)} step="1" value={extendForm.addMonths}
                             onKeyDown={blockNonNumericKeys}
                             onChange={e => { setExtendForm({ ...extendForm, addMonths: e.target.value }); extendErrors.clearError('addMonths'); setLeaseError(''); }}
                             onBlur={() => extendForm.addMonths !== '' && extendErrors.validateField('addMonths', extendForm)}

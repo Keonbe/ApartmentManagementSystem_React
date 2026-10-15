@@ -77,6 +77,12 @@ try {
             $where_clauses[] = "(v.status = 'checked_in' AND TIMESTAMPDIFF(HOUR, v.check_in_at, NOW()) >= ?)";
             $params[] = $overstay_hours;
             $types .= "i";
+        } elseif ($status_filter === 'checked_in') {
+            // Overstayed rows have their own filter; this one matches the
+            // "Checked In" count (active_count below).
+            $where_clauses[] = "(v.status = 'checked_in' AND TIMESTAMPDIFF(HOUR, v.check_in_at, NOW()) < ?)";
+            $params[] = $overstay_hours;
+            $types .= "i";
         } else {
             $where_clauses[] = "v.status = ?";
             $params[] = $status_filter;
@@ -84,14 +90,17 @@ try {
         }
     }
 
-    // Date range filter
+    // Date range filter, on the visit date: a pre-registration that was never
+    // admitted is dated by its expected arrival, not by when it was filed
+    // (check_in_at defaults to the filing time until the visitor is admitted).
+    $visit_at_sql = "(CASE WHEN v.status IN ('pending_approval', 'denied', 'cancelled') THEN COALESCE(v.expected_at, v.check_in_at) ELSE v.check_in_at END)";
     if (!empty($_GET['startDate'])) {
-        $where_clauses[] = "DATE(v.check_in_at) >= ?";
+        $where_clauses[] = "DATE($visit_at_sql) >= ?";
         $params[] = $_GET['startDate'];
         $types .= "s";
     }
     if (!empty($_GET['endDate'])) {
-        $where_clauses[] = "DATE(v.check_in_at) <= ?";
+        $where_clauses[] = "DATE($visit_at_sql) <= ?";
         $params[] = $_GET['endDate'];
         $types .= "s";
     }
@@ -102,6 +111,7 @@ try {
                 v.*,
                 CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS host_name,
                 u.email_address AS host_email,
+                $visit_at_sql AS visit_at,
                 TIMESTAMPDIFF(HOUR, v.check_in_at, COALESCE(v.check_out_at, NOW())) AS elapsed_hours,
                 TIMESTAMPDIFF(MINUTE, v.check_in_at, COALESCE(v.check_out_at, NOW())) AS elapsed_minutes
             FROM visitor_logs v
@@ -152,6 +162,7 @@ try {
             'expectedAt' => $row['expected_at'],
             'expectedCheckOutAt' => $row['expected_check_out_at'] ?? null,
             'checkInAt' => $row['check_in_at'],
+            'visitAt' => $row['visit_at'],
             'checkOutAt' => $row['check_out_at'],
             'checkoutNotes' => $row['checkout_notes'] ?? '',
             'adminNotes' => $row['admin_notes'] ?? '',
@@ -177,8 +188,8 @@ try {
                     SUM(CASE WHEN status = 'pending_approval' THEN 1 ELSE 0 END) as pending_count,
                     SUM(CASE WHEN status = 'checked_in' AND TIMESTAMPDIFF(HOUR, check_in_at, NOW()) < ? THEN 1 ELSE 0 END) as active_count,
                     SUM(CASE WHEN status = 'checked_in' AND TIMESTAMPDIFF(HOUR, check_in_at, NOW()) >= ? THEN 1 ELSE 0 END) as overstay_count,
-                    SUM(CASE WHEN DATE(check_in_at) = CURDATE() THEN 1 ELSE 0 END) as today_count
-                  FROM visitor_logs $stats_scope";
+                    SUM(CASE WHEN DATE($visit_at_sql) = CURDATE() THEN 1 ELSE 0 END) as today_count
+                  FROM visitor_logs v $stats_scope";
 
     $stmt_stats = $conn->prepare($stats_sql);
     if (!$isAdmin) {

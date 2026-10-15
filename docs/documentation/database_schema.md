@@ -134,6 +134,7 @@ erDiagram
         date scheduled_date
         varchar scheduled_time_slot
         varchar checkout_session_id
+        varchar checkout_payment_intent_id
         datetime processing_since
         varchar payment_gateway
         timestamp created_at

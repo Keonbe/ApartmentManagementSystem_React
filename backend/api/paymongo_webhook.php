@@ -102,6 +102,24 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
     $invoice_id = $metadata['invoice_id'] ?? null;
     $user_id = $metadata['user_id'] ?? null;
     $session_id = $event_data['id'] ?? null;
+    $intent_id = null;
+
+    // A payment.failed event carries the payment (pay_...), not the checkout
+    // session, so comparing its id with checkout_session_id discarded every
+    // one as "superseded" (audit N-10a). Match it by the payment intent the
+    // checkout opened instead — which also finds the invoice when the
+    // payment's metadata doesn't name it.
+    if ($event_type === 'payment.failed') {
+        $session_id = null;
+        $intent_id = $event_data['attributes']['payment_intent_id'] ?? null;
+        if (!$invoice_id && $intent_id) {
+            $lookup = $conn->prepare("SELECT COALESCE(payment_group, id) AS payment_key FROM invoices WHERE checkout_payment_intent_id = ? LIMIT 1");
+            $lookup->bind_param("s", $intent_id);
+            $lookup->execute();
+            $invoice_id = $lookup->get_result()->fetch_assoc()['payment_key'] ?? null;
+            $lookup->close();
+        }
+    }
 
     if ($invoice_id) {
         // Bind the event to the checkout session this invoice actually opened.
@@ -134,6 +152,16 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         $superseded = false;
         foreach ($session_rows as $row) {
             if ($session_id && !hash_equals($row['checkout_session_id'], $session_id)) $superseded = true;
+        }
+        // Rows opened before the intent id was stored have none; those match
+        // on the invoice id alone.
+        foreach ($group_rows as $row) {
+            if (empty($row['checkout_payment_intent_id'])) continue;
+            // A failed event that names no intent cannot be tied to the open
+            // checkout, so it is treated as stale rather than risk failing an
+            // invoice whose newer checkout is still in progress.
+            if ($event_type === 'payment.failed' && !$intent_id) $superseded = true;
+            elseif ($intent_id && !hash_equals($row['checkout_payment_intent_id'], $intent_id)) $superseded = true;
         }
 
         if ($superseded) {
@@ -229,7 +257,11 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             notify_admins_info($conn, 'payment', 'Online Payment Received',
                 "Invoice $invoice_id was paid online (" . ($pm_label ?: 'PayMongo') . ") and recorded automatically.", "invoice:$invoice_id");
         } else {
-            $stmt = $conn->prepare("UPDATE invoices SET status = ? WHERE ? IN (id, payment_group) AND status IN " . billing_open_status_sql());
+            // Only a checkout still in progress fails. The session is released
+            // like a cancelled one, so the tenant can open a new checkout
+            // (create_checkout_session.php stores a session only on rows
+            // without one).
+            $stmt = $conn->prepare("UPDATE invoices SET status = ?, checkout_session_id = NULL, checkout_payment_intent_id = NULL, processing_since = NULL WHERE ? IN (id, payment_group) AND status = 'processing'");
             $stmt->bind_param("ss", $status, $invoice_id);
 
             if (!$stmt->execute()) {
@@ -246,7 +278,7 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
             // payload metadata is only as trustworthy as whoever built the session.
             $actor = !empty($inv_row['user_id']) ? (int)$inv_row['user_id'] : null;
             $changed = $stmt->affected_rows > 0;
-            log_activity($conn, $actor, 'billing', 'Online Payment Failed', "Invoice: $invoice_id, Session: " . ($session_id ?? 'n/a'), $actor ?? 0);
+            log_activity($conn, $actor, 'billing', 'Online Payment Failed', "Invoice: $invoice_id, Payment intent: " . ($intent_id ?? 'n/a'), $actor ?? 0);
 
             if ($changed && $actor) {
                 create_notification($conn, $actor, 'payment', 'Payment Failed',

@@ -35,3 +35,5 @@ backend/cron/run_queue.bat
 # Prod-only seeds (demo data for the live database; run by hand, never deployed)
 backend/api/migrations/seeds/seed_prod_demo.sql
 backend/api/migrations/seeds/seed_prod_demo_reset.sql
+docs/audits/lens3_audit_2026-10-11.md
+docs/audits/known_bugs_test_spec_2026-10-15.md

@@ -56,25 +56,44 @@ export default function PayBills() {
             : null
     ));
 
+    const confirmedNotice = (paidInvoices) => {
+        const first = paidInvoices[0];
+        const total = paidInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_amount) || 0), 0);
+        return {
+            message: 'Payment confirmed',
+            subtext: paidInvoices.length === 1
+                ? `Management confirmed your payment of ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} for ${first.billing_period || `invoice ${first.id}`}. Your receipt is ready.`
+                : `Management confirmed ${paidInvoices.length} payments totalling ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}. A receipt for each month is ready.`,
+            action: { label: 'View receipt', onClick: () => navigate('/payment-history', { state: { receiptId: first.id } }) },
+        };
+    };
+
+    // The webhook can land before the first fetch: then no transition is ever
+    // seen and "Payment sent" never cleared (audit N-10b). Settle the notice
+    // from the returned invoice's state on that first fetch instead.
+    const [gatewayKey] = useState(() => (
+        gatewayReturnParams().get('status') === 'success' ? gatewayReturnParams().get('invoice_id') : null
+    ));
+    const handleFirstLoad = (list) => {
+        if (!gatewayKey) return;
+        const covered = list.filter(i => i.id === gatewayKey || i.payment_group === gatewayKey);
+        if (covered.length === 0) return;
+        if (covered.every(i => i.status === 'paid')) setNotice(confirmedNotice(covered));
+        // Declined: the bill's own banner explains it.
+        else if (covered.some(i => i.status === 'payment-failed')) setNotice(null);
+    };
+
     const handleTransitions = (events) => {
         const confirmed = events.filter(e => e.type === 'confirmed');
-        if (confirmed.length > 0) {
-            const first = confirmed[0].invoice;
-            const total = confirmed.reduce((sum, e) => sum + (parseFloat(e.invoice.total_amount) || 0), 0);
-            setNotice({
-                message: 'Payment confirmed',
-                subtext: confirmed.length === 1
-                    ? `Management confirmed your payment of ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} for ${first.billing_period || `invoice ${first.id}`}. Your receipt is ready.`
-                    : `Management confirmed ${confirmed.length} payments totalling ₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}. A receipt for each month is ready.`,
-                action: { label: 'View receipt', onClick: () => navigate('/payment-history', { state: { receiptId: first.id } }) },
-            });
-        }
+        if (confirmed.length > 0) setNotice(confirmedNotice(confirmed.map(e => e.invoice)));
+        // A declined checkout: drop "Payment sent"; the bill's banner says why.
+        else if (events.some(e => e.type === 'failed')) setNotice(prev => (prev?.message === 'Payment sent' ? null : prev));
         // A rejection or a declined checkout shows as a banner on the bill itself.
         // A settled advance turns into prepaid-month credits on the advance card.
         if (events.some(e => e.invoice?.advance_months)) loadAdvance();
     };
 
-    const { invoices, loaded, refresh } = useInvoiceWatch({ onTransition: handleTransitions });
+    const { invoices, loaded, refresh } = useInvoiceWatch({ onTransition: handleTransitions, onFirstLoad: handleFirstLoad });
 
     // The bill on screen: the earliest-due invoice the tenant still has to pay;
     // failing that, the earliest one awaiting confirmation (shown read-only).
