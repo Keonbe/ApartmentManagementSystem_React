@@ -15,7 +15,7 @@ if (PHP_SAPI === 'cli') return;
 // Keep preflight headers centralized so authenticated API requests are allowed.
 header_remove('Access-Control-Allow-Headers');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Guest-Token, X-User-Id, X-Admin-Id');
 
 // Skipped under the API test suite, like in config.php.
 if (getenv('AMS_TEST_MODE') !== '1' && file_exists(__DIR__ . '/config.env.php')) {

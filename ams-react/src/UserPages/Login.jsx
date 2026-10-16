@@ -24,11 +24,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     );
     const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [forgotMessage, setForgotMessage] = useState('');
-    const [forgotToken, setForgotToken] = useState('');
     const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
     const [hasSubmitted, setHasSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { t } = useLang();
+    const { t, lang } = useLang();
     // Login only checks presence: older passwords may predate the new-password rules.
     const login = useFieldErrors({
         email: emailRule,
@@ -98,18 +97,18 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
         if (isSubmittingForgot) return;
         setHasSubmitted(true);
         setForgotMessage('');
-        setForgotToken('');
         const clean = normalizeEmail(email);
         setEmail(clean);
         if (!forgot.validateAll({ email: clean })) return;
         setIsSubmittingForgot(true);
 
         try {
-            const res = await api.post("/forgot_password.php", { email: clean });
+            const res = await api.post("/forgot_password.php", {
+                email: clean,
+                lang,
+                frontend_url: window.location.origin,
+            });
             setForgotMessage(res.data.message);
-            if (res.data.dev_token) {
-                setForgotToken(res.data.dev_token);
-            }
         } catch (error) {
             if (!forgot.applyServerErrors(error)) setForgotMessage(apiErrorMessage(error, "Failed to send reset link."));
         } finally {
@@ -167,7 +166,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     <div className="w-full flex justify-start mb-4">
                         <button
                             type="button"
-                            onClick={isForgotPassword ? () => { setIsForgotPassword(false); setForgotMessage(''); setForgotToken(''); setHasSubmitted(false); } : onHomeRedirect}
+                            onClick={isForgotPassword ? () => { setIsForgotPassword(false); setForgotMessage(''); setHasSubmitted(false); } : onHomeRedirect}
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
                             <ArrowLeft className="w-4 h-4" />
@@ -189,10 +188,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     <div className="w-full space-y-6">
                         <div className="text-center">
                             <h2 className="login-heading text-3xl font-black tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                {isForgotPassword ? "Reset Password" : "Log In"}
+                                {isForgotPassword ? (lang === 'fil' ? 'I-reset ang Password' : 'Reset Password') : "Log In"}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">
-                                {isForgotPassword ? "Enter your email to receive a reset link" : t('login.subtitle')}
+                                {isForgotPassword ? (lang === 'fil' ? 'Ilagay ang iyong email upang makatanggap ng link.' : 'Enter your email to receive a reset link') : t('login.subtitle')}
                             </p>
                         </div>
 
@@ -275,15 +274,6 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 </div>
                             )}
                             
-                            {forgotToken && (
-                                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex flex-col space-y-2">
-                                    <p className="m-0 font-semibold">[DEV MODE] Email delivery simulated.</p>
-                                    <a href={`/reset-password?email=${encodeURIComponent(email)}&token=${forgotToken}`} className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg text-center no-underline hover:bg-emerald-700 transition-colors block">
-                                        Click here to reset password
-                                    </a>
-                                </div>
-                            )}
-
                             <div className="relative group">
                                 <input
                                     type="email"
@@ -313,7 +303,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                     disabled={isSubmittingForgot}
                                     className="btn-interactive w-full bg-[#6366f1] text-white py-3.5 px-4 rounded-xl font-bold text-sm hover:bg-[#4f46e5] transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70 box-border"
                                 >
-                                    {isSubmittingForgot ? 'Sending...' : 'Send Reset Link'}
+                                    {isSubmittingForgot ? (lang === 'fil' ? 'Nagpapadala...' : 'Sending...') : (lang === 'fil' ? 'Ipadala ang Reset Link' : 'Send Reset Link')}
                                 </button>
                             </div>
                         </form>

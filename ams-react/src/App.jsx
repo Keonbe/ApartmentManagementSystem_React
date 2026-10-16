@@ -268,7 +268,7 @@ function AppContent() {
         <Route path="*" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><NotFound /></BaseAppLayout>} />
       </Routes>
         {!['/login', '/register', '/admin-messages'].includes(location.pathname)
-          && (sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser'))
+          && ((sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')) || localStorage.getItem('ams_guest_token'))
           && <ChatWidget />}
       </>
     </ChatProvider>

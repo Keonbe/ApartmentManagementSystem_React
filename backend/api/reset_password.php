@@ -1,14 +1,24 @@
 <?php
 header('Content-Type: application/json');
 require_once __DIR__ . '/../cors.php';
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-User-Id, X-Admin-Id");
+
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 require_once "../config.php";
+require_once __DIR__ . '/services/password_reset_schema.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
+try {
+    // Repair legacy schema before token lookup, outside any active transaction.
+    ensure_password_resets_schema($conn);
+} catch (Throwable $e) {
+    error_log('[AMS] reset_password.php schema setup: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => "Server error. Please try again."]);
+    $conn->close();
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -18,13 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $data = json_decode(file_get_contents('php://input'), true);
-$email = trim($data['email'] ?? '');
 $token = trim($data['token'] ?? '');
 $new_password = $data['new_password'] ?? '';
+$confirm_password = $data['confirm_password'] ?? '';
 
-if (empty($email) || empty($token) || empty($new_password)) {
-    echo json_encode(["success" => false, "message" => "Email, token, and new password are required"]);
+if (empty($token) || empty($new_password) || $confirm_password === '') {
+    echo json_encode(["success" => false, "message" => "Token, new password, and confirmation are required"]);
     exit;
+}
+if (!hash_equals((string)$new_password, (string)$confirm_password)) {
+    http_response_code(422); echo json_encode(["success"=>false,"message"=>"Passwords do not match."]); exit;
 }
 
 if ($pw_error = password_policy_error($new_password)) {
@@ -34,10 +47,11 @@ if ($pw_error = password_policy_error($new_password)) {
 
 // 1. Verify token
 $token_hash = hash('sha256', $token);
-$stmt = $conn->prepare("SELECT id FROM password_resets WHERE email = ? AND token_hash = ? AND expires_at > NOW()");
-$stmt->bind_param("ss", $email, $token_hash);
+$stmt = $conn->prepare("SELECT id, email FROM password_resets WHERE token_hash = ? AND used = 0 AND expires_at > NOW() ORDER BY id DESC LIMIT 1");
+$stmt->bind_param("s", $token_hash);
 $stmt->execute();
-$valid = $stmt->get_result()->num_rows > 0;
+$reset = $stmt->get_result()->fetch_assoc();
+$valid = (bool)$reset;
 $stmt->close();
 
 if (!$valid) {
@@ -46,6 +60,7 @@ if (!$valid) {
     exit;
 }
 
+$email = $reset['email'];
 $stmt = $conn->prepare("SELECT id, password FROM users WHERE email_address = ?");
 $stmt->bind_param("s", $email);
 $stmt->execute();
@@ -69,13 +84,13 @@ if (password_verify($new_password, $user['password'])) {
 }
 
 // 2. Update the password, then burn every reset token for this address
-$hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
+$hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
 $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
 $stmt->bind_param("si", $hashed_password, $user_id);
 $stmt->execute();
 $stmt->close();
 
-$stmt = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
+$stmt = $conn->prepare("UPDATE password_resets SET used=1 WHERE email = ? AND used=0");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $stmt->close();
