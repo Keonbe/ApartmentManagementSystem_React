@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPrint, faArrowLeft, faHourglassHalf, faFileSignature, faDownload } from '@fortawesome/free-solid-svg-icons';
@@ -7,6 +7,7 @@ import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import ContractDocument from '../Components/contract/ContractDocument';
 import { fetchContractTemplate } from '../Components/contract/contractTemplate';
+import { printElement } from '../utils/print';
 
 const formatPeso = (value) => {
     const num = Number(value);
@@ -31,6 +32,7 @@ export default function ViewContract() {
     const [contractData, setContractData] = useState(null);
     const [template, setTemplate] = useState(null); // admin-editable terms (Admin → Edit Contract)
     const [language, setLanguage] = useState(lang === 'fil' ? 'tl' : 'en'); // 'tl' | 'en'
+    const contractDocRef = useRef(null);
 
     // Keep the contract body in step with the global language switcher (TopBar);
     // adjusted during render rather than in an effect.
@@ -129,18 +131,7 @@ export default function ViewContract() {
     }, [activeEmail, previewEmail]);
 
     const handlePrintAction = () => {
-        window.scrollTo(0, 0);
-        document.querySelectorAll('*').forEach((el) => {
-            if (el.scrollTop) el.scrollTop = 0;
-        });
-        const prevTitle = document.title;
-        document.title = '';
-        setTimeout(() => {
-            window.print();
-            setTimeout(() => {
-                document.title = prevTitle;
-            }, 500);
-        }, 50);
+        printElement(contractDocRef.current, { variant: 'document' });
     };
 
     const handleTenantSignatureUpload = async (party, file) => {
@@ -327,7 +318,7 @@ export default function ViewContract() {
 
 
 
-            <div className="w-full max-w-3xl print:w-full">
+            <div ref={contractDocRef} className="w-full max-w-3xl print:w-full">
                 <ContractDocument
                     template={template}
                     lang={language}

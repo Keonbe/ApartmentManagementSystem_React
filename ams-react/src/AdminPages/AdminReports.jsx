@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -15,6 +15,7 @@ import {
 import api from '../api/axiosConfig';
 import { LIMITS, MAX_AMOUNT, checkAmount, checkDate, checkText, localDateString, maxFutureDate } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
+import { printElement } from '../utils/print';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import CharCount from '../Components/form/CharCount';
@@ -458,9 +459,10 @@ const AdminReports = () => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const reportRef = useRef(null);
+  const invoiceRef = useRef(null);
+  const handlePrint = () => printElement(reportRef.current);
+  const handlePrintInvoice = () => printElement(invoiceRef.current);
 
   const exportCSV = (moduleType) => {
     let csvContent = "";
@@ -579,7 +581,7 @@ const AdminReports = () => {
 
         {/* Dashboard Workspace */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 print:p-0 print:overflow-visible print:h-auto">
-          <div className="max-w-7xl mx-auto space-y-6 print:space-y-4 print:max-w-none print:w-full">
+          <div ref={reportRef} className="max-w-7xl mx-auto space-y-6 print:space-y-4 print:max-w-none print:w-full">
             
             {/* PRINT-ONLY BUSINESS REPORT HEADER */}
             <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6 text-center">
@@ -1729,7 +1731,6 @@ const AdminReports = () => {
                                   stroke="#ec4899" strokeWidth="10" 
                                   strokeDasharray={circ} strokeDashoffset={parkOffset}
                                   transform={`rotate(${(roomPct / 100) * 360} 50 50)`}
-                                  transform-origin="50 50"
                                   strokeLinecap="round"
                                 />
                               )}
@@ -2555,7 +2556,7 @@ const AdminReports = () => {
               <div className="p-6 space-y-6 text-left">
                 
                 {/* Official Printable Statement Sheet */}
-                <div className="printable-invoice bg-white border border-slate-300 rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm print:border-none print:shadow-none print:p-0">
+                <div ref={invoiceRef} className="printable-invoice bg-white border border-slate-300 rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm print:border-none print:shadow-none print:p-0">
                   
                   {/* Top Invoice Header */}
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b-2 border-slate-800 pb-5 gap-4">
@@ -2728,7 +2729,7 @@ const AdminReports = () => {
                   </button>
 
                   <button 
-                    onClick={handlePrint} 
+                    onClick={handlePrintInvoice}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer border-0"
                   >
                     <FontAwesomeIcon icon={faPrint} /> Print / Save as PDF

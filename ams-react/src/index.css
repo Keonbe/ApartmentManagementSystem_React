@@ -85,6 +85,55 @@ code {
   background: var(--code-bg);
 }
 
+/* Isolated printing (utils/print.js): only the copy in #print-root prints */
+#print-root {
+  display: none;
+}
+
+@media print {
+  body.print-isolated > *:not(#print-root) {
+    display: none !important;
+  }
+
+  body.print-isolated #print-root {
+    display: block !important;
+    background: #ffffff;
+    color: #0f172a;
+  }
+
+  /* @page margin is 0 (hides the browser's URL/date header), so the margin
+     lives here; clone repeats it on every page of a multi-page report. */
+  #print-root[data-variant="sheet"] {
+    padding: 12mm 14mm;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  #print-root * {
+    box-shadow: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  #print-root .printable-receipt,
+  #print-root .printable-invoice {
+    border: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+  }
+
+  #print-root .print-hide,
+  #print-root button {
+    display: none !important;
+  }
+
+  #print-root .modal-card-anim {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
 /* @media print formatting rules */
 @media print {
   /* Reset document and viewport layout constraints */

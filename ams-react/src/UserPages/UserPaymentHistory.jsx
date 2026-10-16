@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint, faArrowRight } from '@fortawesome/free-solid-svg-icons';
@@ -7,6 +7,7 @@ import useInvoiceWatch, { PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
+import { printElement } from '../utils/print';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
 // Badge per invoice status. Anything awaiting management or the gateway is
@@ -37,6 +38,7 @@ export default function UserPaymentHistory() {
     // Opened directly when arriving from a "Payment confirmed" notice.
     const [receiptInvoiceId, setReceiptInvoiceId] = useState(location.state?.receiptId || null);
     const [notice, setNotice] = useState(null);
+    const receiptRef = useRef(null);
 
     const handleTransitions = (events) => {
         const confirmed = events.filter(e => e.type === 'confirmed');
@@ -314,12 +316,12 @@ export default function UserPaymentHistory() {
             {/* Receipt Modal */}
             {showReceipt && receiptData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 modal-overlay-anim" onClick={() => setReceiptInvoiceId(null)}>
-                    <div className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="bg-slate-900 text-white p-5 sm:p-6 text-center border-b-4 border-indigo-500 shrink-0">
+                    <div ref={receiptRef} className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="bg-slate-900 text-white p-5 sm:p-6 text-center border-b-4 border-indigo-500 shrink-0 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
                             <h2 className="text-xl sm:text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
-                            <div className="mt-3 pt-3 border-t border-slate-700/50">
-                                <p className="text-xs sm:text-sm font-semibold text-slate-300 uppercase tracking-widest m-0">{t('paymentHistory.officialReceipt')}</p>
-                                <p className="text-xs font-mono text-indigo-300 m-0 mt-1">{receiptData.rctId}</p>
+                            <div className="mt-3 pt-3 border-t border-slate-700/50 print:border-slate-300">
+                                <p className="text-xs sm:text-sm font-semibold text-slate-300 uppercase tracking-widest m-0 print:text-slate-700">{t('paymentHistory.officialReceipt')}</p>
+                                <p className="text-xs font-mono text-indigo-300 m-0 mt-1 print:text-slate-900">{receiptData.rctId}</p>
                             </div>
                         </div>
                         <div className="receipt-modal-body p-4 sm:p-6 space-y-4 font-mono text-xs sm:text-sm overflow-y-auto flex-grow">
@@ -371,7 +373,7 @@ export default function UserPaymentHistory() {
                                 <div className="bg-slate-50 p-3 sm:p-4 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed text-xs text-slate-700">{receiptData.breakdown}</div>
                             </div>
                             {receiptData.proofPath && (
-                                <div className="text-xs text-slate-600 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100 flex items-center justify-between flex-wrap gap-2">
+                                <div className="print-hide text-xs text-slate-600 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100 flex items-center justify-between flex-wrap gap-2">
                                     <span>{t('paymentHistory.proofAttached')}</span>
                                     <a href={fileUrl(receiptData.proofPath)} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">{t('paymentHistory.viewScreenshot')}</a>
                                 </div>
@@ -382,7 +384,7 @@ export default function UserPaymentHistory() {
                             </div>
                         </div>
                         <div className="receipt-modal-footer flex gap-2 p-3 sm:p-4 bg-slate-50 border-t border-slate-200 print-hide shrink-0">
-                            <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors min-h-[44px]"><FontAwesomeIcon icon={faPrint} /> {t('paymentHistory.printReceipt')}</button>
+                            <button onClick={() => printElement(receiptRef.current)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors min-h-[44px]"><FontAwesomeIcon icon={faPrint} /> {t('paymentHistory.printReceipt')}</button>
                             <button onClick={() => setReceiptInvoiceId(null)} className="flex-1 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors min-h-[44px]">{t('paymentHistory.close')}</button>
                         </div>
                     </div>
