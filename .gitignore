@@ -37,3 +37,7 @@ backend/api/migrations/seeds/seed_prod_demo.sql
 backend/api/migrations/seeds/seed_prod_demo_reset.sql
 docs/audits/lens3_audit_2026-10-11.md
 docs/audits/known_bugs_test_spec_2026-10-15.md
+
+# API test suite (tests/api): dependencies and the scratch DB dump
+tests/api/node_modules/
+tests/api/.test-cache/

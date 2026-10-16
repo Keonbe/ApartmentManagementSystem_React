@@ -1,0 +1,13 @@
+{
+  "name": "ams-api-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "mysql2": "^3.24.6",
+    "vitest": "^4.1.12"
+  }
+}
