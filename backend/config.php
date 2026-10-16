@@ -1,6 +1,15 @@
 <?php
+// The API test suite (tests/api) runs `php -S` with AMS_TEST_MODE=1 and DB_* in
+// the environment. It skips config.env.php, whose constants would otherwise pin
+// DB_NAME to the dev database, and refuses any database not named *_test.
+$ams_test_mode = getenv('AMS_TEST_MODE') === '1';
+if ($ams_test_mode && !preg_match('/_test$/', (string) getenv('DB_NAME'))) {
+    http_response_code(500);
+    exit('AMS_TEST_MODE requires a DB_NAME ending in _test');
+}
+
 // Load environment configuration if available
-if (file_exists(__DIR__ . '/config.env.php')) {
+if (!$ams_test_mode && file_exists(__DIR__ . '/config.env.php')) {
     require_once __DIR__ . '/config.env.php';
 }
 
