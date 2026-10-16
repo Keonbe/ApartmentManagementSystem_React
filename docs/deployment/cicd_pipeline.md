@@ -119,7 +119,7 @@ Everything else here was verified against the repo and holds up:
 - **All 80 files** in `backend/api/` pass `php -l` right now — the Backend Job is ready to adopt unchanged.
 - `DB_NAME` in `backend/config.php` defaults to `ams_db`, matching the Database Job's env var.
 - `ams-react/package-lock.json` exists, so the `cache-dependency-path` in the workflow is correct.
-- No test suite exists anywhere in the repo yet, so the [Adding Tests](#adding-tests) section is correctly scoped as "build from scratch," not "fix broken tests."
+- The backend has an API test suite (`tests/api/`, run locally; see [Adding Tests](#adding-tests)). The frontend has no tests yet, so that part of the section is still "build from scratch."
 - The [Deployment Targets](#deployment-targets) table is honest about Vercel/GitHub Pages being frontend-only (❌ for backend/DB) — you cannot run PHP or MySQL on either.
 
 ---
@@ -822,16 +822,11 @@ Then uncomment the test step in `ci.yml`:
   run: npm test
 ```
 
-### Backend — PHPUnit
+### Backend — API tests (`tests/api/`, in place)
 
-For more advanced PHP testing, install PHPUnit:
+The backend is tested over HTTP rather than with PHPUnit: `tests/api/` is a small Node project where Vitest calls the real PHP endpoints and checks the database with `mysql2`. Run it with `cd tests/api && npm install && npm test`. It builds a scratch `ams_test` database from `SetupDB.sql` + `seed_mock_data.sql` and serves the API with `php -S` on port 8091 (`AMS_TEST_MODE=1`, which makes `config.php` read `DB_*` from the environment and refuse any database not named `*_test`).
 
-```bash
-# From the project root
-composer require --dev phpunit/phpunit
-```
-
-This is a stretch goal. The PHP syntax check alone catches the most common class of errors in a PHP API project.
+In CI this needs a MariaDB service and PHP 8.0 with mysqli on the runner, plus `MYSQL_BIN_DIR` / `PHP_BIN` pointing at their binaries (the defaults are the XAMPP paths). It has not been wired into `ci.yml` yet.
 
 ---
 

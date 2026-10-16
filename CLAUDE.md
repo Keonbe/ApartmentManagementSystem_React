@@ -11,7 +11,8 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 ## Run / verify
 
 - Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`
-- Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no test runner exists). `build:selfhosted` uses the gitignored `.env.selfhosted` for other self-hosted deployments; a build guard fails production builds with localhost URLs
+- API tests: `cd tests/api && npm test` (~40 s; needs XAMPP MySQL, not Apache). Vitest builds a scratch `ams_test` from `SetupDB.sql` + `seed_mock_data.sql`, reloads it before each file, and runs `php -S` on :8091 with `AMS_TEST_MODE=1` (config.php then skips `config.env.php` and refuses any DB not named `*_test`). Dev `ams_db` is never touched; SMS/email are switched off in `ams_test`. `KEEP_TEST_DB=1` keeps it for debugging. Run it after backend changes, and add a test with each endpoint fix (fixtures via `lib/db.js`, dates relative to today)
+- Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no frontend test runner). `build:selfhosted` uses the gitignored `.env.selfhosted` for other self-hosted deployments; a build guard fails production builds with localhost URLs
 - Deployment targets/guardrails: `docs/deployment/dual-deployment-environment-plan.md`; backend check `php backend/cron/check_environment.php`
 - Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `APP_TIMEZONE`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, loaded through `config.php` (the four chat endpoints still send their own `*` header first — see security_audit §6e).
 - PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
@@ -32,6 +33,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 
 - `docs/features/panelist_feature_checklist.md` — scope & status (panel requirements)
 - `docs/documentation/module_verification_guide.md` — audited modules: API contract, diagrams, workflow, tests
+- `docs/documentation/api_testing.md` — the automated API suite (`tests/api`): how it works, safety guards, writing and running tests, coverage
 - `docs/documentation/database_schema.md`, `system_design.md` — schema/overview (check code if they disagree)
 - `docs/features/sms_email_implementation.md` (+ `sms_email_mock_testing.md` runbook) — SMS/email pipeline, Semaphore
 - `docs/features/chat_design.md` — chat: "As built" section first; the rest is design
@@ -48,7 +50,7 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 - Plans (plan mode) open with a short **TL;DR**: a few one-line bullets on what changes and why, before the detailed sections.
 - Prefer Edit over full-file Write unless most of the file changes.
 - Verify proportionately: `php -l` on changed PHP, `npm run build` for JSX, curl only the rows that prove the fix.
-- **Self-review the diff before saying "done"** (the repo has no test suite, so this is the safety net). Read `git diff` and check each item, and fix before reporting:
+- **Self-review the diff before saying "done"** (the API suite in `tests/api` covers only some endpoints and no UI, so this is still the safety net). Read `git diff` and check each item, and fix before reporting:
   - **Empty vs zero:** `||` / falsy checks on values where `0` is meaningful (use `??` / `=== 0`); a field missing from an input or webhook payload.
   - **Concurrency:** two tabs/admins doing the same action; a stale edit after the row was sent/deleted (lock with `FOR UPDATE`, re-check state, don't trust `affected_rows` alone: unchanged rows report 0); double submit.
   - **Order of effects:** work after `commit()` that can still throw; files deleted or written before the DB write succeeds; a failure reported for something already saved.

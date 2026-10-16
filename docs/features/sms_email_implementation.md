@@ -1490,7 +1490,7 @@ Returns:
 
 ### 4.3 Verification
 
-**There is no test runner in this project** (CLAUDE.md), so verification is: `php -l` on every changed file, `npm run build:local` for JSX, CLI scripts for the services, and curl against a restored database for the endpoints. The advantage of the `log` driver ([§1.3](#13-sms-service--send_smsphp)) is that almost everything below is assertable against `notification_log` with **zero spend and no provider account**.
+**The API test suite (`tests/api/`) does not cover the SMS/email pipeline** (it switches both channels off), so verification is: `php -l` on every changed file, `npm run build:local` for JSX, CLI scripts for the services, and curl against a restored database for the endpoints. The advantage of the `log` driver ([§1.3](#13-sms-service--send_smsphp)) is that almost everything below is assertable against `notification_log` with **zero spend and no provider account**.
 
 Test IDs follow the verification-guide convention (`M<module>-NN`, module 6 — Notifications). Add these to `docs/documentation/module_verification_guide.md` §2 when the module is audited.
 

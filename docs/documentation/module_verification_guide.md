@@ -95,6 +95,8 @@ This document is the **hands-on verification reference** for the AMS. For each a
 3. **Step-by-step workflow** — the procedure a human follows in the UI.
 4. **Test conditions** — a numbered matrix of scenarios (happy path, boundary, negative, security) with runnable SQL/curl and the exact expected result.
 
+> **Automated API tests.** `tests/api/` (Vitest, `cd tests/api && npm test`) runs a growing subset of these checks against a scratch `ams_test` database: login and session gates (§3), settings validation, rent extension rules, visitor dating and overstay, the PayMongo webhook (signed locally) and announcement drafts. Rows covered there need no manual curl run; browser-only rows (UI notices, phone layout, two-tab races) still do.
+
 ### What this guide deliberately does not duplicate
 
 | For… | See instead |
