@@ -81,7 +81,7 @@ try {
         // Showcase photos are meant for guests browsing Preview.jsx, so they're
         // included regardless of $is_admin — unlike everything else below,
         // which is tenant-identifying and admin-only (H1).
-        $images = json_decode($room['gallery'] ?? '[]', true) ?: [];
+        $images = room_gallery_items($room['gallery'] ?? null);
 
         if (!$is_admin) {
             return [

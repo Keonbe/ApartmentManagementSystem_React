@@ -39,7 +39,7 @@ if (!$row) {
     exit;
 }
 
-$gallery = json_decode($row['gallery'] ?? '[]', true) ?: [];
+$gallery = room_gallery_items($row['gallery'] ?? null);
 
 // Matches the frontend's <input type="file" multiple name="images[]">.
 $files = $_FILES['images'] ?? null;
@@ -77,7 +77,7 @@ for ($i = 0; $i < $count; $i++) {
         exit;
     }
     if ($path) {
-        $gallery[] = $path;
+        $gallery[] = ['path' => $path, 'alt' => '', 'fit' => 'fill'];
         $added[] = $path;
     }
 }

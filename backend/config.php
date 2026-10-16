@@ -2191,6 +2191,25 @@ function store_maintenance_attachment($file) {
     return ['uploads/maintenance/' . $name, null];
 }
 
+// rooms.gallery is a JSON list. Older rows hold bare path strings; newer ones
+// hold {path, alt, fit}. Always read it through room_gallery_items() so both
+// shapes work, and write it back as objects.
+const GALLERY_FITS = ['fill', 'fit', 'wide'];
+const GALLERY_ALT_MAX = 200;
+
+function room_gallery_items($raw) {
+    $list = is_string($raw) ? json_decode($raw, true) : $raw;
+    $items = [];
+    foreach (is_array($list) ? $list : [] as $entry) {
+        $path = is_array($entry) ? (string)($entry['path'] ?? '') : (string)$entry;
+        if ($path === '') continue;
+        $alt = is_array($entry) ? trim((string)($entry['alt'] ?? '')) : '';
+        $fit = is_array($entry) ? ($entry['fit'] ?? 'fill') : 'fill';
+        $items[] = ['path' => $path, 'alt' => $alt, 'fit' => in_array($fit, GALLERY_FITS, true) ? $fit : 'fill'];
+    }
+    return $items;
+}
+
 // Validates and stores an admin-uploaded unit showcase photo. Unlike other
 // uploads, these are deliberately public (guests browsing Preview.jsx have
 // no session) so they're stored under backend/room_images/, NOT

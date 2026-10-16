@@ -49,7 +49,7 @@ erDiagram
         varchar room_condition
         varchar furnishing_status
         date last_inspection_date
-        json gallery "showcase image paths"
+        json gallery "showcase images: path strings (legacy) or objects path, alt, fit"
         timestamp created_at
     }
 

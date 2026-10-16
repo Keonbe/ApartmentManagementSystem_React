@@ -41,3 +41,4 @@ docs/audits/known_bugs_test_spec_2026-10-15.md
 # API test suite (tests/api): dependencies and the scratch DB dump
 tests/api/node_modules/
 tests/api/.test-cache/
+/backend/room_images/1792160900_9159deee07f0_floor_plan.png

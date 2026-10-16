@@ -41,15 +41,15 @@ if (!$row) {
     exit;
 }
 
-$gallery = json_decode($row['gallery'] ?? '[]', true) ?: [];
+$gallery = room_gallery_items($row['gallery'] ?? null);
 
-if (!in_array($path, $gallery, true)) {
+if (!in_array($path, array_column($gallery, 'path'), true)) {
     http_response_code(404);
     echo json_encode(["success" => false, "message" => "Image not found on this room."]);
     exit;
 }
 
-$gallery = array_values(array_filter($gallery, fn($p) => $p !== $path));
+$gallery = array_values(array_filter($gallery, fn($item) => $item['path'] !== $path));
 
 $json = json_encode($gallery);
 $stmt = $conn->prepare("UPDATE rooms SET gallery = ? WHERE id = ?");

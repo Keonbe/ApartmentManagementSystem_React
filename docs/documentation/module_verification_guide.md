@@ -2853,7 +2853,7 @@ Built from the 2026-09-16 decisions (`docs/todo.md`). These tests will move into
 | **M1W-04** | Negative | Remove twice | M1W-03 | `{"action":"remove","id":<entry 2>}` twice | `200`; `404` | — |
 | **M1W-05** | Sec | Waitlist is admin-only | Maria's token | `GET manage_waitlist.php` | `403` | — |
 | **M2P-01** | Negative | Preview mode validation | Admin token | `update_system_settings.php {"room_preview_mode":"360"}` | `422 "Room preview mode must be images or floor_plan."` | — |
-| **M2P-02** | Happy | Preview follows the setting (UI) | Setting `floor_plan` | Open a unit preview on the public page | Only the 2D floor plan panel shows; with `images`, the admin-uploaded showcase gallery (the View Layout button is hidden for a room with no images) | Manual check |
+| **M2P-02** | Happy | Preview follows the setting (UI) | Setting `floor_plan` | Open a unit preview on the public page | Only the 2D floor plan panel shows; with `images`, the admin-uploaded showcase gallery (the View Layout button is hidden for a room with no images). `images` is a list of `{path, alt, fit}`: the admin's description is the photo's alt text and caption (else "Photo n of N"), and `fit` is `fill` (crop), `fit` (whole photo) or `wide` (21:9 frame), set per photo in Units → Gallery via `update_room_image.php` | Manual check |
 
 **Restore:** re-import the dump, then `DELETE FROM expenses; DELETE FROM password_reset_requests; DELETE FROM login_attempts;` and set `room_preview_mode` back to `images`.
 

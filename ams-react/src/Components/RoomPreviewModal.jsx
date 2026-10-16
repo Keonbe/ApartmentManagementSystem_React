@@ -19,6 +19,8 @@ export default function RoomPreviewModal({ isOpen, onClose, roomId, mode, images
     if (!isOpen) return null;
 
     const showImages = mode === 'images' && images.length > 0;
+    // images are {path, alt, fit}; the index can briefly outrun a shorter list when the room changes.
+    const active = images[Math.min(activeIndex, images.length - 1)] || { path: '', alt: '', fit: 'fill' };
 
     return (
         <div 
@@ -46,26 +48,27 @@ export default function RoomPreviewModal({ isOpen, onClose, roomId, mode, images
                         {showImages && (
                         <div className="flex flex-col space-y-3">
                             <h4 className="text-sm font-bold text-slate-700 m-0">Showcase Photos</h4>
-                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 h-80 flex items-center justify-center">
+                            <div className={`relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center ${active.fit === 'wide' ? 'aspect-[21/9]' : 'h-80'}`}>
                                 <img
-                                    src={publicAssetUrl(images[activeIndex])}
-                                    alt={`Room ${roomId} — photo ${activeIndex + 1}`}
-                                    className="w-full h-full object-cover"
+                                    src={publicAssetUrl(active.path)}
+                                    alt={active.alt || `Room ${roomId} — photo ${activeIndex + 1}`}
+                                    className={`w-full h-full ${active.fit === 'fit' ? 'object-contain' : 'object-cover'}`}
                                 />
-                                <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2.5 py-1 rounded-md backdrop-blur-sm font-semibold">
-                                    Interior View ({activeIndex + 1} of {images.length})
+                                <div className="absolute bottom-3 left-3 max-w-[85%] bg-black/60 text-white text-xs px-2.5 py-1 rounded-md backdrop-blur-sm font-semibold">
+                                    {active.alt ? `${active.alt} (${activeIndex + 1} of ${images.length})` : `Photo ${activeIndex + 1} of ${images.length}`}
                                 </div>
                             </div>
                             {images.length > 1 && (
                                 <div className="flex gap-2 overflow-x-auto pb-1">
                                     {images.map((img, idx) => (
                                         <button
-                                            key={img}
+                                            key={img.path}
+                                            aria-label={img.alt || `Show photo ${idx + 1}`}
                                             type="button"
                                             onClick={() => setActiveIndex(idx)}
                                             className={`shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer p-0 ${idx === activeIndex ? 'border-indigo-500' : 'border-transparent hover:border-slate-300'}`}
                                         >
-                                            <img src={publicAssetUrl(img)} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                                            <img src={publicAssetUrl(img.path)} alt="" className="w-full h-full object-cover" />
                                         </button>
                                     ))}
                                 </div>

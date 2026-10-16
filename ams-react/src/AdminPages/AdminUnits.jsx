@@ -750,6 +750,27 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
     }
   };
 
+  // Edits a photo's description / display option locally; the description is saved on blur.
+  const editGalleryItem = (path, patch) => setGalleryImages((items) => items.map((it) => (it.path === path ? { ...it, ...patch } : it)));
+
+  const saveGalleryItem = async (path, patch = {}) => {
+    const current = galleryImages.find((it) => it.path === path);
+    if (!current) return;
+    const next = { ...current, ...patch };
+    setGalleryError('');
+    try {
+      const res = await api.post('update_room_image.php', { room_id: unit.id, path, alt: next.alt, fit: next.fit });
+      if (res.data.success) {
+        setGalleryImages(res.data.gallery);
+        if (onUpdateSuccess) onUpdateSuccess();
+      } else {
+        setGalleryError(res.data.message || 'Failed to save image details.');
+      }
+    } catch (err) {
+      setGalleryError(err.response?.data?.message || 'Failed to save image details.');
+    }
+  };
+
   const handleSaveMonitoring = async () => {
     if (isUpdating) return;
     // An inspection is a past event: not in the future, not decades ago.
@@ -939,7 +960,7 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <p className="text-xs text-slate-500 m-0 leading-relaxed">
-                  Showcase photos shown to guests on the public Preview page. Rooms with no images hide the "View Layout" button entirely (max 8 images).
+                  Showcase photos shown to guests on the public Preview page. Rooms with no images hide the "View Layout" button entirely (max 8 images). Add a description for each photo (used as its caption and for screen readers) and choose Fill (crop to the frame), Fit (show the whole photo) or Wide (panoramic frame).
                 </p>
                 <label className={`btn-interactive shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border-0 cursor-pointer transition-colors ${galleryImages.length >= 8 || isUploadingImages ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
                   <FontAwesomeIcon icon={faUpload} className="text-[10px]" />
@@ -968,19 +989,47 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                   <p className="text-sm text-slate-400 m-0">No showcase images uploaded for this unit yet.</p>
                 </div>
               ) : (
-                <div className="stagger-children grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {galleryImages.map((path) => (
-                    <div key={path} className="card-interactive relative group rounded-xl overflow-hidden border border-slate-200 aspect-square bg-slate-100">
-                      <img src={publicAssetUrl(path)} alt={`Unit ${unit.id} showcase`} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteImage(path)}
-                        disabled={deletingImagePath === path}
-                        className="btn-interactive absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-50"
-                        title="Remove image"
-                      >
-                        <FontAwesomeIcon icon={faTrash} className="text-[11px]" />
-                      </button>
+                <div className="stagger-children grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {galleryImages.map((item) => (
+                    <div key={item.path} className="card-interactive rounded-xl overflow-hidden border border-slate-200 bg-white">
+                      <div className={`relative group bg-slate-100 ${item.fit === 'wide' ? 'aspect-[21/9]' : 'aspect-[4/3]'}`}>
+                        <img src={publicAssetUrl(item.path)} alt={item.alt || `Unit ${unit.id} showcase`} className={`w-full h-full ${item.fit === 'fit' ? 'object-contain' : 'object-cover'}`} />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImage(item.path)}
+                          disabled={deletingImagePath === item.path}
+                          className="btn-interactive absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-600 text-white flex items-center justify-center border-0 cursor-pointer transition-colors disabled:opacity-50"
+                          title="Remove image"
+                          aria-label="Remove image"
+                        >
+                          <FontAwesomeIcon icon={faTrash} className="text-[11px]" />
+                        </button>
+                      </div>
+                      <div className="p-2.5 space-y-2">
+                        <label className="block text-[11px] font-semibold text-slate-600">
+                          Description (read aloud by screen readers)
+                          <input
+                            type="text"
+                            maxLength={200}
+                            value={item.alt}
+                            placeholder="e.g. Studio with a window and a double bed"
+                            onChange={(e) => editGalleryItem(item.path, { alt: e.target.value })}
+                            onBlur={() => saveGalleryItem(item.path)}
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-normal"
+                          />
+                        </label>
+                        <div role="group" aria-label="Display size" className="flex gap-1">
+                          {[['fill', 'Fill'], ['fit', 'Fit'], ['wide', 'Wide']].map(([value, label]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              aria-pressed={item.fit === value}
+                              onClick={() => { editGalleryItem(item.path, { fit: value }); saveGalleryItem(item.path, { fit: value }); }}
+                              className={`flex-1 rounded-lg border px-2 py-1 text-[11px] font-semibold cursor-pointer ${item.fit === value ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                            >{label}</button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -20,7 +20,7 @@
 | Area | Endpoints |
 |---|---|
 | Auth & users | login, logout, registration, profile, change_password, forgot_password, reset_password, manage_users, get_users |
-| Rooms & units | get_rooms, create_room, update_room, upload_room_images, delete_room_image |
+| Rooms & units | get_rooms, create_room, update_room, upload_room_images, update_room_image, delete_room_image |
 | Applications & tenancy | rent_application, get_applications, update_tenant_status, get_tenants, archive_tenant, restore_tenant, my_room, update_occupants, household_members, extend_lease, record_move_out, process_tenant_request |
 | Inquiries & holds | submit_inquiry, get_inquiries, update_inquiry_status, create_reservation, update_reservation_status, expire_reservations, manage_waitlist |
 | Contracts & documents | create_contract, get_contracts, update_contract_status, expire_contracts, upload_lease_document, get_documents, download_file |
