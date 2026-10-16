@@ -18,6 +18,7 @@ import {
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { apiErrorMessage } from '../utils/apiError';
+import { printElement } from '../utils/print';
 
 // Simple GCash validation: 11-digit PH mobile (09xx) or +639xx, or the literal '*********'
 const isValidGcashNumber = (num) => {
@@ -340,19 +341,9 @@ const AdminContractEditor = ({ embedded = false }) => {
     }
   }, [selectedTenantId, realTenants]);
 
+  const contractDocRef = useRef(null);
   const handlePrint = useCallback(() => {
-    window.scrollTo(0, 0);
-    document.querySelectorAll('*').forEach((el) => {
-      if (el.scrollTop) el.scrollTop = 0;
-    });
-    const prevTitle = document.title;
-    document.title = '';
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.title = prevTitle;
-      }, 500);
-    }, 50);
+    printElement(contractDocRef.current, { variant: 'document' });
   }, []);
 
   useEffect(() => {
@@ -998,7 +989,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       </div>
 
       {/* Render Official Contract Document with Dynamic Data */}
-      <div className="max-w-3xl mx-auto shadow-2xl rounded-2xl overflow-hidden print:max-w-none print:shadow-none print:rounded-none print:overflow-visible print:m-0 print:p-0">
+      <div ref={contractDocRef} className="max-w-3xl mx-auto shadow-2xl rounded-2xl overflow-hidden print:max-w-none print:shadow-none print:rounded-none print:overflow-visible print:m-0 print:p-0">
         <ContractDocument
           template={draft}
           lang={previewLang}

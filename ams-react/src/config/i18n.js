@@ -120,6 +120,9 @@ const translations = {
     'houseRules.scrollLeft': 'Scroll rules left',
     'houseRules.scrollRight': 'Scroll rules right',
     'houseRules.closeDetails': 'Close rule details',
+    'houseRules.groupHouse': 'House rules',
+    'houseRules.groupMinors': 'Children and pets',
+    'houseRules.groupParking': 'Parking',
 
     // --- Rent Application ---
     'rent.heading': 'Rent Application Form',
@@ -747,6 +750,9 @@ const translations = {
     'houseRules.scrollLeft': 'I-scroll pakaliwa ang mga patakaran',
     'houseRules.scrollRight': 'I-scroll pakanan ang mga patakaran',
     'houseRules.closeDetails': 'Isara ang detalye ng patakaran',
+    'houseRules.groupHouse': 'Mga patakaran ng bahay',
+    'houseRules.groupMinors': 'Mga bata at alagang hayop',
+    'houseRules.groupParking': 'Paradahan',
 
     // --- Rent Application ---
     'rent.heading': 'Form ng Aplikasyon sa Pag-upa',

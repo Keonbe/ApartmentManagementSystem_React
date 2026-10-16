@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
@@ -19,6 +19,7 @@ import { fileUrl } from '../api/fileUrl';
 import { LIMITS, MAX_AMOUNT, checkAmount, checkDate, checkDateRange, maxFutureDate } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import { printElement } from '../utils/print';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import ReasonModal from '../Components/form/ReasonModal';
@@ -71,6 +72,12 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [previewLang, setPreviewLang] = useState('en');
   const [modalSubTab, setModalSubTab] = useState('contract'); // 'contract' | 'files'
+  const contractDocRef = useRef(null);
+  // The document is only mounted on the Contract sub-tab, so switch there first.
+  const handlePrintAgreement = () => {
+    setModalSubTab('contract');
+    setTimeout(() => printElement(contractDocRef.current, { variant: 'document' }), 50);
+  };
 
   const [createStep, setCreateStep] = useState(1);
   const [isEditingDates, setIsEditingDates] = useState(false);
@@ -1018,7 +1025,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                   </div>
 
                   {/* Document Render with Uploadable E-Signatures */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-100/50 p-2 sm:p-4">
+                  <div ref={contractDocRef} className="rounded-2xl border border-slate-200 bg-slate-100/50 p-2 sm:p-4 print:border-none print:bg-white print:p-0">
                     <ContractDocument
                       template={previewTemplate || {}}
                       lang={previewLang}
@@ -1206,20 +1213,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    window.scrollTo(0, 0);
-                    document.querySelectorAll('*').forEach((el) => {
-                      if (el.scrollTop) el.scrollTop = 0;
-                    });
-                    const prevTitle = document.title;
-                    document.title = '';
-                    setTimeout(() => {
-                      window.print();
-                      setTimeout(() => {
-                        document.title = prevTitle;
-                      }, 500);
-                    }, 50);
-                  }}
+                  onClick={handlePrintAgreement}
                   className="btn-interactive inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 shadow-sm cursor-pointer transition-colors"
                 >
                   <FontAwesomeIcon icon={faPrint} /> Print Agreement

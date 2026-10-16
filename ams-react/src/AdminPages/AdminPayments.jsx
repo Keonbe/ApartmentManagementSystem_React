@@ -18,6 +18,7 @@ import ReasonModal from '../Components/form/ReasonModal';
 import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers';
 import { ADMIN_PAYMENTS_EVENT } from '../config/notificationLinks';
 import { daysPastDue, formatCoveredPeriod, isBundleKey, isPastDue } from '../utils/billingPeriod';
+import { printElement } from '../utils/print';
 
 const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // Desk methods are cash, GCash and bank transfer; the actual bank is captured
@@ -314,6 +315,7 @@ const AdminPayments = () => {
   const [paymentReference, setPaymentReference] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const confirmTarget = useRef(null);
+  const receiptRef = useRef(null);
 
   // History Table States
   const [historySearchPeriod, setHistorySearchPeriod] = useState('');
@@ -1561,12 +1563,12 @@ const handleMarkAsPaid = async () => {
       {/* Receipt Modal */}
       {showReceipt && receiptData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowReceipt(false)}>
-          <div className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt" onClick={e => e.stopPropagation()}>
-            <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500">
+          <div ref={receiptRef} className="modal-card-anim bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden printable-receipt" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 text-white p-6 text-center border-b-4 border-indigo-500 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
               <h2 className="text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
-              <div className="mt-4 pt-4 border-t border-slate-700/50">
-                <p className="text-sm font-semibold text-slate-300 uppercase tracking-widest m-0">Official Receipt</p>
-                <p className="text-xs font-mono text-indigo-300 m-0 mt-1">{receiptData.rctId}</p>
+              <div className="mt-4 pt-4 border-t border-slate-700/50 print:border-slate-300">
+                <p className="text-sm font-semibold text-slate-300 uppercase tracking-widest m-0 print:text-slate-700">Official Receipt</p>
+                <p className="text-xs font-mono text-indigo-300 m-0 mt-1 print:text-slate-900">{receiptData.rctId}</p>
               </div>
             </div>
             <div className="p-6 space-y-4 font-mono text-sm">
@@ -1604,7 +1606,7 @@ const handleMarkAsPaid = async () => {
               </div>
             </div>
             <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-200 print-hide">
-              <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
+              <button onClick={() => printElement(receiptRef.current)} className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors"><FontAwesomeIcon icon={faPrint} /> Print Receipt</button>
               <button onClick={() => setShowReceipt(false)} className="flex-1 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors">Close</button>
             </div>
           </div>
