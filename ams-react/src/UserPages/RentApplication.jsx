@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X, AlertCircle } from 'lucide-react';
 import SuccessModal from '../Components/SuccessModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
-import ScopedRules from '../Components/ScopedRules';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
@@ -728,13 +727,6 @@ export default function RentApplication() {
                                 </div>
                             )}
                         </div>
-
-                        {!isReadOnly && (
-                            <div className="space-y-3">
-                                <ScopedRules scope="minors" withAgeCategories title="Children and pets" />
-                                <ScopedRules scope="parking" title="Parking rules" />
-                            </div>
-                        )}
 
                         <div className="pt-8 border-t border-slate-200 flex flex-col items-center gap-4">
                             <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">

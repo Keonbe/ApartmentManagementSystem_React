@@ -3117,7 +3117,7 @@ Status: Pending Review → Approved → Refunded; Pending Review ↔ Info Reques
 
 ### 20.5 Parking Rules
 
-House rules gained `scope` (`house` default, `parking`, `minors`); `GET house_rules.php?scope=` (public). Edited in Settings → Parking Rules. `ParkingReservation.jsx` shows them with a required agreement (only when at least one active rule exists); the inquiry form and rent application show them too.
+House rules gained `scope` (`house` default, `parking`, `minors`); `GET house_rules.php?scope=` (public; `scope=all` returns house, children and pets, then parking, each row carrying its `scope`). The apartment-rules modal, the /preview strip and the inquiry sidebar show all three groups together. Edited in Settings → Parking Rules. `ParkingReservation.jsx` shows them with a required agreement (only when at least one active rule exists); the inquiry form and rent application show them too.
 
 | ID | Type | Scenario | Steps | Expected |
 |---|---|---|---|---|

@@ -4,6 +4,7 @@ import ApartmentPic from '../assets/Apartment_Pic.png';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
 import api from '../api/axiosConfig';
+import useAllRules from '../hooks/useAllRules';
 import { useLang } from '../config/i18n';
 import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/preview.responsive.css';
@@ -14,7 +15,8 @@ export default function Preview({ onRentClick, onInquireClick }) {
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
     const [previewMode, setPreviewMode] = useState(null);
-    const [houseRules, setHouseRules] = useState([]);
+    // Apartment rules and policies: house, children and pets, and parking.
+    const { rules: houseRules } = useAllRules();
     const [activeModalRule, setActiveModalRule] = useState(null);
     const [isHouseRulesOpen, setIsHouseRulesOpen] = useState(false);
     const scrollRef = useRef(null);
@@ -47,16 +49,6 @@ export default function Preview({ onRentClick, onInquireClick }) {
         };
         fetchAvailableRooms();
         getSystemSettings().then((s) => setPreviewMode(s.roomPreviewMode)).catch(() => setPreviewMode('images'));
-        // Apartment rules and policies: house rules plus the children and pets policy.
-        Promise.all([
-            api.get('house_rules.php'),
-            api.get('house_rules.php', { params: { scope: 'minors' } }).catch(() => ({ data: {} })),
-        ])
-            .then(([house, minors]) => {
-                const list = (r) => (r.data?.success && Array.isArray(r.data.rules) ? r.data.rules : []);
-                setHouseRules([...list(house), ...list(minors)]);
-            })
-            .catch((error) => console.error('Failed to fetch house rules', error));
     }, []);
 
     const selectedRoom = rooms.find(r => r.id === selectedRoomId) || null;

@@ -3,7 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEnvelopeOpenText, faExclamationTriangle, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SuccessModal from '../Components/SuccessModal';
-import ScopedRules from '../Components/ScopedRules';
+import RulesGroups from '../Components/RulesGroups';
+import useAllRules from '../hooks/useAllRules';
 import api from '../api/axiosConfig';
 import { LIMITS, checkDate, checkEmail, checkIntRange, checkPersonName, checkPhMobile, checkText, localDateString, maxFutureDate, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
@@ -35,7 +36,7 @@ function sessionPrefill() {
 }
 
 export default function InquiryForm() {
-    const { t, lang } = useLang();
+    const { t } = useLang();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -50,9 +51,9 @@ export default function InquiryForm() {
 
     const [rooms, setRooms] = useState([]);
     const [loadingRooms, setLoadingRooms] = useState(true);
-    const [houseRules, setHouseRules] = useState([]);
-    const [loadingHouseRules, setLoadingHouseRules] = useState(true);
-    const [houseRulesError, setHouseRulesError] = useState('');
+    // House rules, children and pets, and parking, shown together beside the form.
+    const { rules: houseRules, loading: loadingHouseRules, error: houseRulesFailed } = useAllRules();
+    const houseRulesError = houseRulesFailed ? t('houseRules.inquiryError') : '';
     const [submitting, setSubmitting] = useState(false);
     const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
@@ -72,22 +73,7 @@ export default function InquiryForm() {
             }
         };
         fetchRooms();
-
-        const fetchHouseRules = async () => {
-            try {
-                const res = await api.get('house_rules.php');
-                if (res.data.success && Array.isArray(res.data.rules)) {
-                    setHouseRules(res.data.rules);
-                }
-            } catch (error) {
-                console.error('Failed to fetch apartment rules', error);
-                setHouseRulesError(t('houseRules.inquiryError'));
-            } finally {
-                setLoadingHouseRules(false);
-            }
-        };
-        fetchHouseRules();
-    }, [t]);
+    }, []);
 
     // Keys match submit_inquiry.php's body.
     const form = useFieldErrors({
@@ -154,13 +140,8 @@ export default function InquiryForm() {
             ) : houseRulesError ? (
                 <p role="status" className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{houseRulesError}</p>
             ) : houseRules.length > 0 ? (
-                <div className="max-h-[500px] space-y-2.5 overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-200">
-                    {houseRules.map((rule) => (
-                        <article key={rule.id} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 transition-colors hover:border-slate-200">
-                            <h3 className="m-0 text-xs font-semibold text-slate-800">{lang === 'fil' && rule.title_fil?.trim() ? rule.title_fil : rule.title}</h3>
-                            <p className="m-0 mt-0.5 whitespace-pre-line text-[11px] leading-relaxed text-slate-600">{lang === 'fil' && rule.description_fil?.trim() ? rule.description_fil : rule.description}</p>
-                        </article>
-                    ))}
+                <div className="max-h-[500px] space-y-4 overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-200">
+                    <RulesGroups rules={houseRules} compact />
                 </div>
             ) : (
                 <p className="m-0 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">{t('houseRules.inquiryEmpty')}</p>
@@ -345,11 +326,6 @@ export default function InquiryForm() {
                     <div className="md:col-span-2 flex items-start gap-2.5 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl p-3.5">
                         <FontAwesomeIcon icon={faInfoCircle} className="mt-0.5 shrink-0 text-indigo-400" />
                         <span>{t('inquiry.note')}</span>
-                    </div>
-
-                    <div className="md:col-span-2 space-y-3">
-                        <ScopedRules scope="minors" withAgeCategories title="Children and pets" />
-                        <ScopedRules scope="parking" title="Parking rules" />
                     </div>
 
                     <div className="md:col-span-2 flex items-start gap-3 pt-2">

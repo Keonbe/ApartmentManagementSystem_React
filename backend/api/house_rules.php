@@ -19,13 +19,19 @@ try {
     $scopes = ['house', 'parking', 'minors'];
     if ($method === 'GET') {
         $scope = $_GET['scope'] ?? 'house';
-        if (!in_array($scope, $scopes, true)) {
+        // 'all' returns every scope in one call: house, then children and pets, then parking.
+        if ($scope !== 'all' && !in_array($scope, $scopes, true)) {
             http_response_code(422);
             echo json_encode(['success' => false, 'message' => 'Unknown rule scope.']);
             exit();
         }
-        $stmt = $conn->prepare('SELECT id, category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order FROM house_rules WHERE is_active = 1 AND scope = ? ORDER BY sort_order ASC, id ASC');
-        $stmt->bind_param('s', $scope);
+        $cols = 'id, category, title, title_fil, description, description_fil, is_highlight, is_active, sort_order, scope';
+        if ($scope === 'all') {
+            $stmt = $conn->prepare("SELECT $cols FROM house_rules WHERE is_active = 1 ORDER BY FIELD(scope, 'house', 'minors', 'parking'), sort_order ASC, id ASC");
+        } else {
+            $stmt = $conn->prepare("SELECT $cols FROM house_rules WHERE is_active = 1 AND scope = ? ORDER BY sort_order ASC, id ASC");
+            $stmt->bind_param('s', $scope);
+        }
         $stmt->execute();
         $result = $stmt->get_result();
         $rules = [];
