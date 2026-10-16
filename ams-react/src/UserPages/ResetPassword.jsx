@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import ApartmentPic from "../assets/Apartment_Pic.png";
@@ -7,6 +7,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import PasswordField from '../Components/form/PasswordField';
 import PasswordChecklist from '../Components/form/PasswordChecklist';
+import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/login.responsive.css';
 
 const LABEL_CLS = "text-xs font-bold text-slate-700 uppercase tracking-wider block";
@@ -20,16 +21,26 @@ const VALIDATORS = {
 export default function ResetPassword() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const email = searchParams.get('email');
     const token = searchParams.get('token');
+    const { lang } = useLang();
+    const isFil = lang === 'fil';
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [message, setMessage] = useState(() => (!email || !token ? "Invalid password reset link." : ''));
+    const [message, setMessage] = useState(() => (!token ? (isFil ? 'Hindi wasto ang link para i-reset ang password.' : 'Invalid password reset link.') : ''));
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [showInvalid, setShowInvalid] = useState(false);
     const form = useFieldErrors(VALIDATORS, { idPrefix: 'reset-' });
     const values = { new_password: password, confirm_password: confirmPassword };
+
+    useEffect(() => {
+        if (isSuccess) {
+            const timer = window.setTimeout(() => navigate('/login'), 2000);
+            return () => window.clearTimeout(timer);
+        }
+        return undefined;
+    }, [isSuccess, navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -40,9 +51,9 @@ export default function ResetPassword() {
         setIsSubmitting(true);
         try {
             const res = await api.post("/reset_password.php", {
-                email,
                 token,
-                new_password: password
+                new_password: password,
+                confirm_password: confirmPassword
             });
 
             if (res.data.success) {
@@ -50,10 +61,12 @@ export default function ResetPassword() {
                 setMessage(res.data.message);
             } else if (!form.applyServerErrors(res)) {
                 setMessage(res.data.message);
+                if (/invalid|expired/i.test(res.data.message || '')) setShowInvalid(true);
             }
         } catch (error) {
             if (!form.applyServerErrors(error)) {
                 setMessage(apiErrorMessage(error, "Failed to reset password. The link might be expired."));
+                if (error.response?.status === 404 || /invalid|expired/i.test(error.response?.data?.message || '')) setShowInvalid(true);
             }
         } finally {
             setIsSubmitting(false);
@@ -109,14 +122,14 @@ export default function ResetPassword() {
                     <div className="w-full space-y-6">
                         <div className="text-center">
                             <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                Create New Password
+                                {isFil ? 'Gumawa ng Bagong Password' : 'Create New Password'}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">
-                                Enter a new secure password for {email}
+                                {isFil ? 'Maglagay ng bagong ligtas na password para sa iyong account.' : 'Enter a new secure password for your account.'}
                             </p>
                         </div>
 
-                        {isSuccess ? (
+                        {showInvalid ? <div className="space-y-4 text-center"><p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{message || (isFil ? 'Hindi wasto o nag-expire na ang link.' : 'This reset link is invalid or expired.')}</p><Link to="/login" className="font-bold text-indigo-600">{isFil ? 'Humiling ng bagong link' : 'Request a new link'}</Link></div> : isSuccess ? (
                             <div className="space-y-4 text-center mt-6">
                                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold rounded-xl">
                                     {message}
@@ -125,12 +138,12 @@ export default function ResetPassword() {
                                     onClick={() => navigate('/login')}
                                     className="btn-interactive w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors border-0 cursor-pointer shadow-lg mt-2 box-border"
                                 >
-                                    Proceed to Login
+                                    {isFil ? 'Magpatuloy sa Pag-login' : 'Proceed to Login'}
                                 </button>
                             </div>
                         ) : (
                             <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-                                {(!email || !token) ? (
+                                {!token ? (
                                     <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs rounded-xl text-center font-semibold">
                                         {message}
                                     </div>
@@ -138,7 +151,7 @@ export default function ResetPassword() {
                                     <>
                                         <PasswordField
                                             a11y={form.fieldA11y('new_password')}
-                                            label="New Password"
+                                            label={isFil ? 'Bagong Password' : 'New Password'}
                                             labelClassName={LABEL_CLS}
                                             inputClassName={INPUT_CLS}
                                             value={password}
@@ -151,7 +164,7 @@ export default function ResetPassword() {
 
                                         <PasswordField
                                             a11y={form.fieldA11y('confirm_password')}
-                                            label="Confirm Password"
+                                            label={isFil ? 'Kumpirmahin ang Password' : 'Confirm Password'}
                                             labelClassName={LABEL_CLS}
                                             inputClassName={INPUT_CLS}
                                             value={confirmPassword}
@@ -171,7 +184,7 @@ export default function ResetPassword() {
                                             disabled={isSubmitting}
                                             className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70 mt-2"
                                         >
-                                            {isSubmitting ? 'Resetting...' : 'Reset Password'}
+                                            {isSubmitting ? (isFil ? 'Nire-reset...' : 'Resetting...') : (isFil ? 'I-reset ang Password' : 'Reset Password')}
                                         </button>
                                     </>
                                 )}
