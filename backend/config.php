@@ -1158,7 +1158,8 @@ function get_authenticated_user($conn) {
         return $cache[$token] = null;
     }
 
-    $touch = $conn->prepare("UPDATE sessions SET last_seen_at = NOW() WHERE token = ?");
+    // At most once a minute per session: this runs on every request.
+    $touch = $conn->prepare("UPDATE sessions SET last_seen_at = NOW() WHERE token = ? AND last_seen_at < NOW() - INTERVAL 60 SECOND");
     $touch->bind_param("s", $token);
     $touch->execute();
     $touch->close();
@@ -3291,6 +3292,25 @@ function get_setting($conn, $key, $default = null) {
     return $row ? $row['setting_value'] : $default;
 }
 
+// Sends the response now and lets the script keep running, so work that follows
+// (the poll sweep) does not hold up the page. Call after the final echo.
+function finish_response_early() {
+    ignore_user_abort(true);
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+        return;
+    }
+    // Without FastCGI, the client only sees the end of the body when told its
+    // length; that needs the output buffered (ob_start() before the echo).
+    $len = ob_get_length();
+    if ($len !== false && !headers_sent()) {
+        header('Connection: close');
+        header('Content-Length: ' . $len);
+    }
+    while (ob_get_level() > 0) ob_end_flush();
+    flush();
+}
+
 // True for at most one caller per $seconds (audit L7). Checks that every page
 // poll or GET used to run (sweep claim, overstay scan, overdue promotion, hold
 // release) are gated with this, so they run about once a minute instead of on
@@ -3349,6 +3369,9 @@ function run_notification_sweep($conn, $force = false) {
         $conn->query("INSERT INTO system_settings (setting_key, setting_value) VALUES ('notification_sweep_last_run', CURDATE())
                       ON DUPLICATE KEY UPDATE setting_value = CURDATE()");
     }
+
+    // Expired sessions are never read again; drop them once a day.
+    $conn->query("DELETE FROM sessions WHERE expires_at < NOW() - INTERVAL 1 DAY");
 
     $result = [
         'ran' => true,

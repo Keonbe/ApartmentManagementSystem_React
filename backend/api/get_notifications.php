@@ -17,8 +17,10 @@ $auth = require_user($conn);
 // Every signed-in page polls this endpoint, so it doubles as the trigger for the
 // daily reminder / overdue / parking sweep. The sweep claims the day atomically,
 // so only the first request of the day does any work. Both checks below run at
-// most once a minute across all pollers (audit L7), not on every poll.
-if (throttle_claim($conn, 'poll_checks_last_run', 60)) {
+// most once a minute across all pollers (audit L7), not on every poll. They run
+// after the response is sent, so the caller never waits for them.
+function run_poll_checks($conn) {
+    if (!throttle_claim($conn, 'poll_checks_last_run', 60)) return;
     try {
         run_notification_sweep($conn);
     } catch (Throwable $e) {
@@ -41,6 +43,7 @@ if (throttle_claim($conn, 'poll_checks_last_run', 60)) {
     }
 }
 
+ob_start();
 try {
     if ($auth['role'] === 'admin') {
         // ADMIN VIEW: the open action queue, plus anything addressed to this admin.
@@ -80,5 +83,7 @@ try {
     server_error_response($e, "Failed to load notifications.");
 }
 
+finish_response_early();
+run_poll_checks($conn);
 $conn->close();
 ?>

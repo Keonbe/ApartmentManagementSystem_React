@@ -45,6 +45,12 @@ React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8
 
 - Git: all work, including big implementations, goes straight to `main`, with no feature branches. No required-PR branch protection.
 - **Never commit on your own, even when a plan lists per-phase commits.** The user verifies and tests first. Leave changes uncommitted, draft the commit message(s), and commit only when the user says so. For a large change, draft one message per area or phase.
+- **Run the CI checks before drafting a commit message** (`.github/workflows/ci.yml` runs on push to main and keeps failing on GitHub otherwise). Run the local equivalent of each job, fix failures, and say which you could not run:
+  - **Frontend (Lint & Build):** `cd ams-react && npm run lint && npm run build` (CI uses `build`, not `build:local`; the build does not cover lint).
+  - **Backend (PHP Checks):** `php -l` on **every** `backend/**/*.php`, not just changed files; then `phpstan analyse --configuration=phpstan.neon --no-progress` if installed. CI runs PHP 8.2, local is 8.0.
+  - **Database (Schema Validation):** on a scratch DB (never `ams_db`; see `/db-snapshot`) import `SetupDB.sql`, `seeds/seed_mock_data.sql`, `seed_reset.sql`, re-seed, `clear_and_seed.sql`, then apply every `backend/api/migrations/[0-9]*.sql` (CI is MariaDB 10.11). Counts CI asserts: ≥13 users after seed, 1 after reset, 14 rooms after `clear_and_seed`. Schema/seed/migration changes must be mirrored so these pass.
+  - **Backend (Live Endpoint Smoke Test):** on the freshly seeded DB, `get_system_settings.php`, `get_rooms.php`, `get_service_catalog.php` return 200 with no PHP fatal, and `admin@gmail.com` login returns a `sessionToken` that `dashboard_stats.php` accepts. `cd tests/api && npm test` covers this ground.
+  - CI overwrites `config.env.php`, so nothing may depend on local-only config, gitignored files, or `ams_db` state.
 
 - Work directly by default. Use a subagent only for broad read-only sweeps whose raw output the main thread doesn't need (e.g. "which endpoints lack `log_activity`"); prefer `repo-sweep` (Sonnet). Don't spawn subagents for single-area fixes, edits, or verification.
 - Plans (plan mode) open with a short **TL;DR**: a few one-line bullets on what changes and why, before the detailed sections.
