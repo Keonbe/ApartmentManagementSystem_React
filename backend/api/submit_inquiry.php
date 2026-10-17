@@ -11,33 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
-// Auto-create tables if not exists (same pattern as get_utility_readings.php)
-$conn->query("CREATE TABLE IF NOT EXISTS `inquiries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) DEFAULT NULL,
-  `full_name` varchar(150) NOT NULL,
-  `email` varchar(150) NOT NULL,
-  `contact_no` varchar(30) NOT NULL,
-  `room_name` varchar(50) DEFAULT NULL,
-  `occupants` int(11) DEFAULT NULL,
-  `preferred_move_in` date DEFAULT NULL,
-  `message` text DEFAULT NULL,
-  `source` varchar(20) NOT NULL DEFAULT 'web',
-  `status` varchar(20) NOT NULL DEFAULT 'New',
-  `viewing_date` datetime DEFAULT NULL,
-  `admin_notes` text DEFAULT NULL,
-  `closed_reason` varchar(255) DEFAULT NULL,
-  `handled_by` int(11) DEFAULT NULL,
-  `ip_address` varchar(45) DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_inquiry_status` (`status`),
-  KEY `idx_inquiry_room` (`room_name`),
-  KEY `fk_inquiry_user` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(["success" => false, "message" => "Invalid request method"]);
     exit;
@@ -54,12 +27,12 @@ if (!empty(trim($input['website'] ?? ''))) {
 
 $full_name  = trim($input['full_name'] ?? '');
 $email      = trim($input['email'] ?? '');
-$contact_no = trim($input['contact_no'] ?? '');
-$room_name  = trim($input['room_name'] ?? '');
+$contact_no = trim($input['contact_no'] ?? $input['contact_number'] ?? '');
+$room_name  = trim($input['room_name'] ?? $input['unit_of_interest'] ?? '');
 $message    = trim($input['message'] ?? '');
 $source     = trim($input['source'] ?? 'web');
 $occupants  = isset($input['occupants']) && $input['occupants'] !== '' ? (int)$input['occupants'] : null;
-$move_in    = trim($input['preferred_move_in'] ?? '');
+$move_in    = trim($input['preferred_move_in'] ?? $input['move_in_date'] ?? '');
 
 // Optional — an inquiry is linked to an account only when the submitter has a
 // real session; guests stay anonymous. (This used to trust X-User-Id, so a guest
@@ -97,6 +70,7 @@ if (!empty($errors)) {
 }
 
 $room_name = $room_name !== '' ? $room_name : null;
+$message = $message !== '' ? $message : 'Inquired about ' . ($room_name ?? 'available apartment units');
 $move_in   = $move_in !== '' ? $move_in : null;
 $ip        = $_SERVER['REMOTE_ADDR'] ?? null;
 
@@ -117,19 +91,65 @@ if (!$is_admin) {
     }
 }
 
-// ── Insert ──
-$stmt = $conn->prepare("INSERT INTO inquiries (user_id, full_name, email, contact_no, room_name, occupants, preferred_move_in, message, source, ip_address, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New')");
-$stmt->bind_param("issssissss", $user_id, $full_name, $email, $contact_no, $room_name, $occupants, $move_in, $message, $source, $ip);
+// Guest inquiries get a separate random bearer token; registered inquiries
+// retain the existing account-linked behavior and don't receive guest tokens.
+$guest_token = $user_id === null && !$is_admin ? bin2hex(random_bytes(32)) : null;
+$guest_thread_id = null;
+$conn->begin_transaction();
+try {
+    if ($guest_token !== null) {
+        $findGuest = $conn->prepare("SELECT id, guest_token FROM inquiries WHERE thread_type = 'guest' AND ((guest_email = ? AND guest_email <> '') OR (guest_phone = ? AND guest_phone <> '')) ORDER BY id ASC LIMIT 1 FOR UPDATE");
+        if (!$findGuest) throw new Exception('Unable to prepare guest thread lookup: ' . $conn->error);
+        $findGuest->bind_param('ss', $email, $contact_no);
+        $findGuest->execute();
+        $existingGuest = $findGuest->get_result()->fetch_assoc();
+        $findGuest->close();
+        if ($existingGuest) {
+            $guest_thread_id = (int)$existingGuest['id'];
+            $guest_token = $existingGuest['guest_token'];
+        }
+    }
+    $inquiry_guest_token = $guest_thread_id ? null : $guest_token;
+    $stmt = $conn->prepare("INSERT INTO inquiries (user_id, full_name, email, contact_no, room_name, occupants, preferred_move_in, message, source, ip_address, status, thread_type, guest_token, guest_name, guest_email, guest_phone, unit_of_interest) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?, ?)");
+    $thread_type = $guest_token !== null ? 'guest' : 'registered';
+    $guest_name = $guest_token !== null ? $full_name : null;
+    $guest_email = $guest_token !== null ? $email : null;
+    $guest_phone = $guest_token !== null ? $contact_no : null;
+    $unit_of_interest = $guest_token !== null ? $room_name : null;
+    $stmt->bind_param("issssissssssssss", $user_id, $full_name, $email, $contact_no, $room_name, $occupants, $move_in, $message, $source, $ip, $thread_type, $inquiry_guest_token, $guest_name, $guest_email, $guest_phone, $unit_of_interest);
+    $stmt->execute();
+    $inquiry_id = $stmt->insert_id;
+    $stmt->close();
 
-if (!$stmt->execute()) {
+    if ($guest_token !== null && $message !== '') {
+        $messageThreadId = $guest_thread_id ?: $inquiry_id;
+        if ($guest_thread_id) {
+            $mergeMessages = $conn->prepare('UPDATE guest_messages SET inquiry_id = ? WHERE inquiry_id = ?');
+            if (!$mergeMessages) throw new Exception('Unable to prepare guest message merge: ' . $conn->error);
+            $mergeMessages->bind_param('ii', $messageThreadId, $inquiry_id);
+            $mergeMessages->execute();
+            $mergeMessages->close();
+        }
+        $initial = $conn->prepare("INSERT INTO guest_messages (inquiry_id, sender_role, message) VALUES (?, 'guest', ?)");
+        if (!$initial) throw new Exception('Unable to prepare initial guest message: ' . $conn->error);
+        $initial->bind_param('is', $messageThreadId, $message);
+        $initial->execute();
+        $initial->close();
+    }
+    if ($guest_thread_id) {
+        $updateGuest = $conn->prepare('UPDATE inquiries SET message = ?, guest_name = ?, guest_email = ?, guest_phone = ?, unit_of_interest = ? WHERE id = ?');
+        if (!$updateGuest) throw new Exception('Unable to prepare canonical guest update: ' . $conn->error);
+        $updateGuest->bind_param('sssssi', $message, $full_name, $email, $contact_no, $room_name, $guest_thread_id);
+        $updateGuest->execute();
+        $updateGuest->close();
+    }
+    $conn->commit();
+} catch (Throwable $e) {
+    $conn->rollback();
     http_response_code(500);
     echo json_encode(["success" => false, "message" => "Failed to submit inquiry."]);
-    $stmt->close();
-    $conn->close();
     exit;
 }
-$inquiry_id = $stmt->insert_id;
-$stmt->close();
 
 // ── Notify the admin ──
 // notifications.user_id is NOT NULL with an FK to users, so a guest inquiry has
@@ -144,7 +164,9 @@ log_activity($conn, $user_id, 'inquiry', $is_admin ? "Logged Inquiry" : "Submitt
 echo json_encode([
     "success" => true,
     "message" => "Inquiry submitted successfully. Our admin will contact you shortly.",
-    "inquiry_id" => $inquiry_id
+    "inquiry_id" => $inquiry_id,
+    "thread_id" => $guest_thread_id ?: $inquiry_id,
+    "guest_token" => $guest_token
 ]);
 
 $conn->close();

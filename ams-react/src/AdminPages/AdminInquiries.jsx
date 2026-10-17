@@ -789,6 +789,14 @@ export default function AdminInquiries() {
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
+                  onClick={() => navigate(`/admin-messages?guest_thread_id=${encodeURIComponent(selected.rawId || selected.id)}`)}
+                  className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 px-4 py-3 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faComment} /> Chat / Message
+                </button>
+
+                <button
+                  type="button"
                   disabled={!!busy}
                   onClick={async () => {
                     if (!detailErrors.validateAll({ admin_notes: notes }, ['admin_notes'])) return;

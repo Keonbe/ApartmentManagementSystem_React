@@ -16,7 +16,15 @@ export function clearStoredSession() {
         store.removeItem("loggedInUser");
         store.removeItem("sessionToken");
     }
+    clearGuestChatStorage();
     window.dispatchEvent(new Event('auth-changed'));
+}
+
+export function clearGuestChatStorage() {
+    for (const key of Object.keys(localStorage)) {
+        if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
+    }
+    window.dispatchEvent(new Event('guest-chat-invalidated'));
 }
 
 api.interceptors.request.use((config) => {

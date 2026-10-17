@@ -18,6 +18,18 @@ try {
     // reservation) and 'minors' (children and pets, shown on inquiry, application and contract).
     $scopes = ['house', 'parking', 'minors'];
     if ($method === 'GET') {
+        // Older local databases can have the original house_rules shape but
+        // lack later bilingual/scope columns. Add those before the SELECT.
+        $columns = [];
+        $columnResult = $conn->query('SHOW COLUMNS FROM house_rules');
+        while ($column = $columnResult->fetch_assoc()) $columns[$column['Field']] = true;
+        foreach ([
+            'title_fil' => "VARCHAR(255) DEFAULT NULL",
+            'description_fil' => "TEXT DEFAULT NULL",
+            'scope' => "VARCHAR(20) NOT NULL DEFAULT 'house'",
+        ] as $column => $definition) {
+            if (!isset($columns[$column])) $conn->query("ALTER TABLE house_rules ADD COLUMN `$column` $definition");
+        }
         $scope = $_GET['scope'] ?? 'house';
         // 'all' returns every scope in one call: house, then children and pets, then parking.
         if ($scope !== 'all' && !in_array($scope, $scopes, true)) {

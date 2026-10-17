@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
 import { getAvatarUrl } from '../utils/avatarUrl';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -21,11 +21,15 @@ import { apiErrorMessage } from '../utils/apiError';
 import FieldError from './form/FieldError';
 import ChatAttachmentPreview from './form/ChatAttachmentPreview';
 import useFilePreview from '../hooks/useFilePreview';
+import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
+const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
+const GUEST_BADGE_CLASS = 'ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200 shrink-0';
 
 const ChatWidget = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { 
         userId, 
         conversations = [], 
@@ -45,6 +49,26 @@ const ChatWidget = () => {
     const [attachment, setAttachment, attachmentPreviewUrl] = useFilePreview();
     const [sendError, setSendError] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const [guestMessages, setGuestMessages] = useState([]);
+    const [guestThreads, setGuestThreads] = useState([]);
+    const [conversationFilter, setConversationFilter] = useState('all');
+    const [guestToken, setGuestToken] = useState(() => localStorage.getItem('ams_guest_token'));
+    const [hasRegisteredUser, setHasRegisteredUser] = useState(() => Boolean(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')));
+
+    useEffect(() => {
+        const syncStorage = () => {
+            setGuestToken(localStorage.getItem('ams_guest_token'));
+            setHasRegisteredUser(Boolean(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')));
+        };
+        window.addEventListener('storage', syncStorage);
+        window.addEventListener('auth-changed', syncStorage);
+        window.addEventListener('guest-chat-invalidated', syncStorage);
+        return () => {
+            window.removeEventListener('storage', syncStorage);
+            window.removeEventListener('auth-changed', syncStorage);
+            window.removeEventListener('guest-chat-invalidated', syncStorage);
+        };
+    }, []);
 
     // All three pickers (file, camera, video) go through the same check as send_message.php.
     const pickAttachment = (event) => {
@@ -62,7 +86,30 @@ const ChatWidget = () => {
     const videoInputRef = useRef(null);
     const messagesEndRef = useRef(null);
     const chatWindowRef = useRef(null);
-    const totalUnreadCount = conversations.reduce((sum, conv) => sum + Number(conv.unread_count || 0), 0);
+    const isGuestChat = !userId && Boolean(guestToken);
+    const activeMessages = isGuestChat ? normalizeGuestMessages(guestMessages) : messages;
+    const isAdminGuestChat = userRole === 'admin' && activeChat?.thread_type === 'guest';
+    const displayedMessages = isAdminGuestChat ? normalizeGuestMessages(guestMessages, 'admin') : activeMessages;
+    const displayedConversations = userRole === 'admin'
+        ? [...conversations.map((conversation) => ({ ...conversation, thread_type: 'registered' })), ...guestThreads]
+            .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0))
+        : conversations;
+    const totalUnreadCount = displayedConversations.reduce((sum, conv) => sum + Number(conv.unread_count || 0), 0);
+    const visibleConversations = userRole === 'admin'
+        ? displayedConversations.filter((conversation) => conversationFilter === 'all'
+            || (conversationFilter === 'guest' && isGuestConversation(conversation))
+            || (conversationFilter === 'registered' && !isGuestConversation(conversation)))
+        : displayedConversations;
+    const conversationCounts = {
+        all: displayedConversations.length,
+        registered: displayedConversations.filter((conversation) => !isGuestConversation(conversation)).length,
+        guest: displayedConversations.filter(isGuestConversation).length,
+    };
+    const guestDownloadUrl = (path) => {
+        const url = new URL(fileUrl(path));
+        url.searchParams.set('guest_token', guestToken || '');
+        return url.toString();
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,7 +144,97 @@ const ChatWidget = () => {
         if (isChatOpen && activeChat) {
             scrollToBottom();
         }
-    }, [messages, isChatOpen, activeChat]);
+    }, [messages, activeMessages, isChatOpen, activeChat]);
+
+    useEffect(() => {
+        if (!guestToken || userId || !isChatOpen) return undefined;
+        const load = async () => {
+            try {
+                const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
+                if (response.data?.success) setGuestMessages(normalizeGuestMessages(response.data.messages || []));
+            } catch (error) {
+                if ([401, 403, 404].includes(error.response?.status)) {
+                    for (const key of Object.keys(localStorage)) if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
+                    setGuestToken(null);
+                    setGuestMessages([]);
+                    setIsChatOpen(false);
+                    window.dispatchEvent(new Event('guest-chat-invalidated'));
+                    return;
+                }
+                console.error('Unable to load guest conversation', error);
+            }
+        };
+        load();
+        const timer = window.setInterval(load, 3000);
+        return () => window.clearInterval(timer);
+    }, [guestToken, userId, isChatOpen]);
+
+    useEffect(() => {
+        if (userRole !== 'admin') return undefined;
+        let cancelled = false;
+        const loadGuestThreads = async () => {
+            try {
+                const response = await api.get('guest_chat_inbox.php');
+                if (!cancelled && response.data?.success) setGuestThreads(response.data.conversations || []);
+            } catch (error) {
+                console.error('Unable to load guest conversations', error);
+            }
+        };
+        loadGuestThreads();
+        const timer = window.setInterval(loadGuestThreads, 6000);
+        return () => { cancelled = true; window.clearInterval(timer); };
+    }, [userRole]);
+
+    useEffect(() => {
+        if (userRole !== 'admin') return;
+        const requestedThreadId = new URLSearchParams(location.search).get('guest_thread_id');
+        if (!requestedThreadId) return;
+        const requested = guestThreads.find((thread) => String(thread.thread_id) === requestedThreadId);
+        if (!requested) return;
+        setActiveChat(requested);
+        setIsChatOpen(true);
+        navigate(location.pathname, { replace: true });
+        api.get('guest_chat.php', { params: { thread_id: requested.thread_id } })
+            .then((response) => setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin')))
+            .catch((error) => console.error('Unable to load guest chat history', error));
+    }, [guestThreads, location.pathname, location.search, navigate, setActiveChat, setIsChatOpen, userRole]);
+
+    useEffect(() => {
+        if (!isAdminGuestChat || !activeChat?.thread_id) return undefined;
+        let cancelled = false;
+        const loadGuestHistory = async () => {
+            try {
+                const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
+                if (!cancelled && response.data?.success) setGuestMessages(normalizeGuestMessages(response.data.messages || [], 'admin'));
+            } catch (error) {
+                console.error('Unable to load guest chat history', error);
+            }
+        };
+        loadGuestHistory();
+        const timer = window.setInterval(loadGuestHistory, 3000);
+        return () => { cancelled = true; window.clearInterval(timer); };
+    }, [activeChat?.thread_id, isAdminGuestChat]);
+
+    const sendGuestMessage = async (event) => {
+        event.preventDefault();
+        const message = newMessage.trim();
+        if ((!message && !attachment) || isSending) return;
+        setIsSending(true);
+        try {
+            const formData = new FormData();
+            formData.append('guest_token', guestToken);
+            formData.append('message', message);
+            if (replyingTo?.id) formData.append('reply_to_id', replyingTo.id);
+            if (attachment) formData.append('attachment', attachment);
+            await api.post('guest_chat.php', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setNewMessage('');
+            setAttachment(null);
+            setReplyingTo(null);
+            const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
+        setGuestMessages(normalizeGuestMessages(response.data.messages || []));
+        } catch (error) { setSendError(apiErrorMessage(error, 'Message not sent.')); }
+        finally { setIsSending(false); }
+    };
 
     useEffect(() => {
         if (!mediaPreview) return undefined;
@@ -115,6 +252,24 @@ const ChatWidget = () => {
             setSendError('');
             setIsSending(true);
             const message = newMessage.trim();
+            if (isAdminGuestChat) {
+                const formData = new FormData();
+                formData.append('thread_id', activeChat.thread_id);
+                formData.append('message', message);
+                if (replyingTo?.id) formData.append('reply_to_id', replyingTo.id);
+                if (attachment) formData.append('attachment', attachment);
+                api.post('guest_chat.php', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+                    .then(async () => {
+                        const response = await api.get('guest_chat.php', { params: { thread_id: activeChat.thread_id } });
+                        setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin'));
+                        setNewMessage('');
+                        setAttachment(null);
+                        setReplyingTo(null);
+                    })
+                    .catch((error) => setSendError(apiErrorMessage(error, 'Message not sent. Please try again.')))
+                    .finally(() => setIsSending(false));
+                return;
+            }
             const sendPendingMessages = async () => {
                 if (message && attachment) {
                     await sendMessage(activeChat.other_user_id, message, null, replyingTo?.id);
@@ -177,7 +332,7 @@ const ChatWidget = () => {
         }
     };
 
-    if (!userId) return null;
+    if (!userId && !hasRegisteredUser && !guestToken) return null;
 
     return (
         <div className="fixed bottom-2 right-2 z-50 font-sans sm:bottom-6 sm:right-6">
@@ -208,7 +363,7 @@ const ChatWidget = () => {
                             {activeChat && (
                                 <button 
                                     type="button"
-                                    onClick={() => setActiveChat(null)} 
+                                    onClick={() => { if (userId) setActiveChat(null); }}
                                     className="text-white hover:text-indigo-200 p-1 bg-transparent border-0 cursor-pointer mr-1"
                                     title="Back to conversation list"
                                 >
@@ -216,8 +371,9 @@ const ChatWidget = () => {
                                 </button>
                             )}
                             <span className="font-semibold truncate">
-                                {activeChat ? activeChat.other_user_name : 'Messages'}
+                            {activeChat ? activeChat.other_user_name : guestToken && !userId ? 'Admin User' : 'Messages'}
                             </span>
+                            {isAdminGuestChat && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                         </div>
                         
                         <div className="flex items-center gap-3 shrink-0">
@@ -245,18 +401,35 @@ const ChatWidget = () => {
                     </div>
 
                     {/* Chat Body */}
-                    {!activeChat ? (
+                    {!userId && !guestToken ? (
+                        <div className="flex-1 p-6 text-center"><p>Start a conversation with our team by submitting an inquiry.</p><button type="button" onClick={() => { setIsChatOpen(false); navigate('/inquire'); }} className="rounded-xl bg-indigo-600 px-4 py-2 text-white border-0">Go to Inquire</button></div>
+                    ) : !activeChat && userId ? (
                         /* Conversation Directory List */
-                        <div className="flex-1 overflow-y-auto bg-white">
-                            {conversations.length === 0 ? (
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+                            {userRole === 'admin' && <div className="flex items-center gap-1.5 border-b border-slate-100 px-3 py-2" role="group" aria-label="Filter conversations">
+                                {[
+                                    ['all', `All (${conversationCounts.all})`],
+                                    ['registered', `Registered (${conversationCounts.registered})`],
+                                    ['guest', `Guest (${conversationCounts.guest})`],
+                                ].map(([filter, label]) => <button key={filter} type="button" onClick={() => setConversationFilter(filter)} aria-pressed={conversationFilter === filter}
+                                    className={`text-[10px] font-medium px-2.5 py-1.5 rounded-full transition ${conversationFilter === filter ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{label}</button>)}
+                            </div>}
+                            <div className="min-h-0 flex-1 overflow-y-auto">
+                            {visibleConversations.length === 0 ? (
                                 renderEmptyState()
                             ) : (
-                                conversations.map((conv) => (
-                                    <div 
-                                        key={conv.other_user_id}
+                                visibleConversations.map((conv) => (
+                                    <div
+                                        key={conv.thread_type === 'guest' ? `guest_${conv.thread_id}` : `user_${conv.other_user_id}`}
                                         onClick={() => {
                                             setActiveChat(conv);
-                                            if (fetchChatHistory) {
+                                            setReplyingTo(null);
+                                            if (conv.thread_type === 'guest') {
+                                                setGuestMessages([]);
+                                                api.get('guest_chat.php', { params: { thread_id: conv.thread_id } })
+                                                    .then((response) => setGuestMessages(normalizeGuestMessages(response.data?.messages || [], 'admin')))
+                                                    .catch((error) => console.error('Unable to load guest chat history', error));
+                                            } else if (fetchChatHistory) {
                                                 fetchChatHistory(conv.other_user_id);
                                             }
                                         }}
@@ -275,9 +448,10 @@ const ChatWidget = () => {
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex justify-between items-center mb-0.5">
-                                                <h4 className={`text-sm truncate m-0 ${Number(conv.unread_count) > 0 ? 'font-bold text-slate-900' : 'font-semibold text-slate-900'}`}>
-                                                    {conv.other_user_name}
+                                            <div className="flex min-w-0 justify-between items-center gap-2 mb-0.5">
+                                                <h4 className={`flex min-w-0 items-center overflow-hidden text-sm m-0 ${Number(conv.unread_count) > 0 ? 'font-bold text-slate-900' : 'font-semibold text-slate-900'}`}>
+                                                    <span className="truncate">{conv.other_user_name}</span>
+                                                    {isGuestConversation(conv) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                                                 </h4>
                                                 {conv.last_message_time && (
                                                     <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0 ml-3">
@@ -296,28 +470,31 @@ const ChatWidget = () => {
                                     </div>
                                 ))
                             )}
+                            </div>
                         </div>
                     ) : (
                         /* Active Conversation Message Stream */
                         <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
-                            {messages.length === 0 ? (
+                                            {displayedMessages.length === 0 ? (
                                 <div className="text-center text-slate-400 text-xs mt-10">
                                     Send a message to start this conversation.
                                 </div>
                             ) : (
-                                messages.map((msg, index) => {
+                                displayedMessages.map((msg, index) => {
                                     const messageKey = msg.id || index;
-                                    const isMe = String(msg.sender_id) === String(userId);
+                                    const isMe = String(msg.sender_id) === (isGuestChat ? 'guest' : isAdminGuestChat ? 'current-admin' : String(userId));
                                     const messageDate = new Date(msg.created_at);
-                                    const previousDate = index > 0 ? new Date(messages[index - 1].created_at) : null;
+                                    const previousDate = index > 0 ? new Date(displayedMessages[index - 1].created_at) : null;
                                     const minuteGap = previousDate && !Number.isNaN(previousDate.getTime())
                                         ? messageDate.getTime() - previousDate.getTime() >= 5 * 60 * 1000
                                         : false;
                                     const showDateSeparator = !previousDate || Number.isNaN(previousDate.getTime()) || previousDate.toDateString() !== messageDate.toDateString() || minuteGap;
-                                    const isLatestSentMessage = isMe && !messages.slice(index + 1).some(
-                                        (laterMessage) => String(laterMessage.sender_id) === String(userId)
+                                    const isLatestSentMessage = isMe && !displayedMessages.slice(index + 1).some(
+                                        (laterMessage) => String(laterMessage.sender_id) === (isGuestChat ? 'guest' : isAdminGuestChat ? 'current-admin' : String(userId))
                                     );
-                                    const isMediaOnlyMessage = Boolean(msg.attachment_path) && !msg.message;
+                                    const mediaPath = msg.attachment_path || msg.file_path || msg.attachment_url || msg.media_url;
+                                    const mediaUrl = mediaPath ? (isGuestChat ? guestDownloadUrl(mediaPath) : fileUrl(mediaPath)) : null;
+                                    const isMediaOnlyMessage = Boolean(mediaPath) && !msg.message;
                                     return (
                                         <div id={`chat-message-${msg.id}`} key={messageKey} className={`message-enter mb-3 ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                                             {showDateSeparator && (
@@ -327,16 +504,16 @@ const ChatWidget = () => {
                                                     </span>
                                                 </div>
                                             )}
-                                    <div className={`group flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`group flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
                                         {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
                                                 <div className={`relative flex max-w-[80%] flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                                                     {msg.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-[11px] text-slate-500">
                                                         <FontAwesomeIcon icon={faReply} className="text-[10px]" />
-                                                        <span>{isMe ? 'You' : activeChat.other_user_name} replied to {String(msg.reply_sender_id) === String(msg.sender_id) ? 'themselves' : (isMe ? activeChat.other_user_name : 'you')}</span>
+                                                        <span>{isMe ? 'You' : (isGuestChat ? 'Admin User' : activeChat.other_user_name)} replied to {String(msg.reply_sender_id) === String(msg.sender_id) ? 'themselves' : (isMe ? (isGuestChat ? 'Admin User' : activeChat.other_user_name) : 'you')}</span>
                                                     </div>}
                                                     {msg.reply_to_id && msg.reply_attachment_path && (() => {
                                                         const replyIsVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(msg.reply_attachment_path);
-                                                        const replyMediaUrl = fileUrl(msg.reply_attachment_path);
+                                                        const replyMediaUrl = isGuestChat ? guestDownloadUrl(msg.reply_attachment_path) : fileUrl(msg.reply_attachment_path);
                                                         const scrollToOriginal = () => document.getElementById(`chat-message-${msg.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                                         return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
                                                             {replyIsVideo
@@ -350,9 +527,10 @@ const ChatWidget = () => {
                                                     }`}`}>
                                                         {msg.reply_to_id && !msg.reply_attachment_path && <p className="m-0 mb-1 truncate text-xs opacity-80">{msg.reply_message || 'Message'}</p>}
                                                         {msg.message && <p className="m-0 break-words">{msg.message}</p>}
-                                                        {msg.attachment_path && (() => {
-                                                            const mediaUrl = msg.attachment_path.startsWith('blob:') ? msg.attachment_path : new URL(`../${msg.attachment_path}`, api.defaults.baseURL).href;
-                                                            const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(msg.attachment_path);
+                                                        {mediaPath && (() => {
+                                                            const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(mediaPath);
+                                                            const isImage = /\.(jpg|jpeg|png|gif|webp)(?:\?|$)/i.test(mediaPath);
+                                                            if (!isVideo && !isImage) return <a className="mt-2 block text-sm underline" href={mediaUrl} target="_blank" rel="noreferrer">{msg.file_name || 'Download attachment'}</a>;
                                                             return isVideo
                                                                 ? <div className="mt-2 relative block max-w-full overflow-hidden rounded-lg bg-black" onClick={(event) => { event.stopPropagation(); if (!event.currentTarget.querySelector('video')?.paused) setMediaPreview({ src: mediaUrl, isVideo: true }); }}>
                                                                     <video src={mediaUrl} controls playsInline preload="metadata" aria-label="Message video. Tap again while playing to view full size." className="block max-w-full max-h-52 rounded-lg" />
@@ -384,13 +562,13 @@ const ChatWidget = () => {
                     )}
 
                     {/* Input Field Section */}
-                    {activeChat && (
+                    {(activeChat || (!userId && guestToken)) && (
                         <div className={`p-2 sm:p-3 bg-white shrink-0 ${replyingTo ? '' : 'border-t border-slate-200'}`}>
-                            {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === String(userId) ? 'yourself' : activeChat.other_user_name}</strong><p className="m-0 truncate">{replyingTo.message || (replyingTo.attachment_path ? 'Attachment' : 'Message')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
+                            {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === (isGuestChat ? 'guest' : String(userId)) ? 'yourself' : (isGuestChat ? 'Admin User' : activeChat?.other_user_name)}</strong><p className="m-0 truncate">{replyingTo.message || 'Attachment'}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                             {attachment && <div className="flex items-center justify-start p-2">
                                 <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
                             </div>}
-                            <form onSubmit={handleSendMessage} className="flex items-center gap-1">
+                            <form onSubmit={isGuestChat ? sendGuestMessage : handleSendMessage} className="flex items-center gap-1">
                                 <div className="flex shrink-0 items-center gap-1">
                                 <label className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
                                 <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} /></button>

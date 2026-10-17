@@ -267,9 +267,7 @@ function AppContent() {
         {/* Anything else: a 404 page instead of a blank screen */}
         <Route path="*" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><NotFound /></BaseAppLayout>} />
       </Routes>
-        {!['/login', '/register', '/admin-messages'].includes(location.pathname)
-          && ((sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')) || localStorage.getItem('ams_guest_token'))
-          && <ChatWidget />}
+        {!['/login', '/register', '/admin-messages'].includes(location.pathname) && <ChatWidget />}
       </>
     </ChatProvider>
   );
