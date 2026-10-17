@@ -18,7 +18,7 @@ import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
-const GUEST_BADGE_CLASS = 'ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200 shrink-0';
+const GUEST_BADGE_CLASS = 'ml-1.5 shrink-0 text-blue-600 font-semibold text-xs';
 
 const formatTime = (date) => {
   if (!date) return '';
@@ -393,7 +393,7 @@ const AdminMessages = () => {
                   <header className="h-[72px] px-4 md:px-6 border-b border-slate-100 flex items-center gap-3 shrink-0">
                     <button type="button" onClick={() => setActiveChat(null)} className="md:hidden p-2 bg-transparent border-0 text-slate-500 cursor-pointer" aria-label="Back to conversations"><FontAwesomeIcon icon={faArrowLeft} /></button>
                     <TenantAvatar conversation={activeChat} sizeClass="w-10 h-10" />
-                    <div className="flex min-w-0 items-center gap-1.5"><h3 className="m-0 text-sm font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3>{isGuestConversation(activeChat) && <span className={GUEST_BADGE_CLASS}>Guest</span>}</div>
+                    <div className="min-w-0"><h3 className="m-0 text-sm font-bold text-slate-900 truncate">{activeChat.other_user_name || 'Tenant'}</h3></div>
                     {debouncedSearch && <div className="ml-auto flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" aria-live="polite">
                       {activeMessageMatches.length ? <>
                         <span>Match {activeMatchIndex + 1} of {activeMessageMatches.length}</span>

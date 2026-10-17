@@ -25,7 +25,7 @@ import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
-const GUEST_BADGE_CLASS = 'ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200 shrink-0';
+const GUEST_BADGE_CLASS = 'ml-1.5 shrink-0 text-blue-600 font-semibold text-xs';
 
 const ChatWidget = () => {
     const navigate = useNavigate();
@@ -51,7 +51,6 @@ const ChatWidget = () => {
     const [isSending, setIsSending] = useState(false);
     const [guestMessages, setGuestMessages] = useState([]);
     const [guestThreads, setGuestThreads] = useState([]);
-    const [conversationFilter, setConversationFilter] = useState('all');
     const [guestToken, setGuestToken] = useState(() => localStorage.getItem('ams_guest_token'));
     const [hasRegisteredUser, setHasRegisteredUser] = useState(() => Boolean(sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')));
 
@@ -95,16 +94,6 @@ const ChatWidget = () => {
             .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0))
         : conversations;
     const totalUnreadCount = displayedConversations.reduce((sum, conv) => sum + Number(conv.unread_count || 0), 0);
-    const visibleConversations = userRole === 'admin'
-        ? displayedConversations.filter((conversation) => conversationFilter === 'all'
-            || (conversationFilter === 'guest' && isGuestConversation(conversation))
-            || (conversationFilter === 'registered' && !isGuestConversation(conversation)))
-        : displayedConversations;
-    const conversationCounts = {
-        all: displayedConversations.length,
-        registered: displayedConversations.filter((conversation) => !isGuestConversation(conversation)).length,
-        guest: displayedConversations.filter(isGuestConversation).length,
-    };
     const guestDownloadUrl = (path) => {
         const url = new URL(fileUrl(path));
         url.searchParams.set('guest_token', guestToken || '');
@@ -373,7 +362,6 @@ const ChatWidget = () => {
                             <span className="font-semibold truncate">
                             {activeChat ? activeChat.other_user_name : guestToken && !userId ? 'Admin User' : 'Messages'}
                             </span>
-                            {isAdminGuestChat && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                         </div>
                         
                         <div className="flex items-center gap-3 shrink-0">
@@ -406,19 +394,11 @@ const ChatWidget = () => {
                     ) : !activeChat && userId ? (
                         /* Conversation Directory List */
                         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
-                            {userRole === 'admin' && <div className="flex items-center gap-1.5 border-b border-slate-100 px-3 py-2" role="group" aria-label="Filter conversations">
-                                {[
-                                    ['all', `All (${conversationCounts.all})`],
-                                    ['registered', `Registered (${conversationCounts.registered})`],
-                                    ['guest', `Guest (${conversationCounts.guest})`],
-                                ].map(([filter, label]) => <button key={filter} type="button" onClick={() => setConversationFilter(filter)} aria-pressed={conversationFilter === filter}
-                                    className={`text-[10px] font-medium px-2.5 py-1.5 rounded-full transition ${conversationFilter === filter ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{label}</button>)}
-                            </div>}
                             <div className="min-h-0 flex-1 overflow-y-auto">
-                            {visibleConversations.length === 0 ? (
+                            {displayedConversations.length === 0 ? (
                                 renderEmptyState()
                             ) : (
-                                visibleConversations.map((conv) => (
+                                displayedConversations.map((conv) => (
                                     <div
                                         key={conv.thread_type === 'guest' ? `guest_${conv.thread_id}` : `user_${conv.other_user_id}`}
                                         onClick={() => {
