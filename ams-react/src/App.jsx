@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import api from './api/axiosConfig';
 import { ChatProvider } from './context/ChatContext';
@@ -9,56 +9,56 @@ import TopBar from './Components/TopBar';
 
 // User Pages
 import Home from './UserPages/Home';
-import Preview from './UserPages/Preview';
-import InquiryForm from './UserPages/InquiryForm';
+const Preview = lazy(() => import('./UserPages/Preview'));
+const InquiryForm = lazy(() => import('./UserPages/InquiryForm'));
 import Login from './UserPages/Login';
-import Registration from './UserPages/Registration';
-import ResetPassword from './UserPages/ResetPassword';
-import Services from './UserPages/Services';
-import PayBills from './UserPages/PayBills';
-import ParkingReservation from './UserPages/ParkingReservation';
-import CctvRequest from './UserPages/CctvRequest'; 
-import MaintenanceRequest from './UserPages/MaintenanceRequest'; 
-import RentApplication from './UserPages/RentApplication';
-import ProfileSettings from './UserPages/ProfileSettings';
-import TrackApplication from './UserPages/TrackApplication';
-import PaymentUpload from './UserPages/PaymentUpload';
-import MyRoom from './UserPages/MyRoom';
-import UserNotifications from './UserPages/UserNotifications';
-import ViewContract from './UserPages/ViewContract';
-import UserMyRequests from './UserPages/UserMyRequests';
-import UserAnnouncements from './UserPages/UserAnnouncements';
-import UserPaymentHistory from './UserPages/UserPaymentHistory';
-import UserRefunds from './UserPages/UserRefunds';
-import UserVisitors from './UserPages/UserVisitors';
-import UserUtilities from './UserPages/UserUtilities';
-import ServiceBooking from './UserPages/ServiceBooking';
-import ServiceCatalog from './UserPages/ServiceCatalog';
+const Registration = lazy(() => import('./UserPages/Registration'));
+const ResetPassword = lazy(() => import('./UserPages/ResetPassword'));
+const Services = lazy(() => import('./UserPages/Services'));
+const PayBills = lazy(() => import('./UserPages/PayBills'));
+const ParkingReservation = lazy(() => import('./UserPages/ParkingReservation'));
+const CctvRequest = lazy(() => import('./UserPages/CctvRequest')); 
+const MaintenanceRequest = lazy(() => import('./UserPages/MaintenanceRequest')); 
+const RentApplication = lazy(() => import('./UserPages/RentApplication'));
+const ProfileSettings = lazy(() => import('./UserPages/ProfileSettings'));
+const TrackApplication = lazy(() => import('./UserPages/TrackApplication'));
+const PaymentUpload = lazy(() => import('./UserPages/PaymentUpload'));
+const MyRoom = lazy(() => import('./UserPages/MyRoom'));
+const UserNotifications = lazy(() => import('./UserPages/UserNotifications'));
+const ViewContract = lazy(() => import('./UserPages/ViewContract'));
+const UserMyRequests = lazy(() => import('./UserPages/UserMyRequests'));
+const UserAnnouncements = lazy(() => import('./UserPages/UserAnnouncements'));
+const UserPaymentHistory = lazy(() => import('./UserPages/UserPaymentHistory'));
+const UserRefunds = lazy(() => import('./UserPages/UserRefunds'));
+const UserVisitors = lazy(() => import('./UserPages/UserVisitors'));
+const UserUtilities = lazy(() => import('./UserPages/UserUtilities'));
+const ServiceBooking = lazy(() => import('./UserPages/ServiceBooking'));
+const ServiceCatalog = lazy(() => import('./UserPages/ServiceCatalog'));
 import NotFound from './UserPages/NotFound';
 
 // Admin Pages
-import AdminDashboard from './AdminPages/AdminDashboard';
-import AdminUnits from './AdminPages/AdminUnits';
-import AdminTenants from './AdminPages/AdminTenants';
-import AdminApplications from './AdminPages/AdminApplications';
-import AdminPayments from './AdminPages/AdminPayments';
-import AdminRefunds from './AdminPages/AdminRefunds';
-import AdminMaintenance from './AdminPages/AdminMaintainance';
-import AdminAnnouncements from './AdminPages/AdminAnnouncements';
-import AdminReports from './AdminPages/AdminReports';
-import AdminNotifications from './AdminPages/AdminNotifications';
-import AdminContracts from './AdminPages/AdminContracts';
-import AdminContractEditor from './AdminPages/AdminContractEditor';
-import AdminServicePage from './AdminPages/AdminServicePage';
-import AdminAccountSettings from './AdminPages/AdminAccountSettings';
-import AdminActivityLogs from './AdminPages/AdminActivityLogs';
-import AdminUsers from './AdminPages/AdminUsers';
-import AdminVisitors from './AdminPages/AdminVisitors';
-import AdminCctv from './AdminPages/AdminCctv';
-import AdminParking from './AdminPages/AdminParking';
-import AdminUtilities from './AdminPages/AdminUtilities';
-import AdminInquiries from './AdminPages/AdminInquiries';
-import AdminMessages from './AdminPages/AdminMessages';
+const AdminDashboard = lazy(() => import('./AdminPages/AdminDashboard'));
+const AdminUnits = lazy(() => import('./AdminPages/AdminUnits'));
+const AdminTenants = lazy(() => import('./AdminPages/AdminTenants'));
+const AdminApplications = lazy(() => import('./AdminPages/AdminApplications'));
+const AdminPayments = lazy(() => import('./AdminPages/AdminPayments'));
+const AdminRefunds = lazy(() => import('./AdminPages/AdminRefunds'));
+const AdminMaintenance = lazy(() => import('./AdminPages/AdminMaintainance'));
+const AdminAnnouncements = lazy(() => import('./AdminPages/AdminAnnouncements'));
+const AdminReports = lazy(() => import('./AdminPages/AdminReports'));
+const AdminNotifications = lazy(() => import('./AdminPages/AdminNotifications'));
+const AdminContracts = lazy(() => import('./AdminPages/AdminContracts'));
+const AdminContractEditor = lazy(() => import('./AdminPages/AdminContractEditor'));
+const AdminServicePage = lazy(() => import('./AdminPages/AdminServicePage'));
+const AdminAccountSettings = lazy(() => import('./AdminPages/AdminAccountSettings'));
+const AdminActivityLogs = lazy(() => import('./AdminPages/AdminActivityLogs'));
+const AdminUsers = lazy(() => import('./AdminPages/AdminUsers'));
+const AdminVisitors = lazy(() => import('./AdminPages/AdminVisitors'));
+const AdminCctv = lazy(() => import('./AdminPages/AdminCctv'));
+const AdminParking = lazy(() => import('./AdminPages/AdminParking'));
+const AdminUtilities = lazy(() => import('./AdminPages/AdminUtilities'));
+const AdminInquiries = lazy(() => import('./AdminPages/AdminInquiries'));
+const AdminMessages = lazy(() => import('./AdminPages/AdminMessages'));
 
 function ProtectedRoute({ children }) {
   useLocation();
@@ -206,6 +206,7 @@ function AppContent() {
   return (
     <ChatProvider>
       <>
+      <Suspense fallback={null}>
       <Routes>
         {/* PUBLIC ROUTES */}
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -267,6 +268,7 @@ function AppContent() {
         {/* Anything else: a 404 page instead of a blank screen */}
         <Route path="*" element={<BaseAppLayout hasRentedRoom={hasRentedRoom}><NotFound /></BaseAppLayout>} />
       </Routes>
+      </Suspense>
         {!['/login', '/register', '/admin-messages'].includes(location.pathname)
           && ((sessionStorage.getItem('loggedInUser') || localStorage.getItem('loggedInUser')) || localStorage.getItem('ams_guest_token'))
           && <ChatWidget />}

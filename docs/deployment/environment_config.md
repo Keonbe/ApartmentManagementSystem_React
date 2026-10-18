@@ -29,6 +29,7 @@ The Railway domain is the **API**, not the database. The Dockerfile copies `back
 | Setting | Local default / example | Railway value | Purpose |
 |---|---|---|---|
 | `DB_HOST` | `localhost` | reference → MariaDB private host | DB connection |
+| `DB_PERSISTENT` | unset | `1` on prod if the DB is on another host | Reuse the DB connection across requests (saves the handshake round-trips) |
 | `DB_PORT` | `3306` | reference → MariaDB private port | |
 | `DB_USER` | `root` | reference → MariaDB user | |
 | `DB_PASS` | *(empty)* | reference → MariaDB password | |

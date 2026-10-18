@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Eye, Mail, MapPin, CheckCircle2, ShieldCheck } from 'lucide-react';
-import ApartmentPic from '../assets/Apartment_Pic.png';
+import ApartmentPic from '../assets/Apartment_Pic.webp';
 import RoomPreviewModal from '../Components/RoomPreviewModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
 import api from '../api/axiosConfig';

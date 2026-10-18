@@ -9,7 +9,7 @@ import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import PasswordChecklist from '../Components/form/PasswordChecklist';
 import { invalidCls } from '../Components/form/formHelpers';
-import ApartmentPic from "../assets/Apartment_Pic.png";
+import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/registration.responsive.css';
 
 const INPUT_CLS = "block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border";

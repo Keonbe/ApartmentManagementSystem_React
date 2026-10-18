@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt } from '@fortawesome/free-solid-svg-icons';
-import ApartmentPic from '../assets/Apartment_Pic.png';
+import ApartmentPic from '../assets/Apartment_Pic.webp';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
 import { addDays, checkDate, checkIntRange } from '../utils/validation';

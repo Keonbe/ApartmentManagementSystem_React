@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowLeft, faCloudUploadAlt, faHourglassHalf, faCheckCircle, faTimesCircle, faUndo, faEye } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import ApartmentPic from '../assets/Apartment_Pic.png';
+import ApartmentPic from '../assets/Apartment_Pic.webp';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';

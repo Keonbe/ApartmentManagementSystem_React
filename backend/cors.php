@@ -17,6 +17,10 @@ header_remove('Access-Control-Allow-Headers');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Guest-Token, X-User-Id, X-Admin-Id');
 
+// Let the browser reuse a preflight answer. Without this every cross-origin API
+// call (the Authorization header forces one) costs an extra OPTIONS round-trip.
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') header('Access-Control-Max-Age: 7200');
+
 // Skipped under the API test suite, like in config.php.
 if (getenv('AMS_TEST_MODE') !== '1' && file_exists(__DIR__ . '/config.env.php')) {
     require_once __DIR__ . '/config.env.php';

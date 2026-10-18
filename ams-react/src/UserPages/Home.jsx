@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight, Mail, MapPin, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import ApartmentPic from '../assets/Apartment_Pic.png';
+import ApartmentPic from '../assets/Apartment_Pic.webp';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/home.responsive.css';

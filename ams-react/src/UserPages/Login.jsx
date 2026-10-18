@@ -3,7 +3,7 @@ import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
-import ApartmentPic from "../assets/Apartment_Pic.png";
+import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/login.responsive.css';
 import { LIMITS, checkEmail, normalizeEmail } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';

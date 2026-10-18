@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import ApartmentPic from "../assets/Apartment_Pic.png";
+import ApartmentPic from "../assets/Apartment_Pic.webp";
 import { checkNewPassword, checkPasswordMatch } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';

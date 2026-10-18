@@ -10,7 +10,7 @@ import {
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import fileUrl from '../api/fileUrl';
-import ApartmentPic from '../assets/Apartment_Pic.png';
+import ApartmentPic from '../assets/Apartment_Pic.webp';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';

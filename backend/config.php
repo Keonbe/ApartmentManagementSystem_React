@@ -116,7 +116,11 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 // cause so a production failure isn't just a blank 500.
 $db_error = null;
 try {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+    // DB_PERSISTENT=1 reuses the connection across requests ("p:" prefix). For a
+    // database on another host this skips the TCP + login handshake (several
+    // round-trips) that every request otherwise pays. Off by default.
+    $db_host = ams_env('DB_PERSISTENT', '') === '1' && !$ams_test_mode ? 'p:' . DB_HOST : DB_HOST;
+    $conn = new mysqli($db_host, DB_USER, DB_PASS, DB_NAME, DB_PORT);
     if ($conn->connect_error) $db_error = $conn->connect_error;
 } catch (mysqli_sql_exception $e) {
     $db_error = $e->getMessage();

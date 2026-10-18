@@ -10,6 +10,12 @@
   </If>
 </IfModule>
 
+# Compress text responses (the JS bundle is ~4x smaller on the wire). Images
+# are already compressed and are left alone.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript application/json image/svg+xml
+</IfModule>
+
 # Client-side routes (/pay-bills, /my-room, ...) are not files. Without this a
 # reload or a typed deep link gets Apache's 404 instead of the app, which then
 # shows its own 404 page for a route it does not know.

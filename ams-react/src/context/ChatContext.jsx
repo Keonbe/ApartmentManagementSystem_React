@@ -340,7 +340,14 @@ export const ChatProvider = ({ children }) => {
         ensureSocketConnection();
         refreshChatState();
 
+        // Polling is only the fallback for the socket: skip hidden tabs (they
+        // refresh when shown again) and, while the socket is live, poll 1 in 5.
+        // Many open admin tabs polling every few seconds used to saturate the server.
+        let conversationTick = 0;
         conversationsPollRef.current = window.setInterval(() => {
+            if (document.hidden) return;
+            conversationTick += 1;
+            if (socketRef.current?.connected && conversationTick % 5 !== 0) return;
             fetchConversations();
         }, 6000);
 
@@ -398,7 +405,11 @@ export const ChatProvider = ({ children }) => {
 
         fetchChatHistory(activeChat.other_user_id, shouldMarkAsRead());
 
+        let historyTick = 0;
         historyPollRef.current = window.setInterval(() => {
+            if (document.hidden) return;
+            historyTick += 1;
+            if (socketRef.current?.connected && historyTick % 6 !== 0) return;
             const currentChat = activeChatRef.current;
             if (currentChat?.other_user_id) {
                 const shouldMarkAsRead = document.visibilityState === 'visible'
