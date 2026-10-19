@@ -52,9 +52,11 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
 
         setIsSubmitting(true);
         try {
+            // Sent so a guest chat started in this browser follows the account.
             const res = await api.post("/login.php", {
                 email_address: clean,
-                password
+                password,
+                guest_token: localStorage.getItem('ams_guest_token') || undefined
             });
 
             if (res.data.valid) {

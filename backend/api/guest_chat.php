@@ -7,7 +7,7 @@ require_once __DIR__ . '/../config.php';
 $auth = get_authenticated_user($conn);
 $body = json_decode(file_get_contents('php://input'), true) ?: [];
 $body = $_POST ?: $body;
-$token = trim((string)($body['guest_token'] ?? $_GET['guest_token'] ?? $_SERVER['HTTP_X_GUEST_TOKEN'] ?? ''));
+$token = trim((string)($body['guest_token'] ?? $_SERVER['HTTP_X_GUEST_TOKEN'] ?? ''));
 $threadId = (int)($body['thread_id'] ?? $_GET['thread_id'] ?? 0);
 $isAdmin = $auth && $auth['role'] === 'admin';
 
@@ -64,6 +64,21 @@ try {
         $insert->execute();
         $newMessageId = $insert->insert_id;
         $insert->close();
+        if ($isAdmin) {
+            resolve_admin_queue($conn, 'inquiry', 'chat-' . $thread['id']);
+            log_activity($conn, (int)$auth['id'], 'inquiry', 'Replied To Guest Chat', "Inquiry ID: {$thread['id']}");
+        } else {
+            // One pending bell entry per thread, not one per message; it clears when an admin opens the thread.
+            $queueKey = 'inquiry:chat-' . $thread['id'];
+            $pending = $conn->prepare("SELECT id FROM notifications WHERE type = 'inquiry' AND metadata_value = ? AND status = 'Pending' LIMIT 1");
+            $pending->bind_param('s', $queueKey); $pending->execute();
+            $hasPending = (bool)$pending->get_result()->fetch_assoc(); $pending->close();
+            if (!$hasPending) {
+                $who = $thread['guest_name'] ?: 'A guest';
+                notify_admins_queue($conn, 'inquiry', 'chat-' . $thread['id'], 'New Guest Message', "$who sent a message in their inquiry chat.");
+            }
+            log_activity($conn, null, 'inquiry', 'Guest Chat Message Sent', "Inquiry ID: {$thread['id']}", 0);
+        }
         if ($message !== '') {
             $updateInquiry = $conn->prepare('UPDATE inquiries SET message = ? WHERE id = ?');
             if (!$updateInquiry) throw new Exception('Unable to prepare inquiry preview update: ' . $conn->error);
@@ -83,6 +98,7 @@ try {
     $markRead->bind_param('is', $thread['id'], $receivedRole);
     $markRead->execute();
     $markRead->close();
+    if ($isAdmin) resolve_admin_queue($conn, 'inquiry', 'chat-' . $thread['id']);
 
     $q = $conn->prepare("SELECT m.id, m.inquiry_id, m.sender_role, m.sender_id, m.message, m.attachment_path, m.attachment_path AS file_path, m.attachment_path AS attachment_url, m.attachment_path AS media_url, m.created_at, m.is_read, m.reply_to_id, r.message AS reply_message, r.attachment_path AS reply_attachment_path, r.attachment_path AS reply_file_path, r.attachment_path AS reply_attachment_url, r.sender_id AS reply_sender_id, r.sender_role AS reply_sender_role, r.sender_id AS reply_sender_name FROM guest_messages m LEFT JOIN guest_messages r ON r.id = m.reply_to_id AND r.inquiry_id = m.inquiry_id WHERE m.inquiry_id = ? ORDER BY m.id ASC");
     if (!$q) throw new Exception('Unable to prepare guest history query: ' . $conn->error);

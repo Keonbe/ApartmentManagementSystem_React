@@ -142,7 +142,7 @@ if ($notification_recipients !== null) {
     }
 } elseif ($guest_thread_id !== null) {
     $auth = get_authenticated_user($conn);
-    $guestToken = trim((string)($_GET['guest_token'] ?? $_SERVER['HTTP_X_GUEST_TOKEN'] ?? ''));
+    $guestToken = trim((string)($_SERVER['HTTP_X_GUEST_TOKEN'] ?? ''));
     $authorizedGuest = false;
     if (!$auth && strlen($guestToken) === 64 && ctype_xdigit($guestToken)) {
         $stmt = $conn->prepare("SELECT id FROM inquiries WHERE id = ? AND guest_token = ? AND thread_type = 'guest'");

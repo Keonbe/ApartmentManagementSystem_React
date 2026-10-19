@@ -94,11 +94,37 @@ const ChatWidget = () => {
             .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0))
         : conversations;
     const totalUnreadCount = displayedConversations.reduce((sum, conv) => sum + Number(conv.unread_count || 0), 0);
-    const guestDownloadUrl = (path) => {
-        const url = new URL(fileUrl(path));
-        url.searchParams.set('guest_token', guestToken || '');
-        return url.toString();
-    };
+    // A guest's attachments are fetched with the token in a header and shown from
+    // a blob URL, so the token never appears in a URL (logs, history, referrers).
+    const [guestMediaUrls, setGuestMediaUrls] = useState({});
+    const guestMediaRequested = useRef(new Map());
+    const guestDownloadUrl = (path) => guestMediaUrls[path] || null;
+    useEffect(() => {
+        if (!isGuestChat) return;
+        for (const msg of activeMessages) {
+            const paths = [msg.attachment_path || msg.file_path || msg.attachment_url || msg.media_url, msg.reply_attachment_path];
+            for (const path of paths) {
+                if (!path || guestMediaRequested.current.has(path)) continue;
+                guestMediaRequested.current.set(path, null);
+                api.get('download_file.php', {
+                    params: { path: String(path).replace(/^(\.\.\/)+/, '') },
+                    headers: { 'X-Guest-Token': guestToken },
+                    responseType: 'blob',
+                }).then((response) => {
+                    const url = URL.createObjectURL(response.data);
+                    guestMediaRequested.current.set(path, url);
+                    setGuestMediaUrls((current) => ({ ...current, [path]: url }));
+                }).catch(() => guestMediaRequested.current.delete(path));
+            }
+        }
+    }, [isGuestChat, guestToken, activeMessages]);
+    useEffect(() => {
+        const requested = guestMediaRequested.current;
+        return () => {
+            for (const url of requested.values()) if (url) URL.revokeObjectURL(url);
+            requested.clear();
+        };
+    }, [guestToken]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
