@@ -116,6 +116,10 @@ export default function InquiryForm() {
             });
 
             if (res.data.success) {
+                if (res.data.guest_token) {
+                    localStorage.setItem('ams_guest_token', res.data.guest_token);
+                    localStorage.setItem('ams_guest_info', JSON.stringify({ name: clean.full_name, email: clean.email, phone: toPhE164(contactNo), thread_id: res.data.thread_id }));
+                }
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
                 setErrorMsg(res.data.message || t('inquiry.errorNetwork'));

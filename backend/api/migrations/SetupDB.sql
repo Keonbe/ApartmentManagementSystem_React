@@ -537,7 +537,14 @@ CREATE TABLE IF NOT EXISTS `inquiries` (
   `ip_address` varchar(45) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `thread_type` enum('registered','guest') NOT NULL DEFAULT 'registered',
+  `guest_token` varchar(64) DEFAULT NULL,
+  `guest_name` varchar(150) DEFAULT NULL,
+  `guest_email` varchar(150) DEFAULT NULL,
+  `guest_phone` varchar(30) DEFAULT NULL,
+  `unit_of_interest` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_inquiries_guest_token` (`guest_token`),
   KEY `idx_inquiry_status` (`status`),
   KEY `idx_inquiry_room` (`room_name`),
   KEY `fk_inquiry_user` (`user_id`),
@@ -1077,7 +1084,7 @@ CREATE TABLE IF NOT EXISTS `payment_transactions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Tenant split payments: the portions a tenant submitted, kept until the admin
--- confirms or rejects them (2026_10_payment_proof_parts.sql).
+-- confirms or rejects them (2026_10_guest_chat_and_split_payment.sql).
 CREATE TABLE IF NOT EXISTS `payment_proof_parts` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `payment_key` varchar(50) NOT NULL,
@@ -1090,6 +1097,24 @@ CREATE TABLE IF NOT EXISTS `payment_proof_parts` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_payment_proof_parts_key` (`payment_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Guest (not-yet-registered) inquiry chat, kept apart from `messages` so its
+-- sender/receiver foreign keys stay unchanged (2026_10_guest_chat_and_split_payment.sql).
+CREATE TABLE IF NOT EXISTS `guest_messages` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `inquiry_id` int(11) NOT NULL,
+  `sender_role` enum('admin','guest') NOT NULL,
+  `sender_id` int(11) DEFAULT NULL,
+  `message` text NOT NULL,
+  `attachment_path` varchar(255) DEFAULT NULL,
+  `reply_to_id` int(11) DEFAULT NULL,
+  `is_read` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_guest_messages_thread` (`inquiry_id`,`id`),
+  CONSTRAINT `fk_guest_messages_inquiry` FOREIGN KEY (`inquiry_id`) REFERENCES `inquiries` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_guest_messages_sender` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Chat messages between a tenant and an admin (send_message.php,

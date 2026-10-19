@@ -33,6 +33,9 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             store.removeItem("loggedInUser");
             store.removeItem("sessionToken");
         }
+        for (const key of Object.keys(localStorage)) {
+            if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
+        }
         window.dispatchEvent(new Event('auth-changed'));
         navigate('/login');
     };

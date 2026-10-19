@@ -60,6 +60,7 @@ $six = [$candidates[0], $candidates[1], $candidates[0], $candidates[1], $candida
 $owner = null;
 $access = 'owner';
 $chat_participants = null;
+$guest_thread_id = null;
 $notification_recipients = null;
 
 if ($owner === null) {
@@ -71,7 +72,7 @@ if ($owner === null) {
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM lease_contracts lc JOIN rent_applications ra ON ra.id = lc.rent_application_id WHERE lc.signed_lease_path IN (?,?) OR lc.notarized_lease_path IN (?,?) OR lc.tenant_signature_path IN (?,?) OR lc.owner_signature_path IN (?,?) LIMIT 1", array_merge($six, $two));
 }
-if ($owner === null) {
+if ($owner === null && table_has_column($conn, 'utility_readings', 'bill_file_path')) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM utility_readings WHERE bill_file_path IN (?,?) AND user_id IS NOT NULL LIMIT 1", $two);
 }
 if ($owner === null) {
@@ -105,6 +106,21 @@ if ($owner === null) {
     $chat_participants = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 }
+if ($owner === null && $chat_participants === null) {
+    $stmt = $conn->prepare('SELECT inquiry_id FROM guest_messages WHERE attachment_path IN (?,?) LIMIT 1');
+    $stmt->bind_param('ss', $candidates[0], $candidates[1]);
+    $stmt->execute();
+    $guestMedia = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($guestMedia) {
+        $stmt = $conn->prepare('SELECT inquiry_id FROM guest_messages WHERE inquiry_id = ? AND attachment_path IN (?,?) LIMIT 1');
+        $stmt->bind_param('iss', $guestMedia['inquiry_id'], $candidates[0], $candidates[1]);
+        $stmt->execute();
+        $guestThreadMedia = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($guestThreadMedia) $guest_thread_id = (int)$guestThreadMedia['inquiry_id'];
+    }
+}
 if ($owner === null) {
     // Visitor ID photos belong to a third party, not the hosting tenant —
     // only an admin may view them, regardless of whose unit they visited.
@@ -112,7 +128,7 @@ if ($owner === null) {
     if ($owner !== null) $access = 'admin_only';
 }
 
-if ($owner === null && $chat_participants === null && $notification_recipients === null) download_fail(404, "File not found.");
+if ($owner === null && $chat_participants === null && $guest_thread_id === null && $notification_recipients === null) download_fail(404, "File not found.");
 
 if ($notification_recipients !== null) {
     $auth = get_authenticated_user($conn);
@@ -124,6 +140,18 @@ if ($notification_recipients !== null) {
     if (!$auth || ($auth['role'] !== 'admin' && (int)$auth['id'] !== (int)$chat_participants['sender_id'] && (int)$auth['id'] !== (int)$chat_participants['receiver_id'])) {
         download_fail($auth ? 403 : 401, $auth ? "Forbidden." : "Unauthorized.");
     }
+} elseif ($guest_thread_id !== null) {
+    $auth = get_authenticated_user($conn);
+    $guestToken = trim((string)($_GET['guest_token'] ?? $_SERVER['HTTP_X_GUEST_TOKEN'] ?? ''));
+    $authorizedGuest = false;
+    if (!$auth && strlen($guestToken) === 64 && ctype_xdigit($guestToken)) {
+        $stmt = $conn->prepare("SELECT id FROM inquiries WHERE id = ? AND guest_token = ? AND thread_type = 'guest'");
+        $stmt->bind_param('is', $guest_thread_id, $guestToken);
+        $stmt->execute();
+        $authorizedGuest = (bool)$stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+    if (!$authorizedGuest && (!$auth || $auth['role'] !== 'admin')) download_fail($auth ? 403 : 401, $auth ? "Forbidden." : "Unauthorized.");
 } elseif ($access === 'admin_only') {
     require_admin($conn);
 } else {

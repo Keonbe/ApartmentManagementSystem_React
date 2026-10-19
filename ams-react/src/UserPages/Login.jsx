@@ -58,6 +58,9 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
             });
 
             if (res.data.valid) {
+                for (const key of Object.keys(localStorage)) {
+                    if (key === 'ams_guest_token' || key.startsWith('ams_guest_')) localStorage.removeItem(key);
+                }
                 sessionStorage.setItem("loggedInUser", JSON.stringify(res.data.user));
                 if (res.data.sessionToken) {
                     sessionStorage.setItem("sessionToken", res.data.sessionToken);
