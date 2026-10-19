@@ -19,7 +19,7 @@ export default function HouseRulesModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="house-rules-title" className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl">
         <header className="flex items-center justify-between gap-4 bg-[#3b4276] px-6 py-5 text-white sm:px-8">
           <div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15"><BookOpen className="h-5 w-5" /></span><div><h2 id="house-rules-title" className="m-0 text-xl font-black">{t('houseRules.title')}</h2></div></div>
