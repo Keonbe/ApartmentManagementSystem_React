@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +15,8 @@ import { daysPastDue, formatCoveredPeriod, formatDay, formatPeriodRange, isBundl
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import FileChip from '../Components/form/FileChip';
+import SplitPaymentForm from '../Components/SplitPaymentForm';
+import { checkSplit, emptyPortion } from '../utils/splitPayment';
 import { invalidCls } from '../Components/form/formHelpers';
 
 // schedule_payment.php accepts today up to 60 days ahead, morning/afternoon.
@@ -341,6 +343,11 @@ export default function PayBills() {
                         
                         return { ...ch, icon, color, isGcash: ch.icon === 'gcash' };
                     });
+                    // Splitting a bill across methods rests on manual proofs, so it is
+                    // offered with them, after the other methods.
+                    if (mapped.some(ch => ch.family === 'manual')) {
+                        mapped.push({ id: 'split', label: 'Split payment', family: 'split', icon: faCoins, color: 'text-amber-600' });
+                    }
                     setPaymentChannels(mapped);
                     if (mapped.length > 0) {
                         setSelectedMethod(mapped[0].id);
@@ -392,9 +399,15 @@ export default function PayBills() {
     const handleMethodSelect = (methodId) => {
         setSelectedMethod(methodId);
         setIsDropdownOpen(false);
+        setSplitAttempted(false);
         payForm.setErrors({});
     };
 
+    // Split payment: the portions being entered, and whether a submit was tried
+    // (errors show only then).
+    const [splitParts, setSplitParts] = useState(() => [emptyPortion('cash'), emptyPortion('gcash')]);
+    const [splitAttempted, setSplitAttempted] = useState(false);
+    const splitTotal = payingGroup ? (parseFloat(activeGroup.total) || 0) : totalAmount;
     const [paymentReference, setPaymentReference] = useState('');
     const [proofFile, setProofFile] = useState(null);
     const [isPaying, setIsPaying] = useState(false);
@@ -461,6 +474,44 @@ export default function PayBills() {
             } catch (error) {
                 console.error(error);
                 if (!payForm.applyServerErrors(error)) alert(apiErrorMessage(error, "Failed to schedule payment."));
+            }
+            return;
+        }
+
+        if (currentMethodObj.family === 'split') {
+            setSplitAttempted(true);
+            if (!checkSplit(splitParts, splitTotal, scheduledDate).valid) return;
+            const formData = new FormData();
+            formData.append('invoice_id', payKey);
+            if (splitParts.some(p => p.method === 'cash')) {
+                formData.append('scheduled_date', scheduledDate);
+                formData.append('scheduled_time_slot', scheduledTimeSlot);
+            }
+            formData.append('parts', JSON.stringify(splitParts.map(p => ({
+                method: p.method,
+                amount: Number(p.amount),
+                bank_name: p.method === 'bank_transfer' ? p.bank_name : undefined,
+                reference_number: p.method === 'cash' ? undefined : p.reference_number.trim(),
+            }))));
+            splitParts.forEach((p, i) => { if (p.method !== 'cash') formData.append(`proof_${i}`, p.proof); });
+            const hadCash = splitParts.some(p => p.method === 'cash');
+            try {
+                const res = await api.post('/submit_split_payment.php', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+                if (res.data.success) {
+                    setSplitParts([emptyPortion('cash'), emptyPortion('gcash')]);
+                    setScheduledDate('');
+                    setSplitAttempted(false);
+                    window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
+                    setNotice({
+                        message: payingGroup ? `${groupWord} submitted` : 'Payment submitted',
+                        subtext: `Your split payment for ${payLabel} is awaiting verification by management.${hadCash ? ` Pay the cash portion at the admin office on ${scheduledDate} (${scheduledTimeSlot}).` : ''} This page updates by itself, and you will be notified once it is confirmed.`,
+                    });
+                } else {
+                    alert(res.data.message);
+                }
+            } catch (error) {
+                console.error('Error submitting split payment:', error);
+                alert(apiErrorMessage(error, 'Split payment failed.'));
             }
             return;
         }
@@ -912,7 +963,7 @@ export default function PayBills() {
                                     ) : (
                                         <FontAwesomeIcon icon={currentMethodObj.icon} className={`text-base ${currentMethodObj.color}`} />
                                     )}
-                                    <span>{currentMethodObj.label}</span>
+                                    <span>{currentMethodObj.family === 'split' ? t('payBills.splitPayment') : currentMethodObj.label}</span>
                                 </div>
                                 <FontAwesomeIcon icon={faChevronDown} className={`text-slate-400 text-xs transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
@@ -933,7 +984,7 @@ export default function PayBills() {
                                                 ) : (
                                                     <FontAwesomeIcon icon={method.icon} className={`text-base ${method.color}`} />
                                                 )}
-                                                <span>{method.label}</span>
+                                                <span>{method.family === 'split' ? t('payBills.splitPayment') : method.label}</span>
                                             </div>
                                             {selectedMethod === method.id && (
                                                 <FontAwesomeIcon icon={faCheckCircle} className="text-indigo-500 text-sm" />
@@ -995,6 +1046,11 @@ export default function PayBills() {
                                     <FileChip file={proofFile} onRemove={clearProof} />
                                 </div>
                             </div>
+                        )}
+
+                        {currentMethodObj.family === 'split' && (
+                            <SplitPaymentForm parts={splitParts} setParts={setSplitParts} total={splitTotal} showErrors={splitAttempted} fmtMoney={fmtMoney}
+                                scheduledDate={scheduledDate} setScheduledDate={setScheduledDate} scheduledTimeSlot={scheduledTimeSlot} setScheduledTimeSlot={setScheduledTimeSlot} />
                         )}
 
                         {currentMethodObj.family === 'in_person' && (
@@ -1064,7 +1120,7 @@ export default function PayBills() {
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
-                                disabled={isPaying || (payingGroup ? false : (!activeInv || isAwaiting))}
+                                disabled={isPaying || (currentMethodObj.family === 'split' && !checkSplit(splitParts, splitTotal, scheduledDate).valid) || (payingGroup ? false : (!activeInv || isAwaiting))}
                                 className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed disabled:hover:scale-100"
                             >
                                 {isPaying ? 'Processing…' : payingGroup

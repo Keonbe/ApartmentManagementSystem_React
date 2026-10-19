@@ -50,6 +50,7 @@ TRUNCATE TABLE `sessions`;
 TRUNCATE TABLE `login_attempts`;
 TRUNCATE TABLE `password_resets`;
 TRUNCATE TABLE `password_reset_requests`;
+TRUNCATE TABLE `payment_proof_parts`;
 TRUNCATE TABLE `payment_transactions`;
 TRUNCATE TABLE `rate_limit_events`;
 

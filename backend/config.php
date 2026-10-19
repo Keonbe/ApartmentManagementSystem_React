@@ -1243,6 +1243,12 @@ const BILLING_OPEN_STATUSES = [
     'scheduled', 'processing', 'payment-failed'
 ];
 
+// Open bills the front desk may record: the tenant has acted in Pay Bills (a
+// proof is under review, a visit is scheduled, or an online attempt failed).
+// A bill the tenant has not touched is not cleared for them.
+// Mirrored by TENANT_ACTED_STATUSES in AdminPayments.jsx.
+const ADMIN_RECORDABLE_STATUSES = ['pending-verification', 'scheduled', 'payment-failed'];
+
 // Ready-to-interpolate SQL tuple, e.g. "('pending','unpaid',...)". The values
 // are hardcoded constants above (never request input), so inlining them is
 // safe and keeps the many call sites from each needing dynamic placeholders.
@@ -1895,6 +1901,69 @@ function desk_methods_for_label($label) {
     if (strpos($l, 'cash') !== false || strpos($l, 'in-person') !== false || strpos($l, 'in person') !== false) return ['cash'];
     if (strpos($l, 'bank') !== false || strpos($l, 'bdo') !== false || strpos($l, 'bpi') !== false) return ['bank_transfer'];
     return [];
+}
+
+// Label a tenant's split payment carries in invoices.payment_method.
+const SPLIT_PAYMENT_LABEL = 'Split payment';
+
+// Checks payment portions (the admin desk's `payments` and a tenant's split):
+// method, amount, bank and reference rules. Returns ['ok' => true, 'parts' =>
+// normalized portions, 'total_cents' => sum] or ['ok' => false, 'message' => ...].
+function normalize_payment_portions($payments, $max = 10) {
+    $fail = fn($message) => ['ok' => false, 'message' => $message];
+    if (!is_array($payments) || !$payments || count($payments) > $max) {
+        return $fail("Provide between 1 and $max payment portions.");
+    }
+    $normalized = [];
+    $total_cents = 0;
+    foreach ($payments as $part) {
+        if (!is_array($part)) return $fail("Invalid payment portion.");
+        $method = strtolower(trim((string)($part['method'] ?? '')));
+        $amount_raw = $part['amount'] ?? null;
+        $bank_name = trim((string)($part['bank_name'] ?? ''));
+        $reference = trim((string)($part['reference_number'] ?? ''));
+        if (!in_array($method, ['cash', 'gcash', 'bank_transfer'], true) || !is_numeric($amount_raw) || (float)$amount_raw <= 0 || round((float)$amount_raw, 2) !== (float)$amount_raw) {
+            return $fail("Each portion needs a supported method and a positive amount with at most two decimals.");
+        }
+        // A listed bank, or the name typed after choosing "Other" — the page
+        // sends that name, never the word "Other" itself.
+        $listed_bank = $bank_name !== 'Other' && in_array($bank_name, PHILIPPINE_BANKS, true);
+        $custom_bank = (bool)preg_match('/^[\p{L}\p{N}][\p{L}\p{N} .&\'\-]{1,59}$/u', $bank_name) && strcasecmp($bank_name, 'Other') !== 0;
+        if ($method === 'bank_transfer' && !$listed_bank && !$custom_bank) {
+            return $fail("Choose a supported originating bank for each bank transfer.");
+        }
+        if ($method === 'gcash' && $reference !== '' && !preg_match('/^\d{13}$/', $reference)) {
+            return $fail("GCash reference numbers must be exactly 13 digits.");
+        }
+        if ($method === 'bank_transfer' && $reference !== '' && (strlen($reference) > 55 || preg_match('/^\d+$/', $reference))) {
+            return $fail("Bank references must be 55 characters or fewer and cannot contain digits only.");
+        }
+        if ($method !== 'bank_transfer') $bank_name = '';
+        $part['method'] = $method;
+        $part['amount'] = round((float)$amount_raw, 2);
+        $part['bank_name'] = $bank_name ?: null;
+        $part['reference_number'] = $reference ?: null;
+        $normalized[] = $part;
+        $total_cents += (int)round((float)$amount_raw * 100);
+    }
+    return ['ok' => true, 'parts' => $normalized, 'total_cents' => $total_cents];
+}
+
+// The portions a tenant submitted for a payment key, in order.
+function payment_proof_parts($conn, $key) {
+    $stmt = $conn->prepare("SELECT method, bank_name, amount, reference_number, proof_path FROM payment_proof_parts WHERE payment_key = ? ORDER BY position ASC, id ASC");
+    $stmt->bind_param('s', $key);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+}
+
+function clear_payment_proof_parts($conn, $key) {
+    $stmt = $conn->prepare("DELETE FROM payment_proof_parts WHERE payment_key = ?");
+    $stmt->bind_param('s', $key);
+    $stmt->execute();
+    $stmt->close();
 }
 
 // ── Advance payments (panel feedback 2026-09-26) ──

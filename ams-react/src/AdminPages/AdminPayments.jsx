@@ -25,6 +25,9 @@ const formatCurrency = (n) => `₱${Number(n).toLocaleString()}`;
 // separately on each transaction.
 const METHODS = ['cash', 'gcash', 'bank_transfer'];
 const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
+// Bills the desk may clear: the tenant has acted in Pay Bills. Mirrors ADMIN_RECORDABLE_STATUSES (backend/config.php).
+const TENANT_ACTED_STATUSES = ['pending-verification', 'scheduled', 'payment-failed'];
+const BLANK_PARTS = [{ method: 'cash', bank_name: '', amount: '', reference_number: '' }];
 // The desk methods a tenant's channel label ('GCash (Manual)', 'BPI (Manual)',
 // 'Cash on Hand', …) can be recorded as — mirrors desk_methods_for_label().
 const deskMethodsFor = (label) => {
@@ -245,6 +248,7 @@ const AdminPayments = () => {
           if (sel.proof_of_payment_path) t.proofOfPaymentPath = sel.proof_of_payment_path;
           if (sel.payment_reference) t.paymentReference = sel.payment_reference;
           if (sel.sender_name) t.senderName = sel.sender_name;
+          if (sel.split_parts?.length) t.splitParts = sel.split_parts;
           if (sel.payment_gateway) t.paymentGateway = sel.payment_gateway;
           // How the tenant chose to pay this bill. A proof under review locks
           // the desk to that method (record_payment_admin.php enforces it).
@@ -310,9 +314,8 @@ const AdminPayments = () => {
   // Payment Recording States
   const [methodChoice, setMethodChoice] = useState({ tenant: null, method: 'cash' });
   const [tender, setTender] = useState({ tenant: null, value: '' });
-  const [splitMode, setSplitMode] = useState(false);
-  const [paymentParts, setPaymentParts] = useState([{ method: 'cash', bank_name: '', amount: '', reference_number: '' }]);
-  const [paymentReference, setPaymentReference] = useState('');
+  const [splitChoice, setSplitChoice] = useState({ tenant: null, on: false, parts: null });
+  const [refChoice, setRefChoice] = useState({ tenant: null, value: '' });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const confirmTarget = useRef(null);
   const receiptRef = useRef(null);
@@ -367,6 +370,10 @@ const AdminPayments = () => {
   const chosenMethod = methodChoice.tenant === activeTenant ? methodChoice.method : (activeTenant?.declaredMethod || 'cash');
   const paymentMethod = allowedMethods.includes(chosenMethod) ? chosenMethod : allowedMethods[0];
   const setPaymentMethod = (method) => setMethodChoice({ tenant: activeTenant, method });
+  // Starts as the reference the tenant submitted with their proof; an edit sticks
+  // only while that same tenant record is selected (like the method above).
+  const paymentReference = refChoice.tenant === activeTenant ? refChoice.value : (activeTenant?.paymentReference || '');
+  const setPaymentReference = (value) => setRefChoice({ tenant: activeTenant, value });
 
   // What "Clear & Process" settles (one invoice, or one payment group's
   // bills) — not every open invoice, which the button never settled.
@@ -375,6 +382,19 @@ const AdminPayments = () => {
   // record is selected (like the method above).
   const amountTendered = tender.tenant === activeTenant ? tender.value : (totalDue > 0 ? String(totalDue) : '');
   const setAmountTendered = (value) => setTender({ tenant: activeTenant, value });
+  // Split mode and its portions: a tenant's own split submission opens the desk
+  // already split and filled in; otherwise one blank cash portion. Edits stick
+  // only while that same tenant record is selected (like the method above).
+  const submittedParts = activeTenant?.splitParts?.length
+    ? activeTenant.splitParts.map(p => ({ method: p.method, bank_name: p.bank_name || '', amount: String(p.amount), reference_number: p.reference_number || '' }))
+    : null;
+  // The tenant fixed the portions and their methods; the desk only verifies them.
+  const tenantSplit = !!submittedParts;
+  const ownChoice = splitChoice.tenant === activeTenant;
+  const splitMode = ownChoice ? splitChoice.on : !!submittedParts;
+  const paymentParts = ownChoice && splitChoice.parts ? splitChoice.parts : (submittedParts || BLANK_PARTS);
+  const setSplitMode = (on) => setSplitChoice({ tenant: activeTenant, on, parts: paymentParts });
+  const setPaymentParts = (next) => setSplitChoice({ tenant: activeTenant, on: splitMode, parts: typeof next === 'function' ? next(paymentParts) : next });
   const splitTotal = paymentParts.reduce((sum, part) => sum + (Number(part.amount) || 0), 0);
   const remainingBalance = Math.round((totalDue - splitTotal) * 100) / 100;
   const hasInvalidSplitPart = paymentParts.some(part => {
@@ -383,7 +403,7 @@ const AdminPayments = () => {
       (part.method !== 'cash' && (!part.reference_number?.trim() || checkPaymentReference(part.reference_number, part.method))) ||
       (part.method === 'bank_transfer' && (!part.bank_name || (part.bank_name === 'Other' && !part.other_bank_name?.trim())));
   });
-  const splitCanProcess = paymentParts.length > 0 && paymentParts.length <= 4 && Math.abs(remainingBalance) <= 0.009 && !hasInvalidSplitPart;
+  const splitCanProcess = paymentParts.length > 0 && paymentParts.length <= 2 && Math.abs(remainingBalance) <= 0.009 && !hasInvalidSplitPart;
   const change = amountTendered ? Math.max(0, Number(amountTendered) - totalDue) : 0;
 
   // Summaries
@@ -520,7 +540,7 @@ const handleMarkAsPaid = async () => {
               method: paymentMethod,
               amount: paymentMethod === 'cash' ? totalDue : Number(amountTendered),
               bank_name: paymentMethod === 'bank_transfer' ? (paymentParts[0]?.bank_name === 'Other' ? paymentParts[0]?.other_bank_name?.trim() : paymentParts[0]?.bank_name) : undefined,
-              reference_number: paymentReference.trim() || undefined,
+              reference_number: (paymentMethod !== 'cash' && paymentReference.trim()) || undefined,
             }]
       });
 
@@ -529,9 +549,8 @@ const handleMarkAsPaid = async () => {
         fetchInvoices();
         showFlash(`Payment confirmed for ${activeTenant.name}. The tenant has been notified and their receipt is ready.`);
         setTender({ tenant: null, value: '' });
-        setPaymentParts([{ method: 'cash', bank_name: '', amount: '', reference_number: '' }]);
-        setSplitMode(false);
-        setPaymentReference('');
+        setSplitChoice({ tenant: null, on: false, parts: null });
+        setRefChoice({ tenant: null, value: '' });
         setShowConfirmModal(false);
       } else {
         // If it's a string (HTML error) or missing the message property, alert a safe fallback
@@ -1005,7 +1024,7 @@ const handleMarkAsPaid = async () => {
                           <p className="mt-1 text-xs text-slate-500">{splitMode ? 'Allocate how the tenant is settling this bill' : 'Select the received payment method and verify details'}</p>
                         </div>
                         <label className="inline-flex shrink-0 items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700">
-                          <input type="checkbox" className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" checked={splitMode} disabled={activeTenant.methodLocked} onChange={e => setSplitMode(e.target.checked)} />
+                          <input type="checkbox" className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" checked={splitMode} disabled={activeTenant.methodLocked || tenantSplit} onChange={e => setSplitMode(e.target.checked)} />
                           Split Payment
                         </label>
                       </div>
@@ -1040,15 +1059,15 @@ const handleMarkAsPaid = async () => {
                               const amountError = part.amount !== '' && (!Number.isFinite(amountValue) || amountValue <= 0 || amountValue > totalDue);
                               const referenceError = part.method !== 'cash' && !part.reference_number.trim();
                               return <div key={index} className="grid w-full min-w-0 grid-cols-12 items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                                <select aria-label={`Portion ${index + 1} payment method`} className={`${AMOUNT_INPUT} col-span-12 w-full min-w-0 sm:col-span-3`} value={part.method} onChange={e => updatePart({ method: e.target.value, bank_name: '', reference_number: '' })}><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank Transfer</option></select>
+                                <select aria-label={`Portion ${index + 1} payment method`} className={`${AMOUNT_INPUT} col-span-12 w-full min-w-0 sm:col-span-3`} value={part.method} disabled={tenantSplit} onChange={e => { const method = e.target.value; const tenantRef = activeTenant.paymentReference || ''; const used = paymentParts.some((p, i) => i !== index && p.reference_number === tenantRef); updatePart({ method, bank_name: '', reference_number: method !== 'cash' && tenantRef && !used ? tenantRef : '' }); }}><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank Transfer</option></select>
                                 <div className="col-span-12 min-w-0 sm:col-span-4">
                                   {part.method === 'cash' ? <div className="flex min-h-[38px] items-center rounded-lg border border-slate-200 bg-slate-100 px-3 text-xs text-slate-500">Physical Cash Over-the-counter</div> : part.method === 'bank_transfer' ? <div className="space-y-2"><select aria-label="Bank name" className={`${AMOUNT_INPUT} w-full min-w-0`} value={part.bank_name} onChange={e => updatePart({ bank_name: e.target.value })}><option value="">Select bank</option>{BANKS.map(b => <option key={b}>{b}</option>)}</select>{part.bank_name === 'Other' && <input className={`${AMOUNT_INPUT} w-full min-w-0`} placeholder="Enter bank name" value={part.other_bank_name || ''} onChange={e => updatePart({ other_bank_name: e.target.value })} />}<input aria-label="Reference / transaction number" required className={`${AMOUNT_INPUT} w-full min-w-0${referenceError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Reference / Transaction No." value={part.reference_number} onChange={e => updatePart({ reference_number: e.target.value })} /><p className={`m-0 min-h-4 text-xs ${referenceError || (part.reference_number.trim() && checkPaymentReference(part.reference_number, part.method)) ? 'text-red-600' : 'invisible'}`}>{referenceError ? 'Reference number is required.' : checkPaymentReference(part.reference_number, part.method) || 'Validation message'}</p></div> : <div><input aria-label="Reference number" required className={`${AMOUNT_INPUT} w-full min-w-0${referenceError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Reference / Transaction No." value={part.reference_number} onChange={e => updatePart({ reference_number: e.target.value })} /><p className={`m-0 min-h-4 text-xs ${referenceError || (part.reference_number.trim() && checkPaymentReference(part.reference_number, part.method)) ? 'text-red-600' : 'invisible'}`}>{referenceError ? 'Reference number is required.' : checkPaymentReference(part.reference_number, part.method) || 'Validation message'}</p></div>}
                                 </div>
-                                <div className="col-span-10 min-w-0 sm:col-span-4"><div className="flex min-w-0 items-center gap-2"><div className="relative min-w-0 flex-1"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-sm leading-none text-slate-500">₱</span><input aria-label="Portion amount" type="number" min="0.01" max={totalDue} step="0.01" inputMode="decimal" onKeyDown={blockNonNumericKeys} className={`${AMOUNT_INPUT} w-full min-w-0 pl-8 pr-3${amountError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Amount" value={part.amount} onChange={e => { const value = e.target.value; updatePart({ amount: value === '' ? '' : String(Math.min(Number(value), totalDue)) }); }} /></div><button type="button" disabled={remainingBalance <= 0} onClick={() => updatePart({ amount: String(Math.max(0, Math.round((remainingBalance + (Number(part.amount) || 0)) * 100) / 100)) })} className="flex h-[38px] shrink-0 items-center justify-center rounded-lg border border-blue-100 bg-blue-50 px-3 text-[11px] font-bold uppercase tracking-wider text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60">Max</button></div><p className={`m-0 min-h-4 pt-1 text-xs ${amountError ? 'text-red-600' : 'invisible'}`}>{amountError ? `Enter an amount greater than ₱0 and no more than ${formatCurrency(totalDue)}.` : 'Validation message'}</p></div>
-                                <div className="col-span-2 flex justify-center sm:col-span-1"><button type="button" aria-label={`Remove portion ${index + 1}`} disabled={paymentParts.length === 1} onClick={() => setPaymentParts(parts => parts.filter((_, i) => i !== index))} className="flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-slate-200 bg-white text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-35">✕</button></div>
+                                <div className="col-span-10 min-w-0 sm:col-span-4"><div className="flex min-w-0 items-center gap-2"><div className="relative min-w-0 flex-1"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-sm leading-none text-slate-500">₱</span><input aria-label="Portion amount" type="number" min="0.01" max={totalDue} step="0.01" inputMode="decimal" onKeyDown={blockNonNumericKeys} className={`${AMOUNT_INPUT} no-spinner w-full min-w-0 pl-8 pr-3${amountError ? ' border-red-400 focus:border-red-500' : ''}`} placeholder="Amount" value={part.amount} onChange={e => { const value = e.target.value; updatePart({ amount: value === '' ? '' : String(Math.min(Number(value), totalDue)) }); }} /></div></div><p className={`m-0 min-h-4 pt-1 text-xs ${amountError ? 'text-red-600' : 'invisible'}`}>{amountError ? `Enter an amount greater than ₱0 and no more than ${formatCurrency(totalDue)}.` : 'Validation message'}</p></div>
+                                <div className="col-span-2 flex justify-center sm:col-span-1"><button type="button" aria-label={`Remove portion ${index + 1}`} disabled={paymentParts.length === 1 || tenantSplit} onClick={() => setPaymentParts(parts => parts.filter((_, i) => i !== index))} className="flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-slate-200 bg-white text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-35">✕</button></div>
                               </div>;
                             })}
-                            <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center"><button type="button" disabled={paymentParts.length >= 4} title={paymentParts.length >= 4 ? 'Maximum 4 split methods allowed' : undefined} onClick={() => setPaymentParts(parts => parts.length < 4 ? [...parts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }] : parts)} className="self-start text-xs font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">+ Add payment portion ({paymentParts.length}/4)</button><div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">Allocated: {formatCurrency(splitTotal)}</span><span className={`rounded-full px-3 py-1.5 ${remainingBalance === 0 ? 'bg-emerald-50 text-emerald-700' : remainingBalance > 0 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>{remainingBalance === 0 ? '✓ Balanced' : remainingBalance > 0 ? `Remaining: ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div></div>
+                            <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center"><button type="button" disabled={paymentParts.length >= 2 || tenantSplit} title={paymentParts.length >= 2 ? 'Split payments use two methods at most' : undefined} onClick={() => setPaymentParts(parts => parts.length < 4 ? [...parts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }] : parts)} className="self-start text-xs font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">+ Add payment portion ({paymentParts.length}/2)</button><div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">Allocated: {formatCurrency(splitTotal)}</span><span className={`rounded-full px-3 py-1.5 ${remainingBalance === 0 ? 'bg-emerald-50 text-emerald-700' : remainingBalance > 0 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>{remainingBalance === 0 ? '✓ Balanced' : remainingBalance > 0 ? `Remaining: ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div></div>
                           </div>}
                           {!splitMode && <FieldError id="record-amountPaid" error={recordForm.errors.amountPaid} />}
                         </div>
@@ -1089,9 +1108,32 @@ const handleMarkAsPaid = async () => {
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-indigo-950 font-medium">
                              <div><span className="text-indigo-500 font-bold mr-1">Sender Profile Name:</span> {activeTenant.senderName || 'Not Captured'}</div>
-                             <div><span className="text-indigo-500 font-bold mr-1">Network Reference No:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200/60 font-bold text-slate-800">{activeTenant.paymentReference || '—'}</span></div>
+                             {!activeTenant.splitParts?.length && <div><span className="text-indigo-500 font-bold mr-1">Network Reference No:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200/60 font-bold text-slate-800">{activeTenant.paymentReference || '—'}</span></div>}
                           </div>
-                          {activeTenant.proofOfPaymentPath && (
+                          {activeTenant.splitParts?.length > 0 && (
+                            <div className="space-y-1.5 border-t border-indigo-100 pt-2">
+                              <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Split payment portions submitted by the tenant</div>
+                              {activeTenant.splitParts.map((p, i) => (
+                                <div key={i} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+                                  <span>
+                                    <strong>{{ cash: 'Cash', gcash: 'GCash', bank_transfer: 'Bank transfer' }[p.method] || p.method}</strong> {formatCurrency(p.amount)}
+                                    {p.bank_name ? ` · ${p.bank_name}` : ''}
+                                    {p.reference_number && <> · Ref <span className="font-mono font-bold">{p.reference_number}</span></>}
+                                  </span>
+                                  {p.proof_path ? (
+                                    <span className="inline-flex flex-wrap items-center gap-1.5"><button type="button" onClick={() => setPreviewProof({ url: getBackendAssetUrl(p.proof_path), title: `Proof of Payment — ${activeTenant.name} (${activeTenant.unit})`, reference: p.reference_number, sender: activeTenant.senderName })}
+                                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50">
+                                      <FontAwesomeIcon icon={faEye} /> Preview proof
+                                    </button>
+                                    <a href={getBackendAssetUrl(p.proof_path)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-700 no-underline hover:bg-indigo-50">
+                                      <FontAwesomeIcon icon={faExternalLinkAlt} /> Open in new tab
+                                    </a></span>
+                                  ) : <span className="text-[11px] text-slate-500">Cash at the office{activeTenant.scheduledDate ? ` on ${activeTenant.scheduledDate} (${activeTenant.scheduledTimeSlot || 'time not set'})` : ''}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {activeTenant.proofOfPaymentPath && !activeTenant.splitParts?.length && (
                             <div className="pt-2 flex items-center gap-2 flex-wrap">
                               <button
                                 type="button"
@@ -1154,10 +1196,13 @@ const handleMarkAsPaid = async () => {
                     </div>
                   )}
 
+                  {totalDue > 0 && !['paid', 'processing', ...TENANT_ACTED_STATUSES].includes(activeTenant.status) && (
+                    <p className="m-0 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Waiting for the tenant to pay or schedule a visit in Pay Bills. You can clear this bill once they do.</p>
+                  )}
                   <div className="flex gap-3">
                     <button 
                       onClick={handleConfirmPayment} 
-                      disabled={recording || totalDue <= 0 || activeTenant.status === 'paid' || activeTenant.status === 'processing' || (splitMode && !splitCanProcess)}
+                      disabled={recording || totalDue <= 0 || !TENANT_ACTED_STATUSES.includes(activeTenant.status) || (splitMode && !splitCanProcess)}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors border-0 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                     >
                       <FontAwesomeIcon icon={faCheckCircle} /> Clear & Process Payment
@@ -1551,6 +1596,17 @@ const handleMarkAsPaid = async () => {
                 <div className="flex justify-between"><span className="text-slate-500">Amount</span><span className="font-bold text-emerald-600">{formatCurrency(totalDue)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Method</span><span className="font-semibold text-slate-800">{paymentMethod}</span></div>
               </div>
+              {(() => {
+                const methodName = { cash: 'Cash', gcash: 'GCash', bank_transfer: 'Bank transfer' };
+                const note = activeTenant.status === 'scheduled'
+                  ? `The tenant scheduled an in-person visit${activeTenant.scheduledDate ? ` on ${activeTenant.scheduledDate}` : ''}. Confirm you received the payment at the office.`
+                  : activeTenant.status === 'payment-failed'
+                    ? "The tenant's online payment failed. You are recording a manual payment instead."
+                                        : activeTenant.splitParts?.length
+                      ? `The tenant submitted a split payment${activeTenant.scheduledDate ? ` and booked the cash portion for ${activeTenant.scheduledDate} (${activeTenant.scheduledTimeSlot})` : ''}: ${activeTenant.splitParts.map(p => `${methodName[p.method] || p.method} ${formatCurrency(p.amount)}${p.reference_number ? ` (Ref ${p.reference_number})` : ''}`).join(' + ')}. Check each proof matches before confirming.`
+                      : `The tenant submitted ${activeTenant.declaredLabel || 'a payment'}${activeTenant.paymentReference ? ` (Ref ${activeTenant.paymentReference})` : ''} with a proof. Check it matches before confirming.`;
+                return <div className="mb-4"><p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{note}</p></div>;
+              })()}
               <div className="flex gap-2">
                 <button type="button" onClick={handleMarkAsPaid} disabled={recording} className="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{recording ? 'Processing…' : 'Confirm Approval'}</button>
                 <button type="button" disabled={recording} onClick={() => setShowConfirmModal(false)} className="flex-1 disabled:opacity-50 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm font-semibold hover:bg-slate-50 border-solid cursor-pointer transition-colors">Cancel</button>

@@ -81,6 +81,8 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `visitors.test.js` | 6 | Pre-registrations dated by expected arrival, `checked_in` vs `overstayed` at the 24 h boundary, tenant scoping, SQL-injection search |
 | `webhook.test.js` | 15 | Signature and replay window, `payment.failed` matched by intent, superseded events, replay, old invoices without an intent |
 | `payments.test.js` | 5 | Paid event settles once, replay, session mismatch, failed-after-paid, amount mismatch → `pending-verification` |
+| `split_payment.test.js` | 15 | Tenant split submit (cash + GCash), sum / one-portion / cash-only / missing proof / bad GCash ref, cash visit date and slot rules (none needed without cash), other tenant and admin refused, admin list returns portions, confirm must match, confirm settles and clears, reject clears, single proof replaces a split |
+| `record_payment_gate.test.js` | 5 | Desk refuses `pending` / `overdue` bills (409), clears `scheduled`, `pending-verification` and `payment-failed` ones |
 | `announcements.test.js` | 12 | Draft keeps/replaces/removes its file, send in place, double send, send of a stale draft, bad file type, markup stored as text |
 
 ### Not covered

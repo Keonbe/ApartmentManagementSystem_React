@@ -1076,6 +1076,22 @@ CREATE TABLE IF NOT EXISTS `payment_transactions` (
   CONSTRAINT `fk_payment_transactions_recorder` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Tenant split payments: the portions a tenant submitted, kept until the admin
+-- confirms or rejects them (2026_10_payment_proof_parts.sql).
+CREATE TABLE IF NOT EXISTS `payment_proof_parts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `payment_key` varchar(50) NOT NULL,
+  `position` tinyint(4) NOT NULL DEFAULT 0,
+  `method` varchar(20) NOT NULL,
+  `bank_name` varchar(100) DEFAULT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `reference_number` varchar(100) DEFAULT NULL,
+  `proof_path` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_payment_proof_parts_key` (`payment_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Chat messages between a tenant and an admin (send_message.php,
 -- websocket-server/server.js). Same columns, keys and constraint names as
 -- production; reply_to_id has no key or constraint there either.

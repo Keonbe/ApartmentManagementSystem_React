@@ -172,6 +172,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 ];
             }
         }
+        // Portions of tenant split submissions awaiting review, one query for
+        // the page; each invoice picks its own by id or payment group.
+        $split_parts_by_key = [];
+        $parts_result = $conn->query("SELECT payment_key, method, bank_name, amount, reference_number, proof_path FROM payment_proof_parts ORDER BY payment_key, position ASC, id ASC");
+        if ($parts_result) {
+            while ($part = $parts_result->fetch_assoc()) {
+                $split_parts_by_key[$part['payment_key']][] = [
+                    'method' => $part['method'],
+                    'bank_name' => $part['bank_name'],
+                    'amount' => (float)$part['amount'],
+                    'reference_number' => $part['reference_number'],
+                    'proof_path' => $part['proof_path'],
+                ];
+            }
+        }
         while ($row = $result->fetch_assoc()) {
             // The dates the bill covers, from the move-in day — shown instead
             // of the due date once a bill is past due.
@@ -203,6 +218,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'payment_method' => !empty($row['payment_method']) ? $row['payment_method'] : (!empty($row['payment_gateway']) && strpos($row['payment_gateway'], 'paymongo') !== false ? 'PayMongo (Sandbox)' : null),
                 'bank_name' => $row['bank_name'] ?? null,
                 'payment_transactions' => $transactions_by_invoice[$row['id']] ?? [],
+                'split_parts' => ($row['status'] ?? '') === 'pending-verification'
+                    ? ($split_parts_by_key[$row['id']] ?? $split_parts_by_key[$row['payment_group'] ?? ''] ?? [])
+                    : [],
                 'sender_name' => $row['sender_name'] ?? null,
                 'payment_reference' => $row['payment_reference'] ?? null,
                 'proof_of_payment_path' => $row['proof_of_payment_path'] ?? null,

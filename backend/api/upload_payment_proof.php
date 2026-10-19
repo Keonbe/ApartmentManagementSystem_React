@@ -134,6 +134,9 @@ if ($stmt->execute()) {
         exit;
     }
 
+    // A single-method proof replaces an earlier split submission.
+    clear_payment_proof_parts($conn, $invoice_id);
+
     log_activity($conn, $user_id, 'billing', "Submitted Payment Proof", "Invoice ID: $invoice_id, Method: $payment_method, Ref: $payment_reference");
 
     // The admin used to learn about a waiting proof only by opening Payments.
