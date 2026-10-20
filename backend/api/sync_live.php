@@ -47,6 +47,9 @@ try {
         'ALTER TABLE invoices ADD COLUMN amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00',
         'ALTER TABLE rooms ADD COLUMN available_date DATE DEFAULT NULL',
         'ALTER TABLE guest_messages ADD COLUMN thread_id INT(11) DEFAULT NULL, ADD COLUMN file_path VARCHAR(255) DEFAULT NULL, ADD COLUMN file_name VARCHAR(255) DEFAULT NULL, ADD COLUMN file_type VARCHAR(100) DEFAULT NULL',
+        "ALTER TABLE notifications ADD COLUMN status VARCHAR(20) DEFAULT 'Pending'",
+        'ALTER TABLE maintenance_requests ADD COLUMN room_name VARCHAR(50) DEFAULT NULL',
+        'ALTER TABLE invoices ADD COLUMN services DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER parking',
     ];
 
     foreach ($alterStatements as $sql) {
