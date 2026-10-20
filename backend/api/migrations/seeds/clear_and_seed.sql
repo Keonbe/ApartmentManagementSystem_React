@@ -92,7 +92,12 @@ INSERT INTO `service_catalog`
 ('laundry', 'Dry Cleaning', 'Professional dry cleaning for suits, gowns and delicate fabrics, billed per item.', 250.00, 'item', 1, 15, 2, 'faTshirt', 1, 40),
 ('other', 'Pest Control Treatment', 'Scheduled unit-level pest control and follow-up inspection.', 900.00, 'session', 1, 1, 3, 'faConciergeBell', 1, 50);
 
--- 4. Default System Settings
+-- 4. Default application requirements (Settings -> Application Requirements)
+INSERT INTO `application_requirements` (`id`, `label`, `label_fil`, `is_required`, `is_active`, `sort_order`) VALUES
+(1, 'Valid ID (front)', 'Valid ID (harap)', 1, 1, 1),
+(2, 'Valid ID (back)', 'Valid ID (likod)', 1, 1, 2);
+
+-- 5. Default System Settings
 INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
 ('contact_email', 'admin@ams.com'),

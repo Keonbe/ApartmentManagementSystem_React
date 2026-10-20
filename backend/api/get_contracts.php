@@ -38,7 +38,7 @@ if (!$is_admin) {
 }
 
 if (!empty($user_id)) {
-    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at 
+    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.previous_address, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
                             FROM rent_applications ra 
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id 
                             LEFT JOIN rooms rm ON ra.room_name = rm.id
@@ -60,7 +60,7 @@ if (!empty($user_id)) {
         exit;
     }
 
-    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
+    $stmt = $conn->prepare("SELECT lc.*, ra.first_name, ra.last_name, ra.contact_no, ra.previous_address, ra.room_name, ra.monthly_rent, ra.email, rm.type, ra.created_at as app_created_at
                             FROM rent_applications ra
                             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
                             LEFT JOIN rooms rm ON ra.room_name = rm.id

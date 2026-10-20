@@ -57,8 +57,8 @@ WHERE r.invoice_id = 'INV-DEF-REJECTED' AND NOT EXISTS (SELECT 1 FROM refund_req
 UPDATE rent_applications SET move_in_date = DATE_ADD(CURDATE(), INTERVAL 3 DAY), preferred_move_in_date = DATE_ADD(CURDATE(), INTERVAL 3 DAY)
 WHERE id = 5 AND status = 'Approved';
 
--- Documents outstanding: Gloria (app 6) was asked to re-upload her NBI clearance.
-UPDATE rent_applications SET status = 'Action Required', rejection_reason = 'Please upload a clear copy of your NBI clearance.'
+-- Documents outstanding: Gloria (app 6) was asked to re-upload her valid ID.
+UPDATE rent_applications SET status = 'Action Required', rejection_reason = 'Please upload a clear copy of your valid ID (front and back).'
 WHERE id = 6 AND status = 'Pending Review';
 
 -- 7. Visitor overstay: Maria's guest checked in 2 days ago and is still in (the next notification poll

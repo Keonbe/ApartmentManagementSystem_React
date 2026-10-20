@@ -14,6 +14,7 @@ export const BUILTIN_PLACEHOLDERS = [
   { key: 'property_address', label: 'Property address' },
   { key: 'tenant_name', label: 'Tenant name' },
   { key: 'tenant_phone', label: 'Tenant phone' },
+  { key: 'tenant_previous_address', label: "Tenant's previous address" },
   { key: 'room', label: 'Room letter' },
   { key: 'monthly_rent', label: 'Monthly rent' },
   { key: 'advance_rent', label: 'Advance rent' },

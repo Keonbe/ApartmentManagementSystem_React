@@ -74,7 +74,7 @@ const LABELS = {
 };
 
 const FILLED_KEYS = new Set([
-  'tenant_name', 'tenant_phone', 'tenant_email', 'room', 'monthly_rent', 'advance_rent', 'security_deposit',
+  'tenant_name', 'tenant_phone', 'tenant_email', 'tenant_previous_address', 'room', 'monthly_rent', 'advance_rent', 'security_deposit',
   'move_in_date', 'lease_start', 'lease_end', 'due_day',
 ]);
 
@@ -146,6 +146,7 @@ export default function ContractDocument({
     tenant_phone: data.tenantPhone,
     tenant_email: data.tenantEmail,
     tenant_address: data.tenantAddress,
+    tenant_previous_address: data.tenantPreviousAddress,
     room: data.roomName,
     monthly_rent: data.monthlyRent,
     advance_rent: data.advanceRent,

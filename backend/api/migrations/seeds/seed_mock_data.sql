@@ -80,22 +80,22 @@ INSERT IGNORE INTO `users` (`id`, `first_name`, `middle_name`, `last_name`, `con
 -- decided ones: 1 'archived' (J, moved out), 1 'Rejected', 1 'Cancelled'
 -- ============================================================
 INSERT IGNORE INTO `rent_applications`
-  (`id`, `user_id`, `first_name`, `middle_name`, `last_name`, `contact_no`, `email`, `gender`, `occupants`, `months_of_rent`, `room_name`, `monthly_rent`, `valid_id_front_path`, `valid_id_back_path`, `nbi_clearance_path`, `status`, `rejection_reason`, `created_at`) VALUES
-(1,  2,  'Maria',  'L.', 'Santos',     '+63 9171234501', 'maria.santos@gmail.com',     'Female', 1, 12, 'A', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-27 08:30:00'),
-(2,  3,  'Jose',   'M.', 'Reyes',      '+63 9171234502', 'jose.reyes@gmail.com',       'Male',   2, 24, 'B', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-09-25 09:00:00'),
-(3,  5,  'Rosa',   'D.', 'Dela Cruz',  '+63 9171234504', 'rosa.delacruz@gmail.com',    'Female', 1,  6, 'C', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-08-27 11:00:00'),
-(4,  6,  'Ben',    'C.', 'Flores',     '+63 9171234505', 'ben.flores@gmail.com',       'Male',   2, 12, 'D', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-27 08:00:00'),
-(5,  7,  'Lita',   'R.', 'Ramos',      '+63 9171234506', 'lita.ramos@gmail.com',       'Female', 1, 12, 'E', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'Approved', NULL, '2026-09-18 09:30:00'),
-(6,  8,  'Gloria', 'T.', 'Tan',        '+63 9171234508', 'gloria.tan@gmail.com',       'Female', 1,  6, 'N', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'Pending Review', NULL, '2026-09-28 09:00:00'),
-(7,  9,  'Dante',  'A.', 'Abad',       '+63 9171234507', 'dante.abad@gmail.com',       'Male',   1, 24, 'F', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-10 07:45:00'),
-(8,  10, 'Pedro',  'B.', 'Cruz',       '+63 9171234503', 'pedro.cruz@gmail.com',       'Male',   1, 24, 'G', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-09-26 10:15:00'),
-(9,  11, 'Carlo',  'P.', 'Villanueva', '+63 9171234509', 'carlo.villanueva@gmail.com', 'Male',   1, 12, 'H', 4000.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-11-25 09:00:00'),
-(10, 12, 'Ana',    'S.', 'Bautista',   '+63 9171234510', 'ana.bautista@gmail.com',     'Female', 1, 12, 'K', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-10-10 10:00:00'),
-(11, 13, 'Mark',   'D.', 'Santiago',   '+63 9171234511', 'mark.santiago@gmail.com',    'Male',   1, 24, 'L', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-09-15 08:30:00'),
-(12, 14, 'Grace',  'M.', 'Mendoza',    '+63 9171234512', 'grace.mendoza@gmail.com',    'Female', 1, 12, 'M', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'active', NULL, '2025-12-28 09:00:00'),
-(13, 15, 'Paolo',  'V.', 'Garcia',     '+63 9171234513', 'paolo.garcia@gmail.com',     'Male',   1, 12, 'J', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'archived', NULL, '2025-08-25 10:00:00'),
-(14, 16, 'Ramon',  'L.', 'Aquino',     '+63 9171234514', 'ramon.aquino@gmail.com',     'Male',   2, 12, 'J', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'Rejected', 'NBI clearance has expired. Please apply again with a current one.', '2026-09-08 14:00:00'),
-(15, 17, 'Liza',   'C.', 'Navarro',    '+63 9171234515', 'liza.navarro@gmail.com',     'Female', 1,  6, 'J', 3500.00, 'placeholder', 'placeholder', 'placeholder', 'Cancelled', 'Change of mind', '2026-09-20 16:00:00');
+  (`id`, `user_id`, `first_name`, `middle_name`, `last_name`, `contact_no`, `email`, `gender`, `occupants`, `months_of_rent`, `room_name`, `monthly_rent`, `status`, `rejection_reason`, `created_at`) VALUES
+(1,  2,  'Maria',  'L.', 'Santos',     '+63 9171234501', 'maria.santos@gmail.com',     'Female', 1, 12, 'A', 4000.00, 'active', NULL, '2025-10-27 08:30:00'),
+(2,  3,  'Jose',   'M.', 'Reyes',      '+63 9171234502', 'jose.reyes@gmail.com',       'Male',   2, 24, 'B', 4000.00, 'active', NULL, '2025-09-25 09:00:00'),
+(3,  5,  'Rosa',   'D.', 'Dela Cruz',  '+63 9171234504', 'rosa.delacruz@gmail.com',    'Female', 1,  6, 'C', 4000.00, 'active', NULL, '2025-08-27 11:00:00'),
+(4,  6,  'Ben',    'C.', 'Flores',     '+63 9171234505', 'ben.flores@gmail.com',       'Male',   2, 12, 'D', 4000.00, 'active', NULL, '2025-10-27 08:00:00'),
+(5,  7,  'Lita',   'R.', 'Ramos',      '+63 9171234506', 'lita.ramos@gmail.com',       'Female', 1, 12, 'E', 4000.00, 'Approved', NULL, '2026-09-18 09:30:00'),
+(6,  8,  'Gloria', 'T.', 'Tan',        '+63 9171234508', 'gloria.tan@gmail.com',       'Female', 1,  6, 'N', 3500.00, 'Pending Review', NULL, '2026-09-28 09:00:00'),
+(7,  9,  'Dante',  'A.', 'Abad',       '+63 9171234507', 'dante.abad@gmail.com',       'Male',   1, 24, 'F', 4000.00, 'active', NULL, '2025-10-10 07:45:00'),
+(8,  10, 'Pedro',  'B.', 'Cruz',       '+63 9171234503', 'pedro.cruz@gmail.com',       'Male',   1, 24, 'G', 4000.00, 'active', NULL, '2025-09-26 10:15:00'),
+(9,  11, 'Carlo',  'P.', 'Villanueva', '+63 9171234509', 'carlo.villanueva@gmail.com', 'Male',   1, 12, 'H', 4000.00, 'active', NULL, '2025-11-25 09:00:00'),
+(10, 12, 'Ana',    'S.', 'Bautista',   '+63 9171234510', 'ana.bautista@gmail.com',     'Female', 1, 12, 'K', 3500.00, 'active', NULL, '2025-10-10 10:00:00'),
+(11, 13, 'Mark',   'D.', 'Santiago',   '+63 9171234511', 'mark.santiago@gmail.com',    'Male',   1, 24, 'L', 3500.00, 'active', NULL, '2025-09-15 08:30:00'),
+(12, 14, 'Grace',  'M.', 'Mendoza',    '+63 9171234512', 'grace.mendoza@gmail.com',    'Female', 1, 12, 'M', 3500.00, 'active', NULL, '2025-12-28 09:00:00'),
+(13, 15, 'Paolo',  'V.', 'Garcia',     '+63 9171234513', 'paolo.garcia@gmail.com',     'Male',   1, 12, 'J', 3500.00, 'archived', NULL, '2025-08-25 10:00:00'),
+(14, 16, 'Ramon',  'L.', 'Aquino',     '+63 9171234514', 'ramon.aquino@gmail.com',     'Male',   2, 12, 'J', 3500.00, 'Rejected', 'Valid ID has expired. Please apply again with a current one.', '2026-09-08 14:00:00'),
+(15, 17, 'Liza',   'C.', 'Navarro',    '+63 9171234515', 'liza.navarro@gmail.com',     'Female', 1,  6, 'J', 3500.00, 'Cancelled', 'Change of mind', '2026-09-20 16:00:00');
 
 -- Paolo moved out at the end of his term (update_tenant_status.php
 -- 'moved-out', then archive_tenant.php), as prod's archived tenancies look.
@@ -106,6 +106,14 @@ UPDATE `rent_applications`
  WHERE `id` = 13;
 -- Liza cancelled her own application (cancel_application.php).
 UPDATE `rent_applications` SET `cancelled_at` = '2026-09-23 08:15:00' WHERE `id` = 15;
+-- No document files ship with the seed (uploads/ is not in git). The tenancies
+-- past approval are recorded as checked in person, as an admin assignment
+-- (update_room.php) is, so the follow-up monitor does not flag them; Gloria's
+-- Pending Review application has no documents and cannot be approved until
+-- she uploads them. Previous addresses for the demo applicants.
+UPDATE `rent_applications` SET `documents_verified_at` = `created_at`
+ WHERE `id` BETWEEN 1 AND 13 AND `status` NOT IN ('Pending Review', 'Rejected', 'Cancelled');
+UPDATE `rent_applications` SET `previous_address` = 'Brgy. Biga, Silang, Cavite' WHERE `id` BETWEEN 1 AND 15;
 
 -- Rosa's rent term was extended mid-year: +9 months on top of the original 6
 -- (see lease_renewals below), so her application reflects the final total.
@@ -447,7 +455,7 @@ INSERT IGNORE INTO `notifications` (`user_id`, `title`, `message`, `type`, `stat
 (7,  'Application Approved', 'Your rent application for Unit E has been approved.', 'application_update', 'Resolved', NULL, 1, '2026-09-22 10:00:00'),
 (7,  'Your Move-In Date',    'Your initial payment has been confirmed. Your move-in date for Unit E is October 5, 2026.', 'application_update', 'Resolved', NULL, 0, '2026-09-26 10:00:00'),
 (15, 'Move-Out Completed',   'Your move-out has been completed and your clearance recorded. Thank you for staying with us.', 'move_out_update', 'Resolved', NULL, 1, '2026-09-01 10:00:00'),
-(16, 'Application Rejected', 'Your rent application for Unit J has been rejected. Reason: NBI clearance has expired. Please apply again with a current one.', 'application_update', 'Resolved', NULL, 1, '2026-09-10 11:00:00'),
+(16, 'Application Rejected', 'Your rent application for Unit J has been rejected. Reason: Valid ID has expired. Please apply again with a current one.', 'application_update', 'Resolved', NULL, 1, '2026-09-10 11:00:00'),
 (2,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time to avoid late fees.', 'action', 'Resolved', NULL, 1, '2026-03-10 08:00:00'),
 (3,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time to avoid late fees.', 'action', 'Resolved', NULL, 1, '2026-03-10 08:00:00'),
 (5,  'Monthly Rent Due - March 15, 2026', 'Rent for March is due on the 15th. Please submit payment on time to avoid late fees.', 'action', 'Resolved', NULL, 0, '2026-03-10 08:00:00'),
@@ -535,7 +543,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 --
 -- PAST / DECIDED (no current room):
 --   paolo.garcia@gmail.com   ex-Room J - moved out 2026-09-01, archived, contract expired
---   ramon.aquino@gmail.com   Rejected application (room J, expired NBI clearance)
+--   ramon.aquino@gmail.com   Rejected application (room J, expired valid ID)
 --   liza.navarro@gmail.com   Cancelled application (room J, "Change of mind")
 --
 -- VACANT:

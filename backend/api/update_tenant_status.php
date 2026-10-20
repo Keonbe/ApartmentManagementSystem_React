@@ -217,7 +217,8 @@ if ($id > 0 && !empty($status)) {
 
         if ($status === 'Approved') {
             // Get application details to update the room and generate invoice
-            $app_stmt = $conn->prepare("SELECT first_name, last_name, room_name, months_of_rent, user_id, monthly_rent, occupants, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at FROM rent_applications WHERE id = ?");
+            $missing_docs_sql = application_missing_required_docs_sql('ra');
+            $app_stmt = $conn->prepare("SELECT ra.first_name, ra.last_name, ra.room_name, ra.months_of_rent, ra.user_id, ra.monthly_rent, ra.occupants, ra.terms_agreed_at, $missing_docs_sql AS missing_documents FROM rent_applications ra WHERE ra.id = ?");
             $app_stmt->bind_param("i", $id);
             $app_stmt->execute();
             $app_res = $app_stmt->get_result();
@@ -225,13 +226,11 @@ if ($id > 0 && !empty($status)) {
                 $app = $app_res->fetch_assoc();
 
                 // Acceptance-criteria enforcement (checklist 1.7): an application
-                // cannot be approved without real ID/NBI documents on file and a
-                // recorded Terms & Conditions agreement from the applicant.
-                $doc_fields = [$app['valid_id_front_path'], $app['valid_id_back_path'], $app['nbi_clearance_path']];
-                foreach ($doc_fields as $doc_path) {
-                    if (empty($doc_path) || $doc_path === 'placeholder') {
-                        throw new Exception("Cannot approve: this application is missing a required verification document (Valid ID or NBI Clearance).");
-                    }
+                // cannot be approved without a file for every active, required
+                // application requirement (Settings → Application Requirements)
+                // and a recorded Terms & Conditions agreement from the applicant.
+                if ((int)$app['missing_documents'] === 1) {
+                    throw new Exception("Cannot approve: this application is missing a required document.");
                 }
                 if (empty($app['terms_agreed_at'])) {
                     throw new Exception("Cannot approve: the applicant has not agreed to the Terms & Conditions.");

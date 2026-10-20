@@ -30,9 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
               
     $result = $conn->query($query);
     $applications = [];
-    
+    // Two queries for the whole list, not one per application.
+    $requirements = application_requirements_list($conn);
+    $documents_by_app = application_documents_by_app($conn);
+
     if ($result) {
         while ($row = $result->fetch_assoc()) {
+            $documents = $documents_by_app[(int)$row['id']] ?? [];
             $applications[] = [
                 'id' => $row['id'],
                 'first_name' => $row['first_name'],
@@ -53,9 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'rent' => '₱' . number_format($row['monthly_rent']),
                 'status' => $row['status'] ?? 'Pending Review',
                 'created_at' => $row['created_at'] ?? '',
-                'valid_id_front_path' => $row['valid_id_front_path'] ?? null,
-                'valid_id_back_path' => $row['valid_id_back_path'] ?? null,
-                'nbi_clearance_path' => $row['nbi_clearance_path'] ?? null,
+                'previous_address' => $row['previous_address'] ?? null,
+                // Uploaded files, and the labels of active required
+                // requirements with no file (shown as "Missing").
+                'documents' => $documents,
+                'missing_documents' => application_missing_document_labels($requirements, $documents),
+                'documents_verified_at' => $row['documents_verified_at'] ?? null,
                 // Appending avatar_url out to the wire payload for your React app pipeline!
                 'avatar_url' => $row['avatar_url'] ?? null, 
                 'rejection_reason' => $row['rejection_reason'] ?? null,

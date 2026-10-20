@@ -64,7 +64,12 @@ $guest_thread_id = null;
 $notification_recipients = null;
 
 if ($owner === null) {
-    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM rent_applications WHERE valid_id_front_path IN (?,?) OR valid_id_back_path IN (?,?) OR nbi_clearance_path IN (?,?) OR rejection_attachment_path IN (?,?) LIMIT 1", array_merge($six, $two));
+    // Application documents (backfilled from the legacy valid_id_*/nbi columns,
+    // which are no longer written) and the admin's rejection attachment.
+    $owner = find_owner($conn, "SELECT ra.user_id AS owner_id FROM application_documents ad JOIN rent_applications ra ON ra.id = ad.rent_application_id WHERE ad.file_path IN (?,?) LIMIT 1", $two);
+}
+if ($owner === null) {
+    $owner = find_owner($conn, "SELECT user_id AS owner_id FROM rent_applications WHERE rejection_attachment_path IN (?,?) LIMIT 1", $two);
 }
 if ($owner === null) {
     $owner = find_owner($conn, "SELECT user_id AS owner_id FROM invoices WHERE proof_of_payment_path IN (?,?) LIMIT 1", $two);

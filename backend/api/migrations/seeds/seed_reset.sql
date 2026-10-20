@@ -50,6 +50,7 @@ CREATE TEMPORARY TABLE seed_parking (id INT PRIMARY KEY)
 DELETE lr FROM lease_renewals lr JOIN seed_contracts sc ON sc.id = lr.contract_id;
 DELETE lc FROM lease_contracts lc JOIN seed_contracts sc ON sc.id = lc.id;
 DELETE hm FROM household_members hm JOIN seed_apps sa ON sa.id = hm.rent_application_id;
+DELETE ad FROM application_documents ad JOIN seed_apps sa ON sa.id = ad.rent_application_id;
 DELETE ra FROM rent_applications ra JOIN seed_apps sa ON sa.id = ra.id;
 
 -- 2. Billing

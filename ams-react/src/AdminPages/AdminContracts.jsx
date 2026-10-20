@@ -94,6 +94,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
           rentApplicationId: c.rent_application_id,
           tenant: `${c.first_name} ${c.last_name}`,
           tenantPhone: c.contact_no || '',
+          tenantPreviousAddress: c.previous_address || '',
           tenantEmail: c.email,
           unit: c.room_name,
           type: c.type || 'Unit',
@@ -1032,6 +1033,7 @@ const AdminContracts = ({ defaultTab = 'contracts' }) => {
                       data={{
                         tenantName: selectedContract.tenant,
                         tenantPhone: selectedContract.tenantPhone,
+                        tenantPreviousAddress: selectedContract.tenantPreviousAddress,
                         tenantEmail: selectedContract.tenantEmail,
                         roomName: selectedContract.unit,
                         unitType: selectedContract.type,

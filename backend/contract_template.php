@@ -22,7 +22,7 @@
 // Filled in per tenant/contract by the renderer (ams-react/src/Components/contract/contractRender.js).
 const CONTRACT_BUILTIN_PLACEHOLDERS = [
     'landlord_name', 'landlord_address', 'landlord_contact', 'property_address',
-    'tenant_name', 'tenant_phone', 'room', 'monthly_rent', 'advance_rent', 'security_deposit',
+    'tenant_name', 'tenant_phone', 'tenant_previous_address', 'room', 'monthly_rent', 'advance_rent', 'security_deposit',
     'move_in_date', 'lease_start', 'lease_end', 'due_day', 'payment_methods',
 ];
 

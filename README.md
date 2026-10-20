@@ -168,7 +168,7 @@ The admin account is created by [SetupDB.sql](backend/api/migrations/SetupDB.sql
 
 - **Public & applicants:**
   - Unit preview with admin-uploaded showcase photos or floor plans; public inquiry form with holds and a waitlist.
-  - Online application with valid ID and NBI uploads, live application tracking, move-in invoice payment.
+  - Online application with the document uploads the admin requires (valid ID front/back by default) and the previous address, live application tracking, move-in invoice payment.
   - Forgot / reset password.
 - **Tenant portal:**
   - **My Room**: unit details, household members, lease extension (billed on approval), move-out requests.

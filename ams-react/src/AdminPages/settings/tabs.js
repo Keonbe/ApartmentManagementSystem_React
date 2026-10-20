@@ -1,4 +1,4 @@
-import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking } from '@fortawesome/free-solid-svg-icons';
+import { faUserShield, faFileContract, faCreditCard, faCar, faBell, faWrench, faClipboardList, faLayerGroup, faBolt, faChildren, faSquareParking, faIdCard } from '@fortawesome/free-solid-svg-icons';
 
 // The Settings page's sections. `keys` are the systemSettings.js fields each
 // tab edits: they drive the per-tab "unsaved changes" dot, so a field added to
@@ -16,7 +16,13 @@ export const SETTINGS_TABS = [
     label: 'Rental',
     icon: faFileContract,
     description: 'Rental rules, occupancy limits and the public room preview.',
-    keys: ['minLeaseDuration', 'maxRentAheadMonths', 'reservationHoldDays', 'maxOccupantsPerUnit', 'roomPreviewMode'],
+    keys: ['minLeaseDuration', 'maxRentAheadMonths', 'reservationHoldDays', 'moveOutMinNoticeDays', 'moveOutMaxNoticeDays', 'maxOccupantsPerUnit', 'roomPreviewMode'],
+  },
+  {
+    id: 'requirements',
+    label: 'Application Requirements',
+    icon: faIdCard,
+    description: 'The documents an applicant uploads with the rent application, and which are required.',
   },
   {
     id: 'payments',

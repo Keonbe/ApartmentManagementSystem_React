@@ -1,6 +1,6 @@
 import { API_BASE_URL, ASSET_BASE_URL } from './env';
 
-// Uploaded documents (gov IDs, NBI clearances, payment proofs, leases,
+// Uploaded documents (gov IDs and other application documents, payment proofs, leases,
 // avatars, attachments) are no longer served as static files — uploads/ is
 // blocked at the webserver and every one goes through the authenticated
 // download_file.php endpoint instead (H2/B-8). This stays the single URL

@@ -371,7 +371,7 @@ The escape hatch is `ProtectedRoute`-only: `/track-application`, `/upload-paymen
 
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
-| `rent_application.php` | POST (multipart) | `require_user`, tenant accounts only | `firstName`, `lastName`, `contactNo`, `email`, `gender`, `occupants`, `monthsOfRent`, `roomName`, `agreeTerms`, `appId`; files: valid ID front/back, NBI | `success`, `message` | Missing T&C → refused; duplicate open application → refused; `monthsOfRent` outside `min_lease_duration`–24 → `422`; `403` admin account, or an `appId` that isn't the caller's |
+| `rent_application.php` | POST (multipart) | `require_user`, tenant accounts only | `firstName`, `lastName`, `contactNo`, `email`, `gender`, `occupants`, `monthsOfRent`, `roomName`, `agreeTerms`, `previousAddress` (5-255), `appId`; files: one `doc_<id>` per active application requirement (Settings → Application Requirements; default Valid ID front/back) | `success`, `message`, `field` on a 422 | Missing T&C → refused; duplicate open application → refused; `monthsOfRent` outside `min_lease_duration`–24 → `422`; previous address missing/short/long → `422`; a required document missing (and not already on the application, for a resubmission), bad type or over 10 MB → `422`; unknown/inactive `doc_<id>` keys ignored; `403` admin account, or an `appId` that isn't the caller's |
 | `get_applications.php` | GET | `verify_admin` gate | — | `success`, `data` | `403` non-admin |
 | `update_tenant_status.php` | POST | `require_admin` | `id`, `status`, `rejection_reason`, `requested_move_out_date`, `clearance_notes`, `damage_deduction`, `utility_deduction` | `success` | `422` status not in allowlist; **1.7 gate** → `success:false` with reason; room already taken → refused |
 | `get_tenants.php` | GET | `verify_admin` gate | — | `success`, `data` | `403` non-admin |
@@ -380,7 +380,9 @@ The escape hatch is `ProtectedRoute`-only: `/track-application`, `/upload-paymen
 | `record_move_out.php` | POST | `require_user` | `move_out_date` | `success`, `message` | Not an active tenancy → refused |
 | `update_occupants.php` | POST | `require_user` | `occupants` | `success`, `message` | No active application → refused; duplicate pending request → refused |
 | `extend_lease.php` | POST | `require_user` | `additionalMonths` | `success`, `message` | Below the extension minimum (`min_lease_duration`, shrunk to the months that fit under `max_rent_ahead_months` — `extension_month_range()`) → refused; duplicate pending request → refused |
-| `get_documents.php` | POST | `require_user` | — (owner from session) | `success`, `documents[]` | `401` unauthenticated |
+| `get_documents.php` | GET/POST | `require_user` | — (owner from session) | `success`, `application_id`, `documents[]` (`id`, `requirement_id`, `label`, `file_path`, `uploaded_at`), `missing_documents[]`, `documents_verified_at` | `401` unauthenticated |
+| `get_application_requirements.php` | GET | `require_user` | `all=1` (admin only: include inactive) | `success`, `requirements[]` | `401` unauthenticated |
+| `manage_application_requirements.php` | POST JSON | `require_admin` | `action`: `create` / `update` / `reorder` (`ids`) / `deactivate` / `activate`; `label` 2-60, `label_fil` ≤ 60, `is_required` / `is_active` true/false/0/1, `sort_order` 0-999 | `success`, `message`, `requirements[]` | `422` bad field (named in `field`), duplicate active label, 13th active; `404` unknown id; `409` already (in)active; `403` tenant. No delete |
 | `my_room.php` | GET | `require_user` | `userId`, `email` (**admin only**) | `success`, `data` | `401`; non-admin overrides silently ignored |
 | `process_tenant_request.php` | POST | `verify_admin` gate | `notificationId`, `action` | `success`, `message` | Replay → refused (claim-first) |
 
@@ -484,7 +486,7 @@ flowchart LR
    → `rent_applications` row, `status='Pending Review'`, `terms_agreed_at` stamped, three document paths written, admin notified.
    The T&C checkbox is **required** — submission is refused without it.
 4. **Tenant — track** · `/track-application` → `my_room.php`. At this point the tenant is still gated out of `/my-room` (§3.4).
-5. **Admin — review** · `/admin-applications` → `get_applications.php`; open the applicant to view ID/NBI documents.
+5. **Admin — review** · `/admin-applications` → `get_applications.php`; open the applicant to view the uploaded documents (one per application requirement; active required ones without a file show "Missing") and the previous address.
 6. **Admin — approve** · → `update_tenant_status.php` with `status='Approved'`. This single call enforces the 1.7 gate, claims the room, raises the move-in invoice (1 month rent + 1 month deposit) and creates a `draft` contract — all in one transaction.
 7. **Tenant — pay the move-in invoice** · `/track-application` or `/pay-bills` → see [§6](#6-module-3--rental-payment--billing).
 8. **Admin — record the payment, then confirm the move-in** · `/admin-payments` → `record_payment_admin.php` → invoice `paid`, deposit `Held`. The admin then sends the move-in date (`schedule_move_in.php`) and confirms occupancy (`update_tenant_status.php` → `active`): application `Approved` → `active`, contract `draft` → `active` from the move-in date, room `occupied`.
@@ -524,11 +526,16 @@ INSERT INTO rent_applications
    room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path,
    status, terms_agreed_at)
 VALUES
-  (8, 'Gloria', 'Tan', '+639171234567', 'gloria.tan@gmail.com', 'Female', 1, 6,
-   'J', 4000, 'uploads/applications/test_front.jpg', 'uploads/applications/test_back.jpg',
-   'uploads/applications/test_nbi.jpg', 'Pending Review', NOW());
+  (8, 'Gloria', 'Tan', '+639171234567', 'gloria.tan@gmail.com', 'Female', 'Brgy. Biga, Silang, Cavite', 1,
+   6, 'J', 4000, 'Pending Review', NOW());
+SET @app = LAST_INSERT_ID();   -- use this as <APP_ID>
 
-SELECT LAST_INSERT_ID();   -- use this as <APP_ID>
+-- One document per active, required application requirement (default: 1 and 2).
+INSERT INTO application_documents (rent_application_id, requirement_id, label_snapshot, file_path)
+SELECT @app, id, label, CONCAT('uploads/applications/test_', id, '.jpg')
+FROM application_requirements WHERE is_active = 1 AND is_required = 1;
+
+SELECT @app;
 ```
 
 Approve it, then assert:

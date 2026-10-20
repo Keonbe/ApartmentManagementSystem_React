@@ -103,13 +103,14 @@ erDiagram
         varchar contact_no
         varchar email "duplicates users.email_address"
         varchar gender
+        varchar previous_address
         int occupants
         int months_of_rent
         varchar room_name "string ref to rooms.id - no FK constraint"
         decimal monthly_rent
-        varchar valid_id_front_path
-        varchar valid_id_back_path
-        varchar nbi_clearance_path
+        varchar valid_id_front_path "legacy, see application_documents"
+        varchar valid_id_back_path "legacy"
+        varchar nbi_clearance_path "legacy"
         varchar status "Pending Review, Approved, Rejected, pending-move-out, moved-out, archived"
         date archive_date
         varchar archive_reason
@@ -735,7 +736,7 @@ ALTER TABLE maintenance_requests
 | FR-1.4 | The system shall store the authenticated user session in `sessionStorage` and send the session token as `Authorization: Bearer` on all API calls (identity headers were removed 2026-09-14). | ✅ |
 | FR-1.5 | The system shall allow users to update their profile information (name, contact, avatar). | ✅ |
 | FR-1.6 | The system shall allow users to change their password (requiring current password verification). | ✅ |
-| FR-1.7 | The system shall allow users to preview uploaded verification documents (Valid ID, NBI Clearance) from their profile. | ✅ |
+| FR-1.7 | The system shall allow users to preview uploaded verification documents (the application requirements the admin defines; default Valid ID front/back) from their profile. | ✅ |
 | FR-1.8 | The system shall enforce a configurable password reset/change policy (max changes, cooldown period). | 🔲 |
 
 ---
@@ -744,7 +745,7 @@ ALTER TABLE maintenance_requests
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| FR-2.1 | The system shall allow authenticated users to submit a rent application with personal details, room selection, lease duration, and required document uploads (Valid ID front/back, NBI Clearance). | ✅ |
+| FR-2.1 | The system shall allow authenticated users to submit a rent application with personal details, room selection, lease duration, and previous address, and the document uploads the admin requires (Settings → Application Requirements; default Valid ID front/back). | ✅ |
 | FR-2.2 | The system shall store the applicant's `user_id` FK on the `rent_applications` record at submission time. | ✅ |
 | FR-2.3 | The system shall allow users to preview and retake uploaded images before submission. | ✅ |
 | FR-2.4 | The system shall provide an application tracking page (`/track-application`) showing current status and pending initial payment. | ✅ |

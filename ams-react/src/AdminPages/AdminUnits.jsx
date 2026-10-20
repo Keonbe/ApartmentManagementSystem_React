@@ -654,7 +654,7 @@ const AdminUnits = () => {
                   onChange={e => { setAssignForm({ ...assignForm, identityVerified: e.target.checked }); assignErrors.clearError('identityVerified'); }}
                   className="mt-0.5"
                 />
-                <span>I confirm this tenant's valid ID and NBI clearance have been verified in person, and they have agreed to the Terms &amp; Conditions.</span>
+                <span>I confirm this tenant's required documents have been verified in person, and they have agreed to the Terms &amp; Conditions.</span>
               </label>
               <FieldError id="assign-identityVerified" error={assignErrors.errors.identityVerified} />
             </div>

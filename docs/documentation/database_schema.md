@@ -63,13 +63,15 @@ erDiagram
         varchar contact_no
         varchar email
         varchar gender
+        varchar previous_address "nullable; required on new applications"
         int occupants
         int months_of_rent
         varchar room_name FK "-> rooms.id, ON DELETE RESTRICT"
         decimal monthly_rent
-        varchar valid_id_front_path
-        varchar valid_id_back_path
-        varchar nbi_clearance_path
+        varchar valid_id_front_path "legacy, nullable, no longer written"
+        varchar valid_id_back_path "legacy, nullable, no longer written"
+        varchar nbi_clearance_path "legacy, nullable, no longer written"
+        datetime documents_verified_at "admin attested in person (update_room.php)"
         varchar status "Pending Review | Approved | Rejected | pending-move-out | moved-out | archived"
         varchar rejection_reason
         timestamp created_at
@@ -324,6 +326,24 @@ erDiagram
         datetime removed_at
         datetime removal_requested_at
     }
+
+    APPLICATION_REQUIREMENTS {
+        int id PK
+        varchar label "2-60, unique among active"
+        varchar label_fil
+        tinyint is_required
+        tinyint is_active
+        int sort_order
+    }
+
+    APPLICATION_DOCUMENTS {
+        int id PK
+        int rent_application_id FK "ON DELETE CASCADE"
+        int requirement_id FK "nullable, ON DELETE SET NULL"
+        varchar label_snapshot
+        varchar file_path
+        timestamp uploaded_at
+    }
     UNIT_WAITLIST {
         int id PK
         int inquiry_id FK
@@ -505,6 +525,8 @@ erDiagram
     INQUIRIES ||--o{ UNIT_RESERVATIONS : "converts to hold"
     INQUIRIES ||--o{ UNIT_WAITLIST : "waits for a unit"
     RENT_APPLICATIONS ||--o{ HOUSEHOLD_MEMBERS : "household of the lease"
+    RENT_APPLICATIONS ||--o{ APPLICATION_DOCUMENTS : "uploaded documents"
+    APPLICATION_REQUIREMENTS |o--o{ APPLICATION_DOCUMENTS : "asked for by"
     SERVICE_CATALOG ||--o{ SERVICE_REQUESTS : "priced by"
     USERS ||--o{ NOTIFICATION_PREFERENCES : "sets"
     USERS ||--o{ NOTIFICATION_QUEUE : "queued for"
@@ -526,7 +548,10 @@ erDiagram
 ### Applications & Leasing
 | Table | Purpose |
 |---|---|
-| `rent_applications` | One row per submitted application. `room_name` is the **only** soft-referenced-room column that's actually FK-enforced (`ON DELETE RESTRICT` — a room can't be deleted while it has application history). `status` drives the whole tenant lifecycle (`Pending Review → Approved/Rejected → pending-move-out → moved-out/archived`). |
+| `rent_applications` | One row per submitted application. `room_name` is the **only** soft-referenced-room column that's actually FK-enforced (`ON DELETE RESTRICT` — a room can't be deleted while it has application history). `status` drives the whole tenant lifecycle (`Pending Review → Approved/Rejected → pending-move-out → moved-out/archived`). `previous_address` (5-255 chars) is required by `rent_application.php` on new submissions. The uploaded documents are in `application_documents`; `valid_id_front_path` / `valid_id_back_path` / `nbi_clearance_path` are legacy, nullable and no longer written or read (2026_10_manager_interview_alignment.sql backfilled them into `application_documents`). `documents_verified_at` is set when an admin assigns a tenant in person (`update_room.php`, no uploads in that flow); the follow-up sweep does not flag such a record for missing documents. |
+| `application_requirements` | The documents an applicant uploads (Settings → Application Requirements, `manage_application_requirements.php`). `label` (2-60, unique case-insensitively among active rows), optional `label_fil`, `is_required`, `is_active`, `sort_order` (0-999); at most 12 active. Seeded with "Valid ID (front)" and "Valid ID (back)", both required. Never deleted, only deactivated, so old documents keep their link. Approval (`update_tenant_status.php`) and the follow-up sweep need a file for every active + required row. |
+| `deposit_deductions` | Itemized move-out deductions: `rent_application_id` (FK, cascade), `contract_id`, `category` (`damage`/`electricity`/`water`/`unpaid_rent`/`other`), `reason` (1-255), `amount`, `recorded_by`. `lease_contracts.damage_deduction` = damage + other, `utility_deduction` = electricity + water + unpaid rent. `restore_tenant.php` deletes the rows when it resets the deductions. |
+| `application_documents` | One uploaded file per application and requirement (`UNIQUE (rent_application_id, requirement_id)`). `label_snapshot` keeps the name the applicant uploaded against, so a document stays readable after its requirement is renamed or deactivated; `requirement_id` is `NULL` for a backfilled legacy NBI clearance. `ON DELETE CASCADE` from `rent_applications`, `ON DELETE SET NULL` from `application_requirements`. A resubmission replaces only the rows it sends a new file for. `download_file.php` resolves the owner through this table. |
 | `lease_contracts` | One row per approved application, enforced by a `UNIQUE` key on `rent_application_id` (added September 2026 — the admin "Generate Contract" button used to insert a second row with no check). `status` is a real `ENUM`: `draft` (created on approval, not yet admin-reviewed) → `active` → `expired` (auto-swept, see §4) / `eviction-pending` / `terminated` (ends the tenancy — see `update_contract_status.php`'s `terminate` action). Every transition is gated server-side by `CONTRACT_TRANSITIONS` in `config.php`, not just checked at the UI. `termination_reason`/`terminated_at` and `renewal_reminder_sent_at` (a lease-end-reminder claim column) were added the same cycle. `deposit_amount` is one month's rent; there's deliberately no `monthly_rent` column here — the rate is always read live from `rent_applications.monthly_rent`, so it can never drift from the source of truth. `deposit_status` tracks the deposit itself (September 2026 payments audit; it used to default to `Held` before anything was paid): `Pending` on the draft → `Held` when `settle_invoice()` settles the move-in invoice (`security_deposit > 0`) → `Applied to Rent` / `Applied to Bills/Damages` at move-out or termination, or `Not Collected` when a tenancy is terminated before paying it. `template_version_id` (nullable, no FK) is the `contract_template_versions.id` whose clauses the lease was issued under; `NULL` (issued before templates existed) shows the latest clauses. |
 | `household_members` | Co-occupants on a lease (decided 2026-09-16: one shared lease, only the lease holder has a login). `status`: `Pending` (tenant request) → `Active` / `Rejected` / `Cancelled` (withdrawn); `Active` → `Removed`. A removal request is `removal_requested_at` on the `Active` row. Requests are `household_request` notifications (metadata `add:<id>` / `remove:<id>`) decided in `process_tenant_request.php`. `rent_applications.occupants` never drops below 1 + active members and never exceeds `max_occupants_per_unit`. `end_household()` removes everyone on move-out, contract termination or archive. `ON DELETE CASCADE` from `rent_applications`. `age` and `age_category` (key into the `age_categories` setting) are captured on add; age is required for a Child. |
 | `lease_renewals` | Append-only audit trail for lease extensions. The contract itself is extended **in place** (not versioned as a new row) because every consumer query (`get_contracts.php`, `my_room.php`) assumes one `lease_contracts` row per application; this table exists purely so a renewal's history (old end date, new end date, rate at the time) isn't lost when the contract row is mutated. |

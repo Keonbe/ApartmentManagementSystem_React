@@ -2358,6 +2358,70 @@ function followup_overdue_tenants($conn) {
     return $rows;
 }
 
+// ── Application documents (Settings → Application Requirements) ──
+// The admin defines which documents an applicant uploads; the files live in
+// application_documents, one row per application and requirement.
+
+// SQL condition, true when application `$alias` lacks a file for at least one
+// active, required requirement. One query for any number of applications.
+function application_missing_required_docs_sql($alias = 'ra') {
+    return "EXISTS (SELECT 1 FROM application_requirements areq
+                    WHERE areq.is_active = 1 AND areq.is_required = 1
+                      AND NOT EXISTS (SELECT 1 FROM application_documents adoc
+                                      WHERE adoc.rent_application_id = $alias.id AND adoc.requirement_id = areq.id
+                                        AND adoc.file_path NOT IN ('', 'placeholder')))";
+}
+
+// Requirements ordered for display; inactive ones only when $include_inactive.
+function application_requirements_list($conn, $include_inactive = false) {
+    $where = $include_inactive ? '' : 'WHERE is_active = 1';
+    $res = $conn->query("SELECT id, label, label_fil, is_required, is_active, sort_order FROM application_requirements $where ORDER BY sort_order, id");
+    $rows = [];
+    while ($res && ($r = $res->fetch_assoc())) {
+        $rows[] = [
+            'id' => (int)$r['id'], 'label' => $r['label'], 'label_fil' => $r['label_fil'],
+            'is_required' => (bool)$r['is_required'], 'is_active' => (bool)$r['is_active'], 'sort_order' => (int)$r['sort_order'],
+        ];
+    }
+    return $rows;
+}
+
+// Documents grouped by application id: [app_id => [{id, requirement_id, label, file_path, uploaded_at}]].
+// $app_ids null = every application (list endpoints); one query either way.
+function application_documents_by_app($conn, $app_ids = null) {
+    $sql = "SELECT id, rent_application_id, requirement_id, label_snapshot, file_path, uploaded_at FROM application_documents";
+    if ($app_ids !== null) {
+        $app_ids = array_values(array_unique(array_map('intval', $app_ids)));
+        if (!$app_ids) return [];
+        $sql .= " WHERE rent_application_id IN (" . implode(',', $app_ids) . ")";
+    }
+    $res = $conn->query($sql . " ORDER BY rent_application_id, id");
+    $out = [];
+    while ($res && ($r = $res->fetch_assoc())) {
+        $out[(int)$r['rent_application_id']][] = [
+            'id' => (int)$r['id'],
+            'requirement_id' => $r['requirement_id'] !== null ? (int)$r['requirement_id'] : null,
+            'label' => $r['label_snapshot'],
+            'file_path' => $r['file_path'],
+            'uploaded_at' => $r['uploaded_at'],
+        ];
+    }
+    return $out;
+}
+
+// Labels of the active, required requirements this application has no file for.
+function application_missing_document_labels($requirements, $documents) {
+    $have = [];
+    foreach ($documents as $d) {
+        if ($d['requirement_id'] !== null && !in_array($d['file_path'], ['', 'placeholder'], true)) $have[$d['requirement_id']] = true;
+    }
+    $missing = [];
+    foreach ($requirements as $r) {
+        if ($r['is_active'] && $r['is_required'] && empty($have[$r['id']])) $missing[] = $r['label'];
+    }
+    return $missing;
+}
+
 function followup_missing_documents($conn) {
     $rows = [];
     $add = function ($r, $issue, $detail, $due) use (&$rows) {
@@ -2370,10 +2434,12 @@ function followup_missing_documents($conn) {
     // The office asked for something and the applicant has not answered.
     $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name, rejection_reason FROM rent_applications WHERE status = 'Action Required'");
     while ($res && ($r = $res->fetch_assoc())) $add($r, 'Action required', $r['rejection_reason'] ?: 'The office is waiting for more information.', null);
-    // Approved but a required document or the terms agreement is missing.
-    $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name FROM rent_applications
-        WHERE status = 'Approved' AND (COALESCE(valid_id_front_path,'') = '' OR COALESCE(valid_id_back_path,'') = '' OR COALESCE(nbi_clearance_path,'') = '' OR terms_agreed_at IS NULL)");
-    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Missing documents', 'A valid ID, NBI clearance or the terms agreement is missing.', null);
+    // Approved but a required document or the terms agreement is missing. A
+    // tenant the admin assigned in person (documents_verified_at) has no files.
+    $missing_docs = application_missing_required_docs_sql('ra');
+    $res = $conn->query("SELECT ra.id, ra.user_id, ra.first_name, ra.last_name, ra.room_name FROM rent_applications ra
+        WHERE ra.status = 'Approved' AND (ra.terms_agreed_at IS NULL OR (ra.documents_verified_at IS NULL AND $missing_docs))");
+    while ($res && ($r = $res->fetch_assoc())) $add($r, 'Missing documents', 'A required application document or the terms agreement is missing.', null);
     // Move-in date passed and the tenant never moved in.
     $res = $conn->query("SELECT id, user_id, first_name, last_name, room_name, move_in_date FROM rent_applications
         WHERE status = 'Approved' AND move_in_date IS NOT NULL AND move_in_date < CURDATE()");

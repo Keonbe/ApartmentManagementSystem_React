@@ -95,6 +95,7 @@ export default function ViewContract() {
                         tenantName: `${data.first_name || ""} ${data.last_name || ""}`.trim() || `${loggedInUser?.first_name || ""} ${loggedInUser?.last_name || ""}`.trim(),
                         tenantEmail: activeEmail,
                         tenantPhone: data.contact_no || null,
+                        tenantPreviousAddress: data.previous_address || null,
                         roomName: cleanRoomName,
                         monthlyRent,
                         // Security deposit is one month's rent; fall back to the rent

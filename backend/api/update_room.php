@@ -194,8 +194,8 @@ try {
                 if ($months <= 0) $months = 6;
 
                 // Manual admin assignment (no self-service application on file) still
-                // has to satisfy checklist 1.7's acceptance criteria — since there's no
-                // uploaded ID/NBI in this flow, the admin must explicitly attest the
+                // has to satisfy checklist 1.7's acceptance criteria — since there are no
+                // uploaded documents in this flow, the admin must explicitly attest the
                 // documents were checked in person before this synthetic record is
                 // created as already 'Approved'.
                 $identity_verified = filter_var($data['identity_verified'] ?? $data['identityVerified'] ?? false, FILTER_VALIDATE_BOOLEAN);
@@ -211,10 +211,10 @@ try {
                 $assigned_app_id = $existing_app ? (int)$existing_app['id'] : null;
                 if (!$existing_app) {
                     // Insert an admin-attested approved application so the user can access
-                    // the room. Documents stay 'placeholder' (none were uploaded through
-                    // this in-person flow) but terms_agreed_at is stamped now, recording
-                    // the admin's attestation above rather than leaving it permanently NULL.
-                    $ins_app = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, status, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'placeholder', 'placeholder', 'placeholder', 'Approved', NOW())");
+                    // the room. No files are uploaded through this in-person flow, so it
+                    // has no application_documents; documents_verified_at and
+                    // terms_agreed_at record the admin's attestation above instead.
+                    $ins_app = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent, room_name, monthly_rent, status, terms_agreed_at, documents_verified_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'Approved', NOW(), NOW())");
                     $ins_app->bind_param("isssssisd", $user_id, $first_name, $last_name, $contact_no, $email, $gender, $months, $id, $monthly_rent);
                     if (!$ins_app->execute()) {
                         error_log("[AMS] Failed to create application record for the assigned tenant: " . $ins_app->error);

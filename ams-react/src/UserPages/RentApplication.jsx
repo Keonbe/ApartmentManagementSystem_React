@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X, AlertCircle } from 'lucide-react';
 import SuccessModal from '../Components/SuccessModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
@@ -6,12 +6,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
 import { useLang } from '../config/i18n';
-import { LIMITS, checkIntRange, checkPersonName, checkPhMobile, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, checkIntRange, checkPersonName, checkPhMobile, checkText, toPhLocal10, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
-import useFilePreview from '../hooks/useFilePreview';
 import FieldError from '../Components/form/FieldError';
 import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
@@ -19,6 +18,10 @@ import '../assets/styles/responsive/user/rent-application.responsive.css';
 const GENDERS = ['Male', 'Female', 'Other'];
 const MAX_OCCUPANTS = 8;
 const MAX_MONTHS = 24;
+// rent_applications.previous_address; rent_application.php checks the same range.
+const ADDRESS_MIN = 5;
+const ADDRESS_MAX = 255;
+const docKey = (id) => `doc_${id}`;
 const INPUT_CLS = "w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner text-sm transition-all font-medium disabled:opacity-75 disabled:cursor-not-allowed";
 const LOCKED_CLS = "w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 shadow-inner text-sm font-medium cursor-not-allowed";
 const LABEL_CLS = "text-sm font-bold text-slate-700";
@@ -40,12 +43,16 @@ const readDraft = (userId) => {
     }
 };
 
-// One drop zone per required document.
-function DocumentCard({ form, fieldKey, label, dropText, file, previewUrl, keepsPath, dragging, setDragging, onPick, onRemove, onPreview, t }) {
+// One drop zone per application requirement (Settings → Application Requirements).
+function DocumentCard({ form, fieldKey, label, optional, dropText, file, previewUrl, keepsPath, dragging, setDragging, onPick, onRemove, onPreview, t }) {
     const isImage = file && (file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(file.name));
     return (
         <div className="flex flex-col space-y-2">
-            <label htmlFor={`rent-${fieldKey}`} className={LABEL_CLS}>{label} {form.errors[fieldKey] && <span className="text-rose-500">*</span>}</label>
+            <label htmlFor={`rent-${fieldKey}`} className={LABEL_CLS}>
+                {label}
+                {optional && <span className="text-xs font-normal text-slate-400 ml-1">({t('rent.optional')})</span>}
+                {form.errors[fieldKey] && <span className="text-rose-500"> *</span>}
+            </label>
             <div
                 onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
@@ -71,7 +78,7 @@ function DocumentCard({ form, fieldKey, label, dropText, file, previewUrl, keeps
                             </div>
                             <p className="text-xs font-bold text-slate-600 m-0 leading-relaxed">{dropText}<br /><span className="text-indigo-600">{t('rent.browse')}</span></p>
                             {keepsPath && (
-                                <p className="text-[10px] text-emerald-600 font-bold m-0">✓ Keeps: {keepsPath.split('/').pop()}</p>
+                                <p className="text-[10px] text-emerald-600 font-bold m-0">{t('rent.docOnFile')}</p>
                             )}
                         </div>
                     </>
@@ -105,7 +112,7 @@ function DocumentCard({ form, fieldKey, label, dropText, file, previewUrl, keeps
 export default function RentApplication() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { t } = useLang();
+    const { t, lang } = useLang();
 
     const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "{}");
     const defaultFirstName = loggedInUser.first_name || '';
@@ -141,6 +148,7 @@ export default function RentApplication() {
     const [occupants, setOccupants] = useState(draft.occupants || '');
     const [monthsOfRent, setMonthsOfRent] = useState(draft.monthsOfRent || '');
     const [prefMoveInDate, setPrefMoveInDate] = useState(draft.prefMoveInDate || '');
+    const [previousAddress, setPreviousAddress] = useState(editApp?.previous_address || draft.previousAddress || '');
     const [isASAP, setIsASAP] = useState(false);
     // Settings → Rental → Minimum Rent Duration (rent_application.php enforces it too).
     const [minMonths, setMinMonths] = useState(1);
@@ -214,13 +222,52 @@ export default function RentApplication() {
         fetchRooms();
     }, [editApp]);
 
-    const [validIdFrontFile, setValidIdFrontFile, validIdFrontUrl] = useFilePreview();
-    const [validIdBackFile, setValidIdBackFile, validIdBackUrl] = useFilePreview();
-    const [nbiFile, setNbiFile, nbiUrl] = useFilePreview();
+    // The documents to upload come from Settings → Application Requirements.
+    // On a resubmission, files already on the application count as provided.
+    const [requirements, setRequirements] = useState([]);
+    const [requirementsState, setRequirementsState] = useState('loading'); // loading | ready | error
+    const [onFile, setOnFile] = useState({}); // requirement id → document already uploaded
+    useEffect(() => {
+        let cancelled = false;
+        api.get('/get_application_requirements.php')
+            .then((res) => {
+                if (cancelled) return;
+                setRequirements(res.data?.requirements || []);
+                setRequirementsState('ready');
+            })
+            .catch(() => { if (!cancelled) setRequirementsState('error'); });
+        if (isEditing) {
+            api.get('/get_documents.php')
+                .then((res) => {
+                    if (cancelled || !res.data?.success || Number(res.data.application_id) !== Number(editApp.id)) return;
+                    const map = {};
+                    (res.data.documents || []).forEach((d) => { if (d.requirement_id != null) map[d.requirement_id] = d; });
+                    setOnFile(map);
+                })
+                .catch(() => { /* the form still works: every required file must then be picked */ });
+        }
+        return () => { cancelled = true; };
+    }, [isEditing, editApp?.id]);
+    const requirementLabel = (r) => (lang === 'fil' && r.label_fil?.trim() ? r.label_fil : r.label);
+
+    // Picked files per requirement id, each with a blob: URL for its preview.
+    // A URL is released when its file is replaced or removed, and on unmount.
+    const [docFiles, setDocFiles] = useState({}); // id → { file, url }
+    const docFilesRef = useRef({});
+    useEffect(() => () => {
+        Object.values(docFilesRef.current).forEach((d) => d?.url && URL.revokeObjectURL(d.url));
+    }, []);
+    const setDocFile = useCallback((id, file) => {
+        const prev = docFilesRef.current;
+        if (prev[id]?.url) URL.revokeObjectURL(prev[id].url);
+        const next = { ...prev };
+        if (file) next[id] = { file, url: URL.createObjectURL(file) };
+        else delete next[id];
+        docFilesRef.current = next;
+        setDocFiles(next);
+    }, []);
+    const [draggingId, setDraggingId] = useState(null);
     const [submitting, setSubmitting] = useState(false);
-    const [isDraggingIdFront, setIsDraggingIdFront] = useState(false);
-    const [isDraggingIdBack, setIsDraggingIdBack] = useState(false);
-    const [isDraggingNbi, setIsDraggingNbi] = useState(false);
 
     const [preview, setPreview] = useState(null); // { url, title, isImage }
     const [notice, setNotice] = useState('');     // messages that belong to no single field
@@ -240,13 +287,22 @@ export default function RentApplication() {
     useEffect(() => {
         if (isEditing || !['none', 'rejected'].includes(applicationStatus)) return;
         try {
-            sessionStorage.setItem(draftKey(loggedInUser.id), JSON.stringify({ phoneRawNumber, gender, occupants, monthsOfRent, selectedRoomId, prefMoveInDate }));
+            sessionStorage.setItem(draftKey(loggedInUser.id), JSON.stringify({ phoneRawNumber, gender, occupants, monthsOfRent, selectedRoomId, prefMoveInDate, previousAddress }));
         } catch { /* storage full or blocked: the form still works */ }
-    }, [phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, selectedRoomId, isEditing, applicationStatus, loggedInUser.id]);
+    }, [phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, previousAddress, selectedRoomId, isEditing, applicationStatus, loggedInUser.id]);
 
-    // Documents are required on every application submission.
-    const requireDoc = (label) => (f) => (f ? checkFile(f, FILE_RULES.document) : `Please upload your ${label}.`);
+    // One check per requirement: a picked file must pass the upload rules; a
+    // required one with no file is an error unless it is already on file.
+    const docValidators = {};
+    requirements.forEach((r) => {
+        docValidators[docKey(r.id)] = (f) => {
+            if (f) return checkFile(f, FILE_RULES.document);
+            return r.is_required && !onFile[r.id] ? t('rent.uploadRequired').replace('{label}', requirementLabel(r)) : '';
+        };
+    });
     const form = useFieldErrors({
+        ...docValidators,
+        previousAddress: (v) => checkText(v, { label: t('rent.previousAddress'), min: ADDRESS_MIN, max: ADDRESS_MAX }),
         suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
         contactNo: (v) => checkPhMobile(v),
         gender: (v) => (GENDERS.includes(v) ? '' : 'Please select your gender.'),
@@ -255,29 +311,29 @@ export default function RentApplication() {
         prefMoveInDate: (v) => (isASAP || v ? '' : 'Please select when you need to move in by.'),
         // Only a vacant unit can be applied for (checked once the list has loaded).
         roomName: (v) => (!isEditing && rooms.length && !availableRooms.some(r => r.id === v) ? `Room ${v} is not available. Choose another room.` : ''),
-        validIdFrontFile: requireDoc('Valid ID (front)'),
-        validIdBackFile: requireDoc('Valid ID (back)'),
-        nbiFile: requireDoc('NBI Clearance'),
         agreeTerms: (v) => (v ? '' : 'Please read and agree to the terms and privacy policy.'),
         agreeRules: (v) => (v ? '' : 'Please read and agree to follow the apartment rules.'),
     }, { idPrefix: 'rent-' });
+    const docValues = {};
+    requirements.forEach((r) => { docValues[docKey(r.id)] = docFiles[r.id]?.file || null; });
     const values = {
         suffix, contactNo: phoneRawNumber, gender, occupants, monthsOfRent, prefMoveInDate, roomName: selectedRoomId,
-        validIdFrontFile, validIdBackFile, nbiFile, agreeTerms: agreePrivacy, agreeRules,
+        previousAddress, ...docValues, agreeTerms: agreePrivacy, agreeRules,
     };
 
     // Accepts the file when it passes the upload rules; otherwise the error pops up as a modal alert.
-    const pickFile = (key, setFile) => (file) => {
+    const pickFile = (id) => (file) => {
+        const key = docKey(id);
         const fileError = checkFile(file, FILE_RULES.document);
         if (fileError) {
             setNotice(fileError);
             form.setFieldError(key, fileError);
         } else {
             form.clearError(key);
-            setFile(file);
+            setDocFile(id, file);
         }
     };
-    const removeFile = (key, setFile) => () => { setFile(null); form.clearError(key); };
+    const removeFile = (id) => () => { setDocFile(id, null); form.clearError(docKey(id)); };
 
     const handlePhoneChange = (digits) => {
         if (isReadOnly) return;
@@ -343,9 +399,15 @@ export default function RentApplication() {
 
         // Names and email are read-only copies of the account, so only the
         // editable fields are checked here.
+        if (requirementsState !== 'ready') {
+            setNotice(t('rent.docsLoadFailed'));
+            return;
+        }
         const cleanSuffix = suffix.trim();
+        const cleanAddress = previousAddress.trim();
         setSuffix(cleanSuffix);
-        if (!form.validateAll({ ...values, suffix: cleanSuffix })) return;
+        setPreviousAddress(cleanAddress);
+        if (!form.validateAll({ ...values, suffix: cleanSuffix, previousAddress: cleanAddress })) return;
 
         const finalMonthlyRent = monthlyRent + (occupants > 4 ? (occupants - 4) * 1000 : 0);
 
@@ -364,10 +426,12 @@ export default function RentApplication() {
         formData.append('isAsap', isASAP ? '1' : '0');
         formData.append('roomName', selectedRoomId);
         formData.append('monthlyRent', finalMonthlyRent);
+        formData.append('previousAddress', cleanAddress);
         formData.append('agreeTerms', agreePrivacy);
-        if (validIdFrontFile) formData.append('validIdFrontFile', validIdFrontFile);
-        if (validIdBackFile) formData.append('validIdBackFile', validIdBackFile);
-        if (nbiFile) formData.append('nbiFile', nbiFile);
+        requirements.forEach((r) => {
+            const f = docFiles[r.id]?.file;
+            if (f) formData.append(docKey(r.id), f);
+        });
 
         setSubmitting(true);
         try {
@@ -403,19 +467,21 @@ export default function RentApplication() {
         }
     };
 
-    const docCard = (fieldKey, label, dropText, file, setFile, url, keepsPath, dragging, setDragging) => (
+    const docCard = (r) => (
         <DocumentCard
+            key={r.id}
             form={form}
-            fieldKey={fieldKey}
-            label={label}
-            dropText={dropText}
-            file={file}
-            previewUrl={url}
-            keepsPath={keepsPath}
-            dragging={dragging}
-            setDragging={setDragging}
-            onPick={pickFile(fieldKey, setFile)}
-            onRemove={removeFile(fieldKey, setFile)}
+            fieldKey={docKey(r.id)}
+            label={requirementLabel(r)}
+            optional={!r.is_required}
+            dropText={t('rent.dropDoc')}
+            file={docFiles[r.id]?.file || null}
+            previewUrl={docFiles[r.id]?.url || ''}
+            keepsPath={onFile[r.id]?.file_path || null}
+            dragging={draggingId === r.id}
+            setDragging={(on) => setDraggingId(on ? r.id : null)}
+            onPick={pickFile(r.id)}
+            onRemove={removeFile(r.id)}
             onPreview={openPreview}
             t={t}
         />
@@ -561,6 +627,26 @@ export default function RentApplication() {
                                     </select>
                                     <FieldError id="rent-gender" error={form.errors.gender} className="m-0" />
                                 </div>
+                            </div>
+
+                            <div className="flex flex-col space-y-1.5">
+                                <label htmlFor="rent-previousAddress" className={LABEL_CLS}>
+                                    {t('rent.previousAddress')} {form.errors.previousAddress && <span className="text-rose-500 ml-0.5">*</span>}
+                                </label>
+                                <input
+                                    type="text"
+                                    {...form.fieldA11y('previousAddress')}
+                                    autoComplete="street-address"
+                                    placeholder={t('rent.previousAddressPlaceholder')}
+                                    value={previousAddress}
+                                    disabled={isReadOnly}
+                                    maxLength={ADDRESS_MAX}
+                                    onChange={(e) => { setPreviousAddress(e.target.value); form.clearError('previousAddress'); }}
+                                    onBlur={() => { const v = previousAddress.trim(); setPreviousAddress(v); form.validateField('previousAddress', { ...values, previousAddress: v }); }}
+                                    className={INPUT_CLS + invalidCls(form.errors.previousAddress)}
+                                    required
+                                />
+                                <FieldError id="rent-previousAddress" error={form.errors.previousAddress} className="m-0" />
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -714,17 +800,17 @@ export default function RentApplication() {
                                     <span>{t('rent.docsLocked')}</span>
                                 </div>
                             ) : (
-                                <div className="space-y-6">
+                                requirementsState === 'loading' ? (
+                                    <p className="m-0 text-sm font-semibold text-slate-400 animate-pulse">{t('rent.docsLoading')}</p>
+                                ) : requirementsState === 'error' ? (
+                                    <p role="alert" className="m-0 rounded-xl bg-rose-50 p-4 text-sm font-semibold text-rose-700">{t('rent.docsLoadFailed')}</p>
+                                ) : requirements.length === 0 ? (
+                                    <p className="m-0 text-sm font-semibold text-slate-500">{t('rent.noDocsRequired')}</p>
+                                ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {docCard('validIdFrontFile', t('rent.validIdFront'), t('rent.dropFront'), validIdFrontFile, setValidIdFrontFile, validIdFrontUrl, null, isDraggingIdFront, setIsDraggingIdFront)}
-                                        {docCard('validIdBackFile', t('rent.validIdBack'), t('rent.dropBack'), validIdBackFile, setValidIdBackFile, validIdBackUrl, null, isDraggingIdBack, setIsDraggingIdBack)}
+                                        {requirements.map(docCard)}
                                     </div>
-                                    <div className="flex justify-center pt-2">
-                                        <div className="w-full md:w-1/2">
-                                            {docCard('nbiFile', t('rent.nbiClearance'), t('rent.dropNbi'), nbiFile, setNbiFile, nbiUrl, null, isDraggingNbi, setIsDraggingNbi)}
-                                        </div>
-                                    </div>
-                                </div>
+                                )
                             )}
                         </div>
 

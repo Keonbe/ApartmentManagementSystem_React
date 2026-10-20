@@ -568,7 +568,7 @@ export default function ProfileSettings() {
                                 </div>
                                 <div>
                                     <p className="m-0 text-sm font-bold text-slate-800">{t('profile.verificationDocs')}</p>
-                                    <p className="m-0 text-xs text-slate-400 mt-0.5">Manage Valid ID & NBI Clearance</p>
+                                    <p className="m-0 text-xs text-slate-400 mt-0.5">View the documents on your application</p>
                                 </div>
                             </button>
                             <button type="button" onClick={() => setShowPassModal(true)} className="btn-interactive bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">

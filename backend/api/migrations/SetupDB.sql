@@ -319,6 +319,7 @@ CREATE TABLE `rent_applications` (
   `contact_no` varchar(30) NOT NULL,
   `email` varchar(150) NOT NULL,
   `gender` varchar(20) NOT NULL,
+  `previous_address` varchar(255) DEFAULT NULL,
   `occupants` int(11) NOT NULL,
   `months_of_rent` int(11) NOT NULL,
   `preferred_move_in_date` date DEFAULT NULL,
@@ -326,9 +327,11 @@ CREATE TABLE `rent_applications` (
   `move_in_notified_at` datetime DEFAULT NULL,
   `room_name` varchar(50) NOT NULL,
   `monthly_rent` decimal(10,2) NOT NULL,
-  `valid_id_front_path` varchar(255) NOT NULL,
-  `valid_id_back_path` varchar(255) NOT NULL,
-  `nbi_clearance_path` varchar(255) NOT NULL,
+  -- Legacy, no longer written: uploads live in application_documents
+  -- (2026_10_manager_interview_alignment.sql).
+  `valid_id_front_path` varchar(255) DEFAULT NULL,
+  `valid_id_back_path` varchar(255) DEFAULT NULL,
+  `nbi_clearance_path` varchar(255) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'Pending Review',
   `rejection_reason` varchar(255) DEFAULT NULL,
   `rejection_attachment_path` varchar(255) DEFAULT NULL,
@@ -863,9 +866,13 @@ ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `late_fee` decimal(10,2) NOT NUL
 ALTER TABLE `invoices` ADD COLUMN IF NOT EXISTS `late_fee_waived` tinyint(1) NOT NULL DEFAULT 0;
 
 -- Records when the applicant checked the Terms & Conditions box at submission.
--- update_tenant_status.php requires this to be set (along with real ID/NBI
--- uploads) before an application can be approved (checklist item 1.7).
+-- update_tenant_status.php requires this to be set (along with every active,
+-- required application document) before an application can be approved
+-- (checklist item 1.7).
 ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `terms_agreed_at` timestamp NULL DEFAULT NULL;
+-- Set when an admin assigns a tenant in person (update_room.php) and attests the
+-- documents were checked there (2026_10_manager_interview_alignment.sql).
+ALTER TABLE `rent_applications` ADD COLUMN IF NOT EXISTS `documents_verified_at` datetime DEFAULT NULL AFTER `terms_agreed_at`;
 
 -- Maintenance timeline (checklist 4.6), title, actual cost and rejection reason.
 -- resolved_at was read and written by the maintenance endpoints but never created.
@@ -1287,6 +1294,58 @@ CREATE TABLE IF NOT EXISTS `utility_reading_items` (
 INSERT IGNORE INTO `utility_types` (`code`, `name`, `unit_label`, `billing_mode`, `default_rate`, `is_active`, `sort_order`) VALUES
 ('internet', 'Internet', NULL, 'flat', 1000.00, 0, 1),
 ('gas', 'Gas', 'kg', 'metered', 90.00, 0, 2);
+
+-- Admin-defined application documents (Settings -> Application Requirements) and
+-- the files applicants uploaded for them (2026_10_manager_interview_alignment.sql).
+-- label_snapshot keeps a document readable after its requirement is renamed or
+-- deactivated; requirement_id is NULL for a backfilled legacy NBI file.
+CREATE TABLE IF NOT EXISTS `application_requirements` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `label` varchar(60) NOT NULL,
+  `label_fil` varchar(60) DEFAULT NULL,
+  `is_required` tinyint(1) NOT NULL DEFAULT 1,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_app_requirements_active` (`is_active`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `application_documents` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `requirement_id` int(11) DEFAULT NULL,
+  `label_snapshot` varchar(60) NOT NULL,
+  `file_path` varchar(255) NOT NULL,
+  `uploaded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_app_document_requirement` (`rent_application_id`, `requirement_id`),
+  KEY `idx_app_documents_requirement` (`requirement_id`),
+  KEY `idx_app_documents_path` (`file_path`),
+  CONSTRAINT `fk_app_documents_application` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_app_documents_requirement` FOREIGN KEY (`requirement_id`) REFERENCES `application_requirements` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Itemized move-out deposit deductions: category, reason and amount per line.
+-- lease_contracts.damage_deduction / utility_deduction hold the totals.
+CREATE TABLE IF NOT EXISTS `deposit_deductions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `contract_id` varchar(50) DEFAULT NULL,
+  `category` enum('damage','electricity','water','unpaid_rent','other') NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `recorded_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_deposit_deductions_app` (`rent_application_id`),
+  CONSTRAINT `fk_deposit_deductions_application` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT IGNORE INTO `application_requirements` (`id`, `label`, `label_fil`, `is_required`, `is_active`, `sort_order`) VALUES
+(1, 'Valid ID (front)', 'Valid ID (harap)', 1, 1, 1),
+(2, 'Valid ID (back)', 'Valid ID (likod)', 1, 1, 2);
 
 -- 3. Default System Settings
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES

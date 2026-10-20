@@ -1,121 +1,108 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axiosConfig';
+import { fileUrl } from '../api/fileUrl';
+import { apiErrorMessage } from '../utils/apiError';
 
+// The documents on the signed-in tenant's latest application
+// (Settings → Application Requirements decides which ones are asked for).
 export default function DocumentsModal({ isOpen, onClose }) {
-    const [documentList, setDocumentList] = useState([]);
-    const [activeView, setActiveView] = useState(null);{/*Tracks which file format layout is shown*/}
+    const [data, setData] = useState({ documents: [], missing: [], verifiedAt: null });
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
 
     useEffect(() => {
         if (!isOpen) return;
-
-        const fetchUserDocuments = async () => {
+        let cancelled = false;
+        const load = async () => {
             setLoading(true);
             setErrorMsg('');
-            
-            const loggedInUser = JSON.parse(sessionStorage.getItem("loggedInUser") || "null");
-            if (!loggedInUser || !loggedInUser.email_address) {
-                setErrorMsg("User session expired. Please log in again.");
-                setLoading(false);
-                return;
-            }
-
             try {
-                const res = await api.post('/get_documents.php', {
-                    email_address: loggedInUser.email_address
-                });
-
+                const res = await api.get('/get_documents.php');
+                if (cancelled) return;
                 if (res.data.success) {
-                    setDocumentList(res.data.documents);
+                    setData({
+                        documents: res.data.documents || [],
+                        missing: res.data.missing_documents || [],
+                        verifiedAt: res.data.documents_verified_at || null,
+                    });
                 } else {
-                    setErrorMsg(res.data.message || "Failed to query document records.");
+                    setErrorMsg(res.data.message || 'No application documents found.');
                 }
             } catch (error) {
-                console.error("Error downloading document entries:", error);
-                setErrorMsg("Unable to download document details. Network error.");
+                if (!cancelled) setErrorMsg(apiErrorMessage(error, 'Unable to load your documents. Please try again.'));
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
-
-        fetchUserDocuments();
+        load();
+        return () => { cancelled = true; };
     }, [isOpen]);
 
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             onClick={onClose}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in modal-overlay-anim"
         >
             <div
                 onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="documents-modal-title"
                 className="modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] overflow-hidden text-left"
             >
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="text-lg font-bold m-0 text-slate-800">Verification Documents Log</h3>
-                    <button 
+                    <h3 id="documents-modal-title" className="text-lg font-bold m-0 text-slate-800">Verification Documents</h3>
+                    <button
+                        type="button"
+                        aria-label="Close"
                         onClick={onClose}
                         className="text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-base"
                     >✕</button>
                 </div>
 
-                <div className="p-6 overflow-y-auto space-y-4 flex-grow">
+                <div className="p-6 overflow-y-auto space-y-4 grow">
                     {loading && (
-                        <p className="text-center text-sm font-semibold text-slate-400 m-0 py-8 animate-pulse">
-                            Loading secure verification file paths...
-                        </p>
+                        <p className="text-center text-sm font-semibold text-slate-400 m-0 py-8 animate-pulse">Loading your documents…</p>
                     )}
 
                     {errorMsg && !loading && (
-                        <p className="text-center text-sm font-semibold text-red-500 m-0 py-8">
-                            {errorMsg}
-                        </p>
+                        <p className="text-center text-sm font-semibold text-red-500 m-0 py-8">{errorMsg}</p>
                     )}
 
                     {!loading && !errorMsg && (
                         <>
-                            {activeView ? (
-                                <div className="space-y-4">
-                                    <button 
-                                        onClick={() => setActiveView(null)}
-                                        className="text-xs font-bold text-indigo-600 hover:underline bg-transparent border-0 p-0 cursor-pointer"
-                                    >
-                                        &larr; Back to Documents List
-                                    </button>
-                                    <div className="bg-slate-100 rounded-xl p-4 border border-slate-200 text-center select-none font-medium text-sm text-slate-500 min-h-[240px] flex flex-col items-center justify-center">
-                                        <p className="m-0 font-bold text-slate-700 mb-1">{activeView.fileName}</p>
-                                        <p className="m-0 text-xs text-slate-400 mb-4">File Source Link: {activeView.url}</p>
+                            {data.verifiedAt && data.documents.length === 0 && (
+                                <p className="m-0 text-sm text-emerald-700 font-semibold">Your documents were checked in person by the office.</p>
+                            )}
+                            {data.documents.length === 0 && data.missing.length === 0 && !data.verifiedAt && (
+                                <p className="m-0 text-sm text-slate-500">No documents on file.</p>
+                            )}
+                            <div className="divide-y divide-slate-100">
+                                {data.documents.map((doc) => (
+                                    <div key={doc.id} className="py-3.5 flex items-center justify-between first:pt-0 last:pb-0">
+                                        <div className="min-w-0 pr-4">
+                                            <p className="m-0 text-sm font-bold text-slate-800 truncate">{doc.label}</p>
+                                            <p className="m-0 text-xs text-slate-400 mt-0.5 truncate">Uploaded {String(doc.uploaded_at || '').slice(0, 10)}</p>
+                                        </div>
                                         <a
-                                            href={`${api.defaults.baseURL.replace(/\/api\/?$/, '')}/${activeView.url.replace(/^\.\.\//, '')}`}
+                                            href={fileUrl(doc.file_path)}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-sm no-underline inline-block"
+                                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold px-4 py-2 rounded-xl transition-colors no-underline shrink-0"
                                         >
-                                            Open File Content
+                                            View Document
                                         </a>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="divide-y divide-slate-100">
-                                    {documentList.map((doc) => (
-                                        <div key={doc.key} className="py-3.5 flex items-center justify-between first:pt-0 last:pb-0">
-                                            <div className="min-w-0 pr-4">
-                                                <p className="m-0 text-sm font-bold text-slate-800 truncate">{doc.name}</p>
-                                                <p className="m-0 text-xs text-slate-400 mt-0.5 truncate">{doc.fileName}</p>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setActiveView(doc)}
-                                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold px-4 py-2 rounded-xl transition-colors border-0 cursor-pointer flex-shrink-0"
-                                            >
-                                                View Document
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                                ))}
+                                {!data.verifiedAt && data.missing.map((label) => (
+                                    <div key={`missing-${label}`} className="py-3.5 flex items-center justify-between first:pt-0 last:pb-0">
+                                        <p className="m-0 text-sm font-bold text-slate-400 truncate">{label}</p>
+                                        <span className="text-[10px] font-bold uppercase text-rose-500">Missing</span>
+                                    </div>
+                                ))}
+                            </div>
                         </>
                     )}
                 </div>

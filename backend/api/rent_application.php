@@ -15,6 +15,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(["success" => false, "message" => "Invalid request method"]);
     exit;
 }
+
+function application_fail($code, $message, $field = null) {
+    http_response_code($code);
+    $body = ["success" => false, "message" => $message];
+    if ($field) $body['field'] = $field;
+    echo json_encode($body);
+    exit;
+}
+
 $first_name = $_POST['firstName'] ?? '';
 $middle_name = $_POST['middleName'] ?? '';
 $last_name = $_POST['lastName'] ?? '';
@@ -30,6 +39,7 @@ $preferred_move_in_date = (!$is_asap && !empty($_POST['preferredMoveInDate']) &&
     : null;
 $room_name = $_POST['roomName'] ?? '';
 $monthly_rent = $_POST['monthlyRent'] ?? '';
+$previous_address = trim((string)($_POST['previousAddress'] ?? ''));
 // The applicant is the session user. This read X-User-Id directly, so a caller
 // could submit — or, with appId, overwrite — an application as another user, and
 // the profile sync below would then write onto that user's account.
@@ -41,6 +51,10 @@ if ($auth['role'] !== 'user') {
 }
 $user_id = $auth['id'];
 $app_id = $_POST['appId'] ?? null;
+if ($app_id !== null && $app_id !== '' && !ctype_digit((string)$app_id)) {
+    application_fail(422, "Invalid application id.");
+}
+$app_id = empty($app_id) ? null : (int)$app_id;
 
 // Occupants: the applicant plus their household, up to the configured maximum.
 $max_occupants = max_occupants_per_unit($conn);
@@ -51,7 +65,7 @@ if (!ctype_digit((string)$occupants) || (int)$occupants < 1 || (int)$occupants >
 }
 $agree_terms = filter_var($_POST['agreeTerms'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-if (empty($app_id) && !empty($user_id)) {
+if ($app_id === null && !empty($user_id)) {
     $dup_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1");
     $dup_stmt->bind_param("i", $user_id);
     $dup_stmt->execute();
@@ -67,20 +81,13 @@ if (empty($app_id) && !empty($user_id)) {
     $dup_stmt->close();
 }
 
-$existing_front = null;
-$existing_back = null;
-$existing_nbi = null;
-
-if (!empty($app_id) && !empty($user_id)) {
-    $check_stmt = $conn->prepare("SELECT valid_id_front_path, valid_id_back_path, nbi_clearance_path, status FROM rent_applications WHERE id = ? AND user_id = ?");
+if ($app_id !== null) {
+    $check_stmt = $conn->prepare("SELECT status FROM rent_applications WHERE id = ? AND user_id = ?");
     $check_stmt->bind_param("ii", $app_id, $user_id);
     $check_stmt->execute();
     $res = $check_stmt->get_result();
     if ($res->num_rows > 0) {
         $row = $res->fetch_assoc();
-        $existing_front = $row['valid_id_front_path'];
-        $existing_back = $row['valid_id_back_path'];
-        $existing_nbi = $row['nbi_clearance_path'];
         // Resubmission is only for an application the admin sent back. Any other
         // status (Pending Review, Approved, active, pending-move-out, moved-out) has
         // a live tenancy or an in-flight review riding on it — resetting it to
@@ -103,6 +110,7 @@ if (!empty($app_id) && !empty($user_id)) {
     }
     $check_stmt->close();
 }
+$is_update = $app_id !== null;
 
 if (empty($first_name) || empty($last_name) || empty($contact_no) || empty($email) || empty($gender) || empty($occupants) || empty($months_of_rent)) {
     echo json_encode(["success" => false, "message" => "Please fill in all required personal details."]);
@@ -127,85 +135,69 @@ if ($contact_no === null) {
     exit;
 }
 
+// Where the applicant lived before (asked at the manager interview, Q5).
+$address_len = mb_strlen($previous_address);
+if ($address_len < 5 || $address_len > 255) {
+    application_fail(422, $address_len === 0 ? "Please enter your previous address." : "Previous address must be 5 to 255 characters.", 'previousAddress');
+}
+if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]|<\s*script/i', $previous_address)) {
+    application_fail(422, "Previous address contains characters that are not allowed.", 'previousAddress');
+}
+
 if (!$agree_terms) {
     echo json_encode(["success" => false, "message" => "You must agree to the Terms & Conditions before submitting your application."]);
     exit;
 }
 
-// Backend File Validation
-$required_files = ['validIdFrontFile', 'validIdBackFile', 'nbiFile'];
+// Documents: one upload per active requirement (Settings → Application
+// Requirements), sent as doc_<requirement id>. Keys for unknown or inactive
+// requirements are ignored, never stored. On a resubmission a requirement
+// already on file keeps its file unless a new one is sent.
+$requirements = application_requirements_list($conn);
+$on_file = [];
+if ($is_update) {
+    foreach (application_documents_by_app($conn, [$app_id])[$app_id] ?? [] as $doc) {
+        if ($doc['requirement_id'] !== null && !in_array($doc['file_path'], ['', 'placeholder'], true)) $on_file[$doc['requirement_id']] = $doc;
+    }
+}
+
 $allowed_extensions = ['jpg', 'jpeg', 'png', 'pdf'];
 $allowed_mime_types = ['image/jpeg', 'image/png', 'application/pdf'];
 $max_size = 10 * 1024 * 1024; // 10MB
 
-foreach ($required_files as $fileKey) {
-    if (!isset($_FILES[$fileKey]) || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
-        echo json_encode(["success" => false, "message" => "Missing or failed upload for required file: " . $fileKey]);
-        exit;
+$uploads = []; // requirement id => ['tmp' =>, 'ext' =>, 'label' =>]
+foreach ($requirements as $req) {
+    $key = 'doc_' . $req['id'];
+    $label = $req['label'];
+    $file = $_FILES[$key] ?? null;
+    if ($file !== null && is_array($file['name'])) {
+        application_fail(422, "Upload one file for \"$label\".", $key);
     }
-    
-    $file_size = $_FILES[$fileKey]['size'];
-    $file_name = $_FILES[$fileKey]['name'];
-    $file_tmp = $_FILES[$fileKey]['tmp_name'];
-    
-    // Check size limit
-    if ($file_size > $max_size) {
-        echo json_encode(["success" => false, "message" => "File '" . htmlspecialchars($file_name) . "' exceeds the 10MB size limit."]);
-        exit;
-    }
-    
-    // Check extension
-    $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
-    if (!in_array($ext, $allowed_extensions)) {
-        echo json_encode(["success" => false, "message" => "Invalid extension for file '" . htmlspecialchars($file_name) . "'. Only JPEG, PNG, and PDF are allowed."]);
-        exit;
-    }
-    
-    // Check MIME type using server-side finfo_file (B-4)
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime = finfo_file($finfo, $file_tmp);
-    finfo_close($finfo);
-
-    if (!in_array($mime, $allowed_mime_types)) {
-        echo json_encode(["success" => false, "message" => "Invalid file format for '" . htmlspecialchars($file_name) . "'. Only JPEG, PNG, and PDF are allowed."]);
-        exit;
-    }
-}
-
-$upload_dir = "../uploads/applications/";
-if (!is_dir($upload_dir)) {
-    mkdir($upload_dir, 0755, true);
-}
-// Update the uploadFile function definition
-function uploadFile($fileInputName, $upload_dir, $user_name_prefix) {
-    if (isset($_FILES[$fileInputName]) && $_FILES[$fileInputName]['error'] === UPLOAD_ERR_OK) {
-        $file_name = basename($_FILES[$fileInputName]['name']);
-        $file_tmp = $_FILES[$fileInputName]['tmp_name'];
-        $extension = pathinfo($file_name, PATHINFO_EXTENSION);
-
-        // Random, non-guessable name — the filename used to embed the
-        // applicant's name and a time-seeded uniqid(), which brute-forced
-        // gov-ID/NBI files (H2/B-8).
-        $unique_file_name = bin2hex(random_bytes(16)) . "." . $extension;
-        $destination = $upload_dir . $unique_file_name;
-        
-        if (move_uploaded_file($file_tmp, $destination)) {
-            return $destination;
+    if ($file === null || $file['error'] === UPLOAD_ERR_NO_FILE) {
+        if ($req['is_required'] && !isset($on_file[$req['id']])) {
+            application_fail(422, "Please upload your $label.", $key);
         }
+        continue;
     }
-    return null;
-}
-
-// Prepare the name string
-$user_name_prefix = $first_name . "_" . $last_name;
-
-$valid_id_front_path = uploadFile('validIdFrontFile', $upload_dir, $user_name_prefix);
-$valid_id_back_path = uploadFile('validIdBackFile', $upload_dir, $user_name_prefix);
-$nbi_clearance_path = uploadFile('nbiFile', $upload_dir, $user_name_prefix);
-
-if (!$valid_id_front_path || !$valid_id_back_path || !$nbi_clearance_path) {
-    echo json_encode(["success" => false, "message" => "Valid ID (Front & Back) and NBI Clearance documents are all required."]);
-    exit;
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        application_fail(422, in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
+            ? "\"$label\" exceeds the 10MB size limit." : "The upload of \"$label\" failed. Please try again.", $key);
+    }
+    if ($file['size'] > $max_size) {
+        application_fail(422, "\"$label\" exceeds the 10MB size limit.", $key);
+    }
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowed_extensions, true)) {
+        application_fail(422, "\"$label\" must be a JPEG, PNG or PDF file.", $key);
+    }
+    // Server-side content check, not the browser's claimed type (B-4).
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    if (!in_array($mime, $allowed_mime_types, true)) {
+        application_fail(422, "\"$label\" must be a JPEG, PNG or PDF file.", $key);
+    }
+    $uploads[$req['id']] = ['tmp' => $file['tmp_name'], 'ext' => $ext, 'label' => $label];
 }
 
 // The client-supplied rent is a display value only; take the figure that
@@ -223,31 +215,74 @@ if ($room_rent_row) {
     exit;
 }
 
+$upload_dir = "../uploads/applications/";
+if (!is_dir($upload_dir)) {
+    mkdir($upload_dir, 0755, true);
+}
+
+// Files are moved before the database write; if that write fails they are
+// removed again so nothing is left on disk without a row pointing at it.
+$moved = []; // requirement id => stored path
+$discard_moved = function () use (&$moved) {
+    foreach ($moved as $path) if (is_file($path)) @unlink($path);
+    $moved = [];
+};
+foreach ($uploads as $req_id => $u) {
+    // Random, non-guessable name — the filename used to embed the
+    // applicant's name and a time-seeded uniqid(), which brute-forced
+    // gov-ID files (H2/B-8).
+    $destination = $upload_dir . bin2hex(random_bytes(16)) . "." . $u['ext'];
+    if (!move_uploaded_file($u['tmp'], $destination)) {
+        $discard_moved();
+        application_fail(500, "Could not save \"{$u['label']}\". Please try again.");
+    }
+    $moved[$req_id] = $destination;
+}
+
+$replaced_files = []; // files of a resubmission that new uploads replace
 $conn->begin_transaction();
 try {
-    if (!empty($app_id) && $existing_front) {
+    if ($is_update) {
         // Update existing application and set status to 'Pending Review' and clear
         // rejection_reason. Restricted to Rejected/Declined applications above and
         // again here so a concurrent status change can't slip through (H4).
-        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, valid_id_front_path = ?, valid_id_back_path = ?, nbi_clearance_path = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
-        $stmt->bind_param("sssssssiissssssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path, $app_id, $user_id);
-        $stmt->execute();
+        $stmt = $conn->prepare("UPDATE rent_applications SET first_name = ?, middle_name = ?, last_name = ?, suffix = ?, contact_no = ?, email = ?, gender = ?, previous_address = ?, occupants = ?, months_of_rent = ?, preferred_move_in_date = ?, room_name = ?, monthly_rent = ?, status = 'Pending Review', rejection_reason = NULL, terms_agreed_at = NOW() WHERE id = ? AND user_id = ? AND status IN ('Rejected', 'Declined')");
+        $stmt->bind_param("ssssssssiisssii", $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $app_id, $user_id);
+        if (!$stmt->execute()) throw new Exception("Application update failed: " . $stmt->error);
         if ($stmt->affected_rows === 0) {
             $stmt->close();
             $conn->rollback();
+            $discard_moved();
             http_response_code(409);
             echo json_encode(["success" => false, "message" => "This application can no longer be resubmitted."]);
             $conn->close();
             exit;
         }
         $stmt->close();
+        $doc_app_id = $app_id;
     } else {
-        // Insert new application
-        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, occupants, months_of_rent, preferred_move_in_date, room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("isssssssiissssss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent, $valid_id_front_path, $valid_id_back_path, $nbi_clearance_path);
-        $stmt->execute();
+        // Insert new application. The legacy valid_id_*/nbi columns stay NULL;
+        // the files go to application_documents below.
+        $stmt = $conn->prepare("INSERT INTO rent_applications (user_id, first_name, middle_name, last_name, suffix, contact_no, email, gender, previous_address, occupants, months_of_rent, preferred_move_in_date, room_name, monthly_rent, terms_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->bind_param("issssssssiisss", $user_id, $first_name, $middle_name, $last_name, $suffix, $contact_no, $email, $gender, $previous_address, $occupants, $months_of_rent, $preferred_move_in_date, $room_name, $monthly_rent);
+        if (!$stmt->execute()) throw new Exception("Application insert failed: " . $stmt->error);
         $new_app_id = $stmt->insert_id;
         $stmt->close();
+        $doc_app_id = (int)$new_app_id;
+    }
+
+    // One row per application and requirement; a resubmitted file replaces the
+    // earlier one, a requirement with no new file keeps what is on file.
+    if ($moved) {
+        $doc_stmt = $conn->prepare("INSERT INTO application_documents (rent_application_id, requirement_id, label_snapshot, file_path) VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE label_snapshot = VALUES(label_snapshot), file_path = VALUES(file_path), uploaded_at = CURRENT_TIMESTAMP");
+        foreach ($moved as $req_id => $path) {
+            $label = $uploads[$req_id]['label'];
+            $doc_stmt->bind_param("iiss", $doc_app_id, $req_id, $label, $path);
+            if (!$doc_stmt->execute()) throw new Exception("Document insert failed: " . $doc_stmt->error);
+            if (isset($on_file[$req_id])) $replaced_files[] = $on_file[$req_id]['file_path'];
+        }
+        $doc_stmt->close();
     }
 
     // 2. Sync profile details to the users table
@@ -260,8 +295,7 @@ try {
 
     // 3. Notify Admin — one open queue row per application, so a resubmission
     // does not stack a second "review" item.
-    $is_update = !empty($app_id) && $existing_front;
-    $queue_app_id = $is_update ? (int)$app_id : (int)($new_app_id ?? 0);
+    $queue_app_id = (int)$doc_app_id;
     if ($queue_app_id) {
         resolve_admin_queue($conn, 'rent_application', $queue_app_id);
         notify_admins_queue($conn, 'rent_application', $queue_app_id,
@@ -270,23 +304,32 @@ try {
     }
 
     $conn->commit();
-    log_activity($conn, $user_id, 'tenant', $is_update ? "Resubmitted Rental Application" : "Submitted Rental Application",
-        "Application ID: $queue_app_id, Unit: $room_name");
-    try {
-        require_once __DIR__ . '/services/send_notification.php';
-        $subject = $is_update ? 'Updated Rental Application Received' : 'Rental Application Received';
-        $html = email_application_submitted_template(
-            trim($first_name . ' ' . $last_name), 'APP-' . $queue_app_id, $room_name
-        );
-        dispatch_admin_action_notification($conn, $user_id, 'application_update', $subject, null, $html);
-    } catch (Throwable $notification_error) {
-        error_log('Could not dispatch application submission email: ' . $notification_error->getMessage());
-    }
-    echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
-} catch (Exception $e) {
+} catch (Throwable $e) {
     $conn->rollback();
+    $discard_moved();
     server_error_response($e, "Failed to submit application.");
+    $conn->close();
+    exit;
 }
+
+// After the commit: best effort only, nothing here may report a failure for
+// an application that is already saved.
+foreach ($replaced_files as $old) {
+    if ($old !== '' && !in_array($old, $moved, true) && is_file($old)) @unlink($old);
+}
+log_activity($conn, $user_id, 'tenant', $is_update ? "Resubmitted Rental Application" : "Submitted Rental Application",
+    "Application ID: $queue_app_id, Unit: $room_name");
+try {
+    require_once __DIR__ . '/services/send_notification.php';
+    $subject = $is_update ? 'Updated Rental Application Received' : 'Rental Application Received';
+    $html = email_application_submitted_template(
+        trim($first_name . ' ' . $last_name), 'APP-' . $queue_app_id, $room_name
+    );
+    dispatch_admin_action_notification($conn, $user_id, 'application_update', $subject, null, $html);
+} catch (Throwable $notification_error) {
+    error_log('Could not dispatch application submission email: ' . $notification_error->getMessage());
+}
+echo json_encode(["success" => true, "message" => "Application submitted successfully"]);
 
 $conn->close();
 ?>

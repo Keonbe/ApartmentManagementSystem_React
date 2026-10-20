@@ -21,6 +21,7 @@ import HouseRulesPanel from './settings/HouseRulesPanel';
 import FloorRentPanel from './settings/FloorRentPanel';
 import UtilityTypesPanel from './settings/UtilityTypesPanel';
 import MinorsPanel from './settings/MinorsPanel';
+import RequirementsPanel from './settings/RequirementsPanel';
 
 const SETTINGS_FORM_ID = 'system-settings-form';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -330,6 +331,7 @@ const AdminAccountSettings = () => {
               {activeTab === 'utility-types' && <UtilityTypesPanel />}
               {activeTab === 'parking-rules' && <HouseRulesPanel scope="parking" />}
               {activeTab === 'minors' && <MinorsPanel />}
+              {activeTab === 'requirements' && <RequirementsPanel />}
 
               {activeTab !== 'account' && !SELF_SAVING_TAB_IDS.includes(activeTab) && !settings && (
                 <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-500">

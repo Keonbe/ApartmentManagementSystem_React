@@ -762,19 +762,27 @@ const AdminTenants = () => {
                   )}
 
                   {/* Verification Documents */}
-                  {(selectedTenant.valid_id_front_path || selectedTenant.valid_id_back_path || selectedTenant.nbi_clearance_path) && (
+                  {selectedTenant.previousAddress && (
+                    <div className="mt-4 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 m-0">Previous Address</p>
+                      <p className="text-sm font-medium text-slate-700 m-0 wrap-break-word">{selectedTenant.previousAddress}</p>
+                    </div>
+                  )}
+
+                  {/* Verification Documents (Settings → Application Requirements) */}
+                  {((selectedTenant.documents || []).length > 0 || (selectedTenant.missingDocuments || []).length > 0 || selectedTenant.documentsVerifiedAt) && (
                     <div className="mt-4 border-t border-slate-100 pt-4">
                        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 m-0">Verification Documents</p>
+                       {selectedTenant.documentsVerifiedAt && !(selectedTenant.documents || []).length && (
+                         <p className="m-0 mb-2 text-xs font-semibold text-emerald-700">Verified in person by the office on {String(selectedTenant.documentsVerifiedAt).slice(0, 10)}.</p>
+                       )}
                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                         {selectedTenant.valid_id_front_path && (
-                           <a href={fileUrl(selectedTenant.valid_id_front_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Front)</a>
-                         )}
-                         {selectedTenant.valid_id_back_path && (
-                           <a href={fileUrl(selectedTenant.valid_id_back_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> Valid ID (Back)</a>
-                         )}
-                         {selectedTenant.nbi_clearance_path && (
-                           <a href={fileUrl(selectedTenant.nbi_clearance_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> NBI Clearance</a>
-                         )}
+                         {(selectedTenant.documents || []).map((doc) => (
+                           <a key={doc.id} href={fileUrl(doc.file_path)} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 text-sm hover:underline p-2 bg-indigo-50 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {doc.label}</a>
+                         ))}
+                         {!selectedTenant.documentsVerifiedAt && (selectedTenant.missingDocuments || []).map((label) => (
+                           <span key={`missing-${label}`} className="flex items-center gap-2 text-slate-400 text-sm p-2 bg-slate-50 border border-dashed border-slate-200 rounded-lg"><FontAwesomeIcon icon={faFileAlt} /> {label} <span className="ml-auto text-[10px] font-bold uppercase">Missing</span></span>
+                         ))}
                        </div>
                     </div>
                   )}

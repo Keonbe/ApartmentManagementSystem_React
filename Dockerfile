@@ -21,7 +21,7 @@ RUN { \
 
 # Never execute scripts, list files, or serve raw reads inside uploads. This
 # replaces backend/uploads/.htaccess, which a mounted volume would hide.
-# Uploaded documents (gov IDs, NBI clearances, payment proofs, leases) are
+# Uploaded documents (gov IDs, application documents, payment proofs, leases) are
 # only ever read back through the authenticated download_file.php endpoint,
 # never as a static file (H2/B-8).
 RUN { \

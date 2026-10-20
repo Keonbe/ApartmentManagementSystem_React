@@ -972,31 +972,39 @@ const AdminApplications = () => {
                 </div>
               </div>
 
+              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 m-0"><FontAwesomeIcon icon={faHome} className="mr-1"/> Previous Address</p>
+                <p className="text-sm font-semibold text-slate-800 m-0 wrap-break-word">{selectedApp.previous_address || '—'}</p>
+              </div>
+
               {/* Verification Documents */}
               <div>
                  <h4 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wide border-b border-slate-200 pb-2">Submitted Documents</h4>
+                 {/* Uploaded files, then each active required requirement with no file (Settings → Application Requirements). */}
+                 {selectedApp.documents_verified_at && !(selectedApp.documents || []).length && (
+                   <p className="m-0 mb-3 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">Documents verified in person by the office on {String(selectedApp.documents_verified_at).slice(0, 10)}.</p>
+                 )}
+                 {!(selectedApp.documents || []).length && !(selectedApp.missing_documents || []).length && !selectedApp.documents_verified_at ? (
+                   <p className="m-0 text-sm text-slate-500">No documents on file.</p>
+                 ) : (
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                   <button type="button" onClick={(e) => openPreview(e, selectedApp.valid_id_front_path, 'Valid ID (Front)')}
-                      className={`flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedApp.valid_id_front_path ? 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md text-slate-700' : 'border-dashed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none'}`}>
-                     <FontAwesomeIcon icon={faFileAlt} className={`text-2xl ${selectedApp.valid_id_front_path ? 'text-indigo-500' : 'text-slate-300'}`} /> 
-                     <span className="font-semibold text-center mt-1">Valid ID (Front)</span>
-                     {!selectedApp.valid_id_front_path && <span className="text-[10px] uppercase">Missing</span>}
-                   </button>
-                   
-                   <button type="button" onClick={(e) => openPreview(e, selectedApp.valid_id_back_path, 'Valid ID (Back)')}
-                      className={`flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedApp.valid_id_back_path ? 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md text-slate-700' : 'border-dashed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none'}`}>
-                     <FontAwesomeIcon icon={faFileAlt} className={`text-2xl ${selectedApp.valid_id_back_path ? 'text-indigo-500' : 'text-slate-300'}`} /> 
-                     <span className="font-semibold text-center mt-1">Valid ID (Back)</span>
-                     {!selectedApp.valid_id_back_path && <span className="text-[10px] uppercase">Missing</span>}
-                   </button>
-
-                   <button type="button" onClick={(e) => openPreview(e, selectedApp.nbi_clearance_path, 'NBI Clearance')}
-                      className={`flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedApp.nbi_clearance_path ? 'border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md text-slate-700' : 'border-dashed border-slate-200 bg-slate-50 text-slate-400 pointer-events-none'}`}>
-                     <FontAwesomeIcon icon={faFileAlt} className={`text-2xl ${selectedApp.nbi_clearance_path ? 'text-indigo-500' : 'text-slate-300'}`} /> 
-                     <span className="font-semibold text-center mt-1">NBI Clearance</span>
-                     {!selectedApp.nbi_clearance_path && <span className="text-[10px] uppercase">Missing</span>}
-                   </button>
+                   {(selectedApp.documents || []).map((doc) => (
+                     <button key={doc.id} type="button" onClick={(e) => openPreview(e, doc.file_path, doc.label)}
+                        className="flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 cursor-pointer transition-all border-slate-200 bg-white hover:border-indigo-400 hover:shadow-md text-slate-700">
+                       <FontAwesomeIcon icon={faFileAlt} className="text-2xl text-indigo-500" />
+                       <span className="font-semibold text-center mt-1">{doc.label}</span>
+                     </button>
+                   ))}
+                   {!selectedApp.documents_verified_at && (selectedApp.missing_documents || []).map((label) => (
+                     <div key={`missing-${label}`}
+                        className="flex flex-col items-center justify-center gap-2 text-sm p-4 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400">
+                       <FontAwesomeIcon icon={faFileAlt} className="text-2xl text-slate-300" />
+                       <span className="font-semibold text-center mt-1">{label}</span>
+                       <span className="text-[10px] uppercase">Missing</span>
+                     </div>
+                   ))}
                  </div>
+                 )}
               </div>
 
               {/* Actions */}
