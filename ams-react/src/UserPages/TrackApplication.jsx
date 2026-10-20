@@ -870,6 +870,18 @@ export default function TrackApplication() {
                                         </div>
                                     </div>
 
+                                    {application.pending_invoice_status !== 'pending-verification' && application.pending_rejection_reason && (
+                                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-5 space-y-2" role="alert">
+                                            <div className="flex items-center gap-2.5 text-rose-400 font-bold text-sm">
+                                                <FontAwesomeIcon icon={faTimesCircle} />
+                                                Payment Returned
+                                            </div>
+                                            <p className="text-slate-300 text-xs m-0 leading-relaxed">
+                                                Management returned your payment: <strong className="text-white">{application.pending_rejection_reason}</strong>. Please submit a new payment below.
+                                            </p>
+                                        </div>
+                                    )}
+
                                     {application.pending_invoice_status === 'pending-verification' ? (
                                         <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 space-y-3">
                                             <div className="flex items-center gap-2.5 text-indigo-400 font-bold text-sm">

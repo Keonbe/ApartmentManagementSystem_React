@@ -210,6 +210,9 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     // failed one goes back to the bill.
     const notificationTarget = (n) => {
         const tone = n.type === 'payment' ? TENANT_PAYMENT_ALERT_TITLES[n.title] : null;
+        // An applicant has no Pay Bills or Payment History yet (resident-only
+        // pages would send them home): the move-in payment lives on Track Application.
+        if (n.type === 'payment' && !hasRentedRoom) return ['/track-application'];
         if (tone === 'success' && String(n.metadata || '').startsWith('invoice:')) {
             return ['/payment-history', { state: { receiptId: String(n.metadata).slice(8) } }];
         }
