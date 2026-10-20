@@ -147,7 +147,8 @@ if ($event_type === 'checkout_session.payment.paid' || $event_type === 'payment.
         $inv_row = [
             'status' => $unpaid_rows ? $unpaid_rows[0]['status'] : 'paid',
             'user_id' => $group_rows[0]['user_id'],
-            'total_amount' => array_sum(array_map(fn($row) => (float)$row['total_amount'], $group_rows)),
+            // What the checkout charged: the balance after any parts already received.
+            'total_amount' => array_sum(array_map(fn($row) => invoice_balance_cents($row) / 100, $group_rows)),
         ];
         $superseded = false;
         foreach ($session_rows as $row) {

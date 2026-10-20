@@ -8,7 +8,7 @@ import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
-import { addDays, checkDate, checkPaymentReference, isBankMethod, localDateString, LIMITS } from '../utils/validation';
+import { addDays, checkAmount, checkDate, checkPaymentReference, isBankMethod, localDateString, LIMITS } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import { daysPastDue, formatCoveredPeriod, formatDay, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
@@ -105,6 +105,8 @@ export default function PayBills() {
     const byDueDate = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
     const isCancelledApp = (i) => ['cancelled', 'rejected', 'declined', 'moved-out', 'archived'].includes(String(i?.application_status || '').toLowerCase());
     const isGrouped = (i) => !!(i.payment_group || i.advance_months);
+    // What is still owed on an open bill: its balance after any parts already received.
+    const owed = (i) => parseFloat(i.balance ?? i.total_amount) || 0;
     const payableInvoices = invoices.filter(i => PAYABLE_STATUSES.includes(i.status) && !isGrouped(i) && !isCancelledApp(i)).sort(byDueDate);
     const awaitingInvoices = invoices.filter(i => AWAITING_STATUSES.includes(i.status) && !isCancelledApp(i)).sort(byDueDate);
     const hasCancelledApp = invoices.length > 0 && invoices.every(isCancelledApp);
@@ -112,9 +114,10 @@ export default function PayBills() {
     const awaitingEntries = Object.values(awaitingInvoices.reduce((acc, inv) => {
         const key = inv.payment_group || inv.id;
         if (!acc[key]) {
-            acc[key] = { ...inv, id: key, months: [inv.billing_period] };
+            acc[key] = { ...inv, id: key, months: [inv.billing_period], owed: inv.proof_amount ?? owed(inv) };
         } else {
             acc[key].total_amount = (parseFloat(acc[key].total_amount) || 0) + (parseFloat(inv.total_amount) || 0);
+            acc[key].owed += owed(inv);
             acc[key].months.push(inv.billing_period);
         }
         return acc;
@@ -212,8 +215,8 @@ export default function PayBills() {
         const mine = rows.filter(i => i.payment_group === key);
         return {
             key,
-            months: mine.map(i => ({ key: i.id, label: i.billing_period, sub: `${billStatusText(i)} · ${i.id}`, amount: i.total_amount })),
-            total: mine.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0),
+            months: mine.map(i => ({ key: i.id, label: i.billing_period, sub: `${billStatusText(i)} · ${i.id}`, amount: owed(i) })),
+            total: mine.reduce((s, i) => s + owed(i), 0),
             payable: mine.every(i => PAYABLE_STATUSES.includes(i.status)),
         };
     })();
@@ -393,6 +396,12 @@ export default function PayBills() {
     }, [navigate, refresh]);
 
     const totalAmount = billDetails.baseRent + billDetails.water + billDetails.electricity + billDetails.parking + billDetails.services + billDetails.maintenance + billDetails.securityDeposit + billDetails.lateFee;
+    // Installments: parts already received on this bill, and what is left.
+    const paidSoFar = parseFloat(activeInv?.amount_paid) || 0;
+    const balanceDue = Math.max(0, Math.round((totalAmount - paidSoFar) * 100) / 100);
+    // The part the tenant pays now ('' = the whole balance). Single bills only.
+    const [partAmount, setPartAmount] = useState('');
+    const partError = partAmount === '' ? '' : checkAmount(partAmount, { label: 'Amount', min: 0.01, max: balanceDue, allowZero: false });
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
 
@@ -407,7 +416,7 @@ export default function PayBills() {
     // (errors show only then).
     const [splitParts, setSplitParts] = useState(() => [emptyPortion('cash'), emptyPortion('gcash')]);
     const [splitAttempted, setSplitAttempted] = useState(false);
-    const splitTotal = payingGroup ? (parseFloat(activeGroup.total) || 0) : totalAmount;
+    const splitTotal = payingGroup ? (parseFloat(activeGroup.total) || 0) : (partAmount !== '' && !partError ? Number(partAmount) : balanceDue);
     const [paymentReference, setPaymentReference] = useState('');
     const [proofFile, setProofFile] = useState(null);
     const [isPaying, setIsPaying] = useState(false);
@@ -480,9 +489,11 @@ export default function PayBills() {
 
         if (currentMethodObj.family === 'split') {
             setSplitAttempted(true);
+            if (partError) return;
             if (!checkSplit(splitParts, splitTotal, scheduledDate).valid) return;
             const formData = new FormData();
             formData.append('invoice_id', payKey);
+            if (!payingGroup && partAmount !== '') formData.append('amount', String(Number(partAmount)));
             if (splitParts.some(p => p.method === 'cash')) {
                 formData.append('scheduled_date', scheduledDate);
                 formData.append('scheduled_time_slot', scheduledTimeSlot);
@@ -541,7 +552,7 @@ export default function PayBills() {
         // refuses a non-cash payment until upload_payment_proof.php has stored one.
         const reference = paymentReference.trim();
         setPaymentReference(reference);
-        if (!payForm.validateAll({ ...payValues, payment_reference: reference })) return;
+        if (!payForm.validateAll({ ...payValues, payment_reference: reference }) || partError) return;
 
         let proofPath;
         const formData = new FormData();
@@ -549,6 +560,8 @@ export default function PayBills() {
         formData.append('payment_reference', reference);
         formData.append('payment_method', currentMethodObj.label);
         formData.append('proof', proofFile);
+        // Paying only part of the bill now (installments); empty = the whole balance.
+        if (!payingGroup && partAmount !== '') formData.append('amount', String(Number(partAmount)));
 
         try {
             const uploadRes = await api.post('/upload_payment_proof.php', formData, {
@@ -577,6 +590,7 @@ export default function PayBills() {
 
             if (res.data.success) {
                 setPaymentReference('');
+                setPartAmount('');
                 clearProof();
                 window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
                 setNotice({
@@ -626,10 +640,10 @@ export default function PayBills() {
                             </div>
                             <p className="text-xs sm:text-sm text-sky-800 m-0 mt-1 leading-relaxed">
                                 {inv.status === 'scheduled'
-                                    ? <>Please pay <strong>{fmtMoney(inv.total_amount)}</strong> at the admin office on <strong>{inv.scheduled_date}</strong>{inv.scheduled_time_slot ? ` (${inv.scheduled_time_slot})` : ''}. You will be notified once management records it.</>
+                                    ? <>Please pay <strong>{fmtMoney(inv.owed)}</strong> at the admin office on <strong>{inv.scheduled_date}</strong>{inv.scheduled_time_slot ? ` (${inv.scheduled_time_slot})` : ''}. You will be notified once management records it.</>
                                     : inv.status === 'processing'
-                                    ? <>Your online payment of <strong>{fmtMoney(inv.total_amount)}</strong> is being confirmed by the payment gateway. This page updates by itself.</>
-                                    : <>Your {inv.payment_method || ''} payment of <strong>{fmtMoney(inv.total_amount)}</strong>{inv.payment_reference ? <> (ref. {inv.payment_reference})</> : null} is being verified by management. You will be notified as soon as it is confirmed; this page updates by itself.</>}
+                                    ? <>Your online payment of <strong>{fmtMoney(inv.owed)}</strong> is being confirmed by the payment gateway. This page updates by itself.</>
+                                    : <>Your {inv.payment_method || ''} payment of <strong>{fmtMoney(inv.owed)}</strong>{inv.payment_reference ? <> (ref. {inv.payment_reference})</> : null} is being verified by management. You will be notified as soon as it is confirmed; this page updates by itself.</>}
                             </p>
                         </div>
                     </div>
@@ -754,7 +768,7 @@ export default function PayBills() {
                     <div className="w-full bg-white border-2 border-rose-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
                         <div>
                             <h4 className="text-sm sm:text-base font-extrabold text-rose-900 m-0">
-                                You have {unpaidSingles.length} unpaid bills ({overdueCount} overdue) — {fmtMoney(unpaidSingles.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0))}
+                                You have {unpaidSingles.length} unpaid bills ({overdueCount} overdue) — {fmtMoney(unpaidSingles.reduce((s, i) => s + owed(i), 0))}
                             </h4>
                             <p className="text-xs sm:text-sm text-slate-600 m-0 mt-1">
                                 Pay them all in one payment, or pay each billing period separately. Every billing period keeps its own invoice and receipt either way.
@@ -764,7 +778,7 @@ export default function PayBills() {
                             {unpaidSingles.map(i => (
                                 <li key={i.id} className="flex justify-between gap-3 text-xs sm:text-sm text-slate-600">
                                     <span>{i.billing_period} <span className={isPastDue(i) ? 'text-rose-500' : 'text-slate-400'}>({billStatusText(i)})</span></span>
-                                    <span className="font-bold text-slate-800 shrink-0">{fmtMoney(i.total_amount)}</span>
+                                    <span className="font-bold text-slate-800 shrink-0">{fmtMoney(owed(i))}</span>
                                 </li>
                             ))}
                         </ul>
@@ -941,6 +955,16 @@ export default function PayBills() {
                             <span className="text-base font-extrabold text-slate-800">{t('payBills.totalDue')}</span>
                             <span className="pay-bills-total-due text-2xl font-black text-indigo-600">₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
+                        {paidSoFar > 0 && (
+                            <div className="mt-3 space-y-1.5">
+                                {/* Installments: paid so far and the balance */}
+                                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((paidSoFar / (totalAmount || 1)) * 100)}>
+                                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, (paidSoFar / (totalAmount || 1)) * 100)}%` }} />
+                                </div>
+                                <div className="flex justify-between text-sm font-semibold text-emerald-700"><span>Paid so far</span><span>{fmtMoney(paidSoFar)}</span></div>
+                                <div className="flex justify-between text-base font-extrabold text-slate-800"><span>Balance</span><span>{fmtMoney(balanceDue)}</span></div>
+                            </div>
+                        )}
                     </div>
                     )}
 
@@ -994,6 +1018,18 @@ export default function PayBills() {
                                 </div>
                             )}
                         </div>
+
+                        {!payingGroup && ['manual', 'split'].includes(currentMethodObj.family) && balanceDue > 0 && (
+                            <div className="space-y-1 text-left">
+                                <label htmlFor="pay-part_amount" className="text-xs font-bold text-slate-700 block">Amount you are paying now (₱)</label>
+                                <input id="pay-part_amount" type="number" inputMode="decimal" min="0.01" max={balanceDue} step="0.01" value={partAmount}
+                                    onChange={(e) => setPartAmount(e.target.value)} placeholder={`${balanceDue.toFixed(2)} (whole balance)`} aria-invalid={!!partError}
+                                    className={`w-full rounded-xl border px-3 py-2 text-sm text-slate-800 ${partError ? 'border-rose-400' : 'border-slate-200'}`} />
+                                {partError
+                                    ? <p role="alert" className="m-0 text-xs font-semibold text-rose-600">{partError}</p>
+                                    : <p className="m-0 text-[11px] text-slate-500">Leave blank to pay the whole balance, or pay part now and the rest later.</p>}
+                            </div>
+                        )}
 
                         {currentMethodObj.family === 'manual' && (
                             <div className="space-y-3 p-4 bg-slate-50/80 rounded-2xl border border-slate-100 text-left">

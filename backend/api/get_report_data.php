@@ -287,7 +287,7 @@ $netMarginPct = $grossRevenue > 0 ? round(($netIncome / $grossRevenue) * 100, 1)
 // into 'overdue' — so arrears read ₱0 and collection efficiency 100% while
 // tenants were in fact behind.
 $totalOutstanding = 0.0;
-$stmt = $conn->prepare("SELECT SUM(total_amount) as overdue FROM invoices WHERE status IN " . billing_open_status_sql() . " AND due_date < CURDATE() AND advance_months IS NULL");
+$stmt = $conn->prepare("SELECT SUM(total_amount - amount_paid) as overdue FROM invoices WHERE status IN " . billing_open_status_sql() . " AND due_date < CURDATE() AND advance_months IS NULL");
 if ($stmt) {
     $stmt->execute();
     if ($row = $stmt->get_result()->fetch_assoc()) {

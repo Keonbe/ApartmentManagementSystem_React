@@ -37,7 +37,7 @@ if ($is_admin) {
     }
 }
 
-$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.previous_address, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -47,7 +47,9 @@ if ($result->num_rows > 0) {
     $app_id = $room_data['id'];
     
     // Check if there is a pending move-in invoice (security_deposit > 0) for this application
-    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification') AND security_deposit > 0 LIMIT 1");
+    // 'overdue' too: a move-in bill with a part already paid is kept past its
+    // payment window (the sweep does not cancel it), so it can go overdue.
+    $inv_stmt = $conn->prepare("SELECT id, status, payment_method, base_rent, security_deposit, total_amount, amount_paid, proof_rejection_reason FROM invoices WHERE rent_application_id = ? AND status IN ('pending', 'pending-verification', 'overdue') AND security_deposit > 0 LIMIT 1");
     $inv_stmt->bind_param("i", $app_id);
     $inv_stmt->execute();
     $inv_res = $inv_stmt->get_result();
@@ -59,6 +61,9 @@ if ($result->num_rows > 0) {
     $room_data['pending_base_rent'] = null;
     $room_data['pending_security_deposit'] = null;
     $room_data['pending_total_amount'] = null;
+    $room_data['pending_amount_paid'] = null;
+    $room_data['pending_rejection_reason'] = null;
+    $room_data['pending_balance'] = null;
     $room_data['initial_payment_paid'] = false;
     
     $is_inactive_app = in_array(strtolower($room_data['status'] ?? ''), ['cancelled', 'rejected', 'declined', 'moved-out', 'archived'], true);
@@ -72,6 +77,11 @@ if ($result->num_rows > 0) {
         $room_data['pending_base_rent'] = $inv_row['base_rent'];
         $room_data['pending_security_deposit'] = $inv_row['security_deposit'];
         $room_data['pending_total_amount'] = $inv_row['total_amount'];
+        // Installments: parts already received, and what is left to pay.
+        $room_data['pending_amount_paid'] = round((float)$inv_row['amount_paid'], 2);
+        $room_data['pending_balance'] = round(invoice_balance_cents($inv_row) / 100, 2);
+        // Why management returned the last payment proof, shown until a new one is sent.
+        $room_data['pending_rejection_reason'] = $inv_row['proof_rejection_reason'] ?: null;
     }
     $inv_stmt->close();
     $paid_stmt = $conn->prepare("SELECT 1 FROM invoices WHERE rent_application_id = ? AND security_deposit > 0 AND status = 'paid' LIMIT 1");

@@ -552,3 +552,6 @@ SET FOREIGN_KEY_CHECKS = 1;
 --   Room P - extra 3F unit (PHP4,000) matching prod; not in SetupDB.sql
 --   Room N - open; Gloria Tan's Pending Review application targets it but hasn't been approved
 -- ============================================================
+
+-- Installments (2026_10_manager_interview_alignment.sql): a paid invoice was paid in full.
+UPDATE `invoices` SET `amount_paid` = `total_amount` WHERE `status` = 'paid' AND `amount_paid` = 0;

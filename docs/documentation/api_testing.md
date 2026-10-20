@@ -9,7 +9,7 @@ Manual, browser and module-by-module procedures stay in [module_verification_gui
 ```bash
 cd tests/api
 npm install        # first time only
-npm test           # ~40 s, 87 tests
+npm test           # ~60 s, 263 tests (17 files)
 npx vitest run webhook.test.js   # one file
 ```
 
@@ -82,8 +82,13 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 | `webhook.test.js` | 15 | Signature and replay window, `payment.failed` matched by intent, superseded events, replay, old invoices without an intent |
 | `payments.test.js` | 5 | Paid event settles once, replay, session mismatch, failed-after-paid, amount mismatch → `pending-verification` |
 | `split_payment.test.js` | 15 | Tenant split submit (cash + GCash), sum / one-portion / cash-only / missing proof / bad GCash ref, cash visit date and slot rules (none needed without cash), other tenant and admin refused, admin list returns portions, confirm must match, confirm settles and clears, reject clears, single proof replaces a split |
+| `child_floor_rule.test.js` | 23 | Defaults (3F, under 5, no building minimum), `childFloorRule` on the roster, age 3 / 0 refused on 3F, 5 on 3F and 3 on 1F allowed, approval re-check after the rule was switched back on (422, request stays open), settings negatives (non-array, object, unknown floor, duplicates, number, ages 18 / -1 / text / 4.5), empty list lifts it, visitor rule hidden from tenants and guests while Visitor Management is off but listed for the admin |
+| `utility_bill.test.js` | 20 | `entry_mode: 'bill'`: amounts stored as typed (rounded), rates and readings NULL, 409 on a second bill, one bill only, optional reading gives consumption, every negative (both zero/missing, negative, over 1,000,000, non-numeric amount or reading, negative reading, reading below previous, long note, unknown mode, vacant unit, tenant), merge sync puts exactly the bill amounts on the invoice, double sync refused, meter chain skips bill rows without a reading |
+| `deposit_deductions.test.js` | 21 | Itemized clearance: every validation negative (not a list, object, > 20 lines, category, reason missing/blank/> 255, amount 0/negative/text/NaN/boolean/> 1,000,000, error names the line), no move-out notice → 409, tenant refused, lines stored with contract id and admin, contract totals derived, notification lists the lines, `get_invoices.php` deposit items, double clearance refused, restore removes the lines, legacy two-field payload |
 | `record_payment_gate.test.js` | 5 | Desk refuses `pending` / `overdue` bills (409), clears `scheduled`, `pending-verification` and `payment-failed` ones |
 | `announcements.test.js` | 12 | Draft keeps/replaces/removes its file, send in place, double send, send of a stale draft, bad file type, markup stored as text |
+| `application_requirements.test.js` | 37 | Settings → Application Requirements: seeded Valid ID front/back (no NBI), admin only, create/rename/required toggle/reorder/deactivate/activate, every 422 rule (label 2-60 after trim, Filipino name ≤ 60, case-insensitive duplicate, strict booleans, `sort_order` 0-999 integer, 13th active, malformed/unknown id, no delete). `rent_application.php`: missing required custom document, previous address missing/blank/short/long, bad file content, optional document may be left out, unknown and inactive `doc_<id>` keys ignored, legacy columns stay NULL; resubmission needs every required file, replaces only the re-uploaded one and refuses a second (stale) resubmit. Approval gate refuses a missing required document and passes once it is deactivated; the follow-up sweep flags it again when reactivated and never flags an in-person-verified record |
+| `partial_payments.test.js` | 32 | Installments: two desk parts settle once (ledger keeps both, one receipt); part 0 / negative / text / 3 decimals / balance + ₱0.01, short amount without `partial` (or `partial: "true"`), grouped / advance bill, part after a settle (stale); a part waiting on a held row lock re-reads the balance (real `FOR UPDATE` test); double submit; tenant proof and split with `amount` (0 / text / above balance / other tenant's bill), admin must confirm the declared amount, reject keeps earlier parts; move-in invoice: a part does not pass `schedule_move_in.php`, the payment-window sweep keeps the application, `my_room.php` balance, `cancel_application.php` 409, final part → deposit `Held` + one move-in cue; `adjust_invoice.php` total ≤ paid refused; `get_invoices.php` fields and constant query count; combined payment (BND-) totals and settles balances; dashboard monthly revenue counts a part when received (deposit share left out, two-month bill split, ledger-less paid bill unchanged) |
 
 ### Not covered
 
@@ -98,7 +103,8 @@ Webhooks: `sendWebhook(event, opts)` signs with the test secret (`whsk_test_suit
 - A failed login is HTTP **200** with `valid:false`, not 401.
 - A webhook with **no** signature header is **400**; a wrong or stale signature is **401**.
 - The lowest valid `max_parking_slots` in the seed is **2**, because slot #2 is assigned.
-- A gateway payment is recorded on the invoice itself (`status`, `paid_at`, `payment_method`) plus an "Online Payment Received" activity entry. It writes **no** `payment_transactions` row; those exist only for itemised desk payments, and readers fall back to the invoice total.
+- A gateway payment is recorded on the invoice itself (`status`, `paid_at`, `payment_method`) plus an "Online Payment Received" activity entry. It writes **no** `payment_transactions` row; those exist only for itemised desk payments, and readers fall back to the invoice total. Exception: a gateway payment that clears a part-paid bill appends its final part, so the ledger adds up to the total.
+- `php -S` on Windows serves one request at a time, so `Promise.all` requests run one after the other: they test a stale second request, not a lock. To test a `FOR UPDATE` lock, hold it from a separate `mysql2` connection while the request runs (see `partial_payments.test.js`).
 
 ## 7. Troubleshooting
 

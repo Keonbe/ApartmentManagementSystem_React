@@ -115,8 +115,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // activate a move-in identically.
     // $invoice_id may be an advance payment's group id: each of its months is
     // settled as its own invoice (settle_payment_key()).
+    // What is still owed: the balance after any parts already received.
     $open_total_cents = 0;
-    foreach ($open_rows as $open_row) $open_total_cents += (int)round((float)$open_row['total_amount'] * 100);
+    foreach ($open_rows as $open_row) $open_total_cents += invoice_balance_cents($open_row);
+
+    // Installment (`partial: true`): a part below the balance of one invoice.
+    // Without the flag a short amount stays an error, so a typo never becomes
+    // a part-payment by accident.
+    // A tenant's proof for a part (proof_amount) is confirmed as declared, and
+    // recorded as a part.
+    $declared_cents = null;
+    foreach ($open_rows as $open_row) {
+        if ($open_row['status'] === 'pending-verification' && $open_row['proof_amount'] !== null) {
+            $declared_cents = (int)round((float)$open_row['proof_amount'] * 100);
+        }
+    }
+    if ($declared_cents !== null && $declared_cents !== $payment_total_cents) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "The tenant declared a part of ₱" . number_format($declared_cents / 100, 2) . " with the proof. Confirm that amount, or reject the proof."]);
+        exit;
+    }
+    $partial = ($input['partial'] ?? false) === true || $declared_cents !== null;
+    // A part is never more than the balance (the cash-with-change allowance
+    // below is for full payments only).
+    if ($partial && $open_rows && $payment_total_cents > $open_total_cents) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "The part (₱" . number_format($payment_total_cents / 100, 2) . ") is more than the balance (₱" . number_format($open_total_cents / 100, 2) . ")."]);
+        exit;
+    }
+    if ($partial && $open_rows && $payment_total_cents < $open_total_cents) {
+        if (is_payment_group_key($invoice_id) || count($open_rows) !== 1) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "A grouped or advance payment is paid in full; part-payments are recorded on a single invoice."]);
+            exit;
+        }
+        $result = record_partial_payment($conn, $open_rows[0]['id'], $payments, (int)$admin_id);
+        if (!$result['ok']) {
+            http_response_code($result['code'] ?? 409);
+            echo json_encode(["success" => false, "message" => $result['message']]);
+            exit;
+        }
+        echo json_encode(["success" => true, "message" => $result['message'], "partial" => true, "amount_paid" => $result['amount_paid'], "balance" => $result['balance']]);
+        $conn->close();
+        exit;
+    }
     $cash_only_legacy_overpayment = count($payments) === 1 && $payments[0]['method'] === 'cash' && $payment_total_cents >= $open_total_cents;
     if ($payment_total_cents !== $open_total_cents && !$cash_only_legacy_overpayment) {
         http_response_code(422);

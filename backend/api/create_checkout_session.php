@@ -104,7 +104,8 @@ if ($claimed !== count($invoices)) {
 $line_items = [];
 $total_amount = 0.0;
 foreach ($invoices as $invoice) {
-    $row_total = (float)$invoice['total_amount'];
+    // The balance: parts already received (installments) are not charged again.
+    $row_total = invoice_balance_cents($invoice) / 100;
     $total_amount += $row_total;
     $line_items[] = [
         'currency' => 'PHP',

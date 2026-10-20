@@ -170,7 +170,8 @@ const AdminPayments = () => {
           const t = grouped[inv.user_id];
           
           if (inv.status === 'pending' || inv.status === 'overdue' || inv.status === 'pending-verification' || inv.status === 'scheduled' || inv.status === 'processing' || inv.status === 'payment-failed') {
-            t.outstandingBalance += parseFloat(inv.total_amount || 0);
+            // Installments: only what is still owed (total less parts received).
+            t.outstandingBalance += Math.max(0, parseFloat(inv.total_amount || 0) - parseFloat(inv.amount_paid || 0));
             (t.openInvoices = t.openInvoices || []).push(inv);
           } else if (inv.status === 'paid') {
             const methodDisplay = inv.payment_method || (inv.payment_gateway?.includes('paymongo') ? 'PayMongo (Sandbox)' : 'Cash');
@@ -248,7 +249,14 @@ const AdminPayments = () => {
           t.billing.securityDeposit = sum('security_deposit');
           t.billing.lateFee = sum('late_fee');
           t.pendingInvoiceId = sel.payment_group || sel.id;
-          t.pendingAmount = sum('total_amount');
+          // The balance that one action settles (parts already received are not owed again).
+          t.pendingAmount = Math.round((sum('total_amount') - sum('amount_paid')) * 100) / 100;
+          t.invoiceTotal = sum('total_amount');
+          t.paidSoFar = sum('amount_paid');
+          // A part the tenant declared with their proof; null = the whole balance.
+          t.proofAmount = sel.status === 'pending-verification' && sel.proof_amount != null ? parseFloat(sel.proof_amount) : null;
+          t.partsList = sel.payment_group ? [] : (sel.payment_transactions || []);
+          t.canPartPay = !sel.payment_group && !sel.advance_months;
           t.advanceGroup = sel.payment_group ? { key: sel.payment_group, months } : null;
           // A single bill's charges and due date are changed through
           // adjust_invoice.php, never at the till; a group or advance is not adjustable.
@@ -385,7 +393,13 @@ const AdminPayments = () => {
 
   // What "Clear & Process" settles (one invoice, or one payment group's
   // bills) — not every open invoice, which the button never settled.
-  const totalDue = activeTenant ? (activeTenant.pendingAmount || 0) : 0;
+  // A part the tenant declared with a proof is confirmed as declared.
+  const declaredPart = activeTenant?.proofAmount ?? null;
+  const totalDue = activeTenant ? (declaredPart ?? (activeTenant.pendingAmount || 0)) : 0;
+  // "Record part-payment" (installments): a single bill, below its balance.
+  const [partChoice, setPartChoice] = useState({ tenant: null, on: false });
+  const adminPart = !!activeTenant?.canPartPay && partChoice.tenant === activeTenant && partChoice.on && declaredPart === null;
+  const partMode = adminPart || (declaredPart !== null && declaredPart < (activeTenant?.pendingAmount || 0));
   // Starts at the total due; a typed amount only sticks while that same tenant
   // record is selected (like the method above).
   const amountTendered = tender.tenant === activeTenant ? tender.value : (totalDue > 0 ? String(totalDue) : '');
@@ -556,6 +570,10 @@ const AdminPayments = () => {
     amountPaid: (v, all) => {
       const base = checkAmount(v, { label: all.paymentMethod === 'cash' ? 'Amount tendered' : 'Amount received', required: true, min: 0.01, allowZero: false });
       if (base) return base;
+      if (adminPart) {
+        if (Number(v) - totalDue > -0.009) return `A part-payment must be less than the balance (${formatCurrency(totalDue)}). Untick part-payment to settle it.`;
+        return '';
+      }
       if (Number(v) + 0.009 < totalDue) return `The amount must cover the total due (${formatCurrency(totalDue)}).`;
       if (all.paymentMethod !== 'cash' && Number(v) - totalDue > 0.009) return `A ${all.paymentMethod} payment must match the total due (${formatCurrency(totalDue)}).`;
       return '';
@@ -594,16 +612,20 @@ const handleMarkAsPaid = async () => {
           ? paymentParts.map(p => ({ method: p.method, amount: Number(p.amount), bank_name: p.method === 'bank_transfer' ? (p.bank_name === 'Other' ? p.other_bank_name.trim() : p.bank_name) : undefined, reference_number: p.reference_number.trim() || undefined }))
           : [{
               method: paymentMethod,
-              amount: paymentMethod === 'cash' ? totalDue : Number(amountTendered),
+              amount: paymentMethod === 'cash' && !adminPart ? totalDue : Number(amountTendered),
               bank_name: paymentMethod === 'bank_transfer' ? (paymentParts[0]?.bank_name === 'Other' ? paymentParts[0]?.other_bank_name?.trim() : paymentParts[0]?.bank_name) : undefined,
               reference_number: (paymentMethod !== 'cash' && paymentReference.trim()) || undefined,
-            }]
+            }],
+        partial: partMode,
       });
 
       // Safely check if the response is successful
       if (res.data && res.data.success) {
         fetchInvoices();
-        showFlash(`Payment confirmed for ${activeTenant.name}. The tenant has been notified and their receipt is ready.`);
+        showFlash(res.data.partial
+          ? `Part-payment recorded for ${activeTenant.name}. Balance ${formatCurrency(res.data.balance)}; the tenant has been notified.`
+          : `Payment confirmed for ${activeTenant.name}. The tenant has been notified and their receipt is ready.`);
+        setPartChoice({ tenant: null, on: false });
         setTender({ tenant: null, value: '' });
         setSplitChoice({ tenant: null, on: false, parts: null });
         setRefChoice({ tenant: null, value: '' });
@@ -1126,6 +1148,19 @@ const handleMarkAsPaid = async () => {
                             <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center"><button type="button" disabled={paymentParts.length >= 2 || tenantSplit} title={paymentParts.length >= 2 ? 'Split payments use two methods at most' : undefined} onClick={() => setPaymentParts(parts => parts.length < 4 ? [...parts, { method: 'cash', bank_name: '', amount: '', reference_number: '' }] : parts)} className="self-start text-xs font-bold text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45">+ Add payment portion ({paymentParts.length}/2)</button><div className="flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">Allocated: {formatCurrency(splitTotal)}</span><span className={`rounded-full px-3 py-1.5 ${remainingBalance === 0 ? 'bg-emerald-50 text-emerald-700' : remainingBalance > 0 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>{remainingBalance === 0 ? '✓ Balanced' : remainingBalance > 0 ? `Remaining: ${formatCurrency(remainingBalance)}` : `Over by ${formatCurrency(Math.abs(remainingBalance))}`}</span></div></div>
                           </div>}
                           {!splitMode && <FieldError id="record-amountPaid" error={recordForm.errors.amountPaid} />}
+                          {!splitMode && activeTenant.canPartPay && declaredPart === null && (
+                            <label className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600">
+                              <input type="checkbox" checked={adminPart} onChange={e => { setPartChoice({ tenant: activeTenant, on: e.target.checked }); recordForm.clearError('amountPaid'); }} />
+                              Record part-payment (the rest stays due)
+                            </label>
+                          )}
+                          {declaredPart !== null && partMode && <p className="m-0 mt-1 text-[10px] text-indigo-600">The tenant paid part of the bill: {formatCurrency(declaredPart)} of {formatCurrency(activeTenant.pendingAmount)}. It is recorded as a part-payment.</p>}
+                          {(activeTenant.paidSoFar || 0) > 0 && (
+                            <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 p-2 text-[11px] text-slate-600">
+                              <p className="m-0 font-semibold text-emerald-700">Paid so far {formatCurrency(activeTenant.paidSoFar)} of {formatCurrency(activeTenant.invoiceTotal)} · balance {formatCurrency(activeTenant.pendingAmount)}</p>
+                              {(activeTenant.partsList || []).map(p => <p key={p.id} className="m-0">{String(p.created_at || '').slice(0, 10)} · {p.payment_method}{p.bank_name ? ` (${p.bank_name})` : ''} · {formatCurrency(p.amount)}{p.reference_number ? ` · ref ${p.reference_number}` : ''}</p>)}
+                            </div>
+                          )}
                         </div>
                         <div className={splitMode ? 'hidden' : ''}>
                           <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Change</label>
@@ -1443,8 +1478,8 @@ const handleMarkAsPaid = async () => {
                 </div>
                 
                 {/* ─── OUTSTANDING BALANCE ─── */}
-                {/* Invoices are settled in full via Record Payment; there is no
-                    partial-payment ledger, so no settlement entry form here. */}
+                {/* Payments, full or part, are recorded via Record Payment
+                    above; this panel only monitors what is still owed. */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
                     <h3 className="text-sm font-bold text-slate-800 m-0 flex items-center gap-2">

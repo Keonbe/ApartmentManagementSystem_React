@@ -50,9 +50,22 @@ if (!$rows) split_fail("This invoice is not open for payment — it may already 
 foreach ($rows as $row) {
     if ($row['status'] === 'processing') split_fail("An online checkout is in progress for this bill.", 409);
 }
+// What is still owed after any parts already received (installments).
 $open_total_cents = 0;
-foreach ($rows as $row) $open_total_cents += (int)round((float)$row['total_amount'] * 100);
-if ($checked['total_cents'] !== $open_total_cents) split_fail("Payment portions must add up exactly to the amount due.");
+foreach ($rows as $row) $open_total_cents += invoice_balance_cents($row);
+// Optional `amount`: pay only a part of a single bill now (default = the whole balance).
+$target_cents = $open_total_cents;
+$amount_raw = $_POST['amount'] ?? '';
+if ($amount_raw !== '' && $amount_raw !== null) {
+    if (!is_numeric($amount_raw) || !is_finite((float)$amount_raw) || (float)$amount_raw <= 0) split_fail("Enter the amount you are paying (more than ₱0).");
+    $target_cents = (int)round((float)$amount_raw * 100);
+    if ($target_cents > $open_total_cents) split_fail("The amount is more than the balance (₱" . number_format($open_total_cents / 100, 2) . ").");
+    if ($target_cents < $open_total_cents && (is_payment_group_key($key) || count($rows) !== 1 || (int)($rows[0]['advance_months'] ?? 0) > 0)) {
+        split_fail("A grouped or advance payment is paid in full. Pay the whole amount, or pay a single bill in parts.");
+    }
+}
+if ($checked['total_cents'] !== $target_cents) split_fail("Payment portions must add up exactly to the amount you are paying.");
+$proof_amount = $target_cents < $open_total_cents ? $target_cents / 100 : null;
 
 // A cash portion is paid at the office, so the tenant books the visit, as with
 // an in-person payment (schedule_payment.php): a real date up to 60 days ahead.
@@ -111,14 +124,14 @@ $conn->begin_transaction();
 try {
     // Lock the bill and re-read it: it may have been settled, or the amount
     // changed, since the check above.
-    $lock = $conn->prepare("SELECT id, status, total_amount FROM invoices WHERE ? IN (id, payment_group) AND user_id = ? FOR UPDATE");
+    $lock = $conn->prepare("SELECT id, status, total_amount, amount_paid FROM invoices WHERE ? IN (id, payment_group) AND user_id = ? FOR UPDATE");
     $lock->bind_param('si', $key, $user_id);
     if (!$lock->execute()) throw new Exception("Could not submit the payment. Please try again.");
     $locked = $lock->get_result()->fetch_all(MYSQLI_ASSOC);
     $lock->close();
     $open = array_filter($locked, fn($r) => in_array($r['status'], BILLING_OPEN_STATUSES, true));
     $open_cents = 0;
-    foreach ($open as $r) $open_cents += (int)round((float)$r['total_amount'] * 100);
+    foreach ($open as $r) $open_cents += invoice_balance_cents($r);
     if (!$open || array_filter($open, fn($r) => $r['status'] === 'processing') || $open_cents !== $open_total_cents) {
         throw new Exception("This bill changed while you were submitting. Refresh the page and try again.");
     }
@@ -136,9 +149,9 @@ try {
     // the reject endpoint see a proof awaiting verification.
     $first_proof = reset($saved);
     $label = SPLIT_PAYMENT_LABEL;
-    $upd = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = NULL, sender_name = NULL, bank_name = NULL, status = 'pending-verification', proof_rejection_reason = NULL, proof_of_payment_path = ?, scheduled_date = ?, scheduled_time_slot = ?
+    $upd = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = NULL, sender_name = NULL, bank_name = NULL, status = 'pending-verification', proof_rejection_reason = NULL, proof_of_payment_path = ?, scheduled_date = ?, scheduled_time_slot = ?, proof_amount = ?
                            WHERE ? IN (id, payment_group) AND user_id = ? AND status IN " . billing_open_status_sql());
-    $upd->bind_param('sssssi', $label, $first_proof, $scheduled_date, $scheduled_slot, $key, $user_id);
+    $upd->bind_param('ssssdsi', $label, $first_proof, $scheduled_date, $scheduled_slot, $proof_amount, $key, $user_id);
     if (!$upd->execute()) throw new Exception("Could not submit the payment. Please try again.");
     $changed = $upd->affected_rows;
     $upd->close();

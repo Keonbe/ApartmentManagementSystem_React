@@ -108,7 +108,7 @@ if (!empty($user_id)) {
     // submitted against an already-overdue bill) is still money owed and a
     // real eviction-monitoring signal — it must not disappear from this view
     // just because a proof, verified or not, was attached (audit C3).
-    $overdue_res = $conn->query("SELECT user_id, MIN(due_date) AS oldest_due_date, SUM(total_amount) AS outstanding_amount, COUNT(*) AS invoice_count
+    $overdue_res = $conn->query("SELECT user_id, MIN(due_date) AS oldest_due_date, SUM(total_amount - amount_paid) AS outstanding_amount, COUNT(*) AS invoice_count
                                   FROM invoices
                                   WHERE status = 'overdue' OR (status = 'pending-verification' AND due_date IS NOT NULL AND due_date < CURDATE())
                                   GROUP BY user_id");

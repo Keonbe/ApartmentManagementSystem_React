@@ -170,6 +170,22 @@ CREATE TABLE IF NOT EXISTS `deposit_deductions` (
   CONSTRAINT `fk_deposit_deductions_application` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- ===== partial_payments =====
+-- Installments: any single invoice can be paid in parts. amount_paid is the
+-- running sum of its payment_transactions parts (cached so list endpoints do
+-- not query per row); balance = total_amount - amount_paid. proof_amount is
+-- the part a tenant declared with a proof (NULL = the whole balance).
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'amount_paid') = 0,
+  'ALTER TABLE `invoices` ADD COLUMN `amount_paid` decimal(10,2) NOT NULL DEFAULT 0.00 AFTER `total_amount`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'proof_amount') = 0,
+  'ALTER TABLE `invoices` ADD COLUMN `proof_amount` decimal(10,2) DEFAULT NULL AFTER `amount_paid`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- Paid invoices were paid in full.
+UPDATE `invoices` SET `amount_paid` = `total_amount` WHERE `status` = 'paid' AND `amount_paid` = 0;
+
 -- ===== move_out_notice =====
 -- The move-out notice window (was fixed at 15-30 days in record_move_out.php and
 -- MyRoom.jsx) becomes two admin settings, Settings -> Rental.

@@ -36,7 +36,7 @@ if (empty($invoice_id)) {
     exit;
 }
 
-$current = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, late_fee_waived, services, maintenance, security_deposit, total_amount, due_date, status, advance_months FROM invoices WHERE id = ?");
+$current = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, late_fee_waived, services, maintenance, security_deposit, total_amount, amount_paid, due_date, status, advance_months FROM invoices WHERE id = ?");
 $current->bind_param("s", $invoice_id);
 $current->execute();
 $row = $current->get_result()->fetch_assoc();
@@ -116,6 +116,15 @@ $new_total = $new_values['base_rent'] + $new_values['water'] + $new_values['elec
     + $new_values['parking'] + (float)$row['services'] + (float)$row['maintenance']
     + $new_values['late_fee'] + (float)$row['security_deposit'];
 
+// Parts already received (installments) cannot be adjusted away: the new total
+// must stay above what the tenant has paid.
+$paid_cents = (int)round((float)$row['amount_paid'] * 100);
+if ($paid_cents > 0 && (int)round($new_total * 100) <= $paid_cents) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "The tenant has already paid ₱" . number_format($paid_cents / 100, 2) . " of this invoice. The new total must be more than that."]);
+    exit;
+}
+
 // Optimistic lock: the status this endpoint already validated must still
 // hold at write time — a payment could have started at the gateway in the
 // meantime.
@@ -132,7 +141,7 @@ if ($new_values['late_fee'] > 0) {
 // A due date moved to today or later means the invoice is no longer overdue.
 $new_status = ($row['status'] === 'overdue' && !empty($due_date) && $due_date >= date('Y-m-d')) ? 'pending' : $row['status'];
 
-$stmt = $conn->prepare("UPDATE invoices SET base_rent = ?, water = ?, electricity = ?, parking = ?, late_fee = ?, late_fee_waived = ?, total_amount = ?, due_date = ?, status = ? WHERE id = ? AND status = ?");
+$stmt = $conn->prepare("UPDATE invoices SET base_rent = ?, water = ?, electricity = ?, parking = ?, late_fee = ?, late_fee_waived = ?, total_amount = ?, due_date = ?, status = ? WHERE id = ? AND status = ? AND amount_paid < total_amount");
 $stmt->bind_param(
     "dddddidssss",
     $new_values['base_rent'],

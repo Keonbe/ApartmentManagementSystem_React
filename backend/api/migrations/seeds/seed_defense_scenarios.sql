@@ -81,3 +81,6 @@ WHERE NOT EXISTS (SELECT 1 FROM utility_readings WHERE room_name = 'G' AND billi
 INSERT INTO invoices (id, user_id, base_rent, total_amount, billing_period, status, due_date, checkout_session_id, payment_gateway, processing_since)
 SELECT 'INV-DEF-ABANDONED', 11, 4000, 4000, DATE_FORMAT(CURDATE(), '%M %Y'), 'processing', DATE_ADD(CURDATE(), INTERVAL 5 DAY), 'cs_def_abandoned', 'paymongo', DATE_SUB(NOW(), INTERVAL 4 DAY) FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM invoices WHERE id = 'INV-DEF-ABANDONED');
+
+-- Installments (2026_10_manager_interview_alignment.sql): a paid invoice was paid in full.
+UPDATE `invoices` SET `amount_paid` = `total_amount` WHERE `status` = 'paid' AND `amount_paid` = 0;

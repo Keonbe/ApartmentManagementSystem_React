@@ -43,7 +43,8 @@ if ($action === 'create') {
         exit;
     }
     $rows = payment_key_invoices($conn, $key, $user_id, BILLING_OPEN_STATUSES);
-    $total = round(array_sum(array_map(fn($r) => (float)$r['total_amount'], $rows)), 2);
+    // Balances: a bill already part-paid (installments) brings only what is left.
+    $total = round(array_sum(array_map(fn($r) => invoice_balance_cents($r), $rows)) / 100, 2);
     log_activity($conn, $user_id, 'billing', 'Created Combined Payment',
         "$key: " . count($rows) . " bill(s) (" . implode(', ', array_column($rows, 'id')) . "), ₱" . number_format($total, 2));
     echo json_encode([
@@ -53,7 +54,7 @@ if ($action === 'create') {
         "invoices" => array_map(fn($r) => [
             'id' => $r['id'],
             'billing_period' => $r['billing_period'],
-            'amount' => (float)$r['total_amount'],
+            'amount' => invoice_balance_cents($r) / 100,
         ], $rows),
         "total" => $total,
     ]);

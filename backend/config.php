@@ -405,7 +405,7 @@ class ExtensionRefused extends Exception {}
 function tenant_overdue_summary($conn, $user_id) {
     $statuses = array_values(array_diff(BILLING_OPEN_STATUSES, ['pending-verification', 'processing']));
     $in = "('" . implode("','", $statuses) . "')";
-    $stmt = $conn->prepare("SELECT COUNT(*) AS c, COALESCE(SUM(total_amount), 0) AS total, MIN(due_date) AS oldest
+    $stmt = $conn->prepare("SELECT COUNT(*) AS c, COALESCE(SUM(total_amount - amount_paid), 0) AS total, MIN(due_date) AS oldest
                             FROM invoices
                             WHERE user_id = ? AND due_date IS NOT NULL AND due_date < CURDATE()
                               AND status IN $in AND advance_months IS NULL");
@@ -1264,10 +1264,10 @@ function billing_open_status_sql() {
 // M12) — an online-paid move-in invoice left the application 'Approved' and
 // the contract a draft forever.
 //
-// $amount_paid is the desk-only short-payment guard — this system settles in
-// full, there is no partial-payment ledger. The webhook validates the paid
-// amount against total_amount itself before calling this (audit H9b), so it
-// always passes null here.
+// $amount_paid is the desk-only short-payment guard: it must cover the
+// remaining balance (parts below it go through record_partial_payment()). The
+// webhook validates the paid amount against the balance itself before calling
+// this (audit H9b), so it always passes null here.
 //
 // A first-payment settlement records payment only. The admin separately sends
 // the move-in date and confirms actual occupancy, preventing an applicant who
@@ -1281,27 +1281,31 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
     $conn->begin_transaction();
 
     try {
-        if ($amount_paid !== null) {
-            $due_q = $conn->prepare("SELECT total_amount FROM invoices WHERE id = ?");
-            $due_q->bind_param("s", $invoice_id);
-            $due_q->execute();
-            $due_row = $due_q->get_result()->fetch_assoc();
-            $due_q->close();
-            if ($due_row && $amount_paid + 0.009 < (float)$due_row['total_amount']) {
-                throw new Exception("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the invoice total (₱" . number_format((float)$due_row['total_amount'], 2) . "). Partial payments are not supported.");
-            }
-        }
-
-        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months, id, billing_period, total_amount, payment_reference FROM invoices WHERE id = ?");
+        // Locked: a part-payment (record_partial_payment()) on the same invoice
+        // waits, so the balance read here is the one this settlement closes.
+        $inv_q = $conn->prepare("SELECT user_id, rent_application_id, security_deposit, advance_months, id, billing_period, total_amount, amount_paid, payment_reference FROM invoices WHERE id = ? FOR UPDATE");
         $inv_q->bind_param("s", $invoice_id);
         $inv_q->execute();
         $inv_res = $inv_q->get_result()->fetch_assoc();
         $inv_q->close();
         if (!$inv_res) throw new Exception("Invoice not found.");
 
+        // Parts already received (installments) stay on the ledger; this
+        // settlement covers what is left.
+        $paid_before_cents = (int)round((float)($inv_res['amount_paid'] ?? 0) * 100);
+        $balance_cents = (int)round((float)$inv_res['total_amount'] * 100) - $paid_before_cents;
+        if ($amount_paid !== null && (int)round((float)$amount_paid * 100) < $balance_cents) {
+            throw new Exception("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the " . ($paid_before_cents > 0 ? "remaining balance" : "invoice total") . " (₱" . number_format($balance_cents / 100, 2) . "). Record it as a part-payment instead.");
+        }
+        if (is_array($payment_splits) && $paid_before_cents > 0) {
+            $split_cents = 0;
+            foreach ($payment_splits as $split) $split_cents += (int)round((float)($split['amount'] ?? 0) * 100);
+            if ($split_cents !== $balance_cents) throw new Exception("The payment must equal the remaining balance (₱" . number_format($balance_cents / 100, 2) . ").");
+        }
+
         $bank_name = null;
         if (is_array($payment_splits) && count($payment_splits) === 1) $bank_name = $payment_splits[0]['bank_name'] ?? null;
-        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', payment_method = ?, payment_reference = COALESCE(?, payment_reference), bank_name = COALESCE(?, bank_name), paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
+        $stmt = $conn->prepare("UPDATE invoices SET status = 'paid', amount_paid = total_amount, proof_amount = NULL, payment_method = ?, payment_reference = COALESCE(?, payment_reference), bank_name = COALESCE(?, bank_name), paid_at = COALESCE(paid_at, NOW()) WHERE id = ? AND status IN " . billing_open_status_sql());
         $stmt->bind_param("ssss", $payment_method, $payment_reference, $bank_name, $invoice_id);
         $stmt->execute();
         if ($stmt->affected_rows === 0) {
@@ -1314,7 +1318,7 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         // are recorded as a single legacy-compatible transaction.
         $transactions = is_array($payment_splits) ? $payment_splits : [[
             'method' => strtolower((string)$payment_method),
-            'amount' => (float)$inv_res['total_amount'],
+            'amount' => $balance_cents / 100,
             'bank_name' => $bank_name,
             'reference_number' => $payment_reference,
         ]];
@@ -1330,7 +1334,9 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         // Admin desk settlements replace any rows left by a previous failed
         // or re-tested attempt. Keep this inside the settlement transaction so
         // a failed settlement restores the prior ledger rows on rollback.
-        if (is_array($payment_splits)) {
+        // Never when parts were already received: those rows are the
+        // installment ledger, and the final part is appended to them.
+        if (is_array($payment_splits) && $paid_before_cents === 0) {
             $delete_tx = $conn->prepare("DELETE FROM payment_transactions WHERE invoice_id = ?");
             $delete_tx->bind_param("s", $invoice_id);
             if (!$delete_tx->execute()) {
@@ -1339,7 +1345,9 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
             $delete_tx->close();
         }
 
-        foreach (is_array($payment_splits) ? $transactions : [] as $transaction) {
+        // Without splits, a settlement that closes an installment balance still
+        // records its final part, so the ledger adds up to the invoice total.
+        foreach ((is_array($payment_splits) || $paid_before_cents > 0) ? $transactions : [] as $transaction) {
             $tx_method = (string)($transaction['method'] ?? strtolower((string)$payment_method));
             $tx_amount = round((float)($transaction['amount'] ?? 0), 2);
             $tx_bank = $transaction['bank_name'] ?? null;
@@ -1426,6 +1434,105 @@ function settle_invoice($conn, $invoice_id, $payment_method, $payment_reference 
         $conn->rollback();
         return ['ok' => false, 'message' => $e->getMessage(), 'invoice_id' => $invoice_id, 'user_id' => null, 'activated' => false];
     }
+}
+
+// ── Installments (manager interview Q9 / Q12) ──
+// Any single invoice can be paid in parts over time. Each part is appended to
+// payment_transactions and added to invoices.amount_paid; the invoice stays
+// open while a balance remains (balance = total_amount - amount_paid). The
+// part that brings the balance to zero goes through settle_invoice(), so the
+// deposit hold, move-in cue, advance credits, queue resolution and receipt
+// happen exactly once. A grouped payment (advance 'ADV-' / combined 'BND-')
+// is settled in full only.
+
+// Remaining balance of an invoice row (total_amount, amount_paid), in cents.
+function invoice_balance_cents(array $row) {
+    return (int)round((float)$row['total_amount'] * 100) - (int)round((float)($row['amount_paid'] ?? 0) * 100);
+}
+
+// Records one part-payment of $invoice_id: $parts are normalized portions
+// (normalize_payment_portions()). A part equal to the balance settles the
+// invoice. Returns ['ok', 'message', 'settled' => bool, 'amount_paid', 'balance'].
+function record_partial_payment($conn, $invoice_id, $parts, $admin_id) {
+    $fail = fn($message, $code = 409) => ['ok' => false, 'message' => $message, 'code' => $code, 'settled' => false];
+    if (!is_array($parts) || !$parts) return $fail("Enter the amount received.", 422);
+    $part_cents = 0;
+    foreach ($parts as $p) $part_cents += (int)round((float)$p['amount'] * 100);
+    if ($part_cents <= 0) return $fail("A part-payment must be more than ₱0.", 422);
+
+    $conn->begin_transaction();
+    try {
+        $q = $conn->prepare("SELECT id, user_id, status, total_amount, amount_paid, payment_group, advance_months, due_date FROM invoices WHERE id = ? FOR UPDATE");
+        $q->bind_param("s", $invoice_id);
+        $q->execute();
+        $inv = $q->get_result()->fetch_assoc();
+        $q->close();
+        if (!$inv) { $conn->rollback(); return $fail("Invoice not found.", 404); }
+        if (!in_array($inv['status'], BILLING_OPEN_STATUSES, true)) { $conn->rollback(); return $fail("Invoice $invoice_id is not open for payment — it may already be settled or cancelled."); }
+        if ($inv['status'] === 'processing') { $conn->rollback(); return $fail("An online checkout is in progress for this bill."); }
+        if (!empty($inv['payment_group']) || (int)($inv['advance_months'] ?? 0) > 0) {
+            $conn->rollback();
+            return $fail("A grouped or advance payment is paid in full; part-payments are recorded on a single invoice.", 422);
+        }
+        $balance_cents = invoice_balance_cents($inv);
+        if ($part_cents > $balance_cents) {
+            $conn->rollback();
+            return $fail("The part (₱" . number_format($part_cents / 100, 2) . ") is more than the balance (₱" . number_format($balance_cents / 100, 2) . ").", 422);
+        }
+        if ($part_cents === $balance_cents) {
+            // The last part: settle through the one settlement path (it re-locks
+            // the row and re-checks the balance).
+            $conn->rollback();
+            $method = count($parts) > 1 ? 'split' : $parts[0]['method'];
+            $ref = $parts[0]['reference_number'] ?? null;
+            $res = settle_invoice($conn, $invoice_id, $method, $ref, $part_cents / 100, true, $parts, (int)$admin_id);
+            if (!$res['ok']) return $fail($res['message']);
+            return ['ok' => true, 'settled' => true, 'message' => "Final part received. Invoice $invoice_id is paid in full.",
+                    'amount_paid' => round((float)$inv['total_amount'], 2), 'balance' => 0.0, 'user_id' => (int)$inv['user_id']];
+        }
+
+        $ins = $conn->prepare("INSERT INTO payment_transactions (invoice_id, amount, payment_method, bank_name, reference_number, recorded_by) VALUES (?, ?, ?, ?, ?, ?)");
+        $recorder = (int)$admin_id;
+        foreach ($parts as $p) {
+            $amt = round((float)$p['amount'], 2);
+            $ins->bind_param("sdsssi", $invoice_id, $amt, $p['method'], $p['bank_name'], $p['reference_number'], $recorder);
+            if (!$ins->execute()) throw new Exception("Could not record the part-payment.");
+        }
+        $ins->close();
+
+        // A verified part closes the proof or visit it came with; the bill goes
+        // back to waiting for the rest (overdue when its due date has passed).
+        $part = $part_cents / 100;
+        $upd = $conn->prepare("UPDATE invoices SET amount_paid = amount_paid + ?, proof_amount = NULL,
+                status = CASE WHEN status IN ('pending-verification', 'scheduled', 'payment-failed')
+                              THEN (CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 'overdue' ELSE 'pending' END)
+                              ELSE status END
+            WHERE id = ? AND status IN " . billing_open_status_sql() . " AND amount_paid + ? < total_amount");
+        $upd->bind_param("dsd", $part, $invoice_id, $part);
+        $upd->execute();
+        $changed = $upd->affected_rows;
+        $upd->close();
+        if ($changed !== 1) throw new Exception("The invoice changed while the part was being recorded. Refresh and try again.");
+        clear_payment_proof_parts($conn, $invoice_id);
+        $conn->commit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        return $fail(public_error_message($e, "Could not record the part-payment."));
+    }
+
+    $paid_now = round(((int)round((float)$inv['amount_paid'] * 100) + $part_cents) / 100, 2);
+    $balance = round(($balance_cents - $part_cents) / 100, 2);
+    resolve_admin_queue($conn, 'payment_verification', $invoice_id);
+    resolve_admin_queue($conn, 'cash_payment_declared', $invoice_id);
+    log_activity($conn, $admin_id, 'billing', 'Recorded Part Payment', "Invoice $invoice_id: ₱" . number_format($part, 2) . " received ("
+        . implode(', ', array_map(fn($p) => $p['method'] . ' ₱' . number_format($p['amount'], 2), $parts)) . "); paid ₱" . number_format($paid_now, 2) . ", balance ₱" . number_format($balance, 2));
+    if (!empty($inv['user_id'])) {
+        create_notification($conn, (int)$inv['user_id'], 'payment', 'Part Payment Received',
+            "₱" . number_format($part, 2) . " received for invoice $invoice_id, balance ₱" . number_format($balance, 2) . ". Pay the rest from Pay Bills.",
+            'Resolved', "invoice:$invoice_id");
+    }
+    return ['ok' => true, 'settled' => false, 'message' => "Part-payment of ₱" . number_format($part, 2) . " recorded. Balance ₱" . number_format($balance, 2) . ".",
+            'amount_paid' => $paid_now, 'balance' => $balance, 'user_id' => (int)$inv['user_id']];
 }
 
 // Maintenance vocabulary (checklist 4.2 / 4.3), enforced server-side.
@@ -1996,7 +2103,7 @@ function payment_key_label($key) {
 // The invoices a payment key covers, oldest month first. $user_id limits them
 // to one owner (null = any, for admins); $statuses to those states (null = all).
 function payment_key_invoices($conn, $key, $user_id = null, $statuses = null) {
-    $sql = "SELECT id, user_id, status, total_amount, billing_period, due_date, checkout_session_id, checkout_payment_intent_id, payment_group, payment_method
+    $sql = "SELECT id, user_id, status, total_amount, amount_paid, proof_amount, advance_months, billing_period, due_date, checkout_session_id, checkout_payment_intent_id, payment_group, payment_method
             FROM invoices WHERE ? IN (id, payment_group)";
     $types = "s";
     $params = [$key];
@@ -2037,9 +2144,11 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
     $what = $bundle ? 'combined payment' : 'advance payment';
     if (!$rows) return $fail(ucfirst($what) . " not found or already settled.");
 
-    $total = array_sum(array_map(fn($row) => (float)$row['total_amount'], $rows));
+    // What is still owed: a bill already part-paid (installments) can be in a
+    // combined payment, and only its balance is settled here.
+    $total = array_sum(array_map(fn($row) => invoice_balance_cents($row), $rows)) / 100;
     if ($amount_paid !== null && $amount_paid + 0.009 < $total) {
-        return $fail("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the $what total (₱" . number_format($total, 2) . "). Partial payments are not supported.");
+        return $fail("Amount tendered (₱" . number_format($amount_paid, 2) . ") is less than the $what total (₱" . number_format($total, 2) . "). A grouped payment is settled in full; part-payments are recorded on a single invoice.");
     }
 
     $settled = [];
@@ -2059,7 +2168,7 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
         $split_remaining = (float)$payment_splits[0]['amount'];
         foreach ($rows as $row) {
             $invoice_allocations = [];
-            $invoice_remaining = (float)$row['total_amount'];
+            $invoice_remaining = invoice_balance_cents($row) / 100;
             while ($invoice_remaining > 0.009 && isset($payment_splits[$split_index])) {
                 $allocated = min($invoice_remaining, $split_remaining);
                 $invoice_allocations[] = array_replace($payment_splits[$split_index], ['amount' => round($allocated, 2)]);
@@ -2079,7 +2188,7 @@ function settle_payment_key($conn, $key, $payment_method, $payment_reference = n
     $notify = function () use ($conn, $key, $payment_method, $bundle, &$settled_rows) {
         if (!$settled_rows) return;
         $periods = implode(', ', array_map(fn($row) => $row['billing_period'], $settled_rows));
-        $amount = array_sum(array_map(fn($row) => (float)$row['total_amount'], $settled_rows));
+        $amount = array_sum(array_map(fn($row) => invoice_balance_cents($row), $settled_rows)) / 100;
         $months = count($settled_rows);
         create_notification($conn, (int)$settled_rows[0]['user_id'], 'payment', 'Payment Received',
             $bundle
@@ -2324,7 +2433,7 @@ function store_room_image($file) {
 function followup_overdue_tenants($conn) {
     $rows = [];
     $res = $conn->query("SELECT i.user_id, u.first_name, u.last_name, MAX(ra.room_name) AS room_name,
-            COUNT(*) AS bills, SUM(i.total_amount) AS amount, MIN(i.due_date) AS oldest_due,
+            COUNT(*) AS bills, SUM(i.total_amount - i.amount_paid) AS amount, MIN(i.due_date) AS oldest_due,
             GREATEST(DATEDIFF(CURDATE(), MIN(i.due_date)), 0) AS days_overdue
         FROM invoices i
         JOIN users u ON u.id = i.user_id
@@ -2565,7 +2674,10 @@ function void_lapsed_payments($conn) {
         WHERE ra.status = 'Approved'
           AND i.status IN ('pending', 'unpaid', 'overdue', 'payment-failed')
           AND i.due_date IS NOT NULL AND i.due_date < CURDATE()
-          AND NOT EXISTS (SELECT 1 FROM invoices p WHERE p.rent_application_id = ra.id AND p.status IN ('paid', 'processing', 'pending-verification', 'scheduled'))");
+          AND NOT EXISTS (SELECT 1 FROM invoices p WHERE p.rent_application_id = ra.id AND p.status IN ('paid', 'processing', 'pending-verification', 'scheduled'))
+          -- An applicant who has paid part of the move-in invoice (installments)
+          -- is not dropped; the admin extends the due date (adjust_invoice.php).
+          AND NOT EXISTS (SELECT 1 FROM invoices pp WHERE pp.rent_application_id = ra.id AND pp.amount_paid > 0)");
     $lapsed = $res ? $res->fetch_all(MYSQLI_ASSOC) : [];
     foreach ($lapsed as $a) {
         $app_id = (int)$a['app_id'];
@@ -2666,8 +2778,8 @@ function promote_overdue_invoices($conn) {
     if (($settings['late_fee_type'] ?? 'flat') === 'percent') {
         $stmt = $conn->prepare("
             UPDATE invoices
-            SET late_fee = ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2),
-                total_amount = total_amount + ROUND((base_rent + water + electricity + parking + services + maintenance) * ? / 100, 2)
+            SET late_fee = ROUND(GREATEST(base_rent + water + electricity + parking + services + maintenance - amount_paid, 0) * ? / 100, 2),
+                total_amount = total_amount + ROUND(GREATEST(base_rent + water + electricity + parking + services + maintenance - amount_paid, 0) * ? / 100, 2)
             WHERE status = 'overdue' AND late_fee = 0 AND late_fee_waived = 0 AND advance_months IS NULL
         ");
         $stmt->bind_param("dd", $value, $value);
@@ -3078,17 +3190,19 @@ function notify_refund_raised($conn, $rid, $amount, $label) {
 function paid_invoices_for_application($conn, $app_id) {
     $app_id = (int)$app_id;
     $out = [];
-    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount,
+    // Paid invoices, and any invoice with parts received (installments) whatever
+    // its status now: those parts are refunded too.
+    $stmt = $conn->prepare("SELECT i.id, i.billing_period, i.total_amount, i.status, i.amount_paid,
             (SELECT COALESCE(SUM(t.amount),0) FROM payment_transactions t WHERE t.invoice_id = i.id) AS tx_paid
         FROM invoices i
-        WHERE i.rent_application_id = ? AND i.status = 'paid'
+        WHERE i.rent_application_id = ? AND (i.status = 'paid' OR i.amount_paid > 0)
           AND NOT EXISTS (SELECT 1 FROM refund_requests r WHERE r.invoice_id = i.id AND r.status IN ('Pending Review','Info Requested','Approved','Refunded'))
           AND (i.payment_method IS NULL OR i.payment_method <> 'Advance credit')");
     $stmt->bind_param("i", $app_id);
     $stmt->execute();
     $res = $stmt->get_result();
     while ($r = $res->fetch_assoc()) {
-        $amt = (float)$r['tx_paid'] > 0 ? (float)$r['tx_paid'] : (float)$r['total_amount'];
+        $amt = $r['status'] !== 'paid' ? (float)$r['amount_paid'] : ((float)$r['tx_paid'] > 0 ? (float)$r['tx_paid'] : (float)$r['total_amount']);
         if ($amt > 0) $out[] = ['invoiceId' => $r['id'], 'label' => $r['billing_period'], 'amount' => round($amt, 2)];
     }
     $stmt->close();
@@ -3627,7 +3741,7 @@ function run_notification_sweep($conn, $force = false) {
 
     if ($reminders_enabled) {
         $statuses = "('" . implode("','", REMINDER_UPCOMING_STATUSES) . "')";
-        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
+        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount - i.amount_paid AS total_amount, i.amount_paid, i.due_date, i.billing_period, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
                                 FROM invoices i
                                 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
                                 WHERE i.status IN $statuses AND i.due_date IS NOT NULL
@@ -3655,7 +3769,7 @@ function run_notification_sweep($conn, $force = false) {
     }
 
     if ($overdue_enabled) {
-        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
+        $stmt = $conn->prepare("SELECT i.id, i.user_id, i.total_amount - i.amount_paid AS total_amount, i.amount_paid, i.due_date, i.billing_period, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
                                 FROM invoices i
                                 LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
                                 WHERE i.status = 'overdue' AND i.due_date IS NOT NULL AND i.due_date < CURDATE()
@@ -3715,7 +3829,9 @@ function run_notification_sweep($conn, $force = false) {
 function reminder_text(array $inv, DateTime $today, $overdue, $custom_message = '') {
     $due = new DateTime($inv['due_date']);
     $unit = !empty($inv['room_name']) ? $inv['room_name'] : 'your unit';
+    // Callers pass the balance as total_amount (total less parts already paid).
     $amount = number_format((float)$inv['total_amount'], 2);
+    if ((float)($inv['amount_paid'] ?? 0) > 0) $amount .= " (balance, after ₱" . number_format((float)$inv['amount_paid'], 2) . " already paid)";
     $due_text = $due->format('M j, Y');
     $period = $inv['billing_period'] ?? '';
 

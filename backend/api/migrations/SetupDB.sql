@@ -104,6 +104,10 @@ CREATE TABLE `invoices` (
   `electricity` decimal(10,2) NOT NULL DEFAULT 0.00,
   `parking` decimal(10,2) NOT NULL DEFAULT 0.00,
   `total_amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  -- Installments: sum of the parts received (payment_transactions); balance = total_amount - amount_paid.
+  `amount_paid` decimal(10,2) NOT NULL DEFAULT 0.00,
+  -- The part a tenant declared with a proof (NULL = the whole balance).
+  `proof_amount` decimal(10,2) DEFAULT NULL,
   `security_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
   `payment_method` varchar(50) DEFAULT NULL,
   `payment_reference` varchar(100) DEFAULT NULL,

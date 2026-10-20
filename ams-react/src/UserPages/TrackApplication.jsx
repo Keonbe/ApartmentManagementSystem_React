@@ -170,7 +170,7 @@ export default function TrackApplication() {
         }
 
         const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
-        const totalAmount = parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0)));
+        const totalAmount = parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0)));
 
         if (currentMethodObj.family === 'sandbox') {
             try {
@@ -542,6 +542,30 @@ export default function TrackApplication() {
                             </div>
                         )}
 
+                        {['rejected', 'cancelled', 'declined'].includes(statusNormalized) && application.refund && (
+                            <div className={`rounded-3xl p-6 md:p-8 shadow-2xl space-y-3 border ${application.refund.status === 'Rejected' ? 'bg-rose-500/10 border-rose-500/20' : application.refund.status === 'Refunded' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-indigo-500/10 border-indigo-500/20'}`}>
+                                <h3 className="text-lg font-bold text-white m-0">
+                                    Refund of ₱{Number(application.refund.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}: {application.refund.status}
+                                </h3>
+                                {application.refund.status === 'Rejected' && (
+                                    <p className="text-slate-300 text-sm m-0 leading-relaxed">
+                                        Management did not approve this refund{application.refund.decision_reason ? <>: <strong className="text-white">{application.refund.decision_reason}</strong></> : '.'}
+                                    </p>
+                                )}
+                                {application.refund.status === 'Refunded' && (
+                                    <p className="text-slate-300 text-sm m-0 leading-relaxed">
+                                        Paid out via {application.refund.payout_method}{application.refund.payout_reference ? ` (ref. ${application.refund.payout_reference})` : ''}.
+                                    </p>
+                                )}
+                                {['Pending Review', 'Info Requested'].includes(application.refund.status) && (
+                                    <p className="text-slate-300 text-sm m-0 leading-relaxed">Management is reviewing this refund. Open My Refunds to reply if they asked for more information.</p>
+                                )}
+                                <button type="button" onClick={() => navigate('/my-refunds')} className="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/10 cursor-pointer">
+                                    View My Refunds
+                                </button>
+                            </div>
+                        )}
+
                         {statusNormalized === 'rejected' && (application.rejection_reason || application.rejection_attachment_path) && (
                             <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6 md:p-8 shadow-2xl space-y-4">
                                 <h3 className="text-lg font-bold text-rose-400 m-0 flex items-center gap-2">
@@ -830,10 +854,18 @@ export default function TrackApplication() {
                                                 ₱{parseFloat(application.pending_security_deposit || application.monthly_rent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </span>
                                         </div>
+                                        {Number(application.pending_amount_paid) > 0 && (
+                                            <div className="flex justify-between items-center py-1.5 px-1">
+                                                <span className="text-slate-200 font-medium text-sm">Paid so far:</span>
+                                                <span className="font-bold text-emerald-400 text-base tracking-wide">
+                                                    −₱{parseFloat(application.pending_amount_paid).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="border-t border-white/10 pt-4 mt-2 px-1 flex justify-between items-center font-bold">
-                                            <span className="text-slate-100 text-sm font-semibold">Total Initial Payment Due:</span>
+                                            <span className="text-slate-100 text-sm font-semibold">{Number(application.pending_amount_paid) > 0 ? 'Balance Due:' : 'Total Initial Payment Due:'}</span>
                                             <span className="text-2xl font-black text-indigo-400">
-                                                ₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                ₱{parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </span>
                                         </div>
                                     </div>
@@ -855,7 +887,7 @@ export default function TrackApplication() {
                                                 Cash Payment Request Pending
                                             </div>
                                             <p className="text-slate-300 text-xs m-0 leading-relaxed">
-                                                Please proceed to the management office to settle your cash payment of <strong className="text-white">₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
+                                                Please proceed to the management office to settle your cash payment of <strong className="text-white">₱{parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>. Your room details and service features will automatically unlock here once management confirms receipt of the payment.
                                             </p>
                                         </div>
                                     ) : (
@@ -906,7 +938,7 @@ export default function TrackApplication() {
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <span>Pay ₱{parseFloat(application.pending_total_amount || (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })} Now</span>
+                                                        <span>Pay ₱{parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })} Now</span>
                                                         <FontAwesomeIcon icon={faArrowRight} />
                                                     </>
                                                 )}

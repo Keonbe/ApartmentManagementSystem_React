@@ -39,6 +39,41 @@ if (empty($invoice_id)) {
     exit;
 }
 
+// Optional `amount`: the part of the bill this proof pays (installments).
+// Absent or empty = the whole remaining balance, as before. Checked against the
+// caller's own open invoice before any file is saved.
+$proof_amount = null;
+$amount_raw = $_POST['amount'] ?? '';
+if ($amount_raw !== '' && $amount_raw !== null) {
+    $owned = payment_key_invoices($conn, $invoice_id, $is_admin ? null : $user_id, BILLING_OPEN_STATUSES);
+    if (!$owned) {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "This invoice is not open for payment — it may already be settled or cancelled."]);
+        exit;
+    }
+    $balance_cents = 0;
+    foreach ($owned as $row) $balance_cents += invoice_balance_cents($row);
+    if (!is_numeric($amount_raw) || !is_finite((float)$amount_raw) || (float)$amount_raw <= 0) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "Enter the amount you paid (more than ₱0)."]);
+        exit;
+    }
+    $amount_cents = (int)round((float)$amount_raw * 100);
+    if ($amount_cents > $balance_cents) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => "The amount is more than the balance (₱" . number_format($balance_cents / 100, 2) . ")."]);
+        exit;
+    }
+    if ($amount_cents < $balance_cents) {
+        if (is_payment_group_key($invoice_id) || count($owned) !== 1 || (int)($owned[0]['advance_months'] ?? 0) > 0) {
+            http_response_code(422);
+            echo json_encode(["success" => false, "message" => "A grouped or advance payment is paid in full. Pay the whole amount, or pay a single bill in parts."]);
+            exit;
+        }
+        $proof_amount = $amount_cents / 100;
+    }
+}
+
 $proof_file = null;
 if (isset($_FILES['proof']) && $_FILES['proof']['error'] === UPLOAD_ERR_OK) {
     $proof_file = $_FILES['proof'];
@@ -98,9 +133,9 @@ if ($proof_file) {
 
 // A fresh proof replaces any earlier rejection, so the tenant's bill page
 // stops showing the old rejection reason.
-$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, bank_name = ?, status = 'pending-verification', proof_rejection_reason = NULL";
-$params = [$payment_method, $payment_reference, $sender_name, $bank_name ?: null];
-$types = "ssss";
+$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, bank_name = ?, status = 'pending-verification', proof_rejection_reason = NULL, proof_amount = ?";
+$params = [$payment_method, $payment_reference, $sender_name, $bank_name ?: null, $proof_amount];
+$types = "ssssd";
 
 if ($proof_path) {
     $query .= ", proof_of_payment_path = ?";

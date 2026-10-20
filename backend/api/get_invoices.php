@@ -160,13 +160,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $invoices = [];
         $transactions_by_invoice = [];
         if ($user_id_param) {
-            $tx_stmt = $conn->prepare("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id WHERE i.user_id = ? AND i.status = 'paid' ORDER BY pt.id ASC");
+            $tx_stmt = $conn->prepare("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id WHERE i.user_id = ? AND (i.status = 'paid' OR i.amount_paid > 0) ORDER BY pt.id ASC");
             $tx_stmt->bind_param('i', $user_id_param);
             $tx_stmt->execute();
             $tx_result = $tx_stmt->get_result();
             $tx_stmt->close();
         } else {
-            $tx_result = $conn->query("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id WHERE i.status = 'paid' ORDER BY pt.id ASC");
+            $tx_result = $conn->query("SELECT pt.id, pt.invoice_id, pt.amount, pt.payment_method, pt.bank_name, pt.reference_number, pt.recorded_by, pt.created_at FROM payment_transactions pt JOIN invoices i ON i.id = pt.invoice_id WHERE i.status = 'paid' OR i.amount_paid > 0 ORDER BY pt.id ASC");
         }
         if ($tx_result) {
             while ($tx = $tx_result->fetch_assoc()) {
@@ -218,6 +218,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'security_deposit' => $row['security_deposit'] ?? 0,
                 'late_fee' => $row['late_fee'] ?? 0.00,
                 'total_amount' => $row['total_amount'] ?? 0.00,
+                // Installments: parts received so far, and what is still owed.
+                'amount_paid' => round((float)($row['amount_paid'] ?? 0), 2),
+                'balance' => in_array($row['status'], BILLING_OPEN_STATUSES, true) ? round(invoice_balance_cents($row) / 100, 2) : 0.0,
+                'proof_amount' => $row['proof_amount'] !== null ? round((float)$row['proof_amount'], 2) : null,
                 'status' => $row['status'],
                 
                 // FIX FOR INVALID DATE: Send created_at or issue_date timestamp

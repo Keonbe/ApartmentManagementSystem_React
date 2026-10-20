@@ -33,7 +33,7 @@ try {
 
     if ($is_batch) {
         $rows = $conn->query("
-            SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, i.status, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
+            SELECT i.id, i.user_id, i.total_amount - i.amount_paid AS total_amount, i.amount_paid, i.due_date, i.billing_period, i.status, ra.room_name, " . INVOICE_PERIOD_COLUMNS . "
             FROM invoices i
             LEFT JOIN rent_applications ra ON i.rent_application_id = ra.id
             WHERE i.status IN $remindable_sql AND i.due_date IS NOT NULL
@@ -100,7 +100,7 @@ try {
     }
 
     $stmt = $conn->prepare("
-        SELECT i.id, i.user_id, i.total_amount, i.due_date, i.billing_period, i.status, i.reminder_count, " . INVOICE_PERIOD_COLUMNS . ",
+        SELECT i.id, i.user_id, i.total_amount - i.amount_paid AS total_amount, i.amount_paid, i.due_date, i.billing_period, i.status, i.reminder_count, " . INVOICE_PERIOD_COLUMNS . ",
                u.first_name, u.last_name, ra.room_name, ra.status AS application_status
         FROM invoices i
         LEFT JOIN users u ON i.user_id = u.id

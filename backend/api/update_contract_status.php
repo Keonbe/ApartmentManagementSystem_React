@@ -306,7 +306,7 @@ if ($action === 'edit') {
         // checklist 3.9): a held deposit is applied against whatever is still
         // owed, else to rent; one never paid is recorded as not collected. Read
         // before end_tenancy() cancels any invoice.
-        $open_stmt = $conn->prepare("SELECT COALESCE(SUM(total_amount), 0) AS open_total FROM invoices WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
+        $open_stmt = $conn->prepare("SELECT COALESCE(SUM(total_amount - amount_paid), 0) AS open_total FROM invoices WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
         $open_stmt->bind_param("i", $app_id);
         $open_stmt->execute();
         $open_total = (float)$open_stmt->get_result()->fetch_assoc()['open_total'];

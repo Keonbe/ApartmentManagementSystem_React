@@ -53,18 +53,37 @@ $response = [
 try {
     // 1. Total Revenue (Current Month & Previous Month for MoM Trend). Security
     // deposits are held for the tenant, not revenue (payments audit 2026-09-30).
+    // A bill paid in installments counts each part in the month it was received
+    // (payment_transactions), less the deposit's share of the part; every other
+    // paid bill counts whole in the month it was paid (gateway and single desk
+    // payments write no part rows). Both sums come from the same two queries
+    // whatever the number of bills.
     $stmt = $conn->prepare("
-        SELECT 
+        SELECT
             SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(CURRENT_DATE()) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(CURRENT_DATE()) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - COALESCE(security_deposit, 0) ELSE 0 END) as current_revenue,
             SUM(CASE WHEN MONTH(COALESCE(paid_at, created_at)) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(COALESCE(paid_at, created_at)) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - COALESCE(security_deposit, 0) ELSE 0 END) as last_revenue
-        FROM invoices 
+        FROM invoices
         WHERE LOWER(status) = 'paid' $advanceMonthsFilter
+          AND (SELECT COUNT(*) FROM payment_transactions pt WHERE pt.invoice_id = invoices.id) < 2
     ");
     $stmt->execute();
     $res = $stmt->get_result();
+    $parts_stmt = $conn->prepare("
+        SELECT
+            SUM(CASE WHEN MONTH(pt.created_at) = MONTH(CURRENT_DATE()) AND YEAR(pt.created_at) = YEAR(CURRENT_DATE()) THEN pt.amount * (1 - COALESCE(i.security_deposit, 0) / NULLIF(i.total_amount, 0)) ELSE 0 END) as current_parts,
+            SUM(CASE WHEN MONTH(pt.created_at) = MONTH(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND YEAR(pt.created_at) = YEAR(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) THEN pt.amount * (1 - COALESCE(i.security_deposit, 0) / NULLIF(i.total_amount, 0)) ELSE 0 END) as last_parts
+        FROM payment_transactions pt
+        JOIN invoices i ON i.id = pt.invoice_id
+        WHERE (i.status IN " . billing_open_status_sql() . "
+               OR (LOWER(i.status) = 'paid' AND (SELECT COUNT(*) FROM payment_transactions p2 WHERE p2.invoice_id = i.id) >= 2))
+          " . str_replace('advance_months', 'i.advance_months', $advanceMonthsFilter) . "
+    ");
+    $parts_stmt->execute();
+    $parts = $parts_stmt->get_result()->fetch_assoc() ?: [];
+    $parts_stmt->close();
     if ($row = $res->fetch_assoc()) {
-        $cur = (float)($row['current_revenue'] ?? 0);
-        $last = (float)($row['last_revenue'] ?? 0);
+        $cur = round((float)($row['current_revenue'] ?? 0) + (float)($parts['current_parts'] ?? 0), 2);
+        $last = round((float)($row['last_revenue'] ?? 0) + (float)($parts['last_parts'] ?? 0), 2);
         $response['stats']['total_revenue'] = $cur;
         $response['stats']['last_month_revenue'] = $last;
         if ($last > 0) {
@@ -79,8 +98,8 @@ try {
     // 2. Pending Dues & Overdue Receivables
     $stmt = $conn->prepare("
         SELECT 
-            SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as total_pending,
-            SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as overdue_total,
+            SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - amount_paid) as total_pending,
+            SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - amount_paid ELSE 0 END) as overdue_total,
             SUM(CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE() THEN 1 ELSE 0 END) as overdue_cnt
         FROM invoices 
         WHERE LOWER(status) IN " . billing_open_status_sql() . " $advanceMonthsFilter
@@ -151,7 +170,7 @@ try {
     // 6. Collection Rate (Current Month)
     $stmt = $conn->prepare("
         SELECT 
-            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as collected,
+            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE amount_paid END) as collected,
             SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as total
         FROM invoices 
         WHERE MONTH(created_at) = MONTH(CURRENT_DATE()) AND YEAR(created_at) = YEAR(CURRENT_DATE())
@@ -189,8 +208,8 @@ try {
     $stmt = $conn->prepare("
         SELECT 
             DATE_FORMAT(created_at, '%Y-%m') as m_key, 
-            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as collected_val,
-            SUM(CASE WHEN LOWER(status) IN " . billing_open_status_sql() . " THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE 0 END) as pending_val,
+            SUM(CASE WHEN LOWER(status) = 'paid' THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) ELSE amount_paid END) as collected_val,
+            SUM(CASE WHEN LOWER(status) IN " . billing_open_status_sql() . " THEN COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking) - amount_paid ELSE 0 END) as pending_val,
             SUM(COALESCE(total_amount, base_rent + security_deposit + water + electricity + parking)) as billed_val,
             COUNT(*) as total_cnt
         FROM invoices 
