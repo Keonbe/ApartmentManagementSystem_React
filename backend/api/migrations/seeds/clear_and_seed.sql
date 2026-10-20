@@ -138,7 +138,11 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('max_occupants_per_unit', '8'),
 ('late_fee_enabled', 'false'),
 ('late_fee_type', 'flat'),
-('late_fee_value', '200');
+('late_fee_value', '200'),
+('min_household_age', '0'),
+('child_restricted_floors', '["3F"]'),
+('child_restricted_below_age', '5'),
+('age_categories', '[{"key":"infant","label":"Infant","min_age":0,"max_age":1,"rule":"Not allowed on the 3rd floor (stairs). Allowed on the 1st and 2nd floors.","rule_fil":""},{"key":"toddler","label":"Toddler","min_age":2,"max_age":4,"rule":"Not allowed on the 3rd floor (stairs). Allowed on the 1st and 2nd floors.","rule_fil":""},{"key":"child","label":"Child","min_age":5,"max_age":11,"rule":"Allowed, with adult supervision in common areas.","rule_fil":""},{"key":"minor","label":"Minor","min_age":12,"max_age":17,"rule":"Allowed, with adult responsibility for their conduct. Running and playing in hallways, elevators and the parking area is not allowed.","rule_fil":""}]');
 
 SET FOREIGN_KEY_CHECKS = 1;
 

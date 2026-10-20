@@ -154,7 +154,10 @@ try {
                 $new_count = max($current, 2 + household_active_count($conn, $app_id));
                 $max = max_occupants_per_unit($conn);
                 if ($new_count > $max) throw new RequestRefused("Adding $name would exceed the maximum of $max occupants per unit.");
-                $upd = $conn->prepare("UPDATE household_members SET status = 'Active', added_at = NOW() WHERE id = ? AND status = 'Pending'");
+                // The age rule is checked again: the settings may have changed since the request.
+                $age_refusal = household_age_refusal($conn, $app_id, $member['age'] === null ? null : (int)$member['age']);
+                if ($age_refusal !== null) throw new RequestRefused($age_refusal, 422);
+                $upd =$conn->prepare("UPDATE household_members SET status = 'Active', added_at = NOW() WHERE id = ? AND status = 'Pending'");
             } else {
                 $upd = $conn->prepare("UPDATE household_members SET status = 'Rejected' WHERE id = ? AND status = 'Pending'");
             }
@@ -238,7 +241,8 @@ try {
 
 } catch (RequestRefused $e) {
     $conn->rollback();
-    http_response_code(409);
+    // 409 for stale state and limits; 422 when the request breaks a rule (child age on a restricted floor).
+    http_response_code($e->getCode() === 422 ? 422 : 409);
     echo json_encode(["success" => false, "message" => public_error_message($e)]);
 } catch (Exception $e) {
     $conn->rollback();

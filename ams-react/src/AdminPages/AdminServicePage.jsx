@@ -112,7 +112,7 @@ const initialServices = [
     id: 'visitor-management',
     key: 'service_visitor_management_active',
     title: 'Visitor Management',
-    description: 'Enable tenant self-registration of expected guests, delivery drop-offs, and visiting contractors.',
+    description: 'Turns visitor registration on or off: tenants self-register expected guests, delivery drop-offs and visiting contractors. While off, the visitor house rule is hidden from tenants and applicants.',
     price: 'Free',
     unit: '/ guest',
     icon: faIdBadge,

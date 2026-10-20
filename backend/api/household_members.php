@@ -63,6 +63,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
     $stmt->close();
 
+    // The per-floor child rule for this unit, so the form can warn before sending.
+    $child_floor_rule = null;
+    $rule = child_floor_restriction($conn);
+    if ($rule['below_age'] > 0 && $rule['floors']) {
+        $stmt = $conn->prepare("SELECT floor FROM rooms WHERE id = ?");
+        $stmt->bind_param("s", $app['room_name']);
+        $stmt->execute();
+        $unit_floor = (string)($stmt->get_result()->fetch_assoc()['floor'] ?? '');
+        $stmt->close();
+        if ($unit_floor !== '' && in_array($unit_floor, $rule['floors'], true)) {
+            $child_floor_rule = ['floor' => $unit_floor, 'floorLabel' => floor_display_name($unit_floor), 'belowAge' => $rule['below_age']];
+        }
+    }
+
     echo json_encode([
         "success"       => true,
         "hasLease"      => true,
@@ -73,6 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         "relationships" => HOUSEHOLD_RELATIONSHIPS,
         "ageCategories" => age_categories($conn),
         "minAge"        => min_household_age($conn),
+        "childFloorRule" => $child_floor_rule,
         "members"       => $members,
     ]);
     exit;
@@ -114,8 +129,9 @@ switch ($action) {
             if ($age > 17) fail(422, "A child must be 17 or younger. Choose another relationship for an adult.");
         }
         if ($age !== null) $age_category = age_category_for($conn, $age);
-        $min_age = min_household_age($conn);
-        if ($age !== null && $age < $min_age) fail(422, "Children under {$min_age} are not allowed to live in the apartment.");
+        // Building-wide minimum age, then the per-floor rule (no children under 5 on 3F).
+        $age_refusal = household_age_refusal($conn, $app_id, $age);
+        if ($age_refusal !== null) fail(422, $age_refusal);
 
         // Pending additions count toward the limit too, so a tenant can't queue past it.
         $stmt = $conn->prepare("SELECT SUM(status = 'Active') AS active, SUM(status = 'Pending') AS pending, SUM(LOWER(full_name) = LOWER(?)) AS same_name FROM household_members WHERE rent_application_id = ? AND status IN ('Active', 'Pending')");

@@ -3141,12 +3141,12 @@ House rules gained `scope` (`house` default, `parking`, `minors`); `GET house_ru
 
 ### 20.6 Children, Minors and Pets
 
-**Policy: no pets, and no children under 12.** `system_settings.min_household_age` (default 12, 0–17) is the youngest age that may live in the apartment; `household_members.php` `add` refuses any member below it with `422`. `system_settings.age_categories` (1–6 categories with `label`, `min_age`, `max_age`, `rule`, `rule_fil`; ranges within 0–17 and not overlapping; defaults Infant 0–1, Toddler 2–4, Child 5–11 (not allowed) and Minor 12–17) and the `minors` rule list ("No children under 12", "Minors aged 12 to 17", "No pets allowed") are edited in Settings → Children & Pets. `household_members.php` `add` takes `age`; a Child needs an age of 0–17, and `age_category` is derived server-side. The categories and rules are shown on the inquiry form, the rent application and, appended live as the last section, the contract (`ContractDocument.jsx`).
+**Policy: no pets, and no children under 5 on the 3rd floor (stairs).** `child_restricted_floors` (JSON list of `rooms.floor` values, default `["3F"]`, max 10, empty = none) and `child_restricted_below_age` (0–17, default 5) set the per-floor rule; `household_members.php` `add` and the admin approval in `process_tenant_request.php` refuse a younger member on a restricted floor with `422` "Children under 5 cannot live on the 3rd floor because of the stairs." `system_settings.min_household_age` (0–17, now default 0 = none) is still checked building-wide. `system_settings.age_categories` (1–6 categories with `label`, `min_age`, `max_age`, `rule`, `rule_fil`; ranges within 0–17 and not overlapping; defaults Infant 0–1, Toddler 2–4, Child 5–11 (not allowed) and Minor 12–17) and the `minors` rule list ("No children under 12", "Minors aged 12 to 17", "No pets allowed") are edited in Settings → Children & Pets. `household_members.php` `add` takes `age`; a Child needs an age of 0–17, and `age_category` is derived server-side. The categories and rules are shown on the inquiry form, the rent application and, appended live as the last section, the contract (`ContractDocument.jsx`).
 
 | ID | Type | Scenario | Steps | Expected |
 |---|---|---|---|---|
 | **M20-50** | Negative | Child without age | `household_members.php {action:add, relationship:"Child"}` | `422` "Enter the child's age." |
-| **M20-51** | Negative | Under 12 refused | Add a Child, age 3 (and 11) | `422` "Children under 12 are not allowed…"; no row |
+| **M20-51** | Negative | Under 5 on 3F refused | Tenant of a 3F unit adds a Child aged 3 (1F tenant: allowed; age 5 on 3F: allowed) | `422` "Children under 5 cannot live on the 3rd floor…"; no row |
 | **M20-55** | Happy | Minor allowed | Add a Child, age 12 | Row `age = 12`, `age_category = minor`, status Pending |
 | **M20-52** | Negative | Adult as Child | Child, age 30 | `422` |
 | **M20-53** | Negative | Overlap | Save categories 0–3 and 3–10 | `422`; setting unchanged |
@@ -3188,7 +3188,7 @@ Seed: `seeds/seed_defense_scenarios.sql` (checklist in `docs/date_dependent_test
 | ID | Type | Step | Expected |
 |---|---|---|---|
 | **M21-30** | UI | Admin Contracts, Contract Editor, Notifications tag, Track Application | No user-facing "Lease"; contract title "APARTMENT RENT AGREEMENT" |
-| **M21-31** | UI | /preview, inquiry form, application, contract | "No children under 12 and no pets" banner and minors rules on each; Filipino text in Filipino mode |
+| **M21-31** | UI | /preview, inquiry form, application, contract | Minors rules ("No babies or small children on the 3rd floor", "Minors and older children", "No pets allowed") on each; Filipino text in Filipino mode |
 | **M21-32** | UI | Pay two bills together (combined payment), open the combined receipt | Payment rows of every bill listed, not only the first |
 
 ---

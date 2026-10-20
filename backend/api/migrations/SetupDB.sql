@@ -1181,8 +1181,8 @@ WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'parking');
 
 INSERT INTO `house_rules` (`category`, `title`, `description`, `is_highlight`, `sort_order`, `scope`)
 SELECT * FROM (
-  SELECT 'Children' AS category, 'No children under 12' AS title, 'Children under 12 years old are not allowed to live in the apartment. Every household member must be declared with their age, and a household request for a child under 12 is refused.' AS description, 1 AS is_highlight, 10 AS sort_order, 'minors' AS scope UNION ALL
-  SELECT 'Children', 'Minors aged 12 to 17', 'Minors 12 to 17 may live in the apartment. The tenant is responsible for their conduct, and they must follow every house rule in all common areas.', 1, 20, 'minors' UNION ALL
+  SELECT 'Children' AS category, 'No babies or small children on the 3rd floor' AS title, 'Children under 5 years old cannot live in the 3rd-floor units because of the stairs. Every household member must be declared with their age.' AS description, 1 AS is_highlight, 10 AS sort_order, 'minors' AS scope UNION ALL
+  SELECT 'Children', 'Minors and older children', 'Children and minors aged 5 to 17 may live on any floor. The tenant is responsible for their conduct, and they must follow every house rule in all common areas.', 1, 20, 'minors' UNION ALL
   SELECT 'Pets', 'No pets allowed', 'Pets are not allowed inside the units or anywhere on the premises.', 0, 30, 'minors'
 ) AS defaults
 WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'minors');
@@ -1190,12 +1190,12 @@ WHERE NOT EXISTS (SELECT 1 FROM house_rules WHERE scope = 'minors');
 -- ===== rules_filipino =====
 -- Filipino text for the starter children/pets and parking rules, only while the
 -- admin has not written one.
-UPDATE `house_rules` SET `title_fil` = 'Bawal ang batang wala pang 12 taon',
-  `description_fil` = 'Hindi pinapayagang tumira sa apartment ang mga batang wala pang 12 taong gulang. Dapat ideklara ang edad ng bawat miyembro ng sambahayan.'
- WHERE `scope` = 'minors' AND `title` = 'No children under 12' AND (`title_fil` IS NULL OR `title_fil` = '');
-UPDATE `house_rules` SET `title_fil` = 'Mga menor de edad (12 hanggang 17)',
-  `description_fil` = 'Maaaring tumira ang mga menor de edad na 12 hanggang 17. Responsable ang nangungupahan sa kanilang asal at dapat nilang sundin ang lahat ng patakaran.'
- WHERE `scope` = 'minors' AND `title` = 'Minors aged 12 to 17' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Bawal ang sanggol at maliliit na bata sa ikatlong palapag',
+  `description_fil` = 'Hindi maaaring tumira sa mga unit sa ikatlong palapag ang mga batang wala pang 5 taong gulang dahil sa hagdan. Dapat ideklara ang edad ng bawat miyembro ng sambahayan.'
+ WHERE `scope` = 'minors' AND `title` = 'No babies or small children on the 3rd floor' AND (`title_fil` IS NULL OR `title_fil` = '');
+UPDATE `house_rules` SET `title_fil` = 'Mga bata at menor de edad (5 hanggang 17)',
+  `description_fil` = 'Maaaring tumira sa alinmang palapag ang mga bata at menor de edad na 5 hanggang 17 taong gulang. Responsable ang nangungupahan sa kanilang asal at dapat nilang sundin ang lahat ng patakaran sa mga common area.'
+ WHERE `scope` = 'minors' AND `title` = 'Minors and older children' AND (`title_fil` IS NULL OR `title_fil` = '');
 UPDATE `house_rules` SET `title_fil` = 'Bawal ang alagang hayop',
   `description_fil` = 'Hindi pinapayagan ang mga alagang hayop sa loob ng mga unit o saanman sa lugar.'
  WHERE `scope` = 'minors' AND `title` = 'No pets allowed' AND (`title_fil` IS NULL OR `title_fil` = '');
@@ -1351,8 +1351,10 @@ INSERT IGNORE INTO `application_requirements` (`id`, `label`, `label_fil`, `is_r
 INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('system_name', 'Apartment Management System'),
 ('floor_rates', '{}'),
-('min_household_age', '12'),
-('age_categories', '[{"key":"infant","label":"Infant","min_age":0,"max_age":1,"rule":"Not allowed. Children under 12 may not live in the apartment.","rule_fil":""},{"key":"toddler","label":"Toddler","min_age":2,"max_age":4,"rule":"Not allowed. Children under 12 may not live in the apartment.","rule_fil":""},{"key":"child","label":"Child","min_age":5,"max_age":11,"rule":"Not allowed. Children under 12 may not live in the apartment.","rule_fil":""},{"key":"minor","label":"Minor","min_age":12,"max_age":17,"rule":"Allowed, with adult responsibility for their conduct. Running and playing in hallways, elevators and the parking area is not allowed.","rule_fil":""}]'),
+('min_household_age', '0'),
+('child_restricted_floors', '["3F"]'),
+('child_restricted_below_age', '5'),
+('age_categories', '[{"key":"infant","label":"Infant","min_age":0,"max_age":1,"rule":"Not allowed on the 3rd floor (stairs). Allowed on the 1st and 2nd floors.","rule_fil":""},{"key":"toddler","label":"Toddler","min_age":2,"max_age":4,"rule":"Not allowed on the 3rd floor (stairs). Allowed on the 1st and 2nd floors.","rule_fil":""},{"key":"child","label":"Child","min_age":5,"max_age":11,"rule":"Allowed, with adult supervision in common areas.","rule_fil":""},{"key":"minor","label":"Minor","min_age":12,"max_age":17,"rule":"Allowed, with adult responsibility for their conduct. Running and playing in hallways, elevators and the parking area is not allowed.","rule_fil":""}]'),
 ('contact_email', 'admin@ams.com'),
 ('contact_phone', '+63 912 345 6789'),
 ('currency_symbol', '₱'),

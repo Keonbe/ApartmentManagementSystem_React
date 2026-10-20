@@ -34,8 +34,13 @@ try {
         }
         $stmt->execute();
         $result = $stmt->get_result();
+        // While visitor registration is switched off (Admin -> Services), the
+        // visitor rule is not shown to tenants and applicants. Admins still get
+        // it so Settings can edit it.
+        $hide_visitor_rules = !$isAdmin && get_setting($conn, 'service_visitor_management_active', 'true') === 'false';
         $rules = [];
         while ($row = $result->fetch_assoc()) {
+            if ($hide_visitor_rules && $row['category'] === 'Visitors & Guests') continue;
             $row['id'] = (int)$row['id'];
             $row['is_highlight'] = (int)$row['is_highlight'];
             $row['is_active'] = (int)$row['is_active'];

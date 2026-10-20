@@ -53,6 +53,11 @@ if(isset($settings['parking_allowed_vehicle_types'])) {
 }
 
 if (isset($settings['min_household_age'])) $settings['min_household_age'] = (int)$settings['min_household_age'];
+if (isset($settings['child_restricted_below_age'])) $settings['child_restricted_below_age'] = (int)$settings['child_restricted_below_age'];
+if (isset($settings['child_restricted_floors'])) {
+    $decoded = json_decode($settings['child_restricted_floors'], true);
+    $settings['child_restricted_floors'] = is_array($decoded) ? array_values($decoded) : [];
+}
 if (isset($settings['age_categories'])) {
     $decoded = json_decode($settings['age_categories'], true);
     $settings['age_categories'] = is_array($decoded) ? $decoded : [];

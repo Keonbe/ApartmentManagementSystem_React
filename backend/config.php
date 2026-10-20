@@ -2899,11 +2899,90 @@ function age_categories($conn) {
     return $cats;
 }
 
-// Youngest age allowed to live in the apartment (children below it are refused). Default 12.
+// Youngest age allowed anywhere in the building (children below it are refused).
+// 0 = no building-wide limit, the default since the per-floor rule below
+// replaced the old "no children under 12".
 function min_household_age($conn) {
     $res = $conn->query("SELECT setting_value FROM system_settings WHERE setting_key = 'min_household_age'");
     $row = $res ? $res->fetch_assoc() : null;
-    return ($row && ctype_digit((string)$row['setting_value'])) ? (int)$row['setting_value'] : 12;
+    return ($row && ctype_digit((string)$row['setting_value'])) ? (int)$row['setting_value'] : 0;
+}
+
+// Floors where young children may not live (the 3rd floor, because of the
+// stairs), and the age limit: ['floors' => ['3F'], 'below_age' => 5].
+// Edited in Settings -> Minors & Pets. An empty list means no floor is restricted.
+function child_floor_restriction($conn) {
+    $floors = ['3F'];
+    $below = 5;
+    $res = $conn->query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('child_restricted_floors', 'child_restricted_below_age')");
+    while ($res && ($row = $res->fetch_assoc())) {
+        if ($row['setting_key'] === 'child_restricted_floors') {
+            $decoded = json_decode((string)$row['setting_value'], true);
+            if (is_array($decoded)) $floors = array_values(array_filter($decoded, 'is_string'));
+        } elseif (ctype_digit((string)$row['setting_value'])) {
+            $below = (int)$row['setting_value'];
+        }
+    }
+    return ['floors' => $floors, 'below_age' => $below];
+}
+
+// Display name of a deposit_deductions.category.
+function deposit_deduction_label($category) {
+    return [
+        'damage' => 'Damage', 'electricity' => 'Electricity', 'water' => 'Water',
+        'unpaid_rent' => 'Unpaid rent', 'other' => 'Other',
+    ][$category] ?? 'Other';
+}
+
+// Itemized move-out deductions for several applications in one query:
+// [app_id => [['category','label','reason','amount','created_at'], ...]].
+function deposit_deductions_for($conn, array $app_ids) {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $app_ids))));
+    if (!$ids) return [];
+    $res = $conn->query("SELECT rent_application_id, category, reason, amount, created_at FROM deposit_deductions
+                         WHERE rent_application_id IN (" . implode(',', $ids) . ") ORDER BY id");
+    $out = [];
+    while ($res && ($r = $res->fetch_assoc())) {
+        $out[(int)$r['rent_application_id']][] = [
+            'category' => $r['category'], 'label' => deposit_deduction_label($r['category']),
+            'reason' => $r['reason'], 'amount' => round((float)$r['amount'], 2), 'created_at' => $r['created_at'],
+        ];
+    }
+    return $out;
+}
+
+// "3F" -> "3rd floor"; any other label -> "floor <label>".
+function floor_display_name($floor) {
+    $floor = trim((string)$floor);
+    if (preg_match('/^(\d+)F$/i', $floor, $m)) {
+        $n = (int)$m[1];
+        $suffix = ($n % 100 >= 11 && $n % 100 <= 13) ? 'th' : (['th', 'st', 'nd', 'rd'][$n % 10] ?? 'th');
+        return $n . $suffix . ' floor';
+    }
+    return 'floor ' . $floor;
+}
+
+// The age rule for one household (rent application): null when a member of this
+// age may live there, otherwise the refusal message. Used when the tenant asks
+// to add a member and again when an admin approves the request.
+function household_age_refusal($conn, $rent_application_id, $age) {
+    if ($age === null) return null;
+    $age = (int)$age;
+    $min_age = min_household_age($conn);
+    if ($age < $min_age) return "Children under {$min_age} are not allowed to live in the apartment.";
+
+    $rule = child_floor_restriction($conn);
+    if ($rule['below_age'] <= 0 || !$rule['floors'] || $age >= $rule['below_age']) return null;
+    $stmt = $conn->prepare("SELECT rm.floor FROM rent_applications ra JOIN rooms rm ON rm.id = ra.room_name WHERE ra.id = ?");
+    $stmt->bind_param("i", $rent_application_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $floor = $row ? (string)$row['floor'] : '';
+    if ($floor !== '' && in_array($floor, $rule['floors'], true)) {
+        return "Children under {$rule['below_age']} cannot live on the " . floor_display_name($floor) . " because of the stairs.";
+    }
+    return null;
 }
 
 // The category an age falls into, or null when it is outside every range (e.g. adults).

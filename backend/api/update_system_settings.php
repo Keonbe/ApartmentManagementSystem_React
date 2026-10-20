@@ -97,6 +97,26 @@ foreach ($input as $key => $value) {
     if ($key === 'min_household_age' && (!ctype_digit($value) || (int)$value > 17)) {
         $refuse("The minimum household age must be a whole number from 0 to 17.");
     }
+    // No young children on these floors (default 3F, because of the stairs).
+    if ($key === 'child_restricted_below_age' && (!ctype_digit($value) || (int)$value > 17)) {
+        $refuse("The child age limit must be a whole number from 0 to 17.");
+    }
+    if ($key === 'child_restricted_floors') {
+        $decoded = json_decode($value, true);
+        $is_list = is_array($decoded) && array_keys($decoded) === range(0, count($decoded) - 1);
+        if (!is_array($decoded) || ($decoded && !$is_list) || count($decoded) > 10) {
+            $refuse("Restricted floors must be a list of up to 10 floors.");
+        }
+        $floor_res = $conn->query("SELECT DISTINCT floor FROM rooms");
+        $known = $floor_res ? array_column($floor_res->fetch_all(MYSQLI_ASSOC), 'floor') : [];
+        $clean = [];
+        foreach ($decoded as $f) {
+            if (!is_string($f) || !in_array($f, $known, true)) $refuse("Restricted floors must be floors that have units.");
+            if (in_array($f, $clean, true)) $refuse("Each restricted floor can be listed once.");
+            $clean[] = $f;
+        }
+        $value = json_encode($clean);
+    }
     // Age categories for children (infant / toddler / minor ...): non-overlapping ranges within 0-17.
     if ($key === 'age_categories') {
         $decoded = json_decode($value, true);

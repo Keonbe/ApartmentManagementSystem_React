@@ -101,4 +101,4 @@ export const SETTINGS_TAB_IDS = SETTINGS_TABS.map((t) => t.id);
 
 // Tabs that save on their own (their panel talks to its own endpoints), so the
 // shared settings form and its save bar stay out of the way.
-export const SELF_SAVING_TAB_IDS = ['house-rules', 'floor-rent', 'utility-types', 'parking-rules', 'minors'];
+export const SELF_SAVING_TAB_IDS = ['house-rules', 'floor-rent', 'utility-types', 'parking-rules', 'minors', 'requirements'];

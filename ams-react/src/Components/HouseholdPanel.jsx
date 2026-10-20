@@ -31,6 +31,8 @@ export default function HouseholdPanel() {
       const n = Number(v);
       if (!Number.isInteger(n) || n < 0 || n > 120) return 'Enter the age in whole years.';
       if (data?.minAge && n < data.minAge) return `Children under ${data.minAge} are not allowed to live in the apartment.`;
+      const floorRule = data?.childFloorRule;
+      if (floorRule && n < floorRule.belowAge) return `Children under ${floorRule.belowAge} cannot live on the ${floorRule.floorLabel} because of the stairs.`;
       if (all.relationship === 'Child' && n > 17) return 'A child must be 17 or younger.';
       return '';
     },
@@ -214,7 +216,9 @@ export default function HouseholdPanel() {
         </label>
         <div className="sm:col-span-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <p className="text-[11px] text-slate-400 m-0">
-            {data.minAge ? `Children under ${data.minAge} and pets are not allowed. ` : ''}{full
+            {data.minAge ? `Children under ${data.minAge} are not allowed. ` : ''}
+            {data.childFloorRule ? `Children under ${data.childFloorRule.belowAge} cannot live on the ${data.childFloorRule.floorLabel} (stairs). ` : ''}
+            Pets are not allowed. {full
               ? `Your unit has reached the limit of ${data.maxOccupants} occupants.`
               : 'Requests are reviewed by management. A new person above 4 occupants adds the monthly surcharge.'}
           </p>
