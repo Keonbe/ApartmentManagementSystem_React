@@ -37,11 +37,7 @@ try {
       `total_cost` decimal(10,2) NOT NULL,
       `document_path` varchar(255) NOT NULL,
       `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-      `active_slot` int(11) AS (IF(`status` = 'Assigned', `slot_number`, NULL)) PERSISTENT,
-      `open_user` int(11) AS (IF(`status` IN ('Pending', 'Assigned'), `user_id`, NULL)) PERSISTENT,
       PRIMARY KEY (`id`),
-      UNIQUE KEY `uniq_active_slot` (`active_slot`),
-      UNIQUE KEY `uniq_open_user` (`open_user`),
       KEY `fk_parking_user` (`user_id`),
       CONSTRAINT `fk_parking_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
