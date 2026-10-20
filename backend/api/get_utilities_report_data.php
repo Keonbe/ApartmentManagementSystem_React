@@ -47,7 +47,7 @@ $data = [
 
 // 1. Consumption, per-unit ranking and spikes — one pass over the period's readings.
 $stmt = $conn->prepare("
-    SELECT ur.room_name, ur.billing_period, ur.is_invoiced,
+    SELECT ur.room_name, ur.billing_period, ur.is_invoiced, ur.entry_mode, ur.total_amount,
            ur.water_consumption, ur.electric_consumption,
            ur.water_amount + ur.water_other_fees       AS water_cost,
            ur.electric_amount + ur.electric_other_fees AS electric_cost,

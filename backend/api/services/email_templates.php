@@ -151,12 +151,21 @@ function email_maintenance_received_template($tenant_name, $request_id, $categor
 function email_utility_invoice_template($tenant_name, array $invoice, $reading) {
     $water_amount = round((float)($reading['water_amount'] ?? 0) + (float)($reading['water_other_fees'] ?? 0), 2);
     $electric_amount = round((float)($reading['electric_amount'] ?? 0) + (float)($reading['electric_other_fees'] ?? 0), 2);
+    $mode = $reading['entry_mode'] ?? 'metered';
+    // Provider bill: the amounts are the Meralco / water bill; usage is shown only when a reading was taken.
+    $usage = function ($value, $unit) {
+        return $value === null ? '' : number_format((float)$value, 2) . " $unit — ";
+    };
     $content = '<p style="color:#334155;line-height:1.6;">Hello <strong>' . esc($tenant_name) . '</strong>, utility charges for ' . esc($invoice['billing_period'] ?? '') . ' have been billed.</p>'
              . '<table style="width:100%;border-collapse:collapse;margin:16px 0;">'
-             . (($reading['entry_mode'] ?? 'metered') === 'total'
+             . ($mode === 'bill'
+                 ? '<tr><td style="padding:7px 0;color:#64748b;">Water (provider bill)</td><td style="padding:7px 0;text-align:right;">' . $usage($reading['water_consumption'] ?? null, 'm³') . 'PHP ' . number_format($water_amount, 2) . '</td></tr>'
+                 . '<tr><td style="padding:7px 0;color:#64748b;">Electricity (provider bill)</td><td style="padding:7px 0;text-align:right;">' . $usage($reading['electric_consumption'] ?? null, 'kWh') . 'PHP ' . number_format($electric_amount, 2) . '</td></tr>'
+                 : '')
+             . ($mode === 'bill' ? '' : (($reading['entry_mode'] ?? 'metered') === 'total'
                  ? '<tr><td style="padding:7px 0;color:#64748b;">Utilities (total)</td><td style="padding:7px 0;text-align:right;">PHP ' . number_format((float)($reading['total_amount'] ?? 0), 2) . '</td></tr>'
                  : '<tr><td style="padding:7px 0;color:#64748b;">Water usage</td><td style="padding:7px 0;text-align:right;">' . number_format((float)($reading['water_consumption'] ?? 0), 2) . ' m³ — PHP ' . number_format($water_amount, 2) . '</td></tr>'
-             . '<tr><td style="padding:7px 0;color:#64748b;">Electricity usage</td><td style="padding:7px 0;text-align:right;">' . number_format((float)($reading['electric_consumption'] ?? 0), 2) . ' kWh — PHP ' . number_format($electric_amount, 2) . '</td></tr>')
+             . '<tr><td style="padding:7px 0;color:#64748b;">Electricity usage</td><td style="padding:7px 0;text-align:right;">' . number_format((float)($reading['electric_consumption'] ?? 0), 2) . ' kWh — PHP ' . number_format($electric_amount, 2) . '</td></tr>'))
              . '<tr><td style="padding:7px 0;color:#64748b;">Invoice total</td><td style="padding:7px 0;text-align:right;font-weight:bold;">PHP ' . number_format((float)($invoice['total_amount'] ?? 0), 2) . '</td></tr></table>'
              . '<p style="color:#334155;line-height:1.6;">Due date: <strong>' . esc($invoice['due_date'] ?? '') . '</strong></p>';
     return email_base_template('Utility Charges Billed', $content);

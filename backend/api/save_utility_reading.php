@@ -72,7 +72,63 @@ if ($later) {
 // single total (and a note) with no meter readings. It bills through the same
 // sync as a metered reading and does not break the meter chain: later metered
 // readings take their "previous" from the last metered row.
-$entry_mode = ($input['entry_mode'] ?? 'metered') === 'total' ? 'total' : 'metered';
+$entry_mode_raw = $input['entry_mode'] ?? 'metered';
+if (!in_array($entry_mode_raw, ['metered', 'total', 'bill'], true)) fail(422, "Choose how the utilities are recorded: provider bill, meter readings or total only.");
+$entry_mode = $entry_mode_raw;
+if (mb_strlen($notes) > 500) fail(422, "The note can be up to 500 characters.");
+
+// The latest earlier meter value per utility, from any row that has one (a
+// metered reading, or a provider bill where a reading was also noted). Bill rows
+// without a reading store NULL and are skipped, so the chain stays intact.
+$stmt = $conn->prepare("SELECT
+    (SELECT water_curr_reading FROM utility_readings WHERE room_name = ? AND billing_period < ? AND entry_mode IN ('metered', 'bill') AND water_curr_reading IS NOT NULL ORDER BY billing_period DESC LIMIT 1) AS water_prev,
+    (SELECT electric_curr_reading FROM utility_readings WHERE room_name = ? AND billing_period < ? AND entry_mode IN ('metered', 'bill') AND electric_curr_reading IS NOT NULL ORDER BY billing_period DESC LIMIT 1) AS electric_prev");
+$stmt->bind_param("ssss", $room_name, $billing_period, $room_name, $billing_period);
+$stmt->execute();
+$prev_meter = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+// "Provider bill": the tenant pays exactly what the Meralco / Prime Water bill
+// says. The bill amounts go to water_amount / electric_amount (so
+// sync_utility_to_invoice.php bills them unchanged); a meter reading is optional
+// information only and is never multiplied by a rate.
+$bill_mode = $entry_mode === 'bill';
+if ($bill_mode) {
+    $amount_or_fail = function ($key, $label) use ($input) {
+        $v = number_field($input, $key, 0.0);
+        if ($v === null) fail(422, "{$label} bill amount must be a number.");
+        if ($v < 0) fail(422, "{$label} bill amount cannot be negative.");
+        if ($v > 1000000) fail(422, "{$label} bill amount can be at most ₱1,000,000.");
+        return round($v, 2);
+    };
+    $water_bill = $amount_or_fail('water_bill_amount', 'Water');
+    $electric_bill = $amount_or_fail('electric_bill_amount', 'Electricity');
+    if ($water_bill <= 0 && $electric_bill <= 0) fail(422, "Enter the water or electricity bill amount (at least one above ₱0).");
+
+    // Optional meter value: stored with its consumption only when one is given.
+    $reading_or_fail = function ($key, $label, $prev) use ($input, $room_name) {
+        $v = number_field($input, $key);
+        if (array_key_exists($key, $input) && $input[$key] !== '' && $input[$key] !== null && $v === null) fail(422, "{$label} meter reading must be a number.");
+        if ($v === null) return [null, null, null];
+        if ($v < 0) fail(422, "Meter readings cannot be negative.");
+        if ($v > 1000000) fail(422, "{$label} meter reading is too large.");
+        $v = round($v, 2);
+        if ($prev !== null && $v < (float)$prev) {
+            fail(422, "{$label} reading ({$v}) is lower than the previous reading (" . (float)$prev . ") for Unit {$room_name}. Check the meter value.");
+        }
+        // The first reading on record is the starting point: no consumption yet.
+        return $prev === null ? [null, $v, null] : [(float)$prev, $v, round($v - (float)$prev, 2)];
+    };
+    [$water_prev_reading, $water_curr_reading, $water_consumption] = $reading_or_fail('water_curr_reading', 'Water', $prev_meter['water_prev'] ?? null);
+    [$electric_prev_reading, $electric_curr_reading, $electric_consumption] = $reading_or_fail('electric_curr_reading', 'Electricity', $prev_meter['electric_prev'] ?? null);
+    $water_rate_per_unit = null;
+    $electric_rate_per_unit = null;
+    $water_amount = $water_bill;
+    $electric_amount = $electric_bill;
+    $water_other_fees = 0.0;
+    $electric_other_fees = 0.0;
+}
+
 if ($entry_mode === 'total') {
     $total_amount = number_field($input, 'total_amount');
     if ($total_amount === null || $total_amount <= 0) fail(422, "Enter the total amount paid (greater than ₱0).");
@@ -101,14 +157,16 @@ if ($entry_mode === 'total') {
     $conn->close();
     exit;
 }
-$stmt = $conn->prepare("SELECT water_curr_reading, electric_curr_reading, water_rate_per_unit, electric_rate_per_unit FROM utility_readings WHERE room_name = ? AND billing_period < ? AND entry_mode = 'metered' ORDER BY billing_period DESC LIMIT 1");
+if (!$bill_mode) {
+// Rates carry over from the last metered row only (a bill row has no rate).
+$stmt = $conn->prepare("SELECT water_rate_per_unit, electric_rate_per_unit FROM utility_readings WHERE room_name = ? AND billing_period < ? AND entry_mode = 'metered' ORDER BY billing_period DESC LIMIT 1");
 $stmt->bind_param("ss", $room_name, $billing_period);
 $stmt->execute();
 $prev = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-$water_prev_reading = $prev ? (float)$prev['water_curr_reading'] : 0.00;
-$electric_prev_reading = $prev ? (float)$prev['electric_curr_reading'] : 0.00;
+$water_prev_reading = $prev_meter['water_prev'] !== null ? (float)$prev_meter['water_prev'] : 0.00;
+$electric_prev_reading = $prev_meter['electric_prev'] !== null ? (float)$prev_meter['electric_prev'] : 0.00;
 
 $water_curr_reading = number_field($input, 'water_curr_reading');
 $electric_curr_reading = number_field($input, 'electric_curr_reading');
@@ -137,6 +195,7 @@ $water_consumption = round($water_curr_reading - $water_prev_reading, 2);
 $water_amount = round($water_consumption * $water_rate_per_unit, 2);
 $electric_consumption = round($electric_curr_reading - $electric_prev_reading, 2);
 $electric_amount = round($electric_consumption * $electric_rate_per_unit, 2);
+}
 
 // Extra utility types: items = [{type_id, curr_reading?, rate?, other_fees?}].
 // Metered types bill (reading - previous) x rate; flat types bill the rate.
@@ -185,10 +244,11 @@ foreach ($raw_items as $raw) {
 
 $conn->begin_transaction();
 $stmt = $conn->prepare("INSERT INTO utility_readings
-    (room_name, user_id, billing_period, reading_date, water_prev_reading, water_curr_reading, water_rate_per_unit, water_consumption, water_amount, water_other_fees, electric_prev_reading, electric_curr_reading, electric_rate_per_unit, electric_consumption, electric_amount, electric_other_fees, notes, recorded_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param("sissddddddddddddsi",
-    $room_name, $user_id, $billing_period, $reading_date,
+    (room_name, user_id, billing_period, reading_date, entry_mode, water_prev_reading, water_curr_reading, water_rate_per_unit, water_consumption, water_amount, water_other_fees, electric_prev_reading, electric_curr_reading, electric_rate_per_unit, electric_consumption, electric_amount, electric_other_fees, notes, recorded_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+// A provider-bill row without a meter reading stores NULL readings and rates.
+$stmt->bind_param("sisssddddddddddddsi",
+    $room_name, $user_id, $billing_period, $reading_date, $entry_mode,
     $water_prev_reading, $water_curr_reading, $water_rate_per_unit, $water_consumption, $water_amount, $water_other_fees,
     $electric_prev_reading, $electric_curr_reading, $electric_rate_per_unit, $electric_consumption, $electric_amount, $electric_other_fees,
     $notes, $admin_id
@@ -226,12 +286,19 @@ foreach ($items as $item) {
 $conn->commit();
 
 $total = round($water_amount + $water_other_fees + $electric_amount + $electric_other_fees + $extra_total, 2);
-log_activity($conn, $admin_id, 'utilities', 'Recorded Utility Reading', "Recorded utility reading #{$reading_id} for Unit {$room_name} ({$billing_period}) — ₱" . number_format($total, 2));
+if ($bill_mode) {
+    log_activity($conn, $admin_id, 'utilities', 'Recorded Utility Bill', "Recorded provider bill #{$reading_id} for Unit {$room_name} ({$billing_period}) — water ₱" . number_format($water_amount, 2) . ", electricity ₱" . number_format($electric_amount, 2) . " (total ₱" . number_format($total, 2) . ")");
+} else {
+    log_activity($conn, $admin_id, 'utilities', 'Recorded Utility Reading', "Recorded utility reading #{$reading_id} for Unit {$room_name} ({$billing_period}) — ₱" . number_format($total, 2));
+}
 
 $response = [
     "success" => true,
-    "message" => "Utility reading saved successfully.",
+    "message" => $bill_mode ? "Utility bill saved successfully." : "Utility reading saved successfully.",
     "id" => $reading_id,
+    "entry_mode" => $entry_mode,
+    "water_amount" => $water_amount,
+    "electric_amount" => $electric_amount,
     "water_consumption" => $water_consumption,
     "electric_consumption" => $electric_consumption,
     "total_amount" => $total,

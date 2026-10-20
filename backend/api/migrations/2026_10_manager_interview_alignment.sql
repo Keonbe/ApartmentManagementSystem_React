@@ -143,3 +143,11 @@ UPDATE `house_rules`
  WHERE `scope` = 'minors' AND `title` = 'Minors aged 12 to 17'
    AND `description` = 'Minors 12 to 17 may live in the apartment. The tenant is responsible for their conduct, and they must follow every house rule in all common areas.';
 
+-- ===== utility_provider_bill =====
+-- Utilities are billed from the provider bill (Meralco / Prime Water): entry
+-- mode 'bill' stores the bill amounts in water_amount / electric_amount, and a
+-- meter reading is optional information (NULL when not taken).
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'utility_readings' AND column_name = 'entry_mode' AND column_type LIKE '%''bill''%') = 0,
+  'ALTER TABLE `utility_readings` MODIFY `entry_mode` enum(''metered'',''total'',''bill'') NOT NULL DEFAULT ''metered''', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+

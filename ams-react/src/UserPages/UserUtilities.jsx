@@ -42,12 +42,14 @@ export default function UserUtilities() {
   const summary = useMemo(() => {
     if (readings.length === 0) return null;
     // Total-only records have no meters: they count toward the cost average, not the usage averages.
-    const metered = readings.filter((r) => r.entry_mode !== 'total');
-    const sum = (key) => readings.reduce((acc, r) => acc + (parseFloat(r[key]) || 0), 0);
+    // A provider bill without a meter reading has no usage either.
+    const withUsage = (key) => readings.filter((r) => r.entry_mode !== 'total' && r[key] !== null && r[key] !== undefined);
+    const sum = (key, rows = readings) => rows.reduce((acc, r) => acc + (parseFloat(r[key]) || 0), 0);
+    const avgUsage = (key) => { const rows = withUsage(key); return (rows.length ? sum(key, rows) / rows.length : 0).toFixed(2); };
     return {
       cycles: readings.length,
-      avgWater: (metered.length ? sum('water_consumption') / metered.length : 0).toFixed(2),
-      avgElectric: (metered.length ? sum('electric_consumption') / metered.length : 0).toFixed(2),
+      avgWater: avgUsage('water_consumption'),
+      avgElectric: avgUsage('electric_consumption'),
       avgCost: (sum('water_amount') + sum('water_other_fees') + sum('electric_amount') + sum('electric_other_fees') + sum('total_amount')) / readings.length,
     };
   }, [readings]);
@@ -157,7 +159,7 @@ export default function UserUtilities() {
                         {r.reading_date && (
                           <p className="text-xs text-slate-400 m-0 mt-0.5 flex items-center gap-1.5">
                             <FontAwesomeIcon icon={faCalendarAlt} className="text-[10px]" />
-                            Meter reading taken on {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            {r.entry_mode === 'bill' ? 'Recorded on' : 'Meter reading taken on'} {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                           </p>
                         )}
                       </div>
@@ -181,7 +183,40 @@ export default function UserUtilities() {
                         <span className="text-xs font-bold text-indigo-900">Utilities, total amount</span>
                         <p className="m-0">No meter readings were taken for this month. Management recorded one total for your utilities.</p>
                       </div>
-                    ) : (<>
+                    ) : r.entry_mode === 'bill' ? (<>
+                      {/* Provider bill: you pay exactly the Meralco / water bill amount */}
+                      {[
+                        { key: 'water', title: 'Water bill', icon: faTint, unit: 'm³', box: 'bg-blue-50/60 border-blue-100', text: 'text-blue-900', strong: 'text-blue-800', tone: 'text-blue-500' },
+                        { key: 'electric', title: 'Electricity bill', icon: faBolt, unit: 'kWh', box: 'bg-amber-50/60 border-amber-100', text: 'text-amber-900', strong: 'text-amber-800', tone: 'text-amber-500' },
+                      ].map((u) => {
+                        const consumption = r[`${u.key}_consumption`];
+                        const curr = r[`${u.key}_curr_reading`];
+                        return (
+                          <div key={u.key} className={`md:col-span-4 p-4 rounded-2xl border space-y-2.5 ${u.box}`}>
+                            <span className={`text-xs font-bold flex items-center gap-1.5 ${u.text}`}>
+                              <FontAwesomeIcon icon={u.icon} className={u.tone} />
+                              {u.title}
+                            </span>
+                            <div className="space-y-1 text-xs text-slate-600">
+                              {consumption !== null && consumption !== undefined ? (<>
+                                <div className="flex justify-between"><span>Previous:</span><span className="font-semibold text-slate-800">{r[`${u.key}_prev_reading`]} {u.unit}</span></div>
+                                <div className="flex justify-between"><span>Present:</span><span className="font-semibold text-slate-800">{curr} {u.unit}</span></div>
+                                <div className="flex justify-between font-semibold"><span>Usage:</span><span>{consumption} {u.unit}</span></div>
+                                <UsageChange pct={r[`${u.key}_change_pct`]} />
+                              </>) : curr !== null && curr !== undefined ? (
+                                <div className="flex justify-between"><span>Meter:</span><span className="font-semibold text-slate-800">{curr} {u.unit}</span></div>
+                              ) : (
+                                <p className="m-0 text-slate-500">Amount from the provider bill.</p>
+                              )}
+                            </div>
+                            <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center text-xs">
+                              <span className="text-slate-500 font-medium">Bill amount:</span>
+                              <span className={`text-sm font-black ${u.strong}`}>₱{(parseFloat(r[`${u.key}_amount`] || 0) + parseFloat(r[`${u.key}_other_fees`] || 0)).toFixed(2)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>) : (<>
                     {/* Water Meter Block */}
                     <div className="md:col-span-4 p-4 rounded-2xl bg-blue-50/60 border border-blue-100 space-y-2.5">
                       <div className="flex items-center justify-between">

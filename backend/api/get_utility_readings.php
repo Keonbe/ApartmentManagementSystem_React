@@ -25,6 +25,7 @@ $query = "SELECT ur.*,
                  prev.water_consumption    AS prev_water_cons,
                  prev.electric_consumption AS prev_elec_cons,
                  prev.user_id              AS prev_user_id,
+                 prev.id                   AS prev_id,
                  u.first_name    AS tenant_first_name,
                  u.last_name     AS tenant_last_name,
                  u.email_address AS tenant_email,
@@ -37,10 +38,10 @@ $query = "SELECT ur.*,
           LEFT JOIN users u ON ur.user_id = u.id
           LEFT JOIN utility_readings prev
                  ON prev.room_name = ur.room_name
-                AND prev.entry_mode = 'metered'
+                AND prev.entry_mode IN ('metered', 'bill')
                 AND prev.billing_period = (
                     SELECT MAX(p2.billing_period) FROM utility_readings p2
-                    WHERE p2.room_name = ur.room_name AND p2.entry_mode = 'metered' AND p2.billing_period < ur.billing_period
+                    WHERE p2.room_name = ur.room_name AND p2.entry_mode IN ('metered', 'bill') AND p2.billing_period < ur.billing_period
                 )
           WHERE 1=1";
 $types = "";
@@ -77,7 +78,9 @@ if (count($params) > 0) {
 $stmt->execute();
 $result = $stmt->get_result();
 
+// Null when either side has no recorded consumption (a provider bill without a meter reading).
 function change_pct($current, $previous) {
+    if ($current === null || $previous === null) return null;
     $previous = (float)$previous;
     if ($previous <= 0) return null;
     return round((((float)$current - $previous) / $previous) * 100, 1);
@@ -86,7 +89,7 @@ function change_pct($current, $previous) {
 $readings = [];
 while ($row = $result->fetch_assoc()) {
     // A tenant only compares against their own earlier usage, never a previous occupant's.
-    $has_prev = ($row['entry_mode'] ?? 'metered') === 'metered' && $row['prev_water_cons'] !== null && ($is_admin || (int)$row['prev_user_id'] === $user['id']);
+    $has_prev = in_array($row['entry_mode'] ?? 'metered', ['metered', 'bill'], true) && $row['prev_id'] !== null && ($is_admin || (int)$row['prev_user_id'] === $user['id']);
 
     $row['water_change_pct'] = $has_prev ? change_pct($row['water_consumption'], $row['prev_water_cons']) : null;
     $row['electric_change_pct'] = $has_prev ? change_pct($row['electric_consumption'], $row['prev_elec_cons']) : null;
@@ -94,7 +97,7 @@ while ($row = $result->fetch_assoc()) {
                      || ($row['electric_change_pct'] ?? 0) > UTILITY_SPIKE_THRESHOLD_PCT;
     $row['billing_period_label'] = is_valid_utility_period($row['billing_period']) ? utility_period_label($row['billing_period']) : $row['billing_period'];
 
-    unset($row['prev_water_cons'], $row['prev_elec_cons'], $row['prev_user_id']);
+    unset($row['prev_water_cons'], $row['prev_elec_cons'], $row['prev_user_id'], $row['prev_id']);
     if (!$is_admin) {
         unset($row['recorded_by'], $row['tenant_email']);
     }
