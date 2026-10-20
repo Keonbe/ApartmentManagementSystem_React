@@ -1386,6 +1386,8 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('parking_monthly_fee', '300'),
 ('parking_billing_mode', 'manual'),
 ('lease_end_reminder_days', '30'),
+('move_out_min_notice_days', '15'),
+('move_out_max_notice_days', '30'),
 -- Date of the last daily notification sweep (run_notification_sweep() in config.php).
 ('notification_sweep_last_run', '2000-01-01'),
 ('landlord_name', 'Elizabeth Angcanan'),

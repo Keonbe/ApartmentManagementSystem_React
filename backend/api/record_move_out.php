@@ -57,15 +57,17 @@ try {
     $interval = $today->diff($selected_date);
     $days_diff = (int)$interval->format('%r%a');
 
-    if ($days_diff < 15) {
+    // The notice window is an admin setting (Settings → Rental), default 15–30.
+    $notice = move_out_notice_days($conn);
+    if ($days_diff < $notice['min']) {
         http_response_code(400);
-        echo json_encode(["success" => false, "message" => "Prior notice of at least 15 days is required before your actual move-out."]);
+        echo json_encode(["success" => false, "message" => "Prior notice of at least {$notice['min']} days is required before your actual move-out."]);
         $conn->close();
         exit;
     }
-    if ($days_diff > 30) {
+    if ($days_diff > $notice['max']) {
         http_response_code(400);
-        echo json_encode(["success" => false, "message" => "Move-out notice cannot exceed 30 days in advance."]);
+        echo json_encode(["success" => false, "message" => "Move-out notice cannot exceed {$notice['max']} days in advance."]);
         $conn->close();
         exit;
     }

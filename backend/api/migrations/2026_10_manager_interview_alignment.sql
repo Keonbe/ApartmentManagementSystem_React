@@ -151,3 +151,31 @@ SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema 
   'ALTER TABLE `utility_readings` MODIFY `entry_mode` enum(''metered'',''total'',''bill'') NOT NULL DEFAULT ''metered''', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
+-- ===== deposit_deductions =====
+-- Move-out clearance itemizes what is taken from the deposit: one row per
+-- deduction with a category, a reason and an amount. lease_contracts keeps
+-- damage_deduction (damage + other) and utility_deduction (electricity + water
+-- + unpaid rent) as the totals every existing reader uses.
+CREATE TABLE IF NOT EXISTS `deposit_deductions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rent_application_id` int(11) NOT NULL,
+  `contract_id` varchar(50) DEFAULT NULL,
+  `category` enum('damage','electricity','water','unpaid_rent','other') NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `amount` decimal(10,2) NOT NULL,
+  `recorded_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_deposit_deductions_app` (`rent_application_id`),
+  CONSTRAINT `fk_deposit_deductions_application` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ===== move_out_notice =====
+-- The move-out notice window (was fixed at 15-30 days in record_move_out.php and
+-- MyRoom.jsx) becomes two admin settings, Settings -> Rental.
+INSERT INTO `system_settings` (`setting_key`, `setting_value`)
+SELECT 'move_out_min_notice_days', '15' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'move_out_min_notice_days');
+INSERT INTO `system_settings` (`setting_key`, `setting_value`)
+SELECT 'move_out_max_notice_days', '30' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'move_out_max_notice_days');

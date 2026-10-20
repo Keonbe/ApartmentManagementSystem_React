@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { Fragment, useState, useMemo, useEffect, useRef } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -57,7 +57,11 @@ const depositChip = (account) => {
   if (!d) return { text: 'No tenancy on record', tone: 'slate' };
   if (d.state === 'unpaid') return { text: `Unpaid · ${formatCurrency(d.amount)}`, sub: `On move-in invoice ${d.move_in_invoice}`, tone: 'amber' };
   if (d.state === 'held') return { text: `Held · ${formatCurrency(d.amount)}`, sub: 'Non-refundable; applied at move-out', tone: 'emerald' };
-  if (d.state === 'settled') return { text: d.status, sub: d.deductions > 0 ? `Deductions ${formatCurrency(d.deductions)}` : `Deposit ${formatCurrency(d.amount)}`, tone: 'indigo' };
+  if (d.state === 'settled') {
+    // Itemized lines (deposit_deductions) when the clearance recorded them.
+    const items = (d.items || []).map((i) => `${i.label} – ${i.reason} ${formatCurrency(i.amount)}`).join('; ');
+    return { text: d.status, sub: d.deductions > 0 ? `Deductions ${formatCurrency(d.deductions)}${items ? `: ${items}` : ''}` : `Deposit ${formatCurrency(d.amount)}`, tone: 'indigo' };
+  }
   return { text: 'Not billed', sub: 'No move-in invoice or paid deposit on record', tone: 'red' };
 };
 
@@ -80,6 +84,10 @@ const AdminPayments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOption, setSortOption] = useState('name-asc');
   const [statusFilter, setStatusFilter] = useState('all');
+  // Security Deposit Ledger controls (client-side over the contracts list).
+  const [depositSearch, setDepositSearch] = useState('');
+  const [depositFilter, setDepositFilter] = useState('all');
+  const [depositSort, setDepositSort] = useState('tenant-asc');
   const [contracts, setContracts] = useState([]);
   const [activeTab, setActiveTab] = useState('billing');
   const [loading, setLoading] = useState(true);
@@ -439,8 +447,56 @@ const AdminPayments = () => {
       baseDeposit, dmg, utl,
       appliedRent: depositApplied(c) ? Math.max(0, baseDeposit - dmg - utl) : 0,
       status: c.deposit_status || 'Pending',
+      // Itemized move-out deductions (get_contracts.php deposit_items), so the
+      // reasons show and not only the two totals.
+      items: Array.isArray(c.deposit_items) ? c.deposit_items : [],
     };
   };
+  // Ledger search / filter / sort. Filter values: a deposit_status, or 'deductions'
+  // (any deduction recorded) / 'clean' (applied with none).
+  const DEPOSIT_FILTERS = [
+    ['all', 'All'], ['Held', 'Held'], ['Applied to Rent', 'Applied to rent'], ['Applied to Bills/Damages', 'Applied to bills/damages'],
+    ['Pending', 'Pending (unpaid)'], ['Not Collected', 'Not collected'], ['deductions', 'With deductions'],
+  ];
+  const DEPOSIT_SORTS = [
+    ['tenant-asc', 'Tenant A–Z'], ['tenant-desc', 'Tenant Z–A'], ['unit-asc', 'Unit ↑'], ['unit-desc', 'Unit ↓'],
+    ['deposit-desc', 'Deposit: high to low'], ['deposit-asc', 'Deposit: low to high'],
+    ['deductions-desc', 'Deductions: high to low'], ['end-asc', 'Rent end: soonest'], ['end-desc', 'Rent end: latest'],
+  ];
+  const visibleContracts = (() => {
+    const term = depositSearch.trim().toLowerCase();
+    const rows = contracts.map((c) => ({ c, d: depositRowData(c), end: c.leaseEnd || c.lease_end || '' }));
+    const kept = rows.filter(({ c, d }) => {
+      if (term && !`${d.tenantName} ${d.unit}`.toLowerCase().includes(term)) return false;
+      if (depositFilter === 'all') return true;
+      if (depositFilter === 'deductions') return d.dmg + d.utl > 0;
+      return (c.deposit_status || 'Pending') === depositFilter;
+    });
+    const byText = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+    const sorters = {
+      'tenant-asc': (a, b) => byText(a.d.tenantName, b.d.tenantName),
+      'tenant-desc': (a, b) => byText(b.d.tenantName, a.d.tenantName),
+      'unit-asc': (a, b) => byText(a.d.unit, b.d.unit),
+      'unit-desc': (a, b) => byText(b.d.unit, a.d.unit),
+      'deposit-desc': (a, b) => b.d.baseDeposit - a.d.baseDeposit,
+      'deposit-asc': (a, b) => a.d.baseDeposit - b.d.baseDeposit,
+      'deductions-desc': (a, b) => (b.d.dmg + b.d.utl) - (a.d.dmg + a.d.utl),
+      // A missing end date sorts last either way.
+      'end-asc': (a, b) => (!a.end - !b.end) || byText(a.end, b.end),
+      'end-desc': (a, b) => (!a.end - !b.end) || byText(b.end, a.end),
+    };
+    return kept.sort(sorters[depositSort] || sorters['tenant-asc']).map(({ c }) => c);
+  })();
+  const depositItemsList = (items) => (
+    <ul className="m-0 p-0 list-none space-y-0.5 text-[11px] text-slate-500 whitespace-normal">
+      {items.map((it, i) => (
+        <li key={i} className="flex justify-between gap-3">
+          <span className="min-w-0"><span className="font-semibold text-slate-700">{it.label || it.category}</span>{it.reason ? `: ${it.reason}` : ''}</span>
+          <span className="font-semibold text-red-600 shrink-0">{formatCurrency(it.amount)}</span>
+        </li>
+      ))}
+    </ul>
+  );
   const depositStatusBadge = (status) => (
     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
       status === 'Held' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
@@ -1458,6 +1514,23 @@ const handleMarkAsPaid = async () => {
                   </div>
                 </div>
 
+                {/* Ledger search, filter and sort */}
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <div className="flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:border-indigo-500 transition-all">
+                    <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-xs" />
+                    <input maxLength={LIMITS.search} type="text" aria-label="Search deposits by tenant or unit" placeholder="Search tenant or unit..." value={depositSearch} onChange={(e) => setDepositSearch(e.target.value)} className="w-full bg-transparent text-sm outline-none border-0 p-0" />
+                  </div>
+                  <div className="flex gap-2">
+                    <select aria-label="Filter deposits" value={depositFilter} onChange={(e) => setDepositFilter(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all">
+                      {DEPOSIT_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                    <select aria-label="Sort deposits" value={depositSort} onChange={(e) => setDepositSort(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 transition-all">
+                      {DEPOSIT_SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-semibold sm:ml-auto whitespace-nowrap">{visibleContracts.length} of {contracts.length}</span>
+                </div>
+
                 {/* Detailed Deposits Table */}
                 <div className="hidden md:block overflow-x-auto border border-slate-100 rounded-xl">
                   <table className="w-full text-left text-xs whitespace-nowrap">
@@ -1475,11 +1548,12 @@ const handleMarkAsPaid = async () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {contracts.length > 0 ? contracts.map((c, idx) => {
-                        const { tenantName, unit, leaseStart, leaseEnd, baseDeposit, dmg, utl, appliedRent, status } = depositRowData(c);
+                      {visibleContracts.length > 0 ? visibleContracts.map((c, idx) => {
+                        const { tenantName, unit, leaseStart, leaseEnd, baseDeposit, dmg, utl, appliedRent, status, items } = depositRowData(c);
 
                         return (
-                          <tr key={idx} className="hover:bg-slate-50/50">
+                          <Fragment key={idx}>
+                          <tr className={`hover:bg-slate-50/50${items.length > 0 ? ' [&>td]:pb-1.5' : ''}`}>
                             <td className="py-3.5 px-4 font-bold text-slate-800">{tenantName}</td>
                             <td className="py-3.5 px-4 text-center font-bold text-indigo-600">{unit}</td>
                             <td className="py-3.5 px-4 text-slate-500">{leaseStart} – {leaseEnd}</td>
@@ -1490,9 +1564,20 @@ const handleMarkAsPaid = async () => {
                             <td className="py-3.5 px-4 font-bold text-indigo-600">{appliedRent > 0 ? formatCurrency(appliedRent) : '—'}</td>
                             <td className="py-3.5 px-4 text-slate-400 font-medium">₱0.00 <span className="text-[9px] text-slate-400 italic font-normal">(Non-Refundable)</span></td>
                           </tr>
+                          {items.length > 0 && (
+                            <tr className="border-t-0">
+                              <td colSpan="9" className="px-4 pb-3 pt-0">
+                                <div className="ml-4 max-w-xl bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 m-0 mb-1">Deductions</p>
+                                  {depositItemsList(items)}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         );
                       }) : (
-                        <tr><td colSpan="9" className="py-6 text-center text-slate-400">No security deposit transactions registered.</td></tr>
+                        <tr><td colSpan="9" className="py-6 text-center text-slate-400">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1500,8 +1585,8 @@ const handleMarkAsPaid = async () => {
 
                 {/* Deposit cards (phones) */}
                 <div className="md:hidden space-y-3">
-                  {contracts.length > 0 ? contracts.map((c, idx) => {
-                    const { tenantName, unit, leaseStart, leaseEnd, baseDeposit, dmg, utl, appliedRent, status } = depositRowData(c);
+                  {visibleContracts.length > 0 ? visibleContracts.map((c, idx) => {
+                    const { tenantName, unit, leaseStart, leaseEnd, baseDeposit, dmg, utl, appliedRent, status, items } = depositRowData(c);
                     return (
                       <div key={idx} className="border border-slate-100 rounded-xl p-4 space-y-2 text-sm">
                         <div className="flex items-start justify-between gap-3">
@@ -1525,10 +1610,16 @@ const handleMarkAsPaid = async () => {
                             </div>
                           ))}
                         </dl>
+                        {items.length > 0 && (
+                          <div className="pt-2 border-t border-slate-100">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 m-0 mb-1">Deductions</p>
+                            {depositItemsList(items)}
+                          </div>
+                        )}
                       </div>
                     );
                   }) : (
-                    <div className="py-6 text-center text-slate-400 text-sm">No security deposit transactions registered.</div>
+                    <div className="py-6 text-center text-slate-400 text-sm">{contracts.length > 0 ? "No deposits match the search or filter." : "No security deposit transactions registered."}</div>
                   )}
                 </div>
             </div>

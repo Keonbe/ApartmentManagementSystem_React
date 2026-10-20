@@ -69,6 +69,40 @@ if (!empty($status) && !in_array($status, $allowed_statuses, true)) {
     exit;
 }
 
+// Itemized move-out deductions: [{category, reason, amount}], checked before
+// anything is written. damage_deduction = damage + other; utility_deduction =
+// electricity + water + unpaid rent. Without `deductions` the older two-field
+// payload (damage_deduction / utility_deduction) is used as before.
+const DEPOSIT_DEDUCTION_CATEGORIES = ['damage', 'electricity', 'water', 'unpaid_rent', 'other'];
+$deduction_lines = null;
+if ($status === 'moved-out' && array_key_exists('deductions', $input)) {
+    $raw_lines = $input['deductions'];
+    if (is_string($raw_lines)) $raw_lines = json_decode($raw_lines, true); // multipart form posts it as JSON text
+    $refuse_line = function ($message) {
+        http_response_code(422);
+        echo json_encode(["success" => false, "message" => $message]);
+        exit;
+    };
+    if (!is_array($raw_lines) || ($raw_lines && array_keys($raw_lines) !== range(0, count($raw_lines) - 1))) $refuse_line("Deductions must be a list.");
+    if (count($raw_lines) > 20) $refuse_line("A clearance can have at most 20 deductions.");
+    $deduction_lines = [];
+    foreach ($raw_lines as $n => $line) {
+        $label = "Deduction " . ($n + 1);
+        if (!is_array($line)) $refuse_line("$label is not valid.");
+        $category = $line['category'] ?? '';
+        if (!is_string($category) || !in_array($category, DEPOSIT_DEDUCTION_CATEGORIES, true)) $refuse_line("$label: choose a category from the list.");
+        $reason = is_string($line['reason'] ?? null) ? trim($line['reason']) : '';
+        if ($reason === '') $refuse_line("$label: a reason is required.");
+        if (mb_strlen($reason) > 255) $refuse_line("$label: the reason can be up to 255 characters.");
+        $amount = $line['amount'] ?? null;
+        if (is_bool($amount) || !is_numeric($amount) || !is_finite((float)$amount)) $refuse_line("$label: the amount must be a number.");
+        $amount = round((float)$amount, 2);
+        if ($amount <= 0) $refuse_line("$label: the amount must be more than ₱0.");
+        if ($amount > 1000000) $refuse_line("$label: the amount can be at most ₱1,000,000.");
+        $deduction_lines[] = ['category' => $category, 'reason' => $reason, 'amount' => $amount];
+    }
+}
+
 if ($id > 0 && !empty($status)) {
     // Start transaction to ensure data integrity
     $conn->begin_transaction();
@@ -89,6 +123,15 @@ if ($id > 0 && !empty($status)) {
         if (!application_transition_allowed($current_status, $status)) {
             http_response_code(409);
             echo json_encode(["success" => false, "message" => "Cannot move this application from \"$current_status\" to \"$status\"."]);
+            $conn->rollback();
+            $conn->close();
+            exit;
+        }
+
+        // An itemized clearance settles a move-out notice; nothing else.
+        if ($deduction_lines !== null && $current_status !== 'pending-move-out') {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "Only a tenant with a move-out notice can be cleared."]);
             $conn->rollback();
             $conn->close();
             exit;
@@ -333,19 +376,44 @@ if ($id > 0 && !empty($status)) {
 
         if ($status === 'moved-out') {
             $clearance_notes = $input['clearance_notes'] ?? '';
-            $damage_deduction = isset($input['damage_deduction']) ? (float)$input['damage_deduction'] : 0.0;
-            $utility_deduction = isset($input['utility_deduction']) ? (float)$input['utility_deduction'] : 0.0;
-            $room_condition = ($damage_deduction > 0) ? 'Needs Repair' : 'Good';
+            if ($deduction_lines !== null) {
+                $damage_deduction = 0.0;
+                $utility_deduction = 0.0;
+                foreach ($deduction_lines as $line) {
+                    if (in_array($line['category'], ['damage', 'other'], true)) $damage_deduction += $line['amount'];
+                    else $utility_deduction += $line['amount'];
+                }
+                $damage_deduction = round($damage_deduction, 2);
+                $utility_deduction = round($utility_deduction, 2);
+                $has_damage_line = (bool)array_filter($deduction_lines, fn($l) => $l['category'] === 'damage');
+            } else {
+                $damage_deduction = isset($input['damage_deduction']) ? (float)$input['damage_deduction'] : 0.0;
+                $utility_deduction = isset($input['utility_deduction']) ? (float)$input['utility_deduction'] : 0.0;
+                $has_damage_line = $damage_deduction > 0;
+            }
+            $room_condition = $has_damage_line ? 'Needs Repair' : 'Good';
 
             // M4: what's left owed after the deposit — every still-open invoice
             // (whatever its status) plus the damage/utility deductions, less the
             // deposit itself. Read before end_tenancy() touches any invoice.
-            $deposit_stmt = $conn->prepare("SELECT deposit_amount FROM lease_contracts WHERE rent_application_id = ? AND status = 'active'");
+            // The tenancy's contract is 'active', or 'expired' when the lease end
+            // passed before the admin cleared the move-out (expire_lapsed_contracts()),
+            // or 'eviction-pending'. Matching only 'active' used to skip an expired
+            // contract: its deposit stayed "Held", the deductions never reached the
+            // contract (so not the Security Deposit Ledger) and the deposit was
+            // left out of the balance below. A draft or terminated contract is not
+            // settled here, and one already settled (deposit_status Applied…) is not
+            // settled twice.
+            $deposit_stmt = $conn->prepare("SELECT id, deposit_amount, deposit_status FROM lease_contracts
+                                            WHERE rent_application_id = ? AND status IN ('active', 'expired', 'eviction-pending') AND deposit_status IN ('Held', 'Pending')
+                                            ORDER BY generated_at DESC LIMIT 1 FOR UPDATE");
             $deposit_stmt->bind_param("i", $id);
             $deposit_stmt->execute();
             $deposit_row = $deposit_stmt->get_result()->fetch_assoc();
             $deposit_stmt->close();
-            $deposit_amount = $deposit_row ? (float)$deposit_row['deposit_amount'] : 0.0;
+            // Only a deposit that was actually paid ('Held') can cover the balance.
+            $deposit_amount = ($deposit_row && $deposit_row['deposit_status'] === 'Held') ? (float)$deposit_row['deposit_amount'] : 0.0;
+            $settled_contract_id = $deposit_row ? $deposit_row['id'] : null;
 
             $open_stmt = $conn->prepare("SELECT COALESCE(SUM(total_amount), 0) AS open_total FROM invoices WHERE rent_application_id = ? AND status IN " . billing_open_status_sql());
             $open_stmt->bind_param("i", $id);
@@ -365,19 +433,35 @@ if ($id > 0 && !empty($status)) {
             if ($damage_deduction > 0 || $utility_deduction > 0) {
                 $deposit_status = 'Applied to Bills/Damages';
             }
-            $ctr_stmt = $conn->prepare("
-                UPDATE lease_contracts
-                SET status = 'expired',
-                    deposit_status = ?,
-                    damage_deduction = ?,
-                    utility_deduction = ?,
-                    refund_amount = 0.00,
-                    refund_date = CURDATE()
-                WHERE rent_application_id = ? AND status = 'active'
-            ");
-            $ctr_stmt->bind_param("sddi", $deposit_status, $damage_deduction, $utility_deduction, $id);
-            $ctr_stmt->execute();
-            $ctr_stmt->close();
+            // Updated by id (the row read above): a paid deposit takes the
+            // disposition, one never paid is recorded as not collected.
+            if ($settled_contract_id !== null) {
+                $ctr_stmt = $conn->prepare("
+                    UPDATE lease_contracts
+                    SET status = 'expired',
+                        deposit_status = CASE WHEN deposit_status = 'Held' THEN ? ELSE 'Not Collected' END,
+                        damage_deduction = ?,
+                        utility_deduction = ?,
+                        refund_amount = 0.00,
+                        refund_date = CURDATE()
+                    WHERE id = ? AND deposit_status IN ('Held', 'Pending')
+                ");
+                $ctr_stmt->bind_param("sdds", $deposit_status, $damage_deduction, $utility_deduction, $settled_contract_id);
+                $ctr_stmt->execute();
+                $ctr_stmt->close();
+            }
+
+            // One row per deduction, in this same transaction (a failure rolls the clearance back).
+            $deduction_summary = [];
+            if ($deduction_lines) {
+                $dd_stmt = $conn->prepare("INSERT INTO deposit_deductions (rent_application_id, contract_id, category, reason, amount, recorded_by) VALUES (?, ?, ?, ?, ?, ?)");
+                foreach ($deduction_lines as $line) {
+                    $dd_stmt->bind_param("isssdi", $id, $settled_contract_id, $line['category'], $line['reason'], $line['amount'], $admin_id);
+                    if (!$dd_stmt->execute()) throw new Exception("Could not save the deposit deductions.");
+                    $deduction_summary[] = deposit_deduction_label($line['category']) . " – " . $line['reason'] . ": ₱" . number_format($line['amount'], 2);
+                }
+                $dd_stmt->close();
+            }
 
             if (!empty($clearance_notes)) {
                 $notes_stmt = $conn->prepare("UPDATE rent_applications SET archive_notes = ? WHERE id = ?");
@@ -402,11 +486,12 @@ if ($id > 0 && !empty($status)) {
             if ($vacated && $vacated['user_id']) {
                 create_notification($conn, $vacated['user_id'], 'move_out_update', 'Move-Out Completed',
                     "Your move-out has been completed and your clearance recorded. Thank you for staying with us."
+                    . ($deduction_summary ? " Deductions from your deposit: " . implode("; ", $deduction_summary) . "." : "")
                     . ($balance > 0 ? " An outstanding balance of ₱" . number_format($balance, 2) . " remains after your deposit." : ""));
             }
 
             log_activity($conn, $admin_id, 'tenant', "Completed Move Out & Clearance",
-                "Application ID: $id, $clearance_notes" . ($vacated && $vacated['parking_released'] ? "; parking released" : "")
+                "Application ID: $id, $clearance_notes" . ($deduction_summary ? "; deductions: " . implode("; ", $deduction_summary) : "") . ($vacated && $vacated['parking_released'] ? "; parking released" : "")
                 . ($balance > 0 ? "; balance due after deposit: ₱" . number_format($balance, 2) : "; deposit covered the balance in full"));
         } else {
             log_activity($conn, $admin_id, 'tenant', "Updated Tenant Status", "Application ID: $id, New Status: $status");

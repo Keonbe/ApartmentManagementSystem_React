@@ -13,9 +13,10 @@ import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers'
 
 const MAX_OCCUPANTS = 8;
 const MAX_EXTENSION_MONTHS = 12;
-// record_move_out.php: notice of at least 15 and at most 30 days.
-const MOVE_OUT_MIN_DAYS = 15;
-const MOVE_OUT_MAX_DAYS = 30;
+// Defaults for the move-out notice window; the live values come from Settings → Rental (record_move_out.php enforces them too).
+const DEFAULT_MOVE_OUT_MIN_DAYS = 15;
+const DEFAULT_MOVE_OUT_MAX_DAYS = 30;
+import { getSystemSettings } from '../config/systemSettings';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
@@ -27,6 +28,15 @@ export default function MyRoom() {
     const extensionBlocked = extension && !extension.allowed;
     const [additionalMonths, setAdditionalMonths] = useState(1);
     const { t } = useLang();
+    // Move-out notice window in days from today (Settings → Rental).
+    const [moveOutNotice, setMoveOutNotice] = useState({ min: DEFAULT_MOVE_OUT_MIN_DAYS, max: DEFAULT_MOVE_OUT_MAX_DAYS });
+    useEffect(() => {
+        let alive = true;
+        getSystemSettings().then((s) => {
+            if (alive) setMoveOutNotice({ min: s.moveOutMinNoticeDays || DEFAULT_MOVE_OUT_MIN_DAYS, max: s.moveOutMaxNoticeDays || DEFAULT_MOVE_OUT_MAX_DAYS });
+        });
+        return () => { alive = false; };
+    }, []);
 
     const [loggedInUser] = useState(() => {
         const sessionData = sessionStorage.getItem("loggedInUser") || localStorage.getItem("loggedInUser");
@@ -86,7 +96,9 @@ export default function MyRoom() {
                         rentStart: startDateString,
                         paymentDue: dueDateString,
                         status: data.status,
-                        requestedMoveOutDate: data.requested_move_out_date
+                        requestedMoveOutDate: data.requested_move_out_date,
+                        // Itemized move-out deductions from the deposit (empty until clearance).
+                        depositDeductions: Array.isArray(data.deposit_deductions) ? data.deposit_deductions : []
                     });
 
                     const diffTime = endDate.getTime() - new Date().getTime();
@@ -201,9 +213,9 @@ export default function MyRoom() {
         occupants: (v, all) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants')
             || (Number(v) === all.currentOccupants ? `Your room is already assigned to ${v} occupant(s).` : ''),
         additionalMonths: (v) => checkIntRange(v === '' ? NaN : v, minExtension, maxExtension, 'Additional months'),
-        move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(MOVE_OUT_MIN_DAYS), max: addDays(MOVE_OUT_MAX_DAYS) })
-            .replace(/cannot be before .*/, `must be at least ${MOVE_OUT_MIN_DAYS} days from today.`)
-            .replace(/cannot be after .*/, `cannot be more than ${MOVE_OUT_MAX_DAYS} days from today.`),
+        move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(moveOutNotice.min), max: addDays(moveOutNotice.max) })
+            .replace(/cannot be before .*/, `must be at least ${moveOutNotice.min} days from today.`)
+            .replace(/cannot be after .*/, `cannot be more than ${moveOutNotice.max} days from today.`),
     }, { idPrefix: 'myroom-' });
     const fieldValues = { occupants, currentOccupants, additionalMonths, move_out_date: moveOutDate };
 
@@ -239,14 +251,14 @@ export default function MyRoom() {
     };
 
     const handleEndRent = () => {
-        setMoveOutDate(addDays(MOVE_OUT_MIN_DAYS));
+        setMoveOutDate(addDays(moveOutNotice.min));
         fields.clearError('move_out_date');
         setShowMoveOutModal(true);
     };
 
     const handleConfirmMoveOut = async () => {
         if (busy) return;
-        // Notice must be 15–30 days ahead (record_move_out.php checks it too).
+        // Notice must fall inside the configured window (record_move_out.php checks it too).
         if (fields.validateField('move_out_date', fieldValues)) return;
 
         setBusy('moveout');
@@ -601,6 +613,17 @@ export default function MyRoom() {
                                 })()}
                             </div>
                         )}
+                        {['moved-out', 'archived'].includes(roomDetails.status) && roomDetails.depositDeductions?.length > 0 && (
+                            <div className="p-3.5 bg-white/5 border border-white/10 rounded-2xl space-y-1.5 mt-2">
+                                <div className="text-xs font-bold text-slate-200">Deducted from your security deposit</div>
+                                {roomDetails.depositDeductions.map((d, i) => (
+                                    <div key={i} className="flex justify-between gap-3 text-[11px] text-slate-300">
+                                        <span className="min-w-0"><strong>{d.label || d.category}</strong>{d.reason ? `: ${d.reason}` : ''}</span>
+                                        <span className="font-semibold shrink-0">₱{Number(d.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                 </div>
@@ -627,7 +650,7 @@ export default function MyRoom() {
                             <div className="bg-rose-950/20 border border-rose-500/20 rounded-2xl p-4 flex items-start space-x-3">
                                 <FontAwesomeIcon icon={faExclamationTriangle} className="text-rose-400 mt-0.5 shrink-0" />
                                 <p className="text-xs text-slate-300 m-0 leading-relaxed">
-                                    Under system policy, prior notice must be given at least <strong>15 days</strong> but less than <strong>30 days</strong> before your actual move-out date.
+                                    Under system policy, prior notice must be given at least <strong>{moveOutNotice.min} days</strong> but no more than <strong>{moveOutNotice.max} days</strong> before your actual move-out date.
                                 </p>
                             </div>
 
@@ -637,8 +660,8 @@ export default function MyRoom() {
                                     type="date"
                                     {...fields.fieldA11y('move_out_date')}
                                     value={moveOutDate}
-                                    min={addDays(MOVE_OUT_MIN_DAYS)}
-                                    max={addDays(MOVE_OUT_MAX_DAYS)}
+                                    min={addDays(moveOutNotice.min)}
+                                    max={addDays(moveOutNotice.max)}
                                     onChange={(e) => { setMoveOutDate(e.target.value); fields.clearError('move_out_date'); }}
                                     onBlur={() => fields.validateField('move_out_date', fieldValues)}
                                     className={`w-full px-4 py-2.5 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-sm box-border font-bold${invalidCls(fields.errors.move_out_date)}`}

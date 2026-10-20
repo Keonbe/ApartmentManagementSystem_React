@@ -504,6 +504,25 @@ if ($row = $stmt->get_result()->fetch_assoc()) {
 }
 $stmt->close();
 
+// Deposits settled at move-out in the period. Kept out of revenue like
+// depositCollected: an applied deposit only offsets what the tenant owed.
+// depositDeductions = the itemized lines recorded in the period, by category;
+// depositsApplied = deposits of contracts settled ('Applied…') in the period.
+$data['depositDeductions'] = ['total' => 0.0, 'byCategory' => []];
+$res = $conn->query("SELECT category, SUM(amount) AS total FROM deposit_deductions
+                     WHERE " . $periodOn('created_at') . " GROUP BY category ORDER BY total DESC");
+while ($res && ($row = $res->fetch_assoc())) {
+    $amount = round((float)$row['total'], 2);
+    $data['depositDeductions']['byCategory'][] = [
+        'category' => $row['category'], 'label' => deposit_deduction_label($row['category']), 'amount' => $amount,
+    ];
+    $data['depositDeductions']['total'] += $amount;
+}
+$data['depositDeductions']['total'] = round($data['depositDeductions']['total'], 2);
+$row = $conn->query("SELECT COALESCE(SUM(deposit_amount), 0) AS total FROM lease_contracts
+                     WHERE deposit_status LIKE 'Applied%' AND refund_date IS NOT NULL AND " . $periodOn('refund_date'))->fetch_assoc();
+$data['depositsApplied'] = round((float)($row['total'] ?? 0), 2);
+
 // Average lease stay duration
 $stmt = $conn->prepare("SELECT IFNULL(AVG(months_of_rent), 6.0) as avg_duration FROM rent_applications WHERE status IN ('Approved', 'active', 'pending-move-out', 'moved-out')");
 $stmt->execute();

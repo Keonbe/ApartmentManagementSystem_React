@@ -80,6 +80,12 @@ if ($id > 0) {
             $ctr_stmt->bind_param("s", $app['contract_id']);
             $ctr_stmt->execute();
             $ctr_stmt->close();
+            // The itemized deductions go with the totals they made up.
+            $restore_app_id = (int)$id;
+            $dd_stmt = $conn->prepare("DELETE FROM deposit_deductions WHERE rent_application_id = ?");
+            $dd_stmt->bind_param("i", $restore_app_id);
+            $dd_stmt->execute();
+            $dd_stmt->close();
         }
 
         // 4. Restore only the invoices THIS archive cancelled (cancel_reason

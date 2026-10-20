@@ -79,6 +79,19 @@ if ($result->num_rows > 0) {
     $paid_stmt->execute();
     $room_data['initial_payment_paid'] = (bool)$paid_stmt->get_result()->fetch_assoc();
     $paid_stmt->close();
+
+    // The latest refund request on this application (a rejected or cancelled
+    // application that already paid), so Track Application can show where it stands.
+    $room_data['refund'] = null;
+    $refund_stmt = $conn->prepare("SELECT id, type, status, amount, decision_reason, payout_method, payout_reference, refunded_at FROM refund_requests WHERE rent_application_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1");
+    $refund_stmt->bind_param("ii", $app_id, $user_id);
+    $refund_stmt->execute();
+    $refund_row = $refund_stmt->get_result()->fetch_assoc();
+    $refund_stmt->close();
+    if ($refund_row) $room_data['refund'] = ['id' => (int)$refund_row['id'], 'type' => $refund_row['type'], 'status' => $refund_row['status'], 'amount' => round((float)$refund_row['amount'], 2), 'decision_reason' => $refund_row['decision_reason'], 'payout_method' => $refund_row['payout_method'], 'payout_reference' => $refund_row['payout_reference'], 'refunded_at' => $refund_row['refunded_at']];
+
+    // Itemized move-out deductions from the deposit (empty until clearance).
+    $room_data['deposit_deductions'] = deposit_deductions_for($conn, [(int)$app_id])[(int)$app_id] ?? [];
     
     // Whether the rent can be extended right now, and why not (config.php
     // extension_block_reason(): scheduled move-out, contract state, overdue

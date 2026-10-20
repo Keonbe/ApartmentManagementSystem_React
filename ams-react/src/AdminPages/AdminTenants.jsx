@@ -9,7 +9,7 @@ import {
   faSignOutAlt, faClipboardCheck
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
-import { LIMITS, MAX_AMOUNT, addDays, checkAmount, checkDate, checkText } from '../utils/validation';
+import { LIMITS, addDays, checkAmount, checkDate, checkText } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
@@ -20,8 +20,16 @@ import { blockNonNumericKeys, invalidCls } from '../Components/form/formHelpers'
 const MOVE_OUT_MIN_DAYS = 15;
 const MOVE_OUT_MAX_DAYS = 30;
 const money = (v) => Number(v) || 0;
+
+// deposit_deductions.category (update_tenant_status.php DEPOSIT_DEDUCTION_CATEGORIES).
+const DEDUCTION_CATEGORIES = [
+  ['damage', 'Damage'], ['electricity', 'Electricity'], ['water', 'Water'], ['unpaid_rent', 'Unpaid rent'], ['other', 'Other'],
+];
+const MAX_DEDUCTION_LINES = 20;
+const deductionLabel = (c) => (DEDUCTION_CATEGORIES.find(([v]) => v === c) || [c, 'Other'])[1];
 import { fileUrl } from '../api/fileUrl';
 import AdminHouseholdList from '../Components/AdminHouseholdList';
+import DepositOutcome from '../Components/DepositOutcome';
 
 // ==========================================
 // MOCK DATA FOR ARCHIVED TENANTS & HISTORY
@@ -63,9 +71,10 @@ const AdminTenants = () => {
   // Move-out inspection & clearance states
   const [showClearanceModal, setShowClearanceModal] = useState(false);
   const [clearanceTarget, setClearanceTarget] = useState(null);
-  const [damageDeduction, setDamageDeduction] = useState(0);
+  // Itemized deductions for the clearance: [{key, category, reason, amount}].
+  const [deductionLines, setDeductionLines] = useState([]);
+  const [deductionErrors, setDeductionErrors] = useState([]);
   const [damageNotes, setDamageNotes] = useState('');
-  const [utilityDeduction, setUtilityDeduction] = useState(0);
 
   const fetchInvoices = async () => {
     try {
@@ -122,9 +131,9 @@ const AdminTenants = () => {
 
   const openClearanceModal = (tenant) => {
     setClearanceTarget(tenant);
-    setDamageDeduction(0);
+    setDeductionLines([]);
+    setDeductionErrors([]);
     setDamageNotes('');
-    setUtilityDeduction(0);
     setShowProfileModal(false);
     tenantForms.setErrors({});
     setShowClearanceModal(true);
@@ -139,38 +148,60 @@ const AdminTenants = () => {
     requested_move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(MOVE_OUT_MIN_DAYS), max: addDays(MOVE_OUT_MAX_DAYS) })
       .replace(/cannot be before .*/, `must be at least ${MOVE_OUT_MIN_DAYS} days from today.`)
       .replace(/cannot be after .*/, `cannot be more than ${MOVE_OUT_MAX_DAYS} days from today.`),
-    damage_deduction: (v) => checkAmount(v, { label: 'Damage deduction', required: false }),
     damage_notes: (v) => checkText(v, { label: 'Inspection notes', max: LIMITS.reason, required: false }),
-    utility_deduction: (v) => checkAmount(v, { label: 'Utility balance', required: false }),
   }, { idPrefix: 'tenant-' });
   const tenantValues = {
-    archiveReason, archiveNotes, requested_move_out_date: moveOutDate,
-    damage_deduction: damageDeduction, damage_notes: damageNotes, utility_deduction: utilityDeduction,
+    archiveReason, archiveNotes, requested_move_out_date: moveOutDate, damage_notes: damageNotes,
   };
   const blurTenantField = (name) => tenantForms.validateField(name, tenantValues);
+
+  // Deduction lines, checked like update_tenant_status.php: category from the
+  // list, reason 1-255 characters, amount above 0 and at most 1,000,000.
+  const checkDeduction = (line) => ({
+    category: DEDUCTION_CATEGORIES.some(([v]) => v === line.category) ? '' : 'Choose a category.',
+    reason: !line.reason.trim() ? 'A reason is required.' : line.reason.trim().length > 255 ? 'The reason can be up to 255 characters.' : '',
+    amount: checkAmount(line.amount, { label: 'Amount', min: 0.01, max: 1000000, allowZero: false }),
+  });
+  const editDeduction = (i, patch, validate = false) => {
+    setDeductionLines((prev) => {
+      const next = prev.map((l, n) => (n === i ? { ...l, ...patch } : l));
+      setDeductionErrors((errs) => { const e = [...errs]; e[i] = validate ? checkDeduction(next[i]) : {}; return e; });
+      return next;
+    });
+  };
+  const addDeduction = () => {
+    setDeductionLines((prev) => (prev.length >= MAX_DEDUCTION_LINES ? prev
+      : [...prev, { key: `${Date.now()}-${prev.length}`, category: 'damage', reason: '', amount: '' }]));
+  };
+  const removeDeduction = (i) => {
+    setDeductionLines((prev) => prev.filter((_, n) => n !== i));
+    setDeductionErrors((prev) => prev.filter((_, n) => n !== i));
+  };
+  const deductionTotal = Math.round(deductionLines.reduce((s, l) => s + money(l.amount), 0) * 100) / 100;
+  const clearanceDeposit = clearanceTarget ? (parseFloat(String(clearanceTarget.rent || '4000').replace(/[^0-9.]/g, '')) || 4000) : 0;
 
   const handleConfirmClearance = async () => {
     if (!clearanceTarget || savingAction) return;
 
-    const rentStr = clearanceTarget.rent ? String(clearanceTarget.rent) : '4000';
-    const baseDeposit = parseFloat(rentStr.replace(/[^0-9.]/g, '')) || 4000;
-    const damages = money(damageDeduction);
-    const utilities = money(utilityDeduction);
-    const netRefund = Math.max(0, baseDeposit - damages - utilities);
     const notes = String(damageNotes).trim();
     setDamageNotes(notes);
-    if (!tenantForms.validateAll({ ...tenantValues, damage_notes: notes }, ['damage_deduction', 'damage_notes', 'utility_deduction'])) return;
+    const lines = deductionLines.map((l) => ({ ...l, reason: l.reason.trim() }));
+    const lineErrors = lines.map(checkDeduction);
+    setDeductionLines(lines);
+    setDeductionErrors(lineErrors);
+    const linesOk = lineErrors.every((e) => !e.category && !e.reason && !e.amount);
+    if (!tenantForms.validateAll({ ...tenantValues, damage_notes: notes }, ['damage_notes']) || !linesOk) return;
 
-    const summaryNotes = `Clearance Summary — Deposit: ₱${baseDeposit.toLocaleString()}, Damage Deductions: ₱${damages.toLocaleString()}${damageNotes ? ` (${damageNotes})` : ''}, Unpaid Utilities Settlement: ₱${utilities.toLocaleString()}, Net Refundable/Settled: ₱${netRefund.toLocaleString()}`;
+    const itemText = lines.map((l) => `${deductionLabel(l.category)} – ${l.reason}: ₱${money(l.amount).toLocaleString()}`).join('; ');
+    const summaryNotes = `Clearance Summary — Deposit: ₱${clearanceDeposit.toLocaleString()}, Deductions: ₱${deductionTotal.toLocaleString()}${itemText ? ` (${itemText})` : ''}${notes ? `, Notes: ${notes}` : ''}`;
 
     setSavingAction('clearance');
     try {
       const res = await api.post('/update_tenant_status.php', {
         id: clearanceTarget.id,
         status: 'moved-out',
-        damage_deduction: damages,
+        deductions: lines.map((l) => ({ category: l.category, reason: l.reason, amount: Math.round(money(l.amount) * 100) / 100 })),
         damage_notes: notes,
-        utility_deduction: utilities,
         clearance_notes: summaryNotes
       });
 
@@ -805,6 +836,11 @@ const AdminTenants = () => {
                     </div>
                   )}
 
+                  {/* Deposit outcome of a moved-out/archived tenant (get_tenants.php, admin only) */}
+                  {['moved-out', 'archived'].includes(selectedTenant.status) && selectedTenant.depositOutcome && (
+                    <DepositOutcome deposit={selectedTenant.depositOutcome} className="" />
+                  )}
+
                   {/* Actions for non-archived tenants. Pending Review applications are
                       handled on the Applications page (AdminApplications.jsx) — this
                       page's tenant list already excludes that status (see the filter
@@ -1140,75 +1176,73 @@ const AdminTenants = () => {
                   </span>
                 </div>
 
-                {/* Section 1: Room Inspection for Damages */}
+                {/* Section 1: Itemized deductions (deposit_deductions): category, reason, amount per line */}
                 <div className="space-y-2 border-t border-slate-100 pt-3">
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    1. Physical Room Inspection & Damages
+                    1. Deductions from the deposit
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label htmlFor="tenant-damage_deduction" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Damage Deductions (₱)</label>
-                      {/* Kept as typed and validated, instead of being clamped on every keystroke. */}
-                      <input
-                        type="number"
-                        {...tenantForms.fieldA11y('damage_deduction')}
-                        inputMode="decimal"
-                        min="0"
-                        max={MAX_AMOUNT}
-                        step="0.01"
-                        value={damageDeduction}
-                        onKeyDown={blockNonNumericKeys}
-                        onChange={(e) => { setDamageDeduction(e.target.value); tenantForms.clearError('damage_deduction'); }}
-                        onBlur={() => blurTenantField('damage_deduction')}
-                        className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800${invalidCls(tenantForms.errors.damage_deduction)}`}
-                        placeholder="0.00"
-                      />
-                      <FieldError id="tenant-damage_deduction" error={tenantForms.errors.damage_deduction} />
-                    </div>
-                    <div>
-                      <label htmlFor="tenant-damage_notes" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Inspection Notes / Details</label>
-                      <input
-                        type="text"
-                        {...tenantForms.fieldA11y('damage_notes')}
-                        autoComplete="off"
-                        value={damageNotes}
-                        maxLength={LIMITS.reason}
-                        onChange={(e) => { setDamageNotes(e.target.value); tenantForms.clearError('damage_notes'); }}
-                        onBlur={() => { const v = damageNotes.trim(); setDamageNotes(v); tenantForms.validateField('damage_notes', { ...tenantValues, damage_notes: v }); }}
-                        className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800${invalidCls(tenantForms.errors.damage_notes)}`}
-                        placeholder="e.g., Wall repaint, key replacement"
-                      />
-                      <FieldError id="tenant-damage_notes" error={tenantForms.errors.damage_notes} />
-                    </div>
-                  </div>
+                  <p className="m-0 text-[11px] text-slate-500">One line per deduction: damage found at inspection, unpaid electricity or water, unpaid rent. The tenant sees each line.</p>
+                  {deductionLines.length === 0 && (
+                    <p className="m-0 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">No deductions. The deposit is applied in full.</p>
+                  )}
+                  {deductionLines.map((line, i) => {
+                    const err = deductionErrors[i] || {};
+                    return (
+                      <div key={line.key} className="grid grid-cols-12 gap-2 rounded-xl border border-slate-200 p-2.5">
+                        <label className="col-span-12 sm:col-span-4 text-[10px] font-bold text-slate-400 uppercase">Category
+                          <select value={line.category} onChange={(e) => editDeduction(i, { category: e.target.value })}
+                            className={`mt-1 w-full px-2 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500 text-slate-800 normal-case font-normal ${err.category ? 'border-rose-400' : 'border-slate-200'}`}>
+                            {DEDUCTION_CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                          </select>
+                        </label>
+                        <label className="col-span-12 sm:col-span-8 text-[10px] font-bold text-slate-400 uppercase">Reason
+                          <input type="text" value={line.reason} maxLength={255} autoComplete="off" aria-invalid={!!err.reason}
+                            onChange={(e) => editDeduction(i, { reason: e.target.value })}
+                            onBlur={() => editDeduction(i, { reason: line.reason.trim() }, true)}
+                            placeholder="e.g. Broken window, final Meralco bill"
+                            className={`mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500 text-slate-800 normal-case font-normal ${err.reason ? 'border-rose-400' : 'border-slate-200'}`} />
+                        </label>
+                        <label className="col-span-8 sm:col-span-5 text-[10px] font-bold text-slate-400 uppercase">Amount (₱)
+                          <input type="number" inputMode="decimal" min="0.01" max="1000000" step="0.01" value={line.amount} aria-invalid={!!err.amount}
+                            onKeyDown={blockNonNumericKeys}
+                            onChange={(e) => editDeduction(i, { amount: e.target.value })}
+                            onBlur={() => editDeduction(i, {}, true)}
+                            placeholder="0.00"
+                            className={`mt-1 w-full px-3 py-2 text-sm border rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800 ${err.amount ? 'border-rose-400' : 'border-slate-200'}`} />
+                        </label>
+                        <div className="col-span-4 sm:col-span-7 flex items-end justify-end">
+                          <button type="button" onClick={() => removeDeduction(i)} className="cursor-pointer border-0 bg-transparent p-1 text-xs font-bold text-rose-600 hover:underline">Remove</button>
+                        </div>
+                        {(err.category || err.reason || err.amount) && (
+                          <p role="alert" className="col-span-12 m-0 text-xs font-semibold text-rose-600">{err.category || err.reason || err.amount}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <button type="button" onClick={addDeduction} disabled={deductionLines.length >= MAX_DEDUCTION_LINES}
+                    className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40">
+                    + Add deduction
+                  </button>
                 </div>
 
-                {/* Section 2: Unpaid Utility Bills Settlement */}
+                {/* Section 2: Inspection notes */}
                 <div className="space-y-2 border-t border-slate-100 pt-3">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    2. Unpaid Utility Bills Settlement
-                  </label>
-                  <div>
-                    <label htmlFor="tenant-utility_deduction" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Unpaid Electricity & Water Balance (₱)</label>
-                    <input
-                      type="number"
-                      {...tenantForms.fieldA11y('utility_deduction')}
-                      inputMode="decimal"
-                      min="0"
-                      max={MAX_AMOUNT}
-                      step="0.01"
-                      value={utilityDeduction}
-                      onKeyDown={blockNonNumericKeys}
-                      onChange={(e) => { setUtilityDeduction(e.target.value); tenantForms.clearError('utility_deduction'); }}
-                      onBlur={() => blurTenantField('utility_deduction')}
-                      className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-800${invalidCls(tenantForms.errors.utility_deduction)}`}
-                      placeholder="0.00"
-                    />
-                    <FieldError id="tenant-utility_deduction" error={tenantForms.errors.utility_deduction} />
-                  </div>
+                  <label htmlFor="tenant-damage_notes" className="block text-xs font-bold text-slate-700 uppercase tracking-wide">2. Inspection notes (optional)</label>
+                  <input
+                    type="text"
+                    {...tenantForms.fieldA11y('damage_notes')}
+                    autoComplete="off"
+                    value={damageNotes}
+                    maxLength={LIMITS.reason}
+                    onChange={(e) => { setDamageNotes(e.target.value); tenantForms.clearError('damage_notes'); }}
+                    onBlur={() => { const v = damageNotes.trim(); setDamageNotes(v); tenantForms.validateField('damage_notes', { ...tenantValues, damage_notes: v }); }}
+                    className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-slate-800${invalidCls(tenantForms.errors.damage_notes)}`}
+                    placeholder="e.g., Keys returned, unit cleaned"
+                  />
+                  <FieldError id="tenant-damage_notes" error={tenantForms.errors.damage_notes} />
                 </div>
 
-                {/* Section 3: Security Deposit Calculations */}
+                {/* Section 3: Security deposit calculation */}
                 <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-4 space-y-2 border-t border-slate-100 pt-3">
                   <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wide m-0">
                     3. Security Deposit Settlement Calculation
@@ -1216,22 +1250,25 @@ const AdminTenants = () => {
                   <div className="space-y-1.5 text-xs text-slate-600 pt-1">
                     <div className="flex justify-between">
                       <span>Initial Security Deposit:</span>
-                      <span className="font-semibold text-slate-800">₱{(parseFloat(String(clearanceTarget.rent || '4000').replace(/[^0-9.]/g, '')) || 4000).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      <span className="font-semibold text-slate-800">₱{clearanceDeposit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
-                    <div className="flex justify-between text-rose-600">
-                      <span>Less: Room Damages:</span>
-                      <span className="font-semibold">-₱{money(damageDeduction).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between text-rose-600">
-                      <span>Less: Unpaid Utilities:</span>
-                      <span className="font-semibold">-₱{money(utilityDeduction).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    {deductionLines.filter((l) => money(l.amount) > 0).map((l) => (
+                      <div key={l.key} className="flex justify-between text-rose-600">
+                        <span>Less: {deductionLabel(l.category)}{l.reason.trim() ? ` – ${l.reason.trim()}` : ''}</span>
+                        <span className="font-semibold">-₱{money(l.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-semibold text-rose-700">
+                      <span>Total deductions:</span>
+                      <span>-₱{deductionTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="border-t border-indigo-200 pt-2 flex justify-between font-bold text-sm text-indigo-950">
-                      <span>Net Refundable Security Deposit:</span>
-                      <span className="text-emerald-600 font-black">
-                        ₱{Math.max(0, (parseFloat(String(clearanceTarget.rent || '4000').replace(/[^0-9.]/g, '')) || 4000) - money(damageDeduction) - money(utilityDeduction)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      <span>{deductionTotal > clearanceDeposit ? 'Balance still due from the tenant:' : 'Deposit left after deductions:'}</span>
+                      <span className={deductionTotal > clearanceDeposit ? 'text-rose-600 font-black' : 'text-emerald-600 font-black'}>
+                        ₱{Math.abs(clearanceDeposit - deductionTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                     </div>
+                    <p className="m-0 text-[11px] text-slate-500">Open invoices are also counted against the deposit when the clearance is saved.</p>
                   </div>
                 </div>
               </div>

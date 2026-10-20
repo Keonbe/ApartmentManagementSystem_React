@@ -50,6 +50,7 @@ function tenant_billing_accounts($conn) {
                     'amount' => (float)($r['deposit_amount'] ?? $r['move_in_deposit'] ?? 0),
                     'deductions' => (float)$r['damage_deduction'] + (float)$r['utility_deduction'],
                     'contract_id' => $r['contract_id'],
+                    'app_id' => (int)$r['app_id'],
                     'move_in_invoice' => $r['move_in_invoice'],
                     'move_in_status' => $r['move_in_status'],
                 ],
@@ -57,6 +58,14 @@ function tenant_billing_accounts($conn) {
             ];
         }
     }
+
+    // Itemized move-out deductions (deposit_deductions), one query for every account.
+    $items = deposit_deductions_for($conn, array_map(fn($a) => $a['deposit']['app_id'], $accounts));
+    foreach ($accounts as &$acct) {
+        $acct['deposit']['items'] = $items[$acct['deposit']['app_id']] ?? [];
+        unset($acct['deposit']['app_id']);
+    }
+    unset($acct);
 
     $credits = $conn->query("SELECT user_id, status, COUNT(*) AS months, COALESCE(SUM(amount), 0) AS amount
             FROM advance_credits WHERE status IN ('reserved', 'available', 'refund-due') GROUP BY user_id, status");

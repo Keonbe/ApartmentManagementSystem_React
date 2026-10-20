@@ -36,7 +36,7 @@ try {
 
     // Admin history tabs: three queries for all rooms, grouped by room, instead
     // of three queries per room (audit L7). Each keeps its original ordering.
-    $maintByRoom = $occByRoom = $leaseByRoom = [];
+    $maintByRoom = $occByRoom = $leaseByRoom = $extByContract = $deductionsByApp = [];
     if ($is_admin) {
         $res = $conn->query("
             SELECT m.room_name, m.issue_category as issue, m.status, m.estimated_cost as cost, DATE(m.created_at) as date
@@ -48,19 +48,25 @@ try {
         }
 
         $res = $conn->query("
-            SELECT ra.room_name, ra.first_name, ra.last_name, ra.status, ra.monthly_rent, ra.archive_reason,
-                   lc.lease_start, lc.lease_end
+            SELECT ra.id AS application_id, ra.room_name, ra.first_name, ra.last_name, ra.status, ra.monthly_rent, ra.archive_reason,
+                   lc.id AS contract_id, lc.status AS contract_status, lc.lease_start, lc.lease_end,
+                   lc.deposit_amount, lc.deposit_status, lc.damage_deduction, lc.utility_deduction,
+                   lc.refund_date, lc.termination_reason
             FROM rent_applications ra
             LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id
             WHERE ra.status IN ('Approved', 'active', 'pending-move-out', 'moved-out', 'archived')
             ORDER BY ra.created_at ASC
         ");
+        $occAppIds = [];
         while ($row = $res->fetch_assoc()) {
             $occByRoom[$row['room_name']][] = $row;
+            if (in_array($row['status'], ['moved-out', 'archived'], true)) $occAppIds[] = (int)$row['application_id'];
         }
 
+        // Extension events: per room for the "Previous Extensions" list, and
+        // per contract so each Occupancy History stay shows its own.
         $res = $conn->query("
-            SELECT ra.room_name, lr.added_months, lr.previous_lease_end, lr.new_lease_end, lr.created_at
+            SELECT ra.room_name, ra.id AS application_id, lr.contract_id, lr.added_months, lr.previous_lease_end, lr.new_lease_end, lr.created_at
             FROM lease_renewals lr
             JOIN lease_contracts lc ON lc.id = lr.contract_id
             JOIN rent_applications ra ON ra.id = lc.rent_application_id
@@ -68,14 +74,23 @@ try {
         ");
         while ($row = $res->fetch_assoc()) {
             $leaseByRoom[$row['room_name']][] = $row;
+            $extByContract[$row['contract_id']][] = [
+                'date' => $row['created_at'] ? substr($row['created_at'], 0, 10) : null,
+                'addedMonths' => (int)$row['added_months'],
+                'oldEnd' => $row['previous_lease_end'],
+                'newEnd' => $row['new_lease_end'],
+            ];
         }
+
+        // Itemized deposit deductions of every ended stay: one query in total.
+        $deductionsByApp = deposit_deductions_for($conn, $occAppIds);
     }
 
     // Format the response to match frontend expectations
     // The frontend expects: id, type, rent, status, tenant, lastTenant, floor, leaseStart, leaseEnd, maintenanceFlag
     // Read once: extension_month_range() per room used to cost two queries each.
     $rangeSettings = $is_admin ? extension_range_settings($conn) : null;
-    $formattedRooms = array_map(function($room) use ($conn, $is_admin, $maintByRoom, $occByRoom, $leaseByRoom, $rangeSettings) {
+    $formattedRooms = array_map(function($room) use ($conn, $is_admin, $maintByRoom, $occByRoom, $leaseByRoom, $extByContract, $deductionsByApp, $rangeSettings) {
         $roomId = $room['id'];
 
         // Showcase photos are meant for guests browsing Preview.jsx, so they're
@@ -113,18 +128,41 @@ try {
         foreach ($occByRoom[$roomId] ?? [] as $row) {
             $tenantFullName = trim($row['first_name'] . ' ' . $row['last_name']);
             $isCurrent = in_array($row['status'], ['Approved', 'active', 'pending-move-out'], true) && $room['tenant_name'] === $tenantFullName;
+            $ended = in_array($row['status'], ['moved-out', 'archived'], true);
+            $appId = (int)$row['application_id'];
+            $deposit = null;
+            if ($ended && $row['contract_id'] !== null) {
+                $deposit = [
+                    'status' => $row['deposit_status'],
+                    'amount' => round((float)$row['deposit_amount'], 2),
+                    'damage' => round((float)$row['damage_deduction'], 2),
+                    'utility' => round((float)$row['utility_deduction'], 2),
+                    'refundDate' => $row['refund_date'],
+                    'items' => array_map(fn($d) => [
+                        'label' => $d['label'], 'category' => $d['category'], 'reason' => $d['reason'],
+                        'amount' => $d['amount'], 'date' => $d['created_at'] ? substr($d['created_at'], 0, 10) : null,
+                    ], $deductionsByApp[$appId] ?? []),
+                ];
+            }
             $occupancyHistory[] = [
+                'applicationId' => $appId,
+                'contractId' => $row['contract_id'],
+                'contractStatus' => $row['contract_status'],
                 'tenant' => $tenantFullName,
                 'status' => $isCurrent ? 'current' : 'ended',
                 'leaseStart' => $row['lease_start'],
                 'leaseEnd' => $row['lease_end'],
                 'rent' => (float) $row['monthly_rent'],
-                'moveOutReason' => $row['archive_reason'] ?: null
+                'moveOutReason' => $row['archive_reason'] ?: null,
+                'terminationReason' => $row['termination_reason'] ?: null,
+                'extensions' => $row['contract_id'] !== null ? ($extByContract[$row['contract_id']] ?? []) : [],
+                'deposit' => $deposit,
             ];
         }
 
         // Rent-extension events recorded for this unit's applications,
-        // backing the "Lease History" tab and the "Previous Extensions" list.
+        // backing the "Previous Extensions" list on the Extend Rent form (each
+        // Occupancy History stay carries its own copy in `extensions`).
         $leaseHistory = [];
         foreach ($leaseByRoom[$roomId] ?? [] as $row) {
             $leaseHistory[] = [

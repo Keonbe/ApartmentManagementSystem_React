@@ -13,6 +13,8 @@ const DEFAULTS = {
   paymentWindowDays: 3,            // days a tenant has to pay before an unpaid checkout/move-in invoice lapses
   overdueThresholdDays: 15,        // days before eviction flag
   reservationHoldDays: 7,          // days a unit reservation holds a room
+  moveOutMinNoticeDays: 15,        // a tenant's move-out date must be at least this many days away
+  moveOutMaxNoticeDays: 30,        // ...and at most this many
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
     'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
@@ -77,6 +79,8 @@ export const getSystemSettings = async () => {
         paymentWindowDays: parseInt(dbSettings.payment_window_days || DEFAULTS.paymentWindowDays),
         overdueThresholdDays: parseInt(dbSettings.overdue_threshold_days || DEFAULTS.overdueThresholdDays),
         reservationHoldDays: parseInt(dbSettings.reservation_hold_days || DEFAULTS.reservationHoldDays),
+        moveOutMinNoticeDays: parseInt(dbSettings.move_out_min_notice_days || DEFAULTS.moveOutMinNoticeDays),
+        moveOutMaxNoticeDays: parseInt(dbSettings.move_out_max_notice_days || DEFAULTS.moveOutMaxNoticeDays),
         maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || DEFAULTS.maintenanceMonthlyBudget),
         tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || DEFAULTS.tenantResponsibilityClause,
         paymentMode: (dbSettings.payment_mode === 'sandbox' || dbSettings.payment_mode === 'manual') ? dbSettings.payment_mode : DEFAULTS.paymentMode,
@@ -145,6 +149,8 @@ export const saveSystemSettings = async (settings) => {
       payment_window_days: settings.paymentWindowDays,
       overdue_threshold_days: settings.overdueThresholdDays,
       reservation_hold_days: settings.reservationHoldDays,
+      move_out_min_notice_days: String(settings.moveOutMinNoticeDays ?? DEFAULTS.moveOutMinNoticeDays),
+      move_out_max_notice_days: String(settings.moveOutMaxNoticeDays ?? DEFAULTS.moveOutMaxNoticeDays),
       maintenance_monthly_budget: settings.maintenanceMonthlyBudget,
       tenant_responsibility_clause: settings.tenantResponsibilityClause,
       payment_mode: settings.paymentMode === 'sandbox' ? 'sandbox' : 'manual',

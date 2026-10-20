@@ -510,7 +510,7 @@ flowchart LR
 | **M1-07** | Sec | Cross-tenant room read | Tenant A's token | `GET my_room.php?userId=<B>` | Returns **A's** room — the override is ignored for non-admins | Compare `data.room_name` to A's |
 | **M1-08** | Happy | Admin may preview another tenant's room | Admin token | `GET my_room.php?userId=6` | Returns Ben's room | `data.room_name` = `D` |
 | **M1-09** | Negative | Duplicate application while one is open | Maria (id 2), already `Approved` | Submit a second application | Refused — *"already have an active or pending lease application"* | `SELECT COUNT(*) FROM rent_applications WHERE user_id=2;` unchanged |
-| **M1-10** | Boundary | Move-out notice shorter than 15 days | Active tenant | `record_move_out.php` with a date 5 days out | Refused — *"at least 15 days"* | Status unchanged |
+| **M1-10** | Boundary | Move-out notice shorter than the minimum (default 15 days, Settings → Rental) | Active tenant | `record_move_out.php` with a date 5 days out | Refused — *"at least N days"* (N = `move_out_min_notice_days`) | Status unchanged |
 | **M1-11** | Boundary | Move-out notice longer than 30 days | Active tenant | Date 45 days out | Refused — *"cannot exceed 30 days"* | Status unchanged |
 | **M1-12** | Negative | Duplicate pending occupancy request | One `Pending` occupancy notification exists | Submit another | Refused — one pending request at a time | `SELECT COUNT(*) FROM notifications WHERE type='occupancy_update_request' AND status='Pending';` = 1 |
 | **M1-13** | Happy | Archive → restore round trip | Carlo (app id 9, `Approved`) | Archive, then restore | Application returns to `Approved` (not hardcoded `active`); room re-occupied | Compare full row before/after |
@@ -522,9 +522,8 @@ The seed data cannot be approved (§1.5), so create one. Room `J` is free:
 
 ```sql
 INSERT INTO rent_applications
-  (user_id, first_name, last_name, contact_no, email, gender, occupants, months_of_rent,
-   room_name, monthly_rent, valid_id_front_path, valid_id_back_path, nbi_clearance_path,
-   status, terms_agreed_at)
+  (user_id, first_name, last_name, contact_no, email, gender, previous_address, occupants,
+   months_of_rent, room_name, monthly_rent, status, terms_agreed_at)
 VALUES
   (8, 'Gloria', 'Tan', '+639171234567', 'gloria.tan@gmail.com', 'Female', 'Brgy. Biga, Silang, Cavite', 1,
    6, 'J', 4000, 'Pending Review', NOW());
@@ -658,8 +657,9 @@ flowchart LR
 5. **Admin — maintain the unit** · `/admin-units` detail modal → `update_room.php` for condition, furnishing, inspection date and the maintenance flag.
 6. **Review history** · `get_rooms.php` returns three real arrays per unit:
    - `maintenanceHistory` — joined directly on `maintenance_requests.room_name`, snapshotted at ticket creation.
-   - `occupancyHistory` — every tenant who has occupied the unit, from `rent_applications`.
-   - `leaseHistory` — extension events, from `lease_renewals`.
+   - `occupancyHistory` — every tenant who has occupied the unit, from `rent_applications`. Each stay also carries `applicationId`, `contractId`, `contractStatus`, `terminationReason`, its own `extensions: [{date, addedMonths, oldEnd, newEnd}]` and, once moved out or archived, `deposit: {status, amount, damage, utility, refundDate, items: [{label, category, reason, amount, date}]}` (itemized `deposit_deductions`, one bulk query for all stays). The Units modal shows all of it in the **Occupancy History** tab; the old *Rent History* tab was merged into it (2026-10-19).
+   - `leaseHistory` — extension events, from `lease_renewals`; still sent for the *Previous Extensions* list on the Extend Rent form.
+   - All of these are admin only; guests and tenants get the browse fields alone.
 7. **Vacate** · Completing a move-out ([§4](#4-module-1--tenant-management) step 12) sets `status='vacant'`, records `last_tenant` and stamps `last_inspection_date`.
 
 ### 5.4 Test Conditions
@@ -674,7 +674,7 @@ flowchart LR
 | **M2-06** | Sec | Manual assignment without attestation | Vacant unit + a user id | `update_room.php` with `status='occupied'`, `user_id`, **no** `identity_verified` | Refused — *"identity verification must be confirmed first"* | No synthetic `rent_applications` row |
 | **M2-07** | Happy | Manual assignment with attestation | Same, `identity_verified:true` | — | `{"success":true}` | Synthetic application `Approved` with `terms_agreed_at` set |
 | **M2-08** | Happy | Maintenance attributed to its own unit | — | Submit a ticket as a tenant, then `GET get_rooms.php` | Ticket appears under **that unit only** | Compare `maintenanceHistory` across every room |
-| **M2-09** | Happy | Occupancy & lease history populated | Rosa (room C) has a renewal | `GET get_rooms.php` | Room C has non-empty `occupancyHistory` **and** `leaseHistory` | Inspect the arrays |
+| **M2-09** | Happy | Occupancy & lease history populated | Rosa (room C) has a renewal | `GET get_rooms.php` | Room C has non-empty `occupancyHistory` **and** `leaseHistory`; Rosa's stay has the renewal in `extensions`. A moved-out stay (room K, application 10 / LC-0009) has `deposit.items` with its deduction lines. A tenant or guest token gets none of these fields | Inspect the arrays. Verified live 2026-10-19 |
 | **M2-10** | Boundary | Expired hold released on browse | Room I held by an **`Active`** reservation — confirm first (see below) | Back-date `hold_expires_at`, call `get_rooms.php` | Reservation flips `Active` → `Expired` | `SELECT status FROM unit_reservations WHERE room_name='I';` |
 | **M2-11** | Negative | Unknown unit | Admin token | `update_room.php {"id":"ZZZ","room_condition":"Good"}` | `404 "Room not found."` | — |
 | **M2-12** | Sec | Bare `occupied` refused | Vacant room | `update_room.php {"id":"I","status":"occupied"}` (no `user_id`) | `422` *"Choose the tenant to assign…"* | Room unchanged — verified live 2026-09-30 |
@@ -1431,6 +1431,7 @@ Completing or cancelling a booking also marks its admin intake notification `Res
 | Outstanding arrears | `SUM(total_amount)` of invoices in `BILLING_OPEN_STATUSES` with `due_date < CURDATE()`. **A snapshot as of today, not bound to the selected period** |
 | Collection efficiency | Gross ÷ (gross + arrears) |
 | Utility recovery ratio | Paid water + electricity ÷ invoiced water + electricity, over non-cancelled invoices created in the period |
+| Deposits applied / deducted | `depositsApplied` = `SUM(deposit_amount)` of contracts with `deposit_status LIKE 'Applied%'` whose `refund_date` falls in the period. `depositDeductions {total, byCategory[{category, label, amount}]}` = itemized `deposit_deductions` lines recorded (`created_at`) in the period. Both are shown under the income statement next to deposits received and are **not revenue** (2026-10-19) |
 | Dashboard collection rate | Paid ÷ all non-cancelled invoices created this calendar month |
 
 ### 9.2 API Diagrams
@@ -1769,8 +1770,8 @@ After restoring, `SELECT COUNT(*) FROM utility_readings;` should be back to the 
 |---|---|---|---|---|---|
 | `get_activity_logs.php` | GET | `require_admin` | `category` (a key below, or `all`), `performer` = `all` / `admin` / `tenant` / `system`, `search`, `from`, `to` (`YYYY-MM-DD`), `page`, `limit` (≤ 100), `export=1` (up to 5,000 rows, logged) | `logs[]` (`id`, `category`, `categoryLabel`, `action`, `details`, `createdAt`, `performerName`, `performerEmail`, `performerRole`), `total`, `page`, `pages`, `categories`, `categoryCounts` | `401` · `403` · `422` unknown category |
 | `update_system_settings.php` | POST | `require_admin` | `{ key: value, … }` — keys `[A-Za-z0-9_]` | `success`, `changed` (count) | `400` empty · `422` invalid key or out-of-range value (e.g. `min_lease_duration` 1–24). All keys save in one transaction: any refusal leaves every key unchanged |
-| `get_tenants.php` | GET | `require_admin` | — | `data[]` incl. `paymentStatus` (`overdue` / `due` / `current`), `outstandingBalance`, `overdueBalance`, `daysOverdue`, `leaseEnd`, `contractStatus` | `401` · `403` |
-| `get_report_data.php` | GET | `require_admin` | `timeframe`, `month`, `quarter`, `year` | Beyond §9: `tenantList[]` (status `active` / `pending-move-out`), `moveIns`, `moveOuts`, `roomApproved`/`Rejected`/`Pending`, `maintOpenByPriority`, `maintCategoryCounts`, `maintAvgResolutionHours`, `maintenanceBudget`, `vacantRentPotential`, `avgStayDuration` (contracted months) | `401` · `403` |
+| `get_tenants.php` | GET | `require_admin` | — | `data[]` incl. `paymentStatus` (`overdue` / `due` / `current`), `outstandingBalance`, `overdueBalance`, `daysOverdue`, `leaseEnd`, `contractStatus`; for moved-out/archived tenants `depositOutcome {status, amount, damage, utility, refundDate, items[]}` (one bulk `deposit_deductions_for()` call) | `401` · `403` |
+| `get_report_data.php` | GET | `require_admin` | `timeframe`, `month`, `quarter`, `year` | Beyond §9: `tenantList[]` (status `active` / `pending-move-out`), `moveIns`, `moveOuts`, `depositsApplied`, `depositDeductions {total, byCategory[]}`, `roomApproved`/`Rejected`/`Pending`, `maintOpenByPriority`, `maintCategoryCounts`, `maintAvgResolutionHours`, `maintenanceBudget`, `vacantRentPotential`, `avgStayDuration` (contracted months) | `401` · `403` |
 | `dashboard_stats.php` | GET | `require_admin` | — | `activity_logs[]` — the 10 newest entries | `401` · `403` |
 
 **Activity log categories** — `LOG_CATEGORIES` in `backend/config.php`. `normalize_log_category()` maps legacy spellings on write; anything unknown becomes `system`.
@@ -2490,7 +2491,7 @@ Seed fixtures: reservation **1** (Dante, user 9) Assigned slot 1; reservation **
 
 | Endpoint | Method | Auth guard | Key parameters | Success response | Notable failures |
 |---|---|---|---|---|---|
-| `get_contracts.php` | GET | `require_user` | `?userId=` (self, or admin for anyone), `?email=` (admin-only preview), or neither (admin: full list) | `contract`/`contracts[]` including `status`; admin list also carries `overdueInfo` per tenant | `403` a tenant naming another user's id or using `?email=` |
+| `get_contracts.php` | GET | `require_user` | `?userId=` (self, or admin for anyone), `?email=` (admin-only preview), or neither (admin: full list) | `contract`/`contracts[]` including `status`; admin list also carries `overdueInfo` per tenant and `deposit_items[]` (itemized move-out deductions, shown under each Security Deposit Ledger row) | `403` a tenant naming another user's id or using `?email=` |
 | `create_contract.php` | POST | `require_admin` | `rentApplicationId`, `depositAmount` (defaults to monthly rent), `leaseStart`, `leaseEnd` (≤ 24 months) | `success`, `contractId` (created as `draft`) | `422` application not found, not yet approved, or bad/inverted dates · `409` a contract already exists for this application |
 | `update_contract_status.php` | POST | `require_admin` | `contractId`, `action` = `activate` / `flag` / `clear` / `terminate` (+ `reason`) / `edit` (+ `leaseStart`, `leaseEnd`) | `success` | `404` unknown contract · `422` the action isn't valid from the contract's current status (`CONTRACT_TRANSITIONS`), or bad dates · `409` status changed concurrently, or (`terminate`) the tenant already moved out, or (`activate`, payments audit 2026-09-30) the move-in invoice (advance + deposit) is not paid, or the tenant has not moved in yet — confirming the move-in activates the contract from the real start date. `terminate` also records the deposit's disposition (non-refundable): a `Held` deposit becomes *Applied to Bills/Damages* when anything is still open, else *Applied to Rent*; a never-paid one *Not Collected*; `refund_amount` 0, `refund_date` today |
 | `upload_lease_document.php` | POST (multipart or form) | `require_user`, owner or admin | `contractId` or `rentApplicationId`, `docType` (`signedLease`/`notarizedLease`), `action` (`upload`/`remove`); file ≤ 10MB, PDF/JPG/PNG | `success`, `filePath`, `contractId` | `403` not your contract · `409` application not yet approved (no contract to attach to), or a tenant removing a document from a non-`draft` contract · `422` bad/oversized/wrong-type file |
@@ -2644,7 +2645,7 @@ Seed fixtures: **LC-0001** (Maria, app 1, `active`, `lease_end` 2026-11-01). **L
 | **M9-28** | Boundary | Money in flight and not-yet-due bills don't block | Same invoice set `pending-verification`; separately `pending` due tomorrow | Same request | `200` request filed both times | Verified live 2026-10-10 |
 | **M9-29** | Sec | Approval re-checks the dues rule | A filed request; the bill becomes overdue before approval | `process_tenant_request.php {action:'approve'}` | `409` with the overdue message; request stays `Pending`, contract unchanged; the admin card shows `tenant_overdue_total`. After settling: `200`, contract and room `lease_end` +3 months, `lease_renewals` row, `renewal_reminder_sent_at` NULL | Verified live 2026-10-10 |
 | **M9-30** | Negative | Scheduled move-out refuses the request | Tenant `pending-move-out` | `extend_lease.php` | `400` *"A move-out is scheduled on … It must be cancelled by management…"* (approval used to throw "No active rent application") | Verified live 2026-10-10 |
-| **M9-31** | Happy | Expired contract: holdover month billed, admin extend is real | Jose (B), LC-0002 `expired` 2026-10-01, no overdue bills | `admin_extend_rent.php {roomId:'B', addMonths:3, newRent:4200}` | `200`; LC-0002 `active`, `lease_end` 2027-01-01; application rent 4200, room B rent and `lease_end` updated; `lease_renewals` row (rent 4200); **October 2026 invoice at the old ₱4,000, due today + 7, no late fee**; Rent History lists it. With an overdue bill: `409` | Verified live 2026-10-10, restored after |
+| **M9-31** | Happy | Expired contract: holdover month billed, admin extend is real | Jose (B), LC-0002 `expired` 2026-10-01, no overdue bills | `admin_extend_rent.php {roomId:'B', addMonths:3, newRent:4200}` | `200`; LC-0002 `active`, `lease_end` 2027-01-01; application rent 4200, room B rent and `lease_end` updated; `lease_renewals` row (rent 4200); **October 2026 invoice at the old ₱4,000, due today + 7, no late fee**; the stay's Extensions list in Occupancy History shows it (was the Rent History tab, merged 2026-10-19). With an overdue bill: `409` | Verified live 2026-10-10, restored after |
 | **M9-32** | Negative | Room dates can't be edited outside an assignment | Any occupied room | `update_room.php {id:'B', lease_end:'2027-01-01'}` | `422` *"Use Extend Rent to change a tenant's rent end."* | Verified live 2026-10-10 |
 
 **Restore:** see [§19.3](#193-standard-restore) — resets LC-0001…LC-0011 to seed status/eviction flags, application 4 and room D back to Ben's seed occupancy, clears `renewal_reminder_sent_at`, and deletes any `LC-`/`CTR-` test rows. For M9-19…M9-25 also run `DELETE FROM contract_template_versions; DELETE FROM activity_logs WHERE action='Updated Contract Template';` (an empty table means the built-in contract is in force).

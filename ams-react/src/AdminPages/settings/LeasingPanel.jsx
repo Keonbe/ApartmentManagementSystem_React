@@ -46,6 +46,18 @@ export default function LeasingPanel({ settings, updateSetting }) {
             </WithUnit>
           </Field>
 
+          <Field label="Minimum Move-Out Notice" htmlFor="setting-moveOutMinNoticeDays" icon={faCalendarAlt} hint="A tenant's requested move-out date must be at least this many days from today.">
+            <WithUnit suffix="days">
+              <input {...intInput(settings, updateSetting, 'moveOutMinNoticeDays', 1, 60)} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+
+          <Field label="Maximum Move-Out Notice" htmlFor="setting-moveOutMaxNoticeDays" icon={faCalendarAlt} hint="...and no more than this many days from today. Cannot be shorter than the minimum.">
+            <WithUnit suffix="days">
+              <input {...intInput(settings, updateSetting, 'moveOutMaxNoticeDays', settings.moveOutMinNoticeDays || 1, 90)} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+
           <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Main tenant plus household members. Applications and occupant requests above this are refused.">
             <WithUnit suffix="people">
               <input {...intInput(settings, updateSetting, 'maxOccupantsPerUnit', 1, 20)} className={`${INPUT_NUMBER} w-24`} />

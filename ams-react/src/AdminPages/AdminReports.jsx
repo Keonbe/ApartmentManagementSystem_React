@@ -191,6 +191,8 @@ const AdminReports = () => {
             electricCollected: bd.electricCollected || 0,
             parkingCollected: bd.parkingCollected || 0,
             depositCollected: bd.depositCollected || 0,
+            depositsApplied: bd.depositsApplied ?? 0,
+            depositDeductions: bd.depositDeductions ?? { total: 0, byCategory: [] },
             servicesCollected: bd.servicesCollected || 0,
             lateFeesCollected: bd.lateFeesCollected || 0,
             totalCollected,
@@ -1107,6 +1109,27 @@ const AdminReports = () => {
                           <div className="flex justify-between text-xs py-1 text-slate-500">
                             <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-emerald-500 w-3.5" /> Security deposits received (held, not revenue)</span>
                             <span className="font-semibold">{formatCurrency(data.payments.depositCollected)}</span>
+                          </div>
+                        )}
+                        {/* Deposits settled at move-out: also not revenue, they only offset what the tenant owed. */}
+                        {data.payments.depositsApplied > 0 && (
+                          <div className="flex justify-between text-xs py-1 text-slate-500">
+                            <span className="flex items-center gap-2"><FontAwesomeIcon icon={faShieldAlt} className="text-amber-500 w-3.5" /> Security deposits applied at move-out (not revenue)</span>
+                            <span className="font-semibold">{formatCurrency(data.payments.depositsApplied)}</span>
+                          </div>
+                        )}
+                        {data.payments.depositDeductions.total > 0 && (
+                          <div className="text-xs py-1 text-slate-500">
+                            <div className="flex justify-between">
+                              <span className="pl-5">Deducted from deposits</span>
+                              <span className="font-semibold">{formatCurrency(data.payments.depositDeductions.total)}</span>
+                            </div>
+                            {data.payments.depositDeductions.byCategory.map((c) => (
+                              <div key={c.category} className="flex justify-between pl-8 text-[11px] text-slate-400">
+                                <span>{c.label}</span>
+                                <span>{formatCurrency(c.amount)}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>

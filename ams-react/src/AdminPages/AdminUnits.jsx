@@ -5,12 +5,13 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faSearch, faPlus, faTimes, faBuilding, faUser, faClock,
   faCheckCircle, faExclamationTriangle, faEye, faUserPlus,
-  faHistory, faLayerGroup, faSync, faWrench, faFileContract,
+  faHistory, faLayerGroup, faSync, faWrench,
   faInfoCircle, faChevronRight, faImages, faUpload, faTrash, faBoxArchive
 } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
 import { publicAssetUrl } from '../api/fileUrl';
+import DepositOutcome from '../Components/DepositOutcome';
 import { LIMITS, MAX_AMOUNT, addYears, checkAmount, checkDate, checkDateRange, checkIntRange, checkText, localDateString, maxFutureDate } from '../utils/validation';
 
 // admin_extend_rent.php extends by whole months, at most 12 (the server also
@@ -807,7 +808,6 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
     { key: 'gallery', label: 'Gallery', icon: faImages },
     { key: 'occupancy', label: 'Occupancy', icon: faUser },
     { key: 'occupancyHistory', label: 'Occupancy History', icon: faHistory },
-    { key: 'leaseHistory', label: 'Rent History', icon: faFileContract },
     { key: 'maintenance', label: 'Maintenance', icon: faWrench },
   ];
 
@@ -1162,6 +1162,25 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
                             Move-out reason: <strong>{occ.moveOutReason}</strong>
                           </div>
                         )}
+                        {occ.extensions?.length > 0 && (
+                          <div className="mt-2 bg-white rounded-lg px-2.5 py-2 border border-slate-100">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 m-0 mb-1">Extensions</p>
+                            <div className="space-y-1">
+                              {occ.extensions.map((ext, i) => (
+                                <div key={i} className="flex flex-wrap items-center gap-2 text-[10px]">
+                                  <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{ext.oldEnd}</span>
+                                  <FontAwesomeIcon icon={faChevronRight} className="text-slate-400 text-[8px]" />
+                                  <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">{ext.newEnd}</span>
+                                  <span className="text-slate-500">+{ext.addedMonths} month(s)</span>
+                                  {ext.date && <span className="text-slate-400 ml-auto">{ext.date}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {occ.deposit && (
+                          <DepositOutcome deposit={occ.deposit} />
+                        )}
                         {/* Visual duration bar */}
                         <div className="mt-2 w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${occ.status === 'current' ? 'bg-emerald-500' : 'bg-indigo-400'}`} style={{ width: `${Math.min(100, (duration / 12) * 100)}%` }}></div>
@@ -1179,53 +1198,6 @@ const UnitDetailModal = ({ unit, onClose, onAssign, showExtendForm, setShowExten
             </div>
           )}
 
-          {/* Lease History Tab */}
-          {activeTab === 'leaseHistory' && (
-            <div className="space-y-4">
-              <h4 className="text-sm font-bold text-slate-700 m-0 flex items-center gap-2">
-                <FontAwesomeIcon icon={faFileContract} className="text-indigo-500" />
-                Rent Event Log
-              </h4>
-              {unit.leaseHistory && unit.leaseHistory.length > 0 ? (
-                <div className="stagger-children relative pl-6">
-                  <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-indigo-200"></div>
-                  {[...unit.leaseHistory].reverse().map((entry, idx) => (
-                    <div key={idx} className="relative mb-4 last:mb-0">
-                      <div className={`absolute -left-4 top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${
-                        entry.event.includes('Terminated') ? 'bg-red-500' :
-                        entry.event.includes('Extended') ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}></div>
-                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 ml-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-xs font-bold ${
-                            entry.event.includes('Terminated') ? 'text-red-700' :
-                            entry.event.includes('Extended') ? 'text-amber-700' : 'text-emerald-700'
-                          }`}>{entry.event}</span>
-                          <span className="text-[10px] text-slate-400 font-semibold">{entry.date}</span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 m-0">{entry.detail}</p>
-                        {entry.oldEnd && entry.newEnd && (
-                          <div className="flex items-center gap-2 mt-1.5 text-[10px]">
-                            <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{entry.oldEnd}</span>
-                            <FontAwesomeIcon icon={faChevronRight} className="text-slate-400 text-[8px]" />
-                            <span className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono">{entry.newEnd}</span>
-                            {entry.oldRent !== entry.newRent && entry.oldRent && entry.newRent && (
-                              <span className="ml-2 text-slate-400">Rent: {formatCurrency(entry.oldRent)} → {formatCurrency(entry.newRent)}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <FontAwesomeIcon icon={faFileContract} className="text-slate-300 text-3xl mb-3 block mx-auto" />
-                  <p className="text-sm text-slate-400 m-0">No rent history recorded for this unit.</p>
-                </div>
-              )}
-            </div>
-          )}
 
           {activeTab === 'history' && (
             <div className="space-y-3">

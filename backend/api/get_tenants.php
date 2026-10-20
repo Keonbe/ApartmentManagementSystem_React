@@ -32,7 +32,28 @@ $result = $conn->query("
 ");
 
 $tenants = [];
-while ($row = $result->fetch_assoc()) {
+$requirements = application_requirements_list($conn);
+$documents_by_app = application_documents_by_app($conn);
+$rows = $result->fetch_all(MYSQLI_ASSOC);
+// Itemized deposit deductions of moved-out/archived tenants: one query in total.
+$ended_statuses = ['moved-out', 'archived'];
+$deductions_by_app = deposit_deductions_for($conn, array_map(
+    fn($r) => (int)$r['id'],
+    array_filter($rows, fn($r) => in_array($r['status'], $ended_statuses, true))
+));
+foreach ($rows as $row) {
+    $documents = $documents_by_app[(int)$row['id']] ?? [];
+    $deposit_outcome = null;
+    if (in_array($row['status'], $ended_statuses, true) && $row['contract_id'] !== null) {
+        $deposit_outcome = [
+            'status' => $row['deposit_status'],
+            'amount' => round((float)$row['deposit_amount'], 2),
+            'damage' => round((float)$row['damage_deduction'], 2),
+            'utility' => round((float)$row['utility_deduction'], 2),
+            'refundDate' => $row['refund_date'],
+            'items' => $deductions_by_app[(int)$row['id']] ?? [],
+        ];
+    }
     $outstanding = (float)$row['outstanding'];
     $overdue = (float)$row['overdue_amount'];
 
@@ -59,14 +80,15 @@ while ($row = $result->fetch_assoc()) {
         'outstandingBalance' => round($outstanding, 2),
         'overdueBalance' => round($overdue, 2),
         'daysOverdue' => $row['oldest_overdue_due'] ? (int)((strtotime(date('Y-m-d')) - strtotime($row['oldest_overdue_due'])) / 86400) : 0,
-        'documents' => [],
-        'valid_id_front_path' => $row['valid_id_front_path'] ?? null,
-        'valid_id_back_path' => $row['valid_id_back_path'] ?? null,
-        'nbi_clearance_path' => $row['nbi_clearance_path'] ?? null,
+        'documents' => $documents,
+        'missingDocuments' => application_missing_document_labels($requirements, $documents),
+        'documentsVerifiedAt' => $row['documents_verified_at'] ?? null,
+        'previousAddress' => $row['previous_address'] ?? null,
         'archiveDate' => $row['archive_date'] ?? null,
         'archiveReason' => $row['archive_reason'] ?? null,
         'archiveNotes' => $row['archive_notes'] ?? null,
         'requestedMoveOutDate' => $row['requested_move_out_date'] ?? null,
+        'depositOutcome' => $deposit_outcome,
         'user_id' => $row['user_id'] ?? null,
     ];
 }

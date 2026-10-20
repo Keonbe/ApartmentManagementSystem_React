@@ -3510,6 +3510,19 @@ function get_setting($conn, $key, $default = null) {
     return $row ? $row['setting_value'] : $default;
 }
 
+// How far ahead a tenant must give a move-out notice (Settings → Rental). The
+// date has to fall between 'min' and 'max' days from today. Garbled stored
+// values fall back to the shipped 15 / 30, and max is never below min.
+const MOVE_OUT_NOTICE_DEFAULT_MIN = 15;
+const MOVE_OUT_NOTICE_DEFAULT_MAX = 30;
+function move_out_notice_days($conn) {
+    $min = get_setting($conn, 'move_out_min_notice_days', null);
+    $max = get_setting($conn, 'move_out_max_notice_days', null);
+    $min = ($min !== null && ctype_digit((string)$min)) ? (int)$min : MOVE_OUT_NOTICE_DEFAULT_MIN;
+    $max = ($max !== null && ctype_digit((string)$max)) ? (int)$max : MOVE_OUT_NOTICE_DEFAULT_MAX;
+    return ['min' => $min, 'max' => max($min, $max)];
+}
+
 // Sends the response now and lets the script keep running, so work that follows
 // (the poll sweep) does not hold up the page. Call after the final echo.
 function finish_response_early() {

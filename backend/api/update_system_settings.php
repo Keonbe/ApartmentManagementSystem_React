@@ -168,6 +168,26 @@ foreach ($input as $key => $value) {
         $refuse("Rent-end reminder days must be a whole number between 0 and 180.");
     }
 
+    // Move-out notice window: min 1-60 days, max up to 90 and never below min.
+    // The other bound is read from this same request when it is being saved too.
+    if ($key === 'move_out_min_notice_days' || $key === 'move_out_max_notice_days') {
+        if (!is_string($value) || !ctype_digit($value)) {
+            $refuse("Move-out notice days must be whole numbers.");
+        }
+        $n = (int)$value;
+        if ($key === 'move_out_min_notice_days' && ($n < 1 || $n > 60)) {
+            $refuse("Minimum move-out notice must be between 1 and 60 days.", ["moveOutMinNoticeDays" => "Enter 1 to 60 days."]);
+        }
+        if ($key === 'move_out_max_notice_days' && ($n < 1 || $n > 90)) {
+            $refuse("Maximum move-out notice must be between 1 and 90 days.", ["moveOutMaxNoticeDays" => "Enter 1 to 90 days."]);
+        }
+        $pair_min = $key === 'move_out_min_notice_days' ? $n : (int)($input['move_out_min_notice_days'] ?? $existing['move_out_min_notice_days'] ?? MOVE_OUT_NOTICE_DEFAULT_MIN);
+        $pair_max = $key === 'move_out_max_notice_days' ? $n : (int)($input['move_out_max_notice_days'] ?? $existing['move_out_max_notice_days'] ?? MOVE_OUT_NOTICE_DEFAULT_MAX);
+        if ($pair_max < $pair_min) {
+            $refuse("The maximum move-out notice ($pair_max days) cannot be shorter than the minimum ($pair_min days).", ["moveOutMaxNoticeDays" => "Must be at least the minimum."]);
+        }
+    }
+
     if ($key === 'room_preview_mode' && !in_array($value, ['images', 'floor_plan'], true)) {
         $refuse("Room preview mode must be images or floor_plan.");
     }

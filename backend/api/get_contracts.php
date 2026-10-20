@@ -126,8 +126,13 @@ if (!empty($user_id)) {
         }
     }
 
+    // Itemized deposit deductions for the Security Deposit Ledger: one query
+    // for every contract, keyed by rent application.
+    $deductions_by_app = deposit_deductions_for($conn, array_column($contracts, 'rent_application_id'));
+
     $today = new DateTime(date('Y-m-d'));
     foreach ($contracts as &$c) {
+        $c['deposit_items'] = $deductions_by_app[(int)($c['rent_application_id'] ?? 0)] ?? [];
         $uid = isset($c['user_id']) ? (int)$c['user_id'] : null;
         if ($uid !== null && isset($overdue_by_user[$uid])) {
             $info = $overdue_by_user[$uid];
