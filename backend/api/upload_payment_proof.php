@@ -39,6 +39,14 @@ if (empty($invoice_id)) {
     exit;
 }
 
+// The column holds 100 characters; longer would fail the write after the
+// proof file is saved.
+if (mb_strlen((string)$payment_reference, 'UTF-8') > 100) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "The reference number is too long (100 characters at most)."]);
+    exit;
+}
+
 // Optional `amount`: the part of the bill this proof pays (installments).
 // Absent or empty = the whole remaining balance, as before. Checked against the
 // caller's own open invoice before any file is saved.
@@ -131,91 +139,155 @@ if ($proof_file) {
     }
 }
 
-// A fresh proof replaces any earlier rejection, so the tenant's bill page
-// stops showing the old rejection reason.
-$query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, bank_name = ?, status = 'pending-verification', proof_rejection_reason = NULL, proof_amount = ?";
-$params = [$payment_method, $payment_reference, $sender_name, $bank_name ?: null, $proof_amount];
-$types = "ssssd";
+$discard_proof = function () use ($proof_path) {
+    if ($proof_path) @unlink(__DIR__ . '/../' . $proof_path);
+};
+$refuse = function ($code, $message) use ($conn, $discard_proof) {
+    $conn->rollback();
+    payment_reference_unlock($conn);
+    $discard_proof();
+    http_response_code($code);
+    echo json_encode(["success" => false, "message" => $message]);
+    $conn->close();
+    exit;
+};
 
-if ($proof_path) {
-    $query .= ", proof_of_payment_path = ?";
-    $params[] = $proof_path;
-    $types .= "s";
+// Reused reference (Settings -> Payments) and double submit: checked under
+// the reference lock and the bill's row lock, in the same transaction as the
+// write, so two submissions of one reference cannot both pass.
+$ref_channel = payment_reference_channel($payment_method, $bank_name);
+$checks_reference = normalize_payment_reference($payment_reference) !== '' && $ref_channel !== null && $ref_channel !== 'CASH';
+if ($checks_reference && !payment_reference_lock($conn)) {
+    $discard_proof();
+    http_response_code(409);
+    echo json_encode(["success" => false, "message" => "Another payment is being submitted. Please try again in a moment."]);
+    exit;
 }
+$conn->begin_transaction();
+$reuse = null;
+try {
+    if ($checks_reference) {
+        $lock_sql = "SELECT id, status, total_amount, amount_paid, proof_amount, payment_reference, payment_group FROM invoices WHERE ? IN (id, payment_group)"
+            . ($is_admin ? "" : " AND user_id = ?") . " FOR UPDATE";
+        $lock = $conn->prepare($lock_sql);
+        if ($is_admin) $lock->bind_param("s", $invoice_id);
+        else $lock->bind_param("si", $invoice_id, $user_id);
+        $lock->execute();
+        $locked = $lock->get_result()->fetch_all(MYSQLI_ASSOC);
+        $lock->close();
+        $open = array_values(array_filter($locked, fn($r) => in_array($r['status'], BILLING_OPEN_STATUSES, true)));
+        if ($open) {
+            $norm_ref = normalize_payment_reference($payment_reference);
+            $ids = array_column($open, 'id');
+            // The same proof again (double click, or resent while it is still
+            // under review), or a part with this reference and amount just recorded.
+            $proof_cents = $proof_amount !== null ? (int)round($proof_amount * 100) : null;
+            foreach ($open as $r) {
+                $pending_cents = $r['proof_amount'] !== null ? (int)round((float)$r['proof_amount'] * 100) : null;
+                if ($r['status'] === 'pending-verification' && normalize_payment_reference($r['payment_reference']) === $norm_ref && $pending_cents === $proof_cents) {
+                    $refuse(409, "This payment was already submitted and is awaiting verification.");
+                }
+            }
+            $effective_cents = $proof_cents ?? array_sum(array_map('invoice_balance_cents', $open));
+            if (count($open) === 1 && payment_double_submitted($conn, $ids, $invoice_id, $payment_reference, $effective_cents)) {
+                $refuse(409, "This payment was already submitted.");
+            }
+            // A part already recorded on this bill with this reference (another
+            // installment) is a reuse; this bill's own pending proof is not.
+            $reuse = find_reference_reuse($conn, $payment_method, $bank_name, $payment_reference, $invoice_id, $ids);
+            if ($reuse && reference_reuse_blocks($conn)) {
+                // The tenant is told neither whose payment it was nor which invoice.
+                $refuse(409, "This reference number was already used on another payment. Check the number or contact management.");
+            }
+        }
+    }
 
-if ($is_admin) {
-    $query .= " WHERE ? IN (id, payment_group)";
-    $params[] = $invoice_id;
-    $types .= "s";
-} else {
-    $query .= " WHERE ? IN (id, payment_group) AND user_id = ?";
-    $params[] = $invoice_id;
-    $params[] = $user_id;
-    $types .= "si";
-}
+    // A fresh proof replaces any earlier rejection, so the tenant's bill page
+    // stops showing the old rejection reason.
+    $query = "UPDATE invoices SET payment_method = ?, payment_reference = ?, sender_name = ?, bank_name = ?, status = 'pending-verification', proof_rejection_reason = NULL, proof_amount = ?";
+    $params = [$payment_method, $payment_reference, $sender_name, $bank_name ?: null, $proof_amount];
+    $types = "ssssd";
 
-// Never let a settled or cancelled invoice be reopened by attaching a proof.
-$query .= " AND status IN " . billing_open_status_sql();
+    if ($proof_path) {
+        $query .= ", proof_of_payment_path = ?";
+        $params[] = $proof_path;
+        $types .= "s";
+    }
 
-$stmt = $conn->prepare($query);
-$stmt->bind_param($types, ...$params);
+    if ($is_admin) {
+        $query .= " WHERE ? IN (id, payment_group)";
+        $params[] = $invoice_id;
+        $types .= "s";
+    } else {
+        $query .= " WHERE ? IN (id, payment_group) AND user_id = ?";
+        $params[] = $invoice_id;
+        $params[] = $user_id;
+        $types .= "si";
+    }
 
-if ($stmt->execute()) {
-    if ($stmt->affected_rows === 0) {
-        http_response_code(409);
-        echo json_encode(["success" => false, "message" => "This invoice is not open for payment — it may already be settled or cancelled."]);
-        $stmt->close();
-        $conn->close();
-        exit;
+    // Never let a settled or cancelled invoice be reopened by attaching a proof.
+    $query .= " AND status IN " . billing_open_status_sql();
+
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $updated = $stmt->affected_rows;
+    $stmt->close();
+    if ($updated === 0) {
+        $refuse(409, "This invoice is not open for payment — it may already be settled or cancelled.");
     }
 
     // A single-method proof replaces an earlier split submission.
     clear_payment_proof_parts($conn, $invoice_id);
+    $conn->commit();
+} catch (Throwable $e) {
+    // Rolled back, the saved proof file removed and the lock released.
+    error_log('[AMS] upload_payment_proof: ' . $e->getMessage());
+    $refuse(500, "Failed to update invoice payment details");
+}
+payment_reference_unlock($conn);
 
-    log_activity($conn, $user_id, 'billing', "Submitted Payment Proof", "Invoice ID: $invoice_id, Method: $payment_method, Ref: $payment_reference");
+// 'warn': accepted; the admin sees the flag on the payment (get_invoices.php).
+log_activity($conn, $user_id, 'billing', "Submitted Payment Proof", "Invoice ID: $invoice_id, Method: $payment_method, Ref: $payment_reference"
+    . ($reuse ? " (reference also used on invoice {$reuse['invoice_id']})" : ""));
 
-    // The admin used to learn about a waiting proof only by opening Payments.
-    // One queue row per invoice: a re-upload does not add a second one.
-    $queued = $conn->prepare("SELECT 1 FROM notifications WHERE type = 'payment_verification' AND metadata_value = ? AND status = 'Pending'");
-    $queue_key = "payment_verification:$invoice_id";
-    $queued->bind_param("s", $queue_key);
-    $queued->execute();
-    $already_queued = (bool)$queued->get_result()->fetch_assoc();
-    $queued->close();
-    if (!$already_queued) {
-        notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Payment Proof Submitted',
-            "A $payment_method payment proof was submitted for " . payment_key_label($invoice_id) . " and is waiting for verification.");
-    }
-
-    // The tenant's own receipt of the submission; the admin's decision
-    // follows as "Payment Received" (settle_invoice) or "Payment Proof Rejected".
-    if (!$is_admin) {
-        create_notification($conn, $user_id, 'payment', 'Payment Submitted',
-            "Your $payment_method payment for " . payment_key_label($invoice_id) . " was submitted and is awaiting verification by management. You will be notified once it is confirmed.",
-            'Resolved', "invoice:$invoice_id");
-        try {
-            require_once __DIR__ . '/services/send_notification.php';
-            $breakdown_q = $conn->prepare("SELECT id, billing_period, total_amount FROM invoices WHERE ? IN (id, payment_group) ORDER BY due_date");
-            $breakdown_q->bind_param('s', $invoice_id);
-            $breakdown_q->execute();
-            $invoice_rows = $breakdown_q->get_result()->fetch_all(MYSQLI_ASSOC);
-            $breakdown_q->close();
-            $proof_mail = email_payment_proof_template(notify_recipient_name($conn, $user_id), $invoice_id, 'Received', '', $invoice_rows);
-            dispatch_admin_action_notification($conn, $user_id, 'payment', 'Payment Proof Received', null, $proof_mail);
-        } catch (Throwable $notification_error) {
-            error_log('Could not dispatch payment proof received email: ' . $notification_error->getMessage());
-        }
-    }
-
-    echo json_encode([
-        "success" => true,
-        "message" => "Payment proof and reference uploaded successfully.",
-        "proof_path" => $proof_path
-    ]);
-} else {
-    echo json_encode(["success" => false, "message" => "Failed to update invoice payment details"]);
+// The admin used to learn about a waiting proof only by opening Payments.
+// One queue row per invoice: a re-upload does not add a second one.
+$queued = $conn->prepare("SELECT 1 FROM notifications WHERE type = 'payment_verification' AND metadata_value = ? AND status = 'Pending'");
+$queue_key = "payment_verification:$invoice_id";
+$queued->bind_param("s", $queue_key);
+$queued->execute();
+$already_queued = (bool)$queued->get_result()->fetch_assoc();
+$queued->close();
+if (!$already_queued) {
+    notify_admins_queue($conn, 'payment_verification', $invoice_id, 'Payment Proof Submitted',
+        "A $payment_method payment proof was submitted for " . payment_key_label($invoice_id) . " and is waiting for verification.");
 }
 
-$stmt->close();
+// The tenant's own receipt of the submission; the admin's decision
+// follows as "Payment Received" (settle_invoice) or "Payment Proof Rejected".
+if (!$is_admin) {
+    create_notification($conn, $user_id, 'payment', 'Payment Submitted',
+        "Your $payment_method payment for " . payment_key_label($invoice_id) . " was submitted and is awaiting verification by management. You will be notified once it is confirmed.",
+        'Resolved', "invoice:$invoice_id");
+    try {
+        require_once __DIR__ . '/services/send_notification.php';
+        $breakdown_q = $conn->prepare("SELECT id, billing_period, total_amount FROM invoices WHERE ? IN (id, payment_group) ORDER BY due_date");
+        $breakdown_q->bind_param('s', $invoice_id);
+        $breakdown_q->execute();
+        $invoice_rows = $breakdown_q->get_result()->fetch_all(MYSQLI_ASSOC);
+        $breakdown_q->close();
+        $proof_mail = email_payment_proof_template(notify_recipient_name($conn, $user_id), $invoice_id, 'Received', '', $invoice_rows);
+        dispatch_admin_action_notification($conn, $user_id, 'payment', 'Payment Proof Received', null, $proof_mail);
+    } catch (Throwable $notification_error) {
+        error_log('Could not dispatch payment proof received email: ' . $notification_error->getMessage());
+    }
+}
+
+echo json_encode([
+    "success" => true,
+    "message" => "Payment proof and reference uploaded successfully.",
+    "proof_path" => $proof_path
+]);
 $conn->close();
 ?>

@@ -35,6 +35,7 @@ export const SETTINGS_TABS = [
       'paymentMode', 'paymentSandboxEnabled',
       'paymentChGcashManual', 'paymentChBankManual', 'paymentChInPerson',
       'paymentChGcashSandbox', 'paymentChBankSandbox', 'paymentChMaya',
+      'duplicateReferencePolicy',
       'paymongoSecretKey', 'paymongoPublicKey', 'paymongoWebhookSecret',
     ],
   },

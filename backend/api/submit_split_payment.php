@@ -120,11 +120,19 @@ foreach ($uploads as $i => [$tmp, $ext]) {
     $saved[$i] = 'uploads/payment_proofs/' . $name;
 }
 
+// Reused reference (Settings -> Payments) and double submit, per GCash/bank
+// portion: checked under the reference lock and the bill's row lock, in the
+// transaction that stores the portions.
+if (!payment_reference_lock($conn)) {
+    $discard();
+    split_fail("Another payment is being submitted. Please try again in a moment.", 409);
+}
+$reuse_notes = [];
 $conn->begin_transaction();
 try {
     // Lock the bill and re-read it: it may have been settled, or the amount
     // changed, since the check above.
-    $lock = $conn->prepare("SELECT id, status, total_amount, amount_paid FROM invoices WHERE ? IN (id, payment_group) AND user_id = ? FOR UPDATE");
+    $lock = $conn->prepare("SELECT id, status, total_amount, amount_paid, proof_amount, payment_reference, scheduled_date, scheduled_time_slot FROM invoices WHERE ? IN (id, payment_group) AND user_id = ? FOR UPDATE");
     $lock->bind_param('si', $key, $user_id);
     if (!$lock->execute()) throw new Exception("Could not submit the payment. Please try again.");
     $locked = $lock->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -134,6 +142,36 @@ try {
     foreach ($open as $r) $open_cents += invoice_balance_cents($r);
     if (!$open || array_filter($open, fn($r) => $r['status'] === 'processing') || $open_cents !== $open_total_cents) {
         throw new Exception("This bill changed while you were submitting. Refresh the page and try again.");
+    }
+
+    $open_ids = array_column($open, 'id');
+    // The whole split again, unchanged (a double click, or resent while it is
+    // under review): refused, so the tenant is not notified twice. Changing
+    // any portion, or the cash visit, is a resubmission that replaces it.
+    $sig = fn($method, $bank, $amount, $ref) => implode('|', [$method, payment_reference_channel($method, $bank), (int)round((float)$amount * 100), normalize_payment_reference($ref)]);
+    $pending_sig = array_map(fn($p) => $sig($p['method'], $p['bank_name'], $p['amount'], $p['reference_number']), payment_proof_parts($conn, $key));
+    $new_sig = array_map(fn($p) => $sig($p['method'], $p['bank_name'], $p['amount'], $p['reference_number']), $parts);
+    sort($pending_sig);
+    sort($new_sig);
+    $first = reset($locked);
+    if ($pending_sig === $new_sig && array_filter($open, fn($r) => $r['status'] === 'pending-verification')
+        && ($first['scheduled_date'] ?? null) === $scheduled_date && ($first['scheduled_time_slot'] ?? null) === $scheduled_slot) {
+        throw new Exception("This payment was already submitted and is awaiting verification.");
+    }
+    $blocks = reference_reuse_blocks($conn);
+    foreach ($manual as $part) {
+        $part_cents = (int)round($part['amount'] * 100);
+        // The same portion recorded on this bill a moment ago. Its own pending
+        // parts are not checked: this submission replaces them.
+        if (payment_double_submitted($conn, count($open_ids) === 1 ? $open_ids : [], null, $part['reference_number'], $part_cents)) {
+            throw new Exception("This payment was already submitted.");
+        }
+        $reuse = find_reference_reuse($conn, $part['method'], $part['bank_name'], $part['reference_number'], $key, $open_ids);
+        if ($reuse && $blocks) {
+            // No invoice number or tenant: another payment's details are not the applicant's to see.
+            throw new Exception("This reference number was already used on another payment. Check the number or contact management.");
+        }
+        if ($reuse) $reuse_notes[] = "reference {$part['reference_number']} also used on invoice {$reuse['invoice_id']}";
     }
 
     clear_payment_proof_parts($conn, $key);
@@ -158,15 +196,18 @@ try {
     if ($changed === 0) throw new Exception("This invoice is not open for payment — it may already be settled or cancelled.");
 
     $conn->commit();
+    payment_reference_unlock($conn);
 } catch (Exception $e) {
     $conn->rollback();
+    payment_reference_unlock($conn);
     $discard();
     split_fail(public_error_message($e), 409);
 }
 
 $summary = implode(', ', array_map(fn($p) => $p['method'] . ' ₱' . number_format($p['amount'], 2), $parts))
     . ($scheduled_date ? " (cash at the office on $scheduled_date, $scheduled_slot)" : '');
-log_activity($conn, $user_id, 'billing', "Submitted Split Payment", "Invoice ID: $key, Portions: $summary");
+log_activity($conn, $user_id, 'billing', "Submitted Split Payment", "Invoice ID: $key, Portions: $summary"
+    . ($reuse_notes ? " (" . implode('; ', $reuse_notes) . ")" : ""));
 
 $queued = $conn->prepare("SELECT 1 FROM notifications WHERE type = 'payment_verification' AND metadata_value = ? AND status = 'Pending'");
 $queue_key = "payment_verification:$key";

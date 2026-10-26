@@ -55,6 +55,7 @@ TRUNCATE TABLE `payment_transactions`;
 TRUNCATE TABLE `rate_limit_events`;
 TRUNCATE TABLE `application_documents`;
 TRUNCATE TABLE `deposit_deductions`;
+TRUNCATE TABLE `invoice_adjustments`;
 TRUNCATE TABLE `application_requirements`;
 
 -- ============================================================
@@ -133,6 +134,7 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('lease_end_reminder_days', '30'),
 ('move_out_min_notice_days', '15'),
 ('move_out_max_notice_days', '30'),
+('duplicate_reference_policy', 'warn'),
 ('notification_sweep_last_run', '2000-01-01'),
 ('landlord_name', 'Elizabeth Angcanan'),
 ('landlord_address', 'Tamak, Maguyam, Silang, Cavite'),

@@ -195,3 +195,73 @@ WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'move_ou
 INSERT INTO `system_settings` (`setting_key`, `setting_value`)
 SELECT 'move_out_max_notice_days', '30' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'move_out_max_notice_days');
+
+-- ===== invoice_adjustments =====
+-- Billing disputes (manager interview Q13): every invoice adjustment
+-- (adjust_invoice.php) needs a reason and keeps a before/after record.
+-- `changes` is JSON {line: [old, new]} for the lines that changed.
+CREATE TABLE IF NOT EXISTS `invoice_adjustments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `invoice_id` varchar(50) NOT NULL,
+  `admin_id` int(11) DEFAULT NULL,
+  `reason` varchar(255) NOT NULL,
+  `old_total` decimal(10,2) NOT NULL,
+  `new_total` decimal(10,2) NOT NULL,
+  `changes` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_invoice_adjustments_invoice` (`invoice_id`),
+  KEY `idx_invoice_adjustments_admin` (`admin_id`),
+  CONSTRAINT `fk_invoice_adjustments_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_invoice_adjustments_admin` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ===== duplicate_reference =====
+-- Reused payment references (manager interview Q22): the same GCash/bank
+-- reference on a different payment is flagged to the admin ('warn') or refused
+-- ('block'), Settings -> Payments. The lookup columns and indexes are in the
+-- reference_norm section below.
+INSERT INTO `system_settings` (`setting_key`, `setting_value`)
+SELECT 'duplicate_reference_policy', 'warn' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'duplicate_reference_policy');
+
+-- ===== reference_norm =====
+-- The reference as compared (config.php normalize_payment_reference(): spaces,
+-- tabs, line breaks and dashes removed, upper case; NULL when nothing is left),
+-- stored and indexed so the reuse lookups seek. Replaces the raw-column
+-- indexes an earlier run of this file added.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'payment_transactions' AND column_name = 'reference_norm') = 0,
+  "ALTER TABLE `payment_transactions` ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, ' ', ''), '-', ''), '\\t', ''), '\\r', ''), '\\n', '')), '')) STORED AFTER `reference_number`", 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'payment_proof_parts' AND column_name = 'reference_norm') = 0,
+  "ALTER TABLE `payment_proof_parts` ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, ' ', ''), '-', ''), '\\t', ''), '\\r', ''), '\\n', '')), '')) STORED AFTER `reference_number`", 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'reference_norm') = 0,
+  "ALTER TABLE `invoices` ADD COLUMN `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`payment_reference`, ' ', ''), '-', ''), '\\t', ''), '\\r', ''), '\\n', '')), '')) STORED AFTER `payment_reference`", 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'payment_transactions' AND index_name = 'idx_payment_transactions_reference_norm') = 0,
+  'ALTER TABLE `payment_transactions` ADD INDEX `idx_payment_transactions_reference_norm` (`reference_norm`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'payment_proof_parts' AND index_name = 'idx_payment_proof_parts_reference_norm') = 0,
+  'ALTER TABLE `payment_proof_parts` ADD INDEX `idx_payment_proof_parts_reference_norm` (`reference_norm`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'invoices' AND index_name = 'idx_invoices_reference_norm') = 0,
+  'ALTER TABLE `invoices` ADD INDEX `idx_invoices_reference_norm` (`reference_norm`)', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'payment_transactions' AND index_name = 'idx_payment_transactions_reference') > 0,
+  'ALTER TABLE `payment_transactions` DROP INDEX `idx_payment_transactions_reference`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'payment_proof_parts' AND index_name = 'idx_payment_proof_parts_reference') > 0,
+  'ALTER TABLE `payment_proof_parts` DROP INDEX `idx_payment_proof_parts_reference`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'invoices' AND index_name = 'idx_invoices_payment_reference') > 0,
+  'ALTER TABLE `invoices` DROP INDEX `idx_invoices_payment_reference`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;

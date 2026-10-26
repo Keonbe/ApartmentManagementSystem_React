@@ -2073,6 +2073,213 @@ function clear_payment_proof_parts($conn, $key) {
     $stmt->close();
 }
 
+// ── Reused payment references (manager interview Q22) ──
+// The same GCash/bank reference on a different payment is flagged to the admin
+// ('warn', the default) or refused ('block'), Settings -> Payments. References
+// are compared normalized (no spaces or dashes, upper case) and only within the
+// same channel: a GCash number and a BDO reference that look alike differ.
+// What is never a match (the same payment): the bills' own proof awaiting
+// verification (also a new proof after a rejected one), the tenant's own split
+// parts for this payment, and the ledger rows of settled bills of the same
+// payment_group (one transfer paying a combined payment is recorded on each
+// bill). A part already recorded on a bill being paid is a match: one
+// reference given for two installments. Cash and empty references are ignored.
+const DUPLICATE_REFERENCE_POLICIES = ['warn', 'block'];
+// An identical part (same invoice, reference and amount) recorded this
+// recently is a double submit, refused whatever the policy.
+const DOUBLE_SUBMIT_MINUTES = 10;
+
+// Spaces, tabs, line breaks and dashes removed (anywhere), then upper case.
+// Must give exactly the stored `reference_norm` generated column of
+// payment_transactions, payment_proof_parts and invoices (SetupDB.sql), which
+// the lookups below seek on; '' here is NULL there. MB_CASE_UPPER_SIMPLE is
+// the one-to-one mapping MySQL's UPPER() uses (é -> É, but ß stays ß).
+function normalize_payment_reference($reference) {
+    $s = str_replace([' ', "\t", "\r", "\n", '-'], '', (string)$reference);
+    return function_exists('mb_convert_case') ? mb_convert_case($s, MB_CASE_UPPER_SIMPLE, 'UTF-8') : strtoupper($s);
+}
+
+// 'GCASH', 'BANK:<bank>', 'CASH', or null when the method carries no reference
+// of its own (a split label). Mirrored in SQL by reference_channel_sql().
+function payment_reference_channel($method, $bank = null) {
+    $m = strtolower(trim((string)$method));
+    if ($m === '' || $m === 'split' || $m === strtolower(SPLIT_PAYMENT_LABEL)) return null;
+    if (strpos($m, 'gcash') !== false) return 'GCASH';
+    if (strpos($m, 'cash') !== false || strpos($m, 'in-person') !== false || strpos($m, 'in person') !== false) return 'CASH';
+    $b = trim((string)$bank);
+    return 'BANK:' . strtoupper($b !== '' ? $b : trim((string)$method));
+}
+
+// SQL form of payment_reference_channel(). Column names only — never request input.
+function reference_channel_sql($method_col, $bank_col) {
+    return "(CASE WHEN LOWER($method_col) LIKE '%gcash%' THEN 'GCASH'
+                  WHEN $method_col IS NULL OR TRIM($method_col) = '' OR LOWER($method_col) IN ('split', '" . strtolower(SPLIT_PAYMENT_LABEL) . "') THEN NULL
+                  WHEN LOWER($method_col) LIKE '%cash%' OR LOWER($method_col) LIKE '%in-person%' OR LOWER($method_col) LIKE '%in person%' THEN 'CASH'
+                  ELSE CONCAT('BANK:', UPPER(TRIM(COALESCE(NULLIF(TRIM($bank_col), ''), $method_col)))) END)";
+}
+
+// Every stored reference matching, one row each: ledger parts, single proofs
+// awaiting verification or paid, and split parts awaiting verification. Each
+// branch seeks on its `reference_norm` index.
+// Columns: invoice_id, grp (its payment_group; a split part's key), ref, ch,
+// status, tenant, amount, src, row_id.
+// $pending null: the rows whose reference_norm = ? (bind the normalized
+// reference three times). $pending a SELECT of (key_id, key_grp, ref, ch): the
+// rows matching each of its rows, prefixed with key_id, key_grp, key_ch.
+function reference_rows_sql($pending = null) {
+    $tenant = "TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')))";
+    $keys = $pending === null ? '' : 'p.key_id, p.key_grp, p.ch AS key_ch, ';
+    // STRAIGHT_JOIN: read the (few) pending references first and seek each
+    // table by them, instead of scanning the table on a small dataset.
+    $from = fn($table, $alias) => $pending === null ? "$table $alias" : "($pending) p STRAIGHT_JOIN $table $alias ON $alias.reference_norm = p.ref";
+    $match = fn($alias) => $pending === null ? "$alias.reference_norm = ?" : "$alias.reference_norm IS NOT NULL";
+    return "SELECT {$keys}pt.invoice_id, i.payment_group AS grp, pt.reference_norm AS ref,
+                   " . reference_channel_sql('pt.payment_method', 'pt.bank_name') . " AS ch, i.status, $tenant AS tenant, pt.amount, 'ledger' AS src, pt.id AS row_id
+              FROM " . $from('payment_transactions', 'pt') . " JOIN invoices i ON i.id = pt.invoice_id LEFT JOIN users u ON u.id = i.user_id
+             WHERE " . $match('pt') . " AND i.status <> 'cancelled'
+            UNION ALL
+            SELECT {$keys}i.id, i.payment_group, i.reference_norm,
+                   " . reference_channel_sql('i.payment_method', 'i.bank_name') . ", i.status, $tenant,
+                   COALESCE(i.proof_amount, i.total_amount - i.amount_paid), 'proof', 0
+              FROM " . $from('invoices', 'i') . " LEFT JOIN users u ON u.id = i.user_id
+             WHERE " . $match('i') . " AND i.status IN ('pending-verification', 'paid')
+            UNION ALL
+            SELECT {$keys}pp.payment_key, pp.payment_key, pp.reference_norm,
+                   " . reference_channel_sql('pp.method', 'pp.bank_name') . ", 'pending-verification',
+                   COALESCE((SELECT TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) FROM invoices i JOIN users u ON u.id = i.user_id WHERE i.id = pp.payment_key),
+                            (SELECT TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) FROM invoices i JOIN users u ON u.id = i.user_id WHERE i.payment_group = pp.payment_key LIMIT 1)),
+                   pp.amount, 'split', pp.id
+              FROM " . $from('payment_proof_parts', 'pp') . "
+             WHERE " . $match('pp');
+}
+
+// A row of the same payment that is not a reuse: a proof or split part of
+// these bills / this key, or the ledger row of a settled bill of the same
+// group. $same: SQL that is true when row r belongs to the payment's bills,
+// key or group. A ledger row on a bill still open is a part already received
+// on it, so it counts.
+function reference_same_payment_sql($same) {
+    return "(($same) AND (r.src <> 'ledger' OR r.status NOT IN " . billing_open_status_sql() . "))";
+}
+
+function reuse_hit(array $r) {
+    return ['invoice_id' => $r['invoice_id'], 'tenant_name' => $r['tenant'] !== '' ? $r['tenant'] : null,
+            'amount' => round((float)$r['amount'], 2), 'status' => $r['status'], 'where' => $r['src']];
+}
+
+// The first other payment that used this reference, or null:
+// ['invoice_id', 'tenant_name', 'amount', 'status', 'where' => ledger|proof|split].
+// $key: the payment key being paid (invoice id or group id); $invoice_ids:
+// its open bills. tenant_name is for admins only.
+function find_reference_reuse($conn, $method, $bank, $reference, $key, array $invoice_ids) {
+    $ref = normalize_payment_reference($reference);
+    $ch = payment_reference_channel($method, $bank);
+    if ($ref === '' || $ch === null || $ch === 'CASH') return null;
+    $own = array_values(array_unique(array_filter(array_map('strval', array_merge([$key], $invoice_ids)), fn($v) => $v !== '')));
+    if (!$own) $own = [''];
+    $in = implode(',', array_fill(0, count($own), '?'));
+    $same = reference_same_payment_sql("r.invoice_id IN ($in) OR COALESCE(r.grp, '') IN ($in)
+               OR COALESCE(r.grp, '') IN (SELECT payment_group FROM invoices WHERE id IN ($in) AND payment_group IS NOT NULL)");
+    $sql = "SELECT r.* FROM (" . reference_rows_sql() . ") r
+             WHERE r.ch = ? AND NOT $same
+             ORDER BY FIELD(r.src, 'ledger', 'proof', 'split'), r.invoice_id LIMIT 1";
+    $params = array_merge([$ref, $ref, $ref, $ch], $own, $own, $own);
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) return null;
+    $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? reuse_hit($row) : null;
+}
+
+// Admin payments list: for every payment awaiting verification, the first other
+// payment that used one of its references, in one query. Same rule as
+// find_reference_reuse(). [payment key (invoice id or group id) => hit].
+function reference_reuse_for_pending($conn) {
+    $pending = "SELECT i.id AS key_id, i.payment_group AS key_grp, i.reference_norm AS ref,
+                       " . reference_channel_sql('i.payment_method', 'i.bank_name') . " AS ch
+                  FROM invoices i WHERE i.status = 'pending-verification' AND i.reference_norm IS NOT NULL
+                UNION ALL
+                SELECT pp.payment_key, NULL, pp.reference_norm, " . reference_channel_sql('pp.method', 'pp.bank_name') . "
+                  FROM payment_proof_parts pp WHERE pp.reference_norm IS NOT NULL";
+    $same = reference_same_payment_sql("r.invoice_id = r.key_id OR COALESCE(r.grp, '') = r.key_id
+               OR (COALESCE(r.key_grp, '') <> '' AND (COALESCE(r.grp, '') = r.key_grp OR r.invoice_id = r.key_grp))");
+    $sql = "SELECT r.* FROM (" . reference_rows_sql($pending) . ") r
+            WHERE r.key_ch <> 'CASH' AND r.ch = r.key_ch AND NOT $same
+            ORDER BY r.key_id, FIELD(r.src, 'ledger', 'proof', 'split'), r.invoice_id";
+    $res = $conn->query($sql);
+    $out = [];
+    while ($res && ($r = $res->fetch_assoc())) {
+        if (!isset($out[$r['key_id']])) $out[$r['key_id']] = reuse_hit($r);
+    }
+    return $out;
+}
+
+function reference_reuse_blocks($conn) {
+    return get_setting($conn, 'duplicate_reference_policy', 'warn') === 'block';
+}
+
+// One payment-reference writer at a time (tenant proofs, split parts, desk
+// recording): the reuse check and the write then cannot interleave, so two
+// submissions of one reference cannot both pass under 'block'. Released by
+// payment_reference_unlock(), and at the end of the request on any other way
+// out (an early exit, an uncaught exception): a persistent connection
+// (DB_PERSISTENT=1) would otherwise keep holding it.
+function payment_reference_lock($conn) {
+    $res = $conn->query("SELECT GET_LOCK('ams_payment_reference', 10) AS l");
+    if (!$res || (int)($res->fetch_assoc()['l'] ?? 0) !== 1) return false;
+    if (empty($GLOBALS['ams_reference_lock_hook'])) {
+        $GLOBALS['ams_reference_lock_hook'] = true;
+        register_shutdown_function(fn() => payment_reference_unlock($conn));
+    }
+    $GLOBALS['ams_reference_lock_held'] = true;
+    return true;
+}
+// A no-op when the lock is not held (safe on every exit path).
+function payment_reference_unlock($conn) {
+    if (empty($GLOBALS['ams_reference_lock_held'])) return;
+    $GLOBALS['ams_reference_lock_held'] = false;
+    try {
+        $conn->query("SELECT RELEASE_LOCK('ams_payment_reference')");
+    } catch (Throwable $e) {
+        // Connection already closed: closing released it.
+    }
+}
+
+// Double submit: the same reference and amount already recorded on one of
+// these invoices in the last DOUBLE_SUBMIT_MINUTES, or (when $pending_key is
+// given) already waiting as a split part of that key. A split resubmission
+// passes null: it replaces its own pending parts, so they are not a repeat.
+function payment_double_submitted($conn, array $invoice_ids, $pending_key, $reference, $amount_cents) {
+    $ref = normalize_payment_reference($reference);
+    if ($ref === '') return false;
+    $ids = array_values(array_unique(array_map('strval', $invoice_ids)));
+    if (!$ids) $ids = [''];
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $amount = $amount_cents / 100;
+    $minutes = DOUBLE_SUBMIT_MINUTES;
+    $sql = "SELECT 1 FROM payment_transactions WHERE reference_norm = ? AND invoice_id IN ($in)
+               AND ROUND(amount * 100) = ROUND(? * 100) AND created_at >= NOW() - INTERVAL $minutes MINUTE";
+    $params = array_merge([$ref], $ids, [$amount]);
+    $types = 's' . str_repeat('s', count($ids)) . 'd';
+    if ($pending_key !== null) {
+        $sql .= " UNION ALL
+            SELECT 1 FROM payment_proof_parts WHERE reference_norm = ? AND payment_key = ?
+               AND ROUND(amount * 100) = ROUND(? * 100)";
+        array_push($params, $ref, (string)$pending_key, $amount);
+        $types .= 'ssd';
+    }
+    $sql .= " LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) return false;
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $hit = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $hit;
+}
+
 // ── Advance payments (panel feedback 2026-09-26) ──
 // A tenant can prepay several future months at once. Each month is its own
 // rent invoice (so each gets its own receipt); the months share a
@@ -3060,6 +3267,41 @@ function deposit_deductions_for($conn, array $app_ids) {
             'reason' => $r['reason'], 'amount' => round((float)$r['amount'], 2), 'created_at' => $r['created_at'],
         ];
     }
+    return $out;
+}
+
+// Invoice adjustment history (adjust_invoice.php), admin only, in one query:
+// [invoice_id => [['id','admin','reason','old_total','new_total','changes','created_at'], ...]],
+// newest first. $user_id limits it to one tenant's invoices (null = all).
+function invoice_adjustments_for($conn, $user_id = null) {
+    $sql = "SELECT a.id, a.invoice_id, a.reason, a.old_total, a.new_total, a.changes, a.created_at,
+                   TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS admin_name
+              FROM invoice_adjustments a
+              LEFT JOIN users u ON u.id = a.admin_id" .
+           ($user_id !== null ? " JOIN invoices i ON i.id = a.invoice_id WHERE i.user_id = ?" : "") .
+           " ORDER BY a.id DESC";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) return [];
+    if ($user_id !== null) {
+        $uid = (int)$user_id;
+        $stmt->bind_param('i', $uid);
+    }
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $out = [];
+    while ($res && ($r = $res->fetch_assoc())) {
+        $changes = json_decode((string)$r['changes'], true);
+        $out[$r['invoice_id']][] = [
+            'id' => (int)$r['id'],
+            'admin' => $r['admin_name'] !== '' ? $r['admin_name'] : null,
+            'reason' => $r['reason'],
+            'old_total' => round((float)$r['old_total'], 2),
+            'new_total' => round((float)$r['new_total'], 2),
+            'changes' => is_array($changes) ? $changes : new stdClass(),
+            'created_at' => $r['created_at'],
+        ];
+    }
+    $stmt->close();
     return $out;
 }
 

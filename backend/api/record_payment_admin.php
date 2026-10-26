@@ -136,6 +136,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     $partial = ($input['partial'] ?? false) === true || $declared_cents !== null;
+
+    // Reused reference (Settings -> Payments) and double submit, per GCash/bank
+    // part. Checked under the reference lock, held until the payment is
+    // written, so a tenant proof with the same reference cannot slip in between.
+    // The tenant's own proof or split parts for this bill are what the desk is
+    // confirming, so they never count; a part already recorded on this bill
+    // with the same reference (another installment) does.
+    $ref_parts = array_values(array_filter($payments, fn($p) => $p['method'] !== 'cash' && $p['reference_number'] !== null));
+    $reuse_notes = [];
+    if ($ref_parts && $open_rows) {
+        if (!payment_reference_lock($conn)) {
+            http_response_code(409);
+            echo json_encode(["success" => false, "message" => "Another payment is being recorded. Try again in a moment."]);
+            exit;
+        }
+        $open_ids = array_column($open_rows, 'id');
+        $blocks = reference_reuse_blocks($conn);
+        foreach ($ref_parts as $p) {
+            if (payment_double_submitted($conn, $open_ids, null, $p['reference_number'], (int)round($p['amount'] * 100))) {
+                http_response_code(409);
+                echo json_encode(["success" => false, "message" => "This payment was already recorded: reference {$p['reference_number']} for ₱" . number_format($p['amount'], 2) . " was saved on this bill a moment ago."]);
+                exit;
+            }
+            $reuse = find_reference_reuse($conn, $p['method'], $p['bank_name'], $p['reference_number'], $invoice_id, $open_ids);
+            if (!$reuse) continue;
+            $where = "invoice {$reuse['invoice_id']} (" . implode(', ', array_filter([$reuse['tenant_name'], $reuse['status']])) . ")";
+            if ($blocks) {
+                http_response_code(409);
+                echo json_encode(["success" => false, "message" => "Reference {$p['reference_number']} was already used on $where. Check the number, or reject the proof."]);
+                exit;
+            }
+            $reuse_notes[] = "reference {$p['reference_number']} also used on $where";
+        }
+    }
+    $log_reuse = function () use ($conn, $admin_id, $invoice_id, &$reuse_notes) {
+        if ($reuse_notes) log_activity($conn, $admin_id, 'billing', 'Reused Payment Reference', ucfirst(payment_key_label($invoice_id)) . ": " . implode('; ', $reuse_notes));
+    };
     // A part is never more than the balance (the cash-with-change allowance
     // below is for full payments only).
     if ($partial && $open_rows && $payment_total_cents > $open_total_cents) {
@@ -150,6 +187,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $result = record_partial_payment($conn, $open_rows[0]['id'], $payments, (int)$admin_id);
+        payment_reference_unlock($conn);
+        if ($result['ok']) $log_reuse();
         if (!$result['ok']) {
             http_response_code($result['code'] ?? 409);
             echo json_encode(["success" => false, "message" => $result['message']]);
@@ -173,6 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $legacy_cash_overpayment = count($payments) === 1 && $payments[0]['method'] === 'cash' && $payment_total_cents > $open_total_cents;
     $settlement_splits = $legacy_cash_overpayment ? null : $payments;
     $result = settle_payment_key($conn, $invoice_id, $payment_method, $payment_reference, $amount_paid, $settlement_splits, (int)$admin_id);
+    payment_reference_unlock($conn);
+    // Months already settled before a failure are recorded too.
+    if ($result['ok'] || !empty($result['invoice_ids'])) $log_reuse();
 
     if (!$result['ok']) {
         // These messages are written above for the admin and carry no internals.

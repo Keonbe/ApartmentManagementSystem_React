@@ -70,8 +70,11 @@ if (!$is_cash) {
 // guard a tenant could re-submit against an already-'paid' invoice and knock
 // it back to 'pending-verification' (and the old code also blanked paid_at
 // unconditionally, erasing when it was actually settled).
-$stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = ?, status = ? WHERE ? IN (id, payment_group) AND user_id = ? AND status IN " . billing_open_status_sql());
-$stmt->bind_param("ssssi", $payment_method, $payment_reference, $status, $invoice_id, $user_id);
+// A non-cash payment keeps the reference upload_payment_proof.php stored with
+// the proof: that is the one checked for reuse (Settings -> Payments), so it is
+// never replaced here.
+$stmt = $conn->prepare("UPDATE invoices SET payment_method = ?, payment_reference = IF(? = 'pending-verification', payment_reference, ?), status = ? WHERE ? IN (id, payment_group) AND user_id = ? AND status IN " . billing_open_status_sql());
+$stmt->bind_param("sssssi", $payment_method, $status, $payment_reference, $status, $invoice_id, $user_id);
 
 if ($stmt->execute()) {
     $changed = $stmt->affected_rows > 0;

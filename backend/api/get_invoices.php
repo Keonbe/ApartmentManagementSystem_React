@@ -196,11 +196,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 ];
             }
         }
+        // Admin only: each invoice's adjustment history (reason, before/after),
+        // and for a payment awaiting verification the first other payment that
+        // used the same reference (Settings -> Payments, "Reused payment
+        // reference"). One query each for the whole list; never sent to tenants.
+        $adjustments_by_invoice = $is_admin ? invoice_adjustments_for($conn, $user_id_param ? (int)$user_id_param : null) : [];
+        $reuse_by_key = $is_admin ? reference_reuse_for_pending($conn) : [];
         while ($row = $result->fetch_assoc()) {
             // The dates the bill covers, from the move-in day — shown instead
             // of the due date once a bill is past due.
             $covered = invoice_covered_period($row, $row['lease_start'] ?? null);
-            $invoices[] = [
+            $admin_extra = !$is_admin ? [] : [
+                'adjustments' => $adjustments_by_invoice[$row['id']] ?? [],
+                'reference_reuse' => ($row['status'] ?? '') === 'pending-verification'
+                    ? ($reuse_by_key[$row['id']] ?? $reuse_by_key[$row['payment_group'] ?? ''] ?? null)
+                    : null,
+            ];
+            $invoices[] = $admin_extra + [
                 'id' => $row['id'],
                 // FIX FOR DUPLICATE PREFIX: Pass raw ID/Number or strip duplicate prefix
                 'invoice_number' => $row['invoice_number'] ?? $row['id'], 

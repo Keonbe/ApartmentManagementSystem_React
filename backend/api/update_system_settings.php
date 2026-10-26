@@ -188,6 +188,10 @@ foreach ($input as $key => $value) {
         }
     }
 
+    // Reused payment reference (Settings -> Payments): flag it, or refuse it.
+    if ($key === 'duplicate_reference_policy' && (!is_string($input[$key]) || !in_array($value, DUPLICATE_REFERENCE_POLICIES, true))) {
+        $refuse("Reused payment reference must be warn or block.", ["duplicateReferencePolicy" => "Choose warn or block."]);
+    }
     if ($key === 'room_preview_mode' && !in_array($value, ['images', 'floor_plan'], true)) {
         $refuse("Room preview mode must be images or floor_plan.");
     }

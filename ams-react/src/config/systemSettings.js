@@ -26,6 +26,7 @@ const DEFAULTS = {
   paymentChGcashManual: true,
   paymentChBankManual: true,
   paymentChInPerson: true,
+  duplicateReferencePolicy: 'warn',    // reused GCash/bank reference: 'warn' = flag to the admin, 'block' = refuse
   paymongoSecretKey: '',
   paymongoPublicKey: '',
   paymongoWebhookSecret: '',
@@ -108,6 +109,7 @@ export const getSystemSettings = async () => {
         })(),
         parkingMonthlyFee: parseFloat(dbSettings.parking_monthly_fee || DEFAULTS.parkingMonthlyFee),
         parkingBillingMode: dbSettings.parking_billing_mode === 'auto' ? 'auto' : 'manual',
+        duplicateReferencePolicy: dbSettings.duplicate_reference_policy === 'block' ? 'block' : 'warn',
         roomPreviewMode: dbSettings.room_preview_mode === 'floor_plan' ? 'floor_plan' : 'images',
         maxOccupantsPerUnit: parseInt(dbSettings.max_occupants_per_unit || DEFAULTS.maxOccupantsPerUnit),
 
@@ -168,6 +170,7 @@ export const saveSystemSettings = async (settings) => {
       parking_allowed_vehicle_types: JSON.stringify(settings.parkingAllowedVehicleTypes || []),
       parking_monthly_fee: String(settings.parkingMonthlyFee ?? DEFAULTS.parkingMonthlyFee),
       parking_billing_mode: settings.parkingBillingMode === 'auto' ? 'auto' : 'manual',
+      duplicate_reference_policy: settings.duplicateReferencePolicy === 'block' ? 'block' : 'warn',
       room_preview_mode: settings.roomPreviewMode === 'floor_plan' ? 'floor_plan' : 'images',
       max_occupants_per_unit: String(settings.maxOccupantsPerUnit ?? DEFAULTS.maxOccupantsPerUnit),
 

@@ -36,6 +36,17 @@ if (empty($invoice_id)) {
     exit;
 }
 
+// Billing disputes (manager interview Q13): every adjustment says why. The
+// reason is kept in invoice_adjustments and quoted to the tenant.
+$reason = is_string($input['reason'] ?? null) ? trim(preg_replace('/\s+/u', ' ', $input['reason'])) : '';
+$reason_len = mb_strlen($reason);
+if ($reason_len < 5 || $reason_len > 255) {
+    http_response_code(422);
+    $msg = $reason_len === 0 ? "Enter the reason for this adjustment." : "The reason must be 5 to 255 characters.";
+    echo json_encode(["success" => false, "message" => $msg, "errors" => ["reason" => $msg]]);
+    exit;
+}
+
 $current = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, late_fee_waived, services, maintenance, security_deposit, total_amount, amount_paid, due_date, status, advance_months FROM invoices WHERE id = ?");
 $current->bind_param("s", $invoice_id);
 $current->execute();
@@ -57,7 +68,7 @@ if (!empty($row['advance_months'])) {
 }
 
 if (!in_array($row['status'], INVOICE_ADJUSTABLE_STATUSES, true)) {
-    $reason = match ($row['status']) {
+    $why = match ($row['status']) {
         'processing' => 'has an online payment in progress',
         'pending-verification' => 'has a payment under verification',
         'paid' => 'is already paid; issue a manual credit instead',
@@ -65,7 +76,7 @@ if (!in_array($row['status'], INVOICE_ADJUSTABLE_STATUSES, true)) {
         default => 'can no longer be adjusted',
     };
     http_response_code(409);
-    echo json_encode(["success" => false, "message" => "Invoice {$invoice_id} {$reason}."]);
+    echo json_encode(["success" => false, "message" => "Invoice {$invoice_id} {$why}."]);
     exit;
 }
 
@@ -141,6 +152,43 @@ if ($new_values['late_fee'] > 0) {
 // A due date moved to today or later means the invoice is no longer overdue.
 $new_status = ($row['status'] === 'overdue' && !empty($due_date) && $due_date >= date('Y-m-d')) ? 'pending' : $row['status'];
 
+// The history record: {line: [old, new]} for each line that changed.
+$changes = [];
+foreach ($new_values as $column => $value) {
+    if ((int)round((float)$row[$column] * 100) !== (int)round($value * 100)) {
+        $changes[$column] = [round((float)$row[$column], 2), round($value, 2)];
+    }
+}
+if (($row['due_date'] ?? null) !== $due_date) {
+    $changes['due_date'] = [$row['due_date'], $due_date];
+}
+if (!$changes) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Nothing to save: change an amount or the due date."]);
+    exit;
+}
+
+// The update and its history row are written together or not at all. The row
+// is re-read under a lock: if another admin changed it since the read above,
+// the "before" values recorded here would be wrong, so it is refused.
+$stale = function () use ($conn) {
+    $conn->rollback();
+    http_response_code(409);
+    echo json_encode(["success" => false, "message" => "This invoice was changed by someone else. Refresh and try again."]);
+    exit;
+};
+$conn->begin_transaction();
+$lock = $conn->prepare("SELECT base_rent, water, electricity, parking, late_fee, services, maintenance, security_deposit, total_amount, amount_paid, due_date, status FROM invoices WHERE id = ? FOR UPDATE");
+$lock->bind_param("s", $invoice_id);
+$lock->execute();
+$locked = $lock->get_result()->fetch_assoc();
+$lock->close();
+if (!$locked) $stale();
+foreach (['base_rent', 'water', 'electricity', 'parking', 'late_fee', 'services', 'maintenance', 'security_deposit', 'total_amount', 'amount_paid'] as $column) {
+    if ((int)round((float)$locked[$column] * 100) !== (int)round((float)$row[$column] * 100)) $stale();
+}
+if ($locked['status'] !== $row['status'] || $locked['due_date'] !== $row['due_date']) $stale();
+
 $stmt = $conn->prepare("UPDATE invoices SET base_rent = ?, water = ?, electricity = ?, parking = ?, late_fee = ?, late_fee_waived = ?, total_amount = ?, due_date = ?, status = ? WHERE id = ? AND status = ? AND amount_paid < total_amount");
 $stmt->bind_param(
     "dddddidssss",
@@ -156,18 +204,28 @@ $stmt->bind_param(
     $invoice_id,
     $row['status']
 );
-$stmt->execute();
+$ok = $stmt->execute();
 $affected = $stmt->affected_rows;
 $stmt->close();
 
-if ($affected === 0) {
-    http_response_code(409);
-    echo json_encode(["success" => false, "message" => "This invoice was changed by someone else. Refresh and try again."]);
+if (!$ok || $affected !== 1) $stale();
+
+$changes_json = json_encode($changes);
+$hist = $conn->prepare("INSERT INTO invoice_adjustments (invoice_id, admin_id, reason, old_total, new_total, changes) VALUES (?, ?, ?, ?, ?, ?)");
+$admin_ref = (int)$admin_id;
+$hist->bind_param("sisdds", $invoice_id, $admin_ref, $reason, $old_total, $new_total, $changes_json);
+if (!$hist->execute()) {
+    $hist->close();
+    $conn->rollback();
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => "Could not save the adjustment. Please try again."]);
     exit;
 }
+$hist->close();
+$conn->commit();
 
 log_activity($conn, $admin_id, 'billing', 'Adjusted Invoice',
-    "Invoice {$invoice_id}: total ₱" . number_format($old_total, 2) . " -> ₱" . number_format($new_total, 2));
+    "Invoice {$invoice_id}: total ₱" . number_format($old_total, 2) . " -> ₱" . number_format($new_total, 2) . ". Reason: {$reason}");
 
 $owner = $conn->prepare("SELECT user_id FROM invoices WHERE id = ?");
 $owner->bind_param("s", $invoice_id);
@@ -177,7 +235,7 @@ $owner->close();
 
 if ($owner_row && !empty($owner_row['user_id']) && abs($new_total - $old_total) >= 0.01) {
     create_notification($conn, (int)$owner_row['user_id'], 'billing', 'Invoice Adjusted',
-        "Invoice {$invoice_id} was adjusted. New total: ₱" . number_format($new_total, 2) . ".");
+        "Invoice {$invoice_id} was adjusted: " . rtrim($reason, '.') . ". New total: ₱" . number_format($new_total, 2) . ".");
 }
 
 echo json_encode([

@@ -64,6 +64,8 @@ if (isset($settings['age_categories'])) {
     $decoded = json_decode($settings['age_categories'], true);
     $settings['age_categories'] = is_array($decoded) ? $decoded : [];
 }
+// 'warn' (default) or 'block'; anything else stored reads as 'warn', as find_reference_reuse() treats it.
+$settings['duplicate_reference_policy'] = ($settings['duplicate_reference_policy'] ?? 'warn') === 'block' ? 'block' : 'warn';
 if (isset($settings['floor_rates'])) {
     $decoded = json_decode($settings['floor_rates']);
     $settings['floor_rates'] = is_object($decoded) ? $decoded : new stdClass();

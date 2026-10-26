@@ -44,6 +44,13 @@ const ADJUSTABLE_STATUSES = ['pending', 'unpaid', 'overdue', 'scheduled', 'payme
 // Manual invoice lines adjust_invoice.php may change; services, maintenance
 // and the security deposit are system-posted and stay as they are.
 const ADJUST_LINES = [['baseRent', 'base_rent', 'Base rent'], ['water', 'water', 'Water'], ['electricity', 'electricity', 'Electricity'], ['parking', 'parking', 'Parking'], ['lateFee', 'late_fee', 'Late fee']];
+// Every adjustment needs a reason (adjust_invoice.php: 5-255 characters).
+const ADJUST_REASON_MIN = 5;
+const ADJUST_REASON_MAX = 255;
+// Labels of the lines an adjustment history entry can name (invoice_adjustments.changes).
+// Status of the other payment a reused reference was found on (get_invoices.php reference_reuse).
+const REUSE_STATUS_LABELS = { paid: 'paid', 'pending-verification': 'awaiting verification', pending: 'part paid', overdue: 'part paid, overdue', scheduled: 'part paid' };
+const ADJUSTMENT_LINE_LABELS ={ base_rent: 'Base rent', water: 'Water', electricity: 'Electricity', parking: 'Parking', late_fee: 'Late fee', due_date: 'Due date' };
 
 const CHIP_TONES = {
   emerald: 'text-emerald-700', amber: 'text-amber-700', red: 'text-red-700', indigo: 'text-indigo-700', slate: 'text-slate-500',
@@ -261,6 +268,11 @@ const AdminPayments = () => {
           // A single bill's charges and due date are changed through
           // adjust_invoice.php, never at the till; a group or advance is not adjustable.
           t.adjustInvoice = !sel.payment_group && !sel.advance_months && ADJUSTABLE_STATUSES.includes(sel.status) ? sel : null;
+          // Admin-only fields of get_invoices.php: the bill's adjustment history
+          // (reason, before/after) and, for a payment under review, another
+          // payment that used the same reference (Settings -> Payments).
+          t.adjustments = months.flatMap(i => (i.adjustments || []).map(a => ({ ...a, invoiceId: i.id })));
+          t.referenceReuse = sel.status === 'pending-verification' ? (months.map(i => i.reference_reuse).find(Boolean) || null) : null;
           if (sel.proof_of_payment_path) t.proofOfPaymentPath = sel.proof_of_payment_path;
           if (sel.payment_reference) t.paymentReference = sel.payment_reference;
           if (sel.sender_name) t.senderName = sel.sender_name;
@@ -326,6 +338,7 @@ const AdminPayments = () => {
   const [adjustForm, setAdjustForm] = useState(null); // the open adjustment, or null
   const [adjusting, setAdjusting] = useState(false);
   const [adjustError, setAdjustError] = useState('');
+  const [adjustReasonError, setAdjustReasonError] = useState('');
 
   // Payment Recording States
   const [methodChoice, setMethodChoice] = useState({ tenant: null, method: 'cash' });
@@ -713,8 +726,17 @@ const handleMarkAsPaid = async () => {
     const form = { invoiceId: inv.id, period: inv.billing_period, originalDue: String(inv.due_date || '').slice(0, 10), dueDate: String(inv.due_date || '').slice(0, 10),
       services: Number(inv.services || 0), maintenance: Number(inv.maintenance || 0), securityDeposit: Number(inv.security_deposit || 0), oldTotal: Number(inv.total_amount || 0) };
     ADJUST_LINES.forEach(([key, column]) => { form[key] = String(Number(inv[column] || 0)); });
+    form.reason = '';
     setAdjustError('');
+    setAdjustReasonError('');
     setAdjustForm(form);
+  };
+  // Same rule as adjust_invoice.php: 5 to 255 characters, spaces collapsed.
+  const checkAdjustReason = (value) => {
+    const r = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!r) return 'Enter the reason for this adjustment.';
+    if (r.length < ADJUST_REASON_MIN || r.length > ADJUST_REASON_MAX) return `The reason must be ${ADJUST_REASON_MIN} to ${ADJUST_REASON_MAX} characters.`;
+    return '';
   };
   const adjustTotal = adjustForm
     ? ADJUST_LINES.reduce((s, [key]) => s + (Number(adjustForm[key]) || 0), 0) + adjustForm.services + adjustForm.maintenance + adjustForm.securityDeposit
@@ -730,20 +752,26 @@ const handleMarkAsPaid = async () => {
       setAdjustError('The due date cannot be in the past.');
       return;
     }
+    const reasonErr = checkAdjustReason(adjustForm.reason);
+    if (reasonErr) { setAdjustReasonError(reasonErr); return; }
     setAdjusting(true);
     try {
-      const payload = { invoiceId: adjustForm.invoiceId, dueDate: adjustForm.dueDate };
+      const payload = { invoiceId: adjustForm.invoiceId, dueDate: adjustForm.dueDate, reason: adjustForm.reason.replace(/\s+/g, ' ').trim() };
       ADJUST_LINES.forEach(([key]) => { payload[key] = Number(adjustForm[key]) || 0; });
       const res = await api.post('/adjust_invoice.php', payload);
       if (res.data?.success) {
         setAdjustForm(null);
         fetchInvoices();
         showFlash(`Invoice ${adjustForm.invoiceId} adjusted — new total ${formatCurrency(res.data.total_amount)}. The tenant has been notified.`);
+      } else if (res.data?.errors?.reason) {
+        setAdjustReasonError(res.data.errors.reason);
       } else {
         setAdjustError(res.data?.message || 'Could not adjust the invoice.');
       }
     } catch (err) {
-      setAdjustError(apiErrorMessage(err, 'Could not adjust the invoice.'));
+      const serverReason = err?.response?.data?.errors?.reason;
+      if (serverReason) setAdjustReasonError(serverReason);
+      else setAdjustError(apiErrorMessage(err, 'Could not adjust the invoice.'));
     } finally {
       setAdjusting(false);
     }
@@ -1038,6 +1066,31 @@ const handleMarkAsPaid = async () => {
                     )}
                   </div>
 
+                  {activeTenant.adjustments?.length > 0 && (
+                    <details className="mb-6 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                      <summary className="cursor-pointer font-semibold text-slate-700">Adjustment history ({activeTenant.adjustments.length})</summary>
+                      <ul className="m-0 mt-2 p-0 list-none space-y-2">
+                        {activeTenant.adjustments.map(a => (
+                          <li key={a.id} className="border-t border-slate-100 pt-2">
+                            <p className="m-0 text-[11px] text-slate-500">
+                              {a.created_at ? new Date(String(a.created_at).replace(' ', 'T')).toLocaleString() : '—'} · {a.admin || 'Admin'}
+                              {activeTenant.advanceGroup ? <> · <span className="font-mono">{a.invoiceId}</span></> : null}
+                            </p>
+                            <p className="m-0 mt-0.5 text-slate-800">“{a.reason}”</p>
+                            <p className="m-0 mt-0.5 text-[11px]">
+                              {Object.entries(a.changes || {}).map(([line, [from, to]]) => (
+                                <span key={line} className="mr-3 inline-block">
+                                  {ADJUSTMENT_LINE_LABELS[line] || line}: {line === 'due_date' ? `${from || '—'} → ${to || '—'}` : `${formatCurrency(from)} → ${formatCurrency(to)}`}
+                                </span>
+                              ))}
+                              <span className="inline-block font-semibold text-slate-700">Total: {formatCurrency(a.old_total)} → {formatCurrency(a.new_total)}</span>
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+
                   {activeTenant.advanceInvoice && (
                     <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                       <p className="m-0 text-xs font-bold text-indigo-800">
@@ -1201,6 +1254,16 @@ const handleMarkAsPaid = async () => {
                              <div><span className="text-indigo-500 font-bold mr-1">Sender Profile Name:</span> {activeTenant.senderName || 'Not Captured'}</div>
                              {!activeTenant.splitParts?.length && <div><span className="text-indigo-500 font-bold mr-1">Network Reference No:</span> <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-indigo-200/60 font-bold text-slate-800">{activeTenant.paymentReference || '—'}</span></div>}
                           </div>
+                          {activeTenant.referenceReuse && (
+                            <p role="status" className="m-0 flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800">
+                              <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5" />
+                              <span>
+                                Reference already used on invoice <span className="font-mono">{activeTenant.referenceReuse.invoice_id}</span>
+                                {' '}({[activeTenant.referenceReuse.tenant_name, REUSE_STATUS_LABELS[activeTenant.referenceReuse.status] || activeTenant.referenceReuse.status].filter(Boolean).join(', ')}).
+                                {' '}Check the proof before confirming.
+                              </span>
+                            </p>
+                          )}
                           {activeTenant.splitParts?.length > 0 && (
                             <div className="space-y-1.5 border-t border-indigo-100 pt-2">
                               <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">Split payment portions submitted by the tenant</div>
@@ -1290,9 +1353,9 @@ const handleMarkAsPaid = async () => {
                   {totalDue > 0 && !['paid', 'processing', ...TENANT_ACTED_STATUSES].includes(activeTenant.status) && (
                     <p className="m-0 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Waiting for the tenant to pay or schedule a visit in Pay Bills. You can clear this bill once they do.</p>
                   )}
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={handleConfirmPayment} 
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={handleConfirmPayment}
                       disabled={recording || totalDue <= 0 || !TENANT_ACTED_STATUSES.includes(activeTenant.status) || (splitMode && !splitCanProcess)}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors border-0 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
                     >
@@ -1695,6 +1758,18 @@ const handleMarkAsPaid = async () => {
                   Already posted, not editable here: Services {formatCurrency(adjustForm.services)} · Maintenance {formatCurrency(adjustForm.maintenance)} · Security deposit {formatCurrency(adjustForm.securityDeposit)}.
                 </p>
               )}
+              <div className="mb-3">
+                <label htmlFor="adjust-reason" className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Reason <span className="text-red-600">*</span></label>
+                <textarea id="adjust-reason" rows={2} maxLength={ADJUST_REASON_MAX} value={adjustForm.reason}
+                  placeholder="e.g. Water billed twice; corrected to the provider bill"
+                  aria-invalid={adjustReasonError ? 'true' : undefined} aria-describedby={adjustReasonError ? 'adjust-reason-error' : 'adjust-reason-hint'}
+                  onChange={e => { setAdjustForm({ ...adjustForm, reason: e.target.value }); setAdjustReasonError(''); setAdjustError(''); }}
+                  onBlur={e => setAdjustReasonError(checkAdjustReason(e.target.value))}
+                  className={`w-full px-3 py-2 text-sm border border-solid rounded-lg outline-none text-slate-800 bg-white focus:border-indigo-500 resize-y ${adjustReasonError ? 'border-red-400' : 'border-slate-200'}`} />
+                {adjustReasonError
+                  ? <p id="adjust-reason-error" role="alert" className="text-[11px] text-red-700 m-0 mt-1">{adjustReasonError}</p>
+                  : <p id="adjust-reason-hint" className="text-[11px] text-slate-400 m-0 mt-1">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>}
+              </div>
               <div className="flex justify-between text-sm mb-4">
                 <span className="text-slate-500">Total {formatCurrency(adjustForm.oldTotal)} →</span>
                 <span className="font-bold text-indigo-700">{formatCurrency(adjustTotal)}</span>

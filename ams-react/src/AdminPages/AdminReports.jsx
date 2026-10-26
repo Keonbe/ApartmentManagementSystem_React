@@ -357,6 +357,8 @@ const AdminReports = () => {
     dueDate: (v) => (!creating && v === originalDue ? '' : checkDate(v, { min: localDateString(), max: maxFutureDate(), label: 'Due date' })),
     ...Object.fromEntries(Object.entries(INVOICE_AMOUNT_LABELS).map(([key, label]) => [key, (v) => checkAmount(v, { label, required: false })])),
     notes: (v) => checkText(v, { label: 'Memo', max: LIMITS.notes, required: false }),
+    // adjust_invoice.php: every adjustment needs a reason, 5-255 characters.
+    reason: (v) => (creating ? '' : checkText(String(v ?? '').replace(/\s+/g, ' '), { label: 'Reason', min: 5, max: 255 })),
   }, { idPrefix: 'inv-' });
   const invoiceValues = { ...invoiceForm, adjustInvoiceId: selectedAdjustInvoiceId };
   const setInvoiceField = (key, value) => {
@@ -411,11 +413,13 @@ const AdminReports = () => {
           electricity: Number(invoiceForm.electric) || 0,
           parking: Number(invoiceForm.parking) || 0,
           lateFee: Number(invoiceForm.lateFee) || 0,
-          dueDate: invoiceForm.dueDate
+          dueDate: invoiceForm.dueDate,
+          reason: String(invoiceForm.reason ?? '').replace(/\s+/g, ' ').trim(),
         };
         const response = await api.post('adjust_invoice.php', payload);
         if (response.data.success) {
           setInvoiceSuccessMsg(`Invoice ${response.data.invoice_id} adjusted — new total ₱${Number(response.data.total_amount).toLocaleString()}.`);
+          setInvoiceForm(p => ({ ...p, reason: '' }));
           loadAdjustableInvoices();
           fetchReportData();
         } else if (!invoiceErrors.applyServerErrors(response)) {
@@ -2378,6 +2382,21 @@ const AdminReports = () => {
                     </select>
                     <FieldError id="inv-adjustInvoiceId" error={invoiceErrors.errors.adjustInvoiceId} />
                     <p className="text-[10px] text-slate-400 mt-1 mb-0">Only invoices that are still open (not paid, cancelled, or mid-checkout) can be adjusted.</p>
+                    <label htmlFor="inv-reason" className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1.5 mt-3">
+                      Reason for the adjustment <span className="text-indigo-600">*</span>
+                    </label>
+                    <textarea
+                      {...invoiceErrors.fieldA11y('reason')}
+                      rows={2}
+                      maxLength={255}
+                      value={invoiceForm.reason || ''}
+                      onChange={e => setInvoiceField('reason', e.target.value)}
+                      onBlur={() => blurInvoiceField('reason', { trim: true })}
+                      placeholder="e.g. Water billed twice; corrected to the provider bill"
+                      className={`w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl outline-none text-slate-800 bg-white focus:border-indigo-500 resize-y${invalidCls(invoiceErrors.errors.reason)}`}
+                    />
+                    <FieldError id="inv-reason" error={invoiceErrors.errors.reason} />
+                    <p className="text-[10px] text-slate-400 mt-1 mb-0">Kept in the invoice's adjustment history and quoted in the tenant's notice.</p>
                   </div>
                 ) : (
                 <>

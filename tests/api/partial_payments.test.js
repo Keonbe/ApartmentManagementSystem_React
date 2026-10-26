@@ -315,13 +315,13 @@ describe('adjust_invoice.php keeps the total above what was paid', () => {
   beforeAll(() => addBill(id, { status: 'pending', paid: 600 }));
 
   it.each([500, 600])('a new total of %d (≤ ₱600 paid) → 422', async (baseRent) => {
-    const res = await api('adjust_invoice.php', { token: admin, json: { invoiceId: id, baseRent } });
+    const res = await api('adjust_invoice.php', { token: admin, json: { invoiceId: id, baseRent, reason: 'Corrected the rent' } });
     expect(res.status).toBe(422);
     expect((await bill(id)).total).toBe(1500);
   });
 
   it('a new total just above it is accepted', async () => {
-    const res = await api('adjust_invoice.php', { token: admin, json: { invoiceId: id, baseRent: 600.01 } });
+    const res = await api('adjust_invoice.php', { token: admin, json: { invoiceId: id, baseRent: 600.01, reason: 'Corrected the rent' } });
     expect(res.status).toBe(200);
     expect(await bill(id)).toMatchObject({ total: 600.01, paid: 600 });
   });

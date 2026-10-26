@@ -111,6 +111,9 @@ CREATE TABLE `invoices` (
   `security_deposit` decimal(10,2) NOT NULL DEFAULT 0.00,
   `payment_method` varchar(50) DEFAULT NULL,
   `payment_reference` varchar(100) DEFAULT NULL,
+  -- The reference as compared for reuse (config.php normalize_payment_reference()),
+  -- indexed so the lookups seek (2026_10_manager_interview_alignment.sql, reference_norm).
+  `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`payment_reference`, ' ', ''), '-', ''), '\t', ''), '\r', ''), '\n', '')), '')) STORED,
   `bank_name` varchar(100) DEFAULT NULL,
   `proof_of_payment_path` varchar(255) DEFAULT NULL,
   `proof_rejection_reason` varchar(255) DEFAULT NULL,
@@ -143,6 +146,7 @@ CREATE TABLE `invoices` (
   UNIQUE KEY `uq_invoice_rent_period` (`user_id`, `rent_period_key`),
   KEY `idx_invoice_payment_group` (`payment_group`),
   KEY `idx_invoices_checkout_intent` (`checkout_payment_intent_id`),
+  KEY `idx_invoices_reference_norm` (`reference_norm`),
   CONSTRAINT `fk_invoice_rent_app` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_invoice_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -1085,11 +1089,13 @@ CREATE TABLE IF NOT EXISTS `payment_transactions` (
   `payment_method` varchar(50) NOT NULL,
   `bank_name` varchar(100) DEFAULT NULL,
   `reference_number` varchar(100) DEFAULT NULL,
+  `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, ' ', ''), '-', ''), '\t', ''), '\r', ''), '\n', '')), '')) STORED,
   `recorded_by` int(11) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_payment_transactions_invoice` (`invoice_id`),
   KEY `idx_payment_transactions_recorder` (`recorded_by`),
+  KEY `idx_payment_transactions_reference_norm` (`reference_norm`),
   CONSTRAINT `fk_payment_transactions_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_payment_transactions_recorder` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -1104,10 +1110,12 @@ CREATE TABLE IF NOT EXISTS `payment_proof_parts` (
   `bank_name` varchar(100) DEFAULT NULL,
   `amount` decimal(10,2) NOT NULL,
   `reference_number` varchar(100) DEFAULT NULL,
+  `reference_norm` varchar(100) GENERATED ALWAYS AS (NULLIF(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(`reference_number`, ' ', ''), '-', ''), '\t', ''), '\r', ''), '\n', '')), '')) STORED,
   `proof_path` varchar(255) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_payment_proof_parts_key` (`payment_key`)
+  KEY `idx_payment_proof_parts_key` (`payment_key`),
+  KEY `idx_payment_proof_parts_reference_norm` (`reference_norm`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Guest (not-yet-registered) inquiry chat, kept apart from `messages` so its
@@ -1347,6 +1355,24 @@ CREATE TABLE IF NOT EXISTS `deposit_deductions` (
   CONSTRAINT `fk_deposit_deductions_application` FOREIGN KEY (`rent_application_id`) REFERENCES `rent_applications` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Invoice adjustment history (adjust_invoice.php): the required reason and the
+-- before/after of each changed line, `changes` = JSON {line: [old, new]}.
+CREATE TABLE IF NOT EXISTS `invoice_adjustments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `invoice_id` varchar(50) NOT NULL,
+  `admin_id` int(11) DEFAULT NULL,
+  `reason` varchar(255) NOT NULL,
+  `old_total` decimal(10,2) NOT NULL,
+  `new_total` decimal(10,2) NOT NULL,
+  `changes` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_invoice_adjustments_invoice` (`invoice_id`),
+  KEY `idx_invoice_adjustments_admin` (`admin_id`),
+  CONSTRAINT `fk_invoice_adjustments_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_invoice_adjustments_admin` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 INSERT IGNORE INTO `application_requirements` (`id`, `label`, `label_fil`, `is_required`, `is_active`, `sort_order`) VALUES
 (1, 'Valid ID (front)', 'Valid ID (harap)', 1, 1, 1),
 (2, 'Valid ID (back)', 'Valid ID (likod)', 1, 1, 2);
@@ -1392,6 +1418,9 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('lease_end_reminder_days', '30'),
 ('move_out_min_notice_days', '15'),
 ('move_out_max_notice_days', '30'),
+-- Reused GCash/bank payment reference: 'warn' flags it to the admin, 'block'
+-- refuses it (find_reference_reuse() in config.php).
+('duplicate_reference_policy', 'warn'),
 -- Date of the last daily notification sweep (run_notification_sweep() in config.php).
 ('notification_sweep_last_run', '2000-01-01'),
 ('landlord_name', 'Elizabeth Angcanan'),

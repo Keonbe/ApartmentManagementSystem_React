@@ -2,7 +2,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faExclamationTriangle, faDollarSign, faShieldAlt, faInfoCircle, faCreditCard, faLock,
 } from '@fortawesome/free-solid-svg-icons';
-import { SettingsSection, Field, WithUnit, Callout, INPUT_MONO, INPUT_NUMBER, CHECKBOX } from './SettingsSection';
+import { SettingsSection, Field, WithUnit, Callout, INPUT, INPUT_MONO, INPUT_NUMBER, CHECKBOX } from './SettingsSection';
 import { LIMITS } from '../../utils/validation';
 import { blockNonIntegerKeys, numberValue } from '../../Components/form/formHelpers';
 
@@ -150,6 +150,24 @@ export default function PaymentsPanel({ settings, updateSetting }) {
           Tenants see the {isSandbox ? 'PayMongo sandbox' : 'receipt-upload'} channels plus In-Person.
           Switch the mode above to use the other family; your channel choices are kept.
         </p>
+
+        <Field
+          label="Reused Payment Reference"
+          htmlFor="setting-duplicateReferencePolicy"
+          hint={settings.duplicateReferencePolicy === 'block'
+            ? 'A GCash or bank reference already used on another payment is refused, for tenant proofs and desk recording.'
+            : 'A GCash or bank reference already used on another payment is accepted and flagged on the payment for you to check.'}
+        >
+          <select
+            id="setting-duplicateReferencePolicy" name="duplicateReferencePolicy"
+            value={settings.duplicateReferencePolicy === 'block' ? 'block' : 'warn'}
+            onChange={(e) => updateSetting('duplicateReferencePolicy', e.target.value)}
+            className={`${INPUT} sm:max-w-xs`}
+          >
+            <option value="warn">Warn admin only</option>
+            <option value="block">Block reuse</option>
+          </select>
+        </Field>
       </SettingsSection>
 
       <SettingsSection
