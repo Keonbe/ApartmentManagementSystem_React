@@ -304,12 +304,7 @@ error_log = /var/log/php/ams_errors.log
   ```bash
   tail -f /var/log/php/ams_errors.log
   ```
-- [ ] **Automated DB backup cron**:
-  ```bash
-  # crontab -e
-  0 3 * * * mysqldump -u ams_user -p'yourpass' ams_db > /backups/ams_$(date +\%F).sql 2>> /var/log/ams_backup.log
-  ```
-- [ ] **Uploads backup** — `backend/uploads/` contains user-submitted files (IDs, payment proofs). Back these up separately.
+- [ ] **Backups (database, `backend/uploads/`, `backend/room_images/`, `config.env.php`)** — set up the nightly job, retention and monthly restore drill in [backup_and_restore.md](backup_and_restore.md).
 - [ ] **Test from a different network** (mobile hotspot) before declaring production ready — catches DNS, SSL, and CORS issues that don't appear locally.
 
 ---
@@ -496,3 +491,4 @@ SECURITY
 | Chat Design | [chat_design.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/chat_design.md) |
 | PayMongo Integration | [paymongo_integration_guide.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/paymongo_integration_guide.md) |
 | SaaS Fallback Strategy | [saas_fallback_strategy.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/deployment/saas_fallback_strategy.md) |
+| Backup and Restore | [backup_and_restore.md](backup_and_restore.md) |

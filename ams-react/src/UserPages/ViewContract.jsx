@@ -160,7 +160,7 @@ export default function ViewContract() {
         }
     };
 
-    const handleTenantSignatureRemove = async (party) => {
+    const handleTenantSignatureRemove = async () => {
         if (!contractData?.contractId) return;
         const formData = new FormData();
         formData.append('contractId', contractData.contractId);

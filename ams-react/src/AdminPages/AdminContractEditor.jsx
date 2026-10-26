@@ -16,7 +16,6 @@ import {
   unknownPlaceholders, pick, roman, newId,
 } from '../Components/contract/contractTemplate';
 import api from '../api/axiosConfig';
-import { fileUrl } from '../api/fileUrl';
 import { apiErrorMessage } from '../utils/apiError';
 import { printElement } from '../utils/print';
 
@@ -256,10 +255,13 @@ const AdminContractEditor = ({ embedded = false }) => {
     });
   }, []);
 
-  const load = async () => {
-    setLoadError(null);
-    try {
-      const data = await fetchContractTemplate(null, { full: true });
+  // Fetches the template and fills the editor. Every setState runs in a
+  // promise callback (fetchContractTemplate is async, so it never throws
+  // synchronously), which lets the mount effect below call it directly.
+  // .then().catch() keeps the old try/catch: an error while applying the
+  // response is reported as a load error too.
+  const fetchTemplate = () => fetchContractTemplate(null, { full: true })
+    .then((data) => {
       const t = data.template;
       // Default empty GCash or Bank account numbers to *********
       (t.payment_accounts || []).forEach((a) => {
@@ -278,9 +280,15 @@ const AdminContractEditor = ({ embedded = false }) => {
       setSavedJson(JSON.stringify(t));
       setNote('');
       setConflict(null);
-    } catch (err) {
+    })
+    .catch((err) => {
       setLoadError(err.message || 'Failed to load contract template.');
-    }
+    });
+
+  // "Try again" / "Reload latest version": clear the old error first.
+  const load = () => {
+    setLoadError(null);
+    return fetchTemplate();
   };
 
   const loadHistory = async () => {
@@ -295,28 +303,34 @@ const AdminContractEditor = ({ embedded = false }) => {
     }
   };
 
-  const fetchTenants = async () => {
-    try {
-      const res = await api.get('/get_tenants.php');
+  const fetchTenants = () => api.get('/get_tenants.php')
+    .then((res) => {
       if (res.data.success && Array.isArray(res.data.data)) {
         setRealTenants(res.data.data);
       }
-    } catch (e) {
+    })
+    .catch((e) => {
       console.error('Failed to load tenants for contract preview:', e);
-    }
-  };
+    });
 
   useEffect(() => {
-    load();
+    fetchTemplate();
     fetchTenants();
   }, []);
 
-  useEffect(() => {
-    if (tab === 'history') loadHistory();
-  }, [tab]);
+  // Opening the Version History tab (re)loads the list. Called from the tab
+  // click, only when the tab actually changes, like the old [tab] effect.
+  const selectTab = (id) => {
+    if (id === 'history' && tab !== 'history') loadHistory();
+    setTab(id);
+  };
 
-  // When a real tenant is selected in Preview, automatically populate preview data
-  useEffect(() => {
+  // When a real tenant is selected in Preview (or the tenant list arrives),
+  // repopulate the preview data. Adjusted while rendering instead of in an
+  // effect: the stored pair says which selection/list the data was built for.
+  const [previewSource, setPreviewSource] = useState({ id: selectedTenantId, tenants: realTenants });
+  if (previewSource.id !== selectedTenantId || previewSource.tenants !== realTenants) {
+    setPreviewSource({ id: selectedTenantId, tenants: realTenants });
     if (selectedTenantId === 'sample') {
       setCustomPreviewData(DEFAULT_SAMPLE_DATA);
     } else {
@@ -341,7 +355,7 @@ const AdminContractEditor = ({ embedded = false }) => {
         });
       }
     }
-  }, [selectedTenantId, realTenants]);
+  }
 
   const contractDocRef = useRef(null);
   const handlePrint = useCallback(() => {
@@ -503,10 +517,11 @@ const AdminContractEditor = ({ embedded = false }) => {
 
   // Filter clauses if search query is active
   const filteredSections = useMemo(() => {
-    if (!draft?.terms?.sections) return [];
-    if (!clauseSearch.trim()) return draft.terms.sections;
+    const sections = draft?.terms?.sections;
+    if (!sections) return [];
+    if (!clauseSearch.trim()) return sections;
     const q = clauseSearch.toLowerCase();
-    return draft.terms.sections.filter((s) => {
+    return sections.filter((s) => {
       const matchSec = (s.title?.en || '').toLowerCase().includes(q) || (s.title?.tl || '').toLowerCase().includes(q);
       const matchClauses = s.clauses.some((c) =>
         (c.title?.en || '').toLowerCase().includes(q) ||
@@ -516,7 +531,7 @@ const AdminContractEditor = ({ embedded = false }) => {
       );
       return matchSec || matchClauses;
     });
-  }, [draft?.terms?.sections, clauseSearch]);
+  }, [draft, clauseSearch]);
 
   // ── RENDER TERMS TAB ──
   const renderTerms = () => (
@@ -1093,7 +1108,7 @@ const AdminContractEditor = ({ embedded = false }) => {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setTab(t.id)}
+                onClick={() => selectTab(t.id)}
                 aria-current={tab === t.id ? 'page' : undefined}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap border-0 cursor-pointer transition-all ${
                   tab === t.id

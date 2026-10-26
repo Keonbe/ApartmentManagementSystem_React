@@ -55,18 +55,22 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
     const [appStatusModal, setAppStatusModal] = useState(null);
 
-    useEffect(() => {
-        if (!notifications || !notifications.length) return;
-        const unreadAppUpdate = notifications.find(n => 
-            n.type === 'application_update' && 
-            !n.read && 
+    // An unread approved / rejected / action-required application notice opens
+    // the one-time modal (once per notice per browser session). Run on every
+    // freshly fetched list, from fetchNotifications below, which is the only
+    // place the list changes; this used to be an effect on `notifications`.
+    const showAppStatusOnce = (list) => {
+        if (!list || !list.length) return;
+        const unreadAppUpdate = list.find(n =>
+            n.type === 'application_update' &&
+            !n.read &&
             (n.title?.toLowerCase().includes('approved') || n.title?.toLowerCase().includes('rejected') || n.title?.toLowerCase().includes('declined') || n.title?.toLowerCase().includes('action required'))
         );
         if (unreadAppUpdate && !sessionStorage.getItem(`app_status_shown_${unreadAppUpdate.id}`)) {
             setAppStatusModal(unreadAppUpdate);
             sessionStorage.setItem(`app_status_shown_${unreadAppUpdate.id}`, 'true');
         }
-    }, [notifications]);
+    };
 
     const closeAppStatusModal = async () => {
         if (!appStatusModal) return;
@@ -123,7 +127,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             const response = await api.get('get_notifications.php');
             if (response.data.success) {
                 setRawNotifications(response.data.notifications);
-                setNotifications(response.data.notifications.map(n => ({
+                const list = response.data.notifications.map(n => ({
                     id: n.id,
                     title: n.title,
                     message: n.message,
@@ -133,7 +137,9 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     read: Number(n.is_read) === 1,
                     attachment_path: n.attachment_path,
                     isArchived: Number(n.is_archived) === 1
-                })));
+                }));
+                setNotifications(list);
+                showAppStatusOnce(list);
                 setUnreadCount(response.data.unread_count ?? response.data.notifications.filter(n => !Number(n.is_read)).length);
             }
         } catch (e) {

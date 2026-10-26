@@ -118,12 +118,19 @@ const AdminMessages = () => {
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  // Clearing the search empties the results. Done while rendering, when the
+  // debounced query changes to '', rather than in the fetch effect below.
+  const [resultsQuery, setResultsQuery] = useState(debouncedSearch);
+  if (resultsQuery !== debouncedSearch) {
+    setResultsQuery(debouncedSearch);
+    if (!debouncedSearch) setSearchResults([]);
+  }
+
   useEffect(() => {
+    // An empty query fetches nothing; the previous run's cleanup has already
+    // cancelled any search still in flight.
+    if (!debouncedSearch) return undefined;
     let cancelled = false;
-    if (!debouncedSearch) {
-      setSearchResults([]);
-      return () => { cancelled = true; };
-    }
     Promise.resolve(fetchConversations?.(debouncedSearch)).then((results) => {
       if (!cancelled) setSearchResults(results || []);
     });
@@ -191,9 +198,14 @@ const AdminMessages = () => {
       .filter((id) => id != null);
   }, [activeChat?.other_user_id, debouncedSearch, messages]);
 
-  useEffect(() => {
+  // A new query or another conversation starts again at the first match
+  // (adjusted while rendering; was an effect on the same two values).
+  const activeChatUserId = activeChat?.other_user_id;
+  const [matchScope, setMatchScope] = useState({ query: debouncedSearch, chatId: activeChatUserId });
+  if (!Object.is(matchScope.query, debouncedSearch) || !Object.is(matchScope.chatId, activeChatUserId)) {
+    setMatchScope({ query: debouncedSearch, chatId: activeChatUserId });
     setActiveMatchIndex(0);
-  }, [debouncedSearch, activeChat?.other_user_id]);
+  }
 
   const navigateMatch = (nextIndex) => {
     if (!activeMessageMatches.length) return;

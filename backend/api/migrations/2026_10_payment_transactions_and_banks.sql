@@ -18,9 +18,11 @@ CREATE TABLE IF NOT EXISTS `payment_transactions` (
   CONSTRAINT `fk_payment_transactions_recorder` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- The migration runner tolerates MariaDB's duplicate-column error when this
--- additive migration is rerun after a partial application.
-ALTER TABLE `invoices` ADD COLUMN `bank_name` varchar(100) DEFAULT NULL;
+-- Added only when missing (information_schema guard), so a re-run, or a run
+-- on a database built from SetupDB.sql, does not stop on error 1060.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'invoices' AND column_name = 'bank_name') = 0,
+  'ALTER TABLE `invoices` ADD COLUMN `bank_name` varchar(100) DEFAULT NULL', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 
 -- Preserve historical payment data as one ledger row per paid invoice.
 INSERT INTO `payment_transactions`

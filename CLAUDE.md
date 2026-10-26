@@ -1,73 +1,59 @@
 # AMS — Claude Code guide
 
-React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, React Router 7) → plain PHP 8 endpoints (`backend/api/*.php`, no framework) → MariaDB 10.4 `ams_db`, served by XAMPP Apache on :8080. PHP is 8.0: mysqli returns false on errors (no exceptions). Chat also runs a Node Socket.IO sidecar (`websocket-server/server.js`, :3001, `node server.js`; frontend URL `VITE_CHAT_SOCKET_URL` in `src/api/env.js`).
+React 19 + Vite 8 SPA (`ams-react/`, Tailwind 4, Router 7) → plain PHP 8.0 endpoints (`backend/api/*.php`, no framework; mysqli returns false on error, no exceptions) → MariaDB 10.4 `ams_db`, XAMPP Apache :8080. Chat also has a Node Socket.IO sidecar (`websocket-server/server.js`, :3001; frontend URL `VITE_CHAT_SOCKET_URL` in `src/api/env.js`).
 
 ## Session start
-
-1. Read `TASK.md` (local, gitignored) if present — it is the current workstream plus open items. Finished workstreams live in `TASK.archive.md` (also local): grep it by topic, never read it whole.
+1. Read `TASK.md` (local, gitignored: current workstream + open items). Finished work is in `TASK.archive.md`: grep by topic, never read whole.
 2. `git status` + `git log --oneline -5`.
-3. Open only files named there; `grep` before reading. Read large docs by section (Grep headings → Read with offset/limit), never whole.
+3. Open only files named there; grep before reading; read big docs by section (grep headings, then offset/limit).
 
 ## Run / verify
+- Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`. Bash tool = Git Bash.
+- API tests: `cd tests/api && npm test` (~40-80 s, needs MySQL not Apache). Builds scratch `ams_test` from `SetupDB.sql` + `seed_mock_data.sql`, reloads per file, `php -S` :8091 with `AMS_TEST_MODE=1` (config.php then refuses any DB not named `*_test`, so dev `ams_db` is never touched; SMS/email off). `KEEP_TEST_DB=1` keeps it. Run after backend changes; add a test with each endpoint fix (fixtures via `lib/db.js`, dates relative to today). Details: `docs/documentation/api_testing.md`.
+- Frontend: `cd ams-react && npm run build:local` = the `dist/` XAMPP serves (no frontend test runner). `build:selfhosted` uses gitignored `.env.selfhosted`; the build guard rejects localhost URLs in production builds.
+- PHP lint: `/c/xampp/php/php.exe -l <file>`. Lint files, not a pipe (stdin truncates large files and reports a false parse error).
+- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `APP_TIMEZONE`, `ALLOWED_ORIGINS`). CORS in `backend/cors.php` via `config.php` (four chat endpoints still send their own `*` first, see security_audit §6e). Deploy: `docs/deployment/dual-deployment-environment-plan.md`; check `php backend/cron/check_environment.php`.
+- DB reset: drop/recreate `ams_db`, import `backend/api/migrations/SetupDB.sql` then `seeds/seed_mock_data.sql`. `SetupDB.sql` hardcodes `USE ams_db`: for a scratch DB `sed` the name first or it wipes dev. Never run `seed_mock_data.sql` on prod (use local gitignored `seed_prod_demo.sql`).
+- Live checks: curl with a Bearer token; recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`; login body key is `email_address`).
 
-- Start: `cmd //c "start /B C:\\xampp\\mysql_start.bat"` and `apache_start.bat`
-- API tests: `cd tests/api && npm test` (~40 s; needs XAMPP MySQL, not Apache). Vitest builds a scratch `ams_test` from `SetupDB.sql` + `seed_mock_data.sql`, reloads it before each file, and runs `php -S` on :8091 with `AMS_TEST_MODE=1` (config.php then skips `config.env.php` and refuses any DB not named `*_test`). Dev `ams_db` is never touched; SMS/email are switched off in `ams_test`. `KEEP_TEST_DB=1` keeps it for debugging. Run it after backend changes, and add a test with each endpoint fix (fixtures via `lib/db.js`, dates relative to today)
-- Frontend: `cd ams-react && npm run build:local` for the XAMPP-served `dist/` (no frontend test runner). `build:selfhosted` uses the gitignored `.env.selfhosted` for other self-hosted deployments; a build guard fails production builds with localhost URLs
-- Deployment targets/guardrails: `docs/deployment/dual-deployment-environment-plan.md`; backend check `php backend/cron/check_environment.php`
-- Env: backend reads `config.env.php` → env vars (`DB_*`, `APP_ENV`, `APP_URL`, `APP_TIMEZONE`, `ALLOWED_ORIGINS`); CORS lives in `backend/cors.php`, loaded through `config.php` (the four chat endpoints still send their own `*` header first — see security_audit §6e).
-- PHP: `/c/xampp/php/php.exe -l <file>` (Bash tool is Git Bash)
-- DB reset: drop/recreate `ams_db`, import (SetupDB.sql hardcodes `USE ams_db` — for a scratch DB, `sed` the name first or it wipes dev) `backend/api/migrations/SetupDB.sql` then `migrations/seeds/seed_mock_data.sql` (seeds/resets live in `seeds/`; never run `seed_mock_data.sql` on prod — use the local-only, gitignored `seed_prod_demo.sql`)
-- Live API checks: curl with a Bearer token — recipes and seed accounts in `docs/documentation/module_verification_guide.md` §3.2 / §1.4 (`admin@gmail.com` / `admin123`)
-
-## Backend conventions (backend/config.php)
-
-- Identity only from the session: `require_admin`, `require_user`, `require_owner_or_admin`. `X-User-Id`/`X-Admin-Id` are overwritten by `config.php` — never trust request ids.
+## Backend conventions (`backend/config.php`)
+- Identity only from the session: `require_admin`, `require_user`, `require_owner_or_admin` (`X-User-Id`/`X-Admin-Id` are overwritten; never trust request ids).
 - Prepared statements for all request input.
-- Writes call `log_activity($conn, $id, <one of LOG_CATEGORIES>, 'Title Case Action', $details)`.
-- Notifications via `create_notification()`; admin queue via `notify_admins_queue()` / `resolve_admin_queue()`. Only queue rows are `'Pending'`.
-- Invoice "still owed" = `BILLING_OPEN_STATUSES` / `billing_open_status_sql()`. Charges onto invoices: `post_service_charge()` / `post_parking_charge()` (claim-first).
-- Migrations: new idempotent `YYYY_MM_name.sql` in `backend/api/migrations/` + mirror into `SetupDB.sql`/seeds; `cron/migrate.php` runs pending ones (prod is MySQL 8). The runner strips `IF NOT EXISTS` (MySQL 8) and runs one statement at a time, skipping only statements whose change already exists; still prefer `information_schema` + `PREPARE` guards (pattern: `2026_10_prod_schema_repair.sql`). No `DELIMITER` blocks. Once applied everywhere (prod included), delete it; `SetupDB.sql` already has it and git keeps the history. **Before committing to main, merge the workstream's new (not yet on prod) migrations into one `YYYY_MM_<name>.sql`** (concatenate in order under `-- ===== name =====` headers, delete the per-feature files, fix references, test on a DB built from the previous `SetupDB.sql`, twice). Never merge or rename a migration prod has already applied: the runner tracks them by filename.
-- Frontend API calls only through `ams-react/src/api/axiosConfig.js` (the one exception: chat's socket.io-client in `context/ChatContext.jsx`); uploads via `src/api/fileUrl.js`; new routes registered in `App.jsx` with the right guard.
+- Writes call `log_activity($conn, $id, <LOG_CATEGORIES value>, 'Title Case Action', $details)`.
+- Notify via `create_notification()`; admin queue via `notify_admins_queue()` / `resolve_admin_queue()` (only queue rows are `'Pending'`).
+- "Still owed" = `BILLING_OPEN_STATUSES` / `billing_open_status_sql()` and the balance `total_amount - amount_paid` (`invoice_balance_cents()`), not the total. Charges onto invoices: `post_service_charge()` / `post_parking_charge()` (claim-first).
+- Frontend API calls only via `ams-react/src/api/axiosConfig.js` (exception: chat's socket.io-client in `context/ChatContext.jsx`); uploads via `src/api/fileUrl.js`; new routes in `App.jsx` with the right guard.
+- **Migrations**: new idempotent `YYYY_MM_name.sql` in `backend/api/migrations/`, mirrored into `SetupDB.sql` and seeds. `cron/migrate.php` runs pending ones (prod = MySQL 8; strips `IF NOT EXISTS`, one statement at a time). Prefer `information_schema` + `PREPARE` guards (pattern `2026_10_prod_schema_repair.sql`); no `DELIMITER`. Once on prod everywhere, delete the file (SetupDB has it; git keeps history). Never merge or rename a migration prod already applied (tracked by filename).
+- **Before committing to main, merge the workstream's not-yet-on-prod migrations into one file** (concatenate under `-- ===== name =====` headers, delete the per-feature files, fix references, test twice on a DB built from the previous `SetupDB.sql`).
+- **Apply every schema change to dev `ams_db` yourself, same task.** Dev was built from `SetupDB.sql`, so `schema_migrations` lacks the old files and `migrate.php` would re-run them (some change data). Snapshot first (`/db-snapshot`), run only your file (`/c/xampp/mysql/bin/mysql -u root ams_db < <file>`), `INSERT INTO schema_migrations (migration_name) VALUES ('<file>')` only if not listed, confirm with `SHOW TABLES` / `DESCRIBE`. Not done until `ams_db` has it and `npm run build:local` was run.
 
 ## Docs (authoritative first)
-
-- `docs/features/panelist_feature_checklist.md` — scope & status (panel requirements)
-- `docs/documentation/module_verification_guide.md` — audited modules: API contract, diagrams, workflow, tests
-- `docs/documentation/api_testing.md` — the automated API suite (`tests/api`): how it works, safety guards, writing and running tests, coverage
-- `docs/documentation/database_schema.md`, `system_design.md` — schema/overview (check code if they disagree)
-- `docs/features/sms_email_implementation.md` (+ `sms_email_mock_testing.md` runbook) — SMS/email pipeline, Semaphore
-- `docs/features/chat_design.md` — chat: "As built" section first; the rest is design
-- `docs/deployment/*` — deployment
-- `docs/documentation/claude_code_guide.md` — this repo's Claude Code setup: `/db-snapshot`, hooks, permissions
-- Historical/possibly stale: `api_documentation.md`, `notification_services.md` (design), `todo.md`, `.agents/prd.md`
+- `docs/features/panelist_feature_checklist.md` scope/status · `docs/documentation/module_verification_guide.md` audited modules (contract, workflow, tests) · `api_testing.md` the suite · `database_schema.md`, `system_design.md` (code wins if they disagree) · `docs/features/sms_email_implementation.md` (+ `sms_email_mock_testing.md`) · `chat_design.md` ("As built" first) · `docs/deployment/*` · `docs/documentation/claude_code_guide.md` (`/db-snapshot`, hooks, permissions).
+- Possibly stale: `api_documentation.md`, `notification_services.md`, `todo.md`, `.agents/prd.md`.
+- A change that makes a doc claim stale fixes that doc in the same task.
 
 ## Workflow rules
-
-- Git: all work, including big implementations, goes straight to `main`, with no feature branches. No required-PR branch protection.
-- **Never commit on your own, even when a plan lists per-phase commits.** The user verifies and tests first. Leave changes uncommitted, draft the commit message(s), and commit only when the user says so. For a large change, draft one message per area or phase.
-- **Run the CI checks before drafting a commit message** (`.github/workflows/ci.yml` runs on push to main and keeps failing on GitHub otherwise). Run the local equivalent of each job, fix failures, and say which you could not run:
-  - **Frontend (Lint & Build):** `cd ams-react && npm run lint && npm run build` (CI uses `build`, not `build:local`; the build does not cover lint).
-  - **Backend (PHP Checks):** `php -l` on **every** `backend/**/*.php`, not just changed files; then `phpstan analyse --configuration=phpstan.neon --no-progress` if installed. CI runs PHP 8.2, local is 8.0.
-  - **Database (Schema Validation):** on a scratch DB (never `ams_db`; see `/db-snapshot`) import `SetupDB.sql`, `seeds/seed_mock_data.sql`, `seed_reset.sql`, re-seed, `clear_and_seed.sql`, then apply every `backend/api/migrations/[0-9]*.sql` (CI is MariaDB 10.11). Counts CI asserts: ≥13 users after seed, 1 after reset, 14 rooms after `clear_and_seed`. Schema/seed/migration changes must be mirrored so these pass.
-  - **Backend (Live Endpoint Smoke Test):** on the freshly seeded DB, `get_system_settings.php`, `get_rooms.php`, `get_service_catalog.php` return 200 with no PHP fatal, and `admin@gmail.com` login returns a `sessionToken` that `dashboard_stats.php` accepts. `cd tests/api && npm test` covers this ground.
-  - CI overwrites `config.env.php`, so nothing may depend on local-only config, gitignored files, or `ams_db` state.
-
-- Work directly by default. Use a subagent only for broad read-only sweeps whose raw output the main thread doesn't need (e.g. "which endpoints lack `log_activity`"); prefer `repo-sweep` (Sonnet). Don't spawn subagents for single-area fixes, edits, or verification.
-- Plans (plan mode) open with a short **TL;DR**: a few one-line bullets on what changes and why, before the detailed sections.
-- Prefer Edit over full-file Write unless most of the file changes.
+- Git: everything goes straight to `main`, no feature branches or required PRs.
+- **Never commit on your own**, even if a plan lists per-phase commits: the user tests first. Leave changes uncommitted and draft the message(s), Backend / Frontend / Docs, one per area or phase. Commit only when told; never push unless told.
+- **Run the CI checks before drafting a commit message** (`.github/workflows/ci.yml` runs on push to main). Fix failures, say which you could not run:
+  - Frontend: `cd ams-react && npm run lint && npm run build` (CI uses `build`; build does not cover lint).
+  - PHP: `php -l` on **every** `backend/**/*.php`; `phpstan analyse --configuration=phpstan.neon --no-progress` if installed (CI PHP 8.2, local 8.0).
+  - Schema: on a scratch DB (never `ams_db`) import `SetupDB.sql`, `seeds/seed_mock_data.sql`, `seed_reset.sql`, re-seed, `clear_and_seed.sql`, then every `backend/api/migrations/[0-9]*.sql` (CI MariaDB 10.11). Asserts: ≥13 users after seed, 1 after reset, 14 rooms after `clear_and_seed`. Mirror schema/seed/migration changes so this passes.
+  - Smoke: on the seeded DB `get_system_settings.php`, `get_rooms.php`, `get_service_catalog.php` return 200, and admin login's `sessionToken` works on `dashboard_stats.php` (`npm test` covers this).
+  - CI overwrites `config.env.php`: depend on no local config, gitignored files or `ams_db` state.
+- Work directly. Subagent only for broad read-only sweeps whose raw output the main thread doesn't need (prefer `repo-sweep`, Sonnet), or when the user asks for one.
+- Plans open with a short **TL;DR** (few one-line bullets: what changes and why).
+- Prefer Edit over full-file Write. On big/shared CRLF files (`config.php`) never script find-and-replace; `php -l` right after. Write heredocs fail on tricky quoting: use the Write tool for message/script files.
 - Verify proportionately: `php -l` on changed PHP, `npm run build` for JSX, curl only the rows that prove the fix.
-- **Self-review the diff before saying "done"** (the API suite in `tests/api` covers only some endpoints and no UI, so this is still the safety net). Read `git diff` and check each item, and fix before reporting:
-  - **Empty vs zero:** `||` / falsy checks on values where `0` is meaningful (use `??` / `=== 0`); a field missing from an input or webhook payload.
-  - **Concurrency:** two tabs/admins doing the same action; a stale edit after the row was sent/deleted (lock with `FOR UPDATE`, re-check state, don't trust `affected_rows` alone: unchanged rows report 0); double submit.
-  - **Order of effects:** work after `commit()` that can still throw; files deleted or written before the DB write succeeds; a failure reported for something already saved.
-  - **Queries in loops:** no DB or settings read per row. On a list endpoint, count queries before and after (`SHOW GLOBAL STATUS LIKE 'Questions'`); prod pays a network round-trip per query.
-  - **Blast radius:** grep other callers of any shared function, endpoint parameter or column you changed; seeds and `SetupDB.sql` mirrored.
-  - **Edits to big/shared files** (`config.php`): use Edit, never a scripted find-and-replace (the files are CRLF); `php -l` right after.
-  - Then test one negative, one edge (boundary/zero/missing) and one stale-state case live, not only the happy path.
-- Before stopping or when a workstream ends: update `TASK.md`; draft a commit message (don't commit unless asked), grouped Backend / Frontend / Docs. Once a workstream is committed, move its section to `TASK.archive.md` and keep only its unfinished points under "Open items".
-- When a change makes a doc claim stale, fix that doc section in the same task.
-- Start a new session once a workstream is committed, or when switching branches/tasks — don't carry finished work into the next request.
+- **Self-review `git diff` before saying "done"** (the suite covers only some endpoints, no UI). Check, and fix first:
+  - Empty vs zero: `||`/falsy checks where `0` is valid (use `??` / `=== 0`); a field missing from an input or webhook.
+  - Concurrency: two tabs/admins, stale edit after the row changed (`FOR UPDATE`, re-check state; `affected_rows` is 0 for unchanged rows), double submit.
+  - Order of effects: work after `commit()` that can throw; files written/deleted before the DB write succeeds; failure reported for something already saved.
+  - Queries in loops: no DB/settings read per row; on list endpoints compare `SHOW GLOBAL STATUS LIKE 'Questions'` before/after (prod pays a round trip per query).
+  - Blast radius: grep other callers of any shared function, parameter or column changed; mirror seeds and `SetupDB.sql`.
+  - Then test one negative, one edge (boundary/zero/missing) and one stale-state case live.
+- Before stopping: update `TASK.md`; once committed, move the section to `TASK.archive.md`, keeping only unfinished points under "Open items".
+- Start a new session after a workstream is committed or when switching tasks.
 
 ## Panel audit routine (one checklist area at a time)
-
-Read the area's checklist rows → audit endpoints + pages → fix → verify live (restore DB) → add the module's section to the verification guide (§2 template; test IDs `M<panel module>-NN`) → update checklist rows, detail table, summary counts.
+Read the area's checklist rows → audit endpoints + pages → fix → verify live (restore DB) → add the module's section to the verification guide (§2 template; test IDs `M<module>-NN`) → update checklist rows, detail table and counts.

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from '../Components/AdminSidebar';
 import Header from '../Components/AdminDashboardHeader';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -57,7 +57,7 @@ const AdminAnnouncements = () => {
     getSystemSettings().then(s => setSmsUnitCost(Number.isFinite(s.smsUnitCost) ? s.smsUnitCost : 0.5));
   }, []);
   const [form, setForm] = useState(EMPTY_FORM);
-  const [fileKey, setFileKey] = useState(Date.now());
+  const [fileKey, setFileKey] = useState(() => Date.now());
   const [attachmentError, setAttachmentError] = useState('');
   const chooseAttachment = (file) => {
     const error = checkFile(file, FILE_RULES.announcement);
@@ -65,17 +65,18 @@ const AdminAnnouncements = () => {
     setForm(f => ({ ...f, attachment: error ? null : (file || null) }));
     if (error) setFileKey(Date.now()); // clear the rejected file from the input
   };
-  // A preview of the chosen file, so the admin can see it was picked.
-  const [attachmentPreview, setAttachmentPreview] = useState(null);
-  useEffect(() => {
-    const file = form.attachment;
-    if (!file) { setAttachmentPreview(null); return undefined; }
-    const isImage = file.type.startsWith('image/');
-    if (!isImage) { setAttachmentPreview({ isImage: false }); return undefined; }
-    const url = URL.createObjectURL(file);
-    setAttachmentPreview({ isImage: true, url });
+  // A preview of the chosen file, so the admin can see it was picked. Whether
+  // it is an image is derived from the file; the image's object URL is owned
+  // by the <img>'s ref callback (React 19 runs the returned cleanup when the
+  // file changes or the image unmounts), so each URL is revoked exactly once.
+  const attachmentFile = form.attachment;
+  const attachmentIsImage = !!attachmentFile && attachmentFile.type.startsWith('image/');
+  const attachmentImgRef = useCallback((img) => {
+    if (!img || !attachmentFile) return undefined;
+    const url = URL.createObjectURL(attachmentFile);
+    img.src = url;
     return () => URL.revokeObjectURL(url);
-  }, [form.attachment]);
+  }, [attachmentFile]);
   const clearAttachment = () => { setAttachmentError(''); setForm(f => ({ ...f, attachment: null })); setFileKey(Date.now()); };
   const removeDraftAttachment = () => setForm(f => ({ ...f, draftAttachment: null, removeAttachment: true }));
   const [sending, setSending] = useState(null); // 'send' | 'draft' | null
@@ -400,10 +401,10 @@ const AdminAnnouncements = () => {
                   </div>
                 )}
                 <FileChip file={form.attachment} onRemove={clearAttachment} />
-                {attachmentPreview && (
+                {attachmentFile && (
                   <div className="mt-2 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
-                    {attachmentPreview.isImage
-                      ? <img src={attachmentPreview.url} alt="Attachment preview" className="max-h-40 max-w-full object-contain" />
+                    {attachmentIsImage
+                      ? <img ref={attachmentImgRef} alt="Attachment preview" className="max-h-40 max-w-full object-contain" />
                       : <div className="flex items-center gap-2 px-4 py-3 text-xs text-slate-600"><FontAwesomeIcon icon={faFilePdf} className="text-red-500 text-base" /> PDF attached</div>}
                   </div>
                 )}

@@ -7,7 +7,7 @@ import {
   faPlus, faSearch, faTimes, faEye, faDownload,
   faCheckCircle, faClock, faExclamationTriangle, faFileSignature,
   faArrowRight, faArrowLeft, faPrint, faEdit, faUpload, faShieldAlt,
-  faGavel, faFileUpload, faFile, faTimesCircle, faInfoCircle, faPenFancy,
+  faGavel, faFileUpload, faFile, faTimesCircle, faInfoCircle,
   faFileContract, faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
 import ContractDocument from '../Components/contract/ContractDocument';

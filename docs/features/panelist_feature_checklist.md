@@ -421,6 +421,8 @@ flowchart TD
 - [x] **3.16 Utility Billing from the Provider Bill** ✅ — default entry mode `bill`: the admin types the Meralco / water bill amounts (stored in `water_amount` / `electric_amount`, no rate), attaches the bill, and a meter reading is optional information (consumption only when recorded).
 - [x] **3.17 Itemized Deposit Deductions** ✅ — move-out clearance takes `deductions: [{category, reason, amount}]` (`deposit_deductions`); contract totals are derived; the tenant's notification, `get_invoices.php` and `my_room.php` list the lines. **History (2026-10-19):** the lines also show, admin only, in Units → Occupancy History (per ended stay, with its extensions; the separate Rent History tab was merged into it), the Tenants detail of a moved-out/archived tenant (`get_tenants.php` `depositOutcome`), the Payments → Security Deposit Ledger (`get_contracts.php` `deposit_items`) and Reports (`depositDeductions` by category and `depositsApplied`, both kept out of revenue).
 - [x] **3.18 Installments (Part-Payments)** ✅ — any single invoice can be paid in parts (`invoices.amount_paid`, `record_partial_payment()`); desk `partial: true`, tenant proof/split with an `amount`; the last part settles through `settle_invoice()`; move-in still needs the invoice paid in full.
+- [x] **3.19 Invoice Adjustment History** ✅ — every *Adjust invoice* (`adjust_invoice.php`, from Payments or Reports) needs a reason (5-255 characters); `invoice_adjustments` keeps the admin, reason, changed lines old → new and the totals, shown admin-only under the bill; the tenant's *Invoice Adjusted* notice quotes the reason (manager interview Q13; verification guide M3-88…90).
+- [x] **3.20 Reused Payment Reference** ✅ — Settings → Payments: *Warn admin only* (default, amber flag on the payment under review) or *Block reuse* (tenant proofs, split parts and desk recording refuse a GCash/bank reference already used on another payment). Matching ignores spaces, tabs, line breaks, dashes and case and stays within one channel; the lookups seek on an indexed generated column (`reference_norm`). The bill's own proof (also a re-proof after rejection, or the desk confirming it), its combined-payment siblings and a settled sibling's ledger row never count; a part already recorded on the same bill does (one reference given for two installments). A split resubmission replaces its own pending portions, so an unchanged portion is not a repeat. An identical part sent twice is always refused (manager interview Q22; M3-91…99).
 
 ---
 
@@ -583,7 +585,7 @@ flowchart TD
 |---|---|---|---|---|---|
 | 1. Tenant Management | 9 | 9 | 0 | 0 | 0 |
 | 2. Unit Management | 8 | 8 | 0 | 0 | 0 |
-| 3. Payment & Billing | 13 | 13 | 0 | 0 | 0 |
+| 3. Payment & Billing | 20 | 20 | 0 | 0 | 0 |
 | 4. Maintenance Request | 10 | 10 | 0 | 0 | 0 |
 | 5. Service Management | 5 | 5 | 0 | 0 | 0 |
 | 6. Notification | 8 | 6 | 2 | 0 | 0 |
@@ -593,15 +595,15 @@ flowchart TD
 | 10. Parking | 5 | 5 | 0 | 0 | 0 |
 | 11. Security & Access | 5 | 5 | 0 | 0 | 0 |
 | 12. Visitor Management | 4 | 4 | 0 | 0 | 0 |
-| **TOTAL** | **93** | **87** | **4** | **1** | **1** |
+| **TOTAL** | **100** | **94** | **4** | **1** | **1** |
 
-> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data), then again after closing 3.10 (Extended Rent Terms) on 2026-09-20, and again on 2026-09-23 when the SMS/email pipeline was wired into the admin endpoints — 4.10 closed, and 6.6 / 6.7 moved from 📋 to 🔧 (built and wired, still on the dry-run drivers), and on 2026-09-24 when Module 7 was re-marked after the chat merge (PR #8): 7.2–7.5 ✅, 7.1 and 7.6 🔧, 7.7 still 📋.
+> Row counts were recomputed from the ✅/🔧/📋 markers above in September 2026 — first when Modules 3, 6 and 8 and the totals had drifted out of step with the item list, then again after auditing Notification/Automation and Parking Reservation, then again after auditing Contract & Document Generation (added 9.7) and Visitor Management (split 12.3 into 12.3/12.4), then again after closing 8.8 (Sampling Data / Demo Data), then again after closing 3.10 (Extended Rent Terms) on 2026-09-20, and again on 2026-09-23 when the SMS/email pipeline was wired into the admin endpoints — 4.10 closed, and 6.6 / 6.7 moved from 📋 to 🔧 (built and wired, still on the dry-run drivers), and on 2026-09-24 when Module 7 was re-marked after the chat merge (PR #8): 7.2–7.5 ✅, 7.1 and 7.6 🔧, 7.7 still 📋. Recounted again on 2026-10-26: Module 3 had grown to 3.1–3.20 (3.14 onward added in October 2026) while the table still said 13, so Module 3 and the totals moved from 13 / 93 features to 20 / 100.
 
 ### Core Functionality Coverage
 
 | Core Requirement | Covered By |
 |---|---|
-| Payment Tracking & Billing | Module 3 (13 features) |
+| Payment Tracking & Billing | Module 3 (20 features) |
 | Communication Management | Module 7 (8 features) + Module 6 (8 features) |
 | Maintenance Request | Module 4 (10 features) |
 | Inquiry and Reservation | Module 1.8 (inquiries + unit reservations), Module 10, Module 11.5, Module 12 |
