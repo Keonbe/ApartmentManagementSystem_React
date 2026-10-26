@@ -204,6 +204,45 @@ export const checkIntRange =(value, min, max, label = 'Value') => {
   return '';
 };
 
+// The preferred move-in date window in days from today, Settings → Rental
+// (systemSettings moveInMinDays / moveInMaxDays; config.php move_in_window_days()).
+// These are the shipped defaults, used until the settings have loaded.
+export const MOVE_IN_WINDOW_DEFAULT = { min: 0, max: 365 };
+
+// "October 26, 2027" for a local YYYY-MM-DD.
+const longDay = (ymd) => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
+// First and last allowed day as YYYY-MM-DD, for the date input's min / max.
+export const moveInBounds = (window = MOVE_IN_WINDOW_DEFAULT) => ({
+  min: addDays(window.min),
+  max: addDays(Math.max(window.min, window.max)),
+});
+
+// Shown under the date field so the limit is not a sum the tenant has to do:
+// "Choose a date from October 26, 2026 to October 26, 2027."
+export const moveInRangeText = (window = MOVE_IN_WINDOW_DEFAULT) => {
+  const { min, max } = moveInBounds(window);
+  return `Choose a date from ${longDay(min)} to ${longDay(max)}.`;
+};
+
+// Same rule as config.php move_in_date_error(): a real date inside the window.
+// The messages name the actual first / last day.
+export const checkMoveInDate = (value, window = MOVE_IN_WINDOW_DEFAULT) => {
+  const { min, max } = moveInBounds(window);
+  const error = checkDate(value, { label: 'The move-in date', min, max });
+  if (!error) return '';
+  if (/cannot be before/.test(error)) {
+    return window.min === 0
+      ? `The move-in date cannot be in the past. The earliest is ${longDay(min)}.`
+      : `The move-in date must be at least ${window.min} day(s) from today: the earliest is ${longDay(min)}.`;
+  }
+  if (/cannot be after/.test(error)) return `The move-in date can be at most ${window.max} days from today: the latest is ${longDay(max)}.`;
+  return error;
+};
+
 // YYYY-MM-DD that is a real calendar day (rejects 2026-02-31), optionally within
 // [min, max] given as YYYY-MM-DD strings.
 export const checkDate = (value, { min, max, label = 'Date' } = {}) => {

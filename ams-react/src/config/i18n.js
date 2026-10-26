@@ -76,6 +76,8 @@ const translations = {
     'preview.viewLayout': 'View Layout',
     'preview.rentNow': 'Rent Now',
     'preview.inquire': 'Inquire',
+    'preview.units': '{n} units',
+    'preview.vacant': 'Vacant',
 
     // --- Inquiry ---
     'inquiry.heading': 'Send an Inquiry',
@@ -727,6 +729,8 @@ const translations = {
     'preview.viewLayout': 'Tingnan ang Layout',
     'preview.rentNow': 'Upa Na',
     'preview.inquire': 'Magtanong',
+    'preview.units': '{n} kwarto',
+    'preview.vacant': 'Bakante',
 
     // --- Inquiry ---
     'inquiry.heading': 'Magpadala ng Katanungan',

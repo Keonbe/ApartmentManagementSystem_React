@@ -29,7 +29,7 @@ export default function HouseholdPanel() {
     age: (v, all) => {
       if (v === '' || v === undefined) return all.relationship === 'Child' ? "Enter the child's age." : '';
       const n = Number(v);
-      if (!Number.isInteger(n) || n < 0 || n > 120) return 'Enter the age in whole years.';
+      if (!/^\d{1,3}$/.test(String(v)) || n > 120) return 'Enter an age from 0 to 120, in whole years.';
       if (data?.minAge && n < data.minAge) return `Children under ${data.minAge} are not allowed to live in the apartment.`;
       const floorRule = data?.childFloorRule;
       if (floorRule && n < floorRule.belowAge) return `Children under ${floorRule.belowAge} cannot live on the ${floorRule.floorLabel} because of the stairs.`;
@@ -174,14 +174,14 @@ export default function HouseholdPanel() {
       )}
 
       <form onSubmit={submitAdd} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-start m-0" noValidate>
-        <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider sm:col-span-2">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300 sm:col-span-2">
           Full name
           <input {...fields.fieldA11y('fullName')} autoComplete="off" required maxLength={LIMITS.fullName} value={form.fullName}
             onChange={(e) => change('fullName', e.target.value)} onBlur={() => form.fullName && blur('fullName')}
             className={inputCls + invalidCls(fields.errors.fullName)} disabled={full} />
           <FieldError id="household-fullName" error={fields.errors.fullName} className="m-0 normal-case tracking-normal font-normal" />
         </label>
-        <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300">
           Relationship
           <select {...fields.fieldA11y('relationship')} required value={form.relationship} onChange={(e) => change('relationship', e.target.value)}
             className={inputCls + invalidCls(fields.errors.relationship)} disabled={full}>
@@ -190,17 +190,18 @@ export default function HouseholdPanel() {
           </select>
           <FieldError id="household-relationship" error={fields.errors.relationship} className="m-0 normal-case tracking-normal font-normal" />
         </label>
-        <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300">
           {form.relationship === 'Child' ? 'Age (required)' : 'Age (optional)'}
-          <input {...fields.fieldA11y('age')} type="number" min="0" max="120" step="1" inputMode="numeric" value={form.age}
-            onChange={(e) => change('age', e.target.value)} onBlur={() => blur('age')}
-            className={inputCls + invalidCls(fields.errors.age)} disabled={full} />
+          {/* Text, not type="number": that accepted e, -, . and 1e3. Digits only, at most 3. */}
+          <input {...fields.fieldA11y('age')} type="text" inputMode="numeric" pattern="[0-9]*" maxLength={3} autoComplete="off" value={form.age}
+            onChange={(e) => change('age', e.target.value.replace(/\D/g, '').slice(0, 3))} onBlur={() => blur('age')}
+            placeholder="0–120" className={inputCls + invalidCls(fields.errors.age)} disabled={full} />
           {form.age !== '' && categoryFor(Number(form.age)) && (
             <span className="normal-case tracking-normal font-normal text-indigo-300">{categoryFor(Number(form.age)).label}: {categoryFor(Number(form.age)).rule}</span>
           )}
           <FieldError id="household-age" error={fields.errors.age} className="m-0 normal-case tracking-normal font-normal" />
         </label>
-        <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+        <label className="flex flex-col gap-1 text-xs font-bold text-slate-300">
           Mobile (optional)
           <PhoneInput
             id="household-contactNo"

@@ -15,6 +15,8 @@ const DEFAULTS = {
   reservationHoldDays: 7,          // days a unit reservation holds a room
   moveOutMinNoticeDays: 15,        // a tenant's move-out date must be at least this many days away
   moveOutMaxNoticeDays: 30,        // ...and at most this many
+  moveInMinDays: 0,                // a preferred move-in date is at least this many days away (0 = today)
+  moveInMaxDays: 365,              // ...and at most this many
   maintenanceMonthlyBudget: 50000, // PHP
   tenantResponsibilityClause:
     'Per the Terms & Conditions of this rent agreement, the Tenant shall be responsible for any damage or maintenance issues caused by negligence, misuse, or unauthorized modifications to the rented unit. Costs for such repairs will be billed directly to the Tenant and are excluded from the building\'s maintenance budget allocation.',
@@ -82,6 +84,9 @@ export const getSystemSettings = async () => {
         reservationHoldDays: parseInt(dbSettings.reservation_hold_days || DEFAULTS.reservationHoldDays),
         moveOutMinNoticeDays: parseInt(dbSettings.move_out_min_notice_days || DEFAULTS.moveOutMinNoticeDays),
         moveOutMaxNoticeDays: parseInt(dbSettings.move_out_max_notice_days || DEFAULTS.moveOutMaxNoticeDays),
+        // ?? not ||: 0 (today) is a real earliest day.
+        moveInMinDays: parseInt(dbSettings.move_in_min_days ?? DEFAULTS.moveInMinDays) || 0,
+        moveInMaxDays: parseInt(dbSettings.move_in_max_days || DEFAULTS.moveInMaxDays),
         maintenanceMonthlyBudget: parseFloat(dbSettings.maintenance_monthly_budget || DEFAULTS.maintenanceMonthlyBudget),
         tenantResponsibilityClause: dbSettings.tenant_responsibility_clause || DEFAULTS.tenantResponsibilityClause,
         paymentMode: (dbSettings.payment_mode === 'sandbox' || dbSettings.payment_mode === 'manual') ? dbSettings.payment_mode : DEFAULTS.paymentMode,
@@ -153,6 +158,8 @@ export const saveSystemSettings = async (settings) => {
       reservation_hold_days: settings.reservationHoldDays,
       move_out_min_notice_days: String(settings.moveOutMinNoticeDays ?? DEFAULTS.moveOutMinNoticeDays),
       move_out_max_notice_days: String(settings.moveOutMaxNoticeDays ?? DEFAULTS.moveOutMaxNoticeDays),
+      move_in_min_days: String(settings.moveInMinDays ?? DEFAULTS.moveInMinDays),
+      move_in_max_days: String(settings.moveInMaxDays ?? DEFAULTS.moveInMaxDays),
       maintenance_monthly_budget: settings.maintenanceMonthlyBudget,
       tenant_responsibility_clause: settings.tenantResponsibilityClause,
       payment_mode: settings.paymentMode === 'sandbox' ? 'sandbox' : 'manual',

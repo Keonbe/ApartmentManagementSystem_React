@@ -23,12 +23,7 @@
     border-radius: 1.25rem !important;
   }
 
-  .pay-bills-method-trigger {
-    min-height: 48px !important;
-    padding: 0.75rem 1rem !important;
-  }
-
-  .pay-bills-dropdown-item {
+  .pay-bills-method-option {
     min-height: 48px !important;
     padding: 0.75rem 1rem !important;
   }

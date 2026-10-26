@@ -3607,6 +3607,40 @@ function normalize_ph_mobile($phone) {
     return preg_match('/^9\d{9}$/', $digits) ? '+63' . $digits : null;
 }
 
+// The window for a preferred move-in date (Settings → Rental): 'min' to 'max'
+// days from today. 0 means today is allowed. Garbled stored values fall back to
+// the shipped 0 / 365, and max is never below min.
+const MOVE_IN_DEFAULT_MIN_DAYS = 0;
+const MOVE_IN_DEFAULT_MAX_DAYS = 365;
+function move_in_window_days($conn) {
+    $min = get_setting($conn, 'move_in_min_days', null);
+    $max = get_setting($conn, 'move_in_max_days', null);
+    $min = ($min !== null && ctype_digit((string)$min)) ? (int)$min : MOVE_IN_DEFAULT_MIN_DAYS;
+    $max = ($max !== null && ctype_digit((string)$max)) ? (int)$max : MOVE_IN_DEFAULT_MAX_DAYS;
+    return ['min' => $min, 'max' => max($min, $max)];
+}
+
+// A preferred move-in date (rent_application.php, resubmit_date.php): a real
+// YYYY-MM-DD inside move_in_window_days() from today (APP_TIMEZONE). The date
+// input's `min` only stops the picker; a typed or posted 2023-02-01 used to be
+// saved. Returns '' when valid, else the message to show (naming the first or
+// last allowed day).
+function move_in_date_error($conn, $date) {
+    $date = (string)$date;
+    $parsed = DateTime::createFromFormat('!Y-m-d', $date);
+    if (!$parsed || $parsed->format('Y-m-d') !== $date) return "Enter the move-in date as a valid date.";
+    $window = move_in_window_days($conn);
+    $earliest = strtotime('+' . $window['min'] . ' days');
+    $latest = strtotime('+' . $window['max'] . ' days');
+    if ($date < date('Y-m-d', $earliest)) {
+        return $window['min'] === 0
+            ? "The move-in date cannot be in the past."
+            : "The move-in date must be at least {$window['min']} day(s) from today: the earliest is " . date('F j, Y', $earliest) . ".";
+    }
+    if ($date > date('Y-m-d', $latest)) return "The move-in date can be at most {$window['max']} days from today: the latest is " . date('F j, Y', $latest) . ".";
+    return '';
+}
+
 // Semaphore bills one credit per 160 ASCII characters. A peso sign, an em dash,
 // a smart quote or an accented letter makes the message Unicode, and the segment
 // size drops to 70 — so a message that looks like one SMS silently bills as three.

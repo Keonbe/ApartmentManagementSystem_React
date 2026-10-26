@@ -196,6 +196,17 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`)
 SELECT 'move_out_max_notice_days', '30' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'move_out_max_notice_days');
 
+-- ===== move_in_window =====
+-- The preferred move-in date window (rent_application.php, resubmit_date.php;
+-- config.php move_in_window_days()) becomes two admin settings, Settings ->
+-- Rental: earliest 0 days (today) and latest 365 days from today.
+INSERT INTO `system_settings` (`setting_key`, `setting_value`)
+SELECT 'move_in_min_days', '0' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'move_in_min_days');
+INSERT INTO `system_settings` (`setting_key`, `setting_value`)
+SELECT 'move_in_max_days', '365' FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `system_settings` WHERE `setting_key` = 'move_in_max_days');
+
 -- ===== invoice_adjustments =====
 -- Billing disputes (manager interview Q13): every invoice adjustment
 -- (adjust_invoice.php) needs a reason and keeps a before/after record.

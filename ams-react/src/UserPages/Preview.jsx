@@ -131,7 +131,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                             <h2 className="text-xl font-black tracking-tight text-slate-900 m-0">
                                 {t('preview.availableRooms')}
                             </h2>
-                            <span className="text-sm font-semibold text-slate-500 bg-slate-200/50 px-3 py-1 rounded-full">{rooms.length} Units</span>
+                            <span className="text-sm font-semibold text-slate-500 bg-slate-200/50 px-3 py-1 rounded-full">{t('preview.units').replace('{n}', rooms.length)}</span>
                         </div>
 
                         {loading ? (
@@ -155,7 +155,7 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                                 <h3 className="text-xl font-bold text-slate-900 m-0">Room {room.id}</h3>
                                                 <p className="text-slate-500 text-xs mt-1 mb-0 font-medium">{room.type} • {room.floor}</p>
                                             </div>
-                                            <span className="bg-emerald-50 text-emerald-600 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide border border-emerald-100">Vacant</span>
+                                            <span className="bg-emerald-50 text-emerald-800 text-xs font-bold px-2 py-1 rounded-md border border-emerald-100">{t('preview.vacant')}</span>
                                         </div>
                                         
                                         <div className="mb-5">
@@ -169,21 +169,24 @@ export default function Preview({ onRentClick, onInquireClick }) {
                                                 onClick={() => handleOpenPreview(room.id)}
                                                 className="flex-[1] bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 font-semibold py-2.5 rounded-xl text-xs transition-all border border-slate-200 cursor-pointer flex items-center justify-center shadow-sm group/btn"
                                                 title={t('preview.viewLayout')}
+                                                aria-label={`${t('preview.viewLayout')}: Room ${room.id}`}
                                             >
-                                                <Eye className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
+                                                <Eye aria-hidden="true" className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
                                             </button>
                                             )}
                                             <button
                                                 type="button"
                                                 onClick={() => onInquireClick(room.id)}
+                                                aria-label={`${t('preview.inquire')}: Room ${room.id}`}
                                                 className={`bg-white hover:bg-indigo-50 text-indigo-600 border border-indigo-200 font-semibold py-2.5 rounded-xl text-xs transition-all duration-200 shadow-sm cursor-pointer flex items-center justify-center space-x-1.5 ${canPreview ? 'flex-[1.5]' : 'flex-[1]'}`}
                                             >
-                                                <Mail className="w-4 h-4" />
+                                                <Mail aria-hidden="true" className="w-4 h-4" />
                                                 <span className="hidden sm:inline lg:hidden xl:inline">{t('preview.inquire')}</span>
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => onRentClick(room.id)}
-                                                className={`bg-[#10b981] hover:bg-[#059669] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-black py-2.5 rounded-xl text-xs transition-all duration-200 shadow-md shadow-emerald-600/30 border-0 cursor-pointer text-center uppercase tracking-wide ${canPreview ? 'flex-[3]' : 'flex-[2]'}`}
+                                                className={`bg-emerald-700 hover:bg-emerald-800 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] text-white font-black py-2.5 rounded-xl text-xs transition-all duration-200 shadow-md shadow-emerald-600/30 border-0 cursor-pointer text-center uppercase tracking-wide ${canPreview ? 'flex-[3]' : 'flex-[2]'}`}
                                             >
                                                 {t('preview.rentNow')}
                                             </button>

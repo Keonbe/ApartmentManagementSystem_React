@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faWallet, faUniversity, faMoneyBillWave, faChevronDown, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins } from '@fortawesome/free-solid-svg-icons';
+import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faExclamationTriangle, faClock, faCalendarAlt, faHourglassHalf, faTimesCircle, faCalendarPlus, faCoins } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import { useNavigate } from 'react-router-dom';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
+import InlineAlert from '../Components/InlineAlert';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import { TENANT_NOTIFICATIONS_EVENT } from '../config/notificationLinks';
 import { addDays, checkAmount, checkDate, checkPaymentReference, isBankMethod, localDateString, LIMITS } from '../utils/validation';
@@ -36,14 +37,9 @@ export default function PayBills() {
     const navigate = useNavigate();
     const { t } = useLang();
     const [selectedMethod, setSelectedMethod] = useState('');
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [paymentChannels, setPaymentChannels] = useState([]);
     const [scheduledDate, setScheduledDate] = useState('');
     const [scheduledTimeSlot, setScheduledTimeSlot] = useState('morning');
-
-    {/*Dynamically compute current calendar month and year variables*/}
-    const currentDate = new Date();
-    const currentMonthYear = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     // Confirmation modal: shown after the tenant submits a payment, and again
     // when management's decision arrives (useInvoiceWatch polls for it).
@@ -57,6 +53,15 @@ export default function PayBills() {
             }
             : null
     ));
+
+    // Inline messages that used to be alert(): a failed payment (next to the
+    // pay button), a failed combine/advance action (next to those controls), and
+    // the result of a cancelled gateway checkout (top of the page).
+    const [payError, setPayError] = useState('');
+    const [actionError, setActionError] = useState('');   // combine / split bills
+    const [advanceError, setAdvanceError] = useState(''); // pay in advance
+    const [gatewayMessage, setGatewayMessage] = useState('');
+    const [confirmCancelAdvance, setConfirmCancelAdvance] = useState(false);
 
     const confirmedNotice = (paidInvoices) => {
         const first = paidInvoices[0];
@@ -227,6 +232,8 @@ export default function PayBills() {
     const canBundle = !openBundle && unpaidSingles.length >= 2 && overdueCount > 0;
 
     const handleCreateBundle = async () => {
+        if (bundleBusy) return;
+        setActionError('');
         setBundleBusy(true);
         try {
             const res = await api.post('/bundle_payment.php', { action: 'create' });
@@ -236,17 +243,18 @@ export default function PayBills() {
                 setPayingAdvance(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
-                alert(res.data.message || 'Could not combine the overdue bills.');
+                setActionError(res.data.message || 'Could not combine the overdue bills.');
             }
         } catch (err) {
-            alert(apiErrorMessage(err, 'Could not combine the overdue bills.'));
+            setActionError(apiErrorMessage(err, 'Could not combine the overdue bills.'));
         } finally {
             setBundleBusy(false);
         }
     };
 
     const handleReleaseBundle = async () => {
-        if (!openBundle) return;
+        if (!openBundle || bundleBusy) return;
+        setActionError('');
         setBundleBusy(true);
         try {
             const res = await api.post('/bundle_payment.php', { action: 'release', key: openBundle.key });
@@ -254,10 +262,10 @@ export default function PayBills() {
                 setBundleChoiceHidden(true);
                 await refresh();
             } else {
-                alert(res.data.message || 'Could not split the combined payment.');
+                setActionError(res.data.message || 'Could not split the combined payment.');
             }
         } catch (err) {
-            alert(apiErrorMessage(err, 'Could not split the combined payment.'));
+            setActionError(apiErrorMessage(err, 'Could not split the combined payment.'));
         } finally {
             setBundleBusy(false);
         }
@@ -278,6 +286,8 @@ export default function PayBills() {
         : (billDetails.billingPeriod || 'this bill');
 
     const handleCreateAdvance = async () => {
+        if (advanceBusy) return;
+        setAdvanceError('');
         setAdvanceBusy(true);
         try {
             const res = await api.post('/advance_payment.php', { action: 'create', months: advanceCount });
@@ -286,28 +296,31 @@ export default function PayBills() {
                 setPayingAdvance(true);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
-                alert(res.data.message || 'Could not prepare the advance payment.');
+                setAdvanceError(res.data.message || 'Could not prepare the advance payment.');
             }
         } catch (err) {
-            alert(apiErrorMessage(err, 'Could not prepare the advance payment.'));
+            setAdvanceError(apiErrorMessage(err, 'Could not prepare the advance payment.'));
         } finally {
             setAdvanceBusy(false);
         }
     };
 
+    // Asked in place on the advance card (was window.confirm).
     const handleCancelAdvance = async () => {
-        if (!openAdvance || !window.confirm('Cancel this advance payment? Its months will be billed as usual instead.')) return;
+        if (!openAdvance || advanceBusy) return;
+        setAdvanceError('');
         setAdvanceBusy(true);
         try {
             const res = await api.post('/advance_payment.php', openAdvance.cancelBody);
             if (res.data.success) {
                 setPayingAdvance(false);
+                setConfirmCancelAdvance(false);
                 await Promise.all([refresh(), loadAdvance()]);
             } else {
-                alert(res.data.message || 'Could not cancel the advance payment.');
+                setAdvanceError(res.data.message || 'Could not cancel the advance payment.');
             }
         } catch (err) {
-            alert(apiErrorMessage(err, 'Could not cancel the advance payment.'));
+            setAdvanceError(apiErrorMessage(err, 'Could not cancel the advance payment.'));
         } finally {
             setAdvanceBusy(false);
         }
@@ -376,17 +389,21 @@ export default function PayBills() {
                 // stays in 'processing' and becomes unpayable.
                 const invoiceId = queryParams.get('invoice_id');
                 (async () => {
-                    let released = true;
+                    // The endpoint only releases the caller's own bill, and only while it
+                    // is in 'processing'. Anything else (a typed URL, a second cancel, a
+                    // webhook that already settled it) releases nothing: say nothing then.
+                    let outcome = 'none';
                     if (invoiceId) {
                         try {
-                            await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
+                            const res = await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
+                            if (res.data?.released) outcome = 'released';
                         } catch (err) {
                             console.error('Failed to release the cancelled payment session:', err);
-                            released = false;
+                            outcome = 'failed';
                         }
                     }
-                    alert(released
-                        ? "Payment was cancelled."
+                    if (outcome !== 'none') setGatewayMessage(outcome === 'released'
+                        ? "Payment was cancelled. Your bill is open again, so you can choose a payment method and try again."
                         : "Payment was cancelled, but this bill could not be reopened for payment. Please contact management to release it.");
                     navigate('/pay-bills', { replace: true });
                     refresh();
@@ -401,14 +418,15 @@ export default function PayBills() {
     const balanceDue = Math.max(0, Math.round((totalAmount - paidSoFar) * 100) / 100);
     // The part the tenant pays now ('' = the whole balance). Single bills only.
     const [partAmount, setPartAmount] = useState('');
+    const [partCapped, setPartCapped] = useState(false); // the last entry was over the balance
     const partError = partAmount === '' ? '' : checkAmount(partAmount, { label: 'Amount', min: 0.01, max: balanceDue, allowZero: false });
 
     const currentMethodObj = paymentChannels.find(m => m.id === selectedMethod) || paymentChannels[0] || {};
 
     const handleMethodSelect = (methodId) => {
         setSelectedMethod(methodId);
-        setIsDropdownOpen(false);
         setSplitAttempted(false);
+        setPayError('');
         payForm.setErrors({});
     };
 
@@ -444,6 +462,7 @@ export default function PayBills() {
     const handlePaymentExecution = async (e) => {
         e.preventDefault();
         if (isPaying) return;
+        setPayError('');
         setIsPaying(true);
         try {
             await executePayment();
@@ -454,11 +473,11 @@ export default function PayBills() {
 
     const executePayment = async () => {
         if (!payKey) {
-            alert("No pending invoice found.");
+            setPayError("No pending invoice found.");
             return;
         }
         if (!payingGroup && isAwaiting) {
-            alert("This bill already has a payment awaiting confirmation.");
+            setPayError("This bill already has a payment awaiting confirmation.");
             return;
         }
 
@@ -478,11 +497,11 @@ export default function PayBills() {
                         subtext: `Please pay at the admin office on ${scheduledDate} (${scheduledTimeSlot}). You will be notified once management records your payment.`,
                     });
                 } else if (!payForm.applyServerErrors(res)) {
-                    alert(res.data.message);
+                    setPayError(res.data.message);
                 }
             } catch (error) {
                 console.error(error);
-                if (!payForm.applyServerErrors(error)) alert(apiErrorMessage(error, "Failed to schedule payment."));
+                if (!payForm.applyServerErrors(error)) setPayError(apiErrorMessage(error, "Failed to schedule payment."));
             }
             return;
         }
@@ -518,11 +537,11 @@ export default function PayBills() {
                         subtext: `Your split payment for ${payLabel} is awaiting verification by management.${hadCash ? ` Pay the cash portion at the admin office on ${scheduledDate} (${scheduledTimeSlot}).` : ''} This page updates by itself, and you will be notified once it is confirmed.`,
                     });
                 } else {
-                    alert(res.data.message);
+                    setPayError(res.data.message);
                 }
             } catch (error) {
                 console.error('Error submitting split payment:', error);
-                alert(apiErrorMessage(error, 'Split payment failed.'));
+                setPayError(apiErrorMessage(error, 'Split payment failed.'));
             }
             return;
         }
@@ -539,11 +558,11 @@ export default function PayBills() {
                 if (res.data.success && res.data.checkout_url) {
                     window.location.assign(res.data.checkout_url);
                 } else {
-                    alert(res.data.message || "Failed to create checkout session.");
+                    setPayError(res.data.message || "Failed to create checkout session.");
                 }
             } catch (error) {
                 console.error("Error creating checkout session:", error);
-                alert(apiErrorMessage(error, "Payment gateway error."));
+                setPayError(apiErrorMessage(error, "Payment gateway error."));
             }
             return;
         }
@@ -599,11 +618,11 @@ export default function PayBills() {
                 });
             } else {
                 console.error("Server Error:", res.data.message);
-                alert(res.data.message);
+                setPayError(res.data.message);
             }
         } catch (error) {
             console.error("Error submitting payment:", error);
-            alert(apiErrorMessage(error, "Payment failed."));
+            setPayError(apiErrorMessage(error, "Payment failed."));
         }
     };
 
@@ -611,15 +630,17 @@ export default function PayBills() {
         <div className="pay-bills-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
                 
-                {/*Header Summary Section displaying dynamic system calendar values*/}
+                {/* Named after the bill on screen, not today's month: an overdue bill is from an earlier one. */}
                 <div className="border-b border-slate-200 pb-4">
                     <h1 className="pay-bills-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none" style={{ color: '#3b4276' }}>
-                        {t('payBills.heading')}: {currentMonthYear}
+                        {payingGroup ? groupWord : t('payBills.heading')}{!payingGroup && billDetails.billingPeriod ? `: ${billDetails.billingPeriod}` : ''}
                     </h1>
                     <p className="pay-bills-subtext text-slate-500 text-sm mt-1 m-0">
                         {t('payBills.subtext')}
                     </p>
                 </div>
+
+                <InlineAlert tone="info" onDismiss={() => setGatewayMessage('')}>{gatewayMessage}</InlineAlert>
 
                 {/* Payments awaiting management's (or the gateway's) confirmation */}
                 {awaitingEntries.map(inv => (
@@ -721,7 +742,7 @@ export default function PayBills() {
                                         </span>
                                     </div>
                                     <p className="text-xs sm:text-sm text-rose-700 m-0 mt-1 leading-relaxed">
-                                        Your payment of <strong>₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> for the period <strong>{billDetails.coveredPeriod}</strong> is still unpaid. Please settle your bill immediately to avoid late fees and service interruptions.
+                                        Your payment of <strong>{fmtMoney(balanceDue)}</strong> for the period <strong>{billDetails.coveredPeriod}</strong> is still unpaid. Please settle your bill immediately to avoid late fees and service interruptions.
                                     </p>
                                 </div>
                             </div>
@@ -738,7 +759,7 @@ export default function PayBills() {
                                         </span>
                                     </div>
                                     <p className="text-xs sm:text-sm text-amber-800 m-0 mt-1 leading-relaxed">
-                                        Your billing payment of <strong>₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> for {billDetails.billingPeriod} is due today (<strong>{dueStatus.formattedDate}</strong>). Please complete your settlement before the end of the day.
+                                        Your billing payment of <strong>{fmtMoney(balanceDue)}</strong> for {billDetails.billingPeriod} is due today (<strong>{dueStatus.formattedDate}</strong>). Please complete your settlement before the end of the day.
                                     </p>
                                 </div>
                             </div>
@@ -774,7 +795,7 @@ export default function PayBills() {
                                 Pay them all in one payment, or pay each billing period separately. Every billing period keeps its own invoice and receipt either way.
                             </p>
                         </div>
-                        <ul className="m-0 pl-0 list-none space-y-1">
+                        <ul className="pl-0 list-none space-y-1">
                             {unpaidSingles.map(i => (
                                 <li key={i.id} className="flex justify-between gap-3 text-xs sm:text-sm text-slate-600">
                                     <span>{i.billing_period} <span className={isPastDue(i) ? 'text-rose-500' : 'text-slate-400'}>({billStatusText(i)})</span></span>
@@ -818,6 +839,9 @@ export default function PayBills() {
                         </div>
                     </div>
                 )}
+
+                {/* A combine / split-bills action that failed (its buttons are just above, or in the ledger). */}
+                <InlineAlert onDismiss={() => setActionError('')}>{actionError}</InlineAlert>
 
                 {/*Main Workspace Content Segment Panel*/}
                 <div className="stagger-children grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
@@ -919,18 +943,13 @@ export default function PayBills() {
                                     <span className="font-bold text-slate-900">₱{billDetails.securityDeposit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
                             )}
-                            <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>{t('payBills.water')}</span>
-                                <span className="font-bold text-slate-900">₱{billDetails.water.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>{t('payBills.electricity')}</span>
-                                <span className="font-bold text-slate-900">₱{billDetails.electricity.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
-                                <span>{t('payBills.parking')}</span>
-                                <span className="font-bold text-slate-900">₱{billDetails.parking.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
+                            {/* Like services and maintenance, a charge that is not on this bill is not listed. */}
+                            {[['water', billDetails.water], ['electricity', billDetails.electricity], ['parking', billDetails.parking]].filter(([, amount]) => amount > 0).map(([key, amount]) => (
+                                <div key={key} className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
+                                    <span>{t(`payBills.${key}`)}</span>
+                                    <span className="font-bold text-slate-900">{fmtMoney(amount)}</span>
+                                </div>
+                            ))}
                             {billDetails.services > 0 && (
                                 <div className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
                                     <span>{t('payBills.services')}</span>
@@ -972,62 +991,60 @@ export default function PayBills() {
                     <div className="pay-bills-card card-interactive md:col-span-5 bg-white rounded-3xl border border-slate-100 shadow-md p-5 sm:p-8 space-y-6">
                         <h3 className="text-lg font-bold m-0 border-b border-slate-100 pb-3" style={{ color: '#3b4276' }}>{t('payBills.paymentSettings')}</h3>
                         
-                        {/*Custom Selected Dropdown Trigger Wrapper*/}
-                        <div className="space-y-2 relative">
-                            <label className="text-xs font-bold text-slate-700 block">{t('payBills.selectMethod')}</label>
-                            
-                            <button
-                                type="button"
-                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                className="pay-bills-method-trigger btn-interactive focus-glow w-full min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between transition-all hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer box-border"
-                            >
-                                <div className="flex items-center space-x-3 text-slate-800 font-semibold text-sm">
-                                    {currentMethodObj.isGcash ? (
-                                        <div className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center font-black text-[9px] tracking-tighter select-none px-0.5">GCash</div>
-                                    ) : (
-                                        <FontAwesomeIcon icon={currentMethodObj.icon} className={`text-base ${currentMethodObj.color}`} />
-                                    )}
-                                    <span>{currentMethodObj.family === 'split' ? t('payBills.splitPayment') : currentMethodObj.label}</span>
-                                </div>
-                                <FontAwesomeIcon icon={faChevronDown} className={`text-slate-400 text-xs transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {/*Custom Dropdown Selections Layer Menu*/}
-                            {isDropdownOpen && paymentChannels.length > 0 && (
-                                <div className="absolute top-full left-0 w-full bg-white border border-slate-100 shadow-xl rounded-xl mt-1 overflow-hidden z-50 py-1 box-border">
-                                    {paymentChannels.map((method) => (
-                                        <button
-                                            key={method.id}
-                                            type="button"
-                                            onClick={() => handleMethodSelect(method.id)}
-                                            className={`pay-bills-dropdown-item w-full min-h-[48px] px-4 py-3 flex items-center justify-between text-left transition-colors border-0 bg-transparent cursor-pointer font-medium text-sm ${selectedMethod === method.id ? 'bg-slate-50 text-indigo-600' : 'text-slate-700 hover:bg-slate-50'}`}
-                                        >
-                                            <div className="flex items-center space-x-3 font-semibold">
-                                                {method.isGcash ? (
-                                                    <div className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center font-black text-[9px] tracking-tighter select-none px-0.5">GCash</div>
-                                                ) : (
-                                                    <FontAwesomeIcon icon={method.icon} className={`text-base ${method.color}`} />
-                                                )}
-                                                <span>{method.family === 'split' ? t('payBills.splitPayment') : method.label}</span>
-                                            </div>
-                                            {selectedMethod === method.id && (
-                                                <FontAwesomeIcon icon={faCheckCircle} className="text-indigo-500 text-sm" />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
+                        {/* Native radios (was a custom dropdown with no keyboard or
+                            screen-reader support): every method visible, arrow keys move. */}
+                        <fieldset className="space-y-2 m-0 p-0 border-0 min-w-0">
+                            <legend className="text-sm font-bold text-slate-700 mb-2 p-0">{t('payBills.selectMethod')}</legend>
+                            {paymentChannels.length === 0 && (
+                                <p className="m-0 text-sm text-slate-500">Loading payment methods…</p>
                             )}
-                        </div>
+                            {paymentChannels.map((method) => {
+                                const checked = (currentMethodObj.id ?? selectedMethod) === method.id;
+                                return (
+                                    <label
+                                        key={method.id}
+                                        className={`pay-bills-method-option flex items-center gap-3 w-full min-h-[48px] px-4 py-3 rounded-xl border cursor-pointer transition-colors box-border focus-within:ring-2 focus-within:ring-indigo-500 ${checked ? 'border-indigo-500 bg-indigo-50/60' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="pay-method"
+                                            value={method.id}
+                                            checked={checked}
+                                            onChange={() => handleMethodSelect(method.id)}
+                                            className="w-4 h-4 accent-indigo-600 shrink-0 m-0 cursor-pointer"
+                                        />
+                                        {method.isGcash ? (
+                                            <span aria-hidden="true" className="w-9 h-5 rounded bg-blue-600 text-white flex items-center justify-center font-black text-[9px] tracking-tighter select-none shrink-0">GCash</span>
+                                        ) : (
+                                            <FontAwesomeIcon icon={method.icon} aria-hidden="true" className={`text-base w-9 shrink-0 ${method.color}`} />
+                                        )}
+                                        <span className="text-sm font-semibold text-slate-800">{method.family === 'split' ? t('payBills.splitPayment') : method.label}</span>
+                                    </label>
+                                );
+                            })}
+                        </fieldset>
 
                         {!payingGroup && ['manual', 'split'].includes(currentMethodObj.family) && balanceDue > 0 && (
-                            <div className="space-y-1 text-left">
+                            <div className="flex flex-col gap-1 text-left">
                                 <label htmlFor="pay-part_amount" className="text-xs font-bold text-slate-700 block">Amount you are paying now (₱)</label>
-                                <input id="pay-part_amount" type="number" inputMode="decimal" min="0.01" max={balanceDue} step="0.01" value={partAmount}
-                                    onChange={(e) => setPartAmount(e.target.value)} placeholder={`${balanceDue.toFixed(2)} (whole balance)`} aria-invalid={!!partError}
-                                    className={`w-full rounded-xl border px-3 py-2 text-sm text-slate-800 ${partError ? 'border-rose-400' : 'border-slate-200'}`} />
+                                {/* Text, not type="number" (which took 1e6, -5 and any size): digits
+                                    and one point, 2 decimals, and never more than the balance. */}
+                                <input id="pay-part_amount" type="text" inputMode="decimal" autoComplete="off" value={partAmount}
+                                    onChange={(e) => {
+                                        let v = e.target.value.replace(/[^\d.]/g, '');
+                                        const dot = v.indexOf('.');
+                                        if (dot !== -1) v = `${v.slice(0, dot + 1)}${v.slice(dot + 1).replace(/\./g, '').slice(0, 2)}`;
+                                        const capped = v !== '' && v !== '.' && Number(v) > balanceDue;
+                                        setPartCapped(capped);
+                                        setPartAmount(capped ? balanceDue.toFixed(2) : v);
+                                    }}
+                                    placeholder={`${balanceDue.toFixed(2)} (whole balance)`} aria-invalid={!!partError} aria-describedby="pay-part_amount-hint"
+                                    className={`pay-bills-input w-full rounded-xl border px-3 py-2 text-sm text-slate-800 ${partError ? 'border-rose-400' : 'border-slate-200'}`} />
                                 {partError
-                                    ? <p role="alert" className="m-0 text-xs font-semibold text-rose-600">{partError}</p>
-                                    : <p className="m-0 text-[11px] text-slate-500">Leave blank to pay the whole balance, or pay part now and the rest later.</p>}
+                                    ? <p id="pay-part_amount-hint" role="alert" className="m-0 text-xs font-semibold text-rose-600">{partError}</p>
+                                    : partCapped && partAmount !== ''
+                                    ? <p id="pay-part_amount-hint" role="status" className="m-0 text-xs font-semibold text-amber-700">The most you can pay is your balance, {fmtMoney(balanceDue)}.</p>
+                                    : <p id="pay-part_amount-hint" className="m-0 text-xs text-slate-500">Leave blank to pay the whole balance ({fmtMoney(balanceDue)}), or pay part now and the rest later.</p>}
                             </div>
                         )}
 
@@ -1152,16 +1169,20 @@ export default function PayBills() {
                         )}
 
                         {/*Action Submission Execution Button Panel Layout*/}
-                        <div className="pt-2">
+                        <div className="pt-2 space-y-3">
+                            <InlineAlert onDismiss={() => setPayError('')}>{payError}</InlineAlert>
                             <button
                                 type="button"
                                 onClick={handlePaymentExecution}
                                 disabled={isPaying || (currentMethodObj.family === 'split' && !checkSplit(splitParts, splitTotal, scheduledDate).valid) || (payingGroup ? false : (!activeInv || isAwaiting))}
-                                className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-[#22c55e] hover:bg-[#16a34a] hover:scale-[1.02] active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                className="pay-bills-submit-btn btn-interactive focus-glow w-full min-h-[48px] bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white font-extrabold py-3.5 rounded-xl text-base transition-all duration-150 shadow-md border-0 cursor-pointer text-center flex items-center justify-center disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed"
                             >
                                 {isPaying ? 'Processing…' : payingGroup
                                     ? `${activeGroup.kind === 'bundle' ? 'Pay all' : 'Pay advance'} (${fmtMoney(activeGroup.total)})`
-                                    : isAwaiting ? 'Awaiting confirmation' : t('payBills.proceedToPay')}
+                                    : isAwaiting ? 'Awaiting confirmation'
+                                    // A part amount is sent only with manual and split payments.
+                                    : activeInv ? `${t('payBills.proceedToPay')} (${fmtMoney(['manual', 'split'].includes(currentMethodObj.family) && partAmount !== '' && !partError ? Number(partAmount) : balanceDue)})`
+                                    : t('payBills.proceedToPay')}
                             </button>
                         </div>
 
@@ -1190,6 +1211,29 @@ export default function PayBills() {
                                     <p className="text-sm text-slate-700 m-0">
                                         Advance payment ready: <strong>{advanceMonthsText}</strong> — <strong>{fmtMoney(openAdvance.total)}</strong>
                                     </p>
+                                    {confirmCancelAdvance ? (
+                                        <div role="group" aria-label="Confirm cancelling the advance payment" className="flex flex-col sm:items-end gap-2 shrink-0">
+                                            <p className="m-0 text-sm font-semibold text-slate-800">Cancel this advance? Its months will be billed as usual.</p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleCancelAdvance}
+                                                    disabled={advanceBusy}
+                                                    className="px-4 py-2 rounded-xl bg-rose-700 hover:bg-rose-800 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50"
+                                                >
+                                                    {advanceBusy ? 'Cancelling…' : 'Yes, cancel advance'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setConfirmCancelAdvance(false)}
+                                                    disabled={advanceBusy}
+                                                    className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50"
+                                                >
+                                                    Keep it
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
                                     <div className="flex gap-2 shrink-0">
                                         {activeGroup?.kind !== 'advance' && (
                                             <button
@@ -1202,13 +1246,14 @@ export default function PayBills() {
                                         )}
                                         <button
                                             type="button"
-                                            onClick={handleCancelAdvance}
+                                            onClick={() => setConfirmCancelAdvance(true)}
                                             disabled={advanceBusy}
                                             className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-bold cursor-pointer hover:bg-slate-50 disabled:opacity-50"
                                         >
                                             Cancel advance
                                         </button>
                                     </div>
+                                    )}
                                 </div>
                             ) : (
                                 <p className="text-sm text-slate-600 m-0">
@@ -1258,6 +1303,8 @@ export default function PayBills() {
                                 There are no upcoming months left to prepay before your rent ends{advance.lease_end ? ` (${advance.lease_end})` : ''}.
                             </p>
                         ) : null}
+
+                        <InlineAlert onDismiss={() => setAdvanceError('')}>{advanceError}</InlineAlert>
 
                         {/* Months already paid in advance: waiting for their month, or billed and settled. */}
                         {advance?.credits?.length > 0 && (

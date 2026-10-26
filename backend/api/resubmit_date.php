@@ -22,6 +22,13 @@ if ($app_id <= 0 || empty($new_date)) {
     echo json_encode(['success' => false, 'message' => 'Missing application ID or date.']);
     exit;
 }
+// Same rule as the application form (the picker's min alone let 2023-02-01 through).
+$date_error = move_in_date_error($conn, $new_date);
+if ($date_error !== '') {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'message' => $date_error, 'field' => 'preferred_move_in_date']);
+    exit;
+}
 
 $stmt = $conn->prepare("UPDATE rent_applications SET preferred_move_in_date = ?, status = 'Pending Review', rejection_reason = NULL WHERE id = ? AND user_id = ? AND status = 'Action Required'");
 $stmt->bind_param("sii", $new_date, $app_id, $user_id);

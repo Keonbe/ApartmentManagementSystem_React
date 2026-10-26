@@ -58,6 +58,20 @@ export default function LeasingPanel({ settings, updateSetting }) {
             </WithUnit>
           </Field>
 
+          {/* Preferred move-in date on rent applications and resubmitted dates
+              (config.php move_in_window_days(); the server enforces it). */}
+          <Field label="Earliest Move-In Date" htmlFor="setting-moveInMinDays" icon={faCalendarAlt} hint="An applicant's preferred move-in date must be at least this many days from today. 0 allows today.">
+            <WithUnit suffix="days">
+              <input {...intInput(settings, updateSetting, 'moveInMinDays', 0, 60)} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+
+          <Field label="Latest Move-In Date" htmlFor="setting-moveInMaxDays" icon={faCalendarAlt} hint="...and no more than this many days from today (at most 365, about a year). Cannot be earlier than the earliest.">
+            <WithUnit suffix="days">
+              <input {...intInput(settings, updateSetting, 'moveInMaxDays', Math.max(1, settings.moveInMinDays || 0), 365)} className={`${INPUT_NUMBER} w-24`} />
+            </WithUnit>
+          </Field>
+
           <Field label="Maximum Occupants per Unit" htmlFor="setting-maxOccupantsPerUnit" icon={faUsers} hint="Main tenant plus household members. Applications and occupant requests above this are refused.">
             <WithUnit suffix="people">
               <input {...intInput(settings, updateSetting, 'maxOccupantsPerUnit', 1, 20)} className={`${INPUT_NUMBER} w-24`} />

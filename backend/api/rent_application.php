@@ -127,6 +127,11 @@ if (!ctype_digit((string)$months_of_rent) || (int)$months_of_rent < $min_months 
 }
 $months_of_rent = (int)$months_of_rent;
 
+// "ASAP" sends no date; a chosen one must be today or later (and not years out).
+if ($preferred_move_in_date !== null && ($date_error = move_in_date_error($conn, $preferred_move_in_date)) !== '') {
+    application_fail(422, $date_error, 'preferredMoveInDate');
+}
+
 // Stored normalized as +639XXXXXXXXX (the form has a fixed +63 prefix).
 $contact_no = normalize_ph_mobile($contact_no);
 if ($contact_no === null) {

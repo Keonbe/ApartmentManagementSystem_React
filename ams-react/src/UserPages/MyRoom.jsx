@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileContract, faUsers, faCalendarAlt, faHourglassHalf, faCalendarPlus, faSignOutAlt, faMapMarkerAlt, faExclamationTriangle, faBolt } from '@fortawesome/free-solid-svg-icons';
 import ApartmentPic from '../assets/Apartment_Pic.webp';
 import api from "../api/axiosConfig";
 import HouseholdPanel from '../Components/HouseholdPanel';
+import SuccessModal from '../Components/SuccessModal';
+import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
+import useDialog from '../hooks/useDialog';
+import { isPastDue } from '../utils/billingPeriod';
 import { addDays, checkDate, checkIntRange } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -63,67 +67,87 @@ export default function MyRoom() {
     const [showMoveOutModal, setShowMoveOutModal] = useState(false);
     const [moveOutDate, setMoveOutDate] = useState('');
 
-    useEffect(() => {
-        const fetchMyRoom = async () => {
-            if (!activeEmail) {
-                setError("No active user session found.");
-                setLoading(false);
-                return;
-            }
+    const [currentOccupants, setCurrentOccupants] = useState(2);
 
-            try {
-                const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
+    // One my_room.php read: room, contract end, occupants and the extension
+    // range. Called again after a request is sent, instead of reloading the page.
+    const loadRoom = useCallback(async () => {
+        if (!activeEmail) {
+            setError("No active user session found.");
+            setLoading(false);
+            return;
+        }
+        try {
+            const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
+            if (res.data.success && res.data.data) {
+                const data = res.data.data;
+                const creationDate = new Date(data.created_at);
 
-                if (res.data.success && res.data.data) {
-                    const data = res.data.data;
-
-                    const creationDate = new Date(data.created_at);
-                    const startDateString = creationDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-                    const nextMonth = new Date(creationDate);
-                    nextMonth.setMonth(nextMonth.getMonth() + 1);
-                    const dueDateString = nextMonth.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-
-                    const endDate = data.lease_end ? new Date(data.lease_end) : new Date(creationDate);
-                    if (!data.lease_end) {
-                        endDate.setMonth(endDate.getMonth() + parseInt(data.months_of_rent));
-                    }
-
-                    setRoomDetails({
-                        name: data.room_name,
-                        type: "Studio Apartment",
-                        monthlyRent: parseFloat(data.monthly_rent),
-                        rentStart: startDateString,
-                        paymentDue: dueDateString,
-                        status: data.status,
-                        requestedMoveOutDate: data.requested_move_out_date,
-                        // Itemized move-out deductions from the deposit (empty until clearance).
-                        depositDeductions: Array.isArray(data.deposit_deductions) ? data.deposit_deductions : []
-                    });
-
-                    const diffTime = endDate.getTime() - new Date().getTime();
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    setDaysUntilExpiration(diffDays);
-
-                    setExpectedEnd(endDate.toISOString().split('T')[0]);
-
-                    if (data.occupants) {
-                        setOccupants(parseInt(data.occupants));
-                    }
-
-                } else {
-                    setError("No active room assignments found.");
+                const endDate = data.lease_end ? new Date(data.lease_end) : new Date(creationDate);
+                if (!data.lease_end) {
+                    endDate.setMonth(endDate.getMonth() + parseInt(data.months_of_rent));
                 }
-            } catch (err) {
-                console.error("Failed to fetch room details:", err);
-                setError("Failed to connect to the server.");
-            } finally {
-                setLoading(false);
-            }
-        };
 
-        fetchMyRoom();
+                setRoomDetails({
+                    name: data.room_name,
+                    type: data.room_type || '',
+                    monthlyRent: parseFloat(data.monthly_rent) || 0,
+                    rentStart: (data.lease_start ? new Date(data.lease_start) : creationDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                    status: data.status,
+                    requestedMoveOutDate: data.requested_move_out_date,
+                    // Itemized move-out deductions from the deposit (empty until clearance).
+                    depositDeductions: Array.isArray(data.deposit_deductions) ? data.deposit_deductions : []
+                });
+
+                setDaysUntilExpiration(Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                setExpectedEnd(endDate.toISOString().split('T')[0]);
+
+                if (data.occupants) {
+                    const count = parseInt(data.occupants, 10);
+                    setOccupants(count);
+                    setCurrentOccupants(count);
+                }
+
+                setExtension(data.extension || null);
+                // Start the months picker inside the allowed range.
+                if (data.extension?.minMonths) {
+                    const lo = data.extension.minMonths;
+                    const hi = Math.max(lo, data.extension.maxMonths ?? MAX_EXTENSION_MONTHS);
+                    setAdditionalMonths(prev => (prev === '' || prev < lo ? lo : Math.min(prev, hi)));
+                }
+                setError(null);
+            } else {
+                setError("No active room assignments found.");
+            }
+        } catch (err) {
+            console.error("Failed to fetch room details:", err);
+            setError("Failed to connect to the server.");
+        } finally {
+            setLoading(false);
+        }
     }, [activeEmail]);
+
+    useEffect(() => {
+        const load = async () => { await loadRoom(); };
+        load();
+    }, [loadRoom]);
+
+    // The next bill, from the invoices themselves (the same list Pay Bills uses):
+    // the earliest-due bill still to pay, else one awaiting confirmation. An
+    // advance-rent invoice is an optional prepayment, not a bill, so it is left out.
+    const { invoices, loaded: invoicesLoaded } = useInvoiceWatch();
+    const byDueDate = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
+    const bills = invoices.filter(i => !i.advance_months);
+    const nextBill = bills.filter(i => PAYABLE_STATUSES.includes(i.status)).sort(byDueDate)[0]
+        || bills.filter(i => AWAITING_STATUSES.includes(i.status)).sort(byDueDate)[0]
+        || null;
+    const nextBillOwed = nextBill ? (parseFloat(nextBill.balance ?? nextBill.total_amount) || 0) : 0;
+    const nextBillAwaiting = !!nextBill && AWAITING_STATUSES.includes(nextBill.status);
+    const fmtMoney = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    const fmtDay = (d) => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
+
+    // Results of the requests below (were alert() + page reload).
+    const [notice, setNotice] = useState(null);
 
     const handleOccupantChange = (e) => {
         fields.clearError('occupants');
@@ -136,36 +160,6 @@ export default function MyRoom() {
         if (val < 1) val = 1;
         setOccupants(val);
     };
-    const [currentOccupants, setCurrentOccupants] = useState(2);
-
-    // 2. In your useEffect (fetchMyRoom), store current occupants when room data loads
-    useEffect(() => {
-        const fetchMyRoom = async () => {
-            if (!activeEmail) return;
-            try {
-                const res = await api.get(`/my_room.php?email=${encodeURIComponent(activeEmail)}`);
-                if (res.data.success && res.data.data) {
-                    const data = res.data.data;
-                    setExtension(data.extension || null);
-                    // Start the months picker inside the allowed range.
-                    if (data.extension?.minMonths) {
-                        const lo = data.extension.minMonths;
-                        const hi = Math.max(lo, data.extension.maxMonths ?? MAX_EXTENSION_MONTHS);
-                        setAdditionalMonths(prev => (prev === '' || prev < lo ? lo : Math.min(prev, hi)));
-                    }
-
-                    if (data.occupants) {
-                        const count = parseInt(data.occupants, 10);
-                        setOccupants(count);
-                        setCurrentOccupants(count); // Store current baseline
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to fetch current occupants:", err);
-            }
-        };
-        fetchMyRoom();
-    }, [activeEmail]);
     const handleUpdateOccupants = async (e) => {
         if (e) e.preventDefault();
         if (busy) return;
@@ -182,9 +176,8 @@ export default function MyRoom() {
             });
 
             if (res.data.success) {
-                alert("Your request to change occupants has been sent to administration for verification.");
-                // Refresh the current route
-                window.location.reload();
+                setNotice({ message: 'Request sent', subtext: 'Your request to change the number of occupants has been sent to management for verification. You will be notified of their decision.' });
+                await loadRoom();
             } else {
                 fields.setFieldError('occupants', res.data.message || 'Your request could not be sent.');
             }
@@ -236,9 +229,8 @@ export default function MyRoom() {
             });
 
             if (res.data.success) {
-                alert("Your rent extension request has been sent to administration for verification.");
-                // Refresh the current route
-                window.location.reload();
+                setNotice({ message: 'Extension request sent', subtext: `Your request to extend your rent by ${months} month${months === 1 ? '' : 's'} has been sent to management for verification. You will be notified of their decision.` });
+                await loadRoom();
             } else {
                 fields.setFieldError('additionalMonths', res.data.message || 'Your request could not be sent.');
             }
@@ -249,6 +241,10 @@ export default function MyRoom() {
             setBusy('');
         }
     };
+
+    // Not closable while the notice is being sent.
+    const closeMoveOutModal = () => { if (busy !== 'moveout') setShowMoveOutModal(false); };
+    const moveOutDialogRef = useDialog(showMoveOutModal, closeMoveOutModal);
 
     const handleEndRent = () => {
         setMoveOutDate(addDays(moveOutNotice.min));
@@ -269,9 +265,9 @@ export default function MyRoom() {
             });
 
             if (res.data.success) {
-                alert("Termination notice submitted successfully.");
                 setShowMoveOutModal(false);
-                window.location.reload();
+                setNotice({ message: 'Move-out notice sent', subtext: `Management has your notice to move out on ${fmtDay(moveOutDate)}. You will be contacted about the room inspection and your deposit.` });
+                await loadRoom();
             } else {
                 fields.setFieldError('move_out_date', res.data.message || 'Failed to submit termination request.');
             }
@@ -347,12 +343,12 @@ export default function MyRoom() {
                 <div className="my-room-banner animate-fade-in-up bg-slate-900/80 border border-white/10 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="space-y-1">
                         <div className="flex flex-wrap gap-2 items-center">
-                            <span className={`text-[9px] tracking-widest uppercase font-black px-2.5 py-1 rounded select-none ${roomDetails.status === 'Approved' ? 'bg-[#10b981] text-white' : 'bg-[#6366f1] text-white'}`}>
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded select-none ${roomDetails.status === 'Approved' ? 'bg-emerald-700 text-white' : 'bg-indigo-600 text-white'}`}>
                                 {roomDetails.status === 'Approved' ? t('myRoom.activeTenancy') : `Status: ${roomDetails.status}`}
                             </span>
                             <span className="text-xs text-indigo-300 font-bold flex items-center space-x-1">
                                 <FontAwesomeIcon icon={faMapMarkerAlt} className="text-[10px]" />
-                                <span>Maguyam Silang, Cavite</span>
+                                <span>{t('preview.location')}</span>
                             </span>
                         </div>
 
@@ -365,7 +361,7 @@ export default function MyRoom() {
                         </h2>
 
                         <p className="text-slate-300 text-xs sm:text-sm m-0 font-medium pt-1">
-                            {roomDetails.type} — {t('myRoom.subtext')}
+                            {roomDetails.type ? `${roomDetails.type} — ` : ''}{t('myRoom.subtext')}
                         </p>
                     </div>
 
@@ -413,12 +409,12 @@ export default function MyRoom() {
                                     </div>
                                     <h3 className="text-lg font-bold text-white m-0">{t('myRoom.occupantsTitle')}</h3>
                                 </div>
-                                <div className="flex flex-col space-y-1.5 text-left">
+                                <div className="flex flex-col gap-1.5 text-left">
                                     <div className="flex justify-between items-center">
                                         {/* The label used to say "Max 4" while the input allowed 8: 4 is the surcharge threshold. */}
-                                        <label htmlFor="myroom-occupants" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No. Occupants (Max {MAX_OCCUPANTS})</label>
-                                        <span className="text-[9px] text-slate-400">Exceeding 4 adds ₱1,000/person surcharge</span>
+                                        <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-200">Number of occupants (max {MAX_OCCUPANTS})</label>
                                     </div>
+                                    <span className="text-xs text-slate-300">Each person above 4 adds ₱1,000 a month.</span>
                                     <input
                                         type="number"
                                         {...fields.fieldA11y('occupants')}
@@ -435,8 +431,8 @@ export default function MyRoom() {
                                     />
                                     <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
                                     {occupants > 4 && (
-                                        <span className="text-[9px] text-amber-300 font-medium leading-normal mt-1">
-                                            ⚠️ +₱{((occupants - 4) * 1000).toLocaleString()}/mo capacity surcharge (₱1,000 per person exceeding 4)
+                                        <span className="text-xs text-amber-300 font-medium leading-normal mt-1">
+                                            +₱{((occupants - 4) * 1000).toLocaleString()} a month for {occupants - 4} extra {occupants - 4 === 1 ? 'person' : 'people'}
                                         </span>
                                     )}
                                 </div>
@@ -455,32 +451,42 @@ export default function MyRoom() {
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
-                                    <FontAwesomeIcon icon={faHourglassHalf} className="text-lg animate-pulse" />
+                                    <FontAwesomeIcon icon={faHourglassHalf} className="text-lg" aria-hidden="true" />
                                 </div>
                                 <h3 className="text-lg font-bold text-white m-0">{t('myRoom.nextBillDue')}</h3>
                             </div>
-                            <div className="space-y-2.5 pt-1 text-left">
-                                <div className="flex justify-between text-xs font-semibold text-slate-400">
-                                    <span>Rent Balance:</span>
-                                    <span className="text-slate-200">
-                                        ₱{roomDetails.monthlyRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                    </span>
-                                </div>
-                                {occupants > 4 && (
-                                    <div className="flex justify-between text-[10px] font-semibold text-indigo-300">
-                                        <span>(Base + Extra Occupant Surcharge):</span>
-                                        <span>
-                                            ₱{(roomDetails.monthlyRent - (occupants - 4) * 1000).toLocaleString()} + ₱{((occupants - 4) * 1000).toLocaleString()}
-                                        </span>
-                                    </div>
+                            {/* From the open invoices, not estimated from the application date. */}
+                            {/* gap, not space-y: space-y is a margin, and the children's m-0 cancels it. */}
+                            <div className="flex flex-col gap-2.5 pt-1 text-left text-sm">
+                                {!invoicesLoaded ? (
+                                    <p className="m-0 text-slate-300">Loading your bills…</p>
+                                ) : nextBill ? (
+                                    <>
+                                        <div className="flex justify-between gap-3 font-semibold text-slate-300">
+                                            <span>{nextBill.billing_period || 'Amount due'}</span>
+                                            <span className="text-white font-bold">{fmtMoney(nextBillOwed)}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-3 font-semibold text-slate-300">
+                                            <span>{nextBillAwaiting ? 'Status' : 'Due date'}</span>
+                                            {nextBillAwaiting ? (
+                                                <span className="text-sky-300 font-bold">Being confirmed</span>
+                                            ) : (
+                                                <span className={isPastDue(nextBill) ? 'text-rose-300 font-bold' : 'text-white'}>
+                                                    {fmtDay(nextBill.due_date)}{isPastDue(nextBill) ? ' (overdue)' : ''}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <p className="m-0 text-emerald-300 font-semibold">You're all paid up. No open bill right now.</p>
                                 )}
-                                <div className="flex justify-between text-xs font-semibold text-slate-400">
-                                    <span>Cycle Started:</span>
-                                    <span className="text-slate-200">{roomDetails.rentStart}</span>
+                                <div className="flex justify-between gap-3 font-semibold text-slate-300 border-t border-white/10 pt-2.5">
+                                    <span>Monthly rent</span>
+                                    <span className="text-white">{fmtMoney(roomDetails.monthlyRent)}</span>
                                 </div>
-                                <div className="flex justify-between text-xs font-semibold text-slate-400">
-                                    <span>Deadline Date:</span>
-                                    <span className="text-rose-400 font-bold">{roomDetails.paymentDue}</span>
+                                <div className="flex justify-between gap-3 font-semibold text-slate-300">
+                                    <span>Rent started</span>
+                                    <span className="text-white">{roomDetails.rentStart}</span>
                                 </div>
                             </div>
                         </div>
@@ -488,7 +494,7 @@ export default function MyRoom() {
                             <button
                                 type="button"
                                 onClick={() => navigate('/pay-bills')}
-                                className="w-full bg-[#10b981] hover:bg-[#059669] text-white font-bold py-2.5 rounded-xl text-xs border-0 cursor-pointer transition-all shadow-md"
+                                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2.5 rounded-xl text-sm border-0 cursor-pointer transition-all shadow-md min-h-[44px]"
                             >
                                 {t('myRoom.payRentBalance')}
                             </button>
@@ -511,7 +517,7 @@ export default function MyRoom() {
 
                     <div className="md:col-span-8 bg-slate-900/80 rounded-3xl border border-white/10 shadow-xl p-6 md:p-8">
                         <form onSubmit={handleExtendRent} className="my-room-extend-form grid grid-cols-1 sm:grid-cols-3 gap-6 items-end m-0 text-left">
-                            <div className="sm:col-span-2 space-y-3">
+                            <div className="sm:col-span-2 flex flex-col gap-3">
                                 <div className="flex items-center space-x-3">
                                     <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
                                         <FontAwesomeIcon icon={faCalendarPlus} className="text-lg" />
@@ -525,7 +531,7 @@ export default function MyRoom() {
                                 {extensionBlocked && (
                                     <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-amber-200">
                                         <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5 shrink-0 text-amber-400" />
-                                        <div className="space-y-2">
+                                        <div className="flex flex-col items-start gap-2">
                                             <p className="m-0">{extension.reason}</p>
                                             {extension.overdueTotal > 0 && (
                                                 <button type="button" onClick={() => navigate('/pay-bills')}
@@ -538,8 +544,8 @@ export default function MyRoom() {
                                 )}
                             </div>
                             <div className="space-y-3 w-full box-border">
-                                <div className="flex flex-col space-y-1.5">
-                                    <label htmlFor="myroom-additionalMonths" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Additional Months ({minExtension === maxExtension ? minExtension : `${minExtension}–${maxExtension}`})</label>
+                                <div className="flex flex-col gap-1.5">
+                                    <label htmlFor="myroom-additionalMonths" className="text-sm font-bold text-slate-200">Months to add ({minExtension === maxExtension ? minExtension : `${minExtension}–${maxExtension}`})</label>
                                     <input
                                         type="number"
                                         {...fields.fieldA11y('additionalMonths')}
@@ -632,16 +638,16 @@ export default function MyRoom() {
 
             {/* ─── MOVE OUT SCHEDULING MODAL ─── */}
             {showMoveOutModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm modal-overlay-anim" onClick={() => setShowMoveOutModal(false)}>
-                    <div className="my-room-modal-content modal-card-anim sheet-mobile bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm modal-overlay-anim" onClick={closeMoveOutModal}>
+                    <div ref={moveOutDialogRef} role="dialog" aria-modal="true" aria-labelledby="move-out-title" tabIndex={-1} className="my-room-modal-content modal-card-anim sheet-mobile bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden outline-none" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
                             <div className="flex items-center space-x-3">
                                 <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20">
                                     <FontAwesomeIcon icon={faSignOutAlt} />
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-white m-0">Terminate Tenancy</h3>
-                                    <p className="text-[10px] text-slate-400 m-0 mt-0.5">Submit notice to administration</p>
+                                    <h3 id="move-out-title" className="text-base font-bold text-white m-0">End your rent</h3>
+                                    <p className="text-xs text-slate-300 m-0 mt-0.5">Send a move-out notice to management</p>
                                 </div>
                             </div>
                         </div>
@@ -654,17 +660,18 @@ export default function MyRoom() {
                                 </p>
                             </div>
 
-                            <div className="space-y-1.5">
-                                <label htmlFor="myroom-move_out_date" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Actual Move-Out Date</label>
+                            <div className="flex flex-col gap-1.5">
+                                <label htmlFor="myroom-move_out_date" className="text-sm font-bold text-slate-200">Move-out date</label>
                                 <input
                                     type="date"
+                                    data-autofocus
                                     {...fields.fieldA11y('move_out_date')}
                                     value={moveOutDate}
                                     min={addDays(moveOutNotice.min)}
                                     max={addDays(moveOutNotice.max)}
                                     onChange={(e) => { setMoveOutDate(e.target.value); fields.clearError('move_out_date'); }}
                                     onBlur={() => fields.validateField('move_out_date', fieldValues)}
-                                    className={`w-full px-4 py-2.5 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-sm box-border font-bold${invalidCls(fields.errors.move_out_date)}`}
+                                    className={`[color-scheme:dark] w-full px-4 py-2.5 rounded-xl bg-slate-950/40 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-red-500 text-sm box-border font-bold${invalidCls(fields.errors.move_out_date)}`}
                                     required
                                 />
                                 <FieldError id="myroom-move_out_date" error={fields.errors.move_out_date} className="m-0" />
@@ -674,9 +681,9 @@ export default function MyRoom() {
                         <div className="my-room-modal-actions flex items-center justify-end gap-3 px-6 py-4 bg-slate-950/40 border-t border-white/10">
                             <button
                                 type="button"
-                                onClick={() => setShowMoveOutModal(false)}
+                                onClick={closeMoveOutModal}
                                 disabled={busy === 'moveout'}
-                                className="btn-interactive px-4 py-2 text-xs text-slate-400 font-bold hover:text-white rounded-xl border-0 bg-transparent cursor-pointer transition-all"
+                                className="btn-interactive px-4 py-2 text-xs text-slate-300 font-bold hover:text-white rounded-xl border-0 bg-transparent cursor-pointer transition-all"
                             >
                                 Cancel
                             </button>
@@ -692,6 +699,13 @@ export default function MyRoom() {
                     </div>
                 </div>
             )}
+
+            <SuccessModal
+                isOpen={!!notice}
+                onClose={() => setNotice(null)}
+                message={notice?.message}
+                subtext={notice?.subtext}
+            />
         </div>
     );
 }

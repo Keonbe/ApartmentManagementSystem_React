@@ -8,6 +8,7 @@ import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import { printElement } from '../utils/print';
+import useDialog from '../hooks/useDialog';
 import '../assets/styles/responsive/user/user-payment-history.responsive.css';
 
 // Badge per invoice status. Anything awaiting management or the gateway is
@@ -148,6 +149,7 @@ export default function UserPaymentHistory() {
     const receiptData = combinedForReceipt ? buildCombinedReceipt(combinedForReceipt)
         : receiptInvoice ? buildReceipt(receiptInvoice) : null;
     const showReceipt = !!receiptData;
+    const receiptDialogRef = useDialog(showReceipt, () => setReceiptInvoiceId(null));
 
     return (
         <div className="payment-history-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
@@ -188,7 +190,7 @@ export default function UserPaymentHistory() {
                                             <FontAwesomeIcon icon={faCheckCircle} />
                                         </div>
                                         <div>
-                                            <span className="text-xs font-bold tracking-wider text-slate-400">Combined payment {c.key}</span>
+                                            <span className="text-xs font-bold tracking-wider text-slate-500">Combined payment {c.key}</span>
                                             <h3 className="text-base sm:text-lg font-bold text-slate-800 m-0 mt-1">
                                                 {formatCurrency(c.bills.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0))}
                                             </h3>
@@ -222,7 +224,7 @@ export default function UserPaymentHistory() {
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="text-xs font-bold tracking-wider text-slate-400">{String(inv.id).startsWith('INV-') ? inv.id : `INV-${inv.id}`}</span>
+                                                    <span className="text-xs font-bold tracking-wider text-slate-500">{String(inv.id).startsWith('INV-') ? inv.id : `INV-${inv.id}`}</span>
                                                     <span className="text-xs text-slate-300">•</span>
                                                     <span className="text-xs font-medium text-slate-500">{t('paymentHistory.billed')} {new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                                 </div>
@@ -234,7 +236,7 @@ export default function UserPaymentHistory() {
                                                         <span>
                                                             {inv.billing_period}
                                                             {inv.period_start && inv.period_end && (
-                                                                <span className="text-slate-400"> ({formatPeriodRange(inv.period_start, inv.period_end)})</span>
+                                                                <span className="text-slate-500"> ({formatPeriodRange(inv.period_start, inv.period_end)})</span>
                                                             )}
                                                         </span>
                                                     </div>
@@ -249,7 +251,7 @@ export default function UserPaymentHistory() {
                                                     {isBundleKey(inv.payment_group) && (
                                                         <div className="text-emerald-600 font-semibold">Part of combined payment {inv.payment_group}</div>
                                                     )}
-                                                    <div className="flex gap-2 sm:gap-3 flex-wrap text-[11px] text-slate-400">
+                                                    <div className="flex gap-2 sm:gap-3 flex-wrap text-xs text-slate-500">
                                                         <span>{t('paymentHistory.rent')} {formatCurrency(inv.base_rent)}</span>
                                                         {parseFloat(inv.security_deposit) > 0 && (
                                                             <span>{t('paymentHistory.deposit')} {formatCurrency(inv.security_deposit)}</span>
@@ -316,9 +318,9 @@ export default function UserPaymentHistory() {
             {/* Receipt Modal */}
             {showReceipt && receiptData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 modal-overlay-anim" onClick={() => setReceiptInvoiceId(null)}>
-                    <div ref={receiptRef} className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                    <div ref={(node) => { receiptRef.current = node; receiptDialogRef.current = node; }} role="dialog" aria-modal="true" aria-labelledby="receipt-title" tabIndex={-1} className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col outline-none" onClick={e => e.stopPropagation()}>
                         <div className="bg-slate-900 text-white p-5 sm:p-6 text-center border-b-4 border-indigo-500 shrink-0 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
-                            <h2 className="text-xl sm:text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
+                            <h2 id="receipt-title" className="text-xl sm:text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
                             <div className="mt-3 pt-3 border-t border-slate-700/50 print:border-slate-300">
                                 <p className="text-xs sm:text-sm font-semibold text-slate-300 uppercase tracking-widest m-0 print:text-slate-700">{t('paymentHistory.officialReceipt')}</p>
                                 <p className="text-xs font-mono text-indigo-300 m-0 mt-1 print:text-slate-900">{receiptData.rctId}</p>

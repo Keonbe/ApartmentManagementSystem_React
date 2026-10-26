@@ -188,6 +188,26 @@ foreach ($input as $key => $value) {
         }
     }
 
+    // Move-in date window (rent applications and resubmitted dates): earliest
+    // 0-60 days from today (0 = today), latest 1-365, never below the earliest.
+    if ($key === 'move_in_min_days' || $key === 'move_in_max_days') {
+        if (!is_string($value) || !ctype_digit($value)) {
+            $refuse("Move-in date days must be whole numbers.");
+        }
+        $n = (int)$value;
+        if ($key === 'move_in_min_days' && $n > 60) {
+            $refuse("The earliest move-in date must be between 0 and 60 days from today.", ["moveInMinDays" => "Enter 0 to 60 days."]);
+        }
+        if ($key === 'move_in_max_days' && ($n < 1 || $n > 365)) {
+            $refuse("The latest move-in date must be between 1 and 365 days from today.", ["moveInMaxDays" => "Enter 1 to 365 days."]);
+        }
+        $pair_min = $key === 'move_in_min_days' ? $n : (int)($input['move_in_min_days'] ?? $existing['move_in_min_days'] ?? MOVE_IN_DEFAULT_MIN_DAYS);
+        $pair_max = $key === 'move_in_max_days' ? $n : (int)($input['move_in_max_days'] ?? $existing['move_in_max_days'] ?? MOVE_IN_DEFAULT_MAX_DAYS);
+        if ($pair_max < $pair_min) {
+            $refuse("The latest move-in date ($pair_max days) cannot be earlier than the earliest ($pair_min days).", ["moveInMaxDays" => "Must be at least the earliest."]);
+        }
+    }
+
     // Reused payment reference (Settings -> Payments): flag it, or refuse it.
     if ($key === 'duplicate_reference_policy' && (!is_string($input[$key]) || !in_array($value, DUPLICATE_REFERENCE_POLICIES, true))) {
         $refuse("Reused payment reference must be warn or block.", ["duplicateReferencePolicy" => "Choose warn or block."]);

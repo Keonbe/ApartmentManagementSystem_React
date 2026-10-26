@@ -88,3 +88,44 @@ describe('field validation', () => {
     expect((await save({ max_rent_ahead_months: '0' })).status).toBe(422);
   });
 });
+
+describe('move-in date window (Settings → Rental)', () => {
+  it('the shipped defaults are 0 / 365', async () => {
+    expect(await setting('move_in_min_days')).toBe('0');
+    expect(await setting('move_in_max_days')).toBe('365');
+  });
+
+  it('a valid pair saves together', async () => {
+    const res = await save({ move_in_min_days: '2', move_in_max_days: '90' });
+    expect(res.body).toMatchObject({ success: true, changed: 2 });
+    expect(await setting('move_in_min_days')).toBe('2');
+    expect(await setting('move_in_max_days')).toBe('90');
+  });
+
+  it.each([
+    ['move_in_min_days', '61'], ['move_in_min_days', '-1'], ['move_in_min_days', '1.5'], ['move_in_min_days', 'abc'],
+    ['move_in_max_days', '0'], ['move_in_max_days', '366'], ['move_in_max_days', ''],
+  ])('%s = %j → 422, nothing saved', async (key, value) => {
+    const before = await setting(key);
+    expect((await save({ [key]: value })).status).toBe(422);
+    expect(await setting(key)).toBe(before);
+  });
+
+  it('the latest cannot be earlier than the earliest (in one request, or against the stored value)', async () => {
+    expect((await save({ move_in_min_days: '30', move_in_max_days: '10' })).status).toBe(422);
+    expect((await save({ move_in_max_days: '1' })).status).toBe(422); // stored min is 2
+    expect(await setting('move_in_max_days')).toBe('90');
+  });
+
+  it('0 (today) is a valid earliest', async () => {
+    expect((await save({ move_in_min_days: '0' })).status).toBe(200);
+    expect(await setting('move_in_min_days')).toBe('0');
+  });
+
+  it('get_system_settings.php returns them as numbers', async () => {
+    const body = (await api('get_system_settings.php')).body;
+    const s = body.settings || body.data || body;
+    expect(s.move_in_min_days).toBe(0);
+    expect(s.move_in_max_days).toBe(90);
+  });
+});

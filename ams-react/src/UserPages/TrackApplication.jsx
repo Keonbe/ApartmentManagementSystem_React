@@ -14,12 +14,15 @@ import ApartmentPic from '../assets/Apartment_Pic.webp';
 import { useLang } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';
+import InlineAlert from '../Components/InlineAlert';
 import DocumentPreviewModal from '../Components/DocumentPreviewModal';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import FieldError from '../Components/form/FieldError';
 import { formatFileSize } from '../Components/form/formHelpers';
 import ReasonModal from '../Components/form/ReasonModal';
 import { apiErrorMessage } from '../utils/apiError';
+import { MOVE_IN_WINDOW_DEFAULT, checkMoveInDate, moveInBounds, moveInRangeText } from '../utils/validation';
+import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/track-application.responsive.css';
 
 export default function TrackApplication() {
@@ -43,6 +46,10 @@ export default function TrackApplication() {
             : null
     ));
 
+    // Inline messages that used to be alert(): the pay step's error, and the
+    // result of a cancelled gateway checkout.
+    const [payError, setPayError] = useState('');
+    const [gatewayMessage, setGatewayMessage] = useState('');
     const [contractError, setContractError] = useState('');
     const [contractInputKey, setContractInputKey] = useState(0);
     const [cancelApplication, setCancelApplication] = useState(false);
@@ -160,12 +167,14 @@ export default function TrackApplication() {
 
     const handleInitialPayment = async (e) => {
         e.preventDefault();
+        if (paying) return;
+        setPayError('');
         if (!application?.signed_lease_path) {
-            alert("Please upload your signed rent contract before proceeding to payment.");
+            setPayError("Please upload your signed rent contract before proceeding to payment.");
             return;
         }
         if (!application?.pending_invoice_id) {
-            alert("No pending invoice found.");
+            setPayError("No pending invoice found.");
             return;
         }
 
@@ -173,6 +182,7 @@ export default function TrackApplication() {
         const totalAmount = parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0)));
 
         if (currentMethodObj.family === 'sandbox') {
+            setPaying(true);
             try {
                 const res = await api.post("/create_checkout_session.php", {
                     invoice_id: application.pending_invoice_id,
@@ -180,16 +190,17 @@ export default function TrackApplication() {
                     success_url: appReturnUrl('track-application', { status: 'success', invoice_id: application.pending_invoice_id }),
                     cancel_url: appReturnUrl('track-application', { status: 'cancelled', invoice_id: application.pending_invoice_id })
                 });
-                
+
                 if (res.data.success && res.data.checkout_url) {
                     window.location.href = res.data.checkout_url;
-                } else {
-                    alert(res.data.message || "Failed to create checkout session.");
+                    return; // keep the button busy while the browser leaves
                 }
+                setPayError(res.data.message || "Failed to create checkout session.");
             } catch (error) {
                 console.error("Error creating checkout session:", error);
-                alert(apiErrorMessage(error, "Payment gateway error."));
+                setPayError(apiErrorMessage(error, "Payment gateway error."));
             }
+            setPaying(false);
             return;
         }
 
@@ -219,11 +230,11 @@ export default function TrackApplication() {
                     reloadOnClose: true,
                 });
             } else {
-                alert(res.data.message || "Failed to process payment.");
+                setPayError(res.data.message || "Failed to process payment.");
             }
         } catch (error) {
             console.error("Error submitting initial payment:", error);
-            alert(apiErrorMessage(error, "Payment failed. Please try again."));
+            setPayError(apiErrorMessage(error, "Payment failed. Please try again."));
         } finally {
             setPaying(false);
         }
@@ -231,25 +242,47 @@ export default function TrackApplication() {
 
     const [newDate, setNewDate] = useState('');
     const [submittingDate, setSubmittingDate] = useState(false);
+    const [dateError, setDateError] = useState('');
+    // Settings → Rental → Earliest / Latest Move-In Date (resubmit_date.php enforces it too).
+    const [moveInWindow, setMoveInWindow] = useState(MOVE_IN_WINDOW_DEFAULT);
+    const moveInLimits = moveInBounds(moveInWindow);
+    useEffect(() => {
+        let alive = true;
+        getSystemSettings().then((s) => {
+            if (alive) setMoveInWindow({ min: s.moveInMinDays ?? MOVE_IN_WINDOW_DEFAULT.min, max: s.moveInMaxDays || MOVE_IN_WINDOW_DEFAULT.max });
+        }).catch(() => {});
+        return () => { alive = false; };
+    }, []);
 
+    // Errors show under the date field; only a saved date opens the success notice.
     const handleResubmitDate = async () => {
+        if (submittingDate) return;
         if (!newDate) {
-            setNotice('Please select a new date.');
+            setDateError('Please select a new move-in date.');
             return;
         }
+        // Same range as resubmit_date.php: a typed date gets past the picker's min.
+        const rangeError = checkMoveInDate(newDate, moveInWindow);
+        if (rangeError) {
+            setDateError(rangeError);
+            return;
+        }
+        setDateError('');
         setSubmittingDate(true);
         try {
             const res = await api.post('/resubmit_date.php', { id: application.id, preferred_move_in_date: newDate });
             if (res.data.success) {
-                setNotice('New date submitted successfully!');
+                setNotice({ message: 'New date submitted', subtext: 'Management will review your new move-in date. You will be notified of their decision.' });
+                setNewDate('');
                 fetchApplication();
             } else {
-                setNotice(apiErrorMessage(res, 'Failed to submit new date.'));
+                setDateError(apiErrorMessage(res, 'Failed to submit new date.'));
             }
         } catch (err) {
-            setNotice(apiErrorMessage(err, 'Failed to submit new date.'));
+            setDateError(apiErrorMessage(err, 'Failed to submit new date.'));
+        } finally {
+            setSubmittingDate(false);
         }
-        setSubmittingDate(false);
     };
 
     useEffect(() => {
@@ -307,17 +340,20 @@ export default function TrackApplication() {
                 // stays in 'processing' and cannot be paid again.
                 const invoiceId = queryParams.get('invoice_id');
                 (async () => {
-                    let released = true;
+                    // Only the caller's own 'processing' bill is released; when nothing
+                    // was (a typed URL, a second cancel), no message is shown.
+                    let outcome = 'none';
                     if (invoiceId) {
                         try {
-                            await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
+                            const res = await api.post('/release_checkout_session.php', { invoice_id: invoiceId });
+                            if (res.data?.released) outcome = 'released';
                         } catch (err) {
                             console.error('Failed to release the cancelled payment session:', err);
-                            released = false;
+                            outcome = 'failed';
                         }
                     }
-                    alert(released
-                        ? "Payment was cancelled."
+                    if (outcome !== 'none') setGatewayMessage(outcome === 'released'
+                        ? "Payment was cancelled. You can choose a payment method and try again."
                         : "Payment was cancelled, but this payment could not be reopened. Please contact management to release it.");
                     navigate('/track-application', { replace: true });
                     fetchApplicationStatus();
@@ -417,14 +453,16 @@ export default function TrackApplication() {
                     </div>
                 )}
 
+                <InlineAlert tone="info" onDismiss={() => setGatewayMessage('')}>{gatewayMessage}</InlineAlert>
+
                 {/* Application exists and has a valid status */}
                 {application ? (
                     <div className="space-y-8">
                         {/* Status Summary Banner */}
                         <div className="track-app-status-banner bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="space-y-2">
-                                <span className={`badge-pulse inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColorClass} select-none`}>
-                                    <span className="w-2 h-2 rounded-full bg-current mr-2 animate-pulse"></span>
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${statusColorClass} select-none`}>
+                                    <span aria-hidden="true" className="w-2 h-2 rounded-full bg-current mr-2"></span>
                                     {statusLabel}
                                 </span>
                                 <h2 className="text-2xl font-bold text-white m-0">
@@ -449,7 +487,7 @@ export default function TrackApplication() {
                                             {t('trackApp.viewContract')}
                                         </button>
                                         <div className="flex items-center space-x-2 text-amber-400 text-xs bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-500/20">
-                                            <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400 animate-pulse" />
+                                            <FontAwesomeIcon icon={faInfoCircle} className="text-amber-400" aria-hidden="true" />
                                             <span>
                                                 {application.pending_invoice_status === 'pending-verification'
                                                     ? 'Verification Pending'
@@ -471,7 +509,7 @@ export default function TrackApplication() {
                             )}
 
                             {statusNormalized === 'active' && (
-                                <button onClick={() => navigate('/my-room')} className="bg-teal-600 hover:bg-teal-700 active:scale-95 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2">
+                                <button onClick={() => navigate('/my-room')} className="bg-teal-700 hover:bg-teal-800 active:scale-95 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2">
                                     <span>{t('trackApp.proceedRoom')}</span><FontAwesomeIcon icon={faArrowRight} />
                                 </button>
                             )}
@@ -479,7 +517,7 @@ export default function TrackApplication() {
                             {statusNormalized === 'pending' && (
                                 <div className="track-app-status-actions flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                                     <div className="flex items-center space-x-2 text-slate-400 text-xs bg-white/5 px-4 py-2.5 rounded-xl border border-white/10">
-                                        <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400 animate-pulse" />
+                                        <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-400" aria-hidden="true" />
                                         <span>Locked during review</span>
                                     </div>
                                     <button onClick={() => setCancelApplication(true)} className="bg-transparent hover:bg-rose-500/10 text-rose-300 hover:text-rose-200 border border-rose-500/30 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer">
@@ -491,7 +529,7 @@ export default function TrackApplication() {
                             {statusNormalized === 'pending-move-out' && (
                                 <button
                                     onClick={() => navigate('/my-room')}
-                                    className="bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
+                                    className="bg-amber-700 hover:bg-amber-800 active:scale-95 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition-all shadow-lg border-0 cursor-pointer flex items-center space-x-2"
                                 >
                                     <span>View Move-Out Notice</span>
                                     <FontAwesomeIcon icon={faArrowRight} />
@@ -521,23 +559,30 @@ export default function TrackApplication() {
                                     "{application.rejection_reason}"
                                 </p>
                                 <div className="mt-4 pt-4 border-t border-amber-500/20">
-                                    <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider mb-2">Select New Date</label>
-                                    <div className="flex gap-3 items-center">
-                                        <input 
-                                            type="date" 
-                                            value={newDate} 
-                                            onChange={e => setNewDate(e.target.value)}
-                                            min={new Date().toISOString().split('T')[0]}
-                                            className="px-4 py-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                                    <label htmlFor="resubmit-date" className="block text-sm font-bold text-amber-300 mb-2">New move-in date</label>
+                                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                                        <input
+                                            id="resubmit-date"
+                                            type="date"
+                                            value={newDate}
+                                            onChange={e => { setNewDate(e.target.value); setDateError(''); }}
+                                            min={moveInLimits.min}
+                                            max={moveInLimits.max}
+                                            aria-invalid={dateError ? true : undefined}
+                                            aria-describedby={dateError ? 'resubmit-date-error resubmit-date-hint' : 'resubmit-date-hint'}
+                                            className="[color-scheme:dark] px-4 py-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-white focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                                         />
-                                        <button 
-                                            onClick={handleResubmitDate} 
+                                        <button
+                                            type="button"
+                                            onClick={handleResubmitDate}
                                             disabled={submittingDate}
-                                            className="bg-amber-500 hover:bg-amber-400 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all shadow-md disabled:opacity-50"
+                                            className="bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold px-6 py-2.5 rounded-xl text-sm transition-all shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            {submittingDate ? 'Submitting...' : 'Submit New Date'}
+                                            {submittingDate ? 'Submitting…' : 'Submit new date'}
                                         </button>
                                     </div>
+                                    <p id="resubmit-date-hint" className="m-0 mt-2 text-xs text-amber-200/90">{moveInRangeText(moveInWindow)}</p>
+                                    <FieldError id="resubmit-date" error={dateError} />
                                 </div>
                             </div>
                         )}
@@ -757,7 +802,7 @@ export default function TrackApplication() {
                                     ) : (
                                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-3">
                                             <div className="flex items-center space-x-2.5 text-amber-400 font-bold text-sm">
-                                                <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                                <FontAwesomeIcon icon={faInfoCircle} aria-hidden="true" />
                                                 <span>Signed Rent Contract Upload Required (Max 5MB PDF)</span>
                                             </div>
                                             <p className="text-slate-300 text-xs m-0">
@@ -885,7 +930,7 @@ export default function TrackApplication() {
                                     {application.pending_invoice_status === 'pending-verification' ? (
                                         <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 space-y-3">
                                             <div className="flex items-center gap-2.5 text-indigo-400 font-bold text-sm">
-                                                <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                                <FontAwesomeIcon icon={faInfoCircle} aria-hidden="true" />
                                                 Payment Verification Pending
                                             </div>
                                             <p className="text-slate-300 text-xs m-0 leading-relaxed">
@@ -895,7 +940,7 @@ export default function TrackApplication() {
                                     ) : application.pending_payment_method === 'Cash on Hand' ? (
                                         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 space-y-3">
                                             <div className="flex items-center gap-2.5 text-amber-400 font-bold text-sm">
-                                                <FontAwesomeIcon icon={faInfoCircle} className="animate-pulse" />
+                                                <FontAwesomeIcon icon={faInfoCircle} aria-hidden="true" />
                                                 Cash Payment Request Pending
                                             </div>
                                             <p className="text-slate-300 text-xs m-0 leading-relaxed">
@@ -911,8 +956,10 @@ export default function TrackApplication() {
                                                     {paymentChannels.length > 0 ? paymentChannels.map((method) => (
                                                         <button
                                                             key={method.id}
+                                                            type="button"
+                                                            aria-pressed={selectedMethod === method.id}
                                                             disabled={!application.signed_lease_path}
-                                                            onClick={() => setSelectedMethod(method.id)}
+                                                            onClick={() => { setSelectedMethod(method.id); setPayError(''); }}
                                                             className={`flex items-center justify-between p-4 rounded-2xl border text-sm font-semibold transition-all ${
                                                                 !application.signed_lease_path
                                                                     ? 'opacity-40 bg-white/5 border-white/5 text-slate-500 cursor-not-allowed'
@@ -936,6 +983,8 @@ export default function TrackApplication() {
                                                     )}
                                                 </div>
                                             </div>
+
+                                            <InlineAlert onDismiss={() => setPayError('')}>{payError}</InlineAlert>
 
                                             {/* Action Button */}
                                             <button
@@ -1030,9 +1079,9 @@ export default function TrackApplication() {
                                     {/* Step 2: Under Review */}
                                     <div className="flex md:flex-col items-center gap-4 md:gap-2 z-10 w-full md:w-1/3 text-left md:text-center relative">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shadow-md border-4 border-slate-900 transition-all ${
-                                            ['pending', 'action required'].includes(statusNormalized) ? 'bg-amber-500 text-white animate-pulse' : 'bg-indigo-500 text-white'
+                                            ['pending', 'action required'].includes(statusNormalized) ? 'bg-amber-500 text-white' : 'bg-indigo-500 text-white'
                                         }`}>
-                                            <FontAwesomeIcon icon={['pending', 'action required'].includes(statusNormalized) ? faHourglassHalf : faCheckCircle} className={statusNormalized === 'pending' ? 'animate-spin' : ''} />
+                                            <FontAwesomeIcon icon={['pending', 'action required'].includes(statusNormalized) ? faHourglassHalf : faCheckCircle} />
                                         </div>
                                         <div className="flex flex-col md:items-center">
                                             <span className="text-sm font-bold text-white">Under Review</span>

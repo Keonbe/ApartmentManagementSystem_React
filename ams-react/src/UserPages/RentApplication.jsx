@@ -6,7 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { getSystemSettings } from '../config/systemSettings';
 import { useLang } from '../config/i18n';
-import { LIMITS, checkIntRange, checkPersonName, checkPhMobile, checkText, toPhLocal10, toPhE164 } from '../utils/validation';
+import { LIMITS, MOVE_IN_WINDOW_DEFAULT, checkMoveInDate, moveInBounds, moveInRangeText, checkIntRange, checkPersonName, checkPhMobile, checkText, toPhLocal10, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -152,8 +152,14 @@ export default function RentApplication() {
     const [isASAP, setIsASAP] = useState(false);
     // Settings → Rental → Minimum Rent Duration (rent_application.php enforces it too).
     const [minMonths, setMinMonths] = useState(1);
+    // Settings → Rental → Earliest / Latest Move-In Date (rent_application.php enforces it too).
+    const [moveInWindow, setMoveInWindow] = useState(MOVE_IN_WINDOW_DEFAULT);
+    const moveInLimits = moveInBounds(moveInWindow);
     useEffect(() => {
-        getSystemSettings().then(s => setMinMonths(Math.min(MAX_MONTHS, s.minLeaseDuration || 1)));
+        getSystemSettings().then(s => {
+            setMinMonths(Math.min(MAX_MONTHS, s.minLeaseDuration || 1));
+            setMoveInWindow({ min: s.moveInMinDays ?? MOVE_IN_WINDOW_DEFAULT.min, max: s.moveInMaxDays || MOVE_IN_WINDOW_DEFAULT.max });
+        });
     }, []);
 
     useEffect(() => {
@@ -308,7 +314,13 @@ export default function RentApplication() {
         gender: (v) => (GENDERS.includes(v) ? '' : 'Please select your gender.'),
         occupants: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants'),
         monthsOfRent: (v) => checkIntRange(v === '' ? NaN : v, minMonths, MAX_MONTHS, 'Months of rent'),
-        prefMoveInDate: (v) => (isASAP || v ? '' : 'Please select when you need to move in by.'),
+        // Inside the admin's move-in window (rent_application.php checks the same):
+        // the picker's min does not stop a typed past date.
+        prefMoveInDate: (v) => {
+            if (isASAP) return '';
+            if (!v) return 'Please select when you need to move in by.';
+            return checkMoveInDate(v, moveInWindow);
+        },
         // Only a vacant unit can be applied for (checked once the list has loaded).
         roomName: (v) => (!isEditing && rooms.length && !availableRooms.some(r => r.id === v) ? `Room ${v} is not available. Choose another room.` : ''),
         agreeTerms: (v) => (v ? '' : 'Please read and agree to the terms and privacy policy.'),
@@ -732,7 +744,8 @@ export default function RentApplication() {
                                         <input
                                             type="date"
                                             {...form.fieldA11y('prefMoveInDate')}
-                                            min={new Date().toISOString().split('T')[0]}
+                                            min={moveInLimits.min}
+                                            max={moveInLimits.max}
                                             value={prefMoveInDate}
                                             disabled={isReadOnly}
                                             onChange={(e) => { setPrefMoveInDate(e.target.value); form.clearError('prefMoveInDate'); }}
@@ -741,6 +754,7 @@ export default function RentApplication() {
                                             required
                                         />
                                     )}
+                                    {!isASAP && !isReadOnly && <p className="mt-1 mb-0 text-xs text-slate-500">{moveInRangeText(moveInWindow)}</p>}
                                     <FieldError id="rent-prefMoveInDate" error={form.errors.prefMoveInDate} className="mt-1 m-0" />
                                     </div>
                                 </div>
