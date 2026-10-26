@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileInvoiceDollar, faCheckCircle, faDownload, faHistory, faPrint, faArrowRight } from '@fortawesome/free-solid-svg-icons';
+import { faFileInvoiceDollar, faDownload, faHistory, faPrint, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
-import useInvoiceWatch, { PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
+import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import fileUrl from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
@@ -151,243 +151,296 @@ export default function UserPaymentHistory() {
     const showReceipt = !!receiptData;
     const receiptDialogRef = useDialog(showReceipt, () => setReceiptInvoiceId(null));
 
-    return (
-        <div className="payment-history-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
-            <div className="w-full max-w-[1000px] space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
-                
-                <div className="border-b border-slate-200 pb-4 relative">
-                    <button
-                        onClick={() => navigate('/my-refunds')}
-                        className="sm:absolute sm:right-0 sm:top-0 mb-3 sm:mb-0 px-4 py-2 rounded-lg border border-indigo-200 bg-white text-indigo-600 text-sm font-semibold cursor-pointer hover:bg-indigo-50 transition-colors flex items-center gap-2"
-                    >
-                        {t('paymentHistory.myRefunds')}
-                        <FontAwesomeIcon icon={faArrowRight} />
-                    </button>
-                    <h1 className="payment-history-heading text-3xl sm:text-4xl font-sans font-extrabold m-0 tracking-tight select-none flex items-center gap-3" style={{ color: '#3b4276' }}>
-                        <FontAwesomeIcon icon={faHistory} className="text-indigo-500 text-2xl sm:text-3xl" />
-                        {t('paymentHistory.heading')}
-                    </h1>
-                    <p className="payment-history-subtext text-slate-500 text-sm mt-2 m-0">
-                        {t('paymentHistory.subtext')}
+    // ── Grouping: To pay (open and awaiting), Paid by year, Cancelled ──
+    const byDue = (a, b) => String(a.due_date || '').localeCompare(String(b.due_date || ''));
+    const owedOf = (i) => parseFloat(i.balance ?? i.total_amount) || 0;
+    const isOpen = (i) => PAYABLE_STATUSES.includes(i.status) || AWAITING_STATUSES.includes(i.status);
+    const openBills = invoices.filter(isOpen).sort(byDue);
+    const payable = openBills.filter((i) => PAYABLE_STATUSES.includes(i.status));
+    const toPayTotal = payable.reduce((s, i) => s + owedOf(i), 0);
+    const paidBills = invoices.filter((i) => i.status === 'paid');
+    const otherBills = invoices.filter((i) => !isOpen(i) && i.status !== 'paid');
+    const lastPaid = paidBills.filter((i) => i.paid_at).sort((a, b) => String(b.paid_at).localeCompare(String(a.paid_at)))[0];
+    // A bill's place in time: the month it covers, else its due date.
+    const sortKey = (i) => String(i.period_start || i.due_date || i.created_at || '');
+    // A bill paid in a combined payment is listed once, inside that payment.
+    const paidEntries = [
+        ...paidBills.filter((i) => !isBundleKey(i.payment_group)).map((i) => ({ kind: 'bill', key: i.id, sort: sortKey(i), inv: i })),
+        ...combinedPayments.map((c) => ({ kind: 'combined', key: c.key, sort: sortKey(c.bills[c.bills.length - 1]), group: c })),
+    ].sort((a, b) => b.sort.localeCompare(a.sort));
+    const paidByYear = paidEntries.reduce((acc, e) => {
+        const year = e.sort.slice(0, 4) || 'Earlier';
+        (acc[year] = acc[year] || []).push(e);
+        return acc;
+    }, {});
+    const years = Object.keys(paidByYear).sort((a, b) => b.localeCompare(a));
+
+    const invoiceLabel = (inv) => (String(inv.id).startsWith('INV-') ? inv.id : `INV-${inv.id}`);
+    const shortDay = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
+    // The charges on a bill, as one quiet line ("Rent ₱4,000.00, Water ₱120.00").
+    const chargesLine = (inv) => [
+        [t('paymentHistory.rent'), inv.base_rent], [t('paymentHistory.deposit'), inv.security_deposit],
+        [t('paymentHistory.water'), inv.water], [t('paymentHistory.electricity'), inv.electricity],
+        [t('paymentHistory.parking'), inv.parking], [t('paymentHistory.maintenance'), inv.maintenance],
+    ].filter(([, v]) => parseFloat(v) > 0).map(([label, v]) => `${String(label).replace(/:\s*$/, '')} ${formatCurrency(v)}`).join(', ');
+
+    const RECEIPT_BTN = 'inline-flex items-center justify-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-bold border-0 cursor-pointer transition-colors';
+
+    // One bill in a list. `nested`: shown inside a combined payment.
+    const billRow = (inv, { nested = false } = {}) => {
+        const paid = inv.status === 'paid';
+        const open = isOpen(inv);
+        const badge = STATUS_BADGES[inv.status] || UNPAID_BADGE;
+        const range = inv.period_start && inv.period_end ? formatPeriodRange(inv.period_start, inv.period_end) : '';
+        const amount = open ? owedOf(inv) : parseFloat(inv.total_amount) || 0;
+        const partPaid = open && (parseFloat(inv.amount_paid) || 0) > 0;
+        const charges = nested ? '' : chargesLine(inv);
+        return (
+            <li key={inv.id} className={`payment-history-item flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${nested ? 'py-3' : 'py-4'}`}>
+                <div className="min-w-0">
+                    <p className={`m-0 font-bold text-slate-900 ${nested ? 'text-sm' : 'text-base'}`}>{inv.billing_period || invoiceLabel(inv)}</p>
+                    <p className="m-0 mt-0.5 text-sm text-slate-500">
+                        {range && <>{range}, </>}{invoiceLabel(inv)}
                     </p>
+                    {open && isPastDue(inv) && (
+                        <p className="m-0 mt-1 text-sm font-semibold text-rose-700">Overdue by {daysPastDue(inv)} day{daysPastDue(inv) === 1 ? '' : 's'}</p>
+                    )}
+                    {paid && inv.paid_from_advance && (
+                        <p className="m-0 mt-1 text-sm font-semibold text-emerald-700">Paid from advance payment {inv.payment_reference}</p>
+                    )}
+                    {charges && <p className="m-0 mt-1 text-sm text-slate-500">{charges}</p>}
                 </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    {loading ? (
-                        <div className="p-8 text-center text-slate-400">{t('paymentHistory.loading')}</div>
-                    ) : invoices.length === 0 ? (
-                        <div className="p-12 text-center">
-                            <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-4xl text-slate-200 mb-4" />
-                            <h3 className="text-lg font-bold text-slate-700 m-0">{t('paymentHistory.none')}</h3>
-                            <p className="text-sm text-slate-500 mt-2">{t('paymentHistory.noneDesc')}</p>
-                        </div>
-                    ) : (
-                        <div className="stagger-children divide-y divide-slate-100">
-                            {combinedPayments.map(c => (
-                                <div key={c.key} className="payment-history-item card-interactive p-4 sm:p-6 bg-emerald-50/40 hover:bg-emerald-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
-                                    <div className="flex items-start gap-3 sm:gap-4">
-                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg sm:text-xl shrink-0 bg-emerald-100 text-emerald-600">
-                                            <FontAwesomeIcon icon={faCheckCircle} />
-                                        </div>
-                                        <div>
-                                            <span className="text-xs font-bold tracking-wider text-slate-500">Combined payment {c.key}</span>
-                                            <h3 className="text-base sm:text-lg font-bold text-slate-800 m-0 mt-1">
-                                                {formatCurrency(c.bills.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0))}
-                                            </h3>
-                                            <p className="text-xs text-slate-500 m-0 mt-1">
-                                                {c.bills.length} billing periods: {c.bills.map(i => i.billing_period).join(', ')}
-                                            </p>
-                                            {c.bills[0].paid_at && (
-                                                <p className="text-xs text-emerald-600 font-medium m-0 mt-2">{t('paymentHistory.paidOn')} {new Date(c.bills[0].paid_at).toLocaleDateString()}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="payment-history-actions flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
-                                        <span className="px-3 py-1 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">{t('paymentHistory.paid')}</span>
-                                        <button
-                                            onClick={() => setReceiptInvoiceId(c.key)}
-                                            className="payment-history-view-btn flex items-center gap-1.5 px-4 py-2.5 sm:py-2 text-sm font-bold text-indigo-600 bg-indigo-50 border-0 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer min-h-[44px]"
-                                        >
-                                            <FontAwesomeIcon icon={faDownload} /> Combined receipt
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                            {invoices.map((inv) => {
-                                const isPaid = inv.status?.toLowerCase() === 'paid';
-                                const badge = STATUS_BADGES[inv.status] || UNPAID_BADGE;
-                                return (
-                                    <div key={inv.id} className="payment-history-item card-interactive p-4 sm:p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
-                                        <div className="flex items-start gap-3 sm:gap-4">
-                                            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-lg sm:text-xl shrink-0 ${isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                                <FontAwesomeIcon icon={isPaid ? faCheckCircle : faFileInvoiceDollar} />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="text-xs font-bold tracking-wider text-slate-500">{String(inv.id).startsWith('INV-') ? inv.id : `INV-${inv.id}`}</span>
-                                                    <span className="text-xs text-slate-300">•</span>
-                                                    <span className="text-xs font-medium text-slate-500">{t('paymentHistory.billed')} {new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                                </div>
-                                                <h3 className="text-base sm:text-lg font-bold text-slate-800 m-0">{formatCurrency(inv.total_amount)}</h3>
-                                                
-                                                <div className="mt-2 space-y-1 text-xs text-slate-500">
-                                                    <div className="flex gap-2">
-                                                        <span className="font-semibold">{t('paymentHistory.period')}</span>
-                                                        <span>
-                                                            {inv.billing_period}
-                                                            {inv.period_start && inv.period_end && (
-                                                                <span className="text-slate-500"> ({formatPeriodRange(inv.period_start, inv.period_end)})</span>
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    {isPastDue(inv) && (
-                                                        <div className="text-rose-600 font-semibold">
-                                                            Overdue by {daysPastDue(inv)} day{daysPastDue(inv) === 1 ? '' : 's'}
-                                                        </div>
-                                                    )}
-                                                    {inv.paid_from_advance && (
-                                                        <div className="text-emerald-600 font-semibold">Paid from advance payment {inv.payment_reference}</div>
-                                                    )}
-                                                    {isBundleKey(inv.payment_group) && (
-                                                        <div className="text-emerald-600 font-semibold">Part of combined payment {inv.payment_group}</div>
-                                                    )}
-                                                    <div className="flex gap-2 sm:gap-3 flex-wrap text-xs text-slate-500">
-                                                        <span>{t('paymentHistory.rent')} {formatCurrency(inv.base_rent)}</span>
-                                                        {parseFloat(inv.security_deposit) > 0 && (
-                                                            <span>{t('paymentHistory.deposit')} {formatCurrency(inv.security_deposit)}</span>
-                                                        )}
-                                                        {parseFloat(inv.water) > 0 && (
-                                                            <span>{t('paymentHistory.water')} {formatCurrency(inv.water)}</span>
-                                                        )}
-                                                        {parseFloat(inv.electricity) > 0 && (
-                                                            <span>{t('paymentHistory.electricity')} {formatCurrency(inv.electricity)}</span>
-                                                        )}
-                                                        {parseFloat(inv.parking) > 0 && (
-                                                            <span>{t('paymentHistory.parking')} {formatCurrency(inv.parking)}</span>
-                                                        )}
-                                                        {parseFloat(inv.maintenance) > 0 && (
-                                                            <span>{t('paymentHistory.maintenance')} {formatCurrency(inv.maintenance)}</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {isPaid && inv.paid_at && (
-                                                    <p className="text-xs text-emerald-600 font-medium m-0 mt-2">{t('paymentHistory.paidOn')} {new Date(inv.paid_at).toLocaleDateString()}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="payment-history-actions flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto mt-2 sm:mt-0 pl-0 shrink-0">
-                                            {isPaid ? (
-                                                <span className="px-3 py-1 text-xs font-bold bg-emerald-100 text-emerald-700 rounded-full">{t('paymentHistory.paid')}</span>
-                                            ) : (
-                                                <>
-                                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${badge.cls}`}>
-                                                        {badge.label}
-                                                    </span>
-                                                    {PAYABLE_STATUSES.includes(inv.status) && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => navigate('/pay-bills')}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg border-0 cursor-pointer transition-colors"
-                                                        >
-                                                            <span>Pay Now</span>
-                                                            <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
-                                                        </button>
-                                                    )}
-                                                </>
-                                            )}
-                                            
-                                            {isPaid && (
-                                                <button
-                                                    onClick={() => setReceiptInvoiceId(inv.id)}
-                                                    className="payment-history-view-btn flex items-center gap-1.5 px-4 py-2.5 sm:py-2 text-sm font-bold text-indigo-600 bg-indigo-50 border-0 rounded-lg hover:bg-indigo-100 transition-colors cursor-pointer min-h-[44px]"
-                                                >
-                                                    <FontAwesomeIcon icon={faDownload} /> {t('paymentHistory.viewReceipt')}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                <div className="payment-history-actions flex flex-wrap items-center gap-3 sm:justify-end shrink-0">
+                    <div className="sm:text-right">
+                        <p className={`m-0 font-bold text-slate-900 tabular-nums ${nested ? 'text-sm' : 'text-base'}`}>{formatCurrency(amount)}</p>
+                        {partPaid && <p className="m-0 text-xs text-slate-500 tabular-nums">of {formatCurrency(inv.total_amount)}</p>}
+                        {paid && inv.paid_at && <p className="m-0 text-sm text-emerald-700">{t('paymentHistory.paidOn')} {shortDay(inv.paid_at)}</p>}
+                    </div>
+                    {open && <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${badge.cls}`}>{badge.label}</span>}
+                    {open && PAYABLE_STATUSES.includes(inv.status) && (
+                        <button type="button" onClick={() => navigate('/pay-bills')} className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold border-0 cursor-pointer transition-colors">
+                            Pay now <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+                        </button>
+                    )}
+                    {paid && (
+                        <button type="button" onClick={() => setReceiptInvoiceId(inv.id)} className={RECEIPT_BTN}>
+                            <FontAwesomeIcon icon={faDownload} aria-hidden="true" /> {t('paymentHistory.viewReceipt')}
+                        </button>
                     )}
                 </div>
+            </li>
+        );
+    };
 
+    const SECTION = 'bg-white rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6';
+
+    return (
+        <div className="payment-history-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
+            <div className="w-full max-w-[900px] flex flex-col gap-6 text-left">
+
+                <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-slate-200 pb-4">
+                    <div>
+                        <h1 className="payment-history-heading m-0 text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3" style={{ color: '#3b4276' }}>
+                            <FontAwesomeIcon icon={faHistory} className="text-indigo-600 text-2xl sm:text-3xl" aria-hidden="true" />
+                            {t('paymentHistory.heading')}
+                        </h1>
+                        <p className="payment-history-subtext m-0 mt-2 text-sm text-slate-600">{t('paymentHistory.subtext')}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/my-refunds')}
+                        className="self-start sm:self-auto inline-flex items-center gap-2 min-h-[44px] px-4 rounded-lg border border-indigo-200 bg-white text-indigo-700 text-sm font-semibold cursor-pointer hover:bg-indigo-50 transition-colors"
+                    >
+                        {t('paymentHistory.myRefunds')} <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+                    </button>
+                </header>
+
+                {loading ? (
+                    <p className="m-0 p-8 text-center text-slate-600 bg-white rounded-2xl border border-slate-200" role="status">{t('paymentHistory.loading')}</p>
+                ) : invoices.length === 0 ? (
+                    <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
+                        <FontAwesomeIcon icon={faFileInvoiceDollar} className="text-4xl text-slate-300 mb-4" aria-hidden="true" />
+                        <h2 className="text-lg font-bold text-slate-800 m-0">{t('paymentHistory.none')}</h2>
+                        <p className="text-sm text-slate-600 mt-2 mb-0">{t('paymentHistory.noneDesc')}</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Summary: what is owed now, and the last payment. */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl bg-[#3b4276] text-white p-5 sm:p-6">
+                            <div>
+                                <p className="m-0 text-sm text-indigo-100">
+                                    {payable.length > 0 ? `To pay across ${payable.length} bill${payable.length === 1 ? '' : 's'}` : 'Nothing to pay right now'}
+                                </p>
+                                <p className="m-0 mt-1 text-3xl font-extrabold tabular-nums">{formatCurrency(toPayTotal)}</p>
+                                {lastPaid && (
+                                    <p className="m-0 mt-2 text-sm text-indigo-100">
+                                        Last payment: {formatCurrency(lastPaid.total_amount)} on {shortDay(lastPaid.paid_at)}
+                                    </p>
+                                )}
+                            </div>
+                            {payable.length > 0 && (
+                                <button type="button" onClick={() => navigate('/pay-bills')} className="self-start sm:self-auto inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl bg-white text-[#3b4276] text-sm font-bold border-0 cursor-pointer hover:bg-indigo-50">
+                                    Go to Pay Bills <FontAwesomeIcon icon={faArrowRight} aria-hidden="true" />
+                                </button>
+                            )}
+                        </div>
+
+                        {openBills.length > 0 && (
+                            <section aria-labelledby="history-to-pay">
+                                <h2 id="history-to-pay" className="m-0 mb-3 text-xl font-bold text-slate-900">To pay</h2>
+                                <ul className={`${SECTION} list-none m-0 divide-y divide-slate-100`}>
+                                    {openBills.map((inv) => billRow(inv))}
+                                </ul>
+                            </section>
+                        )}
+
+                        {paidEntries.length > 0 && (
+                            <section aria-labelledby="history-paid">
+                                <h2 id="history-paid" className="m-0 mb-3 text-xl font-bold text-slate-900">Paid</h2>
+                                <div className="flex flex-col gap-5">
+                                    {years.map((year) => (
+                                        <div key={year}>
+                                            <h3 className="m-0 mb-2 text-sm font-bold text-slate-600 tabular-nums">{year}</h3>
+                                            <ul className={`${SECTION} list-none m-0 divide-y divide-slate-100`}>
+                                                {paidByYear[year].map((entry) => (entry.kind === 'bill' ? billRow(entry.inv) : (
+                                                    <li key={entry.key} className="payment-history-item py-4">
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className="m-0 text-base font-bold text-slate-900">Combined payment, {entry.group.bills.length} bills</p>
+                                                                <p className="m-0 mt-0.5 text-sm text-slate-500">
+                                                                    {entry.group.bills.map((b) => b.billing_period).join(', ')}, {entry.group.key}
+                                                                </p>
+                                                            </div>
+                                                            <div className="payment-history-actions flex flex-wrap items-center gap-3 sm:justify-end shrink-0">
+                                                                <div className="sm:text-right">
+                                                                    <p className="m-0 text-base font-bold text-slate-900 tabular-nums">
+                                                                        {formatCurrency(entry.group.bills.reduce((s, i) => s + (parseFloat(i.total_amount) || 0), 0))}
+                                                                    </p>
+                                                                    {entry.group.bills[0].paid_at && <p className="m-0 text-sm text-emerald-700">{t('paymentHistory.paidOn')} {shortDay(entry.group.bills[0].paid_at)}</p>}
+                                                                </div>
+                                                                <button type="button" onClick={() => setReceiptInvoiceId(entry.key)} className={RECEIPT_BTN}>
+                                                                    <FontAwesomeIcon icon={faDownload} aria-hidden="true" /> Combined receipt
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        {/* The bills it paid, each with its own receipt. */}
+                                                        <ul className="list-none m-0 mt-3 pl-4 border-l-2 border-emerald-200 divide-y divide-slate-100">
+                                                            {entry.group.bills.map((b) => billRow(b, { nested: true }))}
+                                                        </ul>
+                                                    </li>
+                                                )))}
+                                            </ul>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        {otherBills.length > 0 && (
+                            <details className="group">
+                                <summary className="inline-flex items-center gap-2 min-h-[44px] cursor-pointer text-base font-bold text-slate-700 hover:text-slate-900">
+                                    Cancelled bills ({otherBills.length})
+                                </summary>
+                                <ul className={`${SECTION} list-none m-0 mt-2 divide-y divide-slate-100`}>
+                                    {otherBills.map((inv) => (
+                                        <li key={inv.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                                            <span className="text-slate-700">{inv.billing_period || invoiceLabel(inv)} <span className="text-slate-500">({invoiceLabel(inv)})</span></span>
+                                            <span className="flex items-center gap-3">
+                                                <span className="font-semibold text-slate-600 tabular-nums line-through decoration-slate-400">{formatCurrency(inv.total_amount)}</span>
+                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${(STATUS_BADGES[inv.status] || STATUS_BADGES.cancelled).cls}`}>{(STATUS_BADGES[inv.status] || STATUS_BADGES.cancelled).label}</span>
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </details>
+                        )}
+                    </>
+                )}
             </div>
 
             {/* Receipt Modal */}
             {showReceipt && receiptData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 modal-overlay-anim" onClick={() => setReceiptInvoiceId(null)}>
                     <div ref={(node) => { receiptRef.current = node; receiptDialogRef.current = node; }} role="dialog" aria-modal="true" aria-labelledby="receipt-title" tabIndex={-1} className="receipt-modal-card modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden printable-receipt max-h-[92vh] flex flex-col outline-none" onClick={e => e.stopPropagation()}>
-                        <div className="bg-slate-900 text-white p-5 sm:p-6 text-center border-b-4 border-indigo-500 shrink-0 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
-                            <h2 id="receipt-title" className="text-xl sm:text-2xl font-bold tracking-wider italic font-serif mb-1 m-0 uppercase">Apartment AMS</h2>
-                            <div className="mt-3 pt-3 border-t border-slate-700/50 print:border-slate-300">
-                                <p className="text-xs sm:text-sm font-semibold text-slate-300 uppercase tracking-widest m-0 print:text-slate-700">{t('paymentHistory.officialReceipt')}</p>
-                                <p className="text-xs font-mono text-indigo-300 m-0 mt-1 print:text-slate-900">{receiptData.rctId}</p>
-                            </div>
+                        <div className="bg-[#3b4276] text-white p-5 sm:p-6 text-center shrink-0 print:bg-white print:text-slate-900 print:border-b-2 print:border-slate-900">
+                            <h2 id="receipt-title" className="m-0 text-xl sm:text-2xl font-bold tracking-wide italic font-serif">Apartment AMS</h2>
+                            <p className="m-0 mt-2 text-sm font-semibold text-indigo-100 print:text-slate-700">{t('paymentHistory.officialReceipt')}</p>
+                            <p className="m-0 mt-1 text-sm font-mono text-white print:text-slate-900">{receiptData.rctId}</p>
                         </div>
-                        <div className="receipt-modal-body p-4 sm:p-6 space-y-4 font-mono text-xs sm:text-sm overflow-y-auto flex-grow">
-                            <div className="flex justify-between border-b border-slate-200 pb-3">
-                                <div><p className="text-slate-500 text-[10px] uppercase m-0">Date</p><p className="font-semibold m-0 mt-0.5">{receiptData.date}</p></div>
-                                <div className="text-right"><p className="text-slate-500 text-[10px] uppercase m-0">Status</p><p className="font-bold text-emerald-600 m-0 mt-0.5">{receiptData.status}</p></div>
+                        <div className="receipt-modal-body p-4 sm:p-6 space-y-4 text-sm text-slate-800 overflow-y-auto flex-grow">
+                            <div className="flex justify-between gap-4 border-b border-slate-200 pb-3">
+                                <div><p className="m-0 text-xs text-slate-500">Date</p><p className="m-0 mt-0.5 font-semibold">{receiptData.date}</p></div>
+                                <div className="text-right"><p className="m-0 text-xs text-slate-500">Status</p><p className="m-0 mt-0.5 font-bold text-emerald-700">{receiptData.status === 'PAID' ? 'Paid' : receiptData.status}</p></div>
                             </div>
-                            <div className="flex justify-between border-b border-slate-200 pb-3">
-                                <div><p className="text-slate-500 text-[10px] uppercase m-0">{t('paymentHistory.receivedFrom')}</p><p className="font-bold text-sm sm:text-base m-0 mt-0.5 text-slate-800">{receiptData.tenant}</p><p className="m-0 text-slate-600 text-xs">{t('paymentHistory.unit')} {receiptData.unit}</p></div>
+                            <div className="flex justify-between gap-4 border-b border-slate-200 pb-3">
+                                <div>
+                                    <p className="m-0 text-xs text-slate-500">{t('paymentHistory.receivedFrom')}</p>
+                                    <p className="m-0 mt-0.5 text-base font-bold text-slate-900">{receiptData.tenant}</p>
+                                    <p className="m-0 text-slate-600">{t('paymentHistory.unit')} {receiptData.unit}</p>
+                                </div>
                                 <div className="text-right">
-                                    <p className="text-slate-500 text-[10px] uppercase m-0">{t('paymentHistory.method')}</p>
-                                    <p className="font-semibold text-slate-800 m-0 mt-0.5">{receiptData.method}</p>
+                                    <p className="m-0 text-xs text-slate-500">{t('paymentHistory.method')}</p>
+                                    <p className="m-0 mt-0.5 font-semibold text-slate-900">{receiptData.method}</p>
                                     {receiptData.paymentTransactions?.length > 0 && (
                                         <div className="mt-2 text-left space-y-1">
-                                            {receiptData.paymentTransactions.map((tx) => <p key={tx.id} className="text-[10px] text-slate-700 m-0">{formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? ` (Ref: ${tx.reference_number})` : ''}</p>)}
+                                            {receiptData.paymentTransactions.map((tx) => (
+                                                <p key={tx.id} className="m-0 text-xs text-slate-700">
+                                                    {formatCurrency(tx.amount)} {tx.bank_name || tx.payment_method}{tx.reference_number ? <> (ref. <span className="font-mono">{tx.reference_number}</span>)</> : ''}
+                                                </p>
+                                            ))}
                                         </div>
                                     )}
                                     {receiptData.reference && (
-                                        <p className="text-[10px] text-indigo-600 m-0 mt-1 font-bold">Ref: {receiptData.reference}</p>
+                                        <p className="m-0 mt-1 text-xs font-semibold text-indigo-700">Ref. <span className="font-mono">{receiptData.reference}</span></p>
                                     )}
                                 </div>
                             </div>
                             <div className="border-b border-slate-200 pb-3">
-                                <p className="text-slate-500 text-[10px] uppercase m-0">Billing period</p>
-                                <p className="font-semibold text-slate-800 m-0 mt-0.5">
+                                <p className="m-0 text-xs text-slate-500">Billing period</p>
+                                <p className="m-0 mt-0.5 font-semibold text-slate-900">
                                     {receiptData.period}{receiptData.coveredPeriod ? ` (${receiptData.coveredPeriod})` : ''}{receiptData.dueDate && !receiptData.advanceMonths ? `, due ${receiptData.dueDate}` : ''}
                                 </p>
                                 {receiptData.bundleKey && (
-                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">
                                         Paid as part of combined payment {receiptData.bundleKey}.{' '}
-                                        <button type="button" onClick={() => setReceiptInvoiceId(receiptData.bundleKey)} className="print-hide bg-transparent border-0 p-0 text-indigo-600 font-bold underline cursor-pointer text-[10px]">
+                                        <button type="button" onClick={() => setReceiptInvoiceId(receiptData.bundleKey)} className="print-hide bg-transparent border-0 p-0 text-xs font-bold text-indigo-700 underline cursor-pointer">
                                             View combined receipt
                                         </button>
                                     </p>
                                 )}
                                 {receiptData.combinedBills > 0 && (
-                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Each billing period below also has its own receipt.</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Each billing period below also has its own receipt.</p>
                                 )}
                                 {receiptData.paidFromAdvance ? (
-                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Paid from advance payment {receiptData.paidFromAdvance}</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Paid from advance payment {receiptData.paidFromAdvance}</p>
                                 ) : receiptData.advanceMonths > 0 ? (
-                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Advance payment for {receiptData.advanceMonths} month{receiptData.advanceMonths === 1 ? '' : 's'}. Each month's rent invoice is issued on its usual date and paid from it, with its own receipt.</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Advance payment for {receiptData.advanceMonths} month{receiptData.advanceMonths === 1 ? '' : 's'}. Each month's rent invoice is issued on its usual date and paid from it, with its own receipt.</p>
                                 ) : receiptData.paidInAdvance && (
-                                    <p className="text-[10px] text-emerald-700 font-bold m-0 mt-1">Paid in advance on {receiptData.date}</p>
+                                    <p className="m-0 mt-1 text-xs font-semibold text-emerald-700">Paid in advance on {receiptData.date}</p>
                                 )}
                             </div>
                             <div>
-                                <p className="text-slate-500 text-[10px] uppercase m-0 mb-1">{t('paymentHistory.breakdown')} ({receiptData.period})</p>
-                                <div className="bg-slate-50 p-3 sm:p-4 rounded-lg border border-slate-100 whitespace-pre-wrap leading-relaxed text-xs text-slate-700">{receiptData.breakdown}</div>
+                                <p className="m-0 mb-1 text-xs text-slate-500">{t('paymentHistory.breakdown')}</p>
+                                <div className="bg-slate-50 p-3 sm:p-4 rounded-lg border border-slate-200 whitespace-pre-wrap leading-relaxed text-slate-800 tabular-nums">{receiptData.breakdown}</div>
                             </div>
                             {receiptData.proofPath && (
-                                <div className="print-hide text-xs text-slate-600 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100 flex items-center justify-between flex-wrap gap-2">
+                                <div className="print-hide text-sm text-slate-700 bg-indigo-50 p-3 rounded-lg border border-indigo-100 flex items-center justify-between flex-wrap gap-2">
                                     <span>{t('paymentHistory.proofAttached')}</span>
-                                    <a href={fileUrl(receiptData.proofPath)} target="_blank" rel="noreferrer" className="text-indigo-600 font-bold hover:underline">{t('paymentHistory.viewScreenshot')}</a>
+                                    <a href={fileUrl(receiptData.proofPath)} target="_blank" rel="noreferrer" className="text-indigo-700 font-bold hover:underline">{t('paymentHistory.viewScreenshot')}</a>
                                 </div>
                             )}
                             <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-slate-200">
-                                <p className="font-bold text-slate-600 m-0 text-sm sm:text-base">{t('paymentHistory.totalPaid')}</p>
-                                <p className="text-xl sm:text-2xl font-bold text-slate-900 m-0">{formatCurrency(receiptData.amount)}</p>
+                                <p className="m-0 font-bold text-slate-700 text-base">{t('paymentHistory.totalPaid')}</p>
+                                <p className="m-0 text-2xl font-bold text-slate-900 tabular-nums">{formatCurrency(receiptData.amount)}</p>
                             </div>
                         </div>
                         <div className="receipt-modal-footer flex gap-2 p-3 sm:p-4 bg-slate-50 border-t border-slate-200 print-hide shrink-0">
-                            <button onClick={() => printElement(receiptRef.current)} className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors min-h-[44px]"><FontAwesomeIcon icon={faPrint} /> {t('paymentHistory.printReceipt')}</button>
-                            <button onClick={() => setReceiptInvoiceId(null)} className="flex-1 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold hover:bg-slate-100 border-solid cursor-pointer transition-colors min-h-[44px]">{t('paymentHistory.close')}</button>
+                            <button type="button" onClick={() => printElement(receiptRef.current)} className="flex-1 flex items-center justify-center gap-2 min-h-[44px] bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 border-0 cursor-pointer transition-colors">
+                                <FontAwesomeIcon icon={faPrint} aria-hidden="true" /> {t('paymentHistory.printReceipt')}
+                            </button>
+                            <button type="button" onClick={() => setReceiptInvoiceId(null)} className="flex-1 min-h-[44px] bg-white border border-slate-300 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-100 cursor-pointer transition-colors">
+                                {t('paymentHistory.close')}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -655,7 +655,7 @@ export default function PayBills() {
                                         : inv.status === 'processing' ? 'Online payment processing'
                                         : 'Payment awaiting verification'}
                                 </h4>
-                                <span className="bg-sky-200 text-sky-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                <span className="bg-sky-200 text-sky-900 text-xs font-bold px-2 py-0.5 rounded-md">
                                     {inv.billing_period || inv.id}
                                 </span>
                             </div>
@@ -737,7 +737,7 @@ export default function PayBills() {
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h4 className="text-sm sm:text-base font-extrabold text-rose-900 m-0">Payment is Overdue</h4>
-                                        <span className="bg-rose-200 text-rose-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                        <span className="bg-rose-200 text-rose-800 text-xs font-bold px-2 py-0.5 rounded-md">
                                             {Math.abs(dueStatus.diffDays)} day{Math.abs(dueStatus.diffDays) === 1 ? '' : 's'} past due
                                         </span>
                                     </div>
@@ -754,7 +754,7 @@ export default function PayBills() {
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h4 className="text-sm sm:text-base font-extrabold text-amber-900 m-0">Payment Due Today</h4>
-                                        <span className="bg-amber-200 text-amber-900 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                        <span className="bg-amber-200 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-md">
                                             Due Today
                                         </span>
                                     </div>
@@ -771,7 +771,7 @@ export default function PayBills() {
                                 <div>
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <h4 className="text-sm sm:text-base font-extrabold text-indigo-900 m-0">Upcoming Rent Due Date</h4>
-                                        <span className="bg-indigo-200 text-indigo-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
+                                        <span className="bg-indigo-200 text-indigo-800 text-xs font-bold px-2 py-0.5 rounded-md">
                                             Due in {dueStatus.diffDays} day{dueStatus.diffDays === 1 ? '' : 's'}
                                         </span>
                                     </div>
@@ -798,7 +798,7 @@ export default function PayBills() {
                         <ul className="pl-0 list-none space-y-1">
                             {unpaidSingles.map(i => (
                                 <li key={i.id} className="flex justify-between gap-3 text-xs sm:text-sm text-slate-600">
-                                    <span>{i.billing_period} <span className={isPastDue(i) ? 'text-rose-500' : 'text-slate-400'}>({billStatusText(i)})</span></span>
+                                    <span>{i.billing_period} <span className={isPastDue(i) ? 'text-rose-500' : 'text-slate-500'}>({billStatusText(i)})</span></span>
                                     <span className="font-bold text-slate-800 shrink-0">{fmtMoney(owed(i))}</span>
                                 </li>
                             ))}
@@ -885,7 +885,7 @@ export default function PayBills() {
                                 <div key={m.key} className="pay-bills-ledger-row flex justify-between items-center text-sm font-medium text-slate-600">
                                     <span>
                                         {activeGroup.kind === 'bundle' ? m.label : `Rent — ${m.label}`}
-                                        <span className="block text-[11px] text-slate-400">{m.sub}</span>
+                                        <span className="block text-xs text-slate-500">{m.sub}</span>
                                     </span>
                                     <span className="font-bold text-slate-900">{fmtMoney(m.amount)}</span>
                                 </div>
@@ -903,11 +903,11 @@ export default function PayBills() {
                                 <h3 className="text-lg font-bold m-0" style={{ color: '#3b4276' }}>{t('payBills.statementLedger')}</h3>
                                 {/* Past due: the period the bill covers, not a due date already gone. */}
                                 {dueStatus?.isOverdue ? (
-                                    <p className="text-xs text-slate-400 m-0 mt-0.5">
+                                    <p className="text-xs text-slate-500 m-0 mt-0.5">
                                         Covers: <strong className="text-slate-600">{billDetails.coveredPeriod}</strong>
                                     </p>
                                 ) : billDetails.dueDate && (
-                                    <p className="text-xs text-slate-400 m-0 mt-0.5">
+                                    <p className="text-xs text-slate-500 m-0 mt-0.5">
                                         Due Date: <strong className="text-slate-600">{dueStatus?.formattedDate || billDetails.dueDate}</strong>
                                     </p>
                                 )}
@@ -1094,7 +1094,7 @@ export default function PayBills() {
                                         }}
                                         className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 min-h-[44px]"
                                     />
-                                    <p className="text-[11px] text-slate-400 m-0 mt-1">{FILE_RULES.paymentProof.label}, up to {FILE_RULES.paymentProof.maxMB} MB.</p>
+                                    <p className="text-xs text-slate-500 m-0 mt-1">{FILE_RULES.paymentProof.label}, up to {FILE_RULES.paymentProof.maxMB} MB.</p>
                                     <FieldError id="pay-proof" error={payForm.errors.proof} />
                                     <FileChip file={proofFile} onRemove={clearProof} />
                                 </div>
@@ -1154,7 +1154,7 @@ export default function PayBills() {
                                         <FontAwesomeIcon icon={faCalendarPlus} className="text-indigo-400 text-xs" />
                                         <span>{prepaidCount > 0 ? t('payBills.prepaidCount').replace('{n}', prepaidCount) : t('payBills.payAhead')}</span>
                                     </div>
-                                    <p className="text-slate-400 text-[11px] m-0 leading-relaxed font-medium">
+                                    <p className="text-slate-500 text-xs m-0 leading-relaxed font-medium">
                                         {prepaidCount > 0 ? t('payBills.prepaidDesc') : t('payBills.payAheadDesc')}
                                     </p>
                                 </div>
@@ -1278,7 +1278,7 @@ export default function PayBills() {
                                 <div className="space-y-2">
                                     {advance.months.slice(0, Math.min(advanceCount, advance.months.length)).map(m => (
                                         <div key={m.period_start} className="flex justify-between text-sm text-slate-600">
-                                            <span>Rent — {m.billing_period} <span className="text-[11px] text-slate-400">({formatPeriodRange(m.period_start, m.period_end)})</span></span>
+                                            <span>Rent — {m.billing_period} <span className="text-xs text-slate-500">({formatPeriodRange(m.period_start, m.period_end)})</span></span>
                                             <span className="font-bold text-slate-900">{fmtMoney(m.amount)}</span>
                                         </div>
                                     ))}
@@ -1309,12 +1309,12 @@ export default function PayBills() {
                         {/* Months already paid in advance: waiting for their month, or billed and settled. */}
                         {advance?.credits?.length > 0 && (
                             <div className="border-t border-slate-100 pt-3 space-y-2">
-                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400 m-0">Prepaid months</p>
+                                <p className="text-sm font-bold text-slate-600 m-0">Prepaid months</p>
                                 {advance.credits.map(c => (
                                     <div key={`${c.advance_invoice_id}-${c.period_start}`} className="flex justify-between gap-3 text-sm text-slate-600">
                                         <span>
                                             Rent — {c.billing_period}
-                                            <span className="block text-[11px] text-slate-400">
+                                            <span className="block text-xs text-slate-500">
                                                 {c.status === 'applied'
                                                     ? `Paid from advance · invoice ${c.applied_invoice_id}`
                                                     : `Credited · the month from ${formatDay(c.period_start)} is paid automatically when billed`}

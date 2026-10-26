@@ -39,6 +39,14 @@ if (empty($invoice_id) || empty($payment_method)) {
     exit;
 }
 
+// The In-Person Payment channel (get_payment_channels.php) declares a cash
+// payment at the office. Its label is stored as 'Cash on Hand': that is the name
+// the rest of the app looks for (the move-in step on Track Application, the
+// admin queue). Sent as 'In-Person Payment' it used to be treated as a non-cash
+// method and refused for lacking a proof.
+if (in_array(strtolower(trim((string)$payment_method)), ['in-person payment', 'in person payment'], true)) {
+    $payment_method = 'Cash on Hand';
+}
 $is_cash = ($payment_method === 'Cash on Hand');
 $status = $is_cash ? 'pending' : 'pending-verification';
 

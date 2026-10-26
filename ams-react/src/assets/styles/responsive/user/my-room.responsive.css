@@ -1,78 +1,25 @@
 /* =====================================================
    MY ROOM PAGE — my-room.responsive.css
    Domain: user
-   Base: Tailwind utilities in MyRoom.jsx
+   Base: Tailwind utilities in MyRoom.jsx. The key tag, the next bill and
+   the "Manage your rent" panels stack through Tailwind breakpoints; only
+   the page padding and the move-out dialog are adjusted here.
    ===================================================== */
-
-/* Hardware acceleration to prevent scroll repainting & lag */
-.my-room-banner,
-.my-room-card,
-.my-room-operations-grid > div {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
 
 @media (max-width: 768px) {
   .my-room-root {
     padding: 1.5rem 1rem !important;
   }
 
-  .my-room-banner {
-    padding: 1.25rem !important;
-    border-radius: 1.5rem !important;
-  }
-
-  .my-room-banner h1 {
-    font-size: 1.75rem !important;
-    line-height: 1.2 !important;
-  }
-
-  .my-room-banner h2 {
-    font-size: 1.125rem !important;
-  }
-
-  /* 3-card overview grid */
-  .my-room-cards-grid {
-    grid-template-columns: 1fr !important;
-    gap: 1rem !important;
-  }
-
-  .my-room-card {
-    padding: 1.25rem !important;
-    border-radius: 1.25rem !important;
-  }
-
-  .my-room-card button,
-  .my-room-card input {
-    min-height: 44px !important;
-  }
-
-  /* Operations grid (Extend Lease & Termination Notice) */
-  .my-room-operations-grid {
-    grid-template-columns: 1fr !important;
-    gap: 1rem !important;
-  }
-
-  .my-room-extend-form {
-    grid-template-columns: 1fr !important;
-    gap: 1rem !important;
-  }
-
-  .my-room-extend-form select,
-  .my-room-extend-form button {
-    width: 100% !important;
-    min-height: 48px !important;
-  }
-
-  /* Move-out notice modal on mobile */
   .my-room-modal-content {
-    padding: 1.25rem !important;
     width: 95% !important;
     max-width: 100% !important;
   }
 
+  /* Move-out dialog: full-width buttons, the main one first. */
   .my-room-modal-actions {
-    flex-direction: column !important;
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
     gap: 0.75rem !important;
   }
 
@@ -85,9 +32,5 @@
 @media (max-width: 480px) {
   .my-room-root {
     padding: 1.25rem 0.75rem !important;
-  }
-
-  .my-room-banner h1 {
-    font-size: 1.5rem !important;
   }
 }

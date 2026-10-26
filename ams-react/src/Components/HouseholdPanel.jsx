@@ -20,6 +20,7 @@ export default function HouseholdPanel() {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(null); // member id being confirmed
   // Keys match household_members.php's `add` body.
   const fields = useFieldErrors({
     fullName: (v) => checkPersonName(v, { label: 'Full name', max: LIMITS.fullName }),
@@ -97,79 +98,88 @@ export default function HouseholdPanel() {
     send({ action: 'add', ...clean, age: clean.age === '' ? null : Number(clean.age), contactNo: toPhE164(clean.contactNo) }, () => setForm(EMPTY));
   };
 
+  // Asked in the member's row (was window.confirm).
   const requestRemove = (m) => {
-    const prompt = m.status === 'Pending'
-      ? `Withdraw the request to add ${m.fullName}?`
-      : `Ask management to remove ${m.fullName} from your household?`;
-    if (window.confirm(prompt)) send({ action: 'remove', memberId: m.id });
+    setConfirmRemove(null);
+    send({ action: 'remove', memberId: m.id });
   };
 
   const named = 1 + data.members.filter((m) => m.status === 'Active').length;
   const queued = data.members.filter((m) => m.status === 'Pending').length;
   const isSoloOccupant = data.members.length === 0;
   const full = named + queued >= data.maxOccupants;
-  const inputCls = 'w-full px-3 py-2 rounded-xl bg-slate-950/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border';
+  const inputCls = 'w-full min-h-[44px] px-3 rounded-xl bg-slate-950/60 border border-white/15 text-white text-base focus:outline-none focus:ring-2 focus:ring-indigo-300 box-border';
 
   return (
-    <div className="bg-slate-900/80 rounded-3xl border border-white/10 shadow-xl p-6 md:p-8 text-left space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-500/20">
-            <FontAwesomeIcon icon={faPeopleRoof} className="text-lg" />
-          </div>
+    <section aria-labelledby="household-heading" className="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/10 p-5 sm:p-6 text-left flex flex-col gap-5">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <FontAwesomeIcon icon={faPeopleRoof} className="mt-1 text-lg text-indigo-300" aria-hidden="true" />
           <div>
-            <h3 className="text-lg font-bold text-white m-0">Household</h3>
-            <p className="text-[11px] text-slate-400 m-0">
+            <h2 id="household-heading" className="m-0 text-xl font-bold text-white">Household</h2>
+            <p className="m-0 mt-1 text-sm text-slate-300">
               {isSoloOccupant
-                ? "You're currently the only registered occupant of this unit. Add household members below if others live with you."
-                : 'You are the main tenant and the only account for this unit. List everyone who lives with you.'}
+                ? "You're the only registered occupant of this room. Add the people who live with you."
+                : 'You are the main tenant and the only account for this room. List everyone who lives with you.'}
             </p>
           </div>
         </div>
-        <span className="text-[11px] font-semibold text-slate-300 bg-slate-800/80 border border-white/10 rounded-full px-3 py-1 self-start sm:self-auto">
-          Registered occupants: {data.occupants} · Named: {named} · Max: {data.maxOccupants}
-        </span>
+        <p className="m-0 text-sm font-semibold text-slate-200 bg-white/5 border border-white/15 rounded-full px-3 py-1 self-start shrink-0">
+          {data.occupants} registered, {named} named, at most {data.maxOccupants}
+        </p>
       </div>
 
-      <ul className="list-none m-0 p-0 divide-y divide-white/5 border border-white/10 rounded-2xl overflow-hidden">
-        <li className="flex items-center justify-between px-4 py-3 bg-slate-950/30">
+      <ul className="list-none m-0 p-0 divide-y divide-white/10 border border-white/10 rounded-xl overflow-hidden">
+        <li className="flex items-center justify-between gap-3 px-4 py-3 bg-white/5">
           <span className="text-sm font-bold text-white">{data.leaseHolder}</span>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">Main tenant</span>
+          <span className="text-sm font-semibold text-indigo-300">Main tenant</span>
         </li>
         {data.members.map((m) => (
-          <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3">
+          <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-100 m-0 truncate">{m.fullName}</p>
-              <p className="text-[11px] text-slate-400 m-0">
-                {m.relationship}{m.age !== null && m.age !== undefined ? ` · age ${m.age}` : ''}{m.ageCategory ? ` (${(data.ageCategories || []).find((c) => c.key === m.ageCategory)?.label || m.ageCategory})` : ''}{m.contactNo ? ` · ${m.contactNo}` : ''}
+              <p className="text-sm text-slate-300 m-0">
+                {m.relationship}{m.age !== null && m.age !== undefined ? `, age ${m.age}` : ''}{m.ageCategory ? ` (${(data.ageCategories || []).find((c) => c.key === m.ageCategory)?.label || m.ageCategory})` : ''}{m.contactNo ? `, ${m.contactNo}` : ''}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               {(m.status === 'Pending' || m.removalRequested) && (
-                <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-full px-2 py-0.5">
-                  <FontAwesomeIcon icon={faClock} className="mr-1" />
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-200 bg-amber-400/10 border border-amber-400/30 rounded-full px-2.5 py-1">
+                  <FontAwesomeIcon icon={faClock} aria-hidden="true" />
                   {m.status === 'Pending' ? 'Awaiting approval' : 'Removal requested'}
                 </span>
               )}
-              {!m.removalRequested && (
+              {!m.removalRequested && (confirmRemove === m.id ? (
+                <span role="group" aria-label={`Confirm for ${m.fullName}`} className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-slate-200">{m.status === 'Pending' ? 'Withdraw this request?' : 'Ask management to remove them?'}</span>
+                  <button type="button" disabled={busy} onClick={() => requestRemove(m)}
+                    className="min-h-[44px] px-3 rounded-lg bg-rose-700 hover:bg-rose-800 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50">
+                    {m.status === 'Pending' ? 'Withdraw' : 'Yes, remove'}
+                  </button>
+                  <button type="button" onClick={() => setConfirmRemove(null)}
+                    className="min-h-[44px] px-3 rounded-lg bg-transparent border border-white/20 text-slate-200 text-sm font-semibold cursor-pointer hover:bg-white/10">
+                    Keep
+                  </button>
+                </span>
+              ) : (
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => requestRemove(m)}
-                  className="text-[11px] font-bold text-rose-300 hover:text-rose-200 bg-transparent border border-rose-500/30 rounded-lg px-2 py-1 cursor-pointer disabled:opacity-50"
+                  onClick={() => setConfirmRemove(m.id)}
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-3 text-sm font-bold text-rose-300 hover:text-rose-200 bg-transparent border border-rose-400/30 rounded-lg cursor-pointer disabled:opacity-50"
                 >
-                  <FontAwesomeIcon icon={faUserMinus} className="mr-1" />
+                  <FontAwesomeIcon icon={faUserMinus} aria-hidden="true" />
                   {m.status === 'Pending' ? 'Withdraw' : 'Remove'}
                 </button>
-              )}
+              ))}
             </div>
           </li>
         ))}
       </ul>
 
       {data.occupants > named && (
-        <p className="text-[11px] text-slate-400 m-0">
-          Your unit is registered for {data.occupants} occupants, but only {named} are named. Adding the others below doesn't change your rent.
+        <p className="text-sm text-slate-300 m-0">
+          Your room is registered for {data.occupants} occupants, but only {named} are named. Adding the others below doesn't change your rent.
         </p>
       )}
 
@@ -211,12 +221,12 @@ export default function HouseholdPanel() {
             onBlur={() => blur('contactNo')}
             error={fields.errors.contactNo}
             disabled={full}
-            prefixClassName="flex items-center gap-1 px-2.5 rounded-l-xl bg-slate-800 border border-white/10 border-r-0 text-slate-200 text-sm font-bold select-none pointer-events-none normal-case tracking-normal"
-            inputClassName={`w-full px-3 py-2 rounded-r-xl bg-slate-950/40 border border-white/10 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border normal-case tracking-normal font-normal disabled:opacity-60${invalidCls(fields.errors.contactNo)}`}
+            prefixClassName="flex items-center gap-1 px-2.5 rounded-l-xl bg-slate-800 border border-white/15 border-r-0 text-slate-200 text-sm font-bold select-none pointer-events-none normal-case tracking-normal"
+            inputClassName={`w-full min-h-[44px] px-3 rounded-r-xl bg-slate-950/60 border border-white/15 text-white text-base focus:outline-none focus:ring-2 focus:ring-indigo-300 box-border normal-case tracking-normal font-normal disabled:opacity-60${invalidCls(fields.errors.contactNo)}`}
           />
         </label>
         <div className="sm:col-span-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <p className="text-[11px] text-slate-400 m-0">
+          <p className="text-sm text-slate-300 m-0">
             {data.minAge ? `Children under ${data.minAge} are not allowed. ` : ''}
             {data.childFloorRule ? `Children under ${data.childFloorRule.belowAge} cannot live on the ${data.childFloorRule.floorLabel} (stairs). ` : ''}
             Pets are not allowed. {full
@@ -226,17 +236,17 @@ export default function HouseholdPanel() {
           <button
             type="submit"
             disabled={busy || full}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-xl text-xs border-0 cursor-pointer disabled:opacity-50 shrink-0"
+            className="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold border-0 cursor-pointer disabled:opacity-50 shrink-0"
           >
-            <FontAwesomeIcon icon={faUserPlus} className="mr-1.5" />
+            <FontAwesomeIcon icon={faUserPlus} aria-hidden="true" />
             {busy ? 'Sending…' : 'Request to add'}
           </button>
         </div>
       </form>
 
       {notice && (
-        <p role={notice.ok ? 'status' : 'alert'} className={`text-xs font-semibold m-0 ${notice.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{notice.text}</p>
+        <p role={notice.ok ? 'status' : 'alert'} className={`text-sm font-semibold m-0 ${notice.ok ? 'text-emerald-300' : 'text-rose-300'}`}>{notice.text}</p>
       )}
-    </div>
+    </section>
   );
 }

@@ -37,7 +37,7 @@ if ($is_admin) {
     }
 }
 
-$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.previous_address, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path, rm.type AS room_type FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id LEFT JOIN rooms rm ON rm.id = ra.room_name WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
+$stmt = $conn->prepare("SELECT ra.id, ra.first_name, ra.middle_name, ra.last_name, ra.suffix, ra.contact_no, ra.gender, ra.previous_address, ra.email, ra.room_name, ra.monthly_rent, ra.months_of_rent, ra.status, ra.created_at, ra.occupants, ra.rejection_reason, ra.rejection_attachment_path, ra.preferred_move_in_date, ra.move_in_date, ra.move_in_notified_at, ra.requested_move_out_date, lc.lease_start, lc.lease_end, lc.status AS contract_status, lc.id as contract_id, lc.signed_lease_path, lc.notarized_lease_path, rm.type AS room_type, rm.floor AS room_floor FROM rent_applications ra LEFT JOIN lease_contracts lc ON lc.rent_application_id = ra.id LEFT JOIN rooms rm ON rm.id = ra.room_name WHERE ra.user_id = ? ORDER BY ra.created_at DESC LIMIT 1");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();

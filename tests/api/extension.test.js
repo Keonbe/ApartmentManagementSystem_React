@@ -26,10 +26,11 @@ beforeAll(async () => {
 describe('range when the minimum does not fit (Maria, 10 months left)', () => {
   beforeAll(() => setRentEnd(1, 'A', 10));
 
-  it('my_room.php returns the room type from rooms (My Room no longer hardcodes it)', async () => {
+  it('my_room.php returns the room type and floor from rooms (My Room no longer hardcodes them)', async () => {
     const data = (await api('my_room.php', { token: maria })).body.data;
-    const room = await one('SELECT type FROM rooms WHERE id = ?', [data.room_name]);
+    const room = await one('SELECT type, floor FROM rooms WHERE id = ?', [data.room_name]);
     expect(data.room_type).toBe(room.type);
+    expect(data.room_floor).toBe(room.floor);
   });
 
   it('KB-A06 the minimum shrinks to what fits: min = max = 2', async () => {
