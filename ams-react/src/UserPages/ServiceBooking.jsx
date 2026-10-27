@@ -5,7 +5,8 @@ import { faCloudUploadAlt, faUndo, faHourglassHalf, faBroom, faTshirt, faConcier
 import SuccessModal from '../Components/SuccessModal';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
-import { LIMITS, checkAmount, checkDate, checkIntRange, checkText } from '../utils/validation';
+import { LIMITS, addDays, checkAmount, checkDate, checkIntRange, checkText } from '../utils/validation';
+import InlineAlert from '../Components/InlineAlert';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -17,6 +18,8 @@ import { blockNonIntegerKeys, blockNonNumericKeys, formatFileSize, invalidCls } 
 const TIME_SLOTS = ['morning', 'afternoon'];
 // A service with no maximum still gets a sane one.
 const QUANTITY_FALLBACK_MAX = 1000;
+// How many days of dates the picker offers (from today, or from the lead time).
+const BOOKING_WINDOW_DAYS = 14;
 import '../assets/styles/responsive/user/service-booking.responsive.css';
 
 //MapsTheCatalogIconColumnOntoRealFontAwesomeIcons
@@ -47,9 +50,16 @@ export default function ServiceBooking() {
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // A failed catalog load used to set formError, which is shown only inside the
+    // form, and the form is not rendered without a catalog: the tenant saw "no
+    // services". It now has its own message with a Retry (loadAttempt reruns the load).
+    const [loadError, setLoadError] = useState('');
+    const [loadAttempt, setLoadAttempt] = useState(0);
+
     //1.LoadTheActiveCatalogRowsTheTenantIsAllowedToBook
     useEffect(() => {
         const loadCatalog = async () => {
+            setLoadError('');
             try {
                 const [res, settingsRes] = await Promise.all([
                     api.get('get_service_catalog.php?active=1'),
@@ -62,15 +72,16 @@ export default function ServiceBooking() {
                     return value === undefined || value === null || value === true || value === 'true';
                 };
                 if (res.data.success) setCatalog((res.data.services || []).filter(s => categoryEnabled(s.category)));
+                else setLoadError(t('serviceBooking.loadError'));
             } catch (err) {
                 console.error('Failed to load service catalog:', err);
-                setFormError(t('serviceBooking.loadError'));
+                setLoadError(t('serviceBooking.loadError'));
             } finally {
                 setLoading(false);
             }
         };
         loadCatalog();
-    }, []);
+    }, [loadAttempt, t]);
 
     const selected = useMemo(
         () => catalog.find(s => String(s.id) === String(serviceId)) || null,
@@ -87,31 +98,14 @@ export default function ServiceBooking() {
         form.setErrors({});
     };
 
-    //Enforces Philippines Standard Time (PST - UTC+8) for today's boundary tracking
-    const targetTimezoneOffset = 8 * 60;//PST is UTC+8 in minutes
-    const localDate = new Date();
-    const utcTime = localDate.getTime() + (localDate.getTimezoneOffset() * 60000);
-    const pstDate = new Date(utcTime + (targetTimezoneOffset * 60000));
-
-    //Helper function to format date cleanly as YYYY-MM-DD without UTC shift issues
-    const formatDateString = (dateObj) => {
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
-    //Earliest bookable day is today plus the service's own lead time; the window
-    //still closes 2 weeks (14 days) out, matching the maintenance request form.
-    const leadDays = selected?.leadTimeDays ?? 0;
-    const earliestDate = new Date(pstDate.getTime());
-    earliestDate.setDate(pstDate.getDate() + leadDays);
-
-    const twoWeeksLater = new Date(pstDate.getTime());
-    twoWeeksLater.setDate(pstDate.getDate() + 14);
-
-    const minDateString = formatDateString(earliestDate);
-    const maxDateString = formatDateString(twoWeeksLater);
+    // Earliest bookable day is today plus the service's own lead time
+    // (service_request.php checks the same). The window normally closes two
+    // weeks out; it now always stays open at least two weeks past the earliest
+    // day, so a service with a lead time over 14 days can still be booked (its
+    // min used to land after its max).
+    const leadDays = Math.max(0, Number(selected?.leadTimeDays) || 0);
+    const minDateString = addDays(leadDays);
+    const maxDateString = addDays(Math.max(BOOKING_WINDOW_DAYS, leadDays + BOOKING_WINDOW_DAYS - 1));
 
     //SessionPricedServicesAreAlwaysASingleVisit-NoQuantityInput
     const isQuantified = selected && selected.pricingUnit !== 'session';
@@ -233,7 +227,14 @@ export default function ServiceBooking() {
                     </p>
                 </div>
 
-                {catalog.length === 0 ? (
+                {loadError ? (
+                    <InlineAlert>
+                        {loadError}{' '}
+                        <button type="button" onClick={() => { setLoading(true); setLoadAttempt((n) => n + 1); }} className="ml-1 min-h-[36px] px-3 rounded-lg bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-100">
+                            {t('common.retry')}
+                        </button>
+                    </InlineAlert>
+                ) : catalog.length === 0 ? (
                     <div className="bg-white rounded-3xl border border-slate-100 shadow-md p-10 text-center">
                         <FontAwesomeIcon icon={faConciergeBell} className="text-4xl text-slate-200 mb-4" />
                         <h3 className="text-lg font-bold text-slate-700 m-0">{t('serviceBooking.noServices')}</h3>

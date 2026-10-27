@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
 import { getAvatarUrl } from '../utils/avatarUrl';
@@ -86,9 +86,17 @@ const ChatWidget = () => {
     const messagesEndRef = useRef(null);
     const chatWindowRef = useRef(null);
     const isGuestChat = !userId && Boolean(guestToken);
-    const activeMessages = isGuestChat ? normalizeGuestMessages(guestMessages) : messages;
+    // Memoised: a new array on every render re-ran the scroll and guest-media
+    // effects below on each keystroke.
+    const activeMessages = useMemo(
+        () => (isGuestChat ? normalizeGuestMessages(guestMessages) : messages),
+        [isGuestChat, guestMessages, messages],
+    );
     const isAdminGuestChat = userRole === 'admin' && activeChat?.thread_type === 'guest';
-    const displayedMessages = isAdminGuestChat ? normalizeGuestMessages(guestMessages, 'admin') : activeMessages;
+    const displayedMessages = useMemo(
+        () => (isAdminGuestChat ? normalizeGuestMessages(guestMessages, 'admin') : activeMessages),
+        [isAdminGuestChat, guestMessages, activeMessages],
+    );
     const displayedConversations = userRole === 'admin'
         ? [...conversations.map((conversation) => ({ ...conversation, thread_type: 'registered' })), ...guestThreads]
             .sort((a, b) => new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0))
@@ -180,7 +188,8 @@ const ChatWidget = () => {
             }
         };
         load();
-        const timer = window.setInterval(load, 3000);
+        // Polls only while the chat is open and the tab is in view.
+        const timer = window.setInterval(() => { if (document.visibilityState === 'visible') load(); }, 3000);
         return () => window.clearInterval(timer);
     }, [guestToken, userId, isChatOpen]);
 
@@ -196,7 +205,8 @@ const ChatWidget = () => {
             }
         };
         loadGuestThreads();
-        const timer = window.setInterval(loadGuestThreads, 6000);
+        // Kept while the chat is closed (it feeds the launcher's unread count), but not for a hidden tab.
+        const timer = window.setInterval(() => { if (document.visibilityState === 'visible') loadGuestThreads(); }, 6000);
         return () => { cancelled = true; window.clearInterval(timer); };
     }, [userRole]);
 
@@ -226,7 +236,7 @@ const ChatWidget = () => {
             }
         };
         loadGuestHistory();
-        const timer = window.setInterval(loadGuestHistory, 3000);
+        const timer = window.setInterval(() => { if (document.visibilityState === 'visible') loadGuestHistory(); }, 3000);
         return () => { cancelled = true; window.clearInterval(timer); };
     }, [activeChat?.thread_id, isAdminGuestChat]);
 
@@ -245,6 +255,7 @@ const ChatWidget = () => {
             setNewMessage('');
             setAttachment(null);
             setReplyingTo(null);
+            setSendError(''); // an earlier failure no longer applies
             const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
         setGuestMessages(normalizeGuestMessages(response.data.messages || []));
         } catch (error) { setSendError(apiErrorMessage(error, 'Message not sent.')); }

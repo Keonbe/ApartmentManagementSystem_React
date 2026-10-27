@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileAlt, faKey, faSave, faCamera, faUpload, faUndo } from '@fortawesome/free-solid-svg-icons';
 import DocumentsModal from '../Components/DocumentsModal';
@@ -28,13 +29,6 @@ const VALIDATORS = {
     gender: (v) => (GENDERS.includes(v) ? '' : 'Please select a gender.'),
 };
 
-// Stand-in photos for the camera fallback when no camera stream is available.
-const MOCK_PHOTOS = [
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200",
-    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200",
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200"
-];
-const pickMockPhoto = () => MOCK_PHOTOS[Math.floor(Math.random() * MOCK_PHOTOS.length)];
 
 export default function ProfileSettings() {
     const { t } = useLang();
@@ -61,6 +55,19 @@ export default function ProfileSettings() {
     const [tempAvatar, setTempAvatar] = useState(null); // Before submission preview
     const [selectedFile, setSelectedFile] = useState(null); // Store the actual file object
     const videoRef = useRef(null);
+    // The live stream, also in a ref so leaving the page always stops the camera.
+    const streamRef = useRef(null);
+    const [avatarImgFailed, setAvatarImgFailed] = useState(false);
+    const stopStream = () => {
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        setCameraStream(null);
+    };
+    useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
+    // The video element mounts after the stream arrives (and again on Retake).
+    useEffect(() => {
+        if (cameraStream && videoRef.current) videoRef.current.srcObject = cameraStream;
+    }, [cameraStream, tempAvatar]);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -100,7 +107,7 @@ export default function ProfileSettings() {
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const fileError = checkFile(file, FILE_RULES.image);
+            const fileError = checkFile(file, FILE_RULES.avatar);
             setAvatarError(fileError);
             if (fileError) {
                 e.target.value = '';
@@ -115,19 +122,21 @@ export default function ProfileSettings() {
         }
     };
 
-    // Simulate starting camera
+    // Opens the camera. Without one (or without permission) it says so; it used
+    // to put a random stock photo of a stranger in the preview instead.
     const startCamera = async () => {
-        setIsCameraActive(true);
         setTempAvatar(null);
         setSelectedFile(null);
+        setAvatarError('');
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            streamRef.current = stream;
             setCameraStream(stream);
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-            }
+            setIsCameraActive(true);
         } catch (err) {
-            console.warn("Camera hardware not available, running fallback simulation mode.", err);
+            console.warn('Camera not available:', err);
+            setIsCameraActive(false);
+            setAvatarError('No camera is available (or permission was denied). Choose a photo from your device instead.');
         }
     };
 
@@ -148,32 +157,24 @@ export default function ProfileSettings() {
                         const file = new File([blob], `camera_${Date.now()}.png`, { type: 'image/png' });
                         setSelectedFile(file);
                         setTempAvatar(dataUrl);
-                        stopCamera();
+                        // Keep the camera view open so Retake / Keep show; only the stream stops.
+                        stopStream();
                     });
             }
-        } else {
-            // Static simulation fallback photo
-            setTempAvatar(pickMockPhoto());
-            setIsCameraActive(false);
         }
     };
 
     // Stop camera feed
     const stopCamera = () => {
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => track.stop());
-            setCameraStream(null);
-        }
+        stopStream();
         setIsCameraActive(false);
     };
 
-    // Retake snapshot or re-upload file
+    // Retake: back to the live camera.
     const handleRetake = () => {
         setTempAvatar(null);
         setSelectedFile(null);
-        if (isCameraActive) {
-            startCamera();
-        }
+        startCamera();
     };
 
     const values = { firstName, lastName, suffix, contactNo: phoneRawNumber, email, gender };
@@ -271,8 +272,14 @@ export default function ProfileSettings() {
                 };
 
                 sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
+                setLoggedInUser(updatedUser);
+                setAvatarUrl(currentAvatarUrl || '');
+                setTempAvatar(null);
+                setSelectedFile(null);
+                setAvatarImgFailed(false);
+                // TopBar re-reads the user and avatar (was a full page reload).
+                window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
                 alert("Profile and avatar settings updated successfully.");
-                window.location.reload();
             } else if (!form.applyServerErrors(res)) {
                 setSaveError(res.data.message || "Failed to update your profile.");
             }
@@ -308,20 +315,13 @@ export default function ProfileSettings() {
                     {/* Profile Picture Display / Preview */}
                     <div className="flex items-center gap-4">
                         <div className="relative group select-none">
-                            {tempAvatar || avatarUrl ? (
+                            {/* A broken image shows the initials (it used to overwrite the DOM, which dropped the delete button). */}
+                            {(tempAvatar || (avatarUrl && !avatarImgFailed)) ? (
                                 <img
                                     src={tempAvatar || fileUrl(avatarUrl)}
-                                    alt="Avatar"
+                                    alt="Your profile photo"
                                     className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-md"
-                                    onError={(e) => {
-                                        // If image fails to load, show initials
-                                        e.target.style.display = 'none';
-                                        e.target.parentElement.innerHTML = `
-                                            <div class="w-20 h-20 rounded-full flex items-center justify-center text-white text-3xl font-black shrink-0 tracking-wider shadow-md border-2 border-white" style="background-color: #3b4276">
-                                                ${getInitials() || "?"}
-                                            </div>
-                                        `;
-                                    }}
+                                    onError={() => { if (!tempAvatar) setAvatarImgFailed(true); }}
                                 />
                             ) : (
                                 <div
@@ -353,8 +353,8 @@ export default function ProfileSettings() {
                                                     sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
                                                     setLoggedInUser(updatedUser);
 
+                                                    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
                                                     alert("Avatar deleted successfully.");
-                                                    window.location.reload(); // Force real-time topbar synchronization sync
                                                 } else {
                                                     alert(res.data.message || "Failed to delete avatar from server.");
                                                 }
@@ -417,7 +417,7 @@ export default function ProfileSettings() {
                                         type="file"
                                         id="profile-avatar"
                                         name="avatar"
-                                        accept={acceptFor(FILE_RULES.image)}
+                                        accept={acceptFor(FILE_RULES.avatar)}
                                         onChange={handleFileChange}
                                         aria-invalid={avatarError ? true : undefined}
                                         aria-describedby={avatarError ? 'profile-avatar-error' : undefined}
@@ -425,7 +425,7 @@ export default function ProfileSettings() {
                                     />
                                     <FontAwesomeIcon icon={faUpload} className="text-slate-400 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
                                     <span className="text-xs font-bold text-slate-700">{t('profile.chooseFile')}</span>
-                                    <span className="text-[10px] text-slate-400 mt-0.5">{FILE_RULES.image.label} up to {FILE_RULES.image.maxMB} MB</span>
+                                    <span className="text-[10px] text-slate-400 mt-0.5">{FILE_RULES.avatar.label} up to {FILE_RULES.avatar.maxMB} MB</span>
                                 </div>
 
                                 {/* Simulated Camera button */}

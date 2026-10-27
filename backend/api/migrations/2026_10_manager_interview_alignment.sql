@@ -276,3 +276,10 @@ PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'invoices' AND index_name = 'idx_invoices_payment_reference') > 0,
   'ALTER TABLE `invoices` DROP INDEX `idx_invoices_payment_reference`', 'DO 0');
 PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;
+
+-- ===== cctv_privacy_consent =====
+-- The CCTV request form makes the tenant tick a Data Privacy consent box; it
+-- was never sent or kept. cctv_request.php now requires it and records when.
+SET @s = IF((SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'cctv_requests' AND column_name = 'privacy_consent_at') = 0,
+  'ALTER TABLE `cctv_requests` ADD COLUMN `privacy_consent_at` datetime DEFAULT NULL AFTER `reason_request`', 'DO 0');
+PREPARE ams_stmt FROM @s; EXECUTE ams_stmt; DEALLOCATE PREPARE ams_stmt;

@@ -40,6 +40,7 @@ const DEFAULTS = {
   // (Admin → Edit Contract, backend/contract_template.php).
   roomPreviewMode: 'images',            // public room preview: 'images' or 'floor_plan'
   maxOccupantsPerUnit: 8,                    // main tenant + household members
+  occupantSurchargePerPerson: 1000,          // added to the rent for each occupant above 4 (read-only here: not in the save payload)
 
   // Notification channels. Both switches ship off: email needs SMTP credentials
   // and SMS costs money and needs a carrier-registered sender ID. The 'log'
@@ -117,6 +118,8 @@ export const getSystemSettings = async () => {
         duplicateReferencePolicy: dbSettings.duplicate_reference_policy === 'block' ? 'block' : 'warn',
         roomPreviewMode: dbSettings.room_preview_mode === 'floor_plan' ? 'floor_plan' : 'images',
         maxOccupantsPerUnit: parseInt(dbSettings.max_occupants_per_unit || DEFAULTS.maxOccupantsPerUnit),
+        // ?? not ||: 0 means no surcharge.
+        occupantSurchargePerPerson: Number(dbSettings.occupant_surcharge_per_person ?? DEFAULTS.occupantSurchargePerPerson) || 0,
 
         // Notification channels. Credential fields arrive masked (••••1234) for
         // an admin and absent for anyone else; posting a mask back is treated

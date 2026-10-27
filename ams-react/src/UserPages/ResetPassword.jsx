@@ -129,7 +129,7 @@ export default function ResetPassword() {
                             </p>
                         </div>
 
-                        {showInvalid ? <div className="space-y-4 text-center"><p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{message || (isFil ? 'Hindi wasto o nag-expire na ang link.' : 'This reset link is invalid or expired.')}</p><Link to="/login" className="font-bold text-indigo-600">{isFil ? 'Humiling ng bagong link' : 'Request a new link'}</Link></div> : isSuccess ? (
+                        {showInvalid ? <div className="space-y-4 text-center"><p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{message || (isFil ? 'Hindi wasto o nag-expire na ang link.' : 'This reset link is invalid or expired.')}</p><Link to="/login?forgot=1" className="inline-flex items-center min-h-[44px] font-bold text-indigo-600">{isFil ? 'Humiling ng bagong link' : 'Request a new link'}</Link></div> : isSuccess ? (
                             <div className="space-y-4 text-center mt-6">
                                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold rounded-xl">
                                     {message}
@@ -144,8 +144,15 @@ export default function ResetPassword() {
                         ) : (
                             <form className="space-y-5" onSubmit={handleSubmit} noValidate>
                                 {!token ? (
-                                    <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs rounded-xl text-center font-semibold">
-                                        {message}
+                                    // A link without a token: the way forward is a new link
+                                    // (this used to be a red box with nothing to do).
+                                    <div className="space-y-3 text-center">
+                                        <div role="alert" className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs rounded-xl font-semibold">
+                                            {message}
+                                        </div>
+                                        <Link to="/login?forgot=1" className="inline-flex items-center min-h-[44px] font-bold text-indigo-600">
+                                            {isFil ? 'Humiling ng bagong link' : 'Request a new link'}
+                                        </Link>
                                     </div>
                                 ) : (
                                     <>

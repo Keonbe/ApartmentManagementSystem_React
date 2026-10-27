@@ -7,7 +7,9 @@ import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/home.responsive.css';
 
 export default function Home({ onCardClick, username }) {
-    const [counts, setCounts] = useState({ total: 14, available: 4 });
+    // null until the real counts arrive; they stay hidden if the request fails
+    // (made-up 14 / 4 used to show instead).
+    const [counts, setCounts] = useState(null);
     const { t } = useLang();
     const navigate = useNavigate();
 
@@ -67,7 +69,7 @@ export default function Home({ onCardClick, username }) {
                     </p>
 
                     <div className="home-cta-row pt-5 flex flex-wrap gap-5 items-center justify-between border-t border-white/10 mt-2">
-                        <div className="flex space-x-5 text-sm font-semibold text-slate-300">
+                        {counts && <div className="flex space-x-5 text-sm font-semibold text-slate-300">
                             <span className="flex items-center space-x-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
                                 <span><strong className="text-white">{counts.total}</strong> {t('home.totalUnits')}</span>
@@ -76,7 +78,7 @@ export default function Home({ onCardClick, username }) {
                                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                                 <span><strong className="text-emerald-300">{counts.available}</strong> {t('home.availableRooms')}</span>
                             </span>
-                        </div>
+                        </div>}
 
                         <div className="home-cta-buttons flex w-full min-w-0 flex-col items-stretch gap-2.5 pt-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                             <button

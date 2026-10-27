@@ -115,10 +115,11 @@ export default function UserNotifications() {
     return () => window.removeEventListener(TENANT_NOTIFICATIONS_EVENT, fetchNotifications);
   }, [fetchNotifications, fetchPreferences]);
 
+  // One refetch per action: the event below reaches this page's own listener
+  // (and TopBar's). It used to refetch here as well, so every action loaded twice.
   const runAction = async (request, failure) => {
     try {
       await request();
-      await fetchNotifications();
       notifyOthers();
     } catch (e) {
       setError(e.response?.data?.message || failure);
@@ -223,7 +224,7 @@ export default function UserNotifications() {
             </button>
             <button
               onClick={handleArchiveAll}
-              disabled={notifications.length === 0}
+              disabled={!notifications.some((n) => !n.isArchived)}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
             >
               <FontAwesomeIcon icon={faTrash} /> {'Archive All'}
@@ -305,7 +306,7 @@ export default function UserNotifications() {
                   return (
                     <div
                       key={n.id}
-                      onClick={() => setSelectedNotification(n)}
+                      onClick={() => { setSelectedNotification(n); if (!n.read) handleMarkRead(n.id); }}
                       className={`user-notif-card card-interactive cursor-pointer bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex gap-3 sm:gap-4 items-start transition-all duration-200 hover:shadow-md group relative overflow-hidden ${n.read ? 'border-slate-200' : 'border-indigo-100 bg-indigo-50/10'}`}
                     >
                       {!n.read && (

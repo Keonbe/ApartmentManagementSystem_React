@@ -80,6 +80,7 @@ CREATE TABLE `cctv_requests` (
   `incident_time` varchar(50) NOT NULL,
   `location_details` varchar(50) NOT NULL,
   `reason_request` text NOT NULL,
+  `privacy_consent_at` datetime DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'Pending',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),

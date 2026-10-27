@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
 import { MAINTENANCE_CATEGORIES } from '../config/maintenanceOptions';
-import { LIMITS, checkDate, checkText } from '../utils/validation';
+import { LIMITS, addDays, checkDate, checkText, localDateString } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
@@ -32,26 +32,10 @@ export default function MaintenanceRequest() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
 
-    //Enforces Philippines Standard Time (PST - UTC+8) for today's boundary tracking
-    const targetTimezoneOffset = 8 * 60;//PST is UTC+8 in minutes
-    const localDate = new Date();
-    const utcTime = localDate.getTime() + (localDate.getTimezoneOffset() * 60000);
-    const pstDate = new Date(utcTime + (targetTimezoneOffset * 60000));
-
-    //Restricts choices from current PST date up to 2 weeks (14 days) into the future
-    const twoWeeksLater = new Date(pstDate.getTime());
-    twoWeeksLater.setDate(pstDate.getDate() + 14);
-
-    //Helper function to format date cleanly as YYYY-MM-DD without UTC shift issues
-    const formatDateString = (dateObj) => {
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
-    const minDateString = formatDateString(pstDate);
-    const maxDateString = formatDateString(twoWeeksLater);
+    // A visit from today up to 2 weeks ahead (the shared date helpers replace a
+    // hand-made Philippine-time conversion that duplicated localDateString).
+    const minDateString = localDateString();
+    const maxDateString = addDays(14);
 
     //File uploading drop mechanics
     const handleDragOver = (e) => {
@@ -329,7 +313,7 @@ export default function MaintenanceRequest() {
                 isOpen={isModalOpen}
                 onClose={() => {
                     setIsModalOpen(false);
-                    navigate('/home');
+                    navigate('/my-requests'); // where the request can be followed
                 }}
                 message={t('maintenance.success')}
             />

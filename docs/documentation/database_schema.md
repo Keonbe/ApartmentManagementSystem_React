@@ -575,7 +575,7 @@ erDiagram
 | Table | Purpose |
 |---|---|
 | `maintenance_requests` | Tenant-submitted tickets. `room_name` is **snapshotted** from the tenant's active application when the ticket is created (a soft reference, no FK), so a later move doesn't reattribute the ticket. A ticket completed with `tenant_responsible=1` bills `COALESCE(actual_cost, estimated_cost)` onto `invoices.maintenance` (audit H10) — `is_invoiced`/`invoice_id`/`billing_period` mirror `service_requests`' claim-atomically pattern, so a double-click can't double-bill and clearing the flag (or reopening the ticket) reverses the charge while it's still unpaid. |
-| `cctv_requests` | Footage-request tickets tied to an incident date/time/location. |
+| `cctv_requests` | Footage-request tickets tied to an incident date/time/location; `privacy_consent_at` records when the tenant agreed to the Data Privacy terms (required since 2026-10). |
 | `parking_charges` | One row per parking reservation per billing month (`UNIQUE (reservation_id, billing_period)`), so a month is never billed twice whether billing is manual ("Bill this month") or automatic (daily sweep). `invoice_id` records where the charge landed. |
 | `parking_reservations` | `vehicle_type` must match the JSON array in the `parking_allowed_vehicle_types` setting; the admin-configured `max_parking_slots` cap counts rows in `Pending`/`Assigned`/`Approved`/`Active`. |
 | `service_catalog` | Admin-managed price list for add-on services (cleaning, laundry, pest control, ...). `is_active=0` hides an item from the tenant-facing catalog without deleting history. |

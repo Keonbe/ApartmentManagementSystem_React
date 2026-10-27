@@ -14,6 +14,7 @@ import {
     TENANT_PAYMENT_ALERT_TITLES, TENANT_PAYMENT_AWAITING_TITLES, formatRelativeTime,
 } from '../config/notificationLinks';
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
+import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import '../assets/styles/responsive/components/navbar.responsive.css';
 
 // Stable empty set: no notice highlighted in the bell dropdown.
@@ -48,6 +49,20 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
     const [loggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
     const [dbAvatarUrl, setDbAvatarUrl] = useState(loggedInUser.avatar_url || ''); // Real-time avatar tracker
+    // Profile Settings saved a new name or photo: re-read them here (that page
+    // used to reload the whole app so the bar would show the change).
+    const [nameOverride, setNameOverride] = useState(null);
+    useEffect(() => {
+        const onProfileUpdated = () => {
+            const u = JSON.parse(sessionStorage.getItem('loggedInUser') || '{}');
+            setDbAvatarUrl(u.avatar_url || '');
+            const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+            if (fullName) setNameOverride(fullName);
+        };
+        window.addEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
+        return () => window.removeEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
+    }, []);
+    const displayName = (isLoggedIn && nameOverride) || username;
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [rawNotifications, setRawNotifications] = useState([]);
@@ -245,8 +260,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     };
 
     const getInitials = () => {
-        if (!username || username === 'Guest') return 'U';
-        const nameParts = username.split(' ');
+        if (!displayName || displayName === 'Guest') return 'U';
+        const nameParts = displayName.split(' ');
         const firstInitial = nameParts[0] ? nameParts[0].charAt(0) : '';
         const lastInitial = nameParts[1] ? nameParts[1].charAt(0) : '';
         return `${firstInitial}${lastInitial}`.toUpperCase();
@@ -365,7 +380,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                                 className="flex items-center space-x-3 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border-0 bg-transparent cursor-pointer transition-all duration-200 select-none outline-none"
                             >
-                                <span className="font-bold text-sm tracking-wide">{username}</span>
+                                <span className="font-bold text-sm tracking-wide">{displayName}</span>
                                 
                                 {dbAvatarUrl ? (
                                     <img 
@@ -570,7 +585,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         </div>
                                     )}
                                     <div className="flex flex-col">
-                                        <span className="text-white font-bold text-sm leading-snug">{username}</span>
+                                        <span className="text-white font-bold text-sm leading-snug">{displayName}</span>
                                         <span className="text-white/50 text-xs">Logged In</span>
                                     </div>
                                 </div>
@@ -582,6 +597,20 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     >
                                         <FontAwesomeIcon icon={faCog} className="text-xs" />
                                         <span>Settings</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setIsMobileMenuOpen(false); navigate('/notifications'); }}
+                                        className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
+                                    >
+                                        <FontAwesomeIcon icon={faBell} className="text-xs" />
+                                        <span>Notifications{unreadCount > 0 ? ` (${unreadCount})` : ''}</span>
+                                    </button>
+                                    <button
+                                        onClick={() => { setIsMobileMenuOpen(false); navigate('/my-refunds'); }}
+                                        className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
+                                    >
+                                        <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-xs" />
+                                        <span>My Refunds</span>
                                     </button>
                                     {hasRentedRoom ? (
                                         <button

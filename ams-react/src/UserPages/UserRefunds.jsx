@@ -10,7 +10,9 @@ export default function UserRefunds() {
   const [requests, setRequests] = useState([]);
   const [eligible, setEligible] = useState({ advance: 0, overpayments: [] });
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  // Which action is running: 'form' (new request) or a request id. One shared
+  // flag used to disable every card while any one of them was busy.
+  const [busy, setBusy] = useState(null);
   const [notice, setNotice] = useState(null); // { ok, text }
   const [replies, setReplies] = useState({});
 
@@ -33,8 +35,9 @@ export default function UserRefunds() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  const call = async (endpoint, body, okText, done) => {
-    setBusy(true);
+  const call = async (key, endpoint, body, okText, done) => {
+    if (busy) return;
+    setBusy(key);
     setNotice(null);
     try {
       const res = await api.post(endpoint, body);
@@ -43,7 +46,7 @@ export default function UserRefunds() {
     } catch (err) {
       setNotice({ ok: false, text: apiErrorMessage(err) });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -64,8 +67,8 @@ export default function UserRefunds() {
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <h2 className="m-0 mb-3 text-lg font-bold text-slate-800">Request a refund</h2>
-          <RefundForm eligible={eligible} busy={busy}
-            onSubmit={(body, reset) => call('create_refund_request.php', body, 'Refund request submitted. We will review it shortly.', reset)} />
+          <RefundForm eligible={eligible} busy={busy === 'form'}
+            onSubmit={(body, reset) => call('form', 'create_refund_request.php', body, 'Refund request submitted. We will review it shortly.', reset)} />
         </section>
 
         <section className="space-y-4">
@@ -76,14 +79,14 @@ export default function UserRefunds() {
             <article key={r.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="m-0 text-base font-bold text-slate-800">{TYPE_LABELS[r.type]} · {peso(r.amount)}</h3>
+                  <h3 className="m-0 text-base font-bold text-slate-800">{TYPE_LABELS[r.type] || r.type || 'Refund'} · {peso(r.amount)}</h3>
                   <p className="m-0 text-xs text-slate-400">Request #{r.id} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by management' : ''}</p>
                 </div>
                 <StatusBadge status={r.status} />
               </div>
               <p className="m-0 mt-2 whitespace-pre-wrap text-sm text-slate-600">{r.reason}</p>
-              {r.status === 'Refunded' && <p className="m-0 mt-2 text-sm font-semibold text-emerald-700">Paid out via {r.payoutMethod} (ref {r.payoutReference}) on {when(r.refundedAt)}.</p>}
-              {r.status === 'Rejected' && <p className="m-0 mt-2 text-sm font-semibold text-rose-700">Reason: {r.decisionReason}</p>}
+              {r.status === 'Refunded' && <p className="m-0 mt-2 text-sm font-semibold text-emerald-700">Paid out via {r.payoutMethod || 'the agreed method'}{r.payoutReference ? ` (ref ${r.payoutReference})` : ''}{r.refundedAt ? ` on ${when(r.refundedAt)}` : ''}.</p>}
+              {r.status === 'Rejected' && <p className="m-0 mt-2 text-sm font-semibold text-rose-700">{r.decisionReason ? `Reason: ${r.decisionReason}` : 'Management did not approve this refund.'}</p>}
               <RefundTrail events={r.events} />
 
               {r.status === 'Info Requested' && (
@@ -91,14 +94,14 @@ export default function UserRefunds() {
                   <textarea rows={2} maxLength={1000} value={replies[r.id] || ''} placeholder="Write your reply"
                     onChange={(e) => setReplies((p) => ({ ...p, [r.id]: e.target.value }))}
                     className="w-full rounded-lg border border-slate-300 p-2 text-sm" />
-                  <button type="button" disabled={busy || !(replies[r.id] || '').trim()}
-                    onClick={() => call('respond_refund_request.php', { id: r.id, action: 'reply', message: replies[r.id] }, 'Reply sent.', () => setReplies((p) => ({ ...p, [r.id]: '' })))}
+                  <button type="button" disabled={busy === r.id || !(replies[r.id] || '').trim()}
+                    onClick={() => call(r.id, 'respond_refund_request.php', { id: r.id, action: 'reply', message: replies[r.id] }, 'Reply sent.', () => setReplies((p) => ({ ...p, [r.id]: '' })))}
                     className="cursor-pointer rounded-lg border-0 bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">Send reply</button>
                 </div>
               )}
               {(r.status === 'Pending Review' || r.status === 'Info Requested') && (
-                <button type="button" disabled={busy}
-                  onClick={() => window.confirm('Cancel this refund request?') && call('respond_refund_request.php', { id: r.id, action: 'cancel' }, 'Refund request cancelled.')}
+                <button type="button" disabled={busy === r.id}
+                  onClick={() => window.confirm('Cancel this refund request?') && call(r.id, 'respond_refund_request.php', { id: r.id, action: 'cancel' }, 'Refund request cancelled.')}
                   className="mt-3 cursor-pointer border-0 bg-transparent p-0 text-xs font-bold text-rose-600 hover:underline">Cancel request</button>
               )}
             </article>

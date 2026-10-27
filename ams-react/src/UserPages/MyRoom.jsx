@@ -36,10 +36,17 @@ export default function MyRoom() {
     const { t } = useLang();
     // Move-out notice window in days from today (Settings → Rental).
     const [moveOutNotice, setMoveOutNotice] = useState({ min: DEFAULT_MOVE_OUT_MIN_DAYS, max: DEFAULT_MOVE_OUT_MAX_DAYS });
+    // Settings → Rental → Maximum Occupants per Unit, and the per-person
+    // surcharge above 4 (both were hardcoded as 8 and ₱1,000).
+    const [maxOccupants, setMaxOccupants] = useState(MAX_OCCUPANTS);
+    const [surchargePerPerson, setSurchargePerPerson] = useState(1000);
     useEffect(() => {
         let alive = true;
         getSystemSettings().then((s) => {
-            if (alive) setMoveOutNotice({ min: s.moveOutMinNoticeDays || DEFAULT_MOVE_OUT_MIN_DAYS, max: s.moveOutMaxNoticeDays || DEFAULT_MOVE_OUT_MAX_DAYS });
+            if (!alive) return;
+            setMoveOutNotice({ min: s.moveOutMinNoticeDays || DEFAULT_MOVE_OUT_MIN_DAYS, max: s.moveOutMaxNoticeDays || DEFAULT_MOVE_OUT_MAX_DAYS });
+            setMaxOccupants(s.maxOccupantsPerUnit || MAX_OCCUPANTS);
+            setSurchargePerPerson(s.occupantSurchargePerPerson);
         });
         return () => { alive = false; };
     }, []);
@@ -164,7 +171,7 @@ export default function MyRoom() {
             setOccupants('');
             return;
         }
-        if (val > MAX_OCCUPANTS) val = MAX_OCCUPANTS;
+        if (val > maxOccupants) val = maxOccupants;
         if (val < 1) val = 1;
         setOccupants(val);
     };
@@ -207,7 +214,7 @@ export default function MyRoom() {
     const maxExtension = Math.max(minExtension, extension?.maxMonths ?? MAX_EXTENSION_MONTHS);
 
     const fields = useFieldErrors({
-        occupants: (v, all) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants')
+        occupants: (v, all) => checkIntRange(v === '' ? NaN : v, 1, maxOccupants, 'Number of occupants')
             || (Number(v) === all.currentOccupants ? `Your room is already assigned to ${v} occupant(s).` : ''),
         additionalMonths: (v) => checkIntRange(v === '' ? NaN : v, minExtension, maxExtension, 'Additional months'),
         move_out_date: (v) => checkDate(v, { label: 'Move-out date', min: addDays(moveOutNotice.min), max: addDays(moveOutNotice.max) })
@@ -456,13 +463,13 @@ export default function MyRoom() {
                                 onToggle={() => toggle('occupants')}
                             >
                                 <form onSubmit={handleUpdateOccupants} className="m-0 grid gap-3 sm:max-w-md" noValidate>
-                                    <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-100">Number of occupants (1 to {MAX_OCCUPANTS})</label>
+                                    <label htmlFor="myroom-occupants" className="text-sm font-bold text-slate-100">Number of occupants (1 to {maxOccupants})</label>
                                     <input
                                         type="number"
                                         {...fields.fieldA11y('occupants')}
                                         inputMode="numeric"
                                         min="1"
-                                        max={MAX_OCCUPANTS}
+                                        max={maxOccupants}
                                         step="1"
                                         value={occupants}
                                         onKeyDown={blockNonIntegerKeys}
@@ -472,8 +479,8 @@ export default function MyRoom() {
                                         required
                                     />
                                     <p className="m-0 text-sm text-slate-300">
-                                        Each person above 4 adds ₱1,000 a month.
-                                        {occupants > 4 && <strong className="text-amber-200"> With {occupants}: +₱{((occupants - 4) * 1000).toLocaleString()} a month.</strong>}
+                                        {surchargePerPerson > 0 ? `Each person above 4 adds ₱${surchargePerPerson.toLocaleString()} a month.` : 'There is no extra charge per person.'}
+                                        {occupants > 4 && surchargePerPerson > 0 && <strong className="text-amber-200"> With {occupants}: +₱{((occupants - 4) * surchargePerPerson).toLocaleString()} a month.</strong>}
                                     </p>
                                     <FieldError id="myroom-occupants" error={fields.errors.occupants} className="m-0" />
                                     <button type="submit" disabled={!!busy} className={`${BTN_PRIMARY} justify-self-start`}>

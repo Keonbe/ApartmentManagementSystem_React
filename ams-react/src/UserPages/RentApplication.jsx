@@ -26,10 +26,12 @@ const INPUT_CLS = "w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-2
 const LOCKED_CLS = "w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 shadow-inner text-sm font-medium cursor-not-allowed";
 const LABEL_CLS = "text-sm font-bold text-slate-700";
 
-// Fallback only, used until the room's real rooms.monthly_rent loads —
-// it used to be the permanent source of truth, silently ignoring any rate
-// an admin configured via update_room.php.
-const getRoomPriceFallback = (id) => (['I', 'J', 'K', 'L', 'M', 'N'].includes(id) ? 3500 : 4000);
+// Rent, room type and the occupant rules come from the room list and Settings
+// (rent_application.php takes the rent from the room itself). A hardcoded
+// price per room letter and "Studio" used to show until, or instead of, them.
+// Above this many occupants each extra person adds the per-person surcharge
+// (config.php apply_occupant_count()).
+const SURCHARGE_FROM_OCCUPANTS = 4;
 
 // The unsent form is kept per user in sessionStorage (not localStorage), so a
 // phone number never outlives the browser tab on a shared computer. Documents
@@ -125,7 +127,8 @@ export default function RentApplication() {
 
     const editApp = location.state?.editApplication;
     const isEditing = !!editApp;
-    const passedRoomId = location.state?.selectedRoomId || editApp?.room_name || 'C';
+    // No room passed in means none chosen yet (it used to default to Room C).
+    const passedRoomId = location.state?.selectedRoomId || editApp?.room_name || '';
     // Read once: a draft only applies to a new application.
     const [draft] = useState(() => (isEditing ? {} : readDraft(loggedInUser.id)));
 
@@ -155,8 +158,13 @@ export default function RentApplication() {
     // Settings → Rental → Earliest / Latest Move-In Date (rent_application.php enforces it too).
     const [moveInWindow, setMoveInWindow] = useState(MOVE_IN_WINDOW_DEFAULT);
     const moveInLimits = moveInBounds(moveInWindow);
+    // Settings → Rental → Maximum Occupants per Unit, and the per-person surcharge.
+    const [maxOccupants, setMaxOccupants] = useState(MAX_OCCUPANTS);
+    const [surchargePerPerson, setSurchargePerPerson] = useState(null);
     useEffect(() => {
         getSystemSettings().then(s => {
+            setMaxOccupants(s.maxOccupantsPerUnit || MAX_OCCUPANTS);
+            setSurchargePerPerson(s.occupantSurchargePerPerson);
             setMinMonths(Math.min(MAX_MONTHS, s.minLeaseDuration || 1));
             setMoveInWindow({ min: s.moveInMinDays ?? MOVE_IN_WINDOW_DEFAULT.min, max: s.moveInMaxDays || MOVE_IN_WINDOW_DEFAULT.max });
         });
@@ -181,27 +189,35 @@ export default function RentApplication() {
                     }
                 }
 
-                // Fetch existing rent application status
-                if (loggedInUser.id) {
-                    const roomRes = await api.get(`/my_room.php?userId=${encodeURIComponent(loggedInUser.id)}`);
-                    if (roomRes.data.success && roomRes.data.data) {
-                        const appData = roomRes.data.data;
-                        const status = appData.status;
-                        setApplicationStatus(status ? status.toLowerCase() : 'none');
-                        // When applying again after rejection, only pre-populate phone and gender
-                        if (appData.contact_no) {
-                            setPhoneRawNumber(prev => prev || toPhLocal10(appData.contact_no));
-                        }
-                        if (appData.gender) {
-                            setGender(prev => prev || appData.gender);
-                        }
+            } catch (err) {
+                console.error("Failed to fetch user details:", err);
+            }
+        };
+        // The application status is fetched on its own: it used to sit in the
+        // same try as the profile, so a failed profile request left an applicant
+        // who had already applied looking at a blank form.
+        const fetchApplicationStatus = async () => {
+            if (!loggedInUser.id) return;
+            try {
+                const roomRes = await api.get(`/my_room.php?userId=${encodeURIComponent(loggedInUser.id)}`);
+                if (roomRes.data.success && roomRes.data.data) {
+                    const appData = roomRes.data.data;
+                    const status = appData.status;
+                    setApplicationStatus(status ? status.toLowerCase() : 'none');
+                    // When applying again after rejection, only pre-populate phone and gender
+                    if (appData.contact_no) {
+                        setPhoneRawNumber(prev => prev || toPhLocal10(appData.contact_no));
+                    }
+                    if (appData.gender) {
+                        setGender(prev => prev || appData.gender);
                     }
                 }
             } catch (err) {
-                console.error("Failed to fetch user details/application status:", err);
+                console.error("Failed to fetch application status:", err);
             }
         };
         fetchUserProfile();
+        fetchApplicationStatus();
     }, [defaultEmail, loggedInUser.id]);
 
     // Room picker: an applicant may switch to any vacant unit before submitting.
@@ -209,24 +225,31 @@ export default function RentApplication() {
     const [rooms, setRooms] = useState([]);
     const [showRoomModal, setShowRoomModal] = useState(false);
     const availableRooms = rooms.filter(r => r.status?.toLowerCase() === 'vacant');
-    const roomRent = rooms.find(r => r.id === selectedRoomId)?.rent;
-    // Editing keeps the application's own rate; otherwise the room's current rate.
-    const monthlyRent = isEditing
-        ? Number(editApp.monthly_rent) || getRoomPriceFallback(selectedRoomId)
-        : (roomRent != null ? Number(roomRent) : getRoomPriceFallback(selectedRoomId));
+    // Ids compared as strings: the API may send them as numbers.
+    const sameRoom = (a, b) => String(a ?? '') === String(b ?? '');
+    const selectedRoom = rooms.find(r => sameRoom(r.id, selectedRoomId)) || null;
+    // The room's base rate (what rent_application.php bills); an edit whose room
+    // is not in the list falls back to the application's own rate. null = not
+    // known yet, shown as a dash, never as a guessed price.
+    const baseRent = selectedRoom?.rent != null ? Number(selectedRoom.rent)
+        : isEditing && Number(editApp.monthly_rent) ? Number(editApp.monthly_rent)
+        : null;
+    const extraOccupants = Math.max(0, (Number(occupants) || 0) - SURCHARGE_FROM_OCCUPANTS);
+    const surcharge = extraOccupants * (surchargePerPerson ?? 0);
+    const monthlyRent = baseRent === null ? null : baseRent + surcharge;
 
+    // The room list gives the rate and type, also when editing (the unit stays fixed).
     useEffect(() => {
-        if (editApp) return; // an edit keeps its unit and rate
         const fetchRooms = async () => {
             try {
                 const res = await api.get('/get_rooms.php');
                 setRooms(res.data?.rooms || res.data?.data || (Array.isArray(res.data) ? res.data : []));
             } catch (err) {
-                console.error("Failed to fetch rooms, using fallback pricing:", err);
+                console.error("Failed to fetch rooms:", err);
             }
         };
         fetchRooms();
-    }, [editApp]);
+    }, []);
 
     // The documents to upload come from Settings → Application Requirements.
     // On a resubmission, files already on the application count as provided.
@@ -286,7 +309,10 @@ export default function RentApplication() {
 
     const isPendingReview = ['pending', 'pending review'].includes(applicationStatus?.toLowerCase());
     const isReadOnly = isPendingReview || applicationStatus === 'accepted';
-    const hasActiveApplication = ['pending', 'pending review', 'approved', 'active'].includes(applicationStatus?.toLowerCase()) && !editApp;
+    // An application still in progress, or a current tenancy: the same statuses
+    // Login sends to Track Application, plus a tenant's own.
+    const hasActiveApplication = ['pending', 'pending review', 'approved', 'action required', 'pending deposit', 'active', 'pending-move-out']
+        .includes(applicationStatus?.toLowerCase()) && !editApp;
     const isTenant = ['active', 'pending-move-out'].includes(applicationStatus?.toLowerCase());
 
     // Save the unsent form as the applicant types.
@@ -312,7 +338,7 @@ export default function RentApplication() {
         suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
         contactNo: (v) => checkPhMobile(v),
         gender: (v) => (GENDERS.includes(v) ? '' : 'Please select your gender.'),
-        occupants: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_OCCUPANTS, 'Number of occupants'),
+        occupants: (v) => checkIntRange(v === '' ? NaN : v, 1, maxOccupants, 'Number of occupants'),
         monthsOfRent: (v) => checkIntRange(v === '' ? NaN : v, minMonths, MAX_MONTHS, 'Months of rent'),
         // Inside the admin's move-in window (rent_application.php checks the same):
         // the picker's min does not stop a typed past date.
@@ -322,7 +348,8 @@ export default function RentApplication() {
             return checkMoveInDate(v, moveInWindow);
         },
         // Only a vacant unit can be applied for (checked once the list has loaded).
-        roomName: (v) => (!isEditing && rooms.length && !availableRooms.some(r => r.id === v) ? `Room ${v} is not available. Choose another room.` : ''),
+        roomName: (v) => (!v ? 'Please choose a room.'
+            : !isEditing && rooms.length && !availableRooms.some(r => sameRoom(r.id, v)) ? `Room ${v} is not available. Choose another room.` : ''),
         agreeTerms: (v) => (v ? '' : 'Please read and agree to the terms and privacy policy.'),
         agreeRules: (v) => (v ? '' : 'Please read and agree to follow the apartment rules.'),
     }, { idPrefix: 'rent-' });
@@ -359,7 +386,7 @@ export default function RentApplication() {
         const value = e.target.value;
         if (value === '') { setOccupants(''); return; }
         const num = parseInt(value, 10);
-        if (!isNaN(num) && num >= 1 && num <= MAX_OCCUPANTS) setOccupants(num);
+        if (!isNaN(num) && num >= 1 && num <= maxOccupants) setOccupants(num);
     };
 
     const handleMonthsInput = (e) => {
@@ -394,8 +421,9 @@ export default function RentApplication() {
         e.preventDefault();
         if (submitting) return;
 
+        // A legacy status: its move-in payment is on Track Application (/payments never existed).
         if (applicationStatus === 'accepted') {
-            navigate('/payments');
+            navigate('/track-application');
             return;
         }
 
@@ -421,7 +449,8 @@ export default function RentApplication() {
         setPreviousAddress(cleanAddress);
         if (!form.validateAll({ ...values, suffix: cleanSuffix, previousAddress: cleanAddress })) return;
 
-        const finalMonthlyRent = monthlyRent + (occupants > 4 ? (occupants - 4) * 1000 : 0);
+        // Display value only: rent_application.php bills the room's own rate.
+        const finalMonthlyRent = monthlyRent ?? 0;
 
         const formData = new FormData();
         if (isEditing) formData.append('appId', editApp.id);
@@ -673,7 +702,7 @@ export default function RentApplication() {
                                         {...form.fieldA11y('occupants')}
                                         inputMode="numeric"
                                         min="1"
-                                        max={MAX_OCCUPANTS}
+                                        max={maxOccupants}
                                         step="1"
                                         placeholder="2"
                                         value={occupants}
@@ -766,19 +795,19 @@ export default function RentApplication() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-roomType" className="text-sm font-bold text-slate-800 select-none">{t('rent.roomType')}</label>
-                                    <input id="rent-roomType" type="text" value="Studio" disabled className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-sm select-none cursor-not-allowed shadow-inner" />
+                                    <input id="rent-roomType" type="text" value={selectedRoom?.type || '—'} disabled className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-sm select-none cursor-not-allowed shadow-inner" />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-roomName" className="text-sm font-bold text-slate-800 select-none flex justify-between">
                                         {t('rent.assignedRoom')}
                                         {!isReadOnly && !isEditing && (
-                                            <button type="button" onClick={() => setShowRoomModal(true)} className="text-xs text-indigo-600 font-bold hover:underline bg-transparent border-0 cursor-pointer p-0">Change</button>
+                                            <button type="button" onClick={() => setShowRoomModal(true)} className="text-xs text-indigo-600 font-bold hover:underline bg-transparent border-0 cursor-pointer p-0">{selectedRoomId ? 'Change' : 'Choose a room'}</button>
                                         )}
                                     </label>
                                     <input
                                         type="text"
                                         {...form.fieldA11y('roomName')}
-                                        value={`Room ${selectedRoomId}`}
+                                        value={selectedRoomId ? `Room ${selectedRoomId}` : 'No room chosen yet'}
                                         disabled
                                         className={`w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-sm select-none cursor-not-allowed shadow-inner${invalidCls(form.errors.roomName)}`}
                                     />
@@ -789,13 +818,13 @@ export default function RentApplication() {
                                     <input
                                         id="rent-monthlyRent"
                                         type="text"
-                                        value={`₱${(monthlyRent + (occupants > 4 ? (occupants - 4) * 1000 : 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                                        value={monthlyRent === null ? '—' : `₱${monthlyRent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                                         disabled
                                         className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-indigo-700 font-black text-lg select-none cursor-not-allowed shadow-inner"
                                     />
-                                    {occupants > 4 && (
+                                    {surcharge > 0 && (
                                         <span className="text-[10px] text-emerald-600 font-bold mt-1 uppercase tracking-wide">
-                                            {t('rent.extraOccupantFee').replace('{amount}', ((occupants - 4) * 1000).toLocaleString())}
+                                            {t('rent.extraOccupantFee').replace('{amount}', surcharge.toLocaleString())}
                                         </span>
                                     )}
                                 </div>
@@ -913,8 +942,8 @@ export default function RentApplication() {
                                     type="button"
                                     key={room.id}
                                     onClick={() => chooseRoom(room.id)}
-                                    aria-pressed={selectedRoomId === room.id}
-                                    className={`text-left p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedRoomId === room.id ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-500/10' : 'border-slate-200 bg-white hover:border-indigo-300'}`}
+                                    aria-pressed={sameRoom(selectedRoomId, room.id)}
+                                    className={`text-left p-4 rounded-2xl border-2 cursor-pointer transition-all ${sameRoom(selectedRoomId, room.id) ? 'border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-500/10' : 'border-slate-200 bg-white hover:border-indigo-300'}`}
                                 >
                                     <span className="flex justify-between items-start mb-2">
                                         <span className="text-lg font-black text-slate-900">Room {room.id}</span>

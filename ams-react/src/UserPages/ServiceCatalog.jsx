@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faHourglassHalf, faConciergeBell, faBroom, faTshirt, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import InlineAlert from '../Components/InlineAlert';
 import '../assets/styles/responsive/user/services.responsive.css';
 
 //MapsTheServiceCatalogIconColumnOntoRealFontAwesomeIcons
@@ -17,10 +18,14 @@ export default function ServiceCatalog() {
     const [settings, setSettings] = useState(null);
     const [catalog, setCatalog] = useState([]);
     const [loading, setLoading] = useState(true);
+    // A failed load used to show "no services available", which is not true.
+    const [loadFailed, setLoadFailed] = useState(false);
+    const [loadAttempt, setLoadAttempt] = useState(0);
 
     //1.FetchSettingsAndTheActiveCatalogInParallel-SamePatternAsServices.jsx
     useEffect(() => {
         const loadCatalog = async () => {
+            setLoadFailed(false);
             try {
                 const [settingsRes, catalogRes] = await Promise.all([
                     api.get('/get_system_settings.php'),
@@ -29,24 +34,29 @@ export default function ServiceCatalog() {
 
                 if (settingsRes.data.success && settingsRes.data.settings) {
                     setSettings(settingsRes.data.settings);
+                } else {
+                    setLoadFailed(true);
                 }
                 if (catalogRes.data.success) {
                     setCatalog(catalogRes.data.services || []);
+                } else {
+                    setLoadFailed(true);
                 }
             } catch (err) {
                 console.error("Failed to load service catalog:", err);
+                setLoadFailed(true);
             } finally {
                 setLoading(false);
             }
         };
 
         loadCatalog();
-    }, []);
+    }, [loadAttempt]);
 
-    //2.OnlyShowRowsWhoseCategoryToggleIsAlsoOn
+    //2.OnlyShowRowsWhoseCategoryToggleIsAlsoOn (unknown settings: show none)
     const visibleCatalog = catalog.filter(row => {
         const key = `service_${row.category}_active`;
-        if (!settings) return true;
+        if (!settings) return false;
         return settings[key] === undefined || settings[key] === 'true' || settings[key] === true;
     });
 
@@ -88,7 +98,14 @@ export default function ServiceCatalog() {
                 </div>
 
                 {/*EmptyState-ReachableViaDirectURLAfterAllCategoriesAreDisabled*/}
-                {visibleCatalog.length === 0 ? (
+                {loadFailed ? (
+                    <InlineAlert>
+                        {t('common.loadFailed')}{' '}
+                        <button type="button" onClick={() => { setLoading(true); setLoadAttempt((n) => n + 1); }} className="ml-1 min-h-[36px] px-3 rounded-lg bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-100">
+                            {t('common.retry')}
+                        </button>
+                    </InlineAlert>
+                ) : visibleCatalog.length === 0 ? (
                     <div className="bg-white rounded-3xl border border-slate-100 shadow-md p-10 text-center">
                         <FontAwesomeIcon icon={faConciergeBell} className="text-4xl text-slate-200 mb-4" />
                         <h3 className="text-lg font-bold text-slate-700 m-0">{t('serviceCatalog.empty')}</h3>

@@ -18,11 +18,6 @@
     font-size: 0.8125rem !important;
   }
 
-  .cctv-status-widget {
-    width: 100% !important;
-    justify-content: flex-start !important;
-  }
-
   .cctv-form-card {
     padding: 1.25rem !important;
     border-radius: 1.25rem !important;

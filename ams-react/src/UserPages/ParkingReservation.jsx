@@ -35,6 +35,9 @@ export default function ParkingReservation() {
     const [allowedVehicleTypes, setAllowedVehicleTypes] = useState(['motorcycle']); //AdminConfigurableAllowedTypes
     const [availableSlots, setAvailableSlots] = useState(3);
     const [loadingSlots, setLoadingSlots] = useState(true);
+    // Until the counts really load, nothing is shown as free (the defaults of 3
+    // used to read "3 / 3 free" and enable submit when the request failed).
+    const [slotsKnown, setSlotsKnown] = useState(false);
     
     const [pdfModalUrl, setPdfModalUrl] = useState(null);
     const [pdfModalTitle, setPdfModalTitle] = useState('PDF Viewer');
@@ -69,6 +72,9 @@ export default function ParkingReservation() {
                     setAvailableSlots(slotsRes.data.available_slots);
                     setMonthlyFee(Number(slotsRes.data.monthly_fee));
                     setMyReservation(slotsRes.data.my_reservation);
+                    setSlotsKnown(true);
+                } else {
+                    setFormError('Could not load parking availability. Please refresh the page.');
                 }
             } catch (err) {
                 console.error("Failed to load parking availability:", err);
@@ -219,6 +225,9 @@ export default function ParkingReservation() {
         }
     };
 
+    // Each preview URL is revoked when it is replaced or the page closes.
+    useEffect(() => () => { if (pdfModalUrl) URL.revokeObjectURL(pdfModalUrl); }, [pdfModalUrl]);
+
     const openPdfPreview = (file, title) => {
         const url = URL.createObjectURL(file);
         setPdfModalUrl(url);
@@ -286,11 +295,11 @@ export default function ParkingReservation() {
 
                     {/*DynamicAvailableSlotsCounterWidget*/}
                     <div className="parking-slots-widget bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm flex items-center space-x-3 flex-shrink-0 select-none">
-                        <div className={`w-2.5 h-2.5 rounded-full ${availableSlots > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                        <div className={`w-2.5 h-2.5 rounded-full ${!slotsKnown ? 'bg-slate-400' : availableSlots > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
                         <div>
                             <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">{t('parking.availableSpaces')}</span>
                             <span className="text-xl font-black text-slate-800 tracking-tight">
-                                {loadingSlots ? '...' : `${availableSlots} / ${totalCapacity} ${t('parking.slotsFree')}`}
+                                {loadingSlots ? 'Checking…' : slotsKnown ? `${availableSlots} / ${totalCapacity} ${t('parking.slotsFree')}` : 'Unavailable'}
                             </span>
                         </div>
                     </div>
@@ -544,10 +553,10 @@ export default function ParkingReservation() {
 
                         <button
                             type="submit"
-                            disabled={loadingSlots || availableSlots <= 0 || submitting || (parkingRules.length > 0 && !agreeParkingRules)}
+                            disabled={loadingSlots || !slotsKnown || availableSlots <= 0 || submitting || (parkingRules.length > 0 && !agreeParkingRules)}
                             className="parking-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
-                            {submitting ? 'Submitting…' : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
+                            {submitting ? 'Submitting…' : !slotsKnown ? (loadingSlots ? 'Checking slots…' : 'Availability unknown') : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
                         </button>
                     </div>
 

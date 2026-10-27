@@ -7,6 +7,10 @@ import { useState, useEffect } from 'react';
 
 const translations = {
   en: {
+    // --- Shared ---
+    'common.retry': 'Try again',
+    'common.loadFailed': 'This could not be loaded. Check your connection and try again.',
+
     // --- TopBar / Nav ---
     'nav.home': 'Home',
     'nav.trackApp': 'Track Application',
@@ -30,6 +34,7 @@ const translations = {
     'login.noAccount': "Don't have an account?",
     'login.createAccount': 'Create Account',
     'login.error': 'Unable to log in. Please try again.',
+    'login.invalidCredentials': 'The email or password you entered is incorrect. Please try again.',
 
     // --- Registration ---
     'reg.backHome': 'Back to Home',
@@ -660,6 +665,10 @@ const translations = {
   },
 
   fil: {
+    // --- Shared ---
+    'common.retry': 'Subukan ulit',
+    'common.loadFailed': 'Hindi ito ma-load. Tingnan ang iyong koneksyon at subukan ulit.',
+
     // --- TopBar / Nav ---
     'nav.home': 'Home',
     'nav.trackApp': 'Subaybayan ang Aplikasyon',
@@ -683,6 +692,7 @@ const translations = {
     'login.noAccount': 'Wala ka pang account?',
     'login.createAccount': 'Gumawa ng Account',
     'login.error': 'Hindi makapag-log in. Pakisubukang muli.',
+    'login.invalidCredentials': 'Mali ang email o password na inilagay mo. Pakisubukang muli.',
 
     // --- Registration ---
     'reg.backHome': 'Bumalik sa Home',

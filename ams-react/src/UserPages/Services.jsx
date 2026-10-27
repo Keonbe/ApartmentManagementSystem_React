@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFileInvoiceDollar, faParking, faWrench, faVideo, faListAlt, faBullhorn, faHistory, faHourglassHalf, faIdBadge, faConciergeBell } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
+import InlineAlert from '../Components/InlineAlert';
 import '../assets/styles/responsive/user/services.responsive.css';
 
 export default function Services() {
@@ -93,10 +94,13 @@ export default function Services() {
     const [settings, setSettings] = useState(null);
     const [catalog, setCatalog] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
+    const [loadAttempt, setLoadAttempt] = useState(0);
 
     // 3. Fetch Active System Settings + Add-On Catalog On Load
     useEffect(() => {
         const loadServiceVisibility = async () => {
+            setLoadFailed(false);
             try {
                 const [settingsRes, catalogRes] = await Promise.all([
                     api.get('/get_system_settings.php'),
@@ -105,23 +109,28 @@ export default function Services() {
 
                 if (settingsRes.data.success && settingsRes.data.settings) {
                     setSettings(settingsRes.data.settings);
+                } else {
+                    setLoadFailed(true);
                 }
                 if (catalogRes.data.success) {
                     setCatalog(catalogRes.data.services || []);
                 }
             } catch (err) {
                 console.error("Failed to load modular service states:", err);
+                setLoadFailed(true);
             } finally {
                 setLoading(false);
             }
         };
 
         loadServiceVisibility();
-    }, []);
+    }, [loadAttempt]);
 
+    // Without the settings it is unknown which services management turned off,
+    // so only the always-available cards show (this used to show every service).
     const isKeyEnabled = (key) => {
         if (!key) return true; // Always show utilities like History and My Requests
-        if (!settings) return true;
+        if (!settings) return false;
         return settings[key] === undefined || settings[key] === 'true' || settings[key] === true;
     };
 
@@ -212,10 +221,19 @@ export default function Services() {
                     </p>
                 </div>
 
+                {loadFailed && (
+                    <InlineAlert>
+                        {t('common.loadFailed')}{' '}
+                        <button type="button" onClick={() => { setLoading(true); setLoadAttempt((n) => n + 1); }} className="ml-1 min-h-[36px] px-3 rounded-lg bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-100">
+                            {t('common.retry')}
+                        </button>
+                    </InlineAlert>
+                )}
+
                 {/*SectionCoreServices*/}
                 {visibleCoreServices.length > 0 && (
                     <section className="services-section space-y-4">
-                        <h2 className="services-section-title text-lg sm:text-xl font-bold m-0" style={{ color: '#3b4276' }}>
+                        <h2 className="services-section-title text-lg sm:text-xl font-bold" style={{ color: '#3b4276' }}>
                             {t('services.section.core')}
                         </h2>
                         <div className="stagger-children grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 w-full">
@@ -227,7 +245,7 @@ export default function Services() {
                 {/*SectionAddOnServices-HiddenEntirelyWhenNoPricedServiceIsActive*/}
                 {activeCatalogCount > 0 && (
                     <section className="services-section space-y-4">
-                        <h2 className="services-section-title text-lg sm:text-xl font-bold m-0" style={{ color: '#3b4276' }}>
+                        <h2 className="services-section-title text-lg sm:text-xl font-bold" style={{ color: '#3b4276' }}>
                             {t('services.section.addons')}
                         </h2>
                         <div className="stagger-children grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 w-full">
@@ -239,7 +257,7 @@ export default function Services() {
                 {/*SectionAccountAndHistory*/}
                 {visibleAccountServices.length > 0 && (
                     <section className="services-section space-y-4">
-                        <h2 className="services-section-title text-lg sm:text-xl font-bold m-0" style={{ color: '#3b4276' }}>
+                        <h2 className="services-section-title text-lg sm:text-xl font-bold" style={{ color: '#3b4276' }}>
                             {t('services.section.account')}
                         </h2>
                         <div className="stagger-children grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 w-full">

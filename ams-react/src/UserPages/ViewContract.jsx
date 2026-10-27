@@ -24,6 +24,13 @@ const formatLongDate = (raw) => {
 
 export default function ViewContract() {
     const navigate = useNavigate();
+    // Back to the previous page inside the app; opened directly (a link, a new
+    // tab) there is none, and navigate(-1) used to leave the app. My Room then
+    // (an applicant without a room is sent on to Home by its route guard).
+    const goBack = () => {
+        if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
+        else navigate('/my-room');
+    };
     const location = useLocation();
     const { t, lang } = useLang();
     const [loading, setLoading] = useState(true);
@@ -203,7 +210,7 @@ export default function ViewContract() {
                     <h2 className="text-xl font-bold text-slate-200">{t('contract.emptyTitle')}</h2>
                     <p className="text-slate-400 text-sm">{t('contract.emptyBody')}</p>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all border-0 cursor-pointer text-xs"
                     >
                         {t('contract.goBack')}
@@ -220,7 +227,7 @@ export default function ViewContract() {
                     <h2 className="text-2xl font-bold text-rose-500">{t('contract.errTitle')}</h2>
                     <p className="text-slate-400 text-sm">{error}</p>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={goBack}
                         className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all border-0 cursor-pointer text-xs"
                     >
                         {t('contract.goBack')}
@@ -236,7 +243,7 @@ export default function ViewContract() {
             {/* Control Actions Toolbar Bar Panel Layout (Hidden on Print) */}
             <div className="view-contract-controls animate-fade-in w-full max-w-3xl flex flex-wrap justify-between items-center gap-4 mb-6 print:hidden select-none">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={goBack}
                     className="btn-interactive flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-200 shadow-sm cursor-pointer transition-all"
                 >
                     <FontAwesomeIcon icon={faArrowLeft} />
@@ -283,6 +290,8 @@ export default function ViewContract() {
                     {contractData.status === 'eviction-pending' && t('contract.statusEvictionPending')}
                     {contractData.status === 'expired' && t('contract.statusExpired')}
                     {contractData.status === 'terminated' && t('contract.statusTerminated')}
+                    {/* Any other status used to leave an empty coloured box. */}
+                    {!['draft', 'eviction-pending', 'expired', 'terminated'].includes(contractData.status) && `Contract status: ${contractData.status}`}
                 </div>
             )}
 

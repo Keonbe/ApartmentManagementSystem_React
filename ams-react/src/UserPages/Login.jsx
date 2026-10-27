@@ -22,8 +22,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [message, setMessage] = useState(() =>
         new URLSearchParams(window.location.search).get('expired') ? 'Your session has ended. Please sign in again.' : ''
     );
-    const [isForgotPassword, setIsForgotPassword] = useState(false);
-    const [forgotMessage, setForgotMessage] = useState('');
+    // /login?forgot=1 opens straight into "forgot password" (Reset Password links here).
+    const [isForgotPassword, setIsForgotPassword] = useState(() => new URLSearchParams(window.location.search).get('forgot') === '1');
+    // { ok, text }: a failure is shown as an error, not in the success style.
+    const [forgotMessage, setForgotMessage] = useState(null);
     const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
     const [hasSubmitted, setHasSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,7 +89,9 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     onHomeRedirect();
                 }
             } else {
-                setMessage(res.data.message || t('login.error'));
+                // login.php says valid: false for a wrong email or password; the
+                // page used to recognise it by comparing the English message.
+                setMessage(res.data.valid === false ? t('login.invalidCredentials') : (res.data.message || t('login.error')));
             }
         } catch (error) {
             // 429 carries the lockout message; anything else is a generic failure.
@@ -101,7 +105,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
         e.preventDefault();
         if (isSubmittingForgot) return;
         setHasSubmitted(true);
-        setForgotMessage('');
+        setForgotMessage(null);
         const clean = normalizeEmail(email);
         setEmail(clean);
         if (!forgot.validateAll({ email: clean })) return;
@@ -113,9 +117,9 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                 lang,
                 frontend_url: window.location.origin,
             });
-            setForgotMessage(res.data.message);
+            setForgotMessage({ ok: res.data.success !== false, text: res.data.message });
         } catch (error) {
-            if (!forgot.applyServerErrors(error)) setForgotMessage(apiErrorMessage(error, "Failed to send reset link."));
+            if (!forgot.applyServerErrors(error)) setForgotMessage({ ok: false, text: apiErrorMessage(error, "Failed to send reset link.") });
         } finally {
             setIsSubmittingForgot(false);
         }
@@ -171,7 +175,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     <div className="w-full flex justify-start mb-4">
                         <button
                             type="button"
-                            onClick={isForgotPassword ? () => { setIsForgotPassword(false); setForgotMessage(''); setHasSubmitted(false); } : onHomeRedirect}
+                            onClick={isForgotPassword ? () => { setIsForgotPassword(false); setForgotMessage(null); setHasSubmitted(false); } : onHomeRedirect}
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
                             <ArrowLeft className="w-4 h-4" />
@@ -257,13 +261,13 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                 </div>
                                 <FieldError id="login-password" error={login.errors.password} />
                                 <div className="flex justify-end items-center mt-1">
-                                    <button type="button" onClick={() => { setIsForgotPassword(true); setMessage(''); setForgotMessage(''); setHasSubmitted(false); }} className="text-xs text-indigo-600 hover:underline font-semibold bg-transparent border-0 p-0 cursor-pointer">{t('login.forgot')}</button>
+                                    <button type="button" onClick={() => { setIsForgotPassword(true); setMessage(''); setForgotMessage(null); setHasSubmitted(false); }} className="text-xs text-indigo-600 hover:underline font-semibold bg-transparent border-0 p-0 cursor-pointer">{t('login.forgot')}</button>
                                 </div>
                             </div>
 
                             {message && (
                                 <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center justify-center font-semibold text-center shadow-sm">
-                                    <span>{message === "Invalid email or password" ? "The email or password you entered is incorrect. Please try again." : message}</span>
+                                    <span>{message}</span>
                                 </div>
                             )}
 
@@ -274,8 +278,8 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                         ) : (
                         <form className={`space-y-5 ${hasSubmitted ? 'has-submitted' : ''}`} onSubmit={handleForgotSubmit} onInvalid={() => setHasSubmitted(true)} noValidate>
                             {forgotMessage && (
-                                <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs rounded-xl flex items-center justify-between">
-                                    <span>{forgotMessage}</span>
+                                <div role={forgotMessage.ok ? 'status' : 'alert'} className={`p-3 border text-xs rounded-xl flex items-center justify-between ${forgotMessage.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                                    <span>{forgotMessage.text}</span>
                                 </div>
                             )}
                             

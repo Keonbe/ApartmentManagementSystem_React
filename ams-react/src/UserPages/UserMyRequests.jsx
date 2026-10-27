@@ -4,6 +4,7 @@ import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
+import InlineAlert from '../Components/InlineAlert';
 import '../assets/styles/responsive/user/user-my-requests.responsive.css';
 
 const parseDate = (value) => (value ? new Date(String(value).replace(' ', 'T')) : null);
@@ -11,6 +12,8 @@ const parseDate = (value) => (value ? new Date(String(value).replace(' ', 'T')) 
 export default function UserMyRequests() {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
+    // A failed load used to show "no requests found", which was not true.
+    const [loadFailed, setLoadFailed] = useState(false);
     const { t } = useLang();
 
     const loadRequests = async () => {
@@ -18,18 +21,22 @@ export default function UserMyRequests() {
             const response = await api.get('get_my_requests.php');
             if (response.data.success) {
                 setRequests(response.data.requests);
+                setLoadFailed(false);
+            } else {
+                setLoadFailed(true);
             }
         } catch (error) {
             console.error("Failed to fetch requests", error);
+            setLoadFailed(true);
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchRequests = () => {
-      setLoading(true);
-      return loadRequests();
-    };
+    // Refreshes in place after a cancel: the list stays on screen (it used to
+    // blank to "Loading…" first).
+    const fetchRequests = () => loadRequests();
+    const retryLoad = () => { setLoading(true); loadRequests(); };
 
     useEffect(() => {
         const load = async () => { await loadRequests(); };
@@ -110,6 +117,15 @@ export default function UserMyRequests() {
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     {loading ? (
                         <div className="p-8 text-center text-slate-400">{t('myRequests.loading')}</div>
+                    ) : loadFailed && requests.length === 0 ? (
+                        <div className="p-4">
+                            <InlineAlert>
+                                {t('common.loadFailed')}{' '}
+                                <button type="button" onClick={retryLoad} className="ml-1 min-h-[36px] px-3 rounded-lg bg-white border border-rose-300 text-rose-800 text-sm font-bold cursor-pointer hover:bg-rose-100">
+                                    {t('common.retry')}
+                                </button>
+                            </InlineAlert>
+                        </div>
                     ) : requests.length === 0 ? (
                         <div className="p-12 text-center">
                             <FontAwesomeIcon icon={faTools} className="text-4xl text-slate-200 mb-4" />

@@ -32,6 +32,14 @@ if ($incident_date === '' || $incident_time === '' || $location_details === '' |
     exit;
 }
 
+// Footage shows other people: the tenant must agree to the Data Privacy terms
+// on the form, and when they did is kept with the request (privacy_consent_at).
+if (($input['privacyConsent'] ?? null) !== true) {
+    http_response_code(422);
+    echo json_encode(["success" => false, "message" => "Please agree to the data privacy terms to request footage.", "field" => "privacyConsent"]);
+    exit;
+}
+
 $parsed_date = DateTime::createFromFormat('Y-m-d', $incident_date);
 $today = (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
 if (!$parsed_date || $parsed_date->format('Y-m-d') !== $incident_date || $incident_date > $today) {
@@ -52,7 +60,7 @@ if (!get_active_tenancy($conn, $user_id)) {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO cctv_requests (user_id, incident_date, incident_time, location_details, reason_request) VALUES (?, ?, ?, ?, ?)");
+$stmt = $conn->prepare("INSERT INTO cctv_requests (user_id, incident_date, incident_time, location_details, reason_request, privacy_consent_at) VALUES (?, ?, ?, ?, ?, NOW())");
 $stmt->bind_param("issss", $user_id, $incident_date, $incident_time, $location_details, $reason_request);
 
 if (!$stmt->execute()) {

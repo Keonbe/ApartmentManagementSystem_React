@@ -2,7 +2,7 @@ import { useState } from 'react';
 import SuccessModal from '../Components/SuccessModal';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
-import { LIMITS, checkDate, checkText, localDateString } from '../utils/validation';
+import { LIMITS, addDays, checkDate, checkText, localDateString } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
@@ -26,12 +26,10 @@ export default function CctvRequest() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
 
-    const today = new Date();
-    const twoMonthsAgo = new Date();
-    twoMonthsAgo.setMonth(today.getMonth() - 2);
-
-    const maxDateString = localDateString(today);
-    const minDateString = localDateString(twoMonthsAgo);
+    // Footage is kept about two months. addDays, not setMonth(-2): that rolled
+    // Apr 30 over to Mar 2 (there is no Feb 30).
+    const maxDateString = localDateString();
+    const minDateString = addDays(-60);
 
     // Keys match cctv_request.php's body. reason_request is TEXT, so the
     // limit is the shared notes cap (the old hard-coded 1000).
@@ -55,7 +53,9 @@ export default function CctvRequest() {
             incidentDate: incidentDate,
             incidentTime: incidentTime,
             locationDetails: locationDetails,
-            reasonRequest: reason
+            reasonRequest: reason,
+            // cctv_request.php requires it and stores when it was given.
+            privacyConsent: true
         };
 
         setIsSubmitting(true);
@@ -78,7 +78,7 @@ export default function CctvRequest() {
         <div className="cctv-root w-full min-h-[calc(100vh-76px)] bg-slate-50 py-6 sm:py-10 px-4 md:px-12 box-border flex flex-col items-center">
             <div className="w-full max-w-4xl space-y-6 sm:space-y-8 flex flex-col justify-start text-left">
 
-                {/*Top Header Row containing Live Slot Counter Indicators*/}
+                {/* Page header */}
                 <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h1
@@ -91,15 +91,7 @@ export default function CctvRequest() {
                             {t('cctv.subtext')}
                         </p>
                     </div>
-
-                    {/*Available Slots Counter Widget*/}
-                    <div className="cctv-status-widget bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm flex items-center space-x-3 flex-shrink-0 select-none">
-                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-500"></div>
-                        <div>
-                            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">{t('cctv.status')}</span>
-                            <span className="text-xl font-black text-slate-800 tracking-tight">{t('cctv.activeQueue')}</span>
-                        </div>
-                    </div>
+                    {/* A static "Active queue" widget stood here; it looked like live data but never changed. */}
                 </div>
 
                 {/*Form Inputs Panel Layout*/}
@@ -218,7 +210,7 @@ export default function CctvRequest() {
                 isOpen={isModalOpen}
                 onClose={() => {
                     setIsModalOpen(false);
-                    navigate('/home');
+                    navigate('/my-requests'); // where the request can be followed
                 }}
                 message={t('cctv.success')}
             />

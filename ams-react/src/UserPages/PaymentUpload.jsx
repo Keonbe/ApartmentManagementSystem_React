@@ -20,11 +20,25 @@ import '../assets/styles/responsive/user/payment-upload.responsive.css';
 const INPUT_CLS = "focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm";
 const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
 
+// The bill being paid arrives as navigation state, which a refresh loses: it is
+// kept for the tab in sessionStorage and cleared once the proof is sent.
+const SESSION_KEY = 'paymentUploadSession';
+const readSession = () => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null') || {}; } catch { return {}; }
+};
+
 export default function PaymentUpload() {
     const location = useLocation();
     const navigate = useNavigate();
     const { t } = useLang();
-    const state = location.state || {};
+    const [state] = useState(() => {
+        const fromNav = location.state || {};
+        if (fromNav.invoiceId) {
+            try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(fromNav)); } catch { /* storage blocked: refresh just won't restore */ }
+            return fromNav;
+        }
+        return readSession();
+    });
     const { invoiceId, amount, paymentMethod, returnUrl } = state;
     // paymentMethod is the channel label, e.g. 'GCash (Manual)' or 'BPI (Manual)'.
     const isGcash = /gcash/i.test(paymentMethod || '');
@@ -57,11 +71,16 @@ export default function PaymentUpload() {
     }, [paymentMethod]);
 
     if (!invoiceId) {
+        // Reached without choosing a bill (a bookmark, or the proof was already sent).
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50">
-                <div className="text-center">
-                    <h2 className="text-xl font-bold text-slate-800">Invalid Payment Session</h2>
-                    <button onClick={() => navigate('/home')} className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-xl cursor-pointer border-0">Go Home</button>
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4">
+                <div className="text-center max-w-md">
+                    <h2 className="text-xl font-bold text-slate-800 m-0">No bill selected</h2>
+                    <p className="m-0 mt-2 text-sm text-slate-600">Choose the bill to pay first. Tenants pay from Pay Bills; applicants pay their move-in bill from Track Application.</p>
+                    <div className="mt-5 flex flex-wrap justify-center gap-3">
+                        <button type="button" onClick={() => navigate('/pay-bills')} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-5 rounded-xl cursor-pointer border-0">Go to Pay Bills</button>
+                        <button type="button" onClick={() => navigate('/track-application')} className="min-h-[44px] bg-white border border-slate-300 text-slate-700 text-sm font-semibold px-5 rounded-xl cursor-pointer hover:bg-slate-50">Track Application</button>
+                    </div>
                 </div>
             </div>
         );
@@ -145,6 +164,7 @@ export default function PaymentUpload() {
 
             if (res.data.success) {
                 setSubmitted(true);
+                try { sessionStorage.removeItem(SESSION_KEY); } catch { /* nothing to clear */ }
             } else if (!form.applyServerErrors(res)) {
                 setError(res.data.message || "Failed to upload payment proof.");
             }
@@ -184,7 +204,7 @@ export default function PaymentUpload() {
                 <div className="payment-info-box bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-2xl p-6 space-y-4 shadow-inner">
                     <div className="flex justify-between items-center">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400">{t('paymentUpload.totalDue')}</span>
-                        <span className="text-2xl font-black text-indigo-600 md:text-indigo-400">₱{amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        <span className="text-2xl font-black text-indigo-600 md:text-indigo-400">₱{(Number(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="border-t border-slate-200 md:border-white/10 pt-4 mt-4">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>

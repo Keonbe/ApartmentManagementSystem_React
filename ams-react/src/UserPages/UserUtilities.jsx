@@ -11,6 +11,18 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import '../assets/styles/responsive/user/user-utilities.responsive.css';
 
+// What one reading costs: a total-only record is its total_amount; otherwise
+// water + electricity with their other fees, plus any extra items (what the
+// sync puts on the invoice). The card and the average both use this, so they
+// can no longer disagree (the average used to add total_amount to every row
+// and leave the items out).
+const money = (v) => parseFloat(v) || 0;
+function readingTotal(r) {
+  const items = (r.items || []).reduce((sum, it) => sum + money(it.amount) + money(it.other_fees), 0);
+  if (r.entry_mode === 'total') return money(r.total_amount) + items;
+  return money(r.water_amount) + money(r.water_other_fees) + money(r.electric_amount) + money(r.electric_other_fees) + items;
+}
+
 export default function UserUtilities() {
   const navigate = useNavigate();
   const [readings, setReadings] = useState([]);
@@ -25,6 +37,7 @@ export default function UserUtilities() {
       } else {
         setReadings([]);
       }
+      setError(null); // a later successful load clears an earlier failure
     } catch (err) {
       console.error("Failed to load utility history:", err);
       setError("Unable to load meter readings. Please try again later.");
@@ -50,7 +63,7 @@ export default function UserUtilities() {
       cycles: readings.length,
       avgWater: avgUsage('water_consumption'),
       avgElectric: avgUsage('electric_consumption'),
-      avgCost: (sum('water_amount') + sum('water_other_fees') + sum('electric_amount') + sum('electric_other_fees') + sum('total_amount')) / readings.length,
+      avgCost: readings.reduce((acc, r) => acc + readingTotal(r), 0) / readings.length,
     };
   }, [readings]);
 
@@ -140,7 +153,7 @@ export default function UserUtilities() {
             {readings.map(r => {
               // #2: Include other_fees in total (matches what sync sends to invoice)
               const isTotalOnly = r.entry_mode === 'total';
-              const totalAmount = (isTotalOnly ? parseFloat(r.total_amount || 0) : 0) + parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0) + parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0) + (r.items || []).reduce((sum, it) => sum + parseFloat(it.amount || 0) + parseFloat(it.other_fees || 0), 0);
+              const totalAmount = readingTotal(r);
               const isInvoiced = r.is_invoiced == 1;
 
               return (
@@ -171,7 +184,8 @@ export default function UserUtilities() {
                         : 'bg-amber-50 text-amber-700 border border-amber-200'
                     }`}>
                       <FontAwesomeIcon icon={isInvoiced ? faCheckCircle : faClock} className="text-xs" />
-                      <span>{isInvoiced ? (r.invoice_id ? `Billed on ${r.invoice_id}` : 'Billed') : 'Not Yet Billed'}</span>
+                      <span>{/* invoice_id is an id, not a date ("Billed on INV-…" read like one). */}
+                      {isInvoiced ? (r.invoice_id ? `On invoice ${r.invoice_id}` : 'Billed') : 'Not Yet Billed'}</span>
                     </span>
                   </div>
 

@@ -1230,7 +1230,7 @@ DELETE FROM notifications WHERE created_at >= NOW() - INTERVAL 1 HOUR;
 | `update_service_status.php` | POST | `require_admin` | `rawId`, `status` | `success`, `billed`, `invoiceId`, `warning` | `409` invalid transition, concurrent change or refused reversal · `422` |
 | `sync_service_to_invoice.php` | POST | `require_admin` | `rawId` | `success`, `invoiceId` | Not Completed, or already billed |
 | `cancel_request.php` | POST | `require_user` | `id`, `type: "Service"` | `success` | `409` not your own Pending booking |
-| `cctv_request.php` | POST (JSON) | `require_user` + active lease | `incidentDate`, `incidentTime`, `locationDetails`, `reasonRequest` | `success`, `id` | `401` · `403` · `422` future date or over-length fields |
+| `cctv_request.php` | POST (JSON) | `require_user` + active lease | `incidentDate`, `incidentTime`, `locationDetails`, `reasonRequest`, `privacyConsent` (must be JSON `true`) | `success`, `id` | `401` · `403` · `422` future date or over-length fields, or no consent (`field: privacyConsent`). Stores `privacy_consent_at` |
 | `get_cctv_requests.php` | GET | `require_admin` | — | `success`, `requests[]` | `403` |
 | `update_cctv_status.php` | POST | `require_admin` | `id` / `rawId`, `status` (`Approved` / `Rejected`) | `success` | `404` · `409` already decided · `422` |
 
