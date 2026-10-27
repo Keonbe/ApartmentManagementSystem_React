@@ -93,7 +93,7 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                         type="button"
                         onClick={close}
                         aria-label="Close"
-                        className="text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-base"
+                        className="text-slate-500 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-base"
                     >✕</button>
                 </div>
 
@@ -140,7 +140,7 @@ export default function ChangePasswordModal({ isOpen, onClose }) {
                         <button
                             type="submit"
                             disabled={isSaving || isSuccess}
-                            className="bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-6 py-2.5 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm border-0 cursor-pointer transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {isSaving ? 'Updating…' : 'Update Password'}
                         </button>

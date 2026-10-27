@@ -45,7 +45,7 @@ export default function SuccessModal({ isOpen, onClose, message = "Successfully 
                     <h3 className="text-lg font-bold text-slate-800 m-0 leading-snug">
                         {message}
                     </h3>
-                    <p className="text-xs text-slate-400 font-medium m-0">
+                    <p className="text-xs text-slate-500 font-medium m-0">
                         {subtext}
                     </p>
                 </div>
@@ -62,7 +62,7 @@ export default function SuccessModal({ isOpen, onClose, message = "Successfully 
                 {/*CloseActionButton*/}
                 <button
                     onClick={onClose}
-                    className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3 rounded-xl text-sm transition-all duration-200 shadow-md hover:shadow-indigo-200 border-0 cursor-pointer"
+                    className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3 rounded-xl text-sm transition-all duration-200 shadow-md hover:shadow-indigo-200 border-0 cursor-pointer"
                 >
                     Continue
                 </button>

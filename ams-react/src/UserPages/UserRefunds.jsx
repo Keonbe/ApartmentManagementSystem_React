@@ -82,7 +82,7 @@ export default function UserRefunds() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="m-0 text-base font-bold text-slate-800">{TYPE_LABELS[r.type] || r.type || 'Refund'} · {peso(r.amount)}</h3>
-                  <p className="m-0 text-xs text-slate-400">Request #{r.id} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by management' : ''}</p>
+                  <p className="m-0 text-xs text-slate-500">Request #{r.id} · {when(r.createdAt)}{r.raisedByRole === 'admin' ? ' · opened by management' : ''}</p>
                 </div>
                 <StatusBadge status={r.status} />
               </div>
@@ -95,7 +95,7 @@ export default function UserRefunds() {
                 <div className="mt-4 space-y-2">
                   <textarea rows={2} maxLength={1000} value={replies[r.id] || ''} placeholder="Write your reply"
                     onChange={(e) => setReplies((p) => ({ ...p, [r.id]: e.target.value }))}
-                    className="w-full rounded-lg border border-slate-300 p-2 text-sm" />
+                    className="w-full rounded-lg border border-slate-300 p-2 text-base sm:text-sm" />
                   <button type="button" disabled={busy === r.id || !(replies[r.id] || '').trim()}
                     onClick={() => call(r.id, 'respond_refund_request.php', { id: r.id, action: 'reply', message: replies[r.id] }, 'Reply sent.', () => setReplies((p) => ({ ...p, [r.id]: '' })))}
                     className="cursor-pointer rounded-lg border-0 bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">Send reply</button>

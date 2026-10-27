@@ -24,7 +24,7 @@ const MAX_MONTHS = 24;
 const ADDRESS_MIN = 5;
 const ADDRESS_MAX = 255;
 const docKey = (id) => `doc_${id}`;
-const INPUT_CLS = "w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner text-sm transition-all font-medium disabled:opacity-75 disabled:cursor-not-allowed";
+const INPUT_CLS = "w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-inner text-base sm:text-sm transition-all font-medium disabled:opacity-75 disabled:cursor-not-allowed";
 const LOCKED_CLS = "w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 shadow-inner text-sm font-medium cursor-not-allowed";
 const LABEL_CLS = "text-sm font-bold text-slate-700";
 
@@ -54,7 +54,7 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
         <div className="flex flex-col space-y-2">
             <label htmlFor={`rent-${fieldKey}`} className={LABEL_CLS}>
                 {label}
-                {optional && <span className="text-xs font-normal text-slate-400 ml-1">({t('rent.optional')})</span>}
+                {optional && <span className="text-xs font-normal text-slate-500 ml-1">({t('rent.optional')})</span>}
                 {form.errors[fieldKey] && <span className="text-rose-500"> *</span>}
             </label>
             <div
@@ -82,7 +82,7 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
                             </div>
                             <p className="text-xs font-bold text-slate-600 m-0 leading-relaxed">{dropText}<br /><span className="text-indigo-600">{t('rent.browse')}</span></p>
                             {keepsPath && (
-                                <p className="text-[10px] text-emerald-600 font-bold m-0">{t('rent.docOnFile')}</p>
+                                <p className="text-xs text-emerald-600 font-bold m-0">{t('rent.docOnFile')}</p>
                             )}
                         </div>
                     </>
@@ -98,11 +98,11 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
                         ) : (
                             <div className="w-full h-24 bg-indigo-50 flex flex-col items-center justify-center rounded-xl border border-indigo-200 text-indigo-600">
                                 <FileText className="w-8 h-8 mb-2" />
-                                <button type="button" onClick={() => onPreview(file, label)} className="bg-indigo-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-sm cursor-pointer border-0">View PDF</button>
+                                <button type="button" onClick={() => onPreview(file, label)} className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm cursor-pointer border-0">View PDF</button>
                             </div>
                         )}
-                        <p className="text-[10px] font-bold text-slate-600 m-0 truncate w-full px-2">
-                            {file.name} <span className="font-normal text-slate-400">({formatFileSize(file.size)})</span>
+                        <p className="text-xs font-bold text-slate-600 m-0 truncate w-full px-2">
+                            {file.name} <span className="font-normal text-slate-500">({formatFileSize(file.size)})</span>
                         </p>
                         <button type="button" onClick={onRemove} className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2 rounded-xl transition-colors cursor-pointer border-0">Remove</button>
                     </div>
@@ -557,7 +557,7 @@ export default function RentApplication() {
                         <div className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border border-current self-start sm:self-center transition-all duration-300 ${isPendingReview ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
                             {isPendingReview ? <Hourglass className="w-5 h-5" aria-hidden="true" /> : <Check className="w-5 h-5" />}
                             <div className="flex flex-col text-left">
-                                <span className="text-[10px] uppercase tracking-wider opacity-75 leading-none">{t('rent.statusLabel')}</span>
+                                <span className="text-xs opacity-75 leading-none">{t('rent.statusLabel')}</span>
                                 <span className="text-sm font-black mt-0.5">{isPendingReview ? t('rent.pendingReview') : t('rent.approved')}</span>
                             </div>
                         </div>
@@ -620,7 +620,7 @@ export default function RentApplication() {
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-suffix" className={LABEL_CLS}>
-                                        {t('rent.suffix')} <span className="text-xs font-normal text-slate-400 ml-1">(Optional)</span>
+                                        {t('rent.suffix')} <span className="text-xs font-normal text-slate-500 ml-1">(Optional)</span>
                                     </label>
                                     <input
                                         type="text"
@@ -705,7 +705,7 @@ export default function RentApplication() {
                                 <div className="flex flex-col">
                                     <label htmlFor="rent-occupants" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
                                         <span>{t('rent.occupants')} {form.errors.occupants && <span className="text-rose-500 ml-0.5">*</span>}</span>
-                                        <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{t('rent.occupantsSurcharge')}</span>
+                                        <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full">{t('rent.occupantsSurcharge')}</span>
                                     </label>
                                     <div className="flex flex-col">
                                     <input
@@ -730,7 +730,7 @@ export default function RentApplication() {
                                 <div className="flex flex-col">
                                     <label htmlFor="rent-monthsOfRent" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
                                         <span>{t('rent.monthsOfRent')} {form.errors.monthsOfRent && <span className="text-rose-500 ml-0.5">*</span>}</span>
-                                        <span className="text-xs font-semibold text-slate-400">{t('rent.monthsMax').replace('{min}', minMonths)}</span>
+                                        <span className="text-xs font-semibold text-slate-500">{t('rent.monthsMax').replace('{min}', minMonths)}</span>
                                     </label>
                                     <div className="flex flex-col">
                                     <input
@@ -809,7 +809,7 @@ export default function RentApplication() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-roomType" className="text-sm font-bold text-slate-800 select-none">{t('rent.roomType')}</label>
-                                    <input id="rent-roomType" type="text" value={selectedRoom?.type || '—'} disabled className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-sm select-none cursor-not-allowed shadow-inner" />
+                                    <input id="rent-roomType" type="text" value={selectedRoom?.type || '—'} disabled className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-base sm:text-sm select-none cursor-not-allowed shadow-inner" />
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-roomName" className="text-sm font-bold text-slate-800 select-none flex justify-between">
@@ -823,7 +823,7 @@ export default function RentApplication() {
                                         {...form.fieldA11y('roomName')}
                                         value={selectedRoomId ? `Room ${selectedRoomId}` : 'No room chosen yet'}
                                         disabled
-                                        className={`w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-sm select-none cursor-not-allowed shadow-inner${invalidCls(form.errors.roomName)}`}
+                                        className={`w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-base sm:text-sm select-none cursor-not-allowed shadow-inner${invalidCls(form.errors.roomName)}`}
                                     />
                                     <FieldError id="rent-roomName" error={form.errors.roomName} className="m-0" />
                                 </div>
@@ -837,7 +837,7 @@ export default function RentApplication() {
                                         className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-indigo-700 font-black text-lg select-none cursor-not-allowed shadow-inner"
                                     />
                                     {surcharge > 0 && (
-                                        <span className="text-[10px] text-emerald-600 font-bold mt-1 uppercase tracking-wide">
+                                        <span className="text-xs text-emerald-600 font-bold mt-1">
                                             {t('rent.extraOccupantFee').replace('{amount}', surcharge.toLocaleString())}
                                         </span>
                                     )}
@@ -858,7 +858,7 @@ export default function RentApplication() {
                                 </div>
                             ) : (
                                 requirementsState === 'loading' ? (
-                                    <p className="m-0 text-sm font-semibold text-slate-400 animate-pulse">{t('rent.docsLoading')}</p>
+                                    <p className="m-0 text-sm font-semibold text-slate-500 animate-pulse">{t('rent.docsLoading')}</p>
                                 ) : requirementsState === 'error' ? (
                                     <p role="alert" className="m-0 rounded-xl bg-rose-50 p-4 text-sm font-semibold text-rose-700">{t('rent.docsLoadFailed')}</p>
                                 ) : requirements.length === 0 ? (
@@ -931,7 +931,7 @@ export default function RentApplication() {
                                     <button
                                         type="submit"
                                         disabled={submitting}
-                                        className={`rent-app-submit-btn w-full sm:w-auto font-black px-12 py-4 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30 text-white cursor-pointer' : submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 text-white cursor-pointer hover:-translate-y-1 active:translate-y-0'}`}
+                                        className={`rent-app-submit-btn w-full sm:w-auto font-black px-12 py-4 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30 text-white cursor-pointer' : submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 text-white cursor-pointer hover:-translate-y-1 active:translate-y-0'}`}
                                     >
                                         {submitting ? 'Submitting…' : applicationStatus === 'accepted' ? t('rent.proceedPayment') : t('rent.submitApp')}
                                     </button>
@@ -963,7 +963,7 @@ export default function RentApplication() {
                                 >
                                     <span className="flex justify-between items-start mb-2">
                                         <span className="text-lg font-black text-slate-900">Room {room.id}</span>
-                                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md uppercase tracking-wider">Available</span>
+                                        <span className="text-xs font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">Available</span>
                                     </span>
                                     <span className="block text-sm font-medium text-slate-500">Floor: <span className="text-slate-800 font-bold">{room.floor || 'N/A'}</span></span>
                                     <span className="block text-indigo-700 font-black text-lg">₱{Number(room.rent).toLocaleString(undefined, { minimumFractionDigits: 2 })}<span className="text-xs text-indigo-500 font-medium">/mo</span></span>

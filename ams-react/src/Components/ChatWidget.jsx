@@ -346,7 +346,7 @@ const ChatWidget = () => {
         const isTenant = userRole !== 'admin';
 
         return (
-            <div className="flex flex-col items-center justify-center text-center text-slate-400 mt-16 p-4">
+            <div className="flex flex-col items-center justify-center text-center text-slate-500 mt-16 p-4">
                 <FontAwesomeIcon icon={faComment} className="text-4xl mb-3 opacity-20" />
                 <p className="text-sm font-medium m-0">No active conversations found</p>
                 {isTenant && openSupportChat && (
@@ -385,7 +385,7 @@ const ChatWidget = () => {
                 >
                     <FontAwesomeIcon icon={faComment} className="text-2xl" />
                     {totalUnreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 min-w-6 h-6 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md border-2 border-white">
+                        <span className="absolute -top-1 -right-1 min-w-6 h-6 px-1.5 rounded-full bg-rose-500 text-white text-xs font-bold flex items-center justify-center shadow-md border-2 border-white">
                             {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
                         </span>
                     )}
@@ -479,7 +479,7 @@ const ChatWidget = () => {
                                                 className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0"
                                             />
                                             {Number(conv.unread_count) > 0 && (
-                                                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm border-2 border-white">
+                                                <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-500 text-white text-xs font-bold flex items-center justify-center shadow-sm border-2 border-white">
                                                     {conv.unread_count > 9 ? '9+' : conv.unread_count}
                                                 </span>
                                             )}
@@ -491,7 +491,7 @@ const ChatWidget = () => {
                                                     {isGuestConversation(conv) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
                                                 </h4>
                                                 {conv.last_message_time && (
-                                                    <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0 ml-3">
+                                                    <span className="text-xs text-slate-500 whitespace-nowrap shrink-0 ml-3">
                                                         {new Date(conv.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 )}
@@ -513,7 +513,7 @@ const ChatWidget = () => {
                         /* Active Conversation Message Stream */
                         <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
                                             {displayedMessages.length === 0 ? (
-                                <div className="text-center text-slate-400 text-xs mt-10">
+                                <div className="text-center text-slate-500 text-xs mt-10">
                                     Send a message to start this conversation.
                                 </div>
                             ) : (
@@ -536,16 +536,16 @@ const ChatWidget = () => {
                                         <div id={`chat-message-${msg.id}`} key={messageKey} className={`message-enter mb-3 ${expandedTimestampId === messageKey ? 'pb-4' : ''}`}>
                                             {showDateSeparator && (
                                                 <div className="flex justify-center my-5">
-                                                    <span className="text-slate-500 text-[11px] font-medium">
+                                                    <span className="text-slate-500 text-xs font-medium">
                                                         {formatMessageDateTime(msg.created_at)}
                                                     </span>
                                                 </div>
                                             )}
                                             <div className={`group flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
+                                        {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-xs" /></button>}
                                                 <div className={`relative flex max-w-[80%] flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                                    {msg.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-[11px] text-slate-500">
-                                                        <FontAwesomeIcon icon={faReply} className="text-[10px]" />
+                                                    {msg.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-xs text-slate-500">
+                                                        <FontAwesomeIcon icon={faReply} className="text-xs" />
                                                         <span>{isMe ? 'You' : (isGuestChat ? 'Admin User' : activeChat.other_user_name)} replied to {String(msg.reply_sender_id) === String(msg.sender_id) ? 'themselves' : (isMe ? (isGuestChat ? 'Admin User' : activeChat.other_user_name) : 'you')}</span>
                                                     </div>}
                                                     {msg.reply_to_id && msg.reply_attachment_path && (() => {
@@ -578,17 +578,17 @@ const ChatWidget = () => {
                                                         })()}
                                                     </div>
                                                     {expandedTimestampId === messageKey && (
-                                                        <p className={`pointer-events-none absolute top-full z-10 mt-1 w-max max-w-[min(80vw,20rem)] whitespace-normal break-words text-[10px] leading-3.5 text-slate-500 animate-fade-in-up ${isMe ? 'right-0 text-right' : 'left-0 text-left'}`}>
+                                                        <p className={`pointer-events-none absolute top-full z-10 mt-1 w-max max-w-[min(80vw,20rem)] whitespace-normal break-words text-xs leading-3.5 text-slate-500 animate-fade-in-up ${isMe ? 'right-0 text-right' : 'left-0 text-left'}`}>
                                                             {formatExactMessageDateTime(msg.created_at)}
                                                         </p>
                                                     )}
                                                     {isLatestSentMessage && (
-                                                        <p className="m-0 mt-1 text-right text-[10px] text-slate-500 font-medium">
+                                                        <p className="m-0 mt-1 text-right text-xs text-slate-500 font-medium">
                                                             {Number(msg.is_read) === 1 ? 'Seen' : 'Sent'}
                                                         </p>
                                                     )}
                                                 </div>
-                                        {!isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-[10px]" /></button>}
+                                        {!isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-xs" /></button>}
                                             </div>
                                         </div>
                                     );
@@ -627,7 +627,7 @@ const ChatWidget = () => {
                                     value={newMessage}
                                     onChange={(e) => { handleInputChange(e); if (sendError) setSendError(''); }}
                                     placeholder="Type a message..."
-                                    className="h-full flex-1 min-w-0 bg-transparent px-2 text-sm outline-none border-0"
+                                    className="h-full flex-1 min-w-0 bg-transparent px-2 text-base sm:text-sm outline-none border-0"
                                 />
                                 </div>
                                 <button

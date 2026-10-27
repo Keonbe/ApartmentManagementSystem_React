@@ -202,7 +202,7 @@ export default function CctvRequest() {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="cctv-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center"
+                            className="cctv-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center"
                         >
                             {isSubmitting ? 'Submitting…' : t('cctv.submit')}
                         </button>

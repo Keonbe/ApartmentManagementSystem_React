@@ -78,7 +78,7 @@ export default function UserUtilities() {
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="h-9 w-9 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                className="h-11 w-11 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
                 title="Go Back"
               >
                 <FontAwesomeIcon icon={faArrowLeft} className="text-sm" />
@@ -113,7 +113,7 @@ export default function UserUtilities() {
 
         {/* Content Body */}
         {loading ? (
-          <div className="p-12 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-400" style={{ textAlign: 'center' }}>
+          <div className="p-12 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-500" style={{ textAlign: 'center' }}>
             <FontAwesomeIcon icon={faTint} className="animate-pulse text-3xl mb-3 text-indigo-400" />
             <p className="text-sm font-semibold m-0 text-center" style={{ textAlign: 'center' }}>Loading your unit's meter readings...</p>
           </div>
@@ -122,7 +122,7 @@ export default function UserUtilities() {
             <p className="text-sm font-semibold m-0 text-center" style={{ textAlign: 'center' }}>{error}</p>
           </div>
         ) : readings.length === 0 ? (
-          <div className="p-12 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-400" style={{ textAlign: 'center' }}>
+          <div className="p-12 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-500" style={{ textAlign: 'center' }}>
             <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl mx-auto mb-4">
               <FontAwesomeIcon icon={faInfoCircle} />
             </div>
@@ -136,17 +136,17 @@ export default function UserUtilities() {
             {summary && (
               <div className="stagger-children grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Avg water / cycle</p>
+                  <p className="text-xs font-bold text-slate-500 m-0">Avg water / cycle</p>
                   <p className="text-xl font-black text-blue-800 m-0 mt-1">{summary.avgWater} m³</p>
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Avg electricity / cycle</p>
+                  <p className="text-xs font-bold text-slate-500 m-0">Avg electricity / cycle</p>
                   <p className="text-xl font-black text-amber-800 m-0 mt-1">{summary.avgElectric} kWh</p>
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider m-0">Avg utility cost / cycle</p>
+                  <p className="text-xs font-bold text-slate-500 m-0">Avg utility cost / cycle</p>
                   <p className="text-xl font-black text-slate-900 m-0 mt-1">₱{summary.avgCost.toFixed(2)}</p>
-                  <p className="text-[11px] text-slate-400 m-0">Across {summary.cycles} billing {summary.cycles === 1 ? 'cycle' : 'cycles'}</p>
+                  <p className="text-xs text-slate-500 m-0">Across {summary.cycles} billing {summary.cycles === 1 ? 'cycle' : 'cycles'}</p>
                 </div>
               </div>
             )}
@@ -170,8 +170,8 @@ export default function UserUtilities() {
                           Billing Cycle: {r.billing_period_label || r.billing_period}
                         </h3>
                         {r.reading_date && (
-                          <p className="text-xs text-slate-400 m-0 mt-0.5 flex items-center gap-1.5">
-                            <FontAwesomeIcon icon={faCalendarAlt} className="text-[10px]" />
+                          <p className="text-xs text-slate-500 m-0 mt-0.5 flex items-center gap-1.5">
+                            <FontAwesomeIcon icon={faCalendarAlt} className="text-xs" />
                             {r.entry_mode === 'bill' ? 'Recorded on' : 'Meter reading taken on'} {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                           </p>
                         )}
@@ -179,10 +179,10 @@ export default function UserUtilities() {
                     </div>
 
                     <span className={`self-start sm:self-auto inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full ${
-                      isInvoiced 
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}>
+ isInvoiced 
+ ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+ : 'bg-amber-50 text-amber-700 border border-amber-200'
+ }`}>
                       <FontAwesomeIcon icon={isInvoiced ? faCheckCircle : faClock} className="text-xs" />
                       <span>{/* invoice_id is an id, not a date ("Billed on INV-…" read like one). */}
                       {isInvoiced ? (r.invoice_id ? `On invoice ${r.invoice_id}` : 'Billed') : 'Not Yet Billed'}</span>
@@ -238,7 +238,7 @@ export default function UserUtilities() {
                           <FontAwesomeIcon icon={faTint} className="text-blue-500" />
                           Water Meter
                         </span>
-                        <span className="text-[11px] font-semibold text-blue-600 bg-white px-2 py-0.5 rounded-full border border-blue-200">
+                        <span className="text-xs font-semibold text-blue-600 bg-white px-2 py-0.5 rounded-full border border-blue-200">
                           ₱{r.water_rate_per_unit}/m³
                         </span>
                       </div>
@@ -281,7 +281,7 @@ export default function UserUtilities() {
                           <FontAwesomeIcon icon={faBolt} className="text-amber-500" />
                           Electricity Meter
                         </span>
-                        <span className="text-[11px] font-semibold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-200">
+                        <span className="text-xs font-semibold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-200">
                           ₱{r.electric_rate_per_unit}/kWh
                         </span>
                       </div>
@@ -322,14 +322,14 @@ export default function UserUtilities() {
                     {/* Total Combined Summary Block */}
                     <div className="md:col-span-4 p-5 rounded-2xl bg-slate-900 text-white flex flex-col justify-between space-y-3">
                       <div>
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <span className="text-xs font-bold text-slate-300 block">
                           Total Utility Subtotal
                         </span>
                         <span className="text-2xl lg:text-3xl font-black text-emerald-400 mt-1 block">
                           ₱{totalAmount.toFixed(2)}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 m-0 leading-tight">
+                      <p className="text-xs text-slate-300 m-0 leading-tight">
                         {isInvoiced 
                           ? "This amount has been billed. Settle it from Pay Bills."
                           : "Recorded by the administrator and not billed yet."}
@@ -355,7 +355,7 @@ export default function UserUtilities() {
                   {/* Notes Footer */}
                   {r.notes && (
                     <div className="pt-2 text-xs text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex items-center gap-2">
-                      <FontAwesomeIcon icon={faInfoCircle} className="text-slate-400 text-xs shrink-0" />
+                      <FontAwesomeIcon icon={faInfoCircle} className="text-slate-500 text-xs shrink-0" />
                       <span><strong>Admin Note:</strong> {r.notes}</span>
                     </div>
                   )}
@@ -441,8 +441,8 @@ function ReadingPayment({ r, onChanged }) {
             <input type="file" aria-label="Proof of payment" accept={acceptFor(FILE_RULES.paymentProof)} onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-xs" />
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={busy} className="cursor-pointer rounded-lg border-0 bg-indigo-600 px-3 py-1.5 font-bold text-white disabled:opacity-50">{busy ? 'Sending…' : 'Send proof'}</button>
-            <button type="button" onClick={() => setOpen(false)} className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 font-semibold text-slate-600">Cancel</button>
+            <button type="submit" disabled={busy} className="min-h-[44px] cursor-pointer rounded-lg border-0 bg-indigo-600 px-4 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Sending…' : 'Send proof'}</button>
+            <button type="button" onClick={() => setOpen(false)} className="min-h-[44px] cursor-pointer rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-600">Cancel</button>
           </div>
         </form>
       )}
@@ -458,7 +458,7 @@ function UsageChange({ pct }) {
   const high = pct > 30;
   const tone = high ? 'text-rose-600' : pct > 0 ? 'text-amber-700' : 'text-emerald-700';
   return (
-    <div className={`text-[11px] font-semibold ${tone}`}>
+    <div className={`text-xs font-semibold ${tone}`}>
       {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {Math.abs(pct)}% vs previous cycle{high ? ' — unusually high' : ''}
     </div>
   );

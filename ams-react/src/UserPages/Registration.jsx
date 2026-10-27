@@ -12,7 +12,7 @@ import { invalidCls } from '../Components/form/formHelpers';
 import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/registration.responsive.css';
 
-const INPUT_CLS = "block px-3.5 pb-2 pt-5 w-full text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border";
+const INPUT_CLS = "block px-3.5 pb-2 pt-5 w-full text-base sm:text-sm text-slate-900 bg-slate-50 rounded-xl border border-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent peer transition-all shadow-inner box-border";
 const LABEL_CLS = "absolute text-xs text-slate-600 font-semibold duration-300 transform -translate-y-2.5 scale-75 top-3 z-10 origin-[0] left-3.5 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-2.5 cursor-text";
 
 const EMPTY = { firstname: '', middlename: '', lastname: '', suffix: '', email: '', password: '', conPassword: '' };
@@ -140,7 +140,7 @@ export default function Registration({ onLoginRedirect }) {
             type="button"
             onClick={toggle}
             aria-label={shown ? `Hide ${label}` : `Show ${label}`}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20"
+            className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20 focus-visible:outline-2 focus-visible:outline-indigo-500"
         >
             {shown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
@@ -192,7 +192,7 @@ export default function Registration({ onLoginRedirect }) {
                         AMS
                     </h1>
                     <div className="w-48 border-t border-white/20 my-3"></div>
-                    <p className="text-xs font-light uppercase tracking-widest text-white/70 m-0">
+                    <p className="text-xs font-light text-white/70 m-0">
                         {t('login.tagline')}
                     </p>
                 </div>
@@ -220,7 +220,7 @@ export default function Registration({ onLoginRedirect }) {
                             AMS
                         </h1>
                         <div className="w-24 border-t my-1.5" style={{ borderColor: 'rgba(59, 66, 118, 0.2)' }}></div>
-                        <p className="text-[9px] font-medium uppercase tracking-widest m-0 text-center text-slate-500">
+                        <p className="text-xs font-medium m-0 text-center text-slate-500">
                             {t('login.tagline')}
                         </p>
                     </div>
@@ -283,7 +283,7 @@ export default function Registration({ onLoginRedirect }) {
                                 </div>
                             )}
 
-                            <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2 disabled:opacity-70">
+                            <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2 disabled:opacity-70">
                                 {isSubmitting ? 'Creating account…' : t('reg.submit')}
                             </button>
                         </form>

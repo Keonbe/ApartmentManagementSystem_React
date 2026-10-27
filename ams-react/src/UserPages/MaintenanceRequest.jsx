@@ -232,7 +232,7 @@ export default function MaintenanceRequest() {
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
                             className={`maintenance-upload-box w-full border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-150 relative bg-slate-50 flex flex-col items-center justify-center min-h-[140px] ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300'
-                                }`}
+ }`}
                         >
                             {!uploadedFile ? (
                                 <>
@@ -244,9 +244,9 @@ export default function MaintenanceRequest() {
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
                                     <div className="space-y-2 pointer-events-none">
-                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
+                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-500" />
                                         <p className="text-sm font-medium text-slate-700 m-0">{t('maintenance.dropFile')} <span className="text-indigo-600 font-bold">{t('maintenance.browse')}</span></p>
-                                        <p className="text-slate-400 text-xs m-0">{t('maintenance.supports')}</p>
+                                        <p className="text-slate-500 text-xs m-0">{t('maintenance.supports')}</p>
                                     </div>
                                 </>
                             ) : (
@@ -266,7 +266,7 @@ export default function MaintenanceRequest() {
                                     )}
                                     <div className="text-center">
                                         <p className="text-sm font-bold text-slate-800 m-0 truncate max-w-[240px]">{uploadedFile.name}</p>
-                                        <p className="text-slate-400 text-xs m-0 mt-0.5">({formatFileSize(uploadedFile.size)})</p>
+                                        <p className="text-slate-500 text-xs m-0 mt-0.5">({formatFileSize(uploadedFile.size)})</p>
                                     </div>
                                     <button
                                         type="button"

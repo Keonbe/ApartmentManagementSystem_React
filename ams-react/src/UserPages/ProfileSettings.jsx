@@ -18,7 +18,7 @@ import ConfirmDialog from '../Components/ConfirmDialog';
 import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
 
-const INPUT_CLS = "focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm";
+const INPUT_CLS = "focus-glow w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base sm:text-sm";
 const GENDERS = ['Male', 'Female', 'Other'];
 
 // Names match profile.php's body keys, so a server field error lands on the input.
@@ -379,10 +379,10 @@ export default function ProfileSettings() {
                                         </>
                                     ) : (
                                         <>
-                                            <button type="button" onClick={handleRetake} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer shadow flex items-center gap-1.5">
-                                                <FontAwesomeIcon icon={faUndo} /> Retake
+                                            <button type="button" onClick={handleRetake} className="min-h-[44px] bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow flex items-center gap-1.5">
+                                                <FontAwesomeIcon icon={faUndo} aria-hidden="true" /> Retake
                                             </button>
-                                            <button type="button" onClick={() => setIsCameraActive(false)} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer shadow">
+                                            <button type="button" onClick={() => setIsCameraActive(false)} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow">
                                                 Keep Snapshot
                                             </button>
                                         </>
@@ -403,9 +403,9 @@ export default function ProfileSettings() {
                                         aria-describedby={avatarError ? 'profile-avatar-error' : undefined}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
-                                    <FontAwesomeIcon icon={faUpload} className="text-slate-400 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
+                                    <FontAwesomeIcon icon={faUpload} className="text-slate-500 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
                                     <span className="text-xs font-bold text-slate-700">{t('profile.chooseFile')}</span>
-                                    <span className="text-[10px] text-slate-400 mt-0.5">{FILE_RULES.avatar.label} up to {FILE_RULES.avatar.maxMB} MB</span>
+                                    <span className="text-xs text-slate-500 mt-0.5">{FILE_RULES.avatar.label} up to {FILE_RULES.avatar.maxMB} MB</span>
                                 </div>
 
                                 {/* Simulated Camera button */}
@@ -414,9 +414,9 @@ export default function ProfileSettings() {
                                     onClick={startCamera}
                                     className="border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center text-center bg-slate-50/50 cursor-pointer group transition-all min-h-[110px]"
                                 >
-                                    <FontAwesomeIcon icon={faCamera} className="text-slate-400 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
+                                    <FontAwesomeIcon icon={faCamera} className="text-slate-500 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
                                     <span className="text-xs font-bold text-slate-700">{t('profile.takeSnapshot')}</span>
-                                    <span className="text-[10px] text-slate-400 mt-0.5">Use your device webcam camera</span>
+                                    <span className="text-xs text-slate-500 mt-0.5">Use your device webcam camera</span>
                                 </button>
                             </div>
                         )}
@@ -430,13 +430,13 @@ export default function ProfileSettings() {
                                         <p className="text-xs font-bold text-indigo-900 m-0">
                                             {selectedFile ? `${selectedFile.name} (${formatFileSize(selectedFile.size)})` : 'Pre-uploaded avatar preview'}
                                         </p>
-                                        <p className="text-[10px] text-indigo-500 m-0">Click Save Profile below to commit updates</p>
+                                        <p className="text-xs text-indigo-500 m-0">Click Save Profile below to commit updates</p>
                                     </div>
                                 </div>
                                 <button type="button" onClick={() => {
                                     setTempAvatar(null);
                                     setSelectedFile(null);
-                                }} className="text-slate-400 hover:text-red-500 bg-transparent border-0 cursor-pointer text-xs font-semibold px-2">
+                                }} className="min-h-[44px] text-slate-600 hover:text-red-600 bg-transparent border-0 cursor-pointer text-sm font-semibold px-3">
                                     Remove
                                 </button>
                             </div>
@@ -548,7 +548,7 @@ export default function ProfileSettings() {
                                 </div>
                                 <div>
                                     <p className="m-0 text-sm font-bold text-slate-800">{t('profile.verificationDocs')}</p>
-                                    <p className="m-0 text-xs text-slate-400 mt-0.5">View the documents on your application</p>
+                                    <p className="m-0 text-xs text-slate-500 mt-0.5">View the documents on your application</p>
                                 </div>
                             </button>
                             <button type="button" onClick={() => setShowPassModal(true)} className="btn-interactive bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
@@ -557,7 +557,7 @@ export default function ProfileSettings() {
                                 </div>
                                 <div>
                                     <p className="m-0 text-sm font-bold text-slate-800">{t('profile.accountSecurity')}</p>
-                                    <p className="m-0 text-xs text-slate-400 mt-0.5">Update login credentials</p>
+                                    <p className="m-0 text-xs text-slate-500 mt-0.5">Update login credentials</p>
                                 </div>
                             </button>
                         </div>
@@ -572,7 +572,7 @@ export default function ProfileSettings() {
                             <button
                                 type="submit"
                                 disabled={isSaving}
-                                className="profile-save-btn btn-interactive w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="profile-save-btn btn-interactive w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 <FontAwesomeIcon icon={faSave} />
                                 <span>{isSaving ? 'Saving…' : t('profile.saveProfile')}</span>

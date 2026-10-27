@@ -1143,7 +1143,7 @@ All endpoints return JSON with this shape on error:
 
 | Endpoint | Field Name | Max Size | Formats | Storage Path |
 |----------|-----------|----------|---------|-------------|
-| [profile.php](../../backend/api/profile.php) | `avatar` | — | JPG, PNG, GIF, WEBP | `uploads/avatars/` |
+| [profile.php](../../backend/api/profile.php) | `avatar` | — | JPG, PNG, WEBP | `uploads/avatars/` |
 | [rent_application.php](../../backend/api/rent_application.php) | `validIdFrontFile`, `validIdBackFile`, `nbiFile` | 10MB | JPG, PNG, PDF | `uploads/applications/` |
 | [upload_payment_proof.php](../../backend/api/upload_payment_proof.php) | `proof` / `proofImage` | 10MB | JPG, PNG, WEBP, PDF | `uploads/payment_proofs/` |
 | [upload_lease_document.php](../../backend/api/upload_lease_document.php) | `document` | 10MB | JPG, PNG, PDF, WEBP | `uploads/lease_documents/` |

@@ -344,17 +344,17 @@ export default function UserVisitors() {
                   <div className="space-y-1">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
                     <p className="text-xs text-slate-500 m-0">{t('visitors.colPurpose')}: <span className="font-semibold text-slate-700">{v.purpose}</span></p>
-                    <p className="text-[11px] text-slate-400 m-0">
+                    <p className="text-xs text-slate-500 m-0">
                       {new Date(v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {t('visitors.colDuration')}: <span className="font-bold text-emerald-600">{v.duration}</span>
                     </p>
                     {v.expectedCheckOutAt && (
-                      <p className="text-[11px] text-slate-400 m-0">{t('visitors.expectedOut')}: {fmtShort(v.expectedCheckOutAt)}</p>
+                      <p className="text-xs text-slate-500 m-0">{t('visitors.expectedOut')}: {fmtShort(v.expectedCheckOutAt)}</p>
                     )}
                   </div>
                   <button
                     type="button"
                     onClick={() => setDepartTarget(v.id)}
-                    className="btn-interactive rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer"
+                    className="btn-interactive min-h-[44px] rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 text-sm font-bold transition-colors border-0 cursor-pointer"
                   >
                     {t('visitors.markDeparted')}
                   </button>
@@ -380,23 +380,23 @@ export default function UserVisitors() {
                 <div key={v.id} className="card-interactive rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
-                    <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5">Pending Review</span>
+                    <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5">Pending Review</span>
                   </div>
                   <p className="text-xs text-slate-500 m-0 mt-1">Contact: {v.contactNumber} • Purpose: {v.purpose}</p>
                   {v.expectedAt && (
-                    <p className="text-[11px] text-slate-500 m-0 mt-0.5">
+                    <p className="text-xs text-slate-500 m-0 mt-0.5">
                       Expected {fmtShort(v.expectedAt)}
                       {v.expectedCheckOutAt && ` – ${fmtShort(v.expectedCheckOutAt)}`}
                     </p>
                   )}
                   {v.vehiclePlate && (
-                    <p className="text-[11px] text-indigo-600 font-mono font-bold m-0 mt-0.5">Vehicle: {v.vehiclePlate}</p>
+                    <p className="text-xs text-indigo-600 font-mono font-bold m-0 mt-0.5">Vehicle: {v.vehiclePlate}</p>
                   )}
                   <button
                     type="button"
                     onClick={() => setCancelTarget(v.id)}
                     disabled={cancellingId === v.id}
-                    className="mt-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 text-[11px] font-bold transition-colors border-0 cursor-pointer disabled:opacity-50"
+                    className="mt-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 text-xs font-bold transition-colors border-0 cursor-pointer disabled:opacity-50"
                   >
                     {cancellingId === v.id ? t('visitors.cancelling') : t('visitors.cancelRegistration')}
                   </button>
@@ -415,9 +415,9 @@ export default function UserVisitors() {
             </div>
           </div>
 
-          <div className="user-visitors-table-container table-scroll-x overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="user-visitors-table-container sm:overflow-x-auto">
+            <table className="block sm:table w-full sm:min-w-[700px] text-left text-sm">
+              <thead className="hidden sm:table-header-group border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
                 <tr>
                   <th className="px-5 py-3">{t('visitors.colName')}</th>
                   <th className="px-4 py-3">{t('visitors.colPurpose')}</th>
@@ -427,10 +427,10 @@ export default function UserVisitors() {
                   <th className="px-5 py-3 text-center">{t('visitors.colStatus')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="block sm:table-row-group divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="px-5 py-10 text-center text-slate-400">{t('visitors.loading')}</td>
+                    <td colSpan="6" className="px-5 py-10 text-center text-slate-500">{t('visitors.loading')}</td>
                   </tr>
                 ) : error ? (
                   <tr>
@@ -439,7 +439,7 @@ export default function UserVisitors() {
                 ) : visitors.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="px-5 py-12 text-center">
-                      <div className="flex items-center justify-center gap-2.5 text-slate-400">
+                      <div className="flex items-center justify-center gap-2.5 text-slate-500">
                         <FontAwesomeIcon icon={faIdBadge} className="text-xl text-slate-300 shrink-0" />
                         <span className="text-sm italic">{t('visitors.noneLogged')}</span>
                       </div>
@@ -447,51 +447,53 @@ export default function UserVisitors() {
                   </tr>
                 ) : (
                   visitors.map(v => (
-                    <tr key={v.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={v.id} className="block sm:table-row px-5 py-3 sm:p-0 hover:bg-slate-50 transition-colors">
                       
-                      <td className="px-5 py-3.5">
+                      <td className="block sm:table-cell pb-1 sm:px-5 sm:py-3.5">
                         <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
-                        <p className="text-xs text-slate-400 m-0">{v.contactNumber}</p>
+                        <p className="text-xs text-slate-500 m-0">{v.contactNumber}</p>
                       </td>
 
-                      <td className="px-4 py-3.5 text-xs text-slate-600 font-medium">{v.purpose}</td>
+                      <td data-label={t('visitors.colPurpose')} className="flex sm:table-cell items-start justify-between gap-4 py-1 sm:py-3.5 before:content-[attr(data-label)] before:font-semibold before:text-slate-500 before:text-xs sm:before:content-none sm:px-4 text-sm sm:text-xs text-slate-600 font-medium">{v.purpose}</td>
 
-                      <td className="px-4 py-3.5 text-xs">
+                      <td data-label={t('visitors.colPlate')} className="flex sm:table-cell items-start justify-between gap-4 py-1 sm:py-3.5 before:content-[attr(data-label)] before:font-semibold before:text-slate-500 before:text-xs sm:before:content-none sm:px-4 text-xs">
                         {v.vehiclePlate ? (
-                          <span className="font-mono font-bold text-indigo-600 uppercase bg-indigo-50 px-2 py-0.5 rounded text-[11px]">{v.vehiclePlate}</span>
+                          <span className="font-mono font-bold uppercase text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-xs">{v.vehiclePlate}</span>
                         ) : (
-                          <span className="text-slate-400 text-xs">—</span>
+                          <span className="text-slate-500 text-xs">—</span>
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 text-xs text-slate-600">
+                      <td data-label={t('visitors.colCheckIn')} className="flex sm:table-cell items-start justify-between gap-4 py-1 sm:py-3.5 before:content-[attr(data-label)] before:font-semibold before:text-slate-500 before:text-xs sm:before:content-none sm:px-4 text-xs text-slate-600 text-right sm:text-left">
+                        <span>
                         {new Date(v.visitAt || v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         <br />
-                        <span className="text-[10px] text-slate-400">{new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-xs text-slate-500">{new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-xs font-mono font-bold text-slate-700">
+                      <td data-label={t('visitors.colDuration')} className="flex sm:table-cell items-start justify-between gap-4 py-1 sm:py-3.5 before:content-[attr(data-label)] before:font-semibold before:text-slate-500 before:text-xs sm:before:content-none sm:px-4 text-xs font-mono font-bold text-slate-700">
                         {v.status === 'pending_approval' ? '—' : v.duration}
                       </td>
 
-                      <td className="px-5 py-3.5 text-center">
+                      <td data-label={t('visitors.colStatus')} className="flex sm:table-cell items-start justify-between gap-4 py-1 sm:py-3.5 before:content-[attr(data-label)] before:font-semibold before:text-slate-500 before:text-xs sm:before:content-none items-center sm:px-5 sm:text-center">
                         {v.status === 'pending_approval' && (
-                          <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1">Pending Review</span>
+                          <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1">Pending Review</span>
                         )}
                         {v.status === 'checked_in' && (
-                          <span className="rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1">Active</span>
+                          <span className="rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1">Active</span>
                         )}
                         {v.status === 'overstayed' && (
-                          <span className="rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold px-2.5 py-1">Overstayed</span>
+                          <span className="rounded-full bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1">Overstayed</span>
                         )}
                         {v.status === 'checked_out' && (
-                          <span className="rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-1">Departed</span>
+                          <span className="rounded-full bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1">Departed</span>
                         )}
                         {v.status === 'denied' && (
-                          <span className="rounded-full bg-red-100 text-red-700 text-[10px] font-bold px-2.5 py-1">Declined</span>
+                          <span className="rounded-full bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1">Declined</span>
                         )}
                         {v.status === 'cancelled' && (
-                          <span className="rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold px-2.5 py-1">Cancelled</span>
+                          <span className="rounded-full bg-slate-100 text-slate-500 text-xs font-bold px-2.5 py-1">Cancelled</span>
                         )}
                       </td>
 
@@ -566,7 +568,7 @@ export default function UserVisitors() {
                   {...visitorForm.fieldA11y('purpose')}
                   value={registerForm.purpose}
                   onChange={(e) => setVisitorField('purpose', e.target.value)}
-                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
+                  className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-base sm:text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
                 >
                   <option value="Personal Visit">Personal Visit / Friends / Family</option>
                   <option value="Delivery / Courier">Food / Package Delivery</option>
@@ -646,7 +648,7 @@ export default function UserVisitors() {
                     required
                     value={registerForm.idType}
                     onChange={(e) => setVisitorField('idType', e.target.value)}
-                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
+                    className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-base sm:text-sm text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
                   >
                     <option value="National ID">National ID</option>
                     <option value="Driver's License">Driver's License</option>

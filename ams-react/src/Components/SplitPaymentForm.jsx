@@ -18,7 +18,7 @@ export default function SplitPaymentForm({ parts, setParts, total, showErrors, f
   const [touched, setTouched] = useState({});
   const [dateTouched, setDateTouched] = useState(false);
   const update = (index, changes) => setParts((list) => list.map((p, i) => (i === index ? { ...p, ...changes } : p)));
-  const inputCls = 'pay-bills-input w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500';
+  const inputCls = 'pay-bills-input w-full px-3 py-2 text-base sm:text-sm border border-slate-200 rounded-lg outline-none bg-white focus:border-indigo-500';
 
   return (
     <div className="space-y-3">

@@ -216,9 +216,9 @@ export default function ViewContract() {
 
     if (loading) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-900 text-white">
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4 text-slate-800">
                 <div className="flex flex-col items-center space-y-4">
-                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-500 animate-spin" />
+                    <FontAwesomeIcon icon={faHourglassHalf} className="text-4xl text-indigo-600 animate-spin" aria-hidden="true" />
                     <h2 className="text-xl font-bold">{t('contract.loading')}</h2>
                 </div>
             </div>
@@ -227,14 +227,15 @@ export default function ViewContract() {
 
     if (isEmpty) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-900 text-white">
-                <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 text-center max-w-md space-y-4 shadow-2xl">
-                    <FontAwesomeIcon icon={faFileSignature} className="text-4xl text-slate-500" />
-                    <h2 className="text-xl font-bold text-slate-200">{t('contract.emptyTitle')}</h2>
-                    <p className="text-slate-400 text-sm">{t('contract.emptyBody')}</p>
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4 text-slate-800">
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center max-w-md space-y-4 shadow-sm">
+                    <FontAwesomeIcon icon={faFileSignature} className="text-4xl text-slate-400" aria-hidden="true" />
+                    <h2 className="text-xl font-bold text-slate-800">{t('contract.emptyTitle')}</h2>
+                    <p className="text-slate-600 text-sm">{t('contract.emptyBody')}</p>
                     <button
                         onClick={goBack}
-                        className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all border-0 cursor-pointer text-xs"
+                        type="button"
+                        className="mt-4 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 rounded-xl transition-all border-0 cursor-pointer text-sm"
                     >
                         {t('contract.goBack')}
                     </button>
@@ -245,13 +246,14 @@ export default function ViewContract() {
 
     if (error) {
         return (
-            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-900 text-white">
-                <div className="bg-slate-800/80 p-8 rounded-3xl border border-white/10 text-center max-w-md space-y-4 shadow-2xl">
-                    <h2 className="text-2xl font-bold text-rose-500">{t('contract.errTitle')}</h2>
-                    <p className="text-slate-400 text-sm">{error}</p>
+            <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4 text-slate-800">
+                <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center max-w-md space-y-4 shadow-sm">
+                    <h2 className="text-2xl font-bold text-rose-600">{t('contract.errTitle')}</h2>
+                    <p className="text-slate-600 text-sm">{error}</p>
                     <button
                         onClick={goBack}
-                        className="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-xl transition-all border-0 cursor-pointer text-xs"
+                        type="button"
+                        className="mt-4 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 rounded-xl transition-all border-0 cursor-pointer text-sm"
                     >
                         {t('contract.goBack')}
                     </button>
@@ -305,10 +307,10 @@ export default function ViewContract() {
                 below has no place to show it. */}
             {contractData.status && contractData.status !== 'active' && (
                 <div className={`w-full max-w-3xl mb-6 print:hidden rounded-xl border px-4 py-3 text-xs font-semibold ${
-                    contractData.status === 'draft' ? 'bg-amber-50 border-amber-200 text-amber-800'
-                    : contractData.status === 'eviction-pending' ? 'bg-red-50 border-red-200 text-red-800'
-                    : 'bg-slate-100 border-slate-300 text-slate-600'
-                }`}>
+ contractData.status === 'draft' ? 'bg-amber-50 border-amber-200 text-amber-800'
+ : contractData.status === 'eviction-pending' ? 'bg-red-50 border-red-200 text-red-800'
+ : 'bg-slate-100 border-slate-300 text-slate-600'
+ }`}>
                     {contractData.status === 'draft' && t('contract.statusDraft')}
                     {contractData.status === 'eviction-pending' && t('contract.statusEvictionPending')}
                     {contractData.status === 'expired' && t('contract.statusExpired')}

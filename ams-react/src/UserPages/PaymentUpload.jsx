@@ -17,7 +17,7 @@ import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
 import { fetchContractTemplate, accountsForMethod } from '../Components/contract/contractTemplate';
 import '../assets/styles/responsive/user/payment-upload.responsive.css';
 
-const INPUT_CLS = "focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm";
+const INPUT_CLS = "focus-glow w-full bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-xl px-4 py-3 text-base sm:text-sm outline-none text-slate-800 md:text-white focus:border-indigo-500 transition-colors box-border shadow-sm";
 const BANKS = ['BDO', 'BPI', 'Metrobank', 'Landbank', 'RCBC', 'UnionBank', 'Security Bank', 'Maya Bank', 'Other'];
 
 // The bill being paid arrives as navigation state, which a refresh loses: it is
@@ -203,19 +203,19 @@ export default function PaymentUpload() {
 
                 <div className="payment-info-box bg-slate-50 md:bg-white/5 border border-slate-200 md:border-white/10 rounded-2xl p-6 space-y-4 shadow-inner">
                     <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400">{t('paymentUpload.totalDue')}</span>
+                        <span className="text-xs font-bold text-slate-500 md:text-slate-300">{t('paymentUpload.totalDue')}</span>
                         <span className="text-2xl font-black text-indigo-600 md:text-indigo-400">₱{(Number(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="border-t border-slate-200 md:border-white/10 pt-4 mt-4">
-                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 md:text-slate-400 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
+                        <span className="text-xs font-bold text-slate-500 md:text-slate-300 block mb-3">{paymentMethod} {t('paymentUpload.accountDetails')}</span>
                         {accounts.length === 0 && (
-                            <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-400">{t('paymentUpload.noAccount')}</p>
+                            <p className="text-sm font-medium m-0 text-slate-500 md:text-slate-300">{t('paymentUpload.noAccount')}</p>
                         )}
                         {accounts.map((acct) => (
                             <div key={acct.id} className="flex flex-col gap-1.5 text-sm font-medium [&+&]:mt-3 [&+&]:pt-3 [&+&]:border-t [&+&]:border-slate-200 md:[&+&]:border-white/10">
                                 {accounts.length > 1 && <span className="text-xs font-bold text-slate-500 md:text-slate-300">{acct.label}</span>}
-                                {acct.account_name && <span><strong className="text-slate-400 mr-2">{t('paymentUpload.accountName')}:</strong> {acct.account_name}</span>}
-                                <span className="flex items-center"><strong className="text-slate-400 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{acct.account_number}</span></span>
+                                {acct.account_name && <span><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountName')}:</strong> {acct.account_name}</span>}
+                                <span className="flex items-center"><strong className="text-slate-500 md:text-slate-300 mr-2">{t('paymentUpload.accountNo')}:</strong> <span className="text-lg font-black tracking-wider text-indigo-600 md:text-indigo-400">{acct.account_number}</span></span>
                             </div>
                         ))}
                     </div>
@@ -225,7 +225,7 @@ export default function PaymentUpload() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {isBankTransfer && (
                             <div className="space-y-2 md:col-span-2">
-                                <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">Bank transferred from</label>
+                                <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 md:text-slate-300 block">Bank transferred from</label>
                                 <select 
                                     id="upload-bank-name" 
                                     value={bankName} 
@@ -244,7 +244,7 @@ export default function PaymentUpload() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <label htmlFor="upload-sender_name" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.senderName')}</label>
+                            <label htmlFor="upload-sender_name" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.senderName')}</label>
                             <input
                                 type="text"
                                 {...form.fieldA11y('sender_name')}
@@ -264,7 +264,7 @@ export default function PaymentUpload() {
                             <FieldError id="upload-sender_name" error={form.errors.sender_name} />
                         </div>
                         <div className="space-y-2">
-                            <label htmlFor="upload-payment_reference" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.refNo')}</label>
+                            <label htmlFor="upload-payment_reference" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.refNo')}</label>
                             <input
                                 type="text"
                                 {...form.fieldA11y('payment_reference')}
@@ -283,7 +283,7 @@ export default function PaymentUpload() {
                                 placeholder={isGcash ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
                             />
                             <FieldError id="upload-payment_reference" error={form.errors.payment_reference} />
-                            <p className="text-[10px] text-slate-400 m-0 leading-relaxed mt-1 font-medium">
+                            <p className="text-xs text-slate-500 md:text-slate-300 m-0 leading-relaxed mt-1 font-medium">
                                 {isGcash 
                                     ? "GCash reference numbers must be exactly 13 digits (numbers only)." 
                                     : "Bank transfer reference numbers can be up to 55 characters and cannot consist of numbers only."}
@@ -293,7 +293,7 @@ export default function PaymentUpload() {
 
                     {/*AdjustedReceiptPreviewContainerArea*/}
                     <div className="space-y-2">
-                        <label htmlFor="upload-proof" className="text-xs font-bold text-slate-600 md:text-slate-400 uppercase tracking-wider block">{t('paymentUpload.uploadReceipt')}</label>
+                        <label htmlFor="upload-proof" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.uploadReceipt')}</label>
 
                         {!previewUrl ? (
                             <div className={`payment-dropzone card-interactive relative border-2 border-dashed border-slate-300 md:border-white/20 rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 md:bg-white/5 hover:border-indigo-500 transition-colors overflow-hidden group cursor-pointer shadow-inner min-h-[160px]${invalidCls(form.errors.proof)}`}>
@@ -307,7 +307,7 @@ export default function PaymentUpload() {
                                 />
                                 <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 md:text-indigo-400 mb-3 group-hover:scale-110 transition-transform" />
                                 <p className="text-sm font-semibold text-slate-600 md:text-slate-300 m-0">Click to upload or drag & drop</p>
-                                <p className="text-xs text-slate-500 md:text-slate-400 mt-1 m-0 font-medium">{FILE_RULES.receiptImage.label} (Max {FILE_RULES.receiptImage.maxMB} MB)</p>
+                                <p className="text-xs text-slate-500 md:text-slate-300 mt-1 m-0 font-medium">{FILE_RULES.receiptImage.label} (Max {FILE_RULES.receiptImage.maxMB} MB)</p>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center space-y-3 p-4 bg-slate-950/80 rounded-2xl border border-slate-200 md:border-white/10 shadow-inner">

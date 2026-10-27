@@ -259,14 +259,14 @@ export default function UserNotifications() {
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
               <div className="user-notif-search-container flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm focus-within:border-indigo-500 transition-all flex-grow max-w-md">
-                <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
+                <FontAwesomeIcon icon={faSearch} className="text-slate-500 text-sm" />
                 <input maxLength={LIMITS.search}
                   type="text"
                   aria-label={t('notifications.searchPlaceholder')}
                   placeholder={t('notifications.searchPlaceholder')}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="user-notif-search-input flex-grow bg-transparent text-sm outline-none border-0 p-0 text-slate-800 placeholder-slate-400"
+                  className="user-notif-search-input flex-grow bg-transparent text-base sm:text-sm outline-none border-0 p-0 text-slate-800 placeholder-slate-500"
                 />
                 {searchQuery && (
                   <button type="button" onClick={() => setSearchQuery('')} className="flex h-11 w-11 -mr-3 items-center justify-center bg-transparent border-0 text-slate-500 hover:text-slate-700 cursor-pointer p-0" aria-label="Clear search">
@@ -288,7 +288,7 @@ export default function UserNotifications() {
                 >
                   {tab.label}
                   {tab.key === 'unread' && unreadCount > 0 && (
-                    <span className="ml-1.5 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+                    <span className="ml-1.5 bg-rose-500 text-white text-xs font-black px-1.5 py-0.5 rounded-full">{unreadCount}</span>
                   )}
                 </button>
               ))}
@@ -296,14 +296,14 @@ export default function UserNotifications() {
 
             <div className="stagger-children flex flex-col gap-3">
               {loading ? (
-                <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center text-xs text-slate-400">Loading notifications…</div>
+                <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center text-xs text-slate-500">Loading notifications…</div>
               ) : filteredNotifications.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200/60 p-16 text-center shadow-sm flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 text-[#3b4276]/30">
                     <FontAwesomeIcon icon={faBell} className="text-3xl" />
                   </div>
                   <h3 className="text-base font-bold text-slate-700 m-0">{t('notifications.noFound')}</h3>
-                  <p className="text-slate-400 text-xs mt-1 max-w-sm m-0">
+                  <p className="text-slate-500 text-xs mt-1 max-w-sm m-0">
                     {searchQuery ? t('notifications.noFoundSearch') : t('notifications.noFoundDesc')}
                   </p>
                 </div>
@@ -340,18 +340,18 @@ export default function UserNotifications() {
                               </button>
                             </h4>
                             {n.attachmentPath && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-extrabold tracking-wide uppercase bg-slate-100 text-slate-600" title="Open the notification to view the attachment">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-extrabold bg-slate-100 text-slate-600" title="Open the notification to view the attachment">
                                 <FontAwesomeIcon icon={faPaperclip} /> Attachment
                               </span>
                             )}
-                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-extrabold tracking-wide uppercase ${cfg.badge}`}>
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-extrabold ${cfg.badge}`}>
                               {cfg.label}
                             </span>
                             {awaitingDecision && (
-                              <span className="px-2 py-0.5 rounded-lg text-[9px] font-extrabold tracking-wide uppercase bg-amber-100 text-amber-700">Awaiting decision</span>
+                              <span className="px-2 py-0.5 rounded-lg text-xs font-extrabold bg-amber-100 text-amber-700">Awaiting decision</span>
                             )}
                           </div>
-                          <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap" title={n.createdAt}>{formatRelativeTime(n.createdAt)}</span>
+                          <span className="text-xs text-slate-500 font-medium whitespace-nowrap" title={n.createdAt}>{formatRelativeTime(n.createdAt)}</span>
                         </div>
                         <p className="text-xs text-slate-500 m-0 leading-relaxed mt-0.5">{n.message}</p>
                         {link && (
@@ -361,7 +361,7 @@ export default function UserNotifications() {
                             className="relative z-10 mt-2.5 inline-flex min-h-[44px] items-center gap-1.5 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer transition-colors"
                           >
                             <span>{link.label}</span>
-                            <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
+                            <FontAwesomeIcon icon={faArrowRight} className="text-xs" />
                           </button>
                         )}
                       </div>
@@ -373,9 +373,9 @@ export default function UserNotifications() {
                             onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }}
                             title="Mark as read"
                             aria-label={`Mark as read: ${n.title}`}
-                            className="user-notif-action-btn btn-interactive h-11 w-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
+                            className="user-notif-action-btn btn-interactive h-11 w-11 rounded-lg flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
                           >
-                            <FontAwesomeIcon icon={faCheck} className="text-[11px]" />
+                            <FontAwesomeIcon icon={faCheck} className="text-xs" />
                           </button>
                         )}
                         {!awaitingDecision && (
@@ -384,7 +384,7 @@ export default function UserNotifications() {
                             onClick={(e) => { e.stopPropagation(); handleArchive(n.id); }}
                             title="Archive"
                             aria-label={`Archive: ${n.title}`}
-                            className="user-notif-action-btn btn-interactive h-11 w-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
+                            className="user-notif-action-btn btn-interactive h-11 w-11 rounded-lg flex items-center justify-center text-slate-500 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
                           >
                             <FontAwesomeIcon icon={faBoxArchive} className="text-sm" aria-hidden="true" />
                           </button>
@@ -401,12 +401,12 @@ export default function UserNotifications() {
           <div className={`user-notif-pref-panel w-full lg:w-[360px] shrink-0 sticky top-24 ${showSettings ? 'block' : 'hidden lg:block'}`}>
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-6">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                <FontAwesomeIcon icon={faCog} className="text-slate-400" />
+                <FontAwesomeIcon icon={faCog} className="text-slate-500" />
                 <h3 className="text-sm font-bold text-slate-800 m-0">{t('notifications.prefTitle')}</h3>
               </div>
 
               <div className="space-y-5 text-left">
-                <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest m-0">In-app notifications</h4>
+                <h4 className="text-xs font-extrabold text-slate-500 m-0">In-app notifications</h4>
                 {preferences.map(p => (
                   <div key={p.category} className="flex items-center justify-between">
                     <p className="text-xs font-bold text-slate-700 m-0 pr-3">{p.label}</p>
@@ -432,19 +432,19 @@ export default function UserNotifications() {
                 <>
                   <hr className="border-slate-100 m-0" />
                   <div className="space-y-2 text-left">
-                    <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest m-0">Always delivered</h4>
+                    <h4 className="text-xs font-extrabold text-slate-500 m-0">Always delivered</h4>
                     {alwaysOn.map(label => (
-                      <p key={label} className="text-[11px] text-slate-500 m-0 flex items-center gap-2">
-                        <FontAwesomeIcon icon={faLock} className="text-[9px] text-slate-300" /> {label}
+                      <p key={label} className="text-xs text-slate-500 m-0 flex items-center gap-2">
+                        <FontAwesomeIcon icon={faLock} className="text-xs text-slate-300" /> {label}
                       </p>
                     ))}
-                    <p className="text-[10px] text-slate-400 m-0 pt-1">Email and text messages are sent only for the channels management has turned on.</p>
+                    <p className="text-xs text-slate-500 m-0 pt-1">Email and text messages are sent only for the channels management has turned on.</p>
                   </div>
                 </>
               )}
 
               {prefMessage && (
-                <p className={`text-[11px] font-semibold m-0 ${prefMessage.ok ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <p className={`text-xs font-semibold m-0 ${prefMessage.ok ? 'text-emerald-600' : 'text-rose-600'}`}>
                   <FontAwesomeIcon icon={prefMessage.ok ? faCheckCircle : faExclamationTriangle} className="mr-1.5" />
                   {prefMessage.text}
                 </p>

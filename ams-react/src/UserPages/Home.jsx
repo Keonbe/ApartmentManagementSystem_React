@@ -46,7 +46,7 @@ export default function Home({ onCardClick, username }) {
             <div className="home-content-container w-full max-w-6xl mx-auto px-6 md:px-12 z-10 text-left relative box-border py-12">
                 <div className="home-content-panel max-w-2xl space-y-6 bg-slate-950/70 backdrop-blur-xl p-8 md:p-12 rounded-[2rem] border border-white/10 shadow-2xl shadow-black/50 animate-slide-up">
 
-                    <span className="text-[10px] sm:text-xs tracking-widest uppercase font-bold px-3.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 inline-flex items-center space-x-2 shadow-sm">
+                    <span className="text-xs font-bold px-3.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 inline-flex items-center space-x-2 shadow-sm">
                         <span className="relative flex h-2 w-2">
                             
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400"></span>

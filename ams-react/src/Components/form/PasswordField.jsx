@@ -5,7 +5,7 @@ import { PASSWORD_MAX_BYTES } from '../../utils/validation';
 import FieldError from './FieldError';
 import { invalidCls } from './formHelpers';
 
-const DEFAULT_INPUT = 'w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-sm pr-12 box-border';
+const DEFAULT_INPUT = 'w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base sm:text-sm pr-12 box-border';
 
 // Labelled password input with a show/hide toggle and an inline error.
 // `a11y` is useFieldErrors().fieldA11y(name) (id, name, aria-*).
@@ -47,7 +47,7 @@ export default function PasswordField({
           type="button"
           onClick={() => setShown(!shown)}
           aria-label={shown ? `Hide ${label}` : `Show ${label}`}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer"
+          className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-indigo-500"
         >
           <FontAwesomeIcon icon={shown ? faEyeSlash : faEye} />
         </button>

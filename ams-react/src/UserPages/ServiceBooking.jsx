@@ -275,7 +275,7 @@ export default function ServiceBooking() {
                                     <p className="text-xs font-semibold text-indigo-600 m-0 mt-2">
                                         ₱{Number(selected.price || 0).toLocaleString()} / {unitLabel(selected.pricingUnit)}
                                         {selected.leadTimeDays > 0 && (
-                                            <span className="ml-2 font-medium text-slate-400">
+                                            <span className="ml-2 font-medium text-slate-500">
                                                 · {t('serviceBooking.leadTime').replace('{days}', selected.leadTimeDays)}
                                             </span>
                                         )}
@@ -306,7 +306,7 @@ export default function ServiceBooking() {
                                     required
                                 />
                                 <FieldError id="service-quantity" error={form.errors.quantity} className="m-0" />
-                                <p className="text-xs text-slate-400 m-0">
+                                <p className="text-xs text-slate-500 m-0">
                                     {t('serviceBooking.quantityRange')
                                         .replace('{min}', selected.minQuantity)
                                         .replace('{max}', selected.maxQuantity ?? '∞')}
@@ -317,7 +317,7 @@ export default function ServiceBooking() {
                         {/*Estimated Total*/}
                         {selected && (
                             <div className={`flex flex-col justify-center space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 ${isQuantified ? '' : 'md:col-span-2'}`}>
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 m-0">{t('serviceBooking.estimatedTotal')}</p>
+                                <p className="text-xs font-semibold text-slate-500 m-0">{t('serviceBooking.estimatedTotal')}</p>
                                 <p className="text-2xl font-extrabold text-indigo-600 m-0">₱{estimatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                             </div>
                         )}
@@ -395,9 +395,9 @@ export default function ServiceBooking() {
                                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                         />
                                         <div className="space-y-2 pointer-events-none">
-                                            <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
+                                            <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-500" />
                                             <p className="text-sm font-medium text-slate-700 m-0">{t('serviceBooking.dropFile')} <span className="text-indigo-600 font-bold">{t('serviceBooking.browse')}</span></p>
-                                            <p className="text-slate-400 text-xs m-0">{t('serviceBooking.attachmentHint')}</p>
+                                            <p className="text-slate-500 text-xs m-0">{t('serviceBooking.attachmentHint')}</p>
                                         </div>
                                     </>
                                 ) : (
@@ -415,7 +415,7 @@ export default function ServiceBooking() {
                                         )}
                                         <div className="text-center">
                                             <p className="text-sm font-bold text-slate-800 m-0 truncate max-w-[240px]">{uploadedFile.name}</p>
-                                            <p className="text-slate-400 text-xs m-0 mt-0.5">({formatFileSize(uploadedFile.size)})</p>
+                                            <p className="text-slate-500 text-xs m-0 mt-0.5">({formatFileSize(uploadedFile.size)})</p>
                                         </div>
                                         <button
                                             type="button"

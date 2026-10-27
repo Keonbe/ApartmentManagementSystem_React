@@ -310,7 +310,7 @@ export default function ParkingReservation() {
                     <div className="parking-slots-widget bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm flex items-center space-x-3 flex-shrink-0 select-none">
                         <div className={`w-2.5 h-2.5 rounded-full ${!slotsKnown ? 'bg-slate-400' : availableSlots > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
                         <div>
-                            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">{t('parking.availableSpaces')}</span>
+                            <span className="text-xs text-slate-500 font-bold block">{t('parking.availableSpaces')}</span>
                             <span className="text-xl font-black text-slate-800 tracking-tight">
                                 {loadingSlots ? 'Checking…' : slotsKnown ? `${availableSlots} / ${totalCapacity} ${t('parking.slotsFree')}` : 'Unavailable'}
                             </span>
@@ -321,7 +321,7 @@ export default function ParkingReservation() {
                 {/*LastClosedReservationOutcome*/}
                 {myReservation && !hasOpenReservation && (
                     <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 flex items-start gap-3">
-                        <FontAwesomeIcon icon={faBan} className="text-slate-400 mt-0.5" />
+                        <FontAwesomeIcon icon={faBan} className="text-slate-500 mt-0.5" />
                         <p className="m-0">
                             Your last parking request ({myReservation.plate_number}) was <strong>{myReservation.status.toLowerCase()}</strong>
                             {(myReservation.rejection_reason || myReservation.release_reason) && `: ${myReservation.rejection_reason || myReservation.release_reason}`}.
@@ -344,17 +344,17 @@ export default function ParkingReservation() {
                                 <FontAwesomeIcon icon={myReservation.status === 'Assigned' ? faCar : faClock} />
                             </div>
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-wider text-slate-400 m-0">Your parking</p>
+                                <p className="text-xs font-bold text-slate-500 m-0">Your parking</p>
                                 <h2 className="text-2xl font-extrabold m-0" style={{ color: '#3b4276' }}>
                                     {myReservation.status === 'Assigned' ? `Slot #${myReservation.slot_number}` : 'Awaiting review'}
                                 </h2>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Vehicle</p><p className="font-bold text-slate-800 m-0">{myReservation.vehicle_model}</p></div>
-                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Plate</p><p className="font-bold text-slate-800 m-0 font-mono">{myReservation.plate_number}</p></div>
-                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Term</p><p className="font-bold text-slate-800 m-0">{myReservation.duration_months} month(s){myReservation.term_ends_at ? ` · until ${new Date(myReservation.term_ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}</p></div>
-                            <div><p className="text-[11px] font-bold uppercase text-slate-400 m-0">Monthly fee</p><p className="font-bold text-slate-800 m-0">{peso(monthlyFee)}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">Vehicle</p><p className="font-bold text-slate-800 m-0">{myReservation.vehicle_model}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">Plate</p><p className="font-bold text-slate-800 m-0 font-mono">{myReservation.plate_number}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">Term</p><p className="font-bold text-slate-800 m-0">{myReservation.duration_months} month(s){myReservation.term_ends_at ? ` · until ${new Date(myReservation.term_ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">Monthly fee</p><p className="font-bold text-slate-800 m-0">{peso(monthlyFee)}</p></div>
                         </div>
                         {myReservation.status === 'Assigned' ? (
                             <p className="text-xs text-slate-500 m-0">
@@ -431,10 +431,10 @@ export default function ParkingReservation() {
                             onChange={handlePlateNumberChange}
                             onBlur={() => plateNumber && form.validateField('plateNumber', values)}
                             required
-                            className={`parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px]${invalidCls(form.errors.plateNumber)}`}
+                            className={`parking-input focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-inner text-base uppercase transition-colors min-h-[48px]${invalidCls(form.errors.plateNumber)}`}
                             style={{ color: '#1e293b' }}
                         />
-                        <span className="text-xs font-normal text-slate-400 leading-tight m-0">{getPlateHint()}</span>
+                        <span className="text-xs font-normal text-slate-500 leading-tight m-0">{getPlateHint()}</span>
                         <FieldError id="parking-plateNumber" error={form.errors.plateNumber} className="m-0" />
                     </div>
 
@@ -462,7 +462,7 @@ export default function ParkingReservation() {
                     <div className="flex flex-col space-y-2 md:col-span-2">
                         <label htmlFor="parking-durationMonths" className="text-sm font-bold text-slate-700 flex items-center justify-between" style={{ color: '#3b4276' }}>
                             <span>{t('parking.duration')}</span>
-                            <span className="text-xs font-normal text-slate-400">{t('parking.maxMonths')}</span>
+                            <span className="text-xs font-normal text-slate-500">{t('parking.maxMonths')}</span>
                         </label>
                         <input
                             type="number"
@@ -502,9 +502,9 @@ export default function ParkingReservation() {
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     />
                                     <div className="space-y-2 pointer-events-none">
-                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-400" />
+                                        <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-500" />
                                         <p className="text-sm font-medium text-slate-700 m-0">Drag and drop OR/CR document here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                        <p className="text-slate-400 text-xs m-0">Supports PDFs, PNGs, and JPG documents (Max 10MB)</p>
+                                        <p className="text-slate-500 text-xs m-0">Supports PDFs, PNGs, and JPG documents (Max 10MB)</p>
                                     </div>
                                 </>
                             ) : (
@@ -527,7 +527,7 @@ export default function ParkingReservation() {
                                             </button>
                                         </div>
                                     )}
-                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[300px]">{uploadedFile.name} <span className="font-normal text-slate-400">({formatFileSize(uploadedFile.size)})</span></p>
+                                    <p className="text-xs font-bold text-slate-800 m-0 truncate max-w-[300px]">{uploadedFile.name} <span className="font-normal text-slate-500">({formatFileSize(uploadedFile.size)})</span></p>
                                     <button
                                         type="button"
                                         onClick={() => { setUploadedFile(null); form.clearError('uploadedFile'); }}
@@ -567,11 +567,11 @@ export default function ParkingReservation() {
                     <div className="parking-pricing-row md:col-span-2 border-t border-slate-100 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-6 mt-4">
                         <div className="parking-pricing-items flex items-center justify-between sm:justify-start gap-6 sm:space-x-12 select-none">
                             <div>
-                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">{t('parking.monthlyCost')}</span>
+                                <span className="text-xs text-slate-500 font-bold block mb-1">{t('parking.monthlyCost')}</span>
                                 <span className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">{monthlyFee === null ? '…' : peso(monthlyFee)}</span>
                             </div>
                             <div>
-                                <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">{t('parking.totalCost')}</span>
+                                <span className="text-xs text-slate-500 font-bold block mb-1">{t('parking.totalCost')}</span>
                                 <span className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight">{peso(calculatedTotal)}</span>
                             </div>
                         </div>

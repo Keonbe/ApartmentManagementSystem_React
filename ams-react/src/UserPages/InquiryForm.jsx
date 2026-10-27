@@ -272,7 +272,7 @@ export default function InquiryForm() {
 
                     <div className="flex flex-col space-y-2">
                         <label htmlFor="inquiry-occupants" className={labelClass} style={{ color: '#3b4276' }}>
-                            {t('inquiry.occupants')} <span className="text-slate-400 font-medium">({t('inquiry.optional')})</span>
+                            {t('inquiry.occupants')} <span className="text-slate-500 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <input
                             type="number"
@@ -294,7 +294,7 @@ export default function InquiryForm() {
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
                         <label htmlFor="inquiry-preferred_move_in" className={labelClass} style={{ color: '#3b4276' }}>
-                            {t('inquiry.moveIn')} <span className="text-slate-400 font-medium">({t('inquiry.optional')})</span>
+                            {t('inquiry.moveIn')} <span className="text-slate-500 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <input
                             type="date"
@@ -312,7 +312,7 @@ export default function InquiryForm() {
 
                     <div className="flex flex-col space-y-2 md:col-span-2">
                         <label htmlFor="inquiry-message" className={labelClass} style={{ color: '#3b4276' }}>
-                            {t('inquiry.message')} <span className="text-slate-400 font-medium">({t('inquiry.optional')})</span>
+                            {t('inquiry.message')} <span className="text-slate-500 font-medium">({t('inquiry.optional')})</span>
                         </label>
                         <textarea
                             rows="5"

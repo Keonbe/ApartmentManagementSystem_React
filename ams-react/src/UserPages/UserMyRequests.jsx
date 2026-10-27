@@ -129,7 +129,7 @@ export default function UserMyRequests() {
 
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     {loading ? (
-                        <div className="p-8 text-center text-slate-400">{t('myRequests.loading')}</div>
+                        <div className="p-8 text-center text-slate-500">{t('myRequests.loading')}</div>
                     ) : loadFailed && requests.length === 0 ? (
                         <div className="p-4">
                             <InlineAlert>
@@ -155,7 +155,7 @@ export default function UserMyRequests() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                <span className="text-xs font-bold tracking-wider uppercase text-slate-400">{req.type}</span>
+                                                <span className="text-xs font-bold text-slate-500">{req.type}</span>
                                                 <span className="text-xs text-slate-300">•</span>
                                                 <span className="text-xs font-medium text-slate-500">
                                                     {t('myRequests.submitted')} {formatStamp(req.created_at)}

@@ -50,10 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
     
     $file_extension = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
     
-    $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp'];
     if (!in_array($file_extension, $allowed_extensions)) {
         http_response_code(422);
-        echo json_encode(["success" => false, "message" => "Invalid extension. Image formats allowed: JPG, PNG, GIF, WEBP"]);
+        echo json_encode(["success" => false, "message" => "Invalid extension. Image formats allowed: JPG, PNG, WEBP"]);
         exit;
     }
 
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['avatar'])) {
     $mime = finfo_file($finfo, $_FILES['avatar']['tmp_name']);
     finfo_close($finfo);
 
-    $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!in_array($mime, $allowed_mimes)) {
         http_response_code(422);
         echo json_encode(["success" => false, "message" => "Invalid image file format."]);

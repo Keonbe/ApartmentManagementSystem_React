@@ -322,7 +322,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                 {/* Desktop Action Controls */}
                 <div className="hidden md:flex items-center space-x-4">
                     {/* Language Toggle Pill */}
-                    <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-[11px] font-bold select-none">
+                    <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-xs font-bold select-none">
                         <button
                             type="button"
                             aria-pressed={lang === 'en'}
@@ -350,7 +350,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             >
                                 <FontAwesomeIcon icon={faBell} className="text-sm" aria-hidden="true" />
                                 {unreadCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#3b4276]">
+                                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#3b4276]">
                                         {unreadCount > 9 ? '9+' : unreadCount}
                                     </span>
                                 )}
@@ -359,7 +359,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             {isNotificationOpen && (
                                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 overflow-hidden text-left">
                                     <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center">
-                                        <span className="font-bold text-xs uppercase tracking-wider text-slate-500">Notifications ({unreadCount})</span>
+                                        <span className="font-bold text-xs text-slate-500">Notifications ({unreadCount})</span>
                                         <button onClick={() => { setIsNotificationOpen(false); navigate('/notifications'); }} className="text-xs text-indigo-600 hover:underline font-bold bg-transparent border-0 cursor-pointer p-0">View All</button>
                                     </div>
                                     <div className="max-h-64 overflow-y-auto px-2 py-1 space-y-1">
@@ -385,14 +385,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                                             <p className="text-xs font-bold text-slate-800 m-0">
                                                                 {n.title}
                                                                 {isNew && (
-                                                                    <span className={`ml-1.5 align-middle text-[9px] font-black uppercase tracking-wider text-white px-1.5 py-0.5 rounded-full ${success ? 'bg-emerald-500' : 'bg-rose-500'}`}>New</span>
+                                                                    <span className={`ml-1.5 align-middle text-xs font-black text-white px-1.5 py-0.5 rounded-full ${success ? 'bg-emerald-500' : 'bg-rose-500'}`}>New</span>
                                                                 )}
                                                             </p>
-                                                            <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatRelativeTime(n.createdAt)}</span>
+                                                            <span className="text-xs text-slate-500 whitespace-nowrap">{formatRelativeTime(n.createdAt)}</span>
                                                         </div>
-                                                        <p className="text-[11px] text-slate-500 m-0 mt-0.5">{n.message}</p>
+                                                        <p className="text-xs text-slate-500 m-0 mt-0.5">{n.message}</p>
                                                         {isNew && (
-                                                            <p className={`text-[11px] font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                            <p className={`text-xs font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
                                                                 {success ? 'View receipt →' : 'Open Pay Bills →'}
                                                             </p>
                                                         )}
@@ -400,7 +400,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                                 );
                                             })
                                         ) : (
-                                            <p className="text-xs text-slate-400 text-center py-4 m-0">No notifications</p>
+                                            <p className="text-xs text-slate-500 text-center py-4 m-0">No notifications</p>
                                         )}
                                     </div>
                                 </div>
@@ -433,29 +433,29 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     </div>
                                 )}
                                 
-                                <FontAwesomeIcon icon={faChevronDown} className={`text-[10px] opacity-70 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                <FontAwesomeIcon icon={faChevronDown} className={`text-xs opacity-70 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
 
                             {isDropdownOpen && (
                                 <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 z-50 overflow-hidden animate-fade-in text-left">
                                     <button onClick={() => { setIsDropdownOpen(false); navigate('/profile-settings'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
-                                        <FontAwesomeIcon icon={faCog} className="text-slate-400 text-xs" />
+                                        <FontAwesomeIcon icon={faCog} className="text-slate-500 text-xs" />
                                         <span>Profile Settings</span>
                                     </button>
                                     {!hasRentedRoom && (
                                         <button onClick={() => { setIsDropdownOpen(false); navigate('/track-application'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
-                                            <FontAwesomeIcon icon={faFileContract} className="text-slate-400 text-xs" />
+                                            <FontAwesomeIcon icon={faFileContract} className="text-slate-500 text-xs" />
                                             <span>Track Application</span>
                                         </button>
                                     )}
                                     {hasRentedRoom && (
                                         <button onClick={() => { setIsDropdownOpen(false); navigate('/payment-history'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
-                                            <FontAwesomeIcon icon={faHistory} className="text-slate-400 text-xs" />
+                                            <FontAwesomeIcon icon={faHistory} className="text-slate-500 text-xs" />
                                             <span>Payment History</span>
                                         </button>
                                     )}
                                     <button onClick={() => { setIsDropdownOpen(false); navigate('/my-refunds'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
-                                        <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-slate-400 text-xs" />
+                                        <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-slate-500 text-xs" />
                                         <span>My Refunds</span>
                                     </button>
                                     <div className="border-t border-slate-100 my-1"></div>
@@ -496,7 +496,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         >
                             <FontAwesomeIcon icon={faBell} className="text-sm" />
                             {unreadCount > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-[#3b4276]">
+                                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-xs font-black w-4 h-4 rounded-full flex items-center justify-center border border-[#3b4276]">
                                     {unreadCount > 9 ? '9+' : unreadCount}
                                 </span>
                             )}
@@ -528,8 +528,8 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             <div key={n.id} className={`flex items-start gap-2 rounded-xl p-3 shadow-xl border-l-4 ${success ? 'bg-emerald-50 border-emerald-500' : 'bg-rose-50 border-rose-500'}`}>
                                 <button type="button" onClick={() => openNotification(n)} className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer">
                                     <p className="text-xs font-bold text-slate-800 m-0">{n.title}</p>
-                                    <p className="text-[11px] text-slate-600 m-0 mt-0.5">{n.message}</p>
-                                    <p className={`text-[11px] font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                    <p className="text-xs text-slate-600 m-0 mt-0.5">{n.message}</p>
+                                    <p className={`text-xs font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
                                         {success ? 'View receipt →' : 'Open Pay Bills →'}
                                     </p>
                                 </button>
@@ -552,19 +552,19 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     {/* Navigation Items */}
                     {/* Mobile Language Toggle */}
                     <div className="flex items-center justify-between px-2 pb-2">
-                        <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Language</span>
-                        <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-[11px] font-bold select-none">
+                        <span className="text-white/70 text-xs font-bold">Language</span>
+                        <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-xs font-bold select-none">
                             <button
                                 type="button"
                                 aria-pressed={lang === 'en'}
                                 onClick={() => setLang('en')}
-                                className={`px-3 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
+                                className={`min-h-[44px] min-w-[52px] px-3 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
                             >EN</button>
                             <button
                                 type="button"
                                 aria-pressed={lang === 'fil'}
                                 onClick={() => setLang('fil')}
-                                className={`px-3 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
+                                className={`min-h-[44px] min-w-[52px] px-3 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
                             >FIL</button>
                         </div>
                     </div>
@@ -634,7 +634,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     )}
                                     <div className="flex flex-col">
                                         <span className="text-white font-bold text-sm leading-snug">{displayName}</span>
-                                        <span className="text-white/50 text-xs">Logged In</span>
+                                        <span className="text-white/70 text-xs">Logged In</span>
                                     </div>
                                 </div>
 
@@ -763,7 +763,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     <FontAwesomeIcon icon={faCheckCircle} className="text-4xl" />
                                 </div>
                                 <h2 className="text-2xl font-black text-emerald-800 m-0 tracking-tight">Congratulations!</h2>
-                                <p className="text-emerald-600 font-bold mt-1 mb-0 uppercase tracking-widest text-xs">Application Approved</p>
+                                <p className="text-emerald-600 font-bold mt-1 mb-0 text-xs">Application Approved</p>
                             </div>
                         ) : appStatusModal.title?.toLowerCase().includes('action required') ? (
                             <div className="bg-amber-50 p-8 flex flex-col items-center border-b border-amber-100 text-center">
@@ -771,7 +771,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     <FontAwesomeIcon icon={faInfoCircle} className="text-4xl" />
                                 </div>
                                 <h2 className="text-2xl font-black text-amber-800 m-0 tracking-tight">Action Required</h2>
-                                <p className="text-amber-600 font-bold mt-1 mb-0 uppercase tracking-widest text-xs">Update Needed</p>
+                                <p className="text-amber-600 font-bold mt-1 mb-0 text-xs">Update Needed</p>
                             </div>
                         ) : (
                             <div className="bg-red-50 p-8 flex flex-col items-center border-b border-red-100 text-center">
@@ -779,7 +779,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     <FontAwesomeIcon icon={faTimesCircle} className="text-4xl" />
                                 </div>
                                 <h2 className="text-2xl font-black text-red-800 m-0 tracking-tight">Application Update</h2>
-                                <p className="text-red-600 font-bold mt-1 mb-0 uppercase tracking-widest text-xs">Application Rejected</p>
+                                <p className="text-red-600 font-bold mt-1 mb-0 text-xs">Application Rejected</p>
                             </div>
                         )}
                         <div className="p-8 flex flex-col items-center text-center">

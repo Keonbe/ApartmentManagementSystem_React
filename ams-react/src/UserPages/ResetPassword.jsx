@@ -10,8 +10,8 @@ import PasswordChecklist from '../Components/form/PasswordChecklist';
 import { useLang } from '../config/i18n';
 import '../assets/styles/responsive/user/login.responsive.css';
 
-const LABEL_CLS = "text-xs font-bold text-slate-700 uppercase tracking-wider block";
-const INPUT_CLS = "focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-sm transition-all shadow-inner pr-12 box-border";
+const LABEL_CLS = "text-xs font-bold text-slate-700 block";
+const INPUT_CLS = "focus-glow w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 text-base sm:text-sm transition-all shadow-inner pr-12 box-border";
 
 const VALIDATORS = {
     new_password: (v) => checkNewPassword(v),
@@ -98,7 +98,7 @@ export default function ResetPassword() {
                         AMS
                     </h1>
                     <div className="w-48 border-t border-white/20 my-3"></div>
-                    <p className="text-xs font-light uppercase tracking-widest text-white/70 m-0">
+                    <p className="text-xs font-light text-white/70 m-0">
                         Apartment Management System
                     </p>
                 </div>
@@ -114,7 +114,7 @@ export default function ResetPassword() {
                             AMS
                         </h1>
                         <div className="w-24 border-t my-1.5" style={{ borderColor: 'rgba(59, 66, 118, 0.2)' }}></div>
-                        <p className="text-[9px] font-medium uppercase tracking-widest m-0 text-center text-slate-500">
+                        <p className="text-xs font-medium m-0 text-center text-slate-500">
                             Apartment Management System
                         </p>
                     </div>
@@ -189,7 +189,7 @@ export default function ResetPassword() {
                                         <button
                                             type="submit"
                                             disabled={isSubmitting}
-                                            className="btn-interactive w-full bg-[#6366f1] hover:bg-[#4f46e5] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70 mt-2"
+                                            className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70 mt-2"
                                         >
                                             {isSubmitting ? (isFil ? 'Nire-reset...' : 'Resetting...') : (isFil ? 'I-reset ang Password' : 'Reset Password')}
                                         </button>
