@@ -6,7 +6,7 @@ import DocumentsModal from '../Components/DocumentsModal';
 import ChangePasswordModal from '../Components/ChangePasswordModal';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
-import { useLang } from '../config/i18n';
+import { useLang, t as translate } from '../config/i18n';
 import { LIMITS, checkEmail, checkPersonName, checkPhMobile, normalizeEmail, toPhLocal10, toPhE164 } from '../utils/validation';
 import PhoneInput from '../Components/PhoneInput';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
@@ -23,12 +23,12 @@ const GENDERS = ['Male', 'Female', 'Other'];
 
 // Names match profile.php's body keys, so a server field error lands on the input.
 const VALIDATORS = {
-    firstName: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
-    lastName: (v) => checkPersonName(v, { label: 'Last name', max: LIMITS.lastName }),
-    suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
+    firstName: (v) => checkPersonName(v, { label: translate('profile.firstNameLabel'), max: LIMITS.firstName }),
+    lastName: (v) => checkPersonName(v, { label: translate('profile.lastNameLabel'), max: LIMITS.lastName }),
+    suffix: (v) => checkPersonName(v, { label: translate('profile.suffixLabel'), max: LIMITS.suffix, required: false }),
     contactNo: (v) => checkPhMobile(v),
     email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
-    gender: (v) => (GENDERS.includes(v) ? '' : 'Please select a gender.'),
+    gender: (v) => (GENDERS.includes(v) ? '' : translate('profile.errGender')),
 };
 
 
@@ -143,7 +143,7 @@ export default function ProfileSettings() {
         } catch (err) {
             console.warn('Camera not available:', err);
             setIsCameraActive(false);
-            setAvatarError('No camera is available (or permission was denied). Choose a photo from your device instead.');
+            setAvatarError(t('profile.noCamera'));
         }
     };
 
@@ -243,7 +243,7 @@ export default function ProfileSettings() {
                     // Update our tracked tracking path variable
                     currentAvatarUrl = avatarRes.data.avatar_url;
                 } else {
-                    setAvatarError(avatarRes.data.message || "Failed to upload avatar image file.");
+                    setAvatarError(avatarRes.data.message || t('profile.avatarUploadFailed'));
                     return; // Halt if image upload explicitly failed
                 }
             }
@@ -286,9 +286,9 @@ export default function ProfileSettings() {
                 setAvatarImgFailed(false);
                 // TopBar re-reads the user and avatar (was a full page reload).
                 window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
-                setNotice({ message: 'Profile saved', subtext: 'Your details and photo are updated.' });
+                setNotice({ message: t('profile.savedTitle'), subtext: t('profile.savedBody') });
             } else if (!form.applyServerErrors(res)) {
-                setSaveError(res.data.message || "Failed to update your profile.");
+                setSaveError(res.data.message || t('profile.saveFailed'));
             }
         } catch (error) {
             console.error("Error updating profile settings payload workflow:", error);
@@ -326,7 +326,7 @@ export default function ProfileSettings() {
                             {(tempAvatar || (avatarUrl && !avatarImgFailed)) ? (
                                 <img
                                     src={tempAvatar || fileUrl(avatarUrl)}
-                                    alt="Your profile photo"
+                                    alt={t('profile.photoAlt')}
                                     className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-md"
                                     onError={() => { if (!tempAvatar) setAvatarImgFailed(true); }}
                                 />
@@ -342,8 +342,8 @@ export default function ProfileSettings() {
                                 <button
                                     type="button"
                                     onClick={() => setConfirmDeleteAvatar(true)}
-                                    aria-label="Delete profile photo"
-                                    title="Delete profile photo"
+                                    aria-label={t('profile.deletePhoto')}
+                                    title={t('profile.deletePhoto')}
                                     className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center bg-transparent border-0 cursor-pointer"
                                 >
                                     {/* The red dot is small; the button around it is the 44px target. */}
@@ -362,7 +362,7 @@ export default function ProfileSettings() {
                         {isCameraActive ? (
                             <div className="max-w-sm w-full bg-slate-900 rounded-2xl overflow-hidden aspect-square relative flex flex-col items-center justify-center border border-slate-800">
                                 {tempAvatar ? (
-                                    <img src={tempAvatar} alt="Captured preview" className="w-full h-full object-cover" />
+                                    <img src={tempAvatar} alt={t('profile.capturedAlt')} className="w-full h-full object-cover" />
                                 ) : (
                                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]"></video>
                                 )}
@@ -370,20 +370,20 @@ export default function ProfileSettings() {
                                 <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3 px-4">
                                     {!tempAvatar ? (
                                         <>
-                                            <button type="button" onClick={capturePhoto} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl border-0 cursor-pointer shadow">
-                                                Capture Photo
+                                            <button type="button" onClick={capturePhoto} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow">
+                                                {t('profile.capture')}
                                             </button>
-                                            <button type="button" onClick={stopCamera} className="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-2 rounded-xl border-0 cursor-pointer">
-                                                Cancel
+                                            <button type="button" onClick={stopCamera} className="min-h-[44px] bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-4 rounded-xl border-0 cursor-pointer">
+                                                {t('common.cancel')}
                                             </button>
                                         </>
                                     ) : (
                                         <>
                                             <button type="button" onClick={handleRetake} className="min-h-[44px] bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow flex items-center gap-1.5">
-                                                <FontAwesomeIcon icon={faUndo} aria-hidden="true" /> Retake
+                                                <FontAwesomeIcon icon={faUndo} aria-hidden="true" /> {t('profile.retake')}
                                             </button>
                                             <button type="button" onClick={() => setIsCameraActive(false)} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 rounded-xl border-0 cursor-pointer shadow">
-                                                Keep Snapshot
+                                                {t('profile.keepSnapshot')}
                                             </button>
                                         </>
                                     )}
@@ -416,7 +416,7 @@ export default function ProfileSettings() {
                                 >
                                     <FontAwesomeIcon icon={faCamera} className="text-slate-500 group-hover:text-indigo-500 text-lg mb-1.5 transition-colors" />
                                     <span className="text-xs font-bold text-slate-700">{t('profile.takeSnapshot')}</span>
-                                    <span className="text-xs text-slate-500 mt-0.5">Use your device webcam camera</span>
+                                    <span className="text-xs text-slate-500 mt-0.5">{t('profile.useCamera')}</span>
                                 </button>
                             </div>
                         )}
@@ -425,19 +425,19 @@ export default function ProfileSettings() {
                         {tempAvatar && !isCameraActive && (
                             <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <img src={tempAvatar} alt="preview" className="w-12 h-12 rounded-full object-cover border border-indigo-200 shadow-sm" />
+                                    <img src={tempAvatar} alt="" className="w-12 h-12 rounded-full object-cover border border-indigo-200 shadow-sm" />
                                     <div>
                                         <p className="text-xs font-bold text-indigo-900 m-0">
-                                            {selectedFile ? `${selectedFile.name} (${formatFileSize(selectedFile.size)})` : 'Pre-uploaded avatar preview'}
+                                            {selectedFile ? `${selectedFile.name} (${formatFileSize(selectedFile.size)})` : t('profile.previewLabel')}
                                         </p>
-                                        <p className="text-xs text-indigo-500 m-0">Click Save Profile below to commit updates</p>
+                                        <p className="text-xs text-indigo-500 m-0">{t('profile.saveToApply')}</p>
                                     </div>
                                 </div>
                                 <button type="button" onClick={() => {
                                     setTempAvatar(null);
                                     setSelectedFile(null);
                                 }} className="min-h-[44px] text-slate-600 hover:text-red-600 bg-transparent border-0 cursor-pointer text-sm font-semibold px-3">
-                                    Remove
+                                    {t('common.remove')}
                                 </button>
                             </div>
                         )}
@@ -533,8 +533,8 @@ export default function ProfileSettings() {
                                         className={INPUT_CLS + invalidCls(form.errors.gender)}
                                         required
                                     >
-                                        <option value="" disabled hidden>Select gender...</option>
-                                        {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                                        <option value="" disabled hidden>{t('profile.selectGender')}</option>
+                                        {GENDERS.map((g) => <option key={g} value={g}>{t(`profile.gender${g}`)}</option>)}
                                     </select>
                                     <FieldError id="profile-gender" error={form.errors.gender} className="m-0" />
                                 </div>
@@ -548,7 +548,7 @@ export default function ProfileSettings() {
                                 </div>
                                 <div>
                                     <p className="m-0 text-sm font-bold text-slate-800">{t('profile.verificationDocs')}</p>
-                                    <p className="m-0 text-xs text-slate-500 mt-0.5">View the documents on your application</p>
+                                    <p className="m-0 text-xs text-slate-500 mt-0.5">{t('profile.docsHint')}</p>
                                 </div>
                             </button>
                             <button type="button" onClick={() => setShowPassModal(true)} className="btn-interactive bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl p-4 text-left flex items-center space-x-4 cursor-pointer transition-all duration-150 shadow-sm">
@@ -557,7 +557,7 @@ export default function ProfileSettings() {
                                 </div>
                                 <div>
                                     <p className="m-0 text-sm font-bold text-slate-800">{t('profile.accountSecurity')}</p>
-                                    <p className="m-0 text-xs text-slate-500 mt-0.5">Update login credentials</p>
+                                    <p className="m-0 text-xs text-slate-500 mt-0.5">{t('profile.securityHint')}</p>
                                 </div>
                             </button>
                         </div>
@@ -586,9 +586,9 @@ export default function ProfileSettings() {
 
             {confirmDeleteAvatar && (
                 <ConfirmDialog
-                    title="Delete your profile photo?"
-                    message="Your initials will show instead. You can add a new photo any time."
-                    confirmLabel="Yes, delete photo"
+                    title={t('profile.deleteTitle')}
+                    message={t('profile.deleteBody')}
+                    confirmLabel={t('profile.deleteYes')}
                     busy={deletingAvatar}
                     onConfirm={async () => {
                         if (deletingAvatar) return;
@@ -608,9 +608,9 @@ export default function ProfileSettings() {
                                 sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
                                 setLoggedInUser(updatedUser);
                                 window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
-                                setNotice({ message: 'Photo deleted', subtext: 'Your profile photo was removed.' });
+                                setNotice({ message: t('profile.deletedTitle'), subtext: t('profile.deletedBody') });
                             } else {
-                                setAvatarError(res.data.message || 'Failed to delete the photo.');
+                                setAvatarError(res.data.message || t('profile.deleteFailed'));
                             }
                         } catch (err) {
                             console.error("Error deleting avatar:", err);

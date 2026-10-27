@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
-import { useLang } from '../config/i18n';
+import { useLang, t as translate } from '../config/i18n';
 import ApartmentPic from "../assets/Apartment_Pic.webp";
 import '../assets/styles/responsive/user/login.responsive.css';
 import { LIMITS, checkEmail, normalizeEmail } from '../utils/validation';
@@ -20,7 +20,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     const [showPassword, setShowPassword] = useState(false);
     // Set when axiosConfig bounced a request whose session had ended.
     const [message, setMessage] = useState(() =>
-        new URLSearchParams(window.location.search).get('expired') ? 'Your session has ended. Please sign in again.' : ''
+        new URLSearchParams(window.location.search).get('expired') ? translate('login.sessionEnded') : ''
     );
     // /login?forgot=1 opens straight into "forgot password" (Reset Password links here).
     const [isForgotPassword, setIsForgotPassword] = useState(() => new URLSearchParams(window.location.search).get('forgot') === '1');
@@ -33,7 +33,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
     // Login only checks presence: older passwords may predate the new-password rules.
     const login = useFieldErrors({
         email: emailRule,
-        password: (v) => (v ? '' : 'Password is required.'),
+        password: (v) => (v ? '' : t('login.errPassword')),
     }, { idPrefix: 'login-' });
     const forgot = useFieldErrors({ email: emailRule }, { idPrefix: 'forgot-' });
 
@@ -151,7 +151,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
             <div className="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
                 <img 
                     src={ApartmentPic} 
-                    alt="Apartment Splash" 
+                    alt="" 
                     className="absolute inset-0 w-full h-full object-cover object-center z-0"
                 />
                 <div className="absolute inset-0 bg-[#3b4276]/90 z-10"></div>
@@ -179,7 +179,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
                             <ArrowLeft className="w-4 h-4" />
-                            <span>{isForgotPassword ? 'Back to Login' : t('login.backHome')}</span>
+                            <span>{isForgotPassword ? t('login.backToLogin') : t('login.backHome')}</span>
                         </button>
                     </div>
 
@@ -197,10 +197,10 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                     <div className="w-full space-y-6">
                         <div className="text-center">
                             <h2 className="login-heading text-3xl font-black tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                {isForgotPassword ? (lang === 'fil' ? 'I-reset ang Password' : 'Reset Password') : "Log In"}
+                                {isForgotPassword ? t('login.resetTitle') : t('login.title')}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">
-                                {isForgotPassword ? (lang === 'fil' ? 'Ilagay ang iyong email upang makatanggap ng link.' : 'Enter your email to receive a reset link') : t('login.subtitle')}
+                                {isForgotPassword ? t('login.resetSubtitle') : t('login.subtitle')}
                             </p>
                         </div>
 
@@ -225,7 +225,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                     htmlFor="login-email"
                                     className="absolute text-sm text-slate-600 font-semibold duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 cursor-text"
                                 >
-                                    {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your registered email</span>
+                                    {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- {t('login.emailHint')}</span>
                                 </label>
                                 <FieldError id="login-email" error={login.errors.email} />
                             </div>
@@ -249,12 +249,12 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                         htmlFor="login-password"
                                         className="absolute text-sm text-slate-600 font-semibold duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 cursor-text"
                                     >
-                                        {t('login.password')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your password</span>
+                                        {t('login.password')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- {t('login.passwordHint')}</span>
                                     </label>
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                        aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
                                         className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20 focus-visible:outline-2 focus-visible:outline-indigo-500"
                                     >
                                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -273,7 +273,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                             )}
 
                             <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70">
-                                {isSubmitting ? 'Signing in…' : t('login.submit')}
+                                {isSubmitting ? t('login.signingIn') : t('login.submit')}
                             </button>
                         </form>
                         ) : (
@@ -302,7 +302,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                     htmlFor="forgot-email"
                                     className="absolute text-sm text-slate-600 font-semibold duration-300 transform -translate-y-3 scale-75 top-4 z-10 origin-[0] left-4 peer-focus:text-indigo-600 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-3 cursor-text"
                                 >
-                                    {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- Enter your registered email</span>
+                                    {t('login.email')} <span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- {t('login.emailHint')}</span>
                                 </label>
                                 <FieldError id="forgot-email" error={forgot.errors.email} />
                             </div>
@@ -313,7 +313,7 @@ export default function Login({ onRegisterRedirect, onAdminRedirect, onHomeRedir
                                     disabled={isSubmittingForgot}
                                     className="btn-interactive w-full bg-indigo-600 text-white py-3.5 px-4 rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 border-0 cursor-pointer shadow-lg shadow-indigo-200 disabled:opacity-70 box-border"
                                 >
-                                    {isSubmittingForgot ? (lang === 'fil' ? 'Nagpapadala...' : 'Sending...') : (lang === 'fil' ? 'Ipadala ang Reset Link' : 'Send Reset Link')}
+                                    {isSubmittingForgot ? t('common.sending') : t('login.sendResetLink')}
                                 </button>
                             </div>
                         </form>

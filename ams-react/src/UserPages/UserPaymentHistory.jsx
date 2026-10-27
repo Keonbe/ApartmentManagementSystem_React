@@ -5,7 +5,7 @@ import { faFileInvoiceDollar, faDownload, faHistory, faPrint, faArrowRight } fro
 import SuccessModal from '../Components/SuccessModal';
 import useInvoiceWatch, { AWAITING_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
 import fileUrl from '../api/fileUrl';
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import { daysPastDue, formatPeriodRange, isBundleKey, isPastDue } from '../utils/billingPeriod';
 import { printElement } from '../utils/print';
 import useDialog from '../hooks/useDialog';
@@ -27,7 +27,7 @@ const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount);
 };
 const formatDate = (value) => value
-    ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    ? new Date(value).toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' })
     : 'N/A';
 
 export default function UserPaymentHistory() {
@@ -176,7 +176,7 @@ export default function UserPaymentHistory() {
     const years = Object.keys(paidByYear).sort((a, b) => b.localeCompare(a));
 
     const invoiceLabel = (inv) => (String(inv.id).startsWith('INV-') ? inv.id : `INV-${inv.id}`);
-    const shortDay = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '');
+    const shortDay = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' }) : '');
     // The charges on a bill, as one quiet line ("Rent ₱4,000.00, Water ₱120.00").
     const chargesLine = (inv) => [
         [t('paymentHistory.rent'), inv.base_rent], [t('paymentHistory.deposit'), inv.security_deposit],

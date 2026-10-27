@@ -52,9 +52,9 @@ export default function MaintenanceRequest() {
 
     // Keys match maintenance_request.php's form fields.
     const form = useFieldErrors({
-        issueType: (v) => (MAINTENANCE_CATEGORIES.some(c => c.value === v) ? '' : 'Please choose the type of issue.'),
-        preferredDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
-        preferredTime: (v) => (TIME_WINDOWS.includes(v) ? '' : 'Please choose a time window.'),
+        issueType: (v) => (MAINTENANCE_CATEGORIES.some(c => c.value === v) ? '' : t('maintenance.errIssueType')),
+        preferredDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: t('common.preferredDate') }),
+        preferredTime: (v) => (TIME_WINDOWS.includes(v) ? '' : t('common.errTimeWindow')),
         description: (v) => checkText(v, { label: 'Description', min: DESCRIPTION_MIN, max: LIMITS.message }),
         uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.maintenance) : ''),
     }, { idPrefix: 'maint-' });
@@ -119,7 +119,7 @@ export default function MaintenanceRequest() {
             if (res.data.success) {
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
-                setSubmitError(res.data.message || 'Failed to submit your request. Please try again.');
+                setSubmitError(res.data.message || t('common.requestFailed'));
             }
         } catch (error) {
             if (!form.applyServerErrors(error)) setSubmitError(apiErrorMessage(error, 'Failed to submit your request. Please try again.'));
@@ -260,7 +260,7 @@ export default function MaintenanceRequest() {
                                     ) : (
                                         <img
                                             src={previewUrl}
-                                            alt="Maintenance Issue Preview"
+                                            alt={t('maintenance.photoPreview')}
                                             className="w-32 h-20 object-cover rounded border border-slate-200"
                                         />
                                     )}

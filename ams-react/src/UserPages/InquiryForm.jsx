@@ -80,12 +80,12 @@ export default function InquiryForm() {
 
     // Keys match submit_inquiry.php's body.
     const form = useFieldErrors({
-        full_name: (v) => checkPersonName(v, { label: 'Full name', max: LIMITS.fullName }),
+        full_name: (v) => checkPersonName(v, { label: t('inquiry.fullNameLabel'), max: LIMITS.fullName }),
         contact_no: (v) => checkPhMobile(v),
         email: (v) => checkEmail(v, { max: LIMITS.email }),
-        room_name: (v) => (!v || rooms.some(r => String(r.id) === String(v)) ? '' : 'Please choose an available unit.'),
+        room_name: (v) => (!v || rooms.some(r => String(r.id) === String(v)) ? '' : t('inquiry.errUnit')),
         occupants: (v) => (v === '' || v == null ? '' : checkIntRange(v, 1, MAX_OCCUPANTS, 'Occupants')),
-        preferred_move_in: (v) => (v ? checkDate(v, { min: localDateString(), max: maxFutureDate(), label: 'Preferred move-in date' }) : ''),
+        preferred_move_in: (v) => (v ? checkDate(v, { min: localDateString(), max: maxFutureDate(), label: t('inquiry.moveInLabel') }) : ''),
         message: (v) => checkText(v, { label: 'Message', max: LIMITS.message, required: false }),
     }, { idPrefix: 'inquiry-' });
     const values = { full_name: fullName, contact_no: contactNo, email, room_name: roomName, occupants, preferred_move_in: moveIn, message };
@@ -109,7 +109,7 @@ export default function InquiryForm() {
         setEmail(clean.email);
         setMessage(clean.message);
         const fieldsOk = form.validateAll(clean);
-        if (!hasAgreedToRules) setRulesError('Please read the apartment rules and tick the box to continue.');
+        if (!hasAgreedToRules) setRulesError(t('inquiry.errRules'));
         if (!fieldsOk) return;
         if (!hasAgreedToRules) {
             document.getElementById('agree-rules')?.focus();

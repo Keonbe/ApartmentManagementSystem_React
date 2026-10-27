@@ -6,7 +6,7 @@ import ScopedRules from '../Components/ScopedRules';
 import useScopedRules from '../hooks/useScopedRules';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import { LIMITS, checkIntRange, checkText } from '../utils/validation';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
@@ -22,7 +22,7 @@ import { getSystemSettings } from '../config/systemSettings';
 import '../assets/styles/responsive/user/parking-reservation.responsive.css';
 
 export default function ParkingReservation() {
-    const { t } = useLang();
+    const { t, lang } = useLang();
     const [vehicleType, setVehicleType] = useState('motorcycle');
     const [vehicleModel, setVehicleModel] = useState('');
     const [plateNumber, setPlateNumber] = useState('');
@@ -77,11 +77,11 @@ export default function ParkingReservation() {
                     setMyReservation(slotsRes.data.my_reservation);
                     setSlotsKnown(true);
                 } else {
-                    setFormError('Could not load parking availability. Please refresh the page.');
+                    setFormError(t('parking.loadFailed'));
                 }
             } catch (err) {
                 console.error("Failed to load parking availability:", err);
-                setFormError('Could not load parking availability. Please refresh the page.');
+                setFormError(t('parking.loadFailed'));
             } finally {
                 setLoadingSlots(false);
             }
@@ -94,14 +94,14 @@ export default function ParkingReservation() {
     const getPlateHint = () => {
         switch (vehicleType) {
             case 'motorcycle':
-                return "Accepted format: 123-ABC, 1234-AB, or Sticker FA-8231";
+                return t('parking.formatCar');
             case 'sedan':
             case 'suv':
             case 'pickup':
             case 'van':
-                return "Accepted format: NKI-321, NKI-3212, or Sticker NK-1234";
+                return t('parking.formatMotorcycle');
             default:
-                return "Accepted format: 123-ABC or Sticker FA-8231";
+                return t('parking.formatDefault');
         }
     };
 
@@ -113,7 +113,7 @@ export default function ParkingReservation() {
             case 'suv':
             case 'pickup':
             case 'van':
-                return "NKI-321 or NKI-3212";
+                return t('parking.formatMotorcycleShort');
             default:
                 return "123-ABC or FA-8231";
         }
@@ -126,6 +126,8 @@ export default function ParkingReservation() {
     const peso = (n) => `₱${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const hasOpenReservation = myReservation && ['Pending', 'Assigned'].includes(myReservation.status);
+    // A closed request's status in the current language (unknown statuses as sent).
+    const statusWord = (status) => { const key = `parking.status${status}`; const text = t(key); return text === key ? status.toLowerCase() : text; };
 
     //ImagePreviewUrlIsCreatedOnceAndRevoked (it was recreated on every render and never freed)
     const isImageFile = uploadedFile && (uploadedFile.type.startsWith('image/') || /\.(png|jpe?g|gif)$/i.test(uploadedFile.name));
@@ -134,7 +136,7 @@ export default function ParkingReservation() {
 
     //4.IntelligentPhilippineLTOPlateAndInductionStickerValidation
     const validatePhilippinePlate = (val) => {
-        if (!val.trim()) return "Plate/Sticker number is required.";
+        if (!val.trim()) return t('parking.errPlateRequired');
 
         //StripHyphensForCleanAlphanumericValidation
         const raw = val.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -154,7 +156,7 @@ export default function ParkingReservation() {
         //MVFileNo:10To15Digits
         if (/^\d{10,15}$/.test(raw)) return "";
 
-        return "Invalid LTO format. Accepted: 123-ABC, NKI-3212, FA-8231, etc.";
+        return t('parking.errPlateFormat');
     };
 
     // Keys match parking_reservation.php's form fields.
@@ -163,12 +165,12 @@ export default function ParkingReservation() {
     const [agreeParkingRules, setAgreeParkingRules] = useState(false);
 
     const form = useFieldErrors({
-        vehicleType: (v) => (allowedVehicleTypes.includes(v) ? '' : 'This vehicle type is not currently accepted.'),
-        vehicleModel: (v) => checkText(v, { label: 'Vehicle model', min: 2, max: LIMITS.vehicleModel }),
+        vehicleType: (v) => (allowedVehicleTypes.includes(v) ? '' : t('parking.errVehicleType')),
+        vehicleModel: (v) => checkText(v, { label: t('parking.vehicleModel'), min: 2, max: LIMITS.vehicleModel }),
         plateNumber: (v) => validatePhilippinePlate(String(v ?? '')),
-        transmission: (v) => (TRANSMISSIONS.includes(v) ? '' : 'Please select the transmission type.'),
+        transmission: (v) => (TRANSMISSIONS.includes(v) ? '' : t('parking.errTransmission')),
         durationMonths: (v) => checkIntRange(v === '' ? NaN : v, 1, MAX_PARKING_MONTHS, 'Rental duration'),
-        uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.document) : 'Please upload your Vehicle Registration Form (OR/CR).'),
+        uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.document) : t('parking.errOrcr')),
     }, { idPrefix: 'parking-' });
     const values = { vehicleType, vehicleModel, plateNumber, transmission, durationMonths, uploadedFile };
 
@@ -279,7 +281,7 @@ export default function ParkingReservation() {
             if (res.data.success) {
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
-                setSubmitError(res.data.message || 'Could not submit the reservation.');
+                setSubmitError(res.data.message || t('parking.submitFailed'));
             }
         } catch (error) {
             if (!form.applyServerErrors(error)) setSubmitError(apiErrorMessage(error, "A network error occurred."));
@@ -323,9 +325,9 @@ export default function ParkingReservation() {
                     <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 flex items-start gap-3">
                         <FontAwesomeIcon icon={faBan} className="text-slate-500 mt-0.5" />
                         <p className="m-0">
-                            Your last parking request ({myReservation.plate_number}) was <strong>{myReservation.status.toLowerCase()}</strong>
+                            {t('parking.lastRequest', { plate: myReservation.plate_number })} <strong>{statusWord(myReservation.status)}</strong>
                             {(myReservation.rejection_reason || myReservation.release_reason) && `: ${myReservation.rejection_reason || myReservation.release_reason}`}.
-                            You can submit a new request below.
+                            {' '}{t('parking.newRequestBelow')}
                         </p>
                     </div>
                 )}
@@ -344,25 +346,25 @@ export default function ParkingReservation() {
                                 <FontAwesomeIcon icon={myReservation.status === 'Assigned' ? faCar : faClock} />
                             </div>
                             <div>
-                                <p className="text-xs font-bold text-slate-500 m-0">Your parking</p>
+                                <p className="text-xs font-bold text-slate-500 m-0">{t('parking.yourParking')}</p>
                                 <h2 className="text-2xl font-extrabold m-0" style={{ color: '#3b4276' }}>
-                                    {myReservation.status === 'Assigned' ? `Slot #${myReservation.slot_number}` : 'Awaiting review'}
+                                    {myReservation.status === 'Assigned' ? t('parking.slotNo', { n: myReservation.slot_number }) : t('parking.awaitingReview')}
                                 </h2>
                             </div>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                            <div><p className="text-xs font-bold text-slate-500 m-0">Vehicle</p><p className="font-bold text-slate-800 m-0">{myReservation.vehicle_model}</p></div>
-                            <div><p className="text-xs font-bold text-slate-500 m-0">Plate</p><p className="font-bold text-slate-800 m-0 font-mono">{myReservation.plate_number}</p></div>
-                            <div><p className="text-xs font-bold text-slate-500 m-0">Term</p><p className="font-bold text-slate-800 m-0">{myReservation.duration_months} month(s){myReservation.term_ends_at ? ` · until ${new Date(myReservation.term_ends_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}</p></div>
-                            <div><p className="text-xs font-bold text-slate-500 m-0">Monthly fee</p><p className="font-bold text-slate-800 m-0">{peso(monthlyFee)}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.vehicle')}</p><p className="font-bold text-slate-800 m-0">{myReservation.vehicle_model}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.plate')}</p><p className="font-bold text-slate-800 m-0 font-mono">{myReservation.plate_number}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.term')}</p><p className="font-bold text-slate-800 m-0">{t('parking.months', { n: myReservation.duration_months })}{myReservation.term_ends_at ? ` · ${t('parking.until', { date: new Date(myReservation.term_ends_at).toLocaleDateString(dateLocale(lang), { month: 'short', day: 'numeric', year: 'numeric' }) })}` : ''}</p></div>
+                            <div><p className="text-xs font-bold text-slate-500 m-0">{t('parking.monthlyFee')}</p><p className="font-bold text-slate-800 m-0">{peso(monthlyFee)}</p></div>
                         </div>
                         {myReservation.status === 'Assigned' ? (
                             <p className="text-xs text-slate-500 m-0">
-                                The parking fee is added to your monthly bill.
-                                {myReservation.billed_periods?.length > 0 && ` Billed so far: ${myReservation.billed_periods.join(', ')}.`}
+                                {t('parking.feeOnBill')}
+                                {myReservation.billed_periods?.length > 0 && ` ${t('parking.billedSoFar', { periods: myReservation.billed_periods.join(', ') })}`}
                             </p>
                         ) : (
-                            <p className="text-xs text-slate-500 m-0">Management will review your OR/CR and assign a slot. You'll get a notification either way.</p>
+                            <p className="text-xs text-slate-500 m-0">{t('parking.reviewNote')}</p>
                         )}
                     </div>
                 ) : (
@@ -382,7 +384,7 @@ export default function ParkingReservation() {
                                 { value: 'motorcycle', label: t('parking.motorcycle') },
                                 { value: 'sedan', label: 'Sedan' },
                                 { value: 'suv', label: 'SUV' },
-                                { value: 'pickup', label: 'Pickup Truck' },
+                                { value: 'pickup', label: t('parking.pickup') },
                                 { value: 'van', label: 'Van' },
                                 { value: 'ebike', label: 'E-Bike' },
                             ].map((vt) => {
@@ -404,7 +406,7 @@ export default function ParkingReservation() {
                             type="text"
                             {...form.fieldA11y('vehicleModel')}
                             autoComplete="off"
-                            placeholder="e.g. Yamaha Nmax / Honda Click"
+                            placeholder={t('parking.modelPlaceholder')}
                             value={vehicleModel}
                             maxLength={LIMITS.vehicleModel}
                             required
@@ -451,7 +453,7 @@ export default function ParkingReservation() {
                             style={{ color: '#1e293b' }}
                             required
                         >
-                            <option value="" disabled hidden>Select transmission type...</option>
+                            <option value="" disabled hidden>{t('parking.selectTransmission')}</option>
                             <option value="Automatic">{t('parking.automatic')}</option>
                             <option value="Manual">{t('parking.manual')}</option>
                         </select>
@@ -471,7 +473,7 @@ export default function ParkingReservation() {
                             min="1"
                             max={MAX_PARKING_MONTHS}
                             step="1"
-                            placeholder="e.g. 6 (Max 6)"
+                            placeholder={t('parking.durationPlaceholder')}
                             value={durationMonths}
                             onKeyDown={blockNonIntegerKeys}
                             onChange={handleNumberInput}
@@ -485,7 +487,7 @@ export default function ParkingReservation() {
 
                     {/*EnhancedORCRFileUploadContainer*/}
                     <div className="flex flex-col space-y-2 md:col-span-2">
-                        <label htmlFor="parking-uploadedFile" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>Vehicle Registration Form (LTO OR/CR)</label>
+                        <label htmlFor="parking-uploadedFile" className="text-sm font-bold text-slate-700" style={{ color: '#3b4276' }}>{t('parking.orcrLabel')}</label>
                         <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
@@ -503,8 +505,8 @@ export default function ParkingReservation() {
                                     />
                                     <div className="space-y-2 pointer-events-none">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} className="text-3xl text-slate-500" />
-                                        <p className="text-sm font-medium text-slate-700 m-0">Drag and drop OR/CR document here, or <span className="text-indigo-600 font-bold">browse</span></p>
-                                        <p className="text-slate-500 text-xs m-0">Supports PDFs, PNGs, and JPG documents (Max 10MB)</p>
+                                        <p className="text-sm font-medium text-slate-700 m-0">{t('parking.dropHere')} <span className="text-indigo-600 font-bold">{t('parking.browse')}</span></p>
+                                        <p className="text-slate-500 text-xs m-0">{t('parking.supports')}</p>
                                     </div>
                                 </>
                             ) : (
@@ -512,7 +514,7 @@ export default function ParkingReservation() {
                                     {isImageFile ? (
                                         <img
                                             src={previewUrl}
-                                            alt="OR/CR Document Preview" 
+                                            alt={t('parking.orcrPreview')} 
                                             className="w-full max-w-[360px] h-40 object-contain rounded-xl border border-slate-200 bg-white shadow-sm"
                                         />
                                     ) : (
@@ -533,7 +535,7 @@ export default function ParkingReservation() {
                                         onClick={() => { setUploadedFile(null); form.clearError('uploadedFile'); }}
                                         className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold px-4 py-1.5 rounded-xl border-0 cursor-pointer transition-colors shadow-sm"
                                     >
-                                        Remove / Retake
+                                        {t('parking.removeRetake')}
                                     </button>
                                 </div>
                             )}
@@ -543,7 +545,7 @@ export default function ParkingReservation() {
 
                     {parkingRules.length > 0 && (
                         <div className="md:col-span-2 space-y-3">
-                            <ScopedRules scope="parking" title="Parking rules" />
+                            <ScopedRules scope="parking" title={t('parking.rules')} />
                             <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm font-semibold text-slate-700">
                                 <input
                                     id="parking-agreeParkingRules"
@@ -554,7 +556,7 @@ export default function ParkingReservation() {
                                     aria-describedby={form.errors.agreeParkingRules ? 'parking-agreeParkingRules-error' : undefined}
                                     className="mt-0.5 h-6 w-6 shrink-0 cursor-pointer rounded border-slate-300"
                                 />
-                                <span>I have read and agree to follow the parking rules.</span>
+                                <span>{t('parking.agreeRules')}</span>
                             </label>
                             <FieldError id="parking-agreeParkingRules" error={form.errors.agreeParkingRules} className="m-0" />
                         </div>
@@ -581,7 +583,7 @@ export default function ParkingReservation() {
                             disabled={loadingSlots || !slotsKnown || availableSlots <= 0 || submitting}
                             className="parking-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
-                            {submitting ? 'Submitting…' : !slotsKnown ? (loadingSlots ? 'Checking slots…' : 'Availability unknown') : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
+                            {submitting ? t('common.submitting') : !slotsKnown ? (loadingSlots ? t('parking.checkingSlots') : t('parking.availabilityUnknown')) : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
                         </button>
                     </div>
 
@@ -612,7 +614,7 @@ export default function ParkingReservation() {
                             <button
                                 type="button"
                                 onClick={closePdfModal}
-                                aria-label="Close PDF preview"
+                                aria-label={t('parking.closePdf')}
                                 className="parking-pdf-modal-close-btn flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer text-lg"
                             >
                                 <FontAwesomeIcon icon={faTimes} aria-hidden="true" />

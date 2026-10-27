@@ -173,13 +173,13 @@ export default function ViewContract() {
                     ...prev,
                     tenantSignature: res.data.filePath
                 }));
-                setSignatureMessage({ ok: true, text: 'Your signature was added to the contract.' });
+                setSignatureMessage({ ok: true, text: t('contract.signatureAdded') });
             } else {
-                setSignatureMessage({ ok: false, text: res.data.message || 'Failed to upload signature.' });
+                setSignatureMessage({ ok: false, text: res.data.message || t('contract.signatureUploadFailed') });
             }
         } catch (err) {
             console.error('Failed to upload signature:', err);
-            setSignatureMessage({ ok: false, text: err.response?.data?.message || 'Failed to upload signature.' });
+            setSignatureMessage({ ok: false, text: err.response?.data?.message || t('contract.signatureUploadFailed') });
         } finally {
             setSignatureBusy(false);
         }
@@ -202,13 +202,13 @@ export default function ViewContract() {
                     ...prev,
                     tenantSignature: null
                 }));
-                setSignatureMessage({ ok: true, text: 'Your signature was removed.' });
+                setSignatureMessage({ ok: true, text: t('contract.signatureRemoved') });
             } else {
-                setSignatureMessage({ ok: false, text: res.data.message || 'Failed to remove signature.' });
+                setSignatureMessage({ ok: false, text: res.data.message || t('contract.signatureRemoveFailed') });
             }
         } catch (err) {
             console.error('Failed to remove signature:', err);
-            setSignatureMessage({ ok: false, text: err.response?.data?.message || 'Failed to remove signature.' });
+            setSignatureMessage({ ok: false, text: err.response?.data?.message || t('contract.signatureRemoveFailed') });
         } finally {
             setSignatureBusy(false);
         }
@@ -354,7 +354,7 @@ export default function ViewContract() {
 
 
             <div className="w-full max-w-3xl mb-4 print:hidden" aria-live="polite">
-                {signatureBusy && <InlineAlert tone="info">Saving your signature…</InlineAlert>}
+                {signatureBusy && <InlineAlert tone="info">{t('contract.signatureSaving')}</InlineAlert>}
                 {signatureMessage && (
                     <InlineAlert tone={signatureMessage.ok ? 'info' : 'error'} onDismiss={() => setSignatureMessage(null)}>{signatureMessage.text}</InlineAlert>
                 )}

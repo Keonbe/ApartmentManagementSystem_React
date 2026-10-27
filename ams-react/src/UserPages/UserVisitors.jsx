@@ -29,7 +29,7 @@ const PLATE_PATTERN = /^[A-Z0-9][A-Z0-9 -]*$/;
 // check-out is within 30 days of the arrival, so its picker goes to 60.
 const arrivalBounds = () => ({ min: localDateString(), max: addDays(30), outMax: addDays(60) });
 const DAY_MS = 24 * 60 * 60 * 1000;
-const fmtShort = (d) => new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fmtShort = (d) => new Date(d).toLocaleString(dateLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 // Preset departure notes for "Mark departed" (ReasonModal adds "Other…").
 const DEPARTURE_NOTE_OPTIONS = [
@@ -38,7 +38,7 @@ const DEPARTURE_NOTE_OPTIONS = [
   'Picked up / fetched by someone',
   'Stayed shorter than planned',
 ];
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import '../assets/styles/responsive/user/user-visitors.responsive.css';
 
 export default function UserVisitors() {
@@ -81,33 +81,33 @@ export default function UserVisitors() {
   // Keys match check_in_visitor.php (expectedDate/expectedTime make up
   // expectedAt, expectedOutDate/expectedOutTime make up expectedCheckOutAt).
   const visitorForm = useFieldErrors({
-    visitorName: (v) => checkPersonName(v, { label: 'Visitor name', max: LIMITS.fullName }),
+    visitorName: (v) => checkPersonName(v, { label: t('visitors.visitorName'), max: LIMITS.fullName }),
     contactNumber: (v) => checkPhMobile(v),
-    purpose: (v) => (PURPOSES.includes(v) ? '' : 'Choose the purpose of the visit.'),
-    expectedDate: (v) => checkDate(v, { min: expectedBounds.min, max: expectedBounds.max, label: 'Check-in date' }),
+    purpose: (v) => (PURPOSES.includes(v) ? '' : t('visitors.errPurpose')),
+    expectedDate: (v) => checkDate(v, { min: expectedBounds.min, max: expectedBounds.max, label: t('visitors.expectedDate') }),
     // check_in_visitor.php accepts an arrival up to 1 hour in the past.
     expectedTime: (v, all) => {
-      if (!v) return 'Check-in time is required.';
+      if (!v) return t('visitors.errTimeRequired');
       if (!all.expectedDate) return '';
-      return new Date(`${all.expectedDate}T${v}`).getTime() < Date.now() - 60 * 60 * 1000 ? 'Check-in time cannot be in the past.' : '';
+      return new Date(`${all.expectedDate}T${v}`).getTime() < Date.now() - 60 * 60 * 1000 ? t('visitors.errTimePast') : '';
     },
-    expectedOutDate: (v) => checkDate(v, { min: expectedBounds.min, max: expectedBounds.outMax, label: 'Expected check-out date' }),
+    expectedOutDate: (v) => checkDate(v, { min: expectedBounds.min, max: expectedBounds.outMax, label: t('visitors.expectedOutDate') }),
     // After the check-in and within 30 days of it.
     expectedOutTime: (v, all) => {
-      if (!v) return 'Expected check-out time is required.';
+      if (!v) return t('visitors.errOutRequired');
       if (!all.expectedOutDate) return '';
       const outMs = new Date(`${all.expectedOutDate}T${v}`).getTime();
-      if (Number.isNaN(outMs)) return 'Enter a valid check-out time.';
+      if (Number.isNaN(outMs)) return t('visitors.errOutInvalid');
       const inMs = new Date(`${all.expectedDate}T${all.expectedTime}`).getTime();
       if (Number.isNaN(inMs)) return '';
-      if (outMs <= inMs) return 'Expected check-out must be after the check-in.';
-      if (outMs > inMs + 30 * DAY_MS) return 'Expected check-out must be within 30 days of check-in.';
+      if (outMs <= inMs) return t('visitors.errOutBefore');
+      if (outMs > inMs + 30 * DAY_MS) return t('visitors.errOutTooLong');
       return '';
     },
-    idType: (v) => (ID_TYPES.includes(v) ? '' : 'Choose an ID type.'),
-    idNumber: (v) => checkText(v, { label: 'ID number', min: 3, max: LIMITS.idNumber }),
-    vehiclePlate: (v) => checkText(v, { label: 'Vehicle plate', max: LIMITS.visitorPlate, required: false })
-      || (v && !PLATE_PATTERN.test(String(v).trim()) ? 'Plate can only contain letters, numbers, spaces and hyphens.' : ''),
+    idType: (v) => (ID_TYPES.includes(v) ? '' : t('visitors.errIdType')),
+    idNumber: (v) => checkText(v, { label: t('visitors.idNumber'), min: 3, max: LIMITS.idNumber }),
+    vehiclePlate: (v) => checkText(v, { label: t('visitors.plateLabel'), max: LIMITS.visitorPlate, required: false })
+      || (v && !PLATE_PATTERN.test(String(v).trim()) ? t('visitors.errPlate') : ''),
     idPhoto: (f) => (f ? checkFile(f, FILE_RULES.visitorId) : ''),
   }, { idPrefix: 'visitor-' });
   const setVisitorField = (key, value) => {
@@ -159,11 +159,11 @@ export default function UserVisitors() {
       if (res.data.success) {
         setVisitors(res.data.visitors || []);
       } else {
-        setError(res.data.message || 'Failed to fetch visitor records.');
+        setError(res.data.message || t('visitors.loadFailed'));
       }
     } catch (err) {
       console.error('Failed to load visitor records:', err);
-      setError('Unable to load visitor logs. Please check your connection.');
+      setError(t('visitors.loadFailedNetwork'));
     } finally {
       setLoading(false);
     }
@@ -223,11 +223,11 @@ export default function UserVisitors() {
         setRegisterForm(emptyRegisterForm);
         fetchTenantData();
       } else if (!visitorForm.applyServerErrors(res)) {
-        setFormError(res.data.message || 'Failed to register visitor.');
+        setFormError(res.data.message || t('visitors.registerFailed'));
       }
     } catch (err) {
       console.error('Registration failed:', err);
-      if (!visitorForm.applyServerErrors(err)) setFormError(apiErrorMessage(err, 'Server error registering visitor.'));
+      if (!visitorForm.applyServerErrors(err)) setFormError(apiErrorMessage(err, t('visitors.registerFailed')));
     } finally {
       setSubmitting(false);
     }
@@ -245,9 +245,9 @@ export default function UserVisitors() {
       });
     } catch (err) {
       console.error('Failed to mark visitor departure:', err);
-      throw new Error(apiErrorMessage(err, 'Failed to update status.'), { cause: err });
+      throw new Error(apiErrorMessage(err, t('visitors.statusFailed')), { cause: err });
     }
-    if (!res.data.success) throw new Error(res.data.message || 'Failed to update status.');
+    if (!res.data.success) throw new Error(res.data.message || t('visitors.statusFailed'));
     setDepartTarget(null);
     fetchTenantData();
   };
@@ -260,7 +260,7 @@ export default function UserVisitors() {
       if (res.data.success) {
         fetchTenantData();
       } else {
-        setPageError(res.data.message || 'Failed to cancel registration.');
+        setPageError(res.data.message || t('visitors.cancelFailed'));
       }
     } catch (err) {
       console.error('Failed to cancel registration:', err);
@@ -305,8 +305,8 @@ export default function UserVisitors() {
                 type="button"
                 onClick={fetchTenantData}
                 className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
-                title="Refresh"
-                aria-label="Refresh visitors"
+                title={t('common.refresh')}
+                aria-label={t('visitors.refresh')}
               >
                 <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -380,12 +380,12 @@ export default function UserVisitors() {
                 <div key={v.id} className="card-interactive rounded-xl border border-amber-200 bg-white p-4 shadow-xs">
                   <div className="flex items-center justify-between">
                     <p className="font-bold text-slate-800 text-sm m-0">{v.visitorName}</p>
-                    <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5">Pending Review</span>
+                    <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5">{t('visitors.statusPending')}</span>
                   </div>
-                  <p className="text-xs text-slate-500 m-0 mt-1">Contact: {v.contactNumber} • Purpose: {v.purpose}</p>
+                  <p className="text-xs text-slate-500 m-0 mt-1">{t('visitors.contactPurpose', { contact: v.contactNumber, purpose: v.purpose })}</p>
                   {v.expectedAt && (
                     <p className="text-xs text-slate-500 m-0 mt-0.5">
-                      Expected {fmtShort(v.expectedAt)}
+                      {t('visitors.expectedOn', { date: fmtShort(v.expectedAt) })}
                       {v.expectedCheckOutAt && ` – ${fmtShort(v.expectedCheckOutAt)}`}
                     </p>
                   )}
@@ -466,7 +466,7 @@ export default function UserVisitors() {
 
                       <td data-label={t('visitors.colCheckIn')} className="flex sm:table-cell items-start justify-between gap-4 py-1 sm:py-3.5 before:content-[attr(data-label)] before:font-semibold before:text-slate-500 before:text-xs sm:before:content-none sm:px-4 text-xs text-slate-600 text-right sm:text-left">
                         <span>
-                        {new Date(v.visitAt || v.checkInAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {new Date(v.visitAt || v.checkInAt).toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' })}
                         <br />
                         <span className="text-xs text-slate-500">{new Date(v.visitAt || v.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </span>
@@ -478,22 +478,22 @@ export default function UserVisitors() {
 
                       <td data-label={t('visitors.colStatus')} className="flex sm:table-cell items-start justify-between gap-4 py-1 sm:py-3.5 before:content-[attr(data-label)] before:font-semibold before:text-slate-500 before:text-xs sm:before:content-none items-center sm:px-5 sm:text-center">
                         {v.status === 'pending_approval' && (
-                          <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1">Pending Review</span>
+                          <span className="rounded-full bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1">{t('visitors.statusPending')}</span>
                         )}
                         {v.status === 'checked_in' && (
-                          <span className="rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1">Active</span>
+                          <span className="rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1">{t('visitors.statusActive')}</span>
                         )}
                         {v.status === 'overstayed' && (
-                          <span className="rounded-full bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1">Overstayed</span>
+                          <span className="rounded-full bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1">{t('visitors.statusOverstayed')}</span>
                         )}
                         {v.status === 'checked_out' && (
-                          <span className="rounded-full bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1">Departed</span>
+                          <span className="rounded-full bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1">{t('visitors.statusDeparted')}</span>
                         )}
                         {v.status === 'denied' && (
-                          <span className="rounded-full bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1">Declined</span>
+                          <span className="rounded-full bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1">{t('visitors.statusDeclined')}</span>
                         )}
                         {v.status === 'cancelled' && (
-                          <span className="rounded-full bg-slate-100 text-slate-500 text-xs font-bold px-2.5 py-1">Cancelled</span>
+                          <span className="rounded-full bg-slate-100 text-slate-500 text-xs font-bold px-2.5 py-1">{t('visitors.statusCancelled')}</span>
                         )}
                       </td>
 
@@ -519,7 +519,7 @@ export default function UserVisitors() {
               <button
                 type="button"
                 onClick={requestCloseRegister}
-                aria-label="Close"
+                aria-label={t('common.close')}
                 className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer"
               >
                 <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
@@ -539,7 +539,7 @@ export default function UserVisitors() {
                   {...visitorForm.fieldA11y('visitorName')}
                   autoComplete="off"
                   required
-                  placeholder="e.g. Juan Dela Cruz"
+                  placeholder={t('visitors.namePlaceholder')}
                   value={registerForm.visitorName}
                   maxLength={LIMITS.fullName}
                   onChange={(e) => setVisitorField('visitorName', e.target.value)}
@@ -570,11 +570,11 @@ export default function UserVisitors() {
                   onChange={(e) => setVisitorField('purpose', e.target.value)}
                   className="focus-glow w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-base sm:text-sm text-slate-800 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 bg-white cursor-pointer"
                 >
-                  <option value="Personal Visit">Personal Visit / Friends / Family</option>
-                  <option value="Delivery / Courier">Food / Package Delivery</option>
-                  <option value="Maintenance / Contractor">Maintenance / Contractor / Repair</option>
-                  <option value="Official / Business">Official / Business</option>
-                  <option value="Short Stay Guest">Short Stay Guest</option>
+                  <option value="Personal Visit">{t('visitors.purposePersonal')}</option>
+                  <option value="Delivery / Courier">{t('visitors.purposeDelivery')}</option>
+                  <option value="Maintenance / Contractor">{t('visitors.purposeMaintenance')}</option>
+                  <option value="Official / Business">{t('visitors.purposeOfficial')}</option>
+                  <option value="Short Stay Guest">{t('visitors.purposeShortStay')}</option>
                 </select>
               </div>
 
@@ -650,11 +650,11 @@ export default function UserVisitors() {
                     onChange={(e) => setVisitorField('idType', e.target.value)}
                     className="focus-glow w-full rounded-xl border border-slate-200 px-3 py-2.5 text-base sm:text-sm text-slate-800 outline-none focus:border-indigo-500 bg-white cursor-pointer"
                   >
-                    <option value="National ID">National ID</option>
-                    <option value="Driver's License">Driver's License</option>
-                    <option value="Passport">Passport</option>
+                    <option value="National ID">{t('visitors.idNational')}</option>
+                    <option value="Driver's License">{t('visitors.idDriver')}</option>
+                    <option value="Passport">{t('visitors.idPassport')}</option>
                     <option value="UMID / SSS">UMID / SSS</option>
-                    <option value="Student / Work ID">Student / Work ID</option>
+                    <option value="Student / Work ID">{t('visitors.idStudentWork')}</option>
                   </select>
                 </div>
                 <div>
@@ -736,10 +736,10 @@ export default function UserVisitors() {
 
       {confirmDiscard && (
         <ConfirmDialog
-          title="Discard this visitor?"
-          message="What you entered will be lost."
-          confirmLabel="Yes, discard"
-          cancelLabel="Keep editing"
+          title={t('visitors.discardTitle')}
+          message={t('visitors.discardBody')}
+          confirmLabel={t('visitors.discardYes')}
+          cancelLabel={t('visitors.keepEditing')}
           onConfirm={() => { setConfirmDiscard(false); setRegisterForm(emptyRegisterForm); setShowRegisterModal(false); }}
           onClose={() => setConfirmDiscard(false)}
         />
@@ -747,9 +747,10 @@ export default function UserVisitors() {
 
       {cancelTarget !== null && (
         <ConfirmDialog
-          title="Cancel this visitor pre-registration?"
-          message="The visitor will no longer be expected."
-          confirmLabel="Yes, cancel it"
+          title={t('visitors.cancelTitle')}
+          message={t('visitors.cancelBody')}
+          confirmLabel={t('visitors.cancelYes')}
+          cancelLabel={t('visitors.keepIt')}
           busy={cancellingId === cancelTarget}
           onConfirm={() => handleCancelRegistration(cancelTarget)}
           onClose={() => setCancelTarget(null)}

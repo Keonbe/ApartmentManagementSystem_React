@@ -1,5 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck } from '@fortawesome/free-solid-svg-icons';
+import { t } from '../config/i18n';
 
 // subtext and action ({ label, onClick }) are optional; without them the modal
 // reads exactly as before.
@@ -64,7 +65,7 @@ export default function SuccessModal({ isOpen, onClose, message = "Successfully 
                     onClick={onClose}
                     className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3 rounded-xl text-sm transition-all duration-200 shadow-md hover:shadow-indigo-200 border-0 cursor-pointer"
                 >
-                    Continue
+                    {t('common.continue')}
                 </button>
             </div>
         </div>

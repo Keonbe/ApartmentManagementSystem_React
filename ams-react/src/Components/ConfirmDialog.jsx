@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import useDialog from '../hooks/useDialog';
+import { t } from '../config/i18n';
 
 // Asks before an action that cannot be undone (replaces window.confirm).
 // Render it only while a question is open: <ConfirmDialog title=… onConfirm=… onClose=… />.
@@ -15,8 +16,8 @@ const TONES = {
 export default function ConfirmDialog({
   title,
   message,
-  confirmLabel = 'Yes, continue',
-  cancelLabel = 'Keep it',
+  confirmLabel = t('confirm.yesContinue'),
+  cancelLabel = t('visitors.keepIt'),
   tone = 'danger',
   busy = false,
   onConfirm,
@@ -57,7 +58,7 @@ export default function ConfirmDialog({
             disabled={busy}
             className={`min-h-[44px] rounded-xl border-0 px-5 text-sm font-bold text-white cursor-pointer disabled:opacity-50 ${TONES[tone] || TONES.danger}`}
           >
-            {busy ? 'Please wait…' : confirmLabel}
+            {busy ? t('common.pleaseWait') : confirmLabel}
           </button>
         </div>
       </div>

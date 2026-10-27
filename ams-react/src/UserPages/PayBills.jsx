@@ -4,7 +4,7 @@ import { faWallet, faUniversity, faMoneyBillWave, faCheckCircle, faHistory, faEx
 import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import { useNavigate } from 'react-router-dom';
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import InlineAlert from '../Components/InlineAlert';
 import useInvoiceWatch, { AWAITING_STATUSES, OPEN_STATUSES, PAYABLE_STATUSES } from '../hooks/useInvoiceWatch';
@@ -340,7 +340,7 @@ export default function PayBills() {
             isOverdue: diffDays < 0 || billDetails.status === 'overdue',
             isDueToday: diffDays === 0,
             isDueSoon: diffDays > 0 && diffDays <= 3,
-            formattedDate: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            formattedDate: due.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' })
         };
     })();
 

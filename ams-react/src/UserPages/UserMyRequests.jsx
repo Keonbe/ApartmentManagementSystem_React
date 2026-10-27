@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTools, faVideo, faCar, faTimesCircle, faCheckCircle, faClock, faBroom, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import '../assets/styles/responsive/user/user-my-requests.responsive.css';
@@ -59,10 +59,10 @@ export default function UserMyRequests() {
             if (response.data.success) {
                 await fetchRequests();
             } else {
-                setActionError(response.data.message || 'Failed to cancel the request.');
+                setActionError(response.data.message || t('myRequests.cancelFailed'));
             }
         } catch (error) {
-            setActionError(error.response?.data?.message || 'Failed to cancel the request.');
+            setActionError(error.response?.data?.message || t('myRequests.cancelFailed'));
         } finally {
             setCancelling(false);
             setCancelTarget(null);
@@ -89,7 +89,7 @@ export default function UserMyRequests() {
     const formatStamp = (value) => {
         const d = parseDate(value);
         if (!d) return '—';
-        return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} ${t('myRequests.at')} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        return `${d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric', year: 'numeric' })} ${t('myRequests.at')} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     };
 
     const getStatusBadge = (status) => {

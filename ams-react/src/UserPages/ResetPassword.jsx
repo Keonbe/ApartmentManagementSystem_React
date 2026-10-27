@@ -22,12 +22,11 @@ export default function ResetPassword() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const token = searchParams.get('token');
-    const { lang } = useLang();
-    const isFil = lang === 'fil';
+    const { t } = useLang();
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [message, setMessage] = useState(() => (!token ? (isFil ? 'Hindi wasto ang link para i-reset ang password.' : 'Invalid password reset link.') : ''));
+    const [message, setMessage] = useState(() => (!token ? t('reset.invalidLink') : ''));
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [showInvalid, setShowInvalid] = useState(false);
@@ -65,7 +64,7 @@ export default function ResetPassword() {
             }
         } catch (error) {
             if (!form.applyServerErrors(error)) {
-                setMessage(apiErrorMessage(error, "Failed to reset password. The link might be expired."));
+                setMessage(apiErrorMessage(error, t('reset.failed')));
                 if (error.response?.status === 404 || /invalid|expired/i.test(error.response?.data?.message || '')) setShowInvalid(true);
             }
         } finally {
@@ -88,7 +87,7 @@ export default function ResetPassword() {
             <div className="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
                 <img 
                     src={ApartmentPic} 
-                    alt="Apartment Splash" 
+                    alt="" 
                     className="absolute inset-0 w-full h-full object-cover object-center z-0"
                 />
                 <div className="absolute inset-0 bg-[#3b4276]/90 z-10"></div>
@@ -99,7 +98,7 @@ export default function ResetPassword() {
                     </h1>
                     <div className="w-48 border-t border-white/20 my-3"></div>
                     <p className="text-xs font-light text-white/70 m-0">
-                        Apartment Management System
+                        {t('login.tagline')}
                     </p>
                 </div>
             </div>
@@ -115,21 +114,21 @@ export default function ResetPassword() {
                         </h1>
                         <div className="w-24 border-t my-1.5" style={{ borderColor: 'rgba(59, 66, 118, 0.2)' }}></div>
                         <p className="text-xs font-medium m-0 text-center text-slate-500">
-                            Apartment Management System
+                            {t('login.tagline')}
                         </p>
                     </div>
 
                     <div className="w-full space-y-6">
                         <div className="text-center">
                             <h2 className="login-heading text-3xl font-extrabold tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                {isFil ? 'Gumawa ng Bagong Password' : 'Create New Password'}
+                                {t('reset.title')}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">
-                                {isFil ? 'Maglagay ng bagong ligtas na password para sa iyong account.' : 'Enter a new secure password for your account.'}
+                                {t('reset.subtitle')}
                             </p>
                         </div>
 
-                        {showInvalid ? <div className="space-y-4 text-center"><p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{message || (isFil ? 'Hindi wasto o nag-expire na ang link.' : 'This reset link is invalid or expired.')}</p><Link to="/login?forgot=1" className="inline-flex items-center min-h-[44px] font-bold text-indigo-600">{isFil ? 'Humiling ng bagong link' : 'Request a new link'}</Link></div> : isSuccess ? (
+                        {showInvalid ? <div className="space-y-4 text-center"><p className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{message || t('reset.invalidOrExpired')}</p><Link to="/login?forgot=1" className="inline-flex items-center min-h-[44px] font-bold text-indigo-600">{t('reset.requestNew')}</Link></div> : isSuccess ? (
                             <div className="space-y-4 text-center mt-6">
                                 <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold rounded-xl">
                                     {message}
@@ -138,7 +137,7 @@ export default function ResetPassword() {
                                     onClick={() => navigate('/login')}
                                     className="btn-interactive w-full bg-[#3b4276] text-white py-3 px-4 rounded-xl font-bold text-sm hover:bg-[#2c325c] transition-colors border-0 cursor-pointer shadow-lg mt-2 box-border"
                                 >
-                                    {isFil ? 'Magpatuloy sa Pag-login' : 'Proceed to Login'}
+                                    {t('reset.proceedLogin')}
                                 </button>
                             </div>
                         ) : (
@@ -151,14 +150,14 @@ export default function ResetPassword() {
                                             {message}
                                         </div>
                                         <Link to="/login?forgot=1" className="inline-flex items-center min-h-[44px] font-bold text-indigo-600">
-                                            {isFil ? 'Humiling ng bagong link' : 'Request a new link'}
+                                            {t('reset.requestNew')}
                                         </Link>
                                     </div>
                                 ) : (
                                     <>
                                         <PasswordField
                                             a11y={form.fieldA11y('new_password')}
-                                            label={isFil ? 'Bagong Password' : 'New Password'}
+                                            label={t('reset.newPassword')}
                                             labelClassName={LABEL_CLS}
                                             inputClassName={INPUT_CLS}
                                             value={password}
@@ -171,7 +170,7 @@ export default function ResetPassword() {
 
                                         <PasswordField
                                             a11y={form.fieldA11y('confirm_password')}
-                                            label={isFil ? 'Kumpirmahin ang Password' : 'Confirm Password'}
+                                            label={t('reset.confirmPassword')}
                                             labelClassName={LABEL_CLS}
                                             inputClassName={INPUT_CLS}
                                             value={confirmPassword}
@@ -191,7 +190,7 @@ export default function ResetPassword() {
                                             disabled={isSubmitting}
                                             className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide disabled:opacity-70 mt-2"
                                         >
-                                            {isSubmitting ? (isFil ? 'Nire-reset...' : 'Resetting...') : (isFil ? 'I-reset ang Password' : 'Reset Password')}
+                                            {isSubmitting ? t('reset.resetting') : t('login.resetTitle')}
                                         </button>
                                     </>
                                 )}
@@ -201,7 +200,7 @@ export default function ResetPassword() {
                         <div className="text-center pt-2 border-t border-slate-100">
                             <p className="text-xs text-slate-500 m-0">
                                 <Link to="/login" className="text-indigo-600 font-bold hover:underline no-underline">
-                                    Return to Login
+                                    {t('login.backToLogin')}
                                 </Link>
                             </p>
                         </div>

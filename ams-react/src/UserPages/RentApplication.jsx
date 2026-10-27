@@ -98,13 +98,13 @@ function DocumentCard({ form, fieldKey, label, optional, dropText, file, preview
                         ) : (
                             <div className="w-full h-24 bg-indigo-50 flex flex-col items-center justify-center rounded-xl border border-indigo-200 text-indigo-600">
                                 <FileText className="w-8 h-8 mb-2" />
-                                <button type="button" onClick={() => onPreview(file, label)} className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm cursor-pointer border-0">View PDF</button>
+                                <button type="button" onClick={() => onPreview(file, label)} className="min-h-[44px] bg-indigo-600 text-white text-sm font-bold px-4 rounded-lg shadow-sm cursor-pointer border-0">{t('rent.viewPdf')}</button>
                             </div>
                         )}
                         <p className="text-xs font-bold text-slate-600 m-0 truncate w-full px-2">
                             {file.name} <span className="font-normal text-slate-500">({formatFileSize(file.size)})</span>
                         </p>
-                        <button type="button" onClick={onRemove} className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2 rounded-xl transition-colors cursor-pointer border-0">Remove</button>
+                        <button type="button" onClick={onRemove} className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 text-sm font-bold min-h-[44px] rounded-xl transition-colors cursor-pointer border-0">{t('common.remove')}</button>
                     </div>
                 )}
             </div>
@@ -339,21 +339,21 @@ export default function RentApplication() {
         previousAddress: (v) => checkText(v, { label: t('rent.previousAddress'), min: ADDRESS_MIN, max: ADDRESS_MAX }),
         suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
         contactNo: (v) => checkPhMobile(v),
-        gender: (v) => (GENDERS.includes(v) ? '' : 'Please select your gender.'),
+        gender: (v) => (GENDERS.includes(v) ? '' : t('rent.errGender')),
         occupants: (v) => checkIntRange(v === '' ? NaN : v, 1, maxOccupants, 'Number of occupants'),
         monthsOfRent: (v) => checkIntRange(v === '' ? NaN : v, minMonths, MAX_MONTHS, 'Months of rent'),
         // Inside the admin's move-in window (rent_application.php checks the same):
         // the picker's min does not stop a typed past date.
         prefMoveInDate: (v) => {
             if (isASAP) return '';
-            if (!v) return 'Please select when you need to move in by.';
+            if (!v) return t('rent.errMoveIn');
             return checkMoveInDate(v, moveInWindow);
         },
         // Only a vacant unit can be applied for (checked once the list has loaded).
-        roomName: (v) => (!v ? 'Please choose a room.'
-            : !isEditing && rooms.length && !availableRooms.some(r => sameRoom(r.id, v)) ? `Room ${v} is not available. Choose another room.` : ''),
-        agreeTerms: (v) => (v ? '' : 'Please read and agree to the terms and privacy policy.'),
-        agreeRules: (v) => (v ? '' : 'Please read and agree to follow the apartment rules.'),
+        roomName: (v) => (!v ? t('rent.errRoom')
+            : !isEditing && rooms.length && !availableRooms.some(r => sameRoom(r.id, v)) ? t('rent.errRoomTaken', { room: v }) : ''),
+        agreeTerms: (v) => (v ? '' : t('rent.errTerms')),
+        agreeRules: (v) => (v ? '' : t('rent.errRules')),
     }, { idPrefix: 'rent-' });
     const docValues = {};
     requirements.forEach((r) => { docValues[docKey(r.id)] = docFiles[r.id]?.file || null; });
@@ -439,7 +439,7 @@ export default function RentApplication() {
         }
 
         if (hasActiveApplication) {
-            setNotice("You already have an active or pending rent application. You cannot submit another one.");
+            setNotice(t('rent.alreadyApplied'));
             return;
         }
 
@@ -505,12 +505,12 @@ export default function RentApplication() {
                 } catch { /* ignore */ }
                 setShowSuccessModal(true);
             } else if (!form.applyServerErrors(res)) {
-                setNotice(res.data.message || 'Your application could not be submitted.');
+                setNotice(res.data.message || t('rent.submitFailed'));
             }
         } catch (error) {
             console.error("Error submitting application:", error);
             if (error.response?.status === 413) {
-                setNotice("The files you are uploading are larger than the server accepts. Please upload smaller files.");
+                setNotice(t('rent.filesTooLarge'));
             } else if (!form.applyServerErrors(error)) {
                 setNotice(apiErrorMessage(error, "A network error occurred while submitting your application."));
             }
@@ -620,13 +620,13 @@ export default function RentApplication() {
                                 </div>
                                 <div className="flex flex-col space-y-1.5">
                                     <label htmlFor="rent-suffix" className={LABEL_CLS}>
-                                        {t('rent.suffix')} <span className="text-xs font-normal text-slate-500 ml-1">(Optional)</span>
+                                        {t('rent.suffix')} <span className="text-xs font-normal text-slate-500 ml-1">({t('rent.optional')})</span>
                                     </label>
                                     <input
                                         type="text"
                                         {...form.fieldA11y('suffix')}
                                         autoComplete="honorific-suffix"
-                                        placeholder="e.g. Jr, Sr, III"
+                                        placeholder={t('rent.suffixPlaceholder')}
                                         value={suffix}
                                         disabled={isReadOnly}
                                         maxLength={LIMITS.suffix}
@@ -771,7 +771,7 @@ export default function RentApplication() {
                                                     }}
                                                     className="h-4 w-4 accent-indigo-600 cursor-pointer"
                                                 />
-                                                <span className="text-xs font-bold text-indigo-700 select-none">Any time</span>
+                                                <span className="text-xs font-bold text-indigo-700 select-none">{t('rent.anyTime')}</span>
                                             </label>
                                         )}
                                     </div>
@@ -815,13 +815,13 @@ export default function RentApplication() {
                                     <label htmlFor="rent-roomName" className="text-sm font-bold text-slate-800 select-none flex justify-between">
                                         {t('rent.assignedRoom')}
                                         {!isReadOnly && !isEditing && (
-                                            <button type="button" onClick={() => setShowRoomModal(true)} className="text-xs text-indigo-600 font-bold hover:underline bg-transparent border-0 cursor-pointer p-0">{selectedRoomId ? 'Change' : 'Choose a room'}</button>
+                                            <button type="button" onClick={() => setShowRoomModal(true)} className="min-h-[44px] px-2 -mr-2 text-sm text-indigo-600 font-bold hover:underline bg-transparent border-0 cursor-pointer">{selectedRoomId ? t('rent.changeRoom') : t('rent.chooseRoom')}</button>
                                         )}
                                     </label>
                                     <input
                                         type="text"
                                         {...form.fieldA11y('roomName')}
-                                        value={selectedRoomId ? `Room ${selectedRoomId}` : 'No room chosen yet'}
+                                        value={selectedRoomId ? t('rent.roomName', { room: selectedRoomId }) : t('rent.noRoomYet')}
                                         disabled
                                         className={`w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 font-extrabold text-base sm:text-sm select-none cursor-not-allowed shadow-inner${invalidCls(form.errors.roomName)}`}
                                     />
@@ -947,8 +947,8 @@ export default function RentApplication() {
                 <div onClick={() => setShowRoomModal(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
                     <div ref={roomDialogRef} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="rent-room-modal-title" className="outline-none bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-scale-in overflow-hidden">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
-                            <h3 id="rent-room-modal-title" className="text-xl font-black text-slate-900 m-0">Select Available Room</h3>
-                            <button type="button" aria-label="Close" onClick={() => setShowRoomModal(false)} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
+                            <h3 id="rent-room-modal-title" className="text-xl font-black text-slate-900 m-0">{t('rent.selectRoomTitle')}</h3>
+                            <button type="button" aria-label={t('common.close')} onClick={() => setShowRoomModal(false)} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -963,13 +963,13 @@ export default function RentApplication() {
                                 >
                                     <span className="flex justify-between items-start mb-2">
                                         <span className="text-lg font-black text-slate-900">Room {room.id}</span>
-                                        <span className="text-xs font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">Available</span>
+                                        <span className="text-xs font-black bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md">{t('rent.available')}</span>
                                     </span>
-                                    <span className="block text-sm font-medium text-slate-500">Floor: <span className="text-slate-800 font-bold">{room.floor || 'N/A'}</span></span>
-                                    <span className="block text-indigo-700 font-black text-lg">₱{Number(room.rent).toLocaleString(undefined, { minimumFractionDigits: 2 })}<span className="text-xs text-indigo-500 font-medium">/mo</span></span>
+                                    <span className="block text-sm font-medium text-slate-500">{t('rent.floor')} <span className="text-slate-800 font-bold">{room.floor || '—'}</span></span>
+                                    <span className="block text-indigo-700 font-black text-lg">₱{Number(room.rent).toLocaleString(undefined, { minimumFractionDigits: 2 })}<span className="text-xs text-indigo-500 font-medium">{t('rent.perMonth')}</span></span>
                                 </button>
                             )) : (
-                                <div className="col-span-2 text-center text-slate-500 py-10 font-bold">No available rooms at the moment.</div>
+                                <div className="col-span-2 text-center text-slate-500 py-10 font-bold">{t('rent.noRooms')}</div>
                             )}
                         </div>
                     </div>
@@ -1005,7 +1005,7 @@ export default function RentApplication() {
                     <div ref={termsDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="rent-terms-title" onClick={(e) => e.stopPropagation()} className="outline-none rent-app-terms-modal bg-white rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] animate-scale-in overflow-hidden">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
                             <h3 id="rent-terms-title" className="text-xl font-black text-slate-900 m-0">{t('rent.termsTitle')}</h3>
-                            <button type="button" aria-label="Close" onClick={() => setShowTermsModal(false)} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
+                            <button type="button" aria-label={t('common.close')} onClick={() => setShowTermsModal(false)} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>

@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBullhorn, faCalendarAlt, faTag, faPaperclip, faFilePdf } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import '../assets/styles/responsive/user/user-announcements.responsive.css';
 
 export default function UserAnnouncements() {
@@ -67,7 +67,7 @@ export default function UserAnnouncements() {
                                         </span>
                                         <span className="text-xs sm:text-sm font-medium text-slate-500 flex items-center gap-1.5">
                                             <FontAwesomeIcon icon={faCalendarAlt} className="text-slate-400" />
-                                            {new Date(item.created_at).toLocaleDateString('en-US', {
+                                            {new Date(item.created_at).toLocaleDateString(dateLocale(), {
                                                 weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
                                             })}
                                         </span>

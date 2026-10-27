@@ -37,11 +37,11 @@ export default function CctvRequest() {
     // Keys match cctv_request.php's body. reason_request is TEXT, so the
     // limit is the shared notes cap (the old hard-coded 1000).
     const form = useFieldErrors({
-        incidentDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: 'Incident date' }),
-        incidentTime: (v) => (TIME_WINDOWS.includes(v) ? '' : 'Please choose the time window.'),
-        locationDetails: (v) => (LOCATIONS.includes(v) ? '' : 'Please choose the location.'),
+        incidentDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: t('cctv.incidentDateLabel') }),
+        incidentTime: (v) => (TIME_WINDOWS.includes(v) ? '' : t('common.errTimeWindow')),
+        locationDetails: (v) => (LOCATIONS.includes(v) ? '' : t('cctv.errLocation')),
         reasonRequest: (v) => checkText(v, { label: 'Reason', min: REASON_MIN, max: LIMITS.notes }),
-        privacyConsent: (v) => (v ? '' : 'Please agree to the data privacy terms.'),
+        privacyConsent: (v) => (v ? '' : t('cctv.errConsent')),
     }, { idPrefix: 'cctv-' });
     const values = { incidentDate, incidentTime, locationDetails, reasonRequest, privacyConsent };
 
@@ -69,7 +69,7 @@ export default function CctvRequest() {
             if (res.data.success) {
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
-                setSubmitError(res.data.message || 'Failed to submit your request. Please try again.');
+                setSubmitError(res.data.message || t('common.requestFailed'));
             }
         } catch (error) {
             if (!form.applyServerErrors(error)) setSubmitError(apiErrorMessage(error, 'Failed to submit your request. Please try again.'));

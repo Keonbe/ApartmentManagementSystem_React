@@ -36,7 +36,7 @@ export default function Home({ onCardClick, username }) {
             <div className="absolute inset-0 z-0">
                 <img
                     src={ApartmentPic}
-                    alt="Apartment Background"
+                    alt=""
                     className="home-bg-image w-full h-full object-cover animate-fade-in"
                 />
                 <div className="home-gradient-overlay absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-transparent"></div>

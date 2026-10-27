@@ -299,7 +299,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     <button
                         type="button"
                         onClick={() => navigate('/home')}
-                        aria-label="AMS, go to Home"
+                        aria-label={t('topbar.logoLabel')}
                         className="topbar-logo text-white text-3xl italic font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 transition-transform duration-200 hover:scale-105 font-serif focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                     >
                         AMS
@@ -343,7 +343,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 ref={bellButtonRef}
                                 type="button"
                                 onClick={() => (isNotificationOpen ? closeNotifications() : setIsNotificationOpen(true))}
-                                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                                aria-label={unreadCount > 0 ? t('topbar.notifUnread', { n: unreadCount }) : t('nav.notifications')}
                                 aria-haspopup="true"
                                 aria-expanded={isNotificationOpen}
                                 className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all duration-200 border-0 cursor-pointer relative"
@@ -360,7 +360,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-3 z-50 overflow-hidden text-left">
                                     <div className="px-4 pb-2 border-b border-slate-100 flex justify-between items-center">
                                         <span className="font-bold text-xs text-slate-500">Notifications ({unreadCount})</span>
-                                        <button onClick={() => { setIsNotificationOpen(false); navigate('/notifications'); }} className="text-xs text-indigo-600 hover:underline font-bold bg-transparent border-0 cursor-pointer p-0">View All</button>
+                                        <button onClick={() => { setIsNotificationOpen(false); navigate('/notifications'); }} className="min-h-[44px] px-2 -mr-2 text-sm text-indigo-600 hover:underline font-bold bg-transparent border-0 cursor-pointer">{t('nav.viewAll')}</button>
                                     </div>
                                     <div className="max-h-64 overflow-y-auto px-2 py-1 space-y-1">
                                         {notifications.filter(n => !n.isArchived).length > 0 ? (
@@ -385,7 +385,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                                             <p className="text-xs font-bold text-slate-800 m-0">
                                                                 {n.title}
                                                                 {isNew && (
-                                                                    <span className={`ml-1.5 align-middle text-xs font-black text-white px-1.5 py-0.5 rounded-full ${success ? 'bg-emerald-500' : 'bg-rose-500'}`}>New</span>
+                                                                    <span className={`ml-1.5 align-middle text-xs font-black text-white px-1.5 py-0.5 rounded-full ${success ? 'bg-emerald-500' : 'bg-rose-500'}`}>{t('topbar.new')}</span>
                                                                 )}
                                                             </p>
                                                             <span className="text-xs text-slate-500 whitespace-nowrap">{formatRelativeTime(n.createdAt)}</span>
@@ -393,14 +393,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                                         <p className="text-xs text-slate-500 m-0 mt-0.5">{n.message}</p>
                                                         {isNew && (
                                                             <p className={`text-xs font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                                                {success ? 'View receipt →' : 'Open Pay Bills →'}
+                                                                {success ? t('topbar.viewReceipt') : t('topbar.openPayBills')}
                                                             </p>
                                                         )}
                                                     </div>
                                                 );
                                             })
                                         ) : (
-                                            <p className="text-xs text-slate-500 text-center py-4 m-0">No notifications</p>
+                                            <p className="text-xs text-slate-500 text-center py-4 m-0">{t('topbar.noNotifications')}</p>
                                         )}
                                     </div>
                                 </div>
@@ -424,7 +424,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 {dbAvatarUrl ? (
                                     <img 
                                         src={getFullAvatarUrl(dbAvatarUrl)} 
-                                        alt="Avatar" 
+                                        alt="" 
                                         className="w-9 h-9 rounded-full object-cover border border-white/20 shadow-inner"
                                     />
                                 ) : (
@@ -440,28 +440,28 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                 <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 py-1.5 z-50 overflow-hidden animate-fade-in text-left">
                                     <button onClick={() => { setIsDropdownOpen(false); navigate('/profile-settings'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
                                         <FontAwesomeIcon icon={faCog} className="text-slate-500 text-xs" />
-                                        <span>Profile Settings</span>
+                                        <span>{t('topbar.profileSettings')}</span>
                                     </button>
                                     {!hasRentedRoom && (
                                         <button onClick={() => { setIsDropdownOpen(false); navigate('/track-application'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
                                             <FontAwesomeIcon icon={faFileContract} className="text-slate-500 text-xs" />
-                                            <span>Track Application</span>
+                                            <span>{t('nav.trackApp')}</span>
                                         </button>
                                     )}
                                     {hasRentedRoom && (
                                         <button onClick={() => { setIsDropdownOpen(false); navigate('/payment-history'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
                                             <FontAwesomeIcon icon={faHistory} className="text-slate-500 text-xs" />
-                                            <span>Payment History</span>
+                                            <span>{t('topbar.paymentHistory')}</span>
                                         </button>
                                     )}
                                     <button onClick={() => { setIsDropdownOpen(false); navigate('/my-refunds'); }} className="w-full px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-semibold">
                                         <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-slate-500 text-xs" />
-                                        <span>My Refunds</span>
+                                        <span>{t('topbar.myRefunds')}</span>
                                     </button>
                                     <div className="border-t border-slate-100 my-1"></div>
                                     <button onClick={() => { setIsDropdownOpen(false); handleLogout(); }} className="w-full px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 flex items-center space-x-2.5 transition-colors border-0 bg-transparent text-left cursor-pointer font-bold">
                                         <FontAwesomeIcon icon={faSignOutAlt} className="text-xs" />
-                                        <span>Logout</span>
+                                        <span>{t('nav.logout')}</span>
                                     </button>
                                 </div>
                             )}
@@ -492,7 +492,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         <button
                             onClick={() => navigate('/notifications')}
                             className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center border-0 cursor-pointer relative"
-                            aria-label="Notifications"
+                            aria-label={t('nav.notifications')}
                         >
                             <FontAwesomeIcon icon={faBell} className="text-sm" />
                             {unreadCount > 0 && (
@@ -511,7 +511,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         aria-expanded={isMobileMenuOpen}
                         aria-controls="mobile-nav-drawer"
                         className="mobile-menu-toggle topbar-mobile-menu-btn rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white border-0 cursor-pointer flex items-center justify-center transition-colors"
-                        aria-label="Toggle menu"
+                        aria-label={t('topbar.menu')}
                     >
                         <FontAwesomeIcon icon={isMobileMenuOpen ? faTimes : faBars} className="text-lg" />
                     </button>
@@ -530,10 +530,10 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     <p className="text-xs font-bold text-slate-800 m-0">{n.title}</p>
                                     <p className="text-xs text-slate-600 m-0 mt-0.5">{n.message}</p>
                                     <p className={`text-xs font-bold m-0 mt-1 ${success ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                        {success ? 'View receipt →' : 'Open Pay Bills →'}
+                                        {success ? t('topbar.viewReceipt') : t('topbar.openPayBills')}
                                     </p>
                                 </button>
-                                <button type="button" onClick={closeNotifications} aria-label="Dismiss" className="shrink-0 w-7 h-7 rounded-lg bg-transparent border-0 text-slate-500 cursor-pointer flex items-center justify-center">
+                                <button type="button" onClick={closeNotifications} aria-label={t('topbar.dismiss')} className="shrink-0 w-11 h-11 rounded-lg bg-transparent border-0 text-slate-500 cursor-pointer flex items-center justify-center">
                                     <FontAwesomeIcon icon={faTimes} className="text-xs" />
                                 </button>
                             </div>
@@ -552,7 +552,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     {/* Navigation Items */}
                     {/* Mobile Language Toggle */}
                     <div className="flex items-center justify-between px-2 pb-2">
-                        <span className="text-white/70 text-xs font-bold">Language</span>
+                        <span className="text-white/70 text-xs font-bold">{t('topbar.language')}</span>
                         <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-xs font-bold select-none">
                             <button
                                 type="button"
@@ -624,7 +624,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     {dbAvatarUrl ? (
                                         <img 
                                             src={getFullAvatarUrl(dbAvatarUrl)} 
-                                            alt="Avatar" 
+                                            alt="" 
                                             className="w-10 h-10 rounded-full object-cover border border-white/20 shadow-md"
                                         />
                                     ) : (
@@ -634,7 +634,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     )}
                                     <div className="flex flex-col">
                                         <span className="text-white font-bold text-sm leading-snug">{displayName}</span>
-                                        <span className="text-white/70 text-xs">Logged In</span>
+                                        <span className="text-white/70 text-xs">{t('topbar.loggedIn')}</span>
                                     </div>
                                 </div>
 
@@ -644,7 +644,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
                                     >
                                         <FontAwesomeIcon icon={faCog} className="text-xs" />
-                                        <span>Settings</span>
+                                        <span>{t('nav.settings')}</span>
                                     </button>
                                     <button
                                         onClick={() => { setIsMobileMenuOpen(false); navigate('/notifications'); }}
@@ -658,7 +658,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                         className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
                                     >
                                         <FontAwesomeIcon icon={faMoneyBillTransfer} className="text-xs" />
-                                        <span>My Refunds</span>
+                                        <span>{t('topbar.myRefunds')}</span>
                                     </button>
                                     {hasRentedRoom ? (
                                         <button
@@ -666,7 +666,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                             className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
                                         >
                                             <FontAwesomeIcon icon={faHistory} className="text-xs" />
-                                            <span>History</span>
+                                            <span>{t('topbar.paymentHistory')}</span>
                                         </button>
                                     ) : (
                                         <button
@@ -674,7 +674,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                             className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-3 rounded-xl text-xs border-0 cursor-pointer flex items-center justify-center space-x-2 transition-colors"
                                         >
                                             <FontAwesomeIcon icon={faFileContract} className="text-xs" />
-                                            <span>Status</span>
+                                            <span>{t('nav.trackApp')}</span>
                                         </button>
                                     )}
                                 </div>
@@ -687,7 +687,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     className="w-full bg-rose-600 hover:bg-rose-700 active:scale-98 text-white py-3 rounded-xl font-bold text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-sm transition-all mt-1"
                                 >
                                     <FontAwesomeIcon icon={faSignOutAlt} />
-                                    <span>Logout</span>
+                                    <span>{t('nav.logout')}</span>
                                 </button>
                             </>
                         ) : (
@@ -697,14 +697,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white py-3 rounded-xl font-bold text-center shadow-md border-0 cursor-pointer flex items-center justify-center space-x-2 text-sm transition-all"
                                 >
                                     <FontAwesomeIcon icon={faSignInAlt} />
-                                    <span>Sign In to Account</span>
+                                    <span>{t('topbar.signInAccount')}</span>
                                 </button>
                                 <button
                                     onClick={() => { setIsMobileMenuOpen(false); navigate('/register'); }}
                                     className="w-full bg-white/10 hover:bg-white/20 active:scale-98 text-white py-2.5 rounded-xl font-semibold text-center border-0 cursor-pointer flex items-center justify-center space-x-2 text-xs transition-all"
                                 >
                                     <FontAwesomeIcon icon={faUserPlus} />
-                                    <span>Create New Account</span>
+                                    <span>{t('login.createAccount')}</span>
                                 </button>
                             </div>
                         )}
@@ -717,7 +717,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     <div ref={detailDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="topbar-notif-title" onClick={e => e.stopPropagation()} className="outline-none bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center gap-3">
                             <h3 id="topbar-notif-title" className="text-lg font-bold text-slate-800 m-0">{selectedNotification.title}</h3>
-                            <button type="button" aria-label="Close" onClick={() => setSelectedNotification(null)} className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer">
+                            <button type="button" aria-label={t('common.close')} onClick={() => setSelectedNotification(null)} className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer">
                                 <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
                             </button>
                         </div>
@@ -726,9 +726,9 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             {selectedNotification.attachment_path && (
                                 <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
                                     {selectedNotification.attachment_path.toLowerCase().endsWith('.pdf') ? (
-                                        <iframe src={fileUrl(selectedNotification.attachment_path)} className="w-full h-64 border-0" title="Attachment"></iframe>
+                                        <iframe src={fileUrl(selectedNotification.attachment_path)} className="w-full h-64 border-0" title={t('topbar.attachment')}></iframe>
                                     ) : (
-                                        <img src={fileUrl(selectedNotification.attachment_path)} alt="Attachment" className="w-full max-h-64 object-contain bg-slate-50" />
+                                        <img src={fileUrl(selectedNotification.attachment_path)} alt={t('topbar.attachment')} className="w-full max-h-64 object-contain bg-slate-50" />
                                     )}
                                 </div>
                             )}
@@ -744,10 +744,10 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                     }}
                                     className="min-h-[44px] px-6 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl cursor-pointer border-0"
                                 >
-                                    Go to Page
+                                    {t('topbar.goToPage')}
                                 </button>
                             )}
-                            <button type="button" onClick={() => setSelectedNotification(null)} className="min-h-[44px] px-6 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-xl cursor-pointer border-0">Close</button>
+                            <button type="button" onClick={() => setSelectedNotification(null)} className="min-h-[44px] px-6 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-xl cursor-pointer border-0">{t('common.close')}</button>
                         </div>
                     </div>
                 </div>
@@ -756,30 +756,30 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             {/* App Status One-Time Modal */}
             {appStatusModal && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in" onClick={closeAppStatusModal}>
-                    <div ref={appStatusDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Application update" onClick={e => e.stopPropagation()} className="outline-none bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-scale-in border border-slate-100">
+                    <div ref={appStatusDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={t('topbar.appUpdate')} onClick={e => e.stopPropagation()} className="outline-none bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-scale-in border border-slate-100">
                         {appStatusModal.title?.toLowerCase().includes('approved') ? (
                             <div className="bg-emerald-50 p-8 flex flex-col items-center border-b border-emerald-100 text-center">
                                 <div className="w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center shadow-inner mb-4 border-4 border-white">
                                     <FontAwesomeIcon icon={faCheckCircle} className="text-4xl" />
                                 </div>
-                                <h2 className="text-2xl font-black text-emerald-800 m-0 tracking-tight">Congratulations!</h2>
-                                <p className="text-emerald-600 font-bold mt-1 mb-0 text-xs">Application Approved</p>
+                                <h2 className="text-2xl font-black text-emerald-800 m-0 tracking-tight">{t('topbar.congrats')}</h2>
+                                <p className="text-emerald-600 font-bold mt-1 mb-0 text-xs">{t('topbar.appApproved')}</p>
                             </div>
                         ) : appStatusModal.title?.toLowerCase().includes('action required') ? (
                             <div className="bg-amber-50 p-8 flex flex-col items-center border-b border-amber-100 text-center">
                                 <div className="w-20 h-20 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center shadow-inner mb-4 border-4 border-white">
                                     <FontAwesomeIcon icon={faInfoCircle} className="text-4xl" />
                                 </div>
-                                <h2 className="text-2xl font-black text-amber-800 m-0 tracking-tight">Action Required</h2>
-                                <p className="text-amber-600 font-bold mt-1 mb-0 text-xs">Update Needed</p>
+                                <h2 className="text-2xl font-black text-amber-800 m-0 tracking-tight">{t('topbar.actionRequired')}</h2>
+                                <p className="text-amber-600 font-bold mt-1 mb-0 text-xs">{t('topbar.updateNeeded')}</p>
                             </div>
                         ) : (
                             <div className="bg-red-50 p-8 flex flex-col items-center border-b border-red-100 text-center">
                                 <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center shadow-inner mb-4 border-4 border-white">
                                     <FontAwesomeIcon icon={faTimesCircle} className="text-4xl" />
                                 </div>
-                                <h2 className="text-2xl font-black text-red-800 m-0 tracking-tight">Application Update</h2>
-                                <p className="text-red-600 font-bold mt-1 mb-0 text-xs">Application Rejected</p>
+                                <h2 className="text-2xl font-black text-red-800 m-0 tracking-tight">{t('topbar.appUpdate')}</h2>
+                                <p className="text-red-600 font-bold mt-1 mb-0 text-xs">{t('topbar.appRejected')}</p>
                             </div>
                         )}
                         <div className="p-8 flex flex-col items-center text-center">
@@ -787,14 +787,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                             {appStatusModal.attachment_path && (
                                 <div className="mt-4 w-full border border-slate-200 rounded-xl overflow-hidden shadow-xs">
                                     {appStatusModal.attachment_path.toLowerCase().endsWith('.pdf') ? (
-                                        <iframe src={fileUrl(appStatusModal.attachment_path)} className="w-full h-64 border-0" title="Attachment"></iframe>
+                                        <iframe src={fileUrl(appStatusModal.attachment_path)} className="w-full h-64 border-0" title={t('topbar.attachment')}></iframe>
                                     ) : (
-                                        <img src={fileUrl(appStatusModal.attachment_path)} alt="Attachment" className="w-full max-h-64 object-contain bg-slate-50" />
+                                        <img src={fileUrl(appStatusModal.attachment_path)} alt={t('topbar.attachment')} className="w-full max-h-64 object-contain bg-slate-50" />
                                     )}
                                 </div>
                             )}
                             <button onClick={closeAppStatusModal} className="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl border-0 cursor-pointer shadow-md shadow-indigo-200 transition-all active:scale-[0.98]">
-                                Okay, got it!
+                                {t('topbar.gotIt')}
                             </button>
                         </div>
                     </div>

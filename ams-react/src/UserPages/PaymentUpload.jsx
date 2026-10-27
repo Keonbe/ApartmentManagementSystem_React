@@ -59,9 +59,9 @@ export default function PaymentUpload() {
     // Keys match upload_payment_proof.php's form fields.
     const form = useFieldErrors({
         // Account names can be joint or business names, so free text, not a person-name check.
-        sender_name: (v) => checkText(v, { label: 'Sender name', max: LIMITS.senderName }),
+        sender_name: (v) => checkText(v, { label: t('paymentUpload.senderNameLabel'), max: LIMITS.senderName }),
         payment_reference: (v) => checkPaymentReference(v, paymentMethod),
-        proof: (f) => (f ? checkFile(f, FILE_RULES.receiptImage) : 'Please upload a photo of your receipt.'),
+        proof: (f) => (f ? checkFile(f, FILE_RULES.receiptImage) : t('paymentUpload.errProof')),
     }, { idPrefix: 'upload-' });
 
     useEffect(() => {
@@ -75,11 +75,11 @@ export default function PaymentUpload() {
         return (
             <div className="w-full min-h-[calc(100vh-76px)] flex items-center justify-center bg-slate-50 px-4">
                 <div className="text-center max-w-md">
-                    <h2 className="text-xl font-bold text-slate-800 m-0">No bill selected</h2>
-                    <p className="m-0 mt-2 text-sm text-slate-600">Choose the bill to pay first. Tenants pay from Pay Bills; applicants pay their move-in bill from Track Application.</p>
+                    <h2 className="text-xl font-bold text-slate-800 m-0">{t('paymentUpload.noBillTitle')}</h2>
+                    <p className="m-0 mt-2 text-sm text-slate-600">{t('paymentUpload.noBillBody')}</p>
                     <div className="mt-5 flex flex-wrap justify-center gap-3">
-                        <button type="button" onClick={() => navigate('/pay-bills')} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-5 rounded-xl cursor-pointer border-0">Go to Pay Bills</button>
-                        <button type="button" onClick={() => navigate('/track-application')} className="min-h-[44px] bg-white border border-slate-300 text-slate-700 text-sm font-semibold px-5 rounded-xl cursor-pointer hover:bg-slate-50">Track Application</button>
+                        <button type="button" onClick={() => navigate('/pay-bills')} className="min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-5 rounded-xl cursor-pointer border-0">{t('utilities.goPayBills')}</button>
+                        <button type="button" onClick={() => navigate('/track-application')} className="min-h-[44px] bg-white border border-slate-300 text-slate-700 text-sm font-semibold px-5 rounded-xl cursor-pointer hover:bg-slate-50">{t('nav.trackApp')}</button>
                     </div>
                 </div>
             </div>
@@ -132,7 +132,7 @@ export default function PaymentUpload() {
         setReferenceNo(clean.payment_reference);
         if (!form.validateAll(clean)) return;
         if (isBankTransfer && !bankName) {
-            setError('Choose the bank you transferred from.');
+            setError(t('paymentUpload.errBank'));
             return;
         }
 
@@ -166,7 +166,7 @@ export default function PaymentUpload() {
                 setSubmitted(true);
                 try { sessionStorage.removeItem(SESSION_KEY); } catch { /* nothing to clear */ }
             } else if (!form.applyServerErrors(res)) {
-                setError(res.data.message || "Failed to upload payment proof.");
+                setError(res.data.message || t('paymentUpload.uploadFailed'));
             }
         } catch (err) {
             console.error("Upload error:", err);
@@ -179,7 +179,7 @@ export default function PaymentUpload() {
     return (
         <div className="payment-upload-root w-full min-h-[calc(100vh-76px)] relative flex flex-col items-center justify-start py-10 px-4 md:px-12 box-border text-left">
             <div className="absolute inset-0 z-0 hidden md:block">
-                <img src={ApartmentPic} alt="Background" className="w-full h-full object-cover" />
+                <img src={ApartmentPic} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-900/90 to-slate-950/95"></div>
             </div>
 
@@ -225,7 +225,7 @@ export default function PaymentUpload() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {isBankTransfer && (
                             <div className="space-y-2 md:col-span-2">
-                                <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 md:text-slate-300 block">Bank transferred from</label>
+                                <label htmlFor="upload-bank-name" className="text-xs font-bold text-slate-600 md:text-slate-300 block">{t('paymentUpload.bankFrom')}</label>
                                 <select 
                                     id="upload-bank-name" 
                                     value={bankName} 
@@ -234,7 +234,7 @@ export default function PaymentUpload() {
                                     className={`${INPUT_CLS} [&>option]:bg-slate-900 [&>option]:text-white cursor-pointer`}
                                     style={{ colorScheme: 'dark' }}
                                 >
-                                    <option value="" className="bg-slate-900 text-white">Select your bank</option>
+                                    <option value="" className="bg-slate-900 text-white">{t('paymentUpload.selectBank')}</option>
                                     {BANKS.map((bank) => (
                                         <option key={bank} value={bank} className="bg-slate-900 text-white">
                                             {bank}
@@ -259,7 +259,7 @@ export default function PaymentUpload() {
                                 maxLength={LIMITS.senderName}
                                 required
                                 className={INPUT_CLS + invalidCls(form.errors.sender_name)}
-                                placeholder="E.g. Juan Dela Cruz"
+                                placeholder={t('visitors.namePlaceholder')}
                             />
                             <FieldError id="upload-sender_name" error={form.errors.sender_name} />
                         </div>
@@ -280,13 +280,13 @@ export default function PaymentUpload() {
                                 inputMode={isGcash ? "numeric" : "text"}
                                 maxLength={isGcash ? 13 : isBankMethod(paymentMethod) ? 55 : LIMITS.paymentReference}
                                 className={INPUT_CLS + invalidCls(form.errors.payment_reference)}
-                                placeholder={isGcash ? "13-digit Reference No." : "Alphanumeric reference (max 55 chars)"}
+                                placeholder={isGcash ? t('paymentUpload.refGcashPlaceholder') : t('paymentUpload.refBankPlaceholder')}
                             />
                             <FieldError id="upload-payment_reference" error={form.errors.payment_reference} />
                             <p className="text-xs text-slate-500 md:text-slate-300 m-0 leading-relaxed mt-1 font-medium">
                                 {isGcash 
-                                    ? "GCash reference numbers must be exactly 13 digits (numbers only)." 
-                                    : "Bank transfer reference numbers can be up to 55 characters and cannot consist of numbers only."}
+                                    ? t('paymentUpload.refGcashHint') 
+                                    : t('paymentUpload.refBankHint')}
                             </p>
                         </div>
                     </div>
@@ -306,7 +306,7 @@ export default function PaymentUpload() {
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                 />
                                 <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-indigo-500 md:text-indigo-400 mb-3 group-hover:scale-110 transition-transform" />
-                                <p className="text-sm font-semibold text-slate-600 md:text-slate-300 m-0">Click to upload or drag & drop</p>
+                                <p className="text-sm font-semibold text-slate-600 md:text-slate-300 m-0">{t('paymentUpload.dropHere')}</p>
                                 <p className="text-xs text-slate-500 md:text-slate-300 mt-1 m-0 font-medium">{FILE_RULES.receiptImage.label} (Max {FILE_RULES.receiptImage.maxMB} MB)</p>
                             </div>
                         ) : (
@@ -315,17 +315,17 @@ export default function PaymentUpload() {
  type="button"
  onClick={() => setShowPreviewModal(true)}
  className="border-0 p-0 w-full h-72 flex items-center justify-center overflow-hidden rounded-xl bg-black/40 cursor-pointer group relative hover:ring-2 hover:ring-indigo-500 transition-all"
-                                    title="Click to view larger image"
+                                    title={t('paymentUpload.viewLarger')}
                                 >
                                     <img 
                                         src={previewUrl} 
-                                        alt="Uploaded Receipt Preview" 
+                                        alt={t('paymentUpload.receiptPreview')} 
                                         className="max-h-full max-w-full object-contain rounded group-hover:scale-[1.02] transition-transform"
                                     />
                                     <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                                         <span className="bg-slate-900/90 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-white/20 shadow-lg flex items-center gap-2">
                                             <FontAwesomeIcon icon={faEye} />
-                                            <span>Click to view larger</span>
+                                            <span>{t('paymentUpload.viewLarger')}</span>
                                         </span>
                                     </span>
                                 </button>
@@ -378,8 +378,8 @@ export default function PaymentUpload() {
             <SuccessModal
                 isOpen={submitted}
                 onClose={() => navigate(returnUrl || '/home')}
-                message="Payment submitted"
-                subtext="Your payment proof is awaiting verification by management. You will be notified as soon as it is confirmed."
+                message={t('paymentUpload.submittedTitle')}
+                subtext={t('paymentUpload.submittedBody')}
             />
 
             {/* Modal Alert for file size / format violations */}
@@ -393,7 +393,7 @@ export default function PaymentUpload() {
             <DocumentPreviewModal
                 isOpen={showPreviewModal}
                 onClose={() => setShowPreviewModal(false)}
-                title={proofImage ? proofImage.name : "Payment Receipt Preview"}
+                title={proofImage ? proofImage.name : t('paymentUpload.receiptPreview')}
                 fileUrl={previewUrl}
                 isImage={true}
             />

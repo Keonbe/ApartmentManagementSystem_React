@@ -23,7 +23,7 @@ const MAX_EXTENSION_MONTHS = 12;
 const DEFAULT_MOVE_OUT_MIN_DAYS = 15;
 const DEFAULT_MOVE_OUT_MAX_DAYS = 30;
 import { getSystemSettings } from '../config/systemSettings';
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import '../assets/styles/responsive/user/my-room.responsive.css';
 
 export default function MyRoom() {
@@ -103,7 +103,7 @@ export default function MyRoom() {
                     type: data.room_type || '',
                     floor: data.room_floor || '',
                     monthlyRent: parseFloat(data.monthly_rent) || 0,
-                    rentStart: (data.lease_start ? new Date(data.lease_start) : creationDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+                    rentStart: (data.lease_start ? new Date(data.lease_start) : creationDate).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' }),
                     status: data.status,
                     requestedMoveOutDate: data.requested_move_out_date,
                     // Itemized move-out deductions from the deposit (empty until clearance).
@@ -159,7 +159,7 @@ export default function MyRoom() {
     const nextBillOwed = nextBill ? (parseFloat(nextBill.balance ?? nextBill.total_amount) || 0) : 0;
     const nextBillAwaiting = !!nextBill && AWAITING_STATUSES.includes(nextBill.status);
     const fmtMoney = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-    const fmtDay = (d) => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
+    const fmtDay = (d) => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' }) : '');
 
     // Results of the requests below (were alert() + page reload).
     const [notice, setNotice] = useState(null);

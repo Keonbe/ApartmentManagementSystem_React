@@ -4,7 +4,7 @@ import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import api from "../api/axiosConfig";
 import { LIMITS, PASSWORD_MAX_BYTES, checkEmail, checkNewPassword, checkPasswordMatch, checkPersonName, normalizeEmail } from '../utils/validation';
 import { apiErrorMessage } from '../utils/apiError';
-import { useLang } from '../config/i18n';
+import { useLang, t as translate } from '../config/i18n';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
 import PasswordChecklist from '../Components/form/PasswordChecklist';
@@ -18,10 +18,10 @@ const LABEL_CLS = "absolute text-xs text-slate-600 font-semibold duration-300 tr
 const EMPTY = { firstname: '', middlename: '', lastname: '', suffix: '', email: '', password: '', conPassword: '' };
 
 const VALIDATORS = {
-    firstname: (v) => checkPersonName(v, { label: 'First name', max: LIMITS.firstName }),
-    middlename: (v) => checkPersonName(v, { label: 'Middle name', max: LIMITS.middleName, required: false }),
-    lastname: (v) => checkPersonName(v, { label: 'Last name', max: LIMITS.lastName }),
-    suffix: (v) => checkPersonName(v, { label: 'Suffix', max: LIMITS.suffix, required: false }),
+    firstname: (v) => checkPersonName(v, { label: translate('profile.firstNameLabel'), max: LIMITS.firstName }),
+    middlename: (v) => checkPersonName(v, { label: translate('reg.middleNameLabel'), max: LIMITS.middleName, required: false }),
+    lastname: (v) => checkPersonName(v, { label: translate('profile.lastNameLabel'), max: LIMITS.lastName }),
+    suffix: (v) => checkPersonName(v, { label: translate('profile.suffixLabel'), max: LIMITS.suffix, required: false }),
     email: (v) => checkEmail(v, { max: LIMITS.userEmail }),
     password: (v) => checkNewPassword(v),
     conPassword: (v, all) => checkPasswordMatch(all.password, v),
@@ -47,7 +47,7 @@ function FloatingInput({ form, name, label, hint, required, error, trailing, onC
                     {label}{' '}
                     {required
                         ? <><span className="required-asterisk text-rose-500">*</span> <span className="floating-hint hidden sm:inline font-normal opacity-70">- {hint}</span></>
-                        : <><span className="hidden sm:inline font-normal opacity-70 ml-1">(Optional)</span>{hint && <span className="floating-hint hidden sm:inline font-normal opacity-70 ml-1">- {hint}</span>}</>}
+                        : <><span className="hidden sm:inline font-normal opacity-70 ml-1">{translate('reg.optional')}</span>{hint && <span className="floating-hint hidden sm:inline font-normal opacity-70 ml-1">- {hint}</span>}</>}
                 </label>
                 {trailing}
             </div>
@@ -139,7 +139,7 @@ export default function Registration({ onLoginRedirect }) {
         <button
             type="button"
             onClick={toggle}
-            aria-label={shown ? `Hide ${label}` : `Show ${label}`}
+            aria-label={translate(shown ? 'reg.hideField' : 'reg.showField', { label })}
             className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer z-20 focus-visible:outline-2 focus-visible:outline-indigo-500"
         >
             {shown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -182,7 +182,7 @@ export default function Registration({ onLoginRedirect }) {
             <div className="hidden md:flex md:col-span-6 relative flex-col items-center justify-center p-12 text-center text-white select-none overflow-hidden">
                 <img
                     src={ApartmentPic}
-                    alt="Apartment Splash"
+                    alt=""
                     className="absolute inset-0 w-full h-full object-cover object-center z-0"
                 />
                 <div className="absolute inset-0 bg-[#3b4276]/90 z-10"></div>
@@ -210,7 +210,7 @@ export default function Registration({ onLoginRedirect }) {
                             className="flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors bg-transparent border-0 cursor-pointer p-0 select-none py-1.5"
                         >
                             <ArrowLeft className="w-4 h-4" />
-                            <span>Back to Login</span>
+                            <span>{t('login.backToLogin')}</span>
                         </button>
                     </div>
 
@@ -228,7 +228,7 @@ export default function Registration({ onLoginRedirect }) {
                     <div className="w-full space-y-5">
                         <div className="text-center">
                             <h2 className="registration-heading text-3xl font-black tracking-tight border-0 m-0" style={{ color: '#3b4276' }}>
-                                Create Account
+                                {t('login.createAccount')}
                             </h2>
                             <p className="text-xs text-slate-500 mt-1 m-0">{t('reg.subtitle')}</p>
                         </div>
@@ -284,7 +284,7 @@ export default function Registration({ onLoginRedirect }) {
                             )}
 
                             <button type="submit" disabled={isSubmitting} className="btn-interactive w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold py-3.5 rounded-xl shadow-md hover:shadow-indigo-200 transition-all border-0 cursor-pointer text-sm tracking-wide mt-2 disabled:opacity-70">
-                                {isSubmitting ? 'Creating account…' : t('reg.submit')}
+                                {isSubmitting ? t('reg.creating') : t('reg.submit')}
                             </button>
                         </form>
 

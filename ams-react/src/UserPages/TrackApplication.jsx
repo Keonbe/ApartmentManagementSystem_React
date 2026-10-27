@@ -9,7 +9,7 @@ import api from '../api/axiosConfig';
 import { appReturnUrl, gatewayReturnParams } from '../api/env';
 import fileUrl from '../api/fileUrl';
 import ApartmentPic from '../assets/Apartment_Pic.webp';
-import { useLang } from '../config/i18n';
+import { useLang, dateLocale } from '../config/i18n';
 import SuccessModal from '../Components/SuccessModal';
 import FileAlertModal from '../Components/FileAlertModal';
 import InlineAlert from '../Components/InlineAlert';
@@ -378,7 +378,7 @@ export default function TrackApplication() {
     const chip = APPLICATION_STATUS_CHIP[status];
     const steps = applicationSteps(application);
     const peso = (n) => `₱${(parseFloat(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-    const dayLabel = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '');
+    const dayLabel = (d) => (d ? new Date(String(d).length <= 10 ? `${d}T00:00:00` : d).toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric', year: 'numeric' }) : '');
     const roomLabel = application?.room_name ? `Room ${application.room_name}` : 'your room';
     const moveInBalance = application ? parseFloat(application.pending_balance ?? application.pending_total_amount ?? (2 * parseFloat(application.monthly_rent || 0))) : 0;
     // Cancelling is allowed only before moving in (cancel_application.php checks too).

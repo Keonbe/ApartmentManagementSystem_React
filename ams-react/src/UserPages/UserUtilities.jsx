@@ -4,6 +4,7 @@ import api from '../api/axiosConfig';
 import fileUrl from '../api/fileUrl';
 import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
+import { useLang, dateLocale } from '../config/i18n';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faTint, faBolt, faCheckCircle, faClock, faArrowLeft,
@@ -25,6 +26,7 @@ function readingTotal(r) {
 
 export default function UserUtilities() {
   const navigate = useNavigate();
+  const { t, lang } = useLang();
   const [readings, setReadings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,11 +42,11 @@ export default function UserUtilities() {
       setError(null); // a later successful load clears an earlier failure
     } catch (err) {
       console.error("Failed to load utility history:", err);
-      setError("Unable to load meter readings. Please try again later.");
+      setError(t('utilities.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const timer = window.setTimeout(fetchReadings, 0);
@@ -79,16 +81,17 @@ export default function UserUtilities() {
                 type="button"
                 onClick={() => navigate(-1)}
                 className="h-11 w-11 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
-                title="Go Back"
+                title={t('common.goBack')}
+                aria-label={t('common.goBack')}
               >
-                <FontAwesomeIcon icon={faArrowLeft} className="text-sm" />
+                <FontAwesomeIcon icon={faArrowLeft} className="text-sm" aria-hidden="true" />
               </button>
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 m-0 tracking-tight" style={{ color: '#3b4276' }}>
-                Unit Sub-Meter &amp; Utility Usage
+                {t('utilities.title')}
               </h1>
             </div>
             <p className="text-slate-500 text-xs sm:text-sm mt-1.5 m-0">
-              Transparent log of monthly water and electricity meter readings for your unit.
+              {t('utilities.subtitle')}
             </p>
           </div>
 
@@ -98,7 +101,7 @@ export default function UserUtilities() {
               onClick={() => navigate('/my-room')}
               className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs px-3.5 py-2.5 transition-all shadow-sm cursor-pointer"
             >
-              <span>My Room</span>
+              <span>{t('nav.myRoom')}</span>
             </button>
             <button
               type="button"
@@ -106,7 +109,7 @@ export default function UserUtilities() {
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 transition-all shadow-sm cursor-pointer border-0"
             >
               <FontAwesomeIcon icon={faReceipt} />
-              <span>Go to Pay Bills</span>
+              <span>{t('utilities.goPayBills')}</span>
             </button>
           </div>
         </div>
@@ -115,7 +118,7 @@ export default function UserUtilities() {
         {loading ? (
           <div className="p-12 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 shadow-sm text-slate-500" style={{ textAlign: 'center' }}>
             <FontAwesomeIcon icon={faTint} className="animate-pulse text-3xl mb-3 text-indigo-400" />
-            <p className="text-sm font-semibold m-0 text-center" style={{ textAlign: 'center' }}>Loading your unit's meter readings...</p>
+            <p className="text-sm font-semibold m-0 text-center" style={{ textAlign: 'center' }}>{t('utilities.loading')}</p>
           </div>
         ) : error ? (
           <div className="p-8 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-rose-200 shadow-sm text-rose-600" style={{ textAlign: 'center' }}>
@@ -126,9 +129,9 @@ export default function UserUtilities() {
             <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-2xl mx-auto mb-4">
               <FontAwesomeIcon icon={faInfoCircle} />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 m-0 text-center" style={{ textAlign: 'center' }}>No Meter Readings Logged Yet</h3>
+            <h3 className="text-lg font-bold text-slate-800 m-0 text-center" style={{ textAlign: 'center' }}>{t('utilities.emptyTitle')}</h3>
             <p className="text-slate-500 text-sm max-w-md mx-auto mt-2 mb-0 text-center leading-relaxed" style={{ textAlign: 'center' }}>
-              Your building administrator has not recorded sub-meter readings for your unit yet. When meters are read, your water and electricity consumption breakdown will appear here.
+              {t('utilities.emptyBody')}
             </p>
           </div>
         ) : (
@@ -136,17 +139,17 @@ export default function UserUtilities() {
             {summary && (
               <div className="stagger-children grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                  <p className="text-xs font-bold text-slate-500 m-0">Avg water / cycle</p>
+                  <p className="text-xs font-bold text-slate-500 m-0">{t('utilities.avgWater')}</p>
                   <p className="text-xl font-black text-blue-800 m-0 mt-1">{summary.avgWater} m³</p>
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                  <p className="text-xs font-bold text-slate-500 m-0">Avg electricity / cycle</p>
+                  <p className="text-xs font-bold text-slate-500 m-0">{t('utilities.avgElectric')}</p>
                   <p className="text-xl font-black text-amber-800 m-0 mt-1">{summary.avgElectric} kWh</p>
                 </div>
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                  <p className="text-xs font-bold text-slate-500 m-0">Avg utility cost / cycle</p>
+                  <p className="text-xs font-bold text-slate-500 m-0">{t('utilities.avgCost')}</p>
                   <p className="text-xl font-black text-slate-900 m-0 mt-1">₱{summary.avgCost.toFixed(2)}</p>
-                  <p className="text-xs text-slate-500 m-0">Across {summary.cycles} billing {summary.cycles === 1 ? 'cycle' : 'cycles'}</p>
+                  <p className="text-xs text-slate-500 m-0">{summary.cycles === 1 ? t('utilities.acrossOne') : t('utilities.acrossMany', { n: summary.cycles })}</p>
                 </div>
               </div>
             )}
@@ -167,12 +170,12 @@ export default function UserUtilities() {
                       </div>
                       <div>
                         <h3 className="text-base sm:text-lg font-extrabold text-slate-900 m-0">
-                          Billing Cycle: {r.billing_period_label || r.billing_period}
+                          {t('utilities.billingCycle', { period: r.billing_period_label || r.billing_period })}
                         </h3>
                         {r.reading_date && (
                           <p className="text-xs text-slate-500 m-0 mt-0.5 flex items-center gap-1.5">
                             <FontAwesomeIcon icon={faCalendarAlt} className="text-xs" />
-                            {r.entry_mode === 'bill' ? 'Recorded on' : 'Meter reading taken on'} {new Date(r.reading_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                            {t(r.entry_mode === 'bill' ? 'utilities.recordedOn' : 'utilities.readOn', { date: new Date(r.reading_date).toLocaleDateString(dateLocale(lang), { month: 'long', day: 'numeric', year: 'numeric' }) })}
                           </p>
                         )}
                       </div>
@@ -185,7 +188,7 @@ export default function UserUtilities() {
  }`}>
                       <FontAwesomeIcon icon={isInvoiced ? faCheckCircle : faClock} className="text-xs" />
                       <span>{/* invoice_id is an id, not a date ("Billed on INV-…" read like one). */}
-                      {isInvoiced ? (r.invoice_id ? `On invoice ${r.invoice_id}` : 'Billed') : 'Not Yet Billed'}</span>
+                      {isInvoiced ? (r.invoice_id ? t('utilities.onInvoice', { id: r.invoice_id }) : t('utilities.billed')) : t('utilities.notBilled')}</span>
                     </span>
                   </div>
 
@@ -194,14 +197,14 @@ export default function UserUtilities() {
                     
                     {isTotalOnly ? (
                       <div className="md:col-span-8 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-1 text-xs text-slate-600">
-                        <span className="text-xs font-bold text-indigo-900">Utilities, total amount</span>
-                        <p className="m-0">No meter readings were taken for this month. Management recorded one total for your utilities.</p>
+                        <span className="text-xs font-bold text-indigo-900">{t('utilities.totalOnlyTitle')}</span>
+                        <p className="m-0">{t('utilities.totalOnlyBody')}</p>
                       </div>
                     ) : r.entry_mode === 'bill' ? (<>
                       {/* Provider bill: you pay exactly the Meralco / water bill amount */}
                       {[
-                        { key: 'water', title: 'Water bill', icon: faTint, unit: 'm³', box: 'bg-blue-50/60 border-blue-100', text: 'text-blue-900', strong: 'text-blue-800', tone: 'text-blue-500' },
-                        { key: 'electric', title: 'Electricity bill', icon: faBolt, unit: 'kWh', box: 'bg-amber-50/60 border-amber-100', text: 'text-amber-900', strong: 'text-amber-800', tone: 'text-amber-500' },
+                        { key: 'water', title: t('utilities.waterBill'), icon: faTint, unit: 'm³', box: 'bg-blue-50/60 border-blue-100', text: 'text-blue-900', strong: 'text-blue-800', tone: 'text-blue-500' },
+                        { key: 'electric', title: t('utilities.electricBill'), icon: faBolt, unit: 'kWh', box: 'bg-amber-50/60 border-amber-100', text: 'text-amber-900', strong: 'text-amber-800', tone: 'text-amber-500' },
                       ].map((u) => {
                         const consumption = r[`${u.key}_consumption`];
                         const curr = r[`${u.key}_curr_reading`];
@@ -213,18 +216,18 @@ export default function UserUtilities() {
                             </span>
                             <div className="space-y-1 text-xs text-slate-600">
                               {consumption !== null && consumption !== undefined ? (<>
-                                <div className="flex justify-between"><span>Previous:</span><span className="font-semibold text-slate-800">{r[`${u.key}_prev_reading`]} {u.unit}</span></div>
-                                <div className="flex justify-between"><span>Present:</span><span className="font-semibold text-slate-800">{curr} {u.unit}</span></div>
-                                <div className="flex justify-between font-semibold"><span>Usage:</span><span>{consumption} {u.unit}</span></div>
+                                <div className="flex justify-between"><span>{t('utilities.previous')}</span><span className="font-semibold text-slate-800">{r[`${u.key}_prev_reading`]} {u.unit}</span></div>
+                                <div className="flex justify-between"><span>{t('utilities.present')}</span><span className="font-semibold text-slate-800">{curr} {u.unit}</span></div>
+                                <div className="flex justify-between font-semibold"><span>{t('utilities.usage')}</span><span>{consumption} {u.unit}</span></div>
                                 <UsageChange pct={r[`${u.key}_change_pct`]} />
                               </>) : curr !== null && curr !== undefined ? (
-                                <div className="flex justify-between"><span>Meter:</span><span className="font-semibold text-slate-800">{curr} {u.unit}</span></div>
+                                <div className="flex justify-between"><span>{t('utilities.meter')}</span><span className="font-semibold text-slate-800">{curr} {u.unit}</span></div>
                               ) : (
-                                <p className="m-0 text-slate-500">Amount from the provider bill.</p>
+                                <p className="m-0 text-slate-500">{t('utilities.fromProvider')}</p>
                               )}
                             </div>
                             <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center text-xs">
-                              <span className="text-slate-500 font-medium">Bill amount:</span>
+                              <span className="text-slate-500 font-medium">{t('utilities.billAmount')}</span>
                               <span className={`text-sm font-black ${u.strong}`}>₱{(parseFloat(r[`${u.key}_amount`] || 0) + parseFloat(r[`${u.key}_other_fees`] || 0)).toFixed(2)}</span>
                             </div>
                           </div>
@@ -236,7 +239,7 @@ export default function UserUtilities() {
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
                           <FontAwesomeIcon icon={faTint} className="text-blue-500" />
-                          Water Meter
+                          {t('utilities.waterMeter')}
                         </span>
                         <span className="text-xs font-semibold text-blue-600 bg-white px-2 py-0.5 rounded-full border border-blue-200">
                           ₱{r.water_rate_per_unit}/m³
@@ -245,15 +248,15 @@ export default function UserUtilities() {
 
                       <div className="space-y-1 text-xs text-slate-600">
                         <div className="flex justify-between">
-                          <span>Previous:</span>
+                          <span>{t('utilities.previous')}</span>
                           <span className="font-semibold text-slate-800">{r.water_prev_reading} m³</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Present:</span>
+                          <span>{t('utilities.present')}</span>
                           <span className="font-semibold text-slate-800">{r.water_curr_reading} m³</span>
                         </div>
                         <div className="flex justify-between border-t border-blue-200/60 pt-1 font-bold text-blue-900">
-                          <span>Consumption:</span>
+                          <span>{t('utilities.consumption')}</span>
                           <span>{r.water_consumption} m³</span>
                         </div>
                         <UsageChange pct={r.water_change_pct} />
@@ -262,12 +265,12 @@ export default function UserUtilities() {
                       {/* #3: Show other fees line item if present */}
                       {parseFloat(r.water_other_fees || 0) > 0 && (
                         <div className="flex justify-between text-xs text-blue-700 font-semibold">
-                          <span>Other Fees:</span>
+                          <span>{t('utilities.otherFees')}</span>
                           <span>+₱{parseFloat(r.water_other_fees).toFixed(2)}</span>
                         </div>
                       )}
                       <div className="pt-2 border-t border-blue-200/60 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">Subtotal:</span>
+                        <span className="text-slate-500 font-medium">{t('utilities.subtotal')}</span>
                         <span className="text-sm font-black text-blue-800">
                           ₱{(parseFloat(r.water_amount || 0) + parseFloat(r.water_other_fees || 0)).toFixed(2)}
                         </span>
@@ -279,7 +282,7 @@ export default function UserUtilities() {
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
                           <FontAwesomeIcon icon={faBolt} className="text-amber-500" />
-                          Electricity Meter
+                          {t('utilities.electricMeter')}
                         </span>
                         <span className="text-xs font-semibold text-amber-700 bg-white px-2 py-0.5 rounded-full border border-amber-200">
                           ₱{r.electric_rate_per_unit}/kWh
@@ -288,15 +291,15 @@ export default function UserUtilities() {
 
                       <div className="space-y-1 text-xs text-slate-600">
                         <div className="flex justify-between">
-                          <span>Previous:</span>
+                          <span>{t('utilities.previous')}</span>
                           <span className="font-semibold text-slate-800">{r.electric_prev_reading} kWh</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Present:</span>
+                          <span>{t('utilities.present')}</span>
                           <span className="font-semibold text-slate-800">{r.electric_curr_reading} kWh</span>
                         </div>
                         <div className="flex justify-between border-t border-amber-200/60 pt-1 font-bold text-amber-900">
-                          <span>Consumption:</span>
+                          <span>{t('utilities.consumption')}</span>
                           <span>{r.electric_consumption} kWh</span>
                         </div>
                         <UsageChange pct={r.electric_change_pct} />
@@ -305,12 +308,12 @@ export default function UserUtilities() {
                       {/* #3: Show other fees line item if present */}
                       {parseFloat(r.electric_other_fees || 0) > 0 && (
                         <div className="flex justify-between text-xs text-amber-700 font-semibold">
-                          <span>Other Fees:</span>
+                          <span>{t('utilities.otherFees')}</span>
                           <span>+₱{parseFloat(r.electric_other_fees).toFixed(2)}</span>
                         </div>
                       )}
                       <div className="pt-2 border-t border-amber-200/60 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 font-medium">Subtotal:</span>
+                        <span className="text-slate-500 font-medium">{t('utilities.subtotal')}</span>
                         <span className="text-sm font-black text-amber-800">
                           ₱{(parseFloat(r.electric_amount || 0) + parseFloat(r.electric_other_fees || 0)).toFixed(2)}
                         </span>
@@ -323,7 +326,7 @@ export default function UserUtilities() {
                     <div className="md:col-span-4 p-5 rounded-2xl bg-slate-900 text-white flex flex-col justify-between space-y-3">
                       <div>
                         <span className="text-xs font-bold text-slate-300 block">
-                          Total Utility Subtotal
+                          {t('utilities.totalSubtotal')}
                         </span>
                         <span className="text-2xl lg:text-3xl font-black text-emerald-400 mt-1 block">
                           ₱{totalAmount.toFixed(2)}
@@ -331,8 +334,8 @@ export default function UserUtilities() {
                       </div>
                       <p className="text-xs text-slate-300 m-0 leading-tight">
                         {isInvoiced 
-                          ? "This amount has been billed. Settle it from Pay Bills."
-                          : "Recorded by the administrator and not billed yet."}
+                          ? t('utilities.billedNote')
+                          : t('utilities.notBilledNote')}
                       </p>
                     </div>
 
@@ -340,10 +343,10 @@ export default function UserUtilities() {
 
                   {(r.items || []).length > 0 && (
                     <div className="px-4 py-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-xs text-slate-700 space-y-1">
-                      <span className="font-bold text-indigo-900">Other utilities</span>
+                      <span className="font-bold text-indigo-900">{t('utilities.otherUtilities')}</span>
                       {r.items.map((it) => (
                         <div key={it.type_id} className="flex justify-between">
-                          <span>{it.name}{it.billing_mode === 'metered' ? ` (${it.consumption} ${it.unit_label || 'units'} @ ₱${it.rate})` : ''}</span>
+                          <span>{it.name}{it.billing_mode === 'metered' ? ` (${it.consumption} ${it.unit_label || t('utilities.units')} @ ₱${it.rate})` : ''}</span>
                           <span className="font-semibold">₱{(parseFloat(it.amount) + parseFloat(it.other_fees || 0)).toFixed(2)}</span>
                         </div>
                       ))}
@@ -356,7 +359,7 @@ export default function UserUtilities() {
                   {r.notes && (
                     <div className="pt-2 text-xs text-slate-500 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100 flex items-center gap-2">
                       <FontAwesomeIcon icon={faInfoCircle} className="text-slate-500 text-xs shrink-0" />
-                      <span><strong>Admin Note:</strong> {r.notes}</span>
+                      <span><strong>{t('utilities.adminNote')}</strong> {r.notes}</span>
                     </div>
                   )}
 
@@ -374,6 +377,7 @@ export default function UserUtilities() {
 // Bill file + proof of payment for one reading. Proof goes through the same
 // upload_payment_proof.php the Pay Bills page uses, on the reading's invoice.
 function ReadingPayment({ r, onChanged }) {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState('GCash');
   const [reference, setReference] = useState('');
@@ -386,9 +390,9 @@ function ReadingPayment({ r, onChanged }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    const fileError = file ? checkFile(file, FILE_RULES.paymentProof) : 'Choose your proof of payment.';
+    const fileError = file ? checkFile(file, FILE_RULES.paymentProof) : t('utilities.chooseProof');
     if (fileError) { setMsg({ ok: false, text: fileError }); return; }
-    if (!reference.trim()) { setMsg({ ok: false, text: 'Enter the payment reference number.' }); return; }
+    if (!reference.trim()) { setMsg({ ok: false, text: t('utilities.enterRef') }); return; }
     const fd = new FormData();
     fd.append('invoice_id', r.invoice_id);
     fd.append('payment_reference', reference.trim());
@@ -399,7 +403,7 @@ function ReadingPayment({ r, onChanged }) {
     try {
       const res = await api.post('/upload_payment_proof.php', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (!res.data.success) { setMsg({ ok: false, text: apiErrorMessage(res) }); return; }
-      setMsg({ ok: true, text: 'Proof sent. Management will verify your payment.' });
+      setMsg({ ok: true, text: t('utilities.proofSent') });
       setOpen(false);
       setFile(null);
       setReference('');
@@ -417,32 +421,32 @@ function ReadingPayment({ r, onChanged }) {
     <div className="pt-2 text-xs text-slate-600 bg-slate-50 px-4 py-3 rounded-xl border border-slate-100 space-y-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {r.bill_file_path && (
-          <a href={fileUrl(r.bill_file_path)} target="_blank" rel="noreferrer" className="font-bold text-indigo-600 hover:underline">View utility bill</a>
+          <a href={fileUrl(r.bill_file_path)} target="_blank" rel="noreferrer" className="font-bold text-indigo-600 hover:underline">{t('utilities.viewBill')}</a>
         )}
-        {status === 'paid' && <span className="font-bold text-emerald-700">Paid</span>}
-        {status === 'pending-verification' && <span className="font-bold text-sky-700">Proof sent. Waiting for management to verify.</span>}
+        {status === 'paid' && <span className="font-bold text-emerald-700">{t('common.paid')}</span>}
+        {status === 'pending-verification' && <span className="font-bold text-sky-700">{t('utilities.awaitingVerify')}</span>}
         {canUpload && !open && (
           <button type="button" onClick={() => setOpen(true)} className="cursor-pointer border-0 bg-transparent p-0 font-bold text-indigo-600 hover:underline">
-            I paid outside the system: upload proof
+            {t('utilities.uploadOutside')}
           </button>
         )}
       </div>
       {canUpload && r.invoice_proof_rejection && (
-        <p className="m-0 font-semibold text-rose-700">Your last proof was rejected: {r.invoice_proof_rejection}</p>
+        <p className="m-0 font-semibold text-rose-700">{t('utilities.lastRejected', { reason: r.invoice_proof_rejection })}</p>
       )}
       {open && (
         <form onSubmit={submit} className="space-y-2">
-          <p className="m-0 text-slate-500">This bill may be on the same invoice as your rent, so your proof covers the whole invoice.</p>
+          <p className="m-0 text-slate-500">{t('utilities.sameInvoice')}</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <select aria-label="Payment method" value={method} onChange={(e) => setMethod(e.target.value)} className="rounded-lg border border-slate-300 bg-white p-2">
-              <option>GCash</option><option>Maya</option><option>Other</option>
+            <select aria-label={t('utilities.paymentMethod')} value={method} onChange={(e) => setMethod(e.target.value)} className="rounded-lg border border-slate-300 bg-white p-2">
+              <option value="GCash">GCash</option><option value="Maya">Maya</option><option value="Other">{t('utilities.otherMethod')}</option>
             </select>
-            <input aria-label="Reference number" value={reference} maxLength={100} onChange={(e) => setReference(e.target.value)} placeholder="Reference number" className="rounded-lg border border-slate-300 p-2" />
-            <input type="file" aria-label="Proof of payment" accept={acceptFor(FILE_RULES.paymentProof)} onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-xs" />
+            <input aria-label={t('utilities.refNo')} value={reference} maxLength={100} onChange={(e) => setReference(e.target.value)} placeholder={t('utilities.refNo')} className="rounded-lg border border-slate-300 p-2" />
+            <input type="file" aria-label={t('utilities.proofLabel')} accept={acceptFor(FILE_RULES.paymentProof)} onChange={(e) => setFile(e.target.files?.[0] || null)} className="text-xs" />
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={busy} className="min-h-[44px] cursor-pointer rounded-lg border-0 bg-indigo-600 px-4 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Sending…' : 'Send proof'}</button>
-            <button type="button" onClick={() => setOpen(false)} className="min-h-[44px] cursor-pointer rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-600">Cancel</button>
+            <button type="submit" disabled={busy} className="min-h-[44px] cursor-pointer rounded-lg border-0 bg-indigo-600 px-4 text-sm font-bold text-white disabled:opacity-50">{busy ? t('common.sending') : t('utilities.sendProof')}</button>
+            <button type="button" onClick={() => setOpen(false)} className="min-h-[44px] cursor-pointer rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-600">{t('common.cancel')}</button>
           </div>
         </form>
       )}
@@ -454,12 +458,13 @@ function ReadingPayment({ r, onChanged }) {
 // Change against the tenant's own previous cycle (the server sends null when there is none).
 // The 30% cutoff mirrors UTILITY_SPIKE_THRESHOLD_PCT in backend/config.php.
 function UsageChange({ pct }) {
+  const { t } = useLang();
   if (pct === null || pct === undefined) return null;
   const high = pct > 30;
   const tone = high ? 'text-rose-600' : pct > 0 ? 'text-amber-700' : 'text-emerald-700';
   return (
     <div className={`text-xs font-semibold ${tone}`}>
-      {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {Math.abs(pct)}% vs previous cycle{high ? ' — unusually high' : ''}
+      {pct > 0 ? '▲' : pct < 0 ? '▼' : '■'} {t('utilities.vsPrevious', { pct: Math.abs(pct) })}{high ? t('utilities.unusuallyHigh') : ''}
     </div>
   );
 }

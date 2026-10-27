@@ -122,7 +122,7 @@ export default function ServiceBooking() {
             if (wholeQuantity) return checkIntRange(v === '' ? NaN : v, quantityMin, quantityMax, 'Quantity');
             return checkAmount(v, { min: quantityMin, max: quantityMax, label: 'Quantity' });
         },
-        preferredDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: 'Preferred date' }),
+        preferredDate: (v) => checkDate(v, { min: minDateString, max: maxDateString, label: t('common.preferredDate') }),
         preferredTimeSlot: (v) => (TIME_SLOTS.includes(v) ? '' : t('serviceBooking.selectTime')),
         notes: (v) => checkText(v, { label: 'Notes', max: LIMITS.notes, required: false }),
         uploadedFile: (f) => (f ? checkFile(f, FILE_RULES.service) : ''),
@@ -405,7 +405,7 @@ export default function ServiceBooking() {
                                         {uploadedFile.type.startsWith('image/') ? (
                                             <img
                                                 src={previewUrl}
-                                                alt="Service reference preview"
+                                                alt={t('serviceBooking.photoPreview')}
                                                 className="w-32 h-20 object-cover rounded border border-slate-200"
                                             />
                                         ) : (

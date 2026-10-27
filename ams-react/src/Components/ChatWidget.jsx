@@ -23,6 +23,7 @@ import FieldError from './form/FieldError';
 import ChatAttachmentPreview from './form/ChatAttachmentPreview';
 import useFilePreview from '../hooks/useFilePreview';
 import { normalizeGuestMessages } from '../utils/normalizeGuestMessage';
+import { useLang, dateLocale } from '../config/i18n';
 
 const CHAT_ACCEPT = `${acceptFor(FILE_RULES.chatImage)},${acceptFor(FILE_RULES.chatVideo)}`;
 const isGuestConversation = (conversation) => Boolean(conversation.is_guest || conversation.thread_type === 'guest');
@@ -30,6 +31,7 @@ const GUEST_BADGE_CLASS = 'ml-1.5 shrink-0 text-blue-600 font-semibold text-xs';
 
 const ChatWidget = () => {
     const navigate = useNavigate();
+    const { t, lang } = useLang();
     const location = useLocation();
     const { 
         userId, 
@@ -158,18 +160,18 @@ const ChatWidget = () => {
         const today = new Date();
         const yesterday = new Date(today);
         yesterday.setDate(today.getDate() - 1);
-        let dayLabel = parsed.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
-        if (parsed.toDateString() === today.toDateString()) dayLabel = 'Today';
-        else if (parsed.toDateString() === yesterday.toDateString()) dayLabel = 'Yesterday';
+        let dayLabel = parsed.toLocaleDateString(dateLocale(lang), { month: 'long', day: 'numeric', year: 'numeric' });
+        if (parsed.toDateString() === today.toDateString()) dayLabel = t('chat.today');
+        else if (parsed.toDateString() === yesterday.toDateString()) dayLabel = t('chat.yesterday');
 
-        const timeLabel = parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const timeLabel = parsed.toLocaleTimeString(dateLocale(lang), { hour: 'numeric', minute: '2-digit' });
         return `${dayLabel} · ${timeLabel}`;
     };
 
     const formatExactMessageDateTime = (date) => {
         if (!date) return '';
         const parsed = new Date(date);
-        return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString([], {
+        return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleString(dateLocale(lang), {
             year: 'numeric', month: 'long', day: 'numeric',
             hour: 'numeric', minute: '2-digit', second: '2-digit',
         });
@@ -270,7 +272,7 @@ const ChatWidget = () => {
             setSendError(''); // an earlier failure no longer applies
             const response = await api.get('guest_chat.php', { headers: { 'X-Guest-Token': guestToken } });
         setGuestMessages(normalizeGuestMessages(response.data.messages || []));
-        } catch (error) { setSendError(apiErrorMessage(error, 'Message not sent.')); }
+        } catch (error) { setSendError(apiErrorMessage(error, t('chat.notSent'))); }
         finally { setIsSending(false); }
     };
 
@@ -304,7 +306,7 @@ const ChatWidget = () => {
                         setAttachment(null);
                         setReplyingTo(null);
                     })
-                    .catch((error) => setSendError(apiErrorMessage(error, 'Message not sent. Please try again.')))
+                    .catch((error) => setSendError(apiErrorMessage(error, t('chat.notSentRetry'))))
                     .finally(() => setIsSending(false));
                 return;
             }
@@ -327,7 +329,7 @@ const ChatWidget = () => {
                 })
                 .catch((err) => {
                     // Keep the input text so the user can retry, and say why it failed.
-                    setSendError(apiErrorMessage(err, 'Message not sent. Please try again.'));
+                    setSendError(apiErrorMessage(err, t('chat.notSentRetry')));
                 })
                 .finally(() => setIsSending(false));
         }
@@ -348,14 +350,14 @@ const ChatWidget = () => {
         return (
             <div className="flex flex-col items-center justify-center text-center text-slate-500 mt-16 p-4">
                 <FontAwesomeIcon icon={faComment} className="text-4xl mb-3 opacity-20" />
-                <p className="text-sm font-medium m-0">No active conversations found</p>
+                <p className="text-sm font-medium m-0">{t('chat.noConversations')}</p>
                 {isTenant && openSupportChat && (
                     <button
                         type="button"
                         onClick={handleStartChat}
                         className="mt-4 px-4 py-2 rounded-full bg-indigo-600 text-white text-sm font-semibold border-0 cursor-pointer hover:bg-indigo-700 transition-colors"
                     >
-                        Message Admin
+                        {t('chat.messageAdmin')}
                     </button>
                 )}
             </div>
@@ -381,7 +383,7 @@ const ChatWidget = () => {
                     type="button"
                     onClick={() => setIsChatOpen(true)}
                     className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-all transform hover:scale-110 cursor-pointer border-0"
-                    aria-label={totalUnreadCount > 0 ? `Open chat, ${totalUnreadCount} unread` : 'Open chat'}
+                    aria-label={totalUnreadCount > 0 ? t('chat.openUnread', { n: totalUnreadCount }) : t('chat.open')}
                 >
                     <FontAwesomeIcon icon={faComment} className="text-2xl" />
                     {totalUnreadCount > 0 && (
@@ -395,7 +397,7 @@ const ChatWidget = () => {
                 <div
                     ref={(node) => { chatWindowRef.current = node; chatDialogRef.current = node; }}
                     role="dialog"
-                    aria-label="Chat"
+                    aria-label={t('chat.label')}
                     tabIndex={-1}
                     className="outline-none w-[min(24rem,calc(100vw-1rem))] h-[min(500px,calc(100dvh-1rem))] min-h-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 sm:h-[500px]"
                 >
@@ -407,14 +409,14 @@ const ChatWidget = () => {
                                     type="button"
                                     onClick={() => { if (userId) setActiveChat(null); }}
                                     className="flex h-11 w-11 items-center justify-center text-white hover:text-indigo-200 bg-transparent border-0 cursor-pointer -ml-2 mr-1"
-                                    title="Back to conversation list"
-                                    aria-label="Back to conversation list"
+                                    title={t('chat.back')}
+                                    aria-label={t('chat.back')}
                                 >
                                     <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
                                 </button>
                             )}
                             <span className="font-semibold truncate">
-                            {activeChat ? activeChat.other_user_name : guestToken && !userId ? 'Admin User' : 'Messages'}
+                            {activeChat ? activeChat.other_user_name : guestToken && !userId ? t('chat.adminUser') : t('chat.messages')}
                             </span>
                         </div>
                         
@@ -428,14 +430,14 @@ const ChatWidget = () => {
                                     }}
                                     className="text-xs font-semibold text-indigo-100 hover:text-white bg-transparent border-0 cursor-pointer whitespace-nowrap"
                                 >
-                                    View all
+                                    {t('chat.viewAll')}
                                 </button>
                             )}
                             <button
                                 type="button"
                                 onClick={() => setIsChatOpen(false)}
                                 className="flex h-11 w-11 items-center justify-center -mr-2 text-white hover:text-indigo-200 bg-transparent border-0 cursor-pointer"
-                                aria-label="Close chat"
+                                aria-label={t('chat.close')}
                             >
                                 <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
                             </button>
@@ -444,7 +446,7 @@ const ChatWidget = () => {
 
                     {/* Chat Body */}
                     {!userId && !guestToken ? (
-                        <div className="flex-1 p-6 text-center"><p>Start a conversation with our team by submitting an inquiry.</p><button type="button" onClick={() => { setIsChatOpen(false); navigate('/inquire'); }} className="rounded-xl bg-indigo-600 px-4 py-2 text-white border-0">Go to Inquire</button></div>
+                        <div className="flex-1 p-6 text-center"><p>{t('chat.startByInquiry')}</p><button type="button" onClick={() => { setIsChatOpen(false); navigate('/inquire'); }} className="min-h-[44px] rounded-xl bg-indigo-600 px-5 text-white border-0 cursor-pointer">{t('chat.goInquire')}</button></div>
                     ) : !activeChat && userId ? (
                         /* Conversation Directory List */
                         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
@@ -488,7 +490,7 @@ const ChatWidget = () => {
                                             <div className="flex min-w-0 justify-between items-center gap-2 mb-0.5">
                                                 <h4 className={`flex min-w-0 items-center overflow-hidden text-sm m-0 ${Number(conv.unread_count) > 0 ? 'font-bold text-slate-900' : 'font-semibold text-slate-900'}`}>
                                                     <span className="truncate">{conv.other_user_name}</span>
-                                                    {isGuestConversation(conv) && <span className={GUEST_BADGE_CLASS}>Guest</span>}
+                                                    {isGuestConversation(conv) && <span className={GUEST_BADGE_CLASS}>{t('chat.guest')}</span>}
                                                 </h4>
                                                 {conv.last_message_time && (
                                                     <span className="text-xs text-slate-500 whitespace-nowrap shrink-0 ml-3">
@@ -499,9 +501,9 @@ const ChatWidget = () => {
                                             <p className={`text-xs truncate m-0 ${Number(conv.unread_count) > 0 ? 'font-semibold text-slate-700' : 'text-slate-500'}`}>
                                                 {conv.last_message || conv.last_message_attachment_path
                                                     ? conv.last_message_attachment_path
-                                                        ? `${String(conv.last_message_sender_id) === String(userId) ? 'You' : (conv.other_user_name || 'Admin')} sent a ${/\.(mp4|webm|mov)(?:\?|$)/i.test(conv.last_message_attachment_path) ? 'video' : 'photo'}`
-                                                        : `${String(conv.last_message_sender_id) === String(userId) ? 'You' : (conv.other_user_name || 'Admin')}: ${conv.last_message}`
-                                                    : 'No messages yet'}
+                                                        ? (() => { const video = /\.(mp4|webm|mov)(?:\?|$)/i.test(conv.last_message_attachment_path); return String(conv.last_message_sender_id) === String(userId) ? t(video ? 'chat.youSentVideo' : 'chat.youSentPhoto') : t(video ? 'chat.nameSentVideo' : 'chat.nameSentPhoto', { name: conv.other_user_name || t('chat.admin') }); })()
+                                                        : `${String(conv.last_message_sender_id) === String(userId) ? t('chat.you') : (conv.other_user_name || t('chat.admin'))}: ${conv.last_message}`
+                                                    : t('chat.noMessages')}
                                             </p>
                                         </div>
                                     </div>
@@ -514,7 +516,7 @@ const ChatWidget = () => {
                         <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50">
                                             {displayedMessages.length === 0 ? (
                                 <div className="text-center text-slate-500 text-xs mt-10">
-                                    Send a message to start this conversation.
+                                    {t('chat.startConversation')}
                                 </div>
                             ) : (
                                 displayedMessages.map((msg, index) => {
@@ -542,20 +544,20 @@ const ChatWidget = () => {
                                                 </div>
                                             )}
                                             <div className={`group flex items-center gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-xs" /></button>}
+                                        {isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label={t('chat.replyTo')} title={t('chat.reply')} className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-xs" /></button>}
                                                 <div className={`relative flex max-w-[80%] flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                                                     {msg.reply_to_id && <div className="mb-1 flex items-center gap-1 px-1 text-xs text-slate-500">
                                                         <FontAwesomeIcon icon={faReply} className="text-xs" />
-                                                        <span>{isMe ? 'You' : (isGuestChat ? 'Admin User' : activeChat.other_user_name)} replied to {String(msg.reply_sender_id) === String(msg.sender_id) ? 'themselves' : (isMe ? (isGuestChat ? 'Admin User' : activeChat.other_user_name) : 'you')}</span>
+                                                        <span>{(() => { const other = isGuestChat ? t('chat.adminUser') : activeChat.other_user_name; const self = String(msg.reply_sender_id) === String(msg.sender_id); if (isMe) return self ? t('chat.youRepliedSelf') : t('chat.youRepliedTo', { name: other }); return self ? t('chat.nameRepliedSelf', { name: other }) : t('chat.nameRepliedYou', { name: other }); })()}</span>
                                                     </div>}
                                                     {msg.reply_to_id && msg.reply_attachment_path && (() => {
                                                         const replyIsVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(msg.reply_attachment_path);
                                                         const replyMediaUrl = isGuestChat ? guestDownloadUrl(msg.reply_attachment_path) : fileUrl(msg.reply_attachment_path);
                                                         const scrollToOriginal = () => document.getElementById(`chat-message-${msg.reply_to_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                        return <button type="button" onClick={scrollToOriginal} aria-label="Scroll to replied message" className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
+                                                        return <button type="button" onClick={scrollToOriginal} aria-label={t('chat.scrollToReplied')} className="mb-1 block w-36 overflow-hidden rounded-2xl border-0 bg-slate-200 p-0 text-left opacity-75 transition-opacity hover:opacity-100">
                                                             {replyIsVideo
-                                                                ? <video src={replyMediaUrl} preload="metadata" muted playsInline className="block h-24 w-36 object-cover" aria-label="Replied video preview" />
-                                                                : <img src={replyMediaUrl} alt="Replied image preview" className="block h-24 w-36 object-cover" />}
+                                                                ? <video src={replyMediaUrl} preload="metadata" muted playsInline className="block h-24 w-36 object-cover" aria-label={t('chat.repliedVideo')} />
+                                                                : <img src={replyMediaUrl} alt={t('chat.repliedImage')} className="block h-24 w-36 object-cover" />}
                                                         </button>;
                                                     })()}
                                                     <div onClick={() => setExpandedTimestampId((current) => current === messageKey ? null : messageKey)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedTimestampId((current) => current === messageKey ? null : messageKey); } }} role="button" tabIndex={0} aria-expanded={expandedTimestampId === messageKey} aria-label={`Toggle exact timestamp for message: ${formatExactMessageDateTime(msg.created_at)}`} className={`cursor-pointer transition-colors ${isMediaOnlyMessage ? '' : `px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe
@@ -567,13 +569,13 @@ const ChatWidget = () => {
                                                         {mediaPath && (() => {
                                                             const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(mediaPath);
                                                             const isImage = /\.(jpg|jpeg|png|gif|webp)(?:\?|$)/i.test(mediaPath);
-                                                            if (!isVideo && !isImage) return <a className="mt-2 block text-sm underline" href={mediaUrl} target="_blank" rel="noreferrer">{msg.file_name || 'Download attachment'}</a>;
+                                                            if (!isVideo && !isImage) return <a className="mt-2 block text-sm underline" href={mediaUrl} target="_blank" rel="noreferrer">{msg.file_name || t('chat.download')}</a>;
                                                             return isVideo
                                                                 ? <div className="mt-2 relative block max-w-full overflow-hidden rounded-lg bg-black" onClick={(event) => { event.stopPropagation(); if (!event.currentTarget.querySelector('video')?.paused) setMediaPreview({ src: mediaUrl, isVideo: true }); }}>
-                                                                    <video src={mediaUrl} controls playsInline preload="metadata" aria-label="Message video. Tap again while playing to view full size." className="block max-w-full max-h-52 rounded-lg" />
+                                                                    <video src={mediaUrl} controls playsInline preload="metadata" aria-label={t('chat.videoLabel')} className="block max-w-full max-h-52 rounded-lg" />
                                                                 </div>
-                                                                : <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo: false }); }} aria-label="View full image" className="mt-2 relative block max-w-full overflow-hidden rounded-lg border-0 bg-transparent p-0 cursor-zoom-in">
-                                                                    <img src={mediaUrl} alt="Message attachment" className="max-w-full max-h-52 rounded-lg" />
+                                                                : <button type="button" onClick={(event) => { event.stopPropagation(); setMediaPreview({ src: mediaUrl, isVideo: false }); }} aria-label={t('chat.viewImage')} className="mt-2 relative block max-w-full overflow-hidden rounded-lg border-0 bg-transparent p-0 cursor-zoom-in">
+                                                                    <img src={mediaUrl} alt={t('chat.attachment')} className="max-w-full max-h-52 rounded-lg" />
                                                                 </button>;
                                                         })()}
                                                     </div>
@@ -584,11 +586,11 @@ const ChatWidget = () => {
                                                     )}
                                                     {isLatestSentMessage && (
                                                         <p className="m-0 mt-1 text-right text-xs text-slate-500 font-medium">
-                                                            {Number(msg.is_read) === 1 ? 'Seen' : 'Sent'}
+                                                            {Number(msg.is_read) === 1 ? t('chat.seen') : t('chat.sent')}
                                                         </p>
                                                     )}
                                                 </div>
-                                        {!isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label="Reply to this message" title="Reply" className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-xs" /></button>}
+                                        {!isMe && <button type="button" onClick={() => setReplyingTo(msg)} aria-label={t('chat.replyTo')} title={t('chat.reply')} className="message-reply-button flex h-7 w-7 shrink-0 items-center justify-center border-0 bg-transparent text-slate-500 hover:text-indigo-600 cursor-pointer sm:h-6 sm:w-6"><FontAwesomeIcon icon={faReply} className="text-xs" /></button>}
                                             </div>
                                         </div>
                                     );
@@ -601,17 +603,17 @@ const ChatWidget = () => {
                     {/* Input Field Section */}
                     {(activeChat || (!userId && guestToken)) && (
                         <div className={`p-2 sm:p-3 bg-white shrink-0 ${replyingTo ? '' : 'border-t border-slate-200'}`}>
-                            {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>Replying to {String(replyingTo.sender_id) === (isGuestChat ? 'guest' : String(userId)) ? 'yourself' : (isGuestChat ? 'Admin User' : activeChat?.other_user_name)}</strong><p className="m-0 truncate">{replyingTo.message || 'Attachment'}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply" className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
+                            {replyingTo && <div className="mb-2 flex items-center justify-between rounded-lg border-0 bg-white px-3 py-2 text-xs text-slate-700"><div className="min-w-0"><strong>{String(replyingTo.sender_id) === (isGuestChat ? 'guest' : String(userId)) ? t('chat.replyingSelf') : t('chat.replyingTo', { name: isGuestChat ? t('chat.adminUser') : activeChat?.other_user_name })}</strong><p className="m-0 truncate">{replyingTo.message || t('chat.attachment')}</p></div><button type="button" onClick={() => setReplyingTo(null)} aria-label={t('chat.cancelReply')} className="border-0 bg-transparent text-slate-500 cursor-pointer"><FontAwesomeIcon icon={faTimes} /></button></div>}
                             {attachment && <div className="flex items-center justify-start p-2">
                                 <ChatAttachmentPreview file={attachment} previewUrl={attachmentPreviewUrl} onRemove={() => setAttachment(null)} />
                             </div>}
                             <form onSubmit={isGuestChat ? sendGuestMessage : handleSendMessage} className="flex items-center gap-1">
                                 <div className="flex shrink-0 items-center gap-1">
-                                <label className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors focus-within:ring-2 focus-within:ring-indigo-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /><span className="sr-only">Attach an image or video</span><input type="file" accept={CHAT_ACCEPT} className="sr-only" onChange={pickAttachment} /></label>
-                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} aria-hidden="true" /></button>
+                                <label className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors focus-within:ring-2 focus-within:ring-indigo-500" title={t('chat.attachTitle')}><FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /><span className="sr-only">{t('chat.attach')}</span><input type="file" accept={CHAT_ACCEPT} className="sr-only" onChange={pickAttachment} /></label>
+                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label={t('chat.takePhoto')} title={t('chat.takePhotoTitle')} className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} aria-hidden="true" /></button>
                                 </div>
                                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} aria-hidden="true" /></button>
+                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label={t('chat.recordVideo')} title={t('chat.recordVideoTitle')} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} aria-hidden="true" /></button>
                                 <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
                                 <div className="flex h-10 min-w-0 flex-1 items-center rounded-2xl bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
                                 <input
@@ -619,14 +621,14 @@ const ChatWidget = () => {
                                     id="chat-message"
                                     name="message"
                                     autoComplete="off"
-                                    aria-label="Message"
+                                    aria-label={t('chat.message')}
                                     data-autofocus
                                     aria-invalid={sendError ? true : undefined}
                                     aria-describedby={sendError ? 'chat-message-error' : undefined}
                                     maxLength={LIMITS.message}
                                     value={newMessage}
                                     onChange={(e) => { handleInputChange(e); if (sendError) setSendError(''); }}
-                                    placeholder="Type a message..."
+                                    placeholder={t('chat.placeholder')}
                                     className="h-full flex-1 min-w-0 bg-transparent px-2 text-base sm:text-sm outline-none border-0"
                                 />
                                 </div>
@@ -634,7 +636,7 @@ const ChatWidget = () => {
                                     type="submit"
                                     disabled={isSending || (!newMessage.trim() && !attachment)}
                                     className="w-11 h-11 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-40 transition-all border-0 cursor-pointer shrink-0"
-                                    aria-label="Send message"
+                                    aria-label={t('chat.send')}
                                 >
                                     <FontAwesomeIcon icon={faPaperPlane} className="text-sm" aria-hidden="true" />
                                 </button>
@@ -645,13 +647,13 @@ const ChatWidget = () => {
                 </div>
             )}
             {mediaPreview && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label="Full-size message attachment" onClick={() => setMediaPreview(null)}>
-                    <button type="button" onClick={() => setMediaPreview(null)} aria-label="Close full-size preview" className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/15 text-white hover:bg-white/25 cursor-pointer">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true" aria-label={t('chat.fullSize')} onClick={() => setMediaPreview(null)}>
+                    <button type="button" onClick={() => setMediaPreview(null)} aria-label={t('chat.closeFullSize')} className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border-0 bg-white/15 text-white hover:bg-white/25 cursor-pointer">
                         <FontAwesomeIcon icon={faTimes} />
                     </button>
                     {mediaPreview.isVideo
                         ? <video controls autoPlay src={mediaPreview.src} className="max-h-full max-w-full rounded-lg" onClick={(event) => event.stopPropagation()} />
-                        : <img src={mediaPreview.src} alt="Full-size message attachment" className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} />}
+                        : <img src={mediaPreview.src} alt={t('chat.fullSize')} className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} />}
                 </div>
             )}
         </div>
