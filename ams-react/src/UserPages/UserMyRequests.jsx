@@ -5,6 +5,7 @@ import api from '../api/axiosConfig';
 import { fileUrl } from '../api/fileUrl';
 import { useLang } from '../config/i18n';
 import InlineAlert from '../Components/InlineAlert';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import '../assets/styles/responsive/user/user-my-requests.responsive.css';
 
 const parseDate = (value) => (value ? new Date(String(value).replace(' ', 'T')) : null);
@@ -43,18 +44,28 @@ export default function UserMyRequests() {
         load();
     }, []);
 
-    const handleCancel = async (id, type) => {
-        if (!window.confirm(t('myRequests.cancelConfirm'))) return;
+    // The request being cancelled (asked in a dialog, was window.confirm), and
+    // an inline message for a failure (was alert).
+    const [cancelTarget, setCancelTarget] = useState(null);
+    const [cancelling, setCancelling] = useState(false);
+    const [actionError, setActionError] = useState('');
 
+    const confirmCancel = async () => {
+        if (!cancelTarget || cancelling) return;
+        setCancelling(true);
+        setActionError('');
         try {
-            const response = await api.post('cancel_request.php', { id, type });
+            const response = await api.post('cancel_request.php', { id: cancelTarget.id, type: cancelTarget.type });
             if (response.data.success) {
-                fetchRequests();
+                await fetchRequests();
             } else {
-                alert(response.data.message);
+                setActionError(response.data.message || 'Failed to cancel the request.');
             }
         } catch (error) {
-            alert(error.response?.data?.message || 'Failed to cancel the request.');
+            setActionError(error.response?.data?.message || 'Failed to cancel the request.');
+        } finally {
+            setCancelling(false);
+            setCancelTarget(null);
         }
     };
 
@@ -113,6 +124,8 @@ export default function UserMyRequests() {
                         {t('myRequests.subtext')}
                     </p>
                 </div>
+
+                <InlineAlert onDismiss={() => setActionError('')}>{actionError}</InlineAlert>
 
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     {loading ? (
@@ -187,8 +200,10 @@ export default function UserMyRequests() {
 
                                         {req.status === 'Pending' && (
                                             <button
-                                                onClick={() => handleCancel(req.id, req.type)}
-                                                className="my-requests-cancel-btn px-4 py-2 text-xs font-bold text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors cursor-pointer min-h-[40px] flex items-center justify-center"
+                                                type="button"
+                                                onClick={() => setCancelTarget({ id: req.id, type: req.type, title: req.title })}
+                                                aria-label={`${t('myRequests.cancel')}: ${req.title || req.type}`}
+                                                className="my-requests-cancel-btn px-4 py-2 text-sm font-bold text-red-700 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors cursor-pointer min-h-[44px] flex items-center justify-center"
                                             >
                                                 {t('myRequests.cancel')}
                                             </button>
@@ -201,6 +216,16 @@ export default function UserMyRequests() {
                 </div>
 
             </div>
+
+            {cancelTarget && (
+                <ConfirmDialog
+                    title={t('myRequests.cancelConfirm')}
+                    confirmLabel={t('myRequests.cancel')}
+                    busy={cancelling}
+                    onConfirm={confirmCancel}
+                    onClose={() => setCancelTarget(null)}
+                />
+            )}
         </div>
     );
 }

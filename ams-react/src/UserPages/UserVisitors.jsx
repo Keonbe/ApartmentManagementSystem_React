@@ -16,6 +16,9 @@ import FieldError from '../Components/form/FieldError';
 import FileChip from '../Components/form/FileChip';
 import { invalidCls } from '../Components/form/formHelpers';
 import ReasonModal from '../Components/form/ReasonModal';
+import ConfirmDialog from '../Components/ConfirmDialog';
+import InlineAlert from '../Components/InlineAlert';
+import useDialog from '../hooks/useDialog';
 
 const PURPOSES = ['Personal Visit', 'Delivery / Courier', 'Maintenance / Contractor', 'Official / Business', 'Short Stay Guest'];
 const ID_TYPES = ['National ID', "Driver's License", 'Passport', 'UMID / SSS', 'Student / Work ID'];
@@ -56,6 +59,7 @@ export default function UserVisitors() {
   const openRegisterModal = () => {
     setExpectedBounds(arrivalBounds());
     visitorForm.setErrors({});
+    setFormError('');
     setShowRegisterModal(true);
   };
   const emptyRegisterForm = {
@@ -122,6 +126,22 @@ export default function UserVisitors() {
     visitorForm.clearError('idPhoto');
   };
   const [cancellingId, setCancellingId] = useState(null);
+  // Messages that were alert(): a failed registration (shown in the form, next
+  // to its buttons) and a failed cancel (shown above the lists).
+  const [formError, setFormError] = useState('');
+  const [pageError, setPageError] = useState('');
+  const [cancelTarget, setCancelTarget] = useState(null); // visitor id asked about (was window.confirm)
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  // Closing the register form with something typed asks first: an overlay click
+  // used to throw the whole form away. Esc and the close button ask too.
+  const registerDirty = Object.entries(registerForm).some(([key, value]) => (key === 'idPhoto' ? !!value : value !== emptyRegisterForm[key]));
+  const requestCloseRegister = () => {
+    if (submitting) return;
+    if (registerDirty) setConfirmDiscard(true);
+    else setShowRegisterModal(false);
+  };
+  const registerDialogRef = useDialog(showRegisterModal && !confirmDiscard, requestCloseRegister);
 
   const loadTenantData = async () => {
     try {
@@ -203,11 +223,11 @@ export default function UserVisitors() {
         setRegisterForm(emptyRegisterForm);
         fetchTenantData();
       } else if (!visitorForm.applyServerErrors(res)) {
-        alert(res.data.message || 'Failed to register visitor.');
+        setFormError(res.data.message || 'Failed to register visitor.');
       }
     } catch (err) {
       console.error('Registration failed:', err);
-      if (!visitorForm.applyServerErrors(err)) alert(apiErrorMessage(err, 'Server error registering visitor.'));
+      if (!visitorForm.applyServerErrors(err)) setFormError(apiErrorMessage(err, 'Server error registering visitor.'));
     } finally {
       setSubmitting(false);
     }
@@ -233,20 +253,21 @@ export default function UserVisitors() {
   };
 
   const handleCancelRegistration = async (id) => {
-    if (!window.confirm('Cancel this visitor pre-registration?')) return;
     setCancellingId(id);
+    setPageError('');
     try {
       const res = await api.post('update_visitor_status.php', { id, action: 'cancel' });
       if (res.data.success) {
         fetchTenantData();
       } else {
-        alert(res.data.message || 'Failed to cancel registration.');
+        setPageError(res.data.message || 'Failed to cancel registration.');
       }
     } catch (err) {
       console.error('Failed to cancel registration:', err);
-      alert(apiErrorMessage(err, 'Failed to cancel registration.'));
+      setPageError(apiErrorMessage(err, 'Failed to cancel registration.'));
     } finally {
       setCancellingId(null);
+      setCancelTarget(null);
     }
   };
 
@@ -283,8 +304,9 @@ export default function UserVisitors() {
               <button
                 type="button"
                 onClick={fetchTenantData}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors cursor-pointer"
                 title="Refresh"
+                aria-label="Refresh visitors"
               >
                 <FontAwesomeIcon icon={faSync} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -301,13 +323,15 @@ export default function UserVisitors() {
           </div>
         </div>
 
+        <InlineAlert onDismiss={() => setPageError('')}>{pageError}</InlineAlert>
+
         {/* Currently On-Premise / Active Visitors Section */}
         {activeVisitors.length > 0 && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-emerald-900 m-0 flex items-center gap-2">
                 <span className="flex h-2.5 w-2.5 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
                 {t('visitors.activeVisitors')} ({activeVisitors.length})
@@ -370,7 +394,7 @@ export default function UserVisitors() {
                   )}
                   <button
                     type="button"
-                    onClick={() => handleCancelRegistration(v.id)}
+                    onClick={() => setCancelTarget(v.id)}
                     disabled={cancellingId === v.id}
                     className="mt-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 text-[11px] font-bold transition-colors border-0 cursor-pointer disabled:opacity-50"
                   >
@@ -483,19 +507,20 @@ export default function UserVisitors() {
 
       {/* Log Visitor Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onClick={() => setShowRegisterModal(false)}>
-          <div className="user-visitors-modal modal-card-anim sheet-mobile w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 modal-overlay-anim" onMouseDown={(e) => { if (e.target === e.currentTarget) requestCloseRegister(); }}>
+          <div ref={registerDialogRef} role="dialog" aria-modal="true" aria-labelledby="visitor-modal-title" tabIndex={-1} className="user-visitors-modal modal-card-anim sheet-mobile w-full max-w-md max-h-[92vh] rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto outline-none">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faUserPlus} className="text-indigo-600" />
-                <h3 className="text-lg font-bold text-slate-800 m-0">{t('visitors.modalTitle')}</h3>
+                <FontAwesomeIcon icon={faUserPlus} className="text-indigo-600" aria-hidden="true" />
+                <h3 id="visitor-modal-title" className="text-lg font-bold text-slate-800 m-0">{t('visitors.modalTitle')}</h3>
               </div>
               <button
                 type="button"
-                onClick={() => setShowRegisterModal(false)}
-                className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-1"
+                onClick={requestCloseRegister}
+                aria-label="Close"
+                className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer"
               >
-                <FontAwesomeIcon icon={faTimes} />
+                <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
               </button>
             </div>
 
@@ -685,10 +710,11 @@ export default function UserVisitors() {
                 </div>
               </div>
 
+              <InlineAlert onDismiss={() => setFormError('')}>{formError}</InlineAlert>
               <div className="flex gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowRegisterModal(false)}
+                  onClick={requestCloseRegister}
                   className="btn-interactive flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors border-solid cursor-pointer"
                 >
                   {t('visitors.cancel')}
@@ -704,6 +730,28 @@ export default function UserVisitors() {
             </form>
           </div>
         </div>
+      )}
+
+      {confirmDiscard && (
+        <ConfirmDialog
+          title="Discard this visitor?"
+          message="What you entered will be lost."
+          confirmLabel="Yes, discard"
+          cancelLabel="Keep editing"
+          onConfirm={() => { setConfirmDiscard(false); setRegisterForm(emptyRegisterForm); setShowRegisterModal(false); }}
+          onClose={() => setConfirmDiscard(false)}
+        />
+      )}
+
+      {cancelTarget !== null && (
+        <ConfirmDialog
+          title="Cancel this visitor pre-registration?"
+          message="The visitor will no longer be expected."
+          confirmLabel="Yes, cancel it"
+          busy={cancellingId === cancelTarget}
+          onConfirm={() => handleCancelRegistration(cancelTarget)}
+          onClose={() => setCancelTarget(null)}
+        />
       )}
 
       {departTarget && (

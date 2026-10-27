@@ -311,9 +311,10 @@ export default function PaymentUpload() {
                             </div>
                         ) : (
                             <div className="flex flex-col items-center space-y-3 p-4 bg-slate-950/80 rounded-2xl border border-slate-200 md:border-white/10 shadow-inner">
-                                <div 
-                                    onClick={() => setShowPreviewModal(true)}
-                                    className="w-full h-72 flex items-center justify-center overflow-hidden rounded-xl bg-black/40 cursor-pointer group relative hover:ring-2 hover:ring-indigo-500 transition-all"
+                                <button
+ type="button"
+ onClick={() => setShowPreviewModal(true)}
+ className="border-0 p-0 w-full h-72 flex items-center justify-center overflow-hidden rounded-xl bg-black/40 cursor-pointer group relative hover:ring-2 hover:ring-indigo-500 transition-all"
                                     title="Click to view larger image"
                                 >
                                     <img 
@@ -321,27 +322,27 @@ export default function PaymentUpload() {
                                         alt="Uploaded Receipt Preview" 
                                         className="max-h-full max-w-full object-contain rounded group-hover:scale-[1.02] transition-transform"
                                     />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                    <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                                         <span className="bg-slate-900/90 text-white text-xs font-bold px-3.5 py-2 rounded-xl border border-white/20 shadow-lg flex items-center gap-2">
                                             <FontAwesomeIcon icon={faEye} />
                                             <span>Click to view larger</span>
                                         </span>
-                                    </div>
-                                </div>
+                                    </span>
+                                </button>
                                 {proofImage && (
                                     <p className="text-xs text-slate-300 m-0 truncate w-full text-center">
                                         {proofImage.name} ({formatFileSize(proofImage.size)})
                                     </p>
                                 )}
                                 <div className="flex items-center gap-3 w-full pt-1">
-                                    <label className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
+                                    <label className="flex-1 min-h-[44px] focus-within:ring-2 focus-within:ring-white bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl border-0 cursor-pointer transition-colors text-center flex items-center justify-center gap-1.5 shadow-sm">
                                         <FontAwesomeIcon icon={faCloudUploadAlt} />
                                         <span>{t('paymentUpload.changePhoto')}</span>
                                         <input
                                             type="file"
                                             accept={acceptFor(FILE_RULES.receiptImage)}
                                             onChange={handleImageChange}
-                                            className="hidden"
+                                            className="sr-only"
                                         />
                                     </label>
                                     <button

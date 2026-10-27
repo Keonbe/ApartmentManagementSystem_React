@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faBell, faSearch, faTimes, faCheckDouble, faTrash, faClock,
+  faBell, faSearch, faTimes, faCheckDouble, faClock,
   faExclamationTriangle, faFileContract, faCheckCircle, faInfoCircle,
   faCog, faToggleOn, faToggleOff, faCheck, faWrench, faArrowRight, faLock,
-  faCar, faVideo, faConciergeBell, faUserFriends, faHome, faMoneyBillWave, faBullhorn, faPaperclip
+  faCar, faVideo, faConciergeBell, faUserFriends, faHome, faMoneyBillWave, faBullhorn, faPaperclip, faBoxArchive
 } from '@fortawesome/free-solid-svg-icons';
+import ConfirmDialog from '../Components/ConfirmDialog';
+import useDialog from '../hooks/useDialog';
 
 import api from '../api/axiosConfig';
 import { useLang } from '../config/i18n';
@@ -68,6 +70,7 @@ export default function UserNotifications() {
   const [prefMessage, setPrefMessage] = useState(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
+  const detailDialogRef = useDialog(!!selectedNotification, () => setSelectedNotification(null));
 
   const notifyOthers = () => window.dispatchEvent(new CustomEvent(TENANT_NOTIFICATIONS_EVENT));
 
@@ -227,11 +230,13 @@ export default function UserNotifications() {
               disabled={!notifications.some((n) => !n.isArchived)}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-white border border-slate-200 rounded-xl hover:bg-rose-50 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm min-h-[40px]"
             >
-              <FontAwesomeIcon icon={faTrash} /> {'Archive All'}
+              <FontAwesomeIcon icon={faBoxArchive} aria-hidden="true" /> {'Archive All'}
             </button>
             <button
+              type="button"
+              aria-expanded={showSettings}
               onClick={() => setShowSettings(!showSettings)}
-              className={`lg:hidden flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border shadow-sm min-h-[40px] ${showSettings ? 'bg-[#3b4276] text-white border-[#3b4276]' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
+              className={`lg:hidden flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl transition-all cursor-pointer border shadow-sm min-h-[44px] ${showSettings ? 'bg-[#3b4276] text-white border-[#3b4276]' : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-50'}`}
             >
               <FontAwesomeIcon icon={faCog} /> {t('notifications.preferences')}
             </button>
@@ -257,25 +262,29 @@ export default function UserNotifications() {
                 <FontAwesomeIcon icon={faSearch} className="text-slate-400 text-sm" />
                 <input maxLength={LIMITS.search}
                   type="text"
+                  aria-label={t('notifications.searchPlaceholder')}
                   placeholder={t('notifications.searchPlaceholder')}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="user-notif-search-input flex-grow bg-transparent text-sm outline-none border-0 p-0 text-slate-800 placeholder-slate-400"
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="bg-transparent border-0 text-slate-400 hover:text-slate-600 cursor-pointer p-0" aria-label="Clear search">
-                    <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                  <button type="button" onClick={() => setSearchQuery('')} className="flex h-11 w-11 -mr-3 items-center justify-center bg-transparent border-0 text-slate-500 hover:text-slate-700 cursor-pointer p-0" aria-label="Clear search">
+                    <FontAwesomeIcon icon={faTimes} className="text-sm" aria-hidden="true" />
                   </button>
                 )}
               </div>
             </div>
 
-            <div className="user-notif-tabs-bar flex gap-2 p-1 bg-slate-200/50 rounded-xl overflow-x-auto select-none no-scrollbar">
+            <div role="tablist" aria-label="Filter notifications" className="user-notif-tabs-bar flex gap-2 p-1 bg-slate-200/50 rounded-xl overflow-x-auto select-none no-scrollbar">
               {filterTabs.map(tab => (
                 <button
                   key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeFilter === tab.key}
                   onClick={() => setActiveFilter(tab.key)}
-                  className={`user-notif-tab-btn px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap border-0 cursor-pointer transition-all duration-200 ${activeFilter === tab.key ? 'bg-[#3b4276] text-white shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200/80 hover:text-slate-700'}`}
+                  className={`user-notif-tab-btn min-h-[44px] px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap border-0 cursor-pointer transition-all duration-200 ${activeFilter === tab.key ? 'bg-[#3b4276] text-white shadow-sm' : 'bg-transparent text-slate-600 hover:bg-slate-200/80 hover:text-slate-800'}`}
                 >
                   {tab.label}
                   {tab.key === 'unread' && unreadCount > 0 && (
@@ -306,8 +315,9 @@ export default function UserNotifications() {
                   return (
                     <div
                       key={n.id}
-                      onClick={() => { setSelectedNotification(n); if (!n.read) handleMarkRead(n.id); }}
-                      className={`user-notif-card card-interactive cursor-pointer bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex gap-3 sm:gap-4 items-start transition-all duration-200 hover:shadow-md group relative overflow-hidden ${n.read ? 'border-slate-200' : 'border-indigo-100 bg-indigo-50/10'}`}
+                      role="group"
+                      aria-label={n.title}
+                      className={`user-notif-card card-interactive bg-white rounded-2xl border shadow-sm p-4 sm:p-5 flex gap-3 sm:gap-4 items-start transition-all duration-200 hover:shadow-md group relative overflow-hidden ${n.read ? 'border-slate-200' : 'border-indigo-100 bg-indigo-50/10'}`}
                     >
                       {!n.read && (
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600"></div>
@@ -321,7 +331,13 @@ export default function UserNotifications() {
                         <div className="flex items-start justify-between gap-2 sm:gap-3 flex-wrap sm:flex-nowrap mb-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className={`text-sm m-0 leading-snug ${!n.read ? 'text-slate-800 font-extrabold' : 'text-slate-700 font-bold'}`}>
-                              {n.title}
+                              <button
+                                type="button"
+                                onClick={() => { setSelectedNotification(n); if (!n.read) handleMarkRead(n.id); }}
+                                className="m-0 cursor-pointer border-0 bg-transparent p-0 text-left font-[inherit] text-inherit after:absolute after:inset-0 after:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                              >
+                                {n.title}
+                              </button>
                             </h4>
                             {n.attachmentPath && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-extrabold tracking-wide uppercase bg-slate-100 text-slate-600" title="Open the notification to view the attachment">
@@ -342,7 +358,7 @@ export default function UserNotifications() {
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); openLink(n); }}
-                            className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer transition-colors"
+                            className="relative z-10 mt-2.5 inline-flex min-h-[44px] items-center gap-1.5 px-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 cursor-pointer transition-colors"
                           >
                             <span>{link.label}</span>
                             <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
@@ -350,25 +366,27 @@ export default function UserNotifications() {
                         )}
                       </div>
 
-                      <div className="user-notif-actions flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                      <div className="user-notif-actions relative z-10 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity shrink-0">
                         {!n.read && (
                           <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id); }}
                             title="Mark as read"
-                            aria-label="Mark as read"
-                            className="user-notif-action-btn btn-interactive w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
+                            aria-label={`Mark as read: ${n.title}`}
+                            className="user-notif-action-btn btn-interactive h-11 w-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 bg-transparent border-0 cursor-pointer transition-colors"
                           >
                             <FontAwesomeIcon icon={faCheck} className="text-[11px]" />
                           </button>
                         )}
                         {!awaitingDecision && (
                           <button
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); handleArchive(n.id); }}
                             title="Archive"
-                            aria-label="Archive"
-                            className="user-notif-action-btn btn-interactive w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
+                            aria-label={`Archive: ${n.title}`}
+                            className="user-notif-action-btn btn-interactive h-11 w-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-transparent border-0 cursor-pointer transition-colors"
                           >
-                            <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                            <FontAwesomeIcon icon={faBoxArchive} className="text-sm" aria-hidden="true" />
                           </button>
                         )}
                       </div>
@@ -393,13 +411,17 @@ export default function UserNotifications() {
                   <div key={p.category} className="flex items-center justify-between">
                     <p className="text-xs font-bold text-slate-700 m-0 pr-3">{p.label}</p>
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={!!p.in_app_enabled}
                       onClick={() => togglePreference(p.category)}
-                      className="bg-transparent border-0 cursor-pointer text-2xl p-0 flex items-center"
-                      aria-label={`${p.in_app_enabled ? 'Turn off' : 'Turn on'} ${p.label}`}
+                      className="bg-transparent border-0 cursor-pointer text-3xl h-11 w-14 p-0 flex items-center justify-center"
+                      aria-label={p.label}
                     >
                       <FontAwesomeIcon
                         icon={p.in_app_enabled ? faToggleOn : faToggleOff}
-                        className={p.in_app_enabled ? 'text-indigo-600' : 'text-slate-300'}
+                        aria-hidden="true"
+                        className={p.in_app_enabled ? 'text-indigo-600' : 'text-slate-400'}
                       />
                     </button>
                   </div>
@@ -443,11 +465,11 @@ export default function UserNotifications() {
 
       {selectedNotification && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in" onClick={() => setSelectedNotification(null)}>
-          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-slate-800 m-0">{selectedNotification.title}</h3>
-              <button onClick={() => setSelectedNotification(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-2">
-                <FontAwesomeIcon icon={faTimes} />
+          <div ref={detailDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="notif-detail-title" onClick={e => e.stopPropagation()} className="outline-none bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center gap-3">
+              <h3 id="notif-detail-title" className="text-lg font-bold text-slate-800 m-0">{selectedNotification.title}</h3>
+              <button type="button" aria-label="Close" onClick={() => setSelectedNotification(null)} className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer">
+                <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
               </button>
             </div>
             <div className="p-5 overflow-y-auto">
@@ -463,27 +485,22 @@ export default function UserNotifications() {
               )}
             </div>
             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-              <button onClick={() => setSelectedNotification(null)} className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer border-0">Close</button>
+              <button type="button" onClick={() => setSelectedNotification(null)} className="min-h-[44px] px-6 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-xl cursor-pointer border-0">Close</button>
             </div>
           </div>
         </div>
       )}
 
       {confirmAction && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in" onClick={() => setConfirmAction(null)}>
-          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-sm shadow-xl flex flex-col overflow-hidden animate-scale-in">
-            <div className="p-5 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800 m-0">{confirmAction.title}</h3>
-            </div>
-            <div className="p-5">
-              <p className="text-sm text-slate-600 m-0">{confirmAction.message}</p>
-            </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
-              <button onClick={() => setConfirmAction(null)} className="px-5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
-              <button onClick={confirmAction.onConfirm} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl border-0 cursor-pointer shadow-sm">Confirm</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title={confirmAction.title}
+          message={confirmAction.message}
+          confirmLabel="Archive all"
+          cancelLabel="Cancel"
+          tone="primary"
+          onConfirm={confirmAction.onConfirm}
+          onClose={() => setConfirmAction(null)}
+        />
       )}
     </div>
   );

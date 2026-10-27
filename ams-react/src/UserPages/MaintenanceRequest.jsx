@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCloudUploadAlt, faUndo } from '@fortawesome/free-solid-svg-icons';
 import SuccessModal from '../Components/SuccessModal';
+import InlineAlert from '../Components/InlineAlert';
 import { useNavigate } from 'react-router-dom';
 import api from "../api/axiosConfig";
 import { useLang } from '../config/i18n';
@@ -30,6 +31,8 @@ export default function MaintenanceRequest() {
     const [isDragging, setIsDragging] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // A failed submit shows next to the submit button (it was alert()).
+    const [submitError, setSubmitError] = useState('');
     const navigate = useNavigate();
 
     // A visit from today up to 2 weeks ahead (the shared date helpers replace a
@@ -104,6 +107,7 @@ export default function MaintenanceRequest() {
             formData.append('uploadedFile', uploadedFile);
         }
 
+        setSubmitError('');
         setIsSubmitting(true);
         try {
             const res = await api.post("/maintenance_request.php", formData, {
@@ -115,10 +119,10 @@ export default function MaintenanceRequest() {
             if (res.data.success) {
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
-                alert(res.data.message);
+                setSubmitError(res.data.message || 'Failed to submit your request. Please try again.');
             }
         } catch (error) {
-            if (!form.applyServerErrors(error)) alert(apiErrorMessage(error, 'Failed to submit your request. Please try again.'));
+            if (!form.applyServerErrors(error)) setSubmitError(apiErrorMessage(error, 'Failed to submit your request. Please try again.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -295,7 +299,8 @@ export default function MaintenanceRequest() {
                     </div>
 
                     {/*Form Actions footer container*/}
-                    <div className="md:col-span-2 border-t border-slate-100 pt-6 flex justify-end">
+                    <div className="md:col-span-2 border-t border-slate-100 pt-6 flex flex-col gap-3 sm:items-end">
+                        <InlineAlert onDismiss={() => setSubmitError('')} className="w-full">{submitError}</InlineAlert>
                         <button
                             type="submit"
                             disabled={isSubmitting}

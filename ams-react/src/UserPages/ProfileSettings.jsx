@@ -13,6 +13,8 @@ import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
+import SuccessModal from '../Components/SuccessModal';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import { invalidCls, formatFileSize } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/profile-settings.responsive.css';
 
@@ -41,6 +43,11 @@ export default function ProfileSettings() {
     const [email, setEmail] = useState(loggedInUser.email_address || '');
     const [avatarError, setAvatarError] = useState('');
     const [saveError, setSaveError] = useState('');
+    // Results that were alert(): a success notice, and the delete-avatar question
+    // (was window.confirm); delete failures show under the photo uploader.
+    const [notice, setNotice] = useState(null);
+    const [confirmDeleteAvatar, setConfirmDeleteAvatar] = useState(false);
+    const [deletingAvatar, setDeletingAvatar] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const form = useFieldErrors(VALIDATORS, { idPrefix: 'profile-' });
     const [gender, setGender] = useState(loggedInUser.gender || '');
@@ -279,7 +286,7 @@ export default function ProfileSettings() {
                 setAvatarImgFailed(false);
                 // TopBar re-reads the user and avatar (was a full page reload).
                 window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
-                alert("Profile and avatar settings updated successfully.");
+                setNotice({ message: 'Profile saved', subtext: 'Your details and photo are updated.' });
             } else if (!form.applyServerErrors(res)) {
                 setSaveError(res.data.message || "Failed to update your profile.");
             }
@@ -334,40 +341,13 @@ export default function ProfileSettings() {
                             {(tempAvatar || avatarUrl) && (
                                 <button
                                     type="button"
-                                    onClick={async () => {
-                                        if (window.confirm("Are you sure you want to delete your profile avatar?")) {
-                                            try {
-                                                // Post an empty string or clear signal to the backend
-                                                const res = await api.post('/profile.php', {
-                                                    oldEmail: loggedInUser.email_address,
-                                                    clearAvatar: true
-                                                });
-
-                                                if (res.data.success) {
-                                                    setAvatarUrl('');
-                                                    setTempAvatar(null);
-                                                    setSelectedFile(null);
-
-                                                    // Update session storage details locally
-                                                    const updatedUser = { ...loggedInUser, avatar_url: '' };
-                                                    sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
-                                                    setLoggedInUser(updatedUser);
-
-                                                    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
-                                                    alert("Avatar deleted successfully.");
-                                                } else {
-                                                    alert(res.data.message || "Failed to delete avatar from server.");
-                                                }
-                                            } catch (err) {
-                                                console.error("Error deleting avatar:", err);
-                                                alert(apiErrorMessage(err, "An error occurred during avatar deletion processing."));
-                                            }
-                                        }
-                                    }}
-                                    className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] hover:bg-red-600 border-0 cursor-pointer shadow-sm"
-                                    title="Delete Avatar"
+                                    onClick={() => setConfirmDeleteAvatar(true)}
+                                    aria-label="Delete profile photo"
+                                    title="Delete profile photo"
+                                    className="absolute -top-3 -right-3 flex h-11 w-11 items-center justify-center bg-transparent border-0 cursor-pointer"
                                 >
-                                    ✕
+                                    {/* The red dot is small; the button around it is the 44px target. */}
+                                    <span aria-hidden="true" className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white shadow-sm">✕</span>
                                 </button>
                             )}
                         </div>
@@ -603,6 +583,53 @@ export default function ProfileSettings() {
             </div>
             <DocumentsModal isOpen={showDocsModal} onClose={() => setShowDocsModal(false)} />
             <ChangePasswordModal isOpen={showPassModal} onClose={() => setShowPassModal(false)} />
+
+            {confirmDeleteAvatar && (
+                <ConfirmDialog
+                    title="Delete your profile photo?"
+                    message="Your initials will show instead. You can add a new photo any time."
+                    confirmLabel="Yes, delete photo"
+                    busy={deletingAvatar}
+                    onConfirm={async () => {
+                        if (deletingAvatar) return;
+                        setDeletingAvatar(true);
+                        setAvatarError('');
+                        try {
+                            const res = await api.post('/profile.php', {
+                                oldEmail: loggedInUser.email_address,
+                                clearAvatar: true
+                            });
+                            if (res.data.success) {
+                                setAvatarUrl('');
+                                setTempAvatar(null);
+                                setSelectedFile(null);
+                                setAvatarImgFailed(false);
+                                const updatedUser = { ...loggedInUser, avatar_url: '' };
+                                sessionStorage.setItem("loggedInUser", JSON.stringify(updatedUser));
+                                setLoggedInUser(updatedUser);
+                                window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT));
+                                setNotice({ message: 'Photo deleted', subtext: 'Your profile photo was removed.' });
+                            } else {
+                                setAvatarError(res.data.message || 'Failed to delete the photo.');
+                            }
+                        } catch (err) {
+                            console.error("Error deleting avatar:", err);
+                            setAvatarError(apiErrorMessage(err, 'An error occurred while deleting the photo.'));
+                        } finally {
+                            setDeletingAvatar(false);
+                            setConfirmDeleteAvatar(false);
+                        }
+                    }}
+                    onClose={() => setConfirmDeleteAvatar(false)}
+                />
+            )}
+
+            <SuccessModal
+                isOpen={!!notice}
+                onClose={() => setNotice(null)}
+                message={notice?.message}
+                subtext={notice?.subtext}
+            />
         </div>
     );
 }

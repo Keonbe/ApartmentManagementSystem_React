@@ -48,7 +48,7 @@ export default function Home({ onCardClick, username }) {
 
                     <span className="text-[10px] sm:text-xs tracking-widest uppercase font-bold px-3.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 inline-flex items-center space-x-2 shadow-sm">
                         <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                            
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400"></span>
                         </span>
                         <span>{t('home.badge')}</span>

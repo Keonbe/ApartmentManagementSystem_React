@@ -14,6 +14,7 @@ import {
     TENANT_PAYMENT_ALERT_TITLES, TENANT_PAYMENT_AWAITING_TITLES, formatRelativeTime,
 } from '../config/notificationLinks';
 import usePaymentAlerts from '../hooks/usePaymentAlerts';
+import useDialog from '../hooks/useDialog';
 import { PROFILE_UPDATED_EVENT } from '../config/appEvents';
 import '../assets/styles/responsive/components/navbar.responsive.css';
 
@@ -46,6 +47,9 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     const dropdownRef = useRef(null);
     const notificationRef = useRef(null);
     const mobileMenuRef = useRef(null);
+    const bellButtonRef = useRef(null);
+    const avatarButtonRef = useRef(null);
+    const menuButtonRef = useRef(null);
 
     const [loggedInUser] = useState(JSON.parse(sessionStorage.getItem("loggedInUser") || "{}"));
     const [dbAvatarUrl, setDbAvatarUrl] = useState(loggedInUser.avatar_url || ''); // Real-time avatar tracker
@@ -97,6 +101,10 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
         }
         setAppStatusModal(null);
     };
+
+    // Esc, focus in and back out, Tab kept inside: the two modals at the bottom.
+    const detailDialogRef = useDialog(!!selectedNotification, () => setSelectedNotification(null));
+    const appStatusDialogRef = useDialog(!!appStatusModal, () => closeAppStatusModal());
 
 
     // 1. Fetch live profile records to ensure avatar path accuracy across tabs
@@ -213,6 +221,18 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
     };
 
     useEffect(() => {
+        if (!isNotificationOpen && !isDropdownOpen && !isMobileMenuOpen) return undefined;
+        const onKey = (event) => {
+            if (event.key !== 'Escape') return;
+            if (isNotificationOpen) { setIsNotificationOpen(false); setHighlightIds(NO_HIGHLIGHT); bellButtonRef.current?.focus(); }
+            if (isDropdownOpen) { setIsDropdownOpen(false); avatarButtonRef.current?.focus(); }
+            if (isMobileMenuOpen) { setIsMobileMenuOpen(false); menuButtonRef.current?.focus(); }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [isNotificationOpen, isDropdownOpen, isMobileMenuOpen]);
+
+    useEffect(() => {
         function handleClickOutside(event) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsDropdownOpen(false);
             if (notificationRef.current && !notificationRef.current.contains(event.target) && !event.target.closest('.mobile-payment-alerts')) {
@@ -276,12 +296,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                 
                 {/* Brand Logo & Desktop Links */}
                 <div className="flex items-center space-x-8">
-                    <div 
-                        onClick={() => navigate('/home')} 
-                        className="topbar-logo text-white text-3xl italic font-bold tracking-wider cursor-pointer transition-transform duration-200 hover:scale-105 font-serif"
+                    <button
+                        type="button"
+                        onClick={() => navigate('/home')}
+                        aria-label="AMS, go to Home"
+                        className="topbar-logo text-white text-3xl italic font-bold tracking-wider cursor-pointer bg-transparent border-0 p-0 transition-transform duration-200 hover:scale-105 font-serif focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                     >
                         AMS
-                    </div>
+                    </button>
 
                     <div className="hidden md:flex items-center space-x-6">
                         <button onClick={() => navigate('/home')} className={navItemClass('/home')}>{t('nav.home')}</button>
@@ -302,10 +324,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     {/* Language Toggle Pill */}
                     <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-[11px] font-bold select-none">
                         <button
+                            type="button"
+                            aria-pressed={lang === 'en'}
                             onClick={() => setLang('en')}
                             className={`px-2.5 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
                         >EN</button>
                         <button
+                            type="button"
+                            aria-pressed={lang === 'fil'}
                             onClick={() => setLang('fil')}
                             className={`px-2.5 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
                         >FIL</button>
@@ -314,10 +340,15 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     {isLoggedIn && (
                         <div className="relative" ref={notificationRef}>
                             <button
+                                ref={bellButtonRef}
+                                type="button"
                                 onClick={() => (isNotificationOpen ? closeNotifications() : setIsNotificationOpen(true))}
-                                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all duration-200 border-0 cursor-pointer relative"
+                                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                                aria-haspopup="true"
+                                aria-expanded={isNotificationOpen}
+                                className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all duration-200 border-0 cursor-pointer relative"
                             >
-                                <FontAwesomeIcon icon={faBell} className="text-sm" />
+                                <FontAwesomeIcon icon={faBell} className="text-sm" aria-hidden="true" />
                                 {unreadCount > 0 && (
                                     <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#3b4276]">
                                         {unreadCount > 9 ? '9+' : unreadCount}
@@ -337,15 +368,18 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                                                 // A payment update that just arrived: tinted by outcome, marked New.
                                                 const isNew = highlightIds.has(n.id);
                                                 const success = TENANT_PAYMENT_ALERT_TITLES[n.title] === 'success';
-                                                const tone = !isNew ? (n.read ? 'hover:bg-slate-50 opacity-60' : 'bg-indigo-50/50 hover:bg-indigo-50')
+                                                const tone = !isNew ? (n.read ? 'hover:bg-slate-50' : 'bg-indigo-50/50 hover:bg-indigo-50')
                                                     : success ? 'bg-emerald-50 hover:bg-emerald-100/70 border-l-4 border-emerald-500'
                                                     : 'bg-rose-50 hover:bg-rose-100/70 border-l-4 border-rose-500';
                                                 return (
                                                     <div
                                                         key={n.id}
                                                         data-new={isNew || undefined}
+                                                        role="button"
+                                                        tabIndex={0}
                                                         onClick={() => openNotification(n)}
-                                                        className={`p-2.5 rounded-xl cursor-pointer transition-colors ${tone}`}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNotification(n); } }}
+                                                        className={`p-2.5 rounded-xl cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-indigo-500 ${tone}`}
                                                     >
                                                         <div className="flex justify-between gap-2">
                                                             <p className="text-xs font-bold text-slate-800 m-0">
@@ -377,8 +411,13 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                     {isLoggedIn ? (
                         <div className="relative" ref={dropdownRef}>
                             <button
+                                ref={avatarButtonRef}
+                                type="button"
                                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                className="flex items-center space-x-3 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-xl border-0 bg-transparent cursor-pointer transition-all duration-200 select-none outline-none"
+                                aria-label={`Account menu for ${displayName}`}
+                                aria-haspopup="menu"
+                                aria-expanded={isDropdownOpen}
+                                className="flex items-center space-x-3 text-white/90 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 min-h-[44px] rounded-xl border-0 bg-transparent cursor-pointer transition-all duration-200 select-none focus-visible:outline-2 focus-visible:outline-white"
                             >
                                 <span className="font-bold text-sm tracking-wide">{displayName}</span>
                                 
@@ -466,7 +505,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
                     {/* Hamburger Toggle Button */}
                     <button
+                        ref={menuButtonRef}
+                        type="button"
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        aria-expanded={isMobileMenuOpen}
+                        aria-controls="mobile-nav-drawer"
                         className="mobile-menu-toggle topbar-mobile-menu-btn rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white border-0 cursor-pointer flex items-center justify-center transition-colors"
                         aria-label="Toggle menu"
                     >
@@ -503,6 +546,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             {isMobileMenuOpen && (
                 <div 
                     ref={mobileMenuRef}
+                    id="mobile-nav-drawer"
                     className="topbar-mobile-drawer md:hidden absolute left-0 right-0 top-[100%] bg-[#2e3460] shadow-2xl border-b border-white/10 px-5 py-5 z-50 flex flex-col space-y-4 text-left backdrop-blur-md"
                 >
                     {/* Navigation Items */}
@@ -511,10 +555,14 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         <span className="text-white/50 text-[10px] font-bold uppercase tracking-widest">Language</span>
                         <div className="flex items-center bg-white/10 rounded-lg overflow-hidden text-[11px] font-bold select-none">
                             <button
+                                type="button"
+                                aria-pressed={lang === 'en'}
                                 onClick={() => setLang('en')}
                                 className={`px-3 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'en' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
                             >EN</button>
                             <button
+                                type="button"
+                                aria-pressed={lang === 'fil'}
                                 onClick={() => setLang('fil')}
                                 className={`px-3 py-1.5 border-0 cursor-pointer transition-all duration-150 ${lang === 'fil' ? 'bg-white text-[#3b4276]' : 'bg-transparent text-white/70 hover:text-white'}`}
                             >FIL</button>
@@ -666,11 +714,11 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
 
             {selectedNotification && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in" onClick={() => setSelectedNotification(null)}>
-                    <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in">
-                        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                            <h3 className="text-lg font-bold text-slate-800 m-0">{selectedNotification.title}</h3>
-                            <button onClick={() => setSelectedNotification(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer p-2">
-                                <FontAwesomeIcon icon={faTimes} />
+                    <div ref={detailDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="topbar-notif-title" onClick={e => e.stopPropagation()} className="outline-none bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[85vh] overflow-hidden animate-scale-in">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center gap-3">
+                            <h3 id="topbar-notif-title" className="text-lg font-bold text-slate-800 m-0">{selectedNotification.title}</h3>
+                            <button type="button" aria-label="Close" onClick={() => setSelectedNotification(null)} className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer">
+                                <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
                             </button>
                         </div>
                         <div className="p-5 overflow-y-auto">
@@ -688,17 +736,18 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
                         <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
                             {TENANT_NOTIFICATION_LINKS[selectedNotification.type] && (
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         const path = TENANT_NOTIFICATION_LINKS[selectedNotification.type].path;
                                         setSelectedNotification(null);
                                         navigate(path);
                                     }}
-                                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer border-0"
+                                    className="min-h-[44px] px-6 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl cursor-pointer border-0"
                                 >
                                     Go to Page
                                 </button>
                             )}
-                            <button onClick={() => setSelectedNotification(null)} className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer border-0">Close</button>
+                            <button type="button" onClick={() => setSelectedNotification(null)} className="min-h-[44px] px-6 bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold rounded-xl cursor-pointer border-0">Close</button>
                         </div>
                     </div>
                 </div>
@@ -707,7 +756,7 @@ export default function TopBar({ hasRentedRoom, isLoggedIn, username, onLoginCli
             {/* App Status One-Time Modal */}
             {appStatusModal && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in" onClick={closeAppStatusModal}>
-                    <div onClick={e => e.stopPropagation()} className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-scale-in border border-slate-100">
+                    <div ref={appStatusDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Application update" onClick={e => e.stopPropagation()} className="outline-none bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-scale-in border border-slate-100">
                         {appStatusModal.title?.toLowerCase().includes('approved') ? (
                             <div className="bg-emerald-50 p-8 flex flex-col items-center border-b border-emerald-100 text-center">
                                 <div className="w-20 h-20 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center shadow-inner mb-4 border-4 border-white">

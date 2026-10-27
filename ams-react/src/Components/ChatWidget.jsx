@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import useDialog from '../hooks/useDialog';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
 import { getAvatarUrl } from '../utils/avatarUrl';
@@ -85,6 +86,17 @@ const ChatWidget = () => {
     const videoInputRef = useRef(null);
     const messagesEndRef = useRef(null);
     const chatWindowRef = useRef(null);
+    // The chat window is a dialog: Esc closes it (not while the full-size media
+    // viewer is open, which has its own Esc), focus moves in, Tab stays inside.
+    const chatDialogRef = useDialog(isChatOpen && !mediaPreview, () => setIsChatOpen(false));
+    // The launcher is unmounted while the chat is open, so focus is put back on
+    // the new launcher when the chat closes.
+    const launcherRef = useRef(null);
+    const wasChatOpenRef = useRef(false);
+    useEffect(() => {
+        if (wasChatOpenRef.current && !isChatOpen) launcherRef.current?.focus();
+        wasChatOpenRef.current = isChatOpen;
+    }, [isChatOpen]);
     const isGuestChat = !userId && Boolean(guestToken);
     // Memoised: a new array on every render re-ran the scroll and guest-media
     // effects below on each keystroke.
@@ -365,10 +377,11 @@ const ChatWidget = () => {
             {!isChatOpen ? (
                 /* Floating Chat Trigger Button */
                 <button
+                    ref={launcherRef}
                     type="button"
                     onClick={() => setIsChatOpen(true)}
                     className="w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-all transform hover:scale-110 cursor-pointer border-0"
-                    aria-label="Open Chat"
+                    aria-label={totalUnreadCount > 0 ? `Open chat, ${totalUnreadCount} unread` : 'Open chat'}
                 >
                     <FontAwesomeIcon icon={faComment} className="text-2xl" />
                     {totalUnreadCount > 0 && (
@@ -379,21 +392,25 @@ const ChatWidget = () => {
                 </button>
             ) : (
                 /* Chat Container Window */
-                <div 
-                    ref={chatWindowRef}
-                    className="w-[min(24rem,calc(100vw-1rem))] h-[min(500px,calc(100dvh-1rem))] min-h-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 sm:h-[500px]"
+                <div
+                    ref={(node) => { chatWindowRef.current = node; chatDialogRef.current = node; }}
+                    role="dialog"
+                    aria-label="Chat"
+                    tabIndex={-1}
+                    className="outline-none w-[min(24rem,calc(100vw-1rem))] h-[min(500px,calc(100dvh-1rem))] min-h-0 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 sm:h-[500px]"
                 >
                     {/* Header */}
                     <div className="bg-indigo-600 p-4 text-white flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-2 min-w-0">
                             {activeChat && (
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => { if (userId) setActiveChat(null); }}
-                                    className="text-white hover:text-indigo-200 p-1 bg-transparent border-0 cursor-pointer mr-1"
+                                    className="flex h-11 w-11 items-center justify-center text-white hover:text-indigo-200 bg-transparent border-0 cursor-pointer -ml-2 mr-1"
                                     title="Back to conversation list"
+                                    aria-label="Back to conversation list"
                                 >
-                                    <FontAwesomeIcon icon={faArrowLeft} />
+                                    <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
                                 </button>
                             )}
                             <span className="font-semibold truncate">
@@ -414,13 +431,13 @@ const ChatWidget = () => {
                                     View all
                                 </button>
                             )}
-                            <button 
+                            <button
                                 type="button"
-                                onClick={() => setIsChatOpen(false)} 
-                                className="text-white hover:text-indigo-200 p-1 bg-transparent border-0 cursor-pointer"
-                                aria-label="Close Chat"
+                                onClick={() => setIsChatOpen(false)}
+                                className="flex h-11 w-11 items-center justify-center -mr-2 text-white hover:text-indigo-200 bg-transparent border-0 cursor-pointer"
+                                aria-label="Close chat"
                             >
-                                <FontAwesomeIcon icon={faTimes} />
+                                <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
                             </button>
                         </div>
                     </div>
@@ -438,6 +455,9 @@ const ChatWidget = () => {
                                 displayedConversations.map((conv) => (
                                     <div
                                         key={conv.thread_type === 'guest' ? `guest_${conv.thread_id}` : `user_${conv.other_user_id}`}
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
                                         onClick={() => {
                                             setActiveChat(conv);
                                             setReplyingTo(null);
@@ -450,7 +470,7 @@ const ChatWidget = () => {
                                                 fetchChatHistory(conv.other_user_id);
                                             }
                                         }}
-                                        className="flex items-center gap-3 p-4 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100"
+                                        className="flex items-center gap-3 p-4 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-500"
                                     >
                                         <div className="relative shrink-0">
                                             <img 
@@ -587,11 +607,11 @@ const ChatWidget = () => {
                             </div>}
                             <form onSubmit={isGuestChat ? sendGuestMessage : handleSendMessage} className="flex items-center gap-1">
                                 <div className="flex shrink-0 items-center gap-1">
-                                <label className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} /><input type="file" accept={CHAT_ACCEPT} className="hidden" onChange={pickAttachment} /></label>
-                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-10 w-9 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} /></button>
+                                <label className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 hover:bg-slate-100 transition-colors focus-within:ring-2 focus-within:ring-indigo-500" title="Choose an image or video (images up to 10 MB; videos up to 25 MB)"><FontAwesomeIcon icon={faPaperclip} aria-hidden="true" /><span className="sr-only">Attach an image or video</span><input type="file" accept={CHAT_ACCEPT} className="sr-only" onChange={pickAttachment} /></label>
+                                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo with your phone camera" title="Take a photo with your phone camera (max 10 MB)" className="flex h-11 w-11 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faCamera} aria-hidden="true" /></button>
                                 </div>
                                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={pickAttachment} />
-                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-10 w-9 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} /></button>
+                                <button type="button" onClick={() => videoInputRef.current?.click()} aria-label="Record a video with your phone camera" title="Record a video with your phone camera (max 25 MB)" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full cursor-pointer text-slate-500 bg-transparent border-0 hover:bg-slate-100 transition-colors"><FontAwesomeIcon icon={faVideo} aria-hidden="true" /></button>
                                 <input ref={videoInputRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={pickAttachment} />
                                 <div className="flex h-10 min-w-0 flex-1 items-center rounded-2xl bg-slate-100 px-2 focus-within:ring-2 focus-within:ring-indigo-500">
                                 <input
@@ -600,6 +620,7 @@ const ChatWidget = () => {
                                     name="message"
                                     autoComplete="off"
                                     aria-label="Message"
+                                    data-autofocus
                                     aria-invalid={sendError ? true : undefined}
                                     aria-describedby={sendError ? 'chat-message-error' : undefined}
                                     maxLength={LIMITS.message}
@@ -612,10 +633,10 @@ const ChatWidget = () => {
                                 <button
                                     type="submit"
                                     disabled={isSending || (!newMessage.trim() && !attachment)}
-                                    className="w-9 h-9 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-40 transition-all border-0 cursor-pointer shrink-0"
+                                    className="w-11 h-11 flex items-center justify-center bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-40 transition-all border-0 cursor-pointer shrink-0"
                                     aria-label="Send message"
                                 >
-                                    <FontAwesomeIcon icon={faPaperPlane} className="text-xs" />
+                                    <FontAwesomeIcon icon={faPaperPlane} className="text-sm" aria-hidden="true" />
                                 </button>
                             </form>
                             <FieldError id="chat-message" error={sendError} className="px-2" />

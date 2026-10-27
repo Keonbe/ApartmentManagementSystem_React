@@ -12,6 +12,8 @@ import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
+import InlineAlert from '../Components/InlineAlert';
+import useDialog from '../hooks/useDialog';
 import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
 
 const TRANSMISSIONS = ['Automatic', 'Manual'];
@@ -45,7 +47,8 @@ export default function ParkingReservation() {
     const [monthlyFee, setMonthlyFee] = useState(null);
     const [myReservation, setMyReservation] = useState(null);
     const [submitting, setSubmitting] = useState(false);
-    const [formError, setFormError] = useState('');
+    const [formError, setFormError] = useState(''); // availability could not load (top of the page)
+    const [submitError, setSubmitError] = useState(''); // a failed submit, shown next to the button
 
     const navigate = useNavigate();
 
@@ -209,7 +212,7 @@ export default function ParkingReservation() {
         return !fileError;
     };
 
-    //5.NumericInputHandlerCappedToMax6Months
+    //5.NumericInputHandler-ValuesOutsideTheLimitAreRefusedWithAMessage
     const handleNumberInput = (e) => {
         form.clearError('durationMonths');
         const value = e.target.value;
@@ -218,15 +221,21 @@ export default function ParkingReservation() {
             return;
         }
         const num = parseInt(value, 10);
-        if (!isNaN(num)) {
-            if (num > MAX_PARKING_MONTHS) setDurationMonths(MAX_PARKING_MONTHS);
-            else if (num < 1) setDurationMonths(1);
-            else setDurationMonths(num);
+        if (isNaN(num)) return;
+        if (num > MAX_PARKING_MONTHS) {
+            form.setFieldError('durationMonths', `You can reserve up to ${MAX_PARKING_MONTHS} months at a time.`);
+        } else if (num < 1) {
+            form.setFieldError('durationMonths', 'Reserve at least 1 month.');
+        } else {
+            setDurationMonths(num);
         }
     };
 
     // Each preview URL is revoked when it is replaced or the page closes.
     useEffect(() => () => { if (pdfModalUrl) URL.revokeObjectURL(pdfModalUrl); }, [pdfModalUrl]);
+
+    const closePdfModal = () => setPdfModalUrl(null);
+    const pdfDialogRef = useDialog(!!pdfModalUrl, closePdfModal);
 
     const openPdfPreview = (file, title) => {
         const url = URL.createObjectURL(file);
@@ -237,16 +246,20 @@ export default function ParkingReservation() {
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         if (submitting) return;
-        setFormError('');
-        if (parkingRules.length > 0 && !agreeParkingRules) {
-            setFormError('Please read and agree to the parking rules before reserving.');
-            return;
-        }
+        setSubmitError('');
+        // The button stays enabled; an unticked rules box is reported under the box.
+        const rulesMissing = parkingRules.length > 0 && !agreeParkingRules;
+        if (rulesMissing) form.setFieldError('agreeParkingRules', 'Please read and agree to the parking rules before reserving.');
 
         // Vehicle model, transmission and duration used to rely on `required` alone.
         const cleanModel = vehicleModel.trim();
         setVehicleModel(cleanModel);
-        if (!form.validateAll({ ...values, vehicleModel: cleanModel })) return;
+        const fieldsOk = form.validateAll({ ...values, vehicleModel: cleanModel });
+        if (!fieldsOk) return;
+        if (rulesMissing) {
+            document.getElementById('parking-agreeParkingRules')?.focus();
+            return;
+        }
 
         // The reservation is filed under the signed-in account on the server.
         const formData = new FormData();
@@ -266,10 +279,10 @@ export default function ParkingReservation() {
             if (res.data.success) {
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
-                setFormError(res.data.message || 'Could not submit the reservation.');
+                setSubmitError(res.data.message || 'Could not submit the reservation.');
             }
         } catch (error) {
-            if (!form.applyServerErrors(error)) setFormError(apiErrorMessage(error, "A network error occurred."));
+            if (!form.applyServerErrors(error)) setSubmitError(apiErrorMessage(error, "A network error occurred."));
         } finally {
             setSubmitting(false);
         }
@@ -295,7 +308,7 @@ export default function ParkingReservation() {
 
                     {/*DynamicAvailableSlotsCounterWidget*/}
                     <div className="parking-slots-widget bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm flex items-center space-x-3 flex-shrink-0 select-none">
-                        <div className={`w-2.5 h-2.5 rounded-full ${!slotsKnown ? 'bg-slate-400' : availableSlots > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                        <div className={`w-2.5 h-2.5 rounded-full ${!slotsKnown ? 'bg-slate-400' : availableSlots > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
                         <div>
                             <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider">{t('parking.availableSpaces')}</span>
                             <span className="text-xl font-black text-slate-800 tracking-tight">
@@ -531,12 +544,24 @@ export default function ParkingReservation() {
                     {parkingRules.length > 0 && (
                         <div className="md:col-span-2 space-y-3">
                             <ScopedRules scope="parking" title="Parking rules" />
-                            <label className="flex cursor-pointer items-start gap-2.5 text-xs font-semibold text-slate-700">
-                                <input type="checkbox" checked={agreeParkingRules} onChange={(e) => setAgreeParkingRules(e.target.checked)} className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300" />
+                            <label className="flex min-h-[44px] cursor-pointer items-start gap-3 text-sm font-semibold text-slate-700">
+                                <input
+                                    id="parking-agreeParkingRules"
+                                    type="checkbox"
+                                    checked={agreeParkingRules}
+                                    onChange={(e) => { setAgreeParkingRules(e.target.checked); form.clearError('agreeParkingRules'); }}
+                                    aria-invalid={form.errors.agreeParkingRules ? true : undefined}
+                                    aria-describedby={form.errors.agreeParkingRules ? 'parking-agreeParkingRules-error' : undefined}
+                                    className="mt-0.5 h-6 w-6 shrink-0 cursor-pointer rounded border-slate-300"
+                                />
                                 <span>I have read and agree to follow the parking rules.</span>
                             </label>
+                            <FieldError id="parking-agreeParkingRules" error={form.errors.agreeParkingRules} className="m-0" />
                         </div>
                     )}
+
+                    {/* A failed submit shows here, next to the button (it used to share the box at the top of the page). */}
+                    <InlineAlert className="md:col-span-2" onDismiss={() => setSubmitError('')}>{submitError}</InlineAlert>
 
                     {/*PricingOverviewAndSubmitButton*/}
                     <div className="parking-pricing-row md:col-span-2 border-t border-slate-100 pt-6 sm:pt-8 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-6 mt-4">
@@ -553,7 +578,7 @@ export default function ParkingReservation() {
 
                         <button
                             type="submit"
-                            disabled={loadingSlots || !slotsKnown || availableSlots <= 0 || submitting || (parkingRules.length > 0 && !agreeParkingRules)}
+                            disabled={loadingSlots || !slotsKnown || availableSlots <= 0 || submitting}
                             className="parking-submit-btn btn-interactive w-full sm:w-auto min-h-[48px] bg-[#10b981] hover:bg-[#059669] hover:scale-[1.03] active:scale-[0.97] text-white font-bold px-10 py-3.5 rounded-xl text-base transition-all duration-200 shadow-md border-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
                             {submitting ? 'Submitting…' : !slotsKnown ? (loadingSlots ? 'Checking slots…' : 'Availability unknown') : availableSlots > 0 ? t('parking.reserveBtn') : t('parking.fullyBooked')}
@@ -566,24 +591,31 @@ export default function ParkingReservation() {
 
             {/*PDFPreviewModalOverlay*/}
             {pdfModalUrl && (
-                <div 
-                    onClick={() => setPdfModalUrl(null)}
+                <div
+                    onClick={closePdfModal}
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in modal-overlay-anim"
                 >
                     <div
+                        ref={pdfDialogRef}
+                        tabIndex={-1}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="parking-pdf-title"
                         onClick={(e) => e.stopPropagation()}
-                        className="parking-pdf-modal modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden"
+                        className="parking-pdf-modal modal-card-anim sheet-mobile bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden outline-none"
                     >
                         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                            <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
-                                <FontAwesomeIcon icon={faFilePdf} className="text-rose-500" />
+                            <h3 id="parking-pdf-title" className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
+                                <FontAwesomeIcon icon={faFilePdf} className="text-rose-500" aria-hidden="true" />
                                 {pdfModalTitle}
                             </h3>
-                            <button 
-                                onClick={() => setPdfModalUrl(null)}
-                                className="parking-pdf-modal-close-btn text-slate-400 hover:text-slate-600 font-bold bg-transparent border-0 cursor-pointer text-lg p-2"
+                            <button
+                                type="button"
+                                onClick={closePdfModal}
+                                aria-label="Close PDF preview"
+                                className="parking-pdf-modal-close-btn flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700 bg-transparent border-0 cursor-pointer text-lg"
                             >
-                                <FontAwesomeIcon icon={faTimes} />
+                                <FontAwesomeIcon icon={faTimes} aria-hidden="true" />
                             </button>
                         </div>
                         <div className="flex-1 w-full bg-slate-100 p-2">
@@ -596,8 +628,8 @@ export default function ParkingReservation() {
                         <div className="p-3 border-t border-slate-200 flex justify-end bg-slate-50">
                             <button
                                 type="button"
-                                onClick={() => setPdfModalUrl(null)}
-                                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-5 py-2 rounded-xl text-xs border-0 cursor-pointer transition-colors"
+                                onClick={closePdfModal}
+                                className="min-h-[44px] bg-slate-800 hover:bg-slate-900 text-white font-bold px-6 rounded-xl text-sm border-0 cursor-pointer transition-colors"
                             >
                                 Close PDF
                             </button>

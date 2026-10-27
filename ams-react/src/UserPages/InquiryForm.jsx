@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEnvelopeOpenText, faExclamationTriangle, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
+import { faEnvelopeOpenText, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SuccessModal from '../Components/SuccessModal';
 import RulesGroups from '../Components/RulesGroups';
@@ -11,6 +11,7 @@ import { apiErrorMessage } from '../utils/apiError';
 import PhoneInput from '../Components/PhoneInput';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
+import InlineAlert from '../Components/InlineAlert';
 import CharCount from '../Components/form/CharCount';
 import { blockNonIntegerKeys, invalidCls } from '../Components/form/formHelpers';
 import { useLang } from '../config/i18n';
@@ -56,6 +57,8 @@ export default function InquiryForm() {
     const houseRulesError = houseRulesFailed ? t('houseRules.inquiryError') : '';
     const [submitting, setSubmitting] = useState(false);
     const [hasAgreedToRules, setHasAgreedToRules] = useState(false);
+    // The submit button stays enabled; an unticked box is reported here, under it.
+    const [rulesError, setRulesError] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -98,14 +101,20 @@ export default function InquiryForm() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (submitting || !hasAgreedToRules) return;
+        if (submitting) return;
         setErrorMsg('');
 
         const clean = { ...values, full_name: fullName.trim(), email: normalizeEmail(email), message: message.trim() };
         setFullName(clean.full_name);
         setEmail(clean.email);
         setMessage(clean.message);
-        if (!form.validateAll(clean)) return;
+        const fieldsOk = form.validateAll(clean);
+        if (!hasAgreedToRules) setRulesError('Please read the apartment rules and tick the box to continue.');
+        if (!fieldsOk) return;
+        if (!hasAgreedToRules) {
+            document.getElementById('agree-rules')?.focus();
+            return;
+        }
 
         setSubmitting(true);
         try {
@@ -171,13 +180,6 @@ export default function InquiryForm() {
                     <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800 marker:hidden">{t('houseRules.mobileSummary')}</summary>
                     <div className="mt-3">{renderHouseRules()}</div>
                 </details>
-
-                {errorMsg && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-start gap-2.5">
-                        <FontAwesomeIcon icon={faExclamationTriangle} className="mt-0.5 shrink-0" />
-                        <span className="font-medium">{errorMsg}</span>
-                    </div>
-                )}
 
                 <form
                     className="inquiry-form-card rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
@@ -337,23 +339,28 @@ export default function InquiryForm() {
                             id="agree-rules"
                             type="checkbox"
                             checked={hasAgreedToRules}
-                            onChange={(e) => setHasAgreedToRules(e.target.checked)}
-                            className="mt-1 h-4 w-4 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            required
+                            onChange={(e) => { setHasAgreedToRules(e.target.checked); if (e.target.checked) setRulesError(''); }}
+                            aria-invalid={rulesError ? true : undefined}
+                            aria-describedby={rulesError ? 'agree-rules-error' : undefined}
+                            className="mt-0.5 h-6 w-6 shrink-0 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        <label htmlFor="agree-rules" className="cursor-pointer select-none text-xs leading-relaxed text-slate-600">
+                        <label htmlFor="agree-rules" className="cursor-pointer select-none text-sm leading-relaxed text-slate-700">
                             {t('inquiry.rulesAcknowledgment')}{' '}
                             <span className="font-semibold text-slate-800">{t('houseRules.title')}</span>{' '}
                             {t('inquiry.rulesBeforeSubmit')}
                         </label>
                     </div>
 
+                    <FieldError id="agree-rules" error={rulesError} className="md:col-span-2 m-0 -mt-2" />
+
+                    {/* A failed submit shows here, next to the button (it was a box above the form). */}
+                    <InlineAlert className="md:col-span-2" onDismiss={() => setErrorMsg('')}>{errorMsg}</InlineAlert>
+
                     <div className="md:col-span-2 flex justify-end">
                         <button
                             type="submit"
-                            disabled={submitting || !hasAgreedToRules}
-                            title={!hasAgreedToRules ? 'Please review and agree to the apartment rules before submitting' : undefined}
-                            className={`inquiry-submit-btn btn-interactive font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 min-h-[48px] ${submitting || !hasAgreedToRules ? 'bg-slate-400 hover:bg-slate-400 opacity-50 cursor-not-allowed' : 'bg-[#3b4276] hover:bg-[#2f3560] text-white cursor-pointer'}`}
+                            disabled={submitting}
+                            className={`inquiry-submit-btn btn-interactive font-bold py-3.5 px-10 rounded-xl text-sm transition-all shadow-md border-0 min-h-[48px] ${submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-[#3b4276] hover:bg-[#2f3560] text-white cursor-pointer'}`}
                         >
                             {submitting ? t('inquiry.submitting') : t('inquiry.submit')}
                         </button>

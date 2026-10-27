@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X, AlertCircle } from 'lucide-react';
+import { UploadCloud, CheckCircle2, Hourglass, Check, Info, FileText, X } from 'lucide-react';
 import SuccessModal from '../Components/SuccessModal';
 import HouseRulesModal from '../Components/HouseRulesModal';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -12,6 +12,8 @@ import { FILE_RULES, acceptFor, checkFile } from '../utils/fileLimits';
 import { apiErrorMessage } from '../utils/apiError';
 import useFieldErrors from '../hooks/useFieldErrors';
 import FieldError from '../Components/form/FieldError';
+import InlineAlert from '../Components/InlineAlert';
+import useDialog from '../hooks/useDialog';
 import { blockNonIntegerKeys, formatFileSize, invalidCls } from '../Components/form/formHelpers';
 import '../assets/styles/responsive/user/rent-application.responsive.css';
 
@@ -360,12 +362,11 @@ export default function RentApplication() {
         previousAddress, ...docValues, agreeTerms: agreePrivacy, agreeRules,
     };
 
-    // Accepts the file when it passes the upload rules; otherwise the error pops up as a modal alert.
+    // Accepts the file when it passes the upload rules; otherwise the error shows under its card.
     const pickFile = (id) => (file) => {
         const key = docKey(id);
         const fileError = checkFile(file, FILE_RULES.document);
         if (fileError) {
-            setNotice(fileError);
             form.setFieldError(key, fileError);
         } else {
             form.clearError(key);
@@ -386,7 +387,12 @@ export default function RentApplication() {
         const value = e.target.value;
         if (value === '') { setOccupants(''); return; }
         const num = parseInt(value, 10);
-        if (!isNaN(num) && num >= 1 && num <= maxOccupants) setOccupants(num);
+        if (isNaN(num)) return;
+        if (num > maxOccupants) {
+            form.setFieldError('occupants', `At most ${maxOccupants} people can live in one room.`);
+        } else if (num >= 1) {
+            setOccupants(num);
+        }
     };
 
     const handleMonthsInput = (e) => {
@@ -410,6 +416,11 @@ export default function RentApplication() {
         if (preview) URL.revokeObjectURL(preview.url);
         setPreview(null);
     };
+
+    // Esc, focus in and back out, Tab kept inside: the four dialogs below.
+    const roomDialogRef = useDialog(showRoomModal, () => setShowRoomModal(false));
+    const previewDialogRef = useDialog(!!preview, closePreview);
+    const termsDialogRef = useDialog(showTermsModal, () => setShowTermsModal(false));
 
     const chooseRoom = (roomId) => {
         setSelectedRoomId(roomId);
@@ -544,7 +555,7 @@ export default function RentApplication() {
 
                     {['pending review', 'pending', 'approved', 'active'].includes(applicationStatus?.toLowerCase()) && (
                         <div className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-bold text-sm shadow-sm select-none border border-current self-start sm:self-center transition-all duration-300 ${isPendingReview ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            {isPendingReview ? <Hourglass className="w-5 h-5 animate-pulse" /> : <Check className="w-5 h-5" />}
+                            {isPendingReview ? <Hourglass className="w-5 h-5" aria-hidden="true" /> : <Check className="w-5 h-5" />}
                             <div className="flex flex-col text-left">
                                 <span className="text-[10px] uppercase tracking-wider opacity-75 leading-none">{t('rent.statusLabel')}</span>
                                 <span className="text-sm font-black mt-0.5">{isPendingReview ? t('rent.pendingReview') : t('rent.approved')}</span>
@@ -575,7 +586,7 @@ export default function RentApplication() {
                     ) : (
                         <div className="animate-scale-in bg-white rounded-[2rem] border border-slate-200 p-8 md:p-12 text-center max-w-xl mx-auto space-y-6 shadow-xl shadow-slate-900/5 select-none">
                             <div className="w-20 h-20 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center mx-auto border-4 border-indigo-100">
-                                <Info className="w-10 h-10 animate-pulse" />
+                                <Info className="w-10 h-10" aria-hidden="true" />
                             </div>
                             <div>
                                 <h2 className="text-3xl font-black text-slate-900 m-0 tracking-tight">{t('rent.applicationActive')}</h2>
@@ -742,25 +753,28 @@ export default function RentApplication() {
                                     </div>
                                 </div>
                                 <div className="flex flex-col">
-                                    <label htmlFor="rent-prefMoveInDate" className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
-                                        <span>Move In By {form.errors.prefMoveInDate && <span className="text-rose-500 ml-0.5">*</span>}</span>
+                                    <div className={`${LABEL_CLS} flex justify-between items-start min-h-[56px] mb-1.5`}>
+                                        <label htmlFor="rent-prefMoveInDate">Move In By {form.errors.prefMoveInDate && <span className="text-rose-500 ml-0.5">*</span>}</label>
                                         {!isReadOnly && (
-                                            <label className="flex items-center gap-1.5 cursor-pointer ml-2 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100 hover:bg-indigo-100 transition-colors">
-                                                <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isASAP ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-slate-300'}`}>
-                                                    {isASAP && <svg className="w-2.5 h-2.5 text-white pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                                                </div>
-                                                <input type="checkbox" checked={isASAP} onChange={(e) => {
-                                                    const checked = e.target.checked;
-                                                    setIsASAP(checked);
-                                                    setPrefMoveInDate('');
-                                                    if (checked) {
-                                                        form.clearError('prefMoveInDate');
-                                                    }
-                                                }} className="hidden" />
-                                                <span className="text-[10px] font-bold text-indigo-600 uppercase select-none">Any time</span>
+                                            <label htmlFor="rent-isAsap" className="flex min-h-[44px] items-center gap-2 cursor-pointer ml-2 bg-indigo-50 px-3 rounded-full border border-indigo-100 hover:bg-indigo-100 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-400">
+                                                <input
+                                                    id="rent-isAsap"
+                                                    type="checkbox"
+                                                    checked={isASAP}
+                                                    onChange={(e) => {
+                                                        const checked = e.target.checked;
+                                                        setIsASAP(checked);
+                                                        setPrefMoveInDate('');
+                                                        if (checked) {
+                                                            form.clearError('prefMoveInDate');
+                                                        }
+                                                    }}
+                                                    className="h-4 w-4 accent-indigo-600 cursor-pointer"
+                                                />
+                                                <span className="text-xs font-bold text-indigo-700 select-none">Any time</span>
                                             </label>
                                         )}
-                                    </label>
+                                    </div>
                                     <div className="flex flex-col">
                                     {isASAP ? (
                                         <input
@@ -858,11 +872,13 @@ export default function RentApplication() {
                         </div>
 
                         <div className="pt-8 border-t border-slate-200 flex flex-col items-center gap-4">
+                            {/* Messages that belong to no single field (was a popup). */}
+                            <InlineAlert className="w-full" onDismiss={() => setNotice('')}>{notice}</InlineAlert>
                             <div className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                                 {!isReadOnly && (
                                     <div className="flex w-full min-w-0 flex-col items-start gap-3 pr-3 sm:flex-1">
                                         <div className="flex w-full min-w-0 items-start gap-3">
-                                            <label className="group relative mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
+                                            <label className="group relative -ml-2.5 -mt-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
                                                 <input
                                                     type="checkbox"
                                                     {...form.fieldA11y('agreeTerms')}
@@ -870,11 +886,11 @@ export default function RentApplication() {
                                                     onChange={(e) => { setAgreePrivacy(e.target.checked); form.clearError('agreeTerms'); }}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="flex h-full w-full items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
+                                                <div className="flex h-6 w-6 items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
                                                     <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreePrivacy ? 'scale-100' : 'scale-0'}`} />
                                                 </div>
                                             </label>
-                                            <label htmlFor="rent-agreeTerms" className="min-w-0 whitespace-nowrap text-xs font-semibold text-slate-600">
+                                            <label htmlFor="rent-agreeTerms" className="min-w-0 text-sm font-semibold text-slate-700">
                                                 {t('rent.agreeTerms')}{' '}
                                                 <button type="button" onClick={() => setShowTermsModal(true)} className="inline cursor-pointer border-0 bg-transparent p-0 font-semibold text-indigo-600 underline underline-offset-2 hover:text-indigo-700">
                                                     {t('rent.termsLink')}
@@ -884,7 +900,7 @@ export default function RentApplication() {
                                         <FieldError id="rent-agreeTerms" error={form.errors.agreeTerms} className="m-0" />
 
                                         <div className="flex w-full min-w-0 items-start gap-3">
-                                            <label className="group relative mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
+                                            <label className="group relative -ml-2.5 -mt-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
                                                 <input
                                                     type="checkbox"
                                                     {...form.fieldA11y('agreeRules')}
@@ -892,11 +908,11 @@ export default function RentApplication() {
                                                     onChange={(e) => { setAgreeRules(e.target.checked); form.clearError('agreeRules'); }}
                                                     className="peer sr-only"
                                                 />
-                                                <div className="flex h-full w-full items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
+                                                <div className="flex h-6 w-6 items-center justify-center rounded-md border-2 border-slate-300 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400 group-hover:border-indigo-400">
                                                     <Check className={`h-3.5 w-3.5 text-white transition-transform duration-200 ${agreeRules ? 'scale-100' : 'scale-0'}`} />
                                                 </div>
                                             </label>
-                                            <label htmlFor="rent-agreeRules" className="min-w-0 whitespace-nowrap text-xs font-semibold text-slate-600">
+                                            <label htmlFor="rent-agreeRules" className="min-w-0 text-sm font-semibold text-slate-700">
                                                 {t('rent.rulesAgreement')}{' '}
                                                 <button type="button" onClick={(e) => { e.preventDefault(); setIsRulesModalOpen(true); }} className="inline cursor-pointer border-0 bg-transparent p-0 font-semibold text-indigo-600 underline hover:text-indigo-800">
                                                     {t('rent.rulesLink')}
@@ -914,8 +930,8 @@ export default function RentApplication() {
                                 ) : (
                                     <button
                                         type="submit"
-                                        disabled={submitting || (applicationStatus !== 'accepted' && (!agreePrivacy || !agreeRules))}
-                                        className={`rent-app-submit-btn w-full sm:w-auto font-black px-12 py-4 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30 text-white cursor-pointer' : (!agreePrivacy || !agreeRules || submitting) ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 text-white cursor-pointer hover:-translate-y-1 active:translate-y-0'}`}
+                                        disabled={submitting}
+                                        className={`rent-app-submit-btn w-full sm:w-auto font-black px-12 py-4 rounded-xl text-sm transition-all duration-300 shadow-xl border-0 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${applicationStatus === 'accepted' ? 'bg-[#10b981] hover:bg-[#059669] shadow-emerald-600/30 text-white cursor-pointer' : submitting ? 'bg-slate-400 hover:bg-slate-400 text-white cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30 text-white cursor-pointer hover:-translate-y-1 active:translate-y-0'}`}
                                     >
                                         {submitting ? 'Submitting…' : applicationStatus === 'accepted' ? t('rent.proceedPayment') : t('rent.submitApp')}
                                     </button>
@@ -929,10 +945,10 @@ export default function RentApplication() {
             {/* Room Selection Modal: vacant units only */}
             {showRoomModal && (
                 <div onClick={() => setShowRoomModal(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
-                    <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="rent-room-modal-title" className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-scale-in overflow-hidden">
+                    <div ref={roomDialogRef} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="rent-room-modal-title" className="outline-none bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-scale-in overflow-hidden">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
                             <h3 id="rent-room-modal-title" className="text-xl font-black text-slate-900 m-0">Select Available Room</h3>
-                            <button type="button" aria-label="Close" onClick={() => setShowRoomModal(false)} className="text-slate-400 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-2 rounded-full cursor-pointer transition-colors border-0">
+                            <button type="button" aria-label="Close" onClick={() => setShowRoomModal(false)} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -960,32 +976,16 @@ export default function RentApplication() {
                 </div>
             )}
 
-            {/* Notice: messages that belong to no single field */}
-            {notice && (
-                <div onClick={() => setNotice('')} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-                    <div onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-labelledby="rent-notice-title" aria-describedby="rent-notice-text" className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm flex flex-col p-8 text-center animate-scale-in border-4 border-rose-100">
-                        <div className="w-20 h-20 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-5">
-                            <AlertCircle className="w-10 h-10" />
-                        </div>
-                        <h3 id="rent-notice-title" className="text-2xl font-black text-slate-900 m-0 mb-3">Notice</h3>
-                        <p id="rent-notice-text" className="text-slate-600 text-sm font-medium m-0 mb-8 leading-relaxed px-2">{notice}</p>
-                        <button type="button" autoFocus onClick={() => setNotice('')} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm transition-colors cursor-pointer shadow-md border-0">
-                            I Understand
-                        </button>
-                    </div>
-                </div>
-            )}
-
             {/* Document Preview Modal (images and PDFs) */}
             {preview && (
                 <div onClick={closePreview} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fade-in">
-                    <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-scale-in">
+                    <div ref={previewDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="rent-preview-title" onClick={(e) => e.stopPropagation()} className="outline-none bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden animate-scale-in">
                         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white z-10">
-                            <h3 className="text-lg font-black text-slate-900 m-0 flex items-center gap-2">
-                                <FileText className="text-rose-500 w-5 h-5" />
+                            <h3 id="rent-preview-title" className="text-lg font-black text-slate-900 m-0 flex items-center gap-2">
+                                <FileText className="text-rose-500 w-5 h-5" aria-hidden="true" />
                                 {preview.title}
                             </h3>
-                            <button type="button" aria-label={t('rent.closePdf')} onClick={closePreview} className="text-slate-400 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-2 rounded-full cursor-pointer transition-colors border-0">
+                            <button type="button" aria-label={t('rent.closePdf')} onClick={closePreview} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -1002,10 +1002,10 @@ export default function RentApplication() {
 
             {showTermsModal && (
                 <div onClick={() => setShowTermsModal(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in">
-                    <div onClick={(e) => e.stopPropagation()} className="rent-app-terms-modal bg-white rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] animate-scale-in overflow-hidden">
+                    <div ref={termsDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="rent-terms-title" onClick={(e) => e.stopPropagation()} className="outline-none rent-app-terms-modal bg-white rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] animate-scale-in overflow-hidden">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
-                            <h3 className="text-xl font-black text-slate-900 m-0">{t('rent.termsTitle')}</h3>
-                            <button type="button" aria-label="Close" onClick={() => setShowTermsModal(false)} className="text-slate-400 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 p-2 rounded-full cursor-pointer transition-colors border-0">
+                            <h3 id="rent-terms-title" className="text-xl font-black text-slate-900 m-0">{t('rent.termsTitle')}</h3>
+                            <button type="button" aria-label="Close" onClick={() => setShowTermsModal(false)} className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-full cursor-pointer transition-colors border-0">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>

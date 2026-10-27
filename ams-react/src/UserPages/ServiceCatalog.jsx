@@ -116,7 +116,7 @@ export default function ServiceCatalog() {
                         {visibleCatalog.map(row => (
                             <div
                                 key={row.id}
-                                className="services-card card-interactive bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col sm:flex-row items-center sm:items-stretch space-y-4 sm:space-y-0 sm:space-x-6 hover:shadow-md hover:border-slate-200/80 transition-all duration-200 group"
+                                className="services-card card-interactive relative bg-white rounded-2xl border border-slate-100 shadow-sm p-5 sm:p-6 flex flex-col sm:flex-row items-center sm:items-stretch space-y-4 sm:space-y-0 sm:space-x-6 hover:shadow-md hover:border-slate-200/80 transition-all duration-200 group"
                             >
                                 {/*LeftRoundedIconBox*/}
                                 <div className="services-icon-box w-20 h-20 sm:w-32 sm:h-auto rounded-xl flex items-center justify-center text-white flex-shrink-0 shadow-sm bg-slate-100 transition-transform duration-300 group-hover:scale-105">
@@ -148,7 +148,7 @@ export default function ServiceCatalog() {
                                     <div className="w-full sm:w-auto self-center sm:self-start">
                                         <button
                                             onClick={() => navigate(`/service-booking?serviceId=${row.id}`)}
-                                            className="services-action-btn btn-interactive w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97] text-white font-semibold px-6 py-2.5 sm:py-2 rounded-xl text-sm sm:text-xs transition-all duration-200 shadow-sm hover:shadow-indigo-500/20 border-0 cursor-pointer flex items-center justify-center"
+                                            className="services-action-btn btn-interactive after:absolute after:inset-0 after:content-[''] w-full sm:w-auto bg-[#6366f1] hover:bg-[#4f46e5] hover:scale-[1.03] active:scale-[0.97] text-white font-semibold px-6 py-2.5 sm:py-2 rounded-xl text-sm sm:text-xs transition-all duration-200 shadow-sm hover:shadow-indigo-500/20 border-0 cursor-pointer flex items-center justify-center"
                                         >
                                             {t('services.book')}
                                         </button>

@@ -4,6 +4,7 @@ import { faMoneyBillTransfer } from '@fortawesome/free-solid-svg-icons';
 import api from '../api/axiosConfig';
 import { apiErrorMessage } from '../utils/apiError';
 import { RefundForm, RefundTrail, StatusBadge } from '../Components/RefundParts';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import { TYPE_LABELS, peso, when } from '../utils/refundFormat';
 
 export default function UserRefunds() {
@@ -15,6 +16,7 @@ export default function UserRefunds() {
   const [busy, setBusy] = useState(null);
   const [notice, setNotice] = useState(null); // { ok, text }
   const [replies, setReplies] = useState({});
+  const [cancelId, setCancelId] = useState(null); // the request being cancelled (asked in a dialog)
 
   const load = useCallback(async () => {
     try {
@@ -101,13 +103,27 @@ export default function UserRefunds() {
               )}
               {(r.status === 'Pending Review' || r.status === 'Info Requested') && (
                 <button type="button" disabled={busy === r.id}
-                  onClick={() => window.confirm('Cancel this refund request?') && call(r.id, 'respond_refund_request.php', { id: r.id, action: 'cancel' }, 'Refund request cancelled.')}
-                  className="mt-3 cursor-pointer border-0 bg-transparent p-0 text-xs font-bold text-rose-600 hover:underline">Cancel request</button>
+                  onClick={() => setCancelId(r.id)}
+                  className="mt-3 min-h-[44px] cursor-pointer border-0 bg-transparent p-0 text-sm font-bold text-rose-700 hover:underline">Cancel request</button>
               )}
             </article>
           ))}
         </section>
       </div>
+
+      {cancelId !== null && (
+        <ConfirmDialog
+          title="Cancel this refund request?"
+          message="Management will no longer review it. You can send a new request later."
+          confirmLabel="Yes, cancel request"
+          busy={busy === cancelId}
+          onConfirm={async () => {
+            await call(cancelId, 'respond_refund_request.php', { id: cancelId, action: 'cancel' }, 'Refund request cancelled.');
+            setCancelId(null);
+          }}
+          onClose={() => setCancelId(null)}
+        />
+      )}
     </div>
   );
 }

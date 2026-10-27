@@ -251,12 +251,13 @@ export default function ContractDocument({
     if (!allowUploadSignature || !onUploadSignature || !signatureParties.includes(docType)) return null;
     return (
       <div className="flex flex-wrap items-center gap-2 pt-1 font-sans print:hidden">
-        <label className="cursor-pointer rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">
+        <label className="inline-flex min-h-[44px] cursor-pointer items-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 focus-within:ring-2 focus-within:ring-indigo-400">
           {uploaded ? L.replaceSignature : L.uploadSignature}
+          {/* sr-only, not hidden: a keyboard can still reach the file input. */}
           <input
             type="file"
             accept="image/png,image/jpeg"
-            className="hidden"
+            className="sr-only"
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = '';

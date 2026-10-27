@@ -8,6 +8,8 @@ import { useLang } from '../config/i18n';
 import ContractDocument from '../Components/contract/ContractDocument';
 import { fetchContractTemplate } from '../Components/contract/contractTemplate';
 import { printElement } from '../utils/print';
+import { FILE_RULES, checkFile } from '../utils/fileLimits';
+import InlineAlert from '../Components/InlineAlert';
 
 const formatPeso = (value) => {
     const num = Number(value);
@@ -142,8 +144,21 @@ export default function ViewContract() {
         printElement(contractDocRef.current, { variant: 'document' });
     };
 
+    // Result of a signature upload or removal, shown above the contract (these
+    // were alert()); 'saving' while a request runs.
+    const [signatureMessage, setSignatureMessage] = useState(null); // { ok, text }
+    const [signatureBusy, setSignatureBusy] = useState(false);
+
     const handleTenantSignatureUpload = async (party, file) => {
-        if (!contractData?.contractId) return;
+        if (!contractData?.contractId || signatureBusy) return;
+        // The server takes a JPG or PNG of at most 5 MB for a signature.
+        const fileError = checkFile(file, FILE_RULES.receiptImage);
+        if (fileError) {
+            setSignatureMessage({ ok: false, text: fileError });
+            return;
+        }
+        setSignatureBusy(true);
+        setSignatureMessage(null);
         const formData = new FormData();
         formData.append('contractId', contractData.contractId);
         formData.append('docType', 'tenantSignature');
@@ -158,17 +173,22 @@ export default function ViewContract() {
                     ...prev,
                     tenantSignature: res.data.filePath
                 }));
+                setSignatureMessage({ ok: true, text: 'Your signature was added to the contract.' });
             } else {
-                alert(res.data.message || 'Failed to upload signature.');
+                setSignatureMessage({ ok: false, text: res.data.message || 'Failed to upload signature.' });
             }
         } catch (err) {
             console.error('Failed to upload signature:', err);
-            alert(err.response?.data?.message || 'Failed to upload signature.');
+            setSignatureMessage({ ok: false, text: err.response?.data?.message || 'Failed to upload signature.' });
+        } finally {
+            setSignatureBusy(false);
         }
     };
 
     const handleTenantSignatureRemove = async () => {
-        if (!contractData?.contractId) return;
+        if (!contractData?.contractId || signatureBusy) return;
+        setSignatureBusy(true);
+        setSignatureMessage(null);
         const formData = new FormData();
         formData.append('contractId', contractData.contractId);
         formData.append('docType', 'tenantSignature');
@@ -182,12 +202,15 @@ export default function ViewContract() {
                     ...prev,
                     tenantSignature: null
                 }));
+                setSignatureMessage({ ok: true, text: 'Your signature was removed.' });
             } else {
-                alert(res.data.message || 'Failed to remove signature.');
+                setSignatureMessage({ ok: false, text: res.data.message || 'Failed to remove signature.' });
             }
         } catch (err) {
             console.error('Failed to remove signature:', err);
-            alert(err.response?.data?.message || 'Failed to remove signature.');
+            setSignatureMessage({ ok: false, text: err.response?.data?.message || 'Failed to remove signature.' });
+        } finally {
+            setSignatureBusy(false);
         }
     };
 
@@ -327,6 +350,13 @@ export default function ViewContract() {
             )}
 
 
+
+            <div className="w-full max-w-3xl mb-4 print:hidden" aria-live="polite">
+                {signatureBusy && <InlineAlert tone="info">Saving your signature…</InlineAlert>}
+                {signatureMessage && (
+                    <InlineAlert tone={signatureMessage.ok ? 'info' : 'error'} onDismiss={() => setSignatureMessage(null)}>{signatureMessage.text}</InlineAlert>
+                )}
+            </div>
 
             <div ref={contractDocRef} className="w-full max-w-3xl print:w-full">
                 <ContractDocument

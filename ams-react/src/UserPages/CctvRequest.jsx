@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import SuccessModal from '../Components/SuccessModal';
+import InlineAlert from '../Components/InlineAlert';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axiosConfig';
 import { LIMITS, addDays, checkDate, checkText, localDateString } from '../utils/validation';
@@ -24,6 +25,8 @@ export default function CctvRequest() {
     const [privacyConsent, setPrivacyConsent] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // A failed submit shows next to the submit button (it was alert()).
+    const [submitError, setSubmitError] = useState('');
     const navigate = useNavigate();
 
     // Footage is kept about two months. addDays, not setMonth(-2): that rolled
@@ -58,6 +61,7 @@ export default function CctvRequest() {
             privacyConsent: true
         };
 
+        setSubmitError('');
         setIsSubmitting(true);
         try {
             const res = await api.post("/cctv_request.php", payload);
@@ -65,10 +69,10 @@ export default function CctvRequest() {
             if (res.data.success) {
                 setIsModalOpen(true);
             } else if (!form.applyServerErrors(res)) {
-                alert(res.data.message);
+                setSubmitError(res.data.message || 'Failed to submit your request. Please try again.');
             }
         } catch (error) {
-            if (!form.applyServerErrors(error)) alert(apiErrorMessage(error, 'Failed to submit your request. Please try again.'));
+            if (!form.applyServerErrors(error)) setSubmitError(apiErrorMessage(error, 'Failed to submit your request. Please try again.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -193,7 +197,8 @@ export default function CctvRequest() {
                     <FieldError id="cctv-privacyConsent" error={form.errors.privacyConsent} className="md:col-span-2 m-0" />
 
                     {/*Submission Request Action Trigger Button Layout Area*/}
-                    <div className="md:col-span-2 border-t border-slate-100 pt-6 flex justify-end">
+                    <div className="md:col-span-2 border-t border-slate-100 pt-6 flex flex-col gap-3 sm:items-end">
+                        <InlineAlert onDismiss={() => setSubmitError('')} className="w-full">{submitError}</InlineAlert>
                         <button
                             type="submit"
                             disabled={isSubmitting}
