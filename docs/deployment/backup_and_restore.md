@@ -10,8 +10,8 @@ Answers the manager interview's Q26 (data loss or access; see [manager_interview
 
 | Item | Where it lives | Why it matters |
 |---|---|---|
-| **Database `ams_db`** | MySQL 8 / MariaDB on the production host (Railway MariaDB for the SaaS mirror) | Every tenant, room, invoice, payment, contract, notification and setting. |
-| **`backend/uploads/`** | Next to the API (on Railway: the volume mounted at `/var/www/html/uploads`) | User files the database only points to: valid IDs and application documents (`applications/`), contract PDFs and other rent documents (`documents/`), payment proofs (`payment_proofs/`, `payments/`), maintenance photos, service and utility bill attachments. A database restored without them leaves broken links. |
+| **Database `ams_db`** | MySQL 8 / MariaDB on the production host | Every tenant, room, invoice, payment, contract, notification and setting. |
+| **`backend/uploads/`** | Next to the API | User files the database only points to: valid IDs and application documents (`applications/`), contract PDFs and other rent documents (`documents/`), payment proofs (`payment_proofs/`, `payments/`), maintenance photos, service and utility bill attachments. A database restored without them leaves broken links. |
 | **`backend/room_images/`** | Next to the API | Room photos and floor plans the admin uploaded. Only a sample image is tracked in git. |
 | **`backend/config.env.php`** | Server only, gitignored | Database credentials, `APP_URL`, `ALLOWED_ORIGINS`, timezone. Store a copy **securely** (password manager or encrypted archive), never in git and never next to the plain dumps. On Railway the same values are service variables: keep a private copy of them instead. |
 
@@ -93,13 +93,6 @@ schtasks /Create /TN "AMS nightly backup" /SC DAILY /ST 03:00 /RU SYSTEM /RL HIG
 
 `robocopy` exit codes below 8 mean success. `/E` copies new and changed files and never deletes from the backup, so a file removed by mistake on the server is still in the copy (`rsync -a` without `--delete` behaves the same).
 
-### 2.3 Railway / Supabase (SaaS mirror)
-
-The hosted mirror has its own mechanisms. They are described where that deployment is set up, so they are not repeated here:
-
-- Database and uploads on Railway: [saas_deployment_guide.md §12.3 Backups](saas_deployment_guide.md#123-backups) (Railway backups plus an off-platform `mysqldump` through the TCP proxy, `railway ssh` tar of the uploads volume) and the volume itself in [railway_setup_runbook.md §4](railway_setup_runbook.md#4-volume-keeps-the-data) / [§11](railway_setup_runbook.md#11-whats-next).
-- Uploads on Supabase Storage (Option B): Supabase keeps its own backups; see [saas_deployment_guide.md §2.5](saas_deployment_guide.md#25-decide-how-uploads-are-stored) and [§6.2](saas_deployment_guide.md#62-option-b--supabase-storage).
-- Copying production data into the mirror is a sync, not a backup: [cicd_pipeline.md §3.5](cicd_pipeline.md#35-keeping-data-in-sync-optional-stretch).
 
 The retention and restore-drill rules below apply to the mirror too.
 
@@ -208,7 +201,7 @@ A backup that has never been restored is not known to work. Once a month (first 
 - [ ] Nightly 03:00 job scheduled (cron or Task Scheduler) and its first log checked
 - [ ] Retention steps added (14 daily, 3 monthly)
 - [ ] Off-machine, encrypted copy set up (at least weekly)
-- [ ] `config.env.php` (or the Railway variables) stored securely
+- [ ] `config.env.php` stored securely
 - [ ] Restore drill run (§5) and the result recorded
 
 Last restore drill tested: ____________________ (date, by whom, result)
@@ -218,6 +211,3 @@ Last restore drill tested: ____________________ (date, by whom, result)
 ## Related documentation
 
 - [localhost_to_production.md](localhost_to_production.md) — Phase D (database migration) and Phase F (monitoring & ops)
-- [saas_deployment_guide.md §12.3](saas_deployment_guide.md#123-backups) — Railway / Supabase backups
-- [railway_setup_runbook.md](railway_setup_runbook.md) — Railway volume
-- [cicd_pipeline.md §3.5](cicd_pipeline.md#35-keeping-data-in-sync-optional-stretch) — the optional production → mirror sync

@@ -14,7 +14,7 @@ if (!$ams_test_mode && file_exists(__DIR__ . '/config.env.php')) {
 }
 
 // Settings come from, in order: config.env.php constants (XAMPP), environment
-// variables (Railway / Docker), then local defaults. $_ENV/$_SERVER are checked
+// variables (Docker / the web server), then local defaults. $_ENV/$_SERVER are checked
 // too because some SAPI configurations leave getenv() empty.
 function ams_env($key, $default = null) {
     foreach ([getenv($key), $_ENV[$key] ?? false, $_SERVER[$key] ?? false] as $value) {

@@ -12,7 +12,7 @@ Goal: the same Git branch builds and runs three targets without source edits:
 | `saas` | us, on Railway (API + MariaDB) and a static host for the SPA | `npm run build:saas` (= `npm run build`) | Railway service variables |
 | `selfhosted` | another operator, on their own server (XAMPP, Apache, or Docker) | `npm run build:selfhosted` | their own `config.env.php` or env file |
 
-Related: [environment_config.md](environment_config.md) (variable reference for local/Railway), [saas_deployment_guide.md](saas_deployment_guide.md), [railway_setup_runbook.md](railway_setup_runbook.md).
+Related: [environment_config.md](environment_config.md) (variable reference for local/Railway), saas_deployment_guide.md (doc removed), railway_setup_runbook.md (doc removed).
 
 **Step-by-step guides:** [§8 SaaS](#8-saas-deployment-steps) · [§9 Self-hosted](#9-self-hosted-deployment-steps) · [§10 Local XAMPP](#10-local-xampp-workflow) · [§10.1 Switching targets](#101-switching-between-targets-on-one-machine) · [§13 Rollback](#13-validation-and-rollback-procedures)
 
@@ -132,7 +132,7 @@ Examples:
 
 ## 8. SaaS deployment steps
 
-For us, deploying to Railway. This assumes the Railway project, the MariaDB service and the API service already exist, as set up in [railway_setup_runbook.md](railway_setup_runbook.md) §1–§6. Placeholders in `<angle brackets>` are values you fill in; never paste real secrets into this file.
+For us, deploying to Railway. This assumes the Railway project, the MariaDB service and the API service already exist, as set up in railway_setup_runbook.md (doc removed) §1–§6. Placeholders in `<angle brackets>` are values you fill in; never paste real secrets into this file.
 
 ### Step 1 — Get the code onto `main`
 
@@ -230,7 +230,7 @@ npm run check:deploy -- production      # expect: no localhost URLs
 
 ### Step 8 — Verify end to end
 
-1. Run the API smoke tests in [saas_deployment_guide.md §4.5](saas_deployment_guide.md) and [railway_setup_runbook.md §9](railway_setup_runbook.md).
+1. Run the API smoke tests in saas_deployment_guide.md §4.5 (doc removed) and railway_setup_runbook.md §9 (doc removed).
 2. Check CORS from the real frontend origin, and from a wrong one:
 
    ```bash

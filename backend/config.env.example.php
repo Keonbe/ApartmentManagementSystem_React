@@ -3,9 +3,8 @@
 // self-hosted Apache/XAMPP server. Copy to `config.env.php` (gitignored).
 //
 // Resolution order (config.php): a constant defined here wins, then the
-// process environment (DB_HOST, ... — how Railway/Docker is configured), then
-// the local default. On the SaaS host there is no config.env.php at all; use
-// deploy/env/saas.env.example as the list of service variables instead.
+// process environment (DB_HOST, ...), then
+// the local default.
 // PHP reads this at runtime on every request, so edits apply without a rebuild.
 // Check the result with: php backend/cron/check_environment.php
 

@@ -107,9 +107,6 @@ if ($prod) {
         $warnings[] = 'config.env.php exists on a SaaS host; its constants override the environment variables.';
     }
 }
-if ($target === 'selfhosted' && preg_match('/railway\.(app|internal)|rlwy\.net/i', DB_HOST . ' ' . APP_URL)) {
-    $errors[] = 'Self-hosted deployment points at a Railway host (DB_HOST or APP_URL) — that is the SaaS infrastructure.';
-}
 
 // --- Upload limits ---------------------------------------------------------
 // php.ini decides these; ini_set() cannot. The largest upload any endpoint

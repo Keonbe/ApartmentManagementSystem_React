@@ -21,9 +21,6 @@ const LOCAL_URL = /\b(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d
 // embed a bare `http://localhost` as a URL-parsing placeholder.
 const BUNDLE_LOCAL_URL = /\b(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+|\/[\w.-])/i;
 const TARGETS = ['local', 'saas', 'selfhosted'];
-// Hostname of the SaaS API. A self-hosted build pointing here would send another
-// operator's tenants to the SaaS database.
-const SAAS_HOST_HINT = 'railway.app';
 
 const isDevMode = (mode) => mode === 'development';
 const allowLocalhost = () => process.env.AMS_ALLOW_LOCALHOST_BUILD === '1';
@@ -50,9 +47,6 @@ export function checkEnv(mode, root = ROOT) {
         errors.push(`VITE_DEPLOYMENT_TARGET must be one of ${TARGETS.join(', ')}, got "${target}".`);
     } else if (target === 'local') {
         errors.push(`Production build (mode "${mode}") is labelled VITE_DEPLOYMENT_TARGET=local — development settings in a production build.`);
-    }
-    if (target === 'selfhosted' && api.includes(SAAS_HOST_HINT)) {
-        errors.push('Self-hosted build points VITE_API_BASE_URL at the SaaS (Railway) API.');
     }
     if (target === 'saas' && api && !api.startsWith('https://')) {
         errors.push('SaaS build must use an https:// API URL.');

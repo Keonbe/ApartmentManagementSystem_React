@@ -1,6 +1,6 @@
 # Environment Configuration — Local (XAMPP) and Production (Railway)
 
-> **Changed:** 2026-09-16 · **Related:** [saas_deployment_guide.md](saas_deployment_guide.md) (§2.2, §2.6, §4.3, §4.4, §13), [security_audit.md](../security_audit.md) (C-3, E-1, E-5)
+> **Changed:** 2026-09-16 · **Related:** saas_deployment_guide.md (doc removed) (§2.2, §2.6, §4.3, §4.4, §13), [security_audit.md](../security_audit.md) (C-3, E-1, E-5)
 
 This page covers how AMS chooses its settings in each environment, and what changed when the Railway domain went live. For the three build/run targets (local, SaaS, self-hosted), the guardrails and the `DEPLOYMENT_ID` claim, see [dual-deployment-environment-plan.md](dual-deployment-environment-plan.md).
 
@@ -107,7 +107,7 @@ The Docker image runs PHP 8.2, where `new mysqli()` **throws** when it can't con
 - In development, the page shows `Connection failed: <reason>`, as before.
 
 **If you see this on Railway:**
-1. Check the service's `DB_*` variables against [saas_deployment_guide.md §4.3](saas_deployment_guide.md#43-environment-variables).
+1. Check the service's `DB_*` variables against saas_deployment_guide.md §4.3 (doc removed).
 2. Confirm `DB_NAME=ams_db`.
 3. Confirm the schema was imported (§3.3).
 
@@ -115,7 +115,7 @@ The Docker image runs PHP 8.2, where `new mysqli()` **throws** when it can't con
 
 ## 6. Checklist: bringing production up
 
-> For a step-by-step version, including creating the MariaDB service and importing the schema, see [railway_setup_runbook.md](railway_setup_runbook.md).
+> For a step-by-step version, including creating the MariaDB service and importing the schema, see railway_setup_runbook.md (doc removed).
 
 1. Railway → API service → **Variables**: set the `DB_*` references, `DB_NAME=ams_db` and `APP_ENV=production`.
 2. **Deploy latest commit**, then test:

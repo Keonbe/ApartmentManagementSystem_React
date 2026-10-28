@@ -86,8 +86,7 @@ ApartmentManagementSystem_React/
 │   ├── uploads/                    # Private uploads, served only via download_file.php
 │   └── logs/                       # Queue log + mock notification outbox (gitignored)
 ├── websocket-server/               # Node.js Socket.IO chat server (server.js, port 3001)
-├── deploy/env/                     # selfhosted/saas .env examples
-├── Dockerfile                      # php:8.2-apache image
+├── deploy/env/                     # selfhosted .env example
 ├── .github/workflows/ci.yml        # Schema/seed/smoke-test jobs, PHPStan, ESLint
 └── docs/                           # Documentation (see index above)
 ```

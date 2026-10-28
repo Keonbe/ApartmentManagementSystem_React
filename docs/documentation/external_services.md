@@ -5,7 +5,6 @@
 > **Scope**: Consolidates all modules in the Apartment Management System that depend on third-party external services (Payment Gateway, Email, SMS). Covers the local XAMPP/self-hosted setup; SaaS cloud-hosted equivalents noted below are historical.
 > **Stack**: React 19 (Vite SPA) + PHP 8 (XAMPP/Apache) + MySQL/MariaDB 10 (`ams_db`)
 > **Dev URL**: `http://localhost:8080/ApartmentManagementSystem_React/`
-> **Related**: [saas_fallback_strategy.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/deployment/saas_fallback_strategy.md) — full deployment architecture & migration runbook
 >
 > ⚠️ **Verified against the repo (Sept 2026):** the two migration file links below (§2.1, §2.2) pointed at files that no longer exist — `backend/api/migrations/create_password_resets_table.php` and `backend/api/migrations/payment_channels.php` were both deleted in a later "clean completed migrations" commit without being folded into `SetupDB.sql`. In practice this means **the `password_resets` table and PayMongo's `system_settings` seed keys are absent from a fresh install built from `SetupDB.sql`** — the live dev database still has them because it predates that cleanup. Both links below have been corrected to point at `SetupDB.sql`, and the gap itself is called out inline.
 
@@ -382,4 +381,3 @@ Admin settings are read via [`get_system_settings.php`](file:///c:/xampp/htdocs/
 | Home server fails or unreliable | Railway (API + DB) + Vercel (frontend) + Resend (email) |
 | Long-term production (>50 tenants) | Dedicated VPS (DigitalOcean, Hetzner) with MySQL + Caddy |
 
-> For the full SaaS migration runbook (phased day-by-day steps), see [saas_fallback_strategy.md § 6](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/deployment/saas_fallback_strategy.md).

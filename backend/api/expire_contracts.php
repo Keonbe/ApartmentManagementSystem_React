@@ -18,8 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once "../config.php";
 
-// Deliberately callable with no session (see docs/deployment/saas_deployment_guide.md
-// §9): a scheduled cron job hits this URL directly, the same shape as
+// Deliberately callable with no session (documented as a cron target
+// in the deployment docs): a scheduled cron job hits this URL directly, the same shape as
 // expire_reservations.php. The mutation is idempotent and deterministic
 // (lease_end has either passed or it hasn't), so there is nothing an
 // unauthenticated caller can do here beyond what would happen anyway the

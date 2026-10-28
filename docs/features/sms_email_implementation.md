@@ -1776,4 +1776,3 @@ Do not verify by calling `send_sms()` with a made-up number — once the driver 
 > - [notification_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/notification_services.md) — full design spec, provider comparisons, alternative approaches
 > - [external_services.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/documentation/external_services.md) — integration matrix for all external services
 > - [panelist_feature_checklist.md](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/features/panelist_feature_checklist.md) — Module 6 checklist
-> - [saas_deployment_guide.md §8](file:///c:/xampp/htdocs/ApartmentManagementSystem_React/docs/deployment/saas_deployment_guide.md) — cloud deployment setup
