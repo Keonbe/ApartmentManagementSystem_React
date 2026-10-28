@@ -301,8 +301,8 @@ CREATE TABLE `parking_reservations` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   -- The database refuses two active reservations on one slot and two open
   -- reservations for one tenant, so concurrent requests cannot overbook.
-  `active_slot` int(11) AS (IF(`status` = 'Assigned', `slot_number`, NULL)) PERSISTENT,
-  `open_user` int(11) AS (IF(`status` IN ('Pending', 'Assigned'), `user_id`, NULL)) PERSISTENT,
+  `active_slot` int(11) GENERATED ALWAYS AS (IF(`status` = 'Assigned', `slot_number`, NULL)) VIRTUAL,
+  `open_user` int(11) GENERATED ALWAYS AS (IF(`status` IN ('Pending', 'Assigned'), `user_id`, NULL)) VIRTUAL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uniq_active_slot` (`active_slot`),
   UNIQUE KEY `uniq_open_user` (`open_user`),
@@ -336,11 +336,7 @@ CREATE TABLE `rent_applications` (
   `move_in_notified_at` datetime DEFAULT NULL,
   `room_name` varchar(50) NOT NULL,
   `monthly_rent` decimal(10,2) NOT NULL,
-  -- Legacy, no longer written: uploads live in application_documents
-  -- (2026_10_manager_interview_alignment.sql).
-  `valid_id_front_path` varchar(255) DEFAULT NULL,
-  `valid_id_back_path` varchar(255) DEFAULT NULL,
-  `nbi_clearance_path` varchar(255) DEFAULT NULL,
+  -- Uploaded documents live in application_documents.
   `status` varchar(20) NOT NULL DEFAULT 'Pending Review',
   `rejection_reason` varchar(255) DEFAULT NULL,
   `rejection_attachment_path` varchar(255) DEFAULT NULL,
