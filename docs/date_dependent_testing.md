@@ -109,10 +109,10 @@ Register → Login → Preview rooms → Submit Rent Application → Track Appli
 **Check DB after submit:**
 ```sql
 SELECT id, user_id, status, room_name, terms_agreed_at,
-       valid_id_front_path, valid_id_back_path, nbi_clearance_path
+       (SELECT COUNT(*) FROM application_documents d WHERE d.rent_application_id = rent_applications.id) AS docs
 FROM rent_applications ORDER BY id DESC LIMIT 1;
 ```
-Expected: `user_id` populated, **`status = 'Pending Review'`** (not `'Pending'` — that value is never used), all three file paths set, `terms_agreed_at` non-null, `room_name` = chosen room.
+Expected: `user_id` populated, **`status = 'Pending Review'`** (not `'Pending'` — that value is never used), one `application_documents` row per required document, `terms_agreed_at` non-null, `room_name` = chosen room.
 
 **Step 3 — Admin reviews and approves**
 - Admin page: `AdminApplications` → find the applicant → Approve. (`AdminTenants` deliberately excludes `Pending Review` rows; the Applications page owns this pipeline.)
@@ -610,7 +610,6 @@ Build once on a scratch DB (or on dev after `/db-snapshot save`; restore with `/
 
 ```bash
 bash .claude/skills/db-snapshot/snapshot.sh scratch defense --seed
-sed 's/ams_db/defense/g' backend/api/migrations/seeds/seed_panelist_gaps.sql | mysql -uroot defense      # optional: extra refund rows
 sed 's/ams_db/defense/g' backend/api/migrations/seeds/seed_defense_scenarios.sql | mysql -uroot defense  # safe to run twice
 ```
 
@@ -625,7 +624,7 @@ sed 's/ams_db/defense/g' backend/api/migrations/seeds/seed_defense_scenarios.s
 | 5 | Scheduled move-in | App 5 (Lita, unit E), move-in 3 days from today | AdminApplications; TrackApplication (Lita) | Move-in date shown; Confirm Move-In works only once it arrives |
 | 6 | Utility reading | Unit H metered (last month), unit G total only (this month) | AdminUtilities, UserUtilities (Pedro) | Total-only row shows "Total only"; Sync (paid) books ₱1,850.50 under Services |
 | 7 | Visitor overstay | `DEF Overstay Guest` (Maria, unit A), checked in 2 days ago | AdminVisitors after one notification poll | A "Visitor Overstay" alert is queued for the admin (threshold: Settings, default 24 h) |
-| 8 | Refund request | Row from #4; `seed_panelist_gaps.sql` adds advance and overpayment ones | /admin-refunds, /my-refunds | Approve, then Mark refunded needs a payout method and reference |
+| 8 | Refund request | Row from #4; `seed_demo_full.sql` adds advance and overpayment ones | /admin-refunds, /my-refunds | Approve, then Mark refunded needs a payout method and reference |
 | 9 | Payment window | `INV-DEF-ABANDONED` (Carlo, user 11) in `processing` for 4 days | Poll `get_notifications.php` or run `php backend/cron/daily_sweep.php` | Back to `pending`; Carlo notified "Online Checkout Expired" |
 | 10 | Documents outstanding | App 6 (Gloria) `Action Required` | Needs follow-up panel | Listed under missing documents; tenant nudge sent once |
 

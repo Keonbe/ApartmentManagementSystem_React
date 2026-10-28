@@ -170,9 +170,6 @@ erDiagram
         int months_of_rent
         varchar room_name FK "RESTRICT"
         decimal monthly_rent
-        varchar valid_id_front_path
-        varchar valid_id_back_path
-        varchar nbi_clearance_path
         varchar status "Pending Review | Approved | Rejected | Declined | active | pending-move-out | moved-out | archived"
         varchar pre_archive_status
         varchar rejection_reason

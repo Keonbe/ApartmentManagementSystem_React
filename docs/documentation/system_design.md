@@ -108,9 +108,6 @@ erDiagram
         int months_of_rent
         varchar room_name "string ref to rooms.id - no FK constraint"
         decimal monthly_rent
-        varchar valid_id_front_path "legacy, see application_documents"
-        varchar valid_id_back_path "legacy"
-        varchar nbi_clearance_path "legacy"
         varchar status "Pending Review, Approved, Rejected, pending-move-out, moved-out, archived"
         date archive_date
         varchar archive_reason

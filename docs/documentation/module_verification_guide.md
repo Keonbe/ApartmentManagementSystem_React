@@ -182,11 +182,11 @@ If a start script reports "could not be started" but the port is already listeni
 
 ### 1.5 ⚠️ The seed data predates the acceptance-criteria gate
 
-Every seeded application has `valid_id_front_path = 'placeholder'` and `terms_agreed_at = NULL`:
+Seeded applications have no rows in `application_documents` and `terms_agreed_at = NULL` (the ones past approval carry `documents_verified_at` instead, as an in-person check):
 
 ```bash
 /c/xampp/mysql/bin/mysql.exe -u root ams_db -e \
-  "SELECT id, status, valid_id_front_path, terms_agreed_at FROM rent_applications ORDER BY id;"
+  "SELECT ra.id, ra.status, ra.documents_verified_at, ra.terms_agreed_at, COUNT(d.id) AS docs FROM rent_applications ra LEFT JOIN application_documents d ON d.rent_application_id = ra.id GROUP BY ra.id ORDER BY ra.id;"
 ```
 
 Because `update_tenant_status.php` now enforces checklist item 1.7, **no seeded application can be approved** — the gate correctly rejects all of them. Applications already sitting at `Approved`/`active` were seeded past the gate and are unaffected.
@@ -689,7 +689,7 @@ flowchart LR
 ```sql
 DELETE FROM rooms WHERE id LIKE 'TEST%';
 -- After M2-06/M2-07, also remove the synthetic application and re-vacate the unit:
-DELETE FROM rent_applications WHERE room_name = '<unit>' AND valid_id_front_path = 'placeholder'
+DELETE FROM rent_applications WHERE room_name = '<unit>' AND documents_verified_at IS NOT NULL
   AND id NOT IN (SELECT * FROM (SELECT id FROM rent_applications ORDER BY id LIMIT 12) x);
 UPDATE rooms SET status='vacant', tenant_name=NULL, lease_start=NULL, lease_end=NULL, occupants=0
   WHERE id='<unit>';
@@ -2508,7 +2508,7 @@ Seed fixtures: reservation **1** (Dante, user 9) Assigned slot 1; reservation **
 | `create_contract.php` | POST | `require_admin` | `rentApplicationId`, `depositAmount` (defaults to monthly rent), `leaseStart`, `leaseEnd` (≤ 24 months) | `success`, `contractId` (created as `draft`) | `422` application not found, not yet approved, or bad/inverted dates · `409` a contract already exists for this application |
 | `update_contract_status.php` | POST | `require_admin` | `contractId`, `action` = `activate` / `flag` / `clear` / `terminate` (+ `reason`) / `edit` (+ `leaseStart`, `leaseEnd`) | `success` | `404` unknown contract · `422` the action isn't valid from the contract's current status (`CONTRACT_TRANSITIONS`), or bad dates · `409` status changed concurrently, or (`terminate`) the tenant already moved out, or (`activate`, payments audit 2026-09-30) the move-in invoice (advance + deposit) is not paid, or the tenant has not moved in yet — confirming the move-in activates the contract from the real start date. `terminate` also records the deposit's disposition (non-refundable): a `Held` deposit becomes *Applied to Bills/Damages* when anything is still open, else *Applied to Rent*; a never-paid one *Not Collected*; `refund_amount` 0, `refund_date` today |
 | `upload_lease_document.php` | POST (multipart or form) | `require_user`, owner or admin | `contractId` or `rentApplicationId`, `docType` (`signedLease`/`notarizedLease`), `action` (`upload`/`remove`); file ≤ 10MB, PDF/JPG/PNG | `success`, `filePath`, `contractId` | `403` not your contract · `409` application not yet approved (no contract to attach to), or a tenant removing a document from a non-`draft` contract · `422` bad/oversized/wrong-type file |
-| `expire_contracts.php` | GET/POST | **None** — deliberately public, a documented cron target (`docs/deployment/saas_deployment_guide.md` §9), same shape as `expire_reservations.php` | — | `success`, `expired` (count) | Idempotent: a lease either has lapsed or it hasn't |
+| `expire_contracts.php` | GET/POST | **None** — deliberately public, a documented cron target (see the deployment docs), same shape as `expire_reservations.php` | — | `success`, `expired` (count) | Idempotent: a lease either has lapsed or it hasn't |
 | `extend_lease.php` | POST | `require_user` | `additionalMonths` (1–12; the minimum is `min_lease_duration`, shrunk to the months that fit under `max_rent_ahead_months`, so a tenant with a long term left can still extend up to the limit — `extension_month_range()`, audit N-1/N-2; `my_room.php` returns it as `extension.minMonths`/`maxMonths`, `get_rooms.php` as `extensionRange`) | `success` — files a `lease_extension_request` notification | `400` out of range, an open request already pending, the contract is not `active`/`expired` (`CONTRACT_TRANSITIONS` `extend`), or the new end would be more than `max_rent_ahead_months` (Settings → Rental, default and maximum 12) from today — audit L6 |
 | `process_tenant_request.php` | POST | `require_admin` | `notificationId`, `action` (`approve`/`reject`) | `success` — approval extends the contract in place via `extend_tenancy()` and adds a `lease_renewals` row; an expired contract's holdover months are billed (due today + 7) | `404` id isn't an occupancy/lease request · `409` an extension rule fails now (overdue bill, scheduled move-out, contract state, months-ahead); the request stays Pending |
 | `admin_extend_rent.php` | POST | `require_admin` | `roomId`, `addMonths` (min rent duration–12), `newRent` (optional, applies from now on) | `success`, `message`, `newLeaseEnd`, `holdoverInvoices` — same `extend_tenancy()` as an approval; logs *Extended Rent* (`contract`), notifies the tenant, bills months starting within 7 days | `409` no moved-in tenant in the room, or an extension rule fails · `422` bad rent |
@@ -2836,7 +2836,7 @@ Open defects as of this document's version. Each affects testing, so check here 
 
 Every endpoint previously listed here as trusting `X-User-Id` or a body `userId` now takes identity from the session — see the table in [§12.1](#121-api-contract). In addition, `config.php` overwrites both headers from the session before any endpoint code runs, so no endpoint anywhere can be fooled by a forged header. A test that sends one should behave exactly as if it weren't sent.
 
-Also: `expire_contracts.php` and `expire_reservations.php` mutate rows with **no session check at all**. This is deliberate, not a leftover bug — both are documented cron targets (`docs/deployment/saas_deployment_guide.md` §9) meant to be hit by an external scheduler with no login, and the mutation is idempotent (a lease or a hold has either lapsed or it hasn't). `get_contracts.php`'s own opportunistic expiry, by contrast, now runs *after* `require_user()` — it has no reason to mutate before auth, since it isn't a cron target.
+Also: `expire_contracts.php` and `expire_reservations.php` mutate rows with **no session check at all**. This is deliberate, not a leftover bug — both are documented cron targets (see the deployment docs) meant to be hit by an external scheduler with no login, and the mutation is idempotent (a lease or a hold has either lapsed or it hasn't). `get_contracts.php`'s own opportunistic expiry, by contrast, now runs *after* `require_user()` — it has no reason to mutate before auth, since it isn't a cron target.
 
 ### 18.3 Sharp edges (working as designed, but easy to misread)
 
